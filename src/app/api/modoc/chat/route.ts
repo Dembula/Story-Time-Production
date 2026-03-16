@@ -1,4 +1,5 @@
 import { getServerSession } from "next-auth";
+import { cookies } from "next/headers";
 import { authOptions } from "@/lib/auth";
 import {
   buildModocSystemPrompt,
@@ -142,16 +143,50 @@ export async function POST(req: Request) {
   // Viewer (browse) scope: inject published catalog + user watch history so MODOC can find movies/scenes and suggest from history
   if (scope === "browse" || path.startsWith("/browse")) {
     try {
+      // Resolve active viewer profile for age filtering and per-profile history
+      let profileAge: number | null = null;
+      let viewerProfileId: string | null = null;
+      if (session?.user?.id) {
+        try {
+          const cookieStore = await cookies();
+          const profileId = cookieStore.get("st_viewer_profile")?.value;
+          if (profileId) {
+            const profile = await prisma.viewerProfile.findFirst({
+              where: { id: profileId, userId: (session.user as { id?: string }).id },
+              select: { id: true, age: true },
+            });
+            if (profile) {
+              profileAge = profile.age;
+              viewerProfileId = profile.id;
+            }
+          }
+        } catch {
+          // If cookies are unavailable for some reason, fall back to account-level behavior
+        }
+      }
+
+      const ageFilter =
+        profileAge != null
+          ? {
+              minAge: {
+                lte: profileAge,
+              },
+            }
+          : {};
+
       const [catalog, watchHistory] = await Promise.all([
         prisma.content.findMany({
-          where: { published: true },
+          where: { published: true, ...ageFilter },
           select: { id: true, title: true, description: true, type: true, category: true, tags: true },
           orderBy: { createdAt: "desc" },
           take: 400,
         }),
         session?.user?.id
           ? prisma.watchSession.findMany({
-              where: { userId: (session.user as { id?: string }).id },
+              where: {
+                userId: (session.user as { id?: string }).id,
+                ...(viewerProfileId ? { viewerProfileId } : {}),
+              },
               orderBy: { startedAt: "desc" },
               take: 50,
               include: { content: { select: { id: true, title: true, type: true, category: true } } },
