@@ -1,0 +1,27 @@
+[
+  {
+    "projectId": "cmmonh2wn00026i7qmtqii8cb",
+    "template": "INDIE_FILM",
+    "lines": [
+      {
+        "id": "l2wpmzqpy8mmou39wb",
+        "department": "UNASSIGNED",
+        "name": "",
+        "quantity": 1,
+        "unitCost": 0,
+        "total": 0,
+        "notes": ""
+      },
+      {
+        "id": "t0j5v98kgbjmmou39wb",
+        "department": "UNASSIGNED",
+        "name": "",
+        "quantity": 1,
+        "unitCost": 0,
+        "total": 0,
+        "notes": ""
+      }
+    ],
+    "updatedAt": "2026-03-13T11:49:11.003Z"
+  }
+]

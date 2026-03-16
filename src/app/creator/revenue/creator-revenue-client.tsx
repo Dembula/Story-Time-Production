@@ -1,0 +1,522 @@
+"use client";
+
+import { useEffect, useState, useRef } from "react";
+import {
+  DollarSign,
+  TrendingUp,
+  Eye,
+  Clock,
+  Percent,
+  Building2,
+  CreditCard,
+  ArrowDownToLine,
+  BarChart3,
+  Users,
+  MessageSquare,
+  Film,
+  FolderKanban,
+  Trophy,
+  Bookmark,
+  Bot,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useModocOptional, useModoc } from "@/components/modoc";
+
+type RevenueData = {
+  revenue: number;
+  watchTime: number;
+  share: number;
+  periodStart: string;
+  periodEnd: string;
+  totalViews: number;
+  streamCount: number;
+  perViewRand: number;
+  perStreamRand: number;
+  creatorPool: number;
+  viewerSubRevenue: number;
+  banking: { bankName: string; accountNumberLast4: string; accountType: string; verified: boolean } | null;
+  payouts: { id: string; amount: number; currency: string; status: string; period: string; paidAt: string | null }[];
+};
+
+type CreatorAnalytics = {
+  period: { start: string; end: string };
+  revenue: {
+    amount: number;
+    watchTimeSeconds: number;
+    sharePercent: number;
+    totalViews: number;
+    streamCount: number;
+    perViewRand: number;
+    perStreamRand: number;
+    creatorPool: number;
+    viewerSubRevenue: number;
+  };
+  engagement: {
+    totalViews: number;
+    uniqueWatchers: number;
+    averageWatchTimeSeconds: number;
+    totalWatchTimeSeconds: number;
+    totalComments: number;
+    totalRatings: number;
+    watchlistCount: number;
+    contentCount: number;
+  };
+  contentPerformance: Array<{
+    id: string;
+    title: string;
+    type: string;
+    views: number;
+    watchTimeSeconds: number;
+    comments: number;
+    ratings: number;
+    watchlistAdds: number;
+    avgRating: number | null;
+  }>;
+  projects: { total: number; byPhase: Record<string, number>; byStatus: Record<string, number> };
+  competition: { periodName: string | null; endDate: string | null; rank: number | null; voteCount: number } | null;
+};
+
+function getModocMessageContent(message: { content?: string; parts?: Array<{ type: string; text?: string }> }): string {
+  if (typeof message.content === "string") return message.content;
+  if (Array.isArray(message.parts)) {
+    return message.parts
+      .map((p) => (p.type === "text" ? (p as { text?: string }).text ?? "" : ""))
+      .join("");
+  }
+  return "";
+}
+
+function CreatorAnalyticsModocModal({
+  onClose,
+  prompt,
+}: {
+  onClose: () => void;
+  prompt: string;
+}) {
+  const { append, messages, status, setRequestContext } = useModoc();
+  const appendedRef = useRef(false);
+
+  useEffect(() => {
+    setRequestContext({
+      scope: "creator-analytics",
+      clientContext: "Task: creator_analytics. Analytics report requested.",
+      pageContext: { task: "creator_analytics" },
+    });
+  }, [setRequestContext]);
+
+  useEffect(() => {
+    if (appendedRef.current) return;
+    appendedRef.current = true;
+    append({ role: "user", content: prompt });
+  }, [prompt, append]);
+
+  const lastAssistant = messages.filter((m) => m.role === "assistant").pop();
+  const displayContent = lastAssistant ? getModocMessageContent(lastAssistant) : "";
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/60" aria-hidden onClick={onClose} />
+      <div
+        className="fixed left-1/2 top-1/2 z-50 w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-cyan-500/30 bg-slate-900 shadow-xl p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+            <Bot className="w-5 h-5 text-cyan-400" />
+            MODOC analytics report
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-slate-400 hover:text-white p-2 rounded-lg text-xl leading-none"
+          >
+            ×
+          </button>
+        </div>
+        <div className="max-h-[60vh] overflow-y-auto rounded-xl bg-slate-800/60 border border-slate-700 p-4 text-sm text-slate-200 whitespace-pre-wrap">
+          {status === "streaming" || status === "submitted" ? (
+            displayContent ? displayContent : <span className="text-slate-400">MODOC is working…</span>
+          ) : (
+            displayContent || "Waiting for MODOC…"
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+export function CreatorRevenueClient() {
+  const modoc = useModocOptional();
+  const [modocReportOpen, setModocReportOpen] = useState(false);
+  const [revenueData, setRevenueData] = useState<RevenueData | null>(null);
+  const [analytics, setAnalytics] = useState<CreatorAnalytics | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [period, setPeriod] = useState<"month" | "quarter">("month");
+  const [bankForm, setBankForm] = useState({ bankName: "", accountNumber: "", accountType: "CHEQUE", branchCode: "" });
+  const [submittingBank, setSubmittingBank] = useState(false);
+
+  useEffect(() => {
+    Promise.all([
+      fetch(`/api/creator/revenue?period=${period}`).then((r) => r.json()),
+      fetch("/api/creator/analytics").then(async (r) => {
+        const data = await r.json();
+        return r.ok && data?.period ? data : null;
+      }),
+    ])
+      .then(([revenue, analyticsData]) => {
+        setRevenueData(revenue);
+        setAnalytics(analyticsData ?? null);
+      })
+      .catch(() => setRevenueData(null))
+      .finally(() => setLoading(false));
+  }, [period]);
+
+  async function submitBank(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmittingBank(true);
+    try {
+      const res = await fetch("/api/creator/banking", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(bankForm),
+      });
+      if (res.ok) {
+        setBankForm({ bankName: "", accountNumber: "", accountType: "CHEQUE", branchCode: "" });
+        const d = await fetch(`/api/creator/revenue?period=${period}`).then((r) => r.json());
+        setRevenueData(d);
+      }
+    } finally {
+      setSubmittingBank(false);
+    }
+  }
+
+  if (loading || !revenueData) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  const data = revenueData;
+  const eng = analytics?.engagement;
+  const contentList = analytics?.contentPerformance ?? [];
+  const projects = analytics?.projects;
+  const competition = analytics?.competition;
+
+  return (
+    <div className="p-6 md:p-8 max-w-6xl mx-auto space-y-10">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-semibold text-white mb-2 flex items-center gap-3">
+            <BarChart3 className="w-8 h-8 text-orange-500" /> Analytics
+          </h1>
+          <p className="text-slate-400 text-sm md:text-base">
+            Performance across your account and movies: revenue, audience, content, projects, and competition.
+          </p>
+        </div>
+        {modoc && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="border-cyan-500/50 text-cyan-200 hover:bg-cyan-500/10 text-xs shrink-0"
+            onClick={() => setModocReportOpen(true)}
+          >
+            <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
+            Get MODOC analytics report
+          </Button>
+        )}
+      </div>
+      {modoc && modocReportOpen && (
+        <CreatorAnalyticsModocModal
+          onClose={() => setModocReportOpen(false)}
+          prompt="Using my analytics data in your context, give me a clear report: what do these stats mean, how do they tie together (revenue, views, engagement, content performance, projects), and what are 2–4 actionable next steps I can take?"
+        />
+      )}
+
+      {/* Period toggle for revenue */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => setPeriod("month")}
+          className={`px-4 py-2 rounded-lg text-sm font-medium ${period === "month" ? "bg-orange-500 text-white" : "bg-slate-800/50 text-slate-400 border border-slate-700/50 hover:border-slate-600"}`}
+        >
+          This month
+        </button>
+        <button
+          onClick={() => setPeriod("quarter")}
+          className={`px-4 py-2 rounded-lg text-sm font-medium ${period === "quarter" ? "bg-orange-500 text-white" : "bg-slate-800/50 text-slate-400 border border-slate-700/50 hover:border-slate-600"}`}
+        >
+          This quarter
+        </button>
+      </div>
+
+      {/* Revenue (period) */}
+      <section>
+        <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+          <DollarSign className="w-5 h-5 text-orange-400" /> Revenue
+        </h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
+            <div className="flex items-center gap-2 mb-2">
+              <DollarSign className="w-4 h-4 text-orange-400" />
+              <span className="text-xs text-slate-400">Earnings</span>
+            </div>
+            <p className="text-2xl font-bold text-white">R{data.revenue.toFixed(2)}</p>
+            <p className="text-xs text-slate-500 mt-1">{data.periodStart?.slice(0, 7)} – {data.periodEnd?.slice(0, 10)}</p>
+          </div>
+          <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
+            <div className="flex items-center gap-2 mb-2">
+              <Eye className="w-4 h-4 text-emerald-400" />
+              <span className="text-xs text-slate-400">Views</span>
+            </div>
+            <p className="text-2xl font-bold text-white">{data.totalViews.toLocaleString()}</p>
+            <p className="text-xs text-slate-500 mt-1">R{data.perViewRand.toFixed(4)} per view</p>
+          </div>
+          <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
+            <div className="flex items-center gap-2 mb-2">
+              <Clock className="w-4 h-4 text-violet-400" />
+              <span className="text-xs text-slate-400">Watch time</span>
+            </div>
+            <p className="text-2xl font-bold text-white">{Math.floor(data.watchTime / 3600)}h</p>
+            <p className="text-xs text-slate-500 mt-1">R{data.perStreamRand.toFixed(2)} per stream</p>
+          </div>
+          <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
+            <div className="flex items-center gap-2 mb-2">
+              <Percent className="w-4 h-4 text-cyan-400" />
+              <span className="text-xs text-slate-400">Share of pool</span>
+            </div>
+            <p className="text-2xl font-bold text-white">{data.share.toFixed(2)}%</p>
+            <p className="text-xs text-slate-500 mt-1">Creator pool R{data.creatorPool.toFixed(2)}</p>
+          </div>
+        </div>
+      </section>
+
+      {/* Engagement & audience (all-time) */}
+      {eng && (
+        <section>
+          <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+            <Users className="w-5 h-5 text-emerald-400" /> Engagement & audience
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-slate-800/40 border border-slate-700/60 rounded-xl p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <Eye className="w-4 h-4 text-emerald-400" />
+                <span className="text-xs text-slate-400">Total views</span>
+              </div>
+              <p className="text-2xl font-bold text-white">{eng.totalViews.toLocaleString()}</p>
+              <p className="text-xs text-slate-500 mt-1">All-time watch sessions</p>
+            </div>
+            <div className="bg-slate-800/40 border border-slate-700/60 rounded-xl p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <Users className="w-4 h-4 text-emerald-400" />
+                <span className="text-xs text-slate-400">Unique viewers</span>
+              </div>
+              <p className="text-2xl font-bold text-white">{eng.uniqueWatchers.toLocaleString()}</p>
+              <p className="text-xs text-slate-500 mt-1">People who watched your work</p>
+            </div>
+            <div className="bg-slate-800/40 border border-slate-700/60 rounded-xl p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <Clock className="w-4 h-4 text-violet-400" />
+                <span className="text-xs text-slate-400">Avg session</span>
+              </div>
+              <p className="text-2xl font-bold text-white">
+                {eng.averageWatchTimeSeconds ? `${Math.floor(eng.averageWatchTimeSeconds / 60)}m` : "0m"}
+              </p>
+              <p className="text-xs text-slate-500 mt-1">Time per view</p>
+            </div>
+            <div className="bg-slate-800/40 border border-slate-700/60 rounded-xl p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <MessageSquare className="w-4 h-4 text-sky-400" />
+                <span className="text-xs text-slate-400">Comments</span>
+              </div>
+              <p className="text-2xl font-bold text-white">{eng.totalComments.toLocaleString()}</p>
+              <p className="text-xs text-slate-500 mt-1">Conversation & feedback</p>
+            </div>
+            <div className="bg-slate-800/40 border border-slate-700/60 rounded-xl p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <Percent className="w-4 h-4 text-yellow-400" />
+                <span className="text-xs text-slate-400">Ratings</span>
+              </div>
+              <p className="text-2xl font-bold text-white">{eng.totalRatings.toLocaleString()}</p>
+              <p className="text-xs text-slate-500 mt-1">Total ratings</p>
+            </div>
+            <div className="bg-slate-800/40 border border-slate-700/60 rounded-xl p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <Bookmark className="w-4 h-4 text-amber-400" />
+                <span className="text-xs text-slate-400">Watchlist adds</span>
+              </div>
+              <p className="text-2xl font-bold text-white">{eng.watchlistCount.toLocaleString()}</p>
+              <p className="text-xs text-slate-500 mt-1">Saved by viewers</p>
+            </div>
+            <div className="bg-slate-800/40 border border-slate-700/60 rounded-xl p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <Film className="w-4 h-4 text-slate-400" />
+                <span className="text-xs text-slate-400">Titles</span>
+              </div>
+              <p className="text-2xl font-bold text-white">{eng.contentCount}</p>
+              <p className="text-xs text-slate-500 mt-1">Content pieces</p>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Content performance */}
+      <section>
+        <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+          <Film className="w-5 h-5 text-violet-400" /> Content performance
+        </h2>
+        {contentList.length === 0 ? (
+          <div className="rounded-2xl border border-slate-700/50 bg-slate-800/30 p-6 text-slate-500 text-sm">
+            No content yet. Publish titles to see views, watch time, and engagement here.
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-slate-700/50 bg-slate-800/30 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-700/50 text-left text-slate-400">
+                    <th className="px-4 py-3 font-medium">Title</th>
+                    <th className="px-4 py-3 font-medium">Type</th>
+                    <th className="px-4 py-3 font-medium">Views</th>
+                    <th className="px-4 py-3 font-medium">Watch time</th>
+                    <th className="px-4 py-3 font-medium">Comments</th>
+                    <th className="px-4 py-3 font-medium">Ratings</th>
+                    <th className="px-4 py-3 font-medium">Watchlist</th>
+                    <th className="px-4 py-3 font-medium">Avg rating</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {contentList.map((c) => (
+                    <tr key={c.id} className="border-b border-slate-700/30 last:border-0 hover:bg-slate-800/50">
+                      <td className="px-4 py-3 text-white font-medium truncate max-w-[180px]">{c.title}</td>
+                      <td className="px-4 py-3 text-slate-400">{c.type}</td>
+                      <td className="px-4 py-3 text-white">{c.views.toLocaleString()}</td>
+                      <td className="px-4 py-3 text-slate-300">{Math.floor(c.watchTimeSeconds / 60)}m</td>
+                      <td className="px-4 py-3 text-slate-300">{c.comments}</td>
+                      <td className="px-4 py-3 text-slate-300">{c.ratings}</td>
+                      <td className="px-4 py-3 text-slate-300">{c.watchlistAdds}</td>
+                      <td className="px-4 py-3 text-slate-300">{c.avgRating != null ? c.avgRating.toFixed(1) : "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* Projects pipeline */}
+      {projects && projects.total > 0 && (
+        <section>
+          <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+            <FolderKanban className="w-5 h-5 text-sky-400" /> Projects pipeline
+          </h2>
+          <div className="rounded-2xl border border-slate-700/50 bg-slate-800/30 p-5 flex flex-wrap gap-6">
+            <div>
+              <p className="text-xs text-slate-400 mb-1">Total projects</p>
+              <p className="text-2xl font-bold text-white">{projects.total}</p>
+            </div>
+            {Object.keys(projects.byPhase).length > 0 && (
+              <div>
+                <p className="text-xs text-slate-400 mb-2">By phase</p>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(projects.byPhase).map(([phase, count]) => (
+                    <span key={phase} className="px-2.5 py-1 rounded-lg bg-slate-700/50 text-slate-200 text-xs">
+                      {phase}: {count}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {Object.keys(projects.byStatus).length > 0 && (
+              <div>
+                <p className="text-xs text-slate-400 mb-2">By status</p>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(projects.byStatus).map(([status, count]) => (
+                    <span key={status} className="px-2.5 py-1 rounded-lg bg-slate-700/50 text-slate-200 text-xs">
+                      {status}: {count}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* Competition */}
+      {competition && (competition.periodName || competition.rank != null) && (
+        <section>
+          <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+            <Trophy className="w-5 h-5 text-amber-400" /> Competition
+          </h2>
+          <div className="rounded-2xl border border-slate-700/50 bg-slate-800/30 p-5 flex flex-wrap gap-6">
+            {competition.periodName && <p className="text-slate-300">Period: {competition.periodName}</p>}
+            {competition.endDate && <p className="text-slate-400 text-sm">Ends: {new Date(competition.endDate).toLocaleDateString()}</p>}
+            {competition.rank != null && <p className="text-white font-medium">Your rank: #{competition.rank}</p>}
+            <p className="text-slate-300">Votes received: {competition.voteCount}</p>
+          </div>
+        </section>
+      )}
+
+      {/* How you earn */}
+      <div className="rounded-2xl bg-slate-800/30 border border-slate-700/50 p-6">
+        <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+          <TrendingUp className="w-5 h-5 text-orange-400" /> How you earn
+        </h2>
+        <p className="text-slate-400 text-sm">
+          60% of viewer subscription revenue is shared among creators by view share. Your share is based on your content&apos;s proportion of total platform views in the selected period.
+        </p>
+      </div>
+
+      {/* Banking */}
+      <div className="rounded-2xl bg-slate-800/30 border border-slate-700/50 p-6">
+        <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+          <Building2 className="w-5 h-5 text-emerald-400" /> Banking
+        </h2>
+        {data.banking ? (
+          <div className="flex items-center justify-between p-4 rounded-xl bg-slate-800/50 border border-slate-700/30">
+            <div>
+              <p className="text-white font-medium">{data.banking.bankName}</p>
+              <p className="text-slate-400 text-sm">••••{data.banking.accountNumberLast4} · {data.banking.accountType}</p>
+              {data.banking.verified && <span className="text-xs text-emerald-400">Verified</span>}
+            </div>
+            <CreditCard className="w-8 h-8 text-slate-500" />
+          </div>
+        ) : (
+          <form onSubmit={submitBank} className="space-y-4 max-w-md">
+            <input type="text" placeholder="Bank name" value={bankForm.bankName} onChange={(e) => setBankForm((f) => ({ ...f, bankName: e.target.value }))} required className="w-full px-4 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white placeholder:text-slate-500" />
+            <input type="text" placeholder="Account number" value={bankForm.accountNumber} onChange={(e) => setBankForm((f) => ({ ...f, accountNumber: e.target.value }))} required className="w-full px-4 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white placeholder:text-slate-500" />
+            <select value={bankForm.accountType} onChange={(e) => setBankForm((f) => ({ ...f, accountType: e.target.value }))} className="w-full px-4 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white">
+              <option value="CHEQUE">Cheque</option>
+              <option value="SAVINGS">Savings</option>
+            </select>
+            <input type="text" placeholder="Branch code (SA)" value={bankForm.branchCode} onChange={(e) => setBankForm((f) => ({ ...f, branchCode: e.target.value }))} className="w-full px-4 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white placeholder:text-slate-500" />
+            <button type="submit" disabled={submittingBank} className="px-4 py-2 rounded-lg bg-orange-500 text-white font-medium hover:bg-orange-600 disabled:opacity-50">Save banking details</button>
+          </form>
+        )}
+      </div>
+
+      {/* Payouts */}
+      <div className="rounded-2xl bg-slate-800/30 border border-slate-700/50 p-6">
+        <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+          <ArrowDownToLine className="w-5 h-5 text-violet-400" /> Payouts
+        </h2>
+        {data.payouts.length === 0 ? (
+          <p className="text-slate-500 text-sm">No payouts yet. Payouts are processed by Story Time based on your earnings.</p>
+        ) : (
+          <ul className="space-y-2">
+            {data.payouts.map((p) => (
+              <li key={p.id} className="flex justify-between items-center py-2 border-b border-slate-700/30 last:border-0 flex-wrap gap-2">
+                <span className="text-white">R{p.amount.toFixed(2)}</span>
+                <span className={`text-sm ${p.status === "COMPLETED" ? "text-emerald-400" : "text-slate-500"}`}>{p.status}</span>
+                <span className="text-slate-500 text-sm">{p.period}{p.paidAt ? ` · ${new Date(p.paidAt).toLocaleDateString()}` : ""}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}

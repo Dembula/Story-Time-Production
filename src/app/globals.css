@@ -1,0 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 222 47% 4%;
+    --foreground: 0 0% 98%;
+    --primary: 24 95% 53%;
+    --primary-foreground: 0 0% 100%;
+    --accent: 199 89% 48%;
+    --accent-foreground: 0 0% 100%;
+    --muted: 222 20% 12%;
+    --muted-foreground: 215 16% 57%;
+    --card: 222 25% 8%;
+    --card-foreground: 0 0% 98%;
+    --surface: 222 30% 6%;
+  }
+}
+
+body {
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

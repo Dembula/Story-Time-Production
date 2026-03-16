@@ -1,0 +1,31 @@
+import type { Metadata } from "next";
+import { Outfit } from "next/font/google";
+import "./globals.css";
+import { Providers } from "@/components/providers";
+
+const outfit = Outfit({
+  subsets: ["latin"],
+  variable: "--font-display",
+  display: "swap",
+});
+
+export const metadata: Metadata = {
+  title: "STORY TIME - Home Of Independent Creators",
+  description: "Stream movies, series, shows, and podcasts from independent creators",
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html lang="en" className="dark">
+      <body
+        className={`${outfit.variable} font-sans antialiased min-h-screen bg-background`}
+      >
+        <Providers>{children}</Providers>
+      </body>
+    </html>
+  );
+}

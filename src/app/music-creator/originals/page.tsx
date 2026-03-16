@@ -1,0 +1,112 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import {
+  Sparkles, Music, Film, Users, CheckCircle, DollarSign, Target,
+  ChevronDown, ChevronUp, Star,
+} from "lucide-react";
+
+interface Membership { id: string; role: string; department: string | null; status: string; project: { id: string; title: string; logline: string | null; type: string; genre: string | null; status: string; phase: string; budget: number | null; targetDate: string | null; posterUrl: string | null; members: { id: string; role: string; department: string | null; status: string; user: { id: string; name: string | null; role: string } }[]; _count: { members: number } } }
+
+const STATUS_COLORS: Record<string, string> = { DEVELOPMENT: "bg-blue-500/10 text-blue-400", GREENLIT: "bg-emerald-500/10 text-emerald-400", IN_PRODUCTION: "bg-orange-500/10 text-orange-400", POST_PRODUCTION: "bg-purple-500/10 text-purple-400", COMPLETED: "bg-green-500/10 text-green-400" };
+
+export default function MusicOriginalsPage() {
+  const [memberships, setMemberships] = useState<Membership[]>([]);
+  const [allProjects, setAllProjects] = useState<{ id: string; title: string; type: string; genre: string | null; status: string; logline: string | null; members: { department: string | null; status: string }[]; _count: { members: number } }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/originals?type=my-projects").then((r) => r.json()),
+      fetch("/api/originals?type=projects").then((r) => r.json()),
+    ]).then(([m, p]) => { setMemberships(m); setAllProjects(p); }).finally(() => setLoading(false));
+  }, []);
+
+  async function respondInvite(memberId: string, accept: boolean) {
+    await fetch("/api/originals", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "RESPOND_INVITE", memberId, accept }) });
+    setMemberships((prev) => prev.map((m) => m.id === memberId ? { ...m, status: accept ? "ACTIVE" : "DECLINED" } : m));
+  }
+
+  const invites = memberships.filter((m) => m.status === "INVITED");
+  const active = memberships.filter((m) => m.status === "ACTIVE");
+  const projectsNeedingMusic = allProjects.filter((p) => !["COMPLETED", "CANCELLED"].includes(p.status) && p.members.filter((m) => m.department === "MUSIC" && m.status === "ACTIVE").length < 2);
+
+  if (loading) return <div className="flex items-center justify-center min-h-[60vh]"><div className="w-8 h-8 border-2 border-pink-500 border-t-transparent rounded-full animate-spin" /></div>;
+
+  return (
+    <div className="p-8 max-w-7xl mx-auto space-y-8">
+      <div>
+        <h1 className="text-3xl font-semibold text-white mb-2 flex items-center gap-3"><Sparkles className="w-8 h-8 text-orange-500" /> Story Time Originals</h1>
+        <p className="text-slate-400">Contribute your music to Story Time Original productions. Score films, compose themes, and collaborate with directors.</p>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4"><p className="text-xs text-slate-400">Active Projects</p><p className="text-2xl font-bold text-white">{active.length}</p></div>
+        <div className="bg-yellow-500/5 border border-yellow-500/20 rounded-xl p-4"><p className="text-xs text-yellow-400">Pending Invites</p><p className="text-2xl font-bold text-yellow-400">{invites.length}</p></div>
+        <div className="bg-pink-500/5 border border-pink-500/20 rounded-xl p-4"><p className="text-xs text-pink-400">Need Music</p><p className="text-2xl font-bold text-pink-400">{projectsNeedingMusic.length}</p></div>
+      </div>
+
+      {invites.length > 0 && (
+        <div className="bg-yellow-500/5 border border-yellow-500/20 rounded-xl p-5 space-y-3">
+          <p className="text-white font-medium flex items-center gap-2"><Star className="w-5 h-5 text-yellow-400" /> Project Invitations</p>
+          {invites.map((m) => (
+            <div key={m.id} className="flex items-center justify-between p-3 rounded-lg bg-slate-800/30 border border-slate-700/30">
+              <div><p className="text-white text-sm font-medium">{m.project.title}</p><p className="text-xs text-slate-500">Role: {m.role} · {m.project.type} · {m.project.genre}</p></div>
+              <div className="flex gap-2"><button onClick={() => respondInvite(m.id, true)} className="px-3 py-1.5 bg-green-500/10 text-green-400 border border-green-500/30 rounded-lg text-xs">Accept</button><button onClick={() => respondInvite(m.id, false)} className="px-3 py-1.5 bg-red-500/10 text-red-400 border border-red-500/30 rounded-lg text-xs">Decline</button></div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <h2 className="text-white font-semibold text-lg">Your Productions</h2>
+      <div className="space-y-4">
+        {active.map((m) => (
+          <div key={m.id} className="bg-slate-800/50 border border-slate-700/50 rounded-xl overflow-hidden">
+            <div className="p-5 cursor-pointer hover:bg-slate-800/70 transition" onClick={() => setExpanded(expanded === m.id ? null : m.id)}>
+              <div className="flex items-start gap-4">
+                {m.project.posterUrl && <img src={m.project.posterUrl} alt="" className="w-14 h-20 rounded-lg object-cover flex-shrink-0" />}
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <h3 className="text-white font-semibold">{m.project.title}</h3>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[m.project.status] || "bg-slate-500/10 text-slate-400"}`}>{m.project.status.replace(/_/g, " ")}</span>
+                  </div>
+                  <p className="text-sm text-slate-400">{m.project.logline}</p>
+                  <p className="text-xs text-pink-400 mt-1">Your role: {m.role}</p>
+                </div>
+                {expanded === m.id ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+              </div>
+            </div>
+            {expanded === m.id && (
+              <div className="border-t border-slate-700/50 p-5 bg-slate-900/30 space-y-3">
+                <div className="flex flex-wrap gap-3 text-xs text-slate-500">
+                  <span>{m.project.type} · {m.project.genre}</span>
+                  <span>Phase: {m.project.phase.replace(/_/g, " ")}</span>
+                  {m.project.budget && <span>Budget: ${m.project.budget.toLocaleString()}</span>}
+                  {m.project.targetDate && <span>Target: {m.project.targetDate}</span>}
+                </div>
+                <h4 className="text-sm font-medium text-white">Full Team</h4>
+                <div className="flex flex-wrap gap-2">{m.project.members.filter((mem) => mem.status === "ACTIVE").map((mem) => (<span key={mem.id} className="text-xs px-2.5 py-1 rounded-lg border border-slate-700/50 text-slate-300">{mem.user.name} — {mem.role}</span>))}</div>
+              </div>
+            )}
+          </div>
+        ))}
+        {active.length === 0 && <div className="bg-slate-800/30 border border-slate-700/50 rounded-xl p-10 text-center"><Music className="w-12 h-12 text-slate-600 mx-auto mb-3" /><p className="text-slate-400">No active Originals projects yet. Invitations from Story Time will appear here.</p></div>}
+      </div>
+
+      <h2 className="text-white font-semibold text-lg">Projects Looking for Music</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {projectsNeedingMusic.map((p) => (
+          <div key={p.id} className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <h3 className="text-white font-medium">{p.title}</h3>
+              <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[p.status] || ""}`}>{p.status.replace(/_/g, " ")}</span>
+            </div>
+            <p className="text-sm text-slate-400 mb-2">{p.logline}</p>
+            <p className="text-xs text-slate-500">{p.type} · {p.genre} · {p._count.members} team members</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
