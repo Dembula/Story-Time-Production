@@ -20,10 +20,11 @@ export default function CreatorSignInPage() {
       email,
       password,
       redirect: false,
+      callbackUrl: "/creator/dashboard",
     });
     setLoading(false);
     if (res?.ok) {
-      window.location.href = "/";
+      window.location.href = "/creator/dashboard";
     } else {
       setError("Invalid email or password.");
     }
@@ -33,12 +34,12 @@ export default function CreatorSignInPage() {
     <div className="min-h-screen bg-[#0c1222] flex items-center justify-center px-4 py-12 relative">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_40%_at_50%_40%,rgba(249,115,22,0.03),transparent_60%)]" />
       <div className="w-full max-w-md relative z-10">
-        <Link href="/" className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white mb-8 transition">
+        <Link href="/" prefetch={false} className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white mb-8 transition">
           <ArrowLeft className="w-4 h-4" />
           Back to home
         </Link>
 
-        <Link href="/" className="flex items-center gap-3 justify-center mb-10">
+        <Link href="/" prefetch={false} className="flex items-center gap-3 justify-center mb-10">
           <Image src="/logo.png" alt="Story Time" width={48} height={48} className="rounded-lg" />
           <span className="text-2xl font-semibold text-white">STORY TIME</span>
         </Link>
