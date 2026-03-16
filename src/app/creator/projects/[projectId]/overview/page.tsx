@@ -2,12 +2,13 @@ import { prisma } from "@/lib/prisma";
 import { ProjectStageControls } from "../project-stage-controls";
 
 interface OverviewPageProps {
-  params: { projectId: string };
+  params: Promise<{ projectId: string }>;
 }
 
 export default async function OverviewPage({ params }: OverviewPageProps) {
+  const { projectId } = await params;
   const project = await prisma.originalProject.findUnique({
-    where: { id: params.projectId },
+    where: { id: projectId },
   });
 
   if (!project) {

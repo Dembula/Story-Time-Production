@@ -76,24 +76,28 @@ export function NotificationBell() {
                       if (meta?.url) linkUrl = meta.url;
                     }
                   } catch {}
-                  const Wrapper = linkUrl ? Link : "div";
-                  const wrapperProps = linkUrl ? { href: linkUrl } : {};
-                  return (
-                    <Wrapper
-                      key={n.id}
-                      {...wrapperProps}
-                      className={[
-                        "block px-4 py-3 border-b border-slate-800 last:border-b-0",
-                        n.read ? "bg-transparent" : "bg-slate-900/60",
-                        linkUrl ? "hover:bg-slate-800/60 transition" : "",
-                      ].join(" ")}
-                    >
+                  const className = [
+                    "block px-4 py-3 border-b border-slate-800 last:border-b-0",
+                    n.read ? "bg-transparent" : "bg-slate-900/60",
+                    linkUrl ? "hover:bg-slate-800/60 transition" : "",
+                  ].join(" ");
+                  const content = (
+                    <>
                       <p className="text-xs font-semibold text-white">{n.title}</p>
                       <p className="text-[11px] text-slate-400 mt-0.5">{n.body}</p>
                       <p className="text-[10px] text-slate-500 mt-1">
                         {new Date(n.createdAt).toLocaleString()}
                       </p>
-                    </Wrapper>
+                    </>
+                  );
+                  return linkUrl ? (
+                    <Link key={n.id} href={linkUrl} className={className}>
+                      {content}
+                    </Link>
+                  ) : (
+                    <div key={n.id} className={className}>
+                      {content}
+                    </div>
                   );
                 })
               )}

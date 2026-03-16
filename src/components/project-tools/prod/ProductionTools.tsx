@@ -1,42 +1,12 @@
 "use client";
 
-import {
-  ControlCenter,
-  CallSheetGenerator,
-  OnSetTasks,
-  EquipmentTracking,
-  ShootProgress,
-  ContinuityManager,
-  DailiesReview,
-  ExpenseTracker,
-  IncidentReporting,
-  ProductionWrap,
-} from "@/app/creator/projects/[projectId]/production/[tool]/page";
+import Link from "next/link";
 
 export interface ProductionToolProps {
   projectId?: string;
 }
 
 function requireProjectId(projectId?: string) {
-  // #region agent log
-  fetch("http://127.0.0.1:7661/ingest/e765b01c-cec5-485d-8f2c-447ed6fafc98", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Debug-Session-Id": "d1fe7d",
-    },
-    body: JSON.stringify({
-      sessionId: "d1fe7d",
-      runId: "pre-fix",
-      hypothesisId: "H2",
-      location: "ProductionTools.tsx:line20",
-      message: "requireProjectId check",
-      data: { hasProjectId: !!projectId },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
-
   if (!projectId) {
     return (
       <p className="text-sm text-slate-400">
@@ -45,6 +15,40 @@ function requireProjectId(projectId?: string) {
     );
   }
   return null;
+}
+
+function ToolLink({
+  projectId,
+  tool,
+  label,
+}: {
+  projectId: string;
+  tool:
+    | "control-center"
+    | "call-sheet-generator"
+    | "on-set-tasks"
+    | "equipment-tracking"
+    | "shoot-progress"
+    | "continuity-manager"
+    | "dailies-review"
+    | "expense-tracker"
+    | "incident-reporting"
+    | "wrap";
+  label: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 text-sm text-slate-300">
+      Open this tool in the project workspace.
+      <div className="mt-3">
+        <Link
+          href={`/creator/projects/${projectId}/production/${tool}`}
+          className="inline-flex rounded-md bg-orange-500 px-3 py-2 text-xs font-semibold text-white hover:bg-orange-600"
+        >
+          Open {label}
+        </Link>
+      </div>
+    </div>
+  );
 }
 
 export function ControlCenterTool({ projectId }: ProductionToolProps) {
@@ -61,9 +65,7 @@ export function ControlCenterTool({ projectId }: ProductionToolProps) {
       </div>
     );
   }
-  return (
-    <ControlCenter projectId={projectId!} title="Production Control Center" />
-  );
+  return <ToolLink projectId={projectId!} tool="control-center" label="Production Control Center" />;
 }
 
 export function CallSheetGeneratorTool({ projectId }: ProductionToolProps) {
@@ -80,12 +82,7 @@ export function CallSheetGeneratorTool({ projectId }: ProductionToolProps) {
       </div>
     );
   }
-  return (
-    <CallSheetGenerator
-      projectId={projectId!}
-      title="Call Sheet Generator"
-    />
-  );
+  return <ToolLink projectId={projectId!} tool="call-sheet-generator" label="Call Sheet Generator" />;
 }
 
 export function OnSetTasksTool({ projectId }: ProductionToolProps) {
@@ -102,9 +99,7 @@ export function OnSetTasksTool({ projectId }: ProductionToolProps) {
       </div>
     );
   }
-  return (
-    <OnSetTasks projectId={projectId!} title="On-Set Task Management" />
-  );
+  return <ToolLink projectId={projectId!} tool="on-set-tasks" label="On-Set Task Management" />;
 }
 
 export function EquipmentTrackingTool({ projectId }: ProductionToolProps) {
@@ -121,9 +116,7 @@ export function EquipmentTrackingTool({ projectId }: ProductionToolProps) {
       </div>
     );
   }
-  return (
-    <EquipmentTracking projectId={projectId!} title="Equipment Tracking" />
-  );
+  return <ToolLink projectId={projectId!} tool="equipment-tracking" label="Equipment Tracking" />;
 }
 
 export function ShootProgressTool({ projectId }: ProductionToolProps) {
@@ -140,9 +133,7 @@ export function ShootProgressTool({ projectId }: ProductionToolProps) {
       </div>
     );
   }
-  return (
-    <ShootProgress projectId={projectId!} title="Shoot Progress Tracker" />
-  );
+  return <ToolLink projectId={projectId!} tool="shoot-progress" label="Shoot Progress Tracker" />;
 }
 
 export function ContinuityManagerTool({ projectId }: ProductionToolProps) {
@@ -159,9 +150,7 @@ export function ContinuityManagerTool({ projectId }: ProductionToolProps) {
       </div>
     );
   }
-  return (
-    <ContinuityManager projectId={projectId!} title="Continuity Manager" />
-  );
+  return <ToolLink projectId={projectId!} tool="continuity-manager" label="Continuity Manager" />;
 }
 
 export function DailiesReviewTool({ projectId }: ProductionToolProps) {
@@ -176,7 +165,7 @@ export function DailiesReviewTool({ projectId }: ProductionToolProps) {
       </div>
     );
   }
-  return <DailiesReview projectId={projectId!} title="Dailies Review" />;
+  return <ToolLink projectId={projectId!} tool="dailies-review" label="Dailies Review" />;
 }
 
 export function ExpenseTrackerTool({ projectId }: ProductionToolProps) {
@@ -193,12 +182,7 @@ export function ExpenseTrackerTool({ projectId }: ProductionToolProps) {
       </div>
     );
   }
-  return (
-    <ExpenseTracker
-      projectId={projectId!}
-      title="Production Expense Tracker"
-    />
-  );
+  return <ToolLink projectId={projectId!} tool="expense-tracker" label="Production Expense Tracker" />;
 }
 
 export function IncidentReportingTool({ projectId }: ProductionToolProps) {
@@ -215,9 +199,7 @@ export function IncidentReportingTool({ projectId }: ProductionToolProps) {
       </div>
     );
   }
-  return (
-    <IncidentReporting projectId={projectId!} title="Incident Reporting" />
-  );
+  return <ToolLink projectId={projectId!} tool="incident-reporting" label="Incident Reporting" />;
 }
 
 export function ProductionWrapTool({ projectId }: ProductionToolProps) {
@@ -232,8 +214,6 @@ export function ProductionWrapTool({ projectId }: ProductionToolProps) {
       </div>
     );
   }
-  return (
-    <ProductionWrap projectId={projectId!} title="Production Wrap" />
-  );
+  return <ToolLink projectId={projectId!} tool="wrap" label="Production Wrap" />;
 }
 

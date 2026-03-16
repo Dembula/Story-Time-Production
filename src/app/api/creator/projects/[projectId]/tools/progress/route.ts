@@ -3,10 +3,6 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-interface Params {
-  params: { projectId: string };
-}
-
 async function ensureCreatorAccess(projectId: string) {
   const session = await getServerSession(authOptions);
   const role = (session?.user as { role?: string })?.role;
@@ -46,8 +42,12 @@ async function ensureCreatorAccess(projectId: string) {
   return { error: null as NextResponse | null, userId };
 }
 
-export async function PATCH(req: NextRequest, { params }: Params) {
-  const access = await ensureCreatorAccess(params.projectId);
+export async function PATCH(
+  req: NextRequest,
+  context: { params: Promise<{ projectId: string }> },
+) {
+  const { projectId } = await context.params;
+  const access = await ensureCreatorAccess(projectId);
   if (access.error) return access.error;
 
   const body = (await req.json().catch(() => null)) as
@@ -75,7 +75,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const progress = await prisma.projectToolProgress.upsert({
     where: {
       projectId_toolId: {
-        projectId: params.projectId,
+        projectId,
         toolId: body.toolId,
       },
     },
@@ -86,7 +86,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       pipelineStep: body.pipelineStep ?? undefined,
     },
     create: {
-      projectId: params.projectId,
+      projectId,
       phase: body.phase,
       toolId: body.toolId,
       status: body.status ?? "IN_PROGRESS",

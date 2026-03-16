@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { BackButton } from "@/components/layout/back-button";
 import {
@@ -51,7 +51,7 @@ type CastingAgencyDetail = CastingAgency & {
 type Audition = { id: string; roleName: string; description: string | null; status: string; createdAt: string; content: { title: string } };
 type ContentOption = { id: string; title: string };
 
-export default function CreatorCastPage() {
+function CreatorCastPageContent() {
   const searchParams = useSearchParams();
   const projectId = searchParams.get("projectId") || undefined;
   const roleIdFromUrl = searchParams.get("roleId") || "";
@@ -443,5 +443,13 @@ export default function CreatorCastPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function CreatorCastPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-slate-400">Loading…</div>}>
+      <CreatorCastPageContent />
+    </Suspense>
   );
 }

@@ -13,7 +13,7 @@ import { ModocFieldPopover } from "@/components/modoc";
 import { useModoc, useModocOptional } from "@/components/modoc/use-modoc";
 
 interface PreProductionToolPageProps {
-  params: { projectId?: string; tool: string };
+  params: Promise<{ projectId?: string; tool: string }>;
 }
 
 const LABELS: Record<string, string> = {
@@ -46,7 +46,20 @@ function UnlinkedBanner() {
 }
 
 export default function PreProductionToolPage({ params }: PreProductionToolPageProps) {
-  const { projectId, tool } = params;
+  const [resolved, setResolved] = useState<{ projectId?: string; tool: string } | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    void Promise.resolve(params).then((p) => {
+      if (alive) setResolved(p);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [params]);
+
+  const projectId = resolved?.projectId;
+  const tool = resolved?.tool ?? "";
   const title = LABELS[tool] ?? "Pre-Production Workspace";
   const hasProject = !!projectId;
 
@@ -337,7 +350,7 @@ function IdeaDevelopmentWorkspace({ projectId, title }: IdeaDevelopmentWorkspace
     setSaving(true);
     const timeout = setTimeout(() => {
       saveMutation.mutate({
-        id: draft.id,
+        id: draft.id!,
         title: draft.title,
         logline: draft.logline,
         notes: draft.notes,
@@ -507,7 +520,7 @@ function IdeaDevelopmentWorkspace({ projectId, title }: IdeaDevelopmentWorkspace
                     onClick={() => {
                       if (!draft.id) return;
                       saveMutation.mutate({
-                        id: draft.id,
+                        id: draft.id!,
                         title: draft.title,
                         logline: draft.logline,
                         notes: draft.notes,
@@ -892,7 +905,7 @@ function ScriptWritingWorkspace({ projectId, title }: ScriptWritingWorkspaceProp
                     if (!draft.id) return;
                     setSaving(true);
                     saveMutation.mutate({
-                      id: draft.id,
+                      id: draft.id!,
                       title: draft.title,
                       type: draft.type,
                       content: draft.content,
@@ -2367,7 +2380,11 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
     return () => clearTimeout(timeout);
   }, [draftDays, hasProject]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const updateDayField = (id: string, field: keyof (typeof draftDays)[number], value: any) => {
+  const updateDayField = (
+    id: string,
+    field: keyof NonNullable<typeof draftDays>[number],
+    value: any
+  ) => {
     if (!draftDays) return;
     setDraftDays(
       draftDays.map((d) =>
@@ -2384,7 +2401,10 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
     );
   };
 
-  const updateScenesForDay = (id: string, scenes: (typeof draftDays)[number]["scenes"]) => {
+  const updateScenesForDay = (
+    id: string,
+    scenes: NonNullable<typeof draftDays>[number]["scenes"]
+  ) => {
     if (!draftDays) return;
     setDraftDays(
       draftDays.map((d) => (d.id === id ? { ...d, scenes } : d))
@@ -3726,6 +3746,37 @@ function PitchDeckWorkspace({
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project-pitch-deck", projectId] }),
   });
+  const slides = deck?.slides ?? [];
+  const activeSlide = slides.find((s) => s.id === selectedSlideId) ?? slides[0];
+
+  useEffect(() => {
+    if (!deck || !activeSlide) return;
+    setSelectedSlideId(activeSlide.id);
+    setEditingTitle(activeSlide.title ?? "");
+    setEditingBody(activeSlide.body ?? "");
+  }, [deck?.id, activeSlide?.id]);
+
+  const updateSlidesMutation = useMutation({
+    mutationFn: async (updated: { id: string; sortOrder?: number; title?: string | null; body?: string | null }) => {
+      if (!deck) throw new Error("No deck loaded");
+      const payloadSlides = deck.slides.map((s) => ({
+        id: s.id,
+        sortOrder: updated.sortOrder !== undefined && s.id === updated.id ? updated.sortOrder : s.sortOrder,
+        title: updated.title !== undefined && s.id === updated.id ? updated.title : s.title,
+        body: updated.body !== undefined && s.id === updated.id ? updated.body : s.body,
+        mediaUrl: s.mediaUrl,
+      }));
+      const res = await fetch(`/api/creator/projects/${projectId}/pitch-deck`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slides: payloadSlides }),
+      });
+      if (!res.ok) throw new Error("Failed to update deck");
+      return res.json();
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project-pitch-deck", projectId] }),
+  });
+
   if (!hasProject) {
     return (
       <div className="space-y-4">
@@ -3768,37 +3819,6 @@ function PitchDeckWorkspace({
       </div>
     );
   }
-
-  const slides = deck.slides ?? [];
-  const activeSlide = slides.find((s) => s.id === selectedSlideId) ?? slides[0];
-
-  useEffect(() => {
-    if (activeSlide) {
-      setSelectedSlideId(activeSlide.id);
-      setEditingTitle(activeSlide.title ?? "");
-      setEditingBody(activeSlide.body ?? "");
-    }
-  }, [deck?.id, activeSlide?.id]);
-
-  const updateSlidesMutation = useMutation({
-    mutationFn: async (updated: { id: string; sortOrder?: number; title?: string | null; body?: string | null }) => {
-      const payloadSlides = deck.slides.map((s) => ({
-        id: s.id,
-        sortOrder: updated.sortOrder !== undefined && s.id === updated.id ? updated.sortOrder : s.sortOrder,
-        title: updated.title !== undefined && s.id === updated.id ? updated.title : s.title,
-        body: updated.body !== undefined && s.id === updated.id ? updated.body : s.body,
-        mediaUrl: s.mediaUrl,
-      }));
-      const res = await fetch(`/api/creator/projects/${projectId}/pitch-deck`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slides: payloadSlides }),
-      });
-      if (!res.ok) throw new Error("Failed to update deck");
-      return res.json();
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project-pitch-deck", projectId] }),
-  });
 
   const moveSlide = (id: string, direction: "up" | "down") => {
     if (!deck.slides.length) return;

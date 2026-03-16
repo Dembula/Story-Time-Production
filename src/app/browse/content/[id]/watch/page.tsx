@@ -19,7 +19,8 @@ export default async function WatchPage({
     redirect(`/browse/content/${id}`);
   }
 
-  const profileId = cookies().get("st_viewer_profile")?.value;
+  const cookieStore = await cookies();
+  const profileId = cookieStore.get("st_viewer_profile")?.value;
   if (!profileId) {
     redirect("/profiles");
   }

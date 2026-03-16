@@ -1,11 +1,12 @@
 "use client";
 
+import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { FootageIngestionTool } from "@/components/project-tools/post/PostProductionTools";
 import { Skeleton } from "@/components/ui/skeleton";
 
-export default function PostFootageIngestionPage() {
+function PostFootageIngestionContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const projectId = searchParams.get("projectId") ?? undefined;
@@ -51,6 +52,14 @@ export default function PostFootageIngestionPage() {
       </header>
       <FootageIngestionTool projectId={projectId} />
     </div>
+  );
+}
+
+export default function PostFootageIngestionPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-slate-400">Loading…</div>}>
+      <PostFootageIngestionContent />
+    </Suspense>
   );
 }
 

@@ -2,10 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-
-interface Params {
-  params: { projectId: string };
-}
+import { Prisma } from "@prisma/client";
 
 async function ensureRiskAccess(projectId: string) {
   const session = await getServerSession(authOptions);
@@ -46,19 +43,23 @@ async function ensureRiskAccess(projectId: string) {
   return { error: null as NextResponse | null, userId };
 }
 
-export async function GET(_req: NextRequest, { params }: Params) {
-  const access = await ensureRiskAccess(params.projectId);
+export async function GET(
+  _req: NextRequest,
+  context: { params: Promise<{ projectId: string }> },
+) {
+  const { projectId } = await context.params;
+  const access = await ensureRiskAccess(projectId);
   if (access.error) return access.error;
 
   let plan = await prisma.riskPlan.findUnique({
-    where: { projectId: params.projectId },
+    where: { projectId },
     include: { items: true },
   });
 
   if (!plan) {
     plan = await prisma.riskPlan.create({
       data: {
-        projectId: params.projectId,
+        projectId,
         summary: null,
       },
       include: { items: true },
@@ -68,8 +69,12 @@ export async function GET(_req: NextRequest, { params }: Params) {
   return NextResponse.json({ plan });
 }
 
-export async function PATCH(req: NextRequest, { params }: Params) {
-  const access = await ensureRiskAccess(params.projectId);
+export async function PATCH(
+  req: NextRequest,
+  context: { params: Promise<{ projectId: string }> },
+) {
+  const { projectId } = await context.params;
+  const access = await ensureRiskAccess(projectId);
   if (access.error) return access.error;
 
   const body = (await req.json().catch(() => null)) as
@@ -90,12 +95,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 
   let plan = await prisma.riskPlan.findUnique({
-    where: { projectId: params.projectId },
+    where: { projectId },
   });
 
   if (!plan) {
     plan = await prisma.riskPlan.create({
-      data: { projectId: params.projectId, summary: body.summary ?? null },
+      data: { projectId, summary: body.summary ?? null },
     });
   } else if (body.summary !== undefined) {
     plan = await prisma.riskPlan.update({
@@ -104,7 +109,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     });
   }
 
-  const tx: Promise<unknown>[] = [];
+  const tx: Prisma.PrismaPromise<unknown>[] = [];
 
   if (body.items) {
     for (const item of body.items) {

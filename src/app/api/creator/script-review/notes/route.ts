@@ -38,22 +38,18 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
   }
 
-  const record = await prisma.scriptReviewNote.upsert({
-    where: {
-      userId_projectId: {
-        userId,
-        projectId: null,
-      },
-    },
-    create: {
-      userId,
-      projectId: null,
-      body: body.notesBody ?? "",
-    },
-    update: {
-      body: body.notesBody ?? "",
-    },
+  const existing = await prisma.scriptReviewNote.findFirst({
+    where: { userId, projectId: null },
   });
+
+  const record = existing
+    ? await prisma.scriptReviewNote.update({
+        where: { id: existing.id },
+        data: { body: body.notesBody ?? "" },
+      })
+    : await prisma.scriptReviewNote.create({
+        data: { userId, body: body.notesBody ?? "", projectId: null },
+      });
 
   return NextResponse.json({ notes: record });
 }

@@ -3,12 +3,13 @@ import { prisma } from "@/lib/prisma";
 import { ProjectWorkspaceShell } from "../project-workspace-shell";
 
 interface PageProps {
-  params: { projectId: string };
+  params: Promise<{ projectId: string }>;
 }
 
 export default async function ProjectWorkspacePage({ params }: PageProps) {
+  const { projectId } = await params;
   const project = await prisma.originalProject.findUnique({
-    where: { id: params.projectId },
+    where: { id: projectId },
     include: {
       members: {
         include: {

@@ -1,6 +1,6 @@
 "use client";
 
-import { FootageIngestion, MusicScoring, Distribution } from "@/app/creator/projects/[projectId]/post-production/[tool]/page";
+import { Distribution, FootageIngestion, MusicScoring } from "./PostProductionWidgets";
 
 export interface PostProductionToolProps {
   projectId?: string;

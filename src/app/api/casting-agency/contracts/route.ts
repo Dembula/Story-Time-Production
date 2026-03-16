@@ -18,7 +18,7 @@ export async function GET() {
     orderBy: { createdAt: "desc" },
     include: {
       project: { select: { id: true, title: true } },
-      currentVersion: { select: { id: true, version: true, createdAt: true } },
+      versions: { orderBy: { version: "desc" }, take: 1, select: { id: true, version: true, createdAt: true } },
       castingTalent: { select: { id: true, name: true } },
     },
   });
@@ -32,7 +32,7 @@ export async function GET() {
       createdAt: c.createdAt,
       project: c.project,
       talent: c.castingTalent,
-      version: c.currentVersion,
+      version: c.versions[0] ?? null,
     }))
   );
 }

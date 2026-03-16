@@ -3,10 +3,6 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-interface Params {
-  params: { projectId: string };
-}
-
 async function ensureCastingAccess(projectId: string) {
   const session = await getServerSession(authOptions);
   const role = (session?.user as { role?: string })?.role;
@@ -43,12 +39,17 @@ async function ensureCastingAccess(projectId: string) {
   return { error: null as NextResponse | null };
 }
 
-export async function POST(_req: NextRequest, { params }: Params) {
-  const access = await ensureCastingAccess(params.projectId);
+export async function POST(
+  _req: NextRequest,
+  context: { params: Promise<{ projectId: string }> }
+) {
+  const { projectId } = await context.params;
+
+  const access = await ensureCastingAccess(projectId);
   if (access.error) return access.error;
 
   const characters = await prisma.breakdownCharacter.findMany({
-    where: { projectId: params.projectId },
+    where: { projectId },
   });
 
   if (characters.length === 0) {
@@ -56,7 +57,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
   }
 
   const existingRoles = await prisma.castingRole.findMany({
-    where: { projectId: params.projectId },
+    where: { projectId },
     select: { id: true, name: true, breakdownCharacterId: true },
   });
 
@@ -84,7 +85,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
 
     await prisma.castingRole.create({
       data: {
-        projectId: params.projectId,
+        projectId,
         name,
         description: ch.description ?? null,
         breakdownCharacterId: id ?? null,

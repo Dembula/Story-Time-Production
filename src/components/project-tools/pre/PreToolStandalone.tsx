@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import PreProductionToolPageImpl from "@/app/creator/projects/[projectId]/pre-production/[tool]/page";
@@ -11,7 +12,7 @@ interface PreToolStandaloneProps {
   description: string;
 }
 
-export function PreToolStandalone({ toolSlug, title, description }: PreToolStandaloneProps) {
+function PreToolStandaloneContent({ toolSlug, title, description }: PreToolStandaloneProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -68,8 +69,16 @@ export function PreToolStandalone({ toolSlug, title, description }: PreToolStand
   return (
     <div className="space-y-4">
       {header}
-      <PreProductionToolPageImpl params={{ projectId: projectId || undefined, tool: toolSlug }} />
+      <PreProductionToolPageImpl params={Promise.resolve({ projectId: projectId || undefined, tool: toolSlug })} />
     </div>
+  );
+}
+
+export function PreToolStandalone(props: PreToolStandaloneProps) {
+  return (
+    <Suspense fallback={<div className="space-y-4 p-4 text-slate-400">Loading…</div>}>
+      <PreToolStandaloneContent {...props} />
+    </Suspense>
   );
 }
 

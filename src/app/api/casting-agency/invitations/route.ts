@@ -93,7 +93,6 @@ export async function PATCH(req: Request) {
           castingTalentId: invitation.talent.id,
           type: "ACTOR",
         },
-        include: { currentVersion: true },
       });
 
       if (!existing) {

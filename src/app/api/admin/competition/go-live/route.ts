@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 
 const COMPETITION_NOTIFICATION_TYPE = "COMPETITION_LIVE";
 
@@ -73,7 +74,7 @@ export async function POST(req: Request) {
         action: "COMPETITION_GO_LIVE",
         entityType: "CompetitionPeriod",
         entityId: period.id,
-        oldValue: null,
+        oldValue: Prisma.JsonNull,
         newValue: {
           name: period.name,
           startDate: period.startDate,

@@ -81,15 +81,16 @@ export async function POST(req: Request) {
   if (conversationId && userId && Array.isArray(rawMessages) && rawMessages.length > 0) {
     const lastMessage = rawMessages[rawMessages.length - 1];
     const lastRole = typeof lastMessage === "object" && lastMessage && "role" in lastMessage ? (lastMessage as { role?: string }).role : undefined;
-    const lastContent = typeof lastMessage === "object" && lastMessage && "content" in lastMessage
-      ? (typeof (lastMessage as { content?: unknown }).content === "string"
-          ? (lastMessage as { content: string }).content
-          : Array.isArray((lastMessage as { content?: unknown[] }).content)
-            ? (lastMessage as { content: Array<{ type?: string; text?: string }> }).content
-                ?.find((p) => p.type === "text")
-                ?.text ?? ""
-            : "")
-      : "";
+    const lastContent = (() => {
+      if (!(typeof lastMessage === "object" && lastMessage && "content" in lastMessage)) return "";
+      const contentAny = (lastMessage as unknown as { content?: unknown }).content;
+      if (typeof contentAny === "string") return contentAny;
+      if (Array.isArray(contentAny)) {
+        const parts = contentAny as Array<{ type?: string; text?: string }>;
+        return parts.find((p) => p.type === "text")?.text ?? "";
+      }
+      return "";
+    })();
     if (lastRole === "user" && lastContent) {
       try {
         const conv = await prisma.modocConversation.findFirst({
@@ -231,7 +232,6 @@ When suggesting a title, tell them they can open it at: /browse/content/[id] (re
   if (task === "creator_analytics") systemPrompt += MODOC_TASK_CREATOR_ANALYTICS;
 
   const projectId = pageContext?.projectId as string | undefined;
-  const userId = (session?.user as { id?: string })?.id;
   const role = (session?.user as { role?: string })?.role;
 
   // Context injection for marketplace/planning/planning tasks: project data + platform catalog or project-only context

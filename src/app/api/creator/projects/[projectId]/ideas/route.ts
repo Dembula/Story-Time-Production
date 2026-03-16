@@ -3,10 +3,6 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-interface Params {
-  params: { projectId: string };
-}
-
 async function ensureIdeaAccess(projectId: string) {
   const session = await getServerSession(authOptions);
   const role = (session?.user as { role?: string })?.role;
@@ -37,20 +33,28 @@ async function ensureIdeaAccess(projectId: string) {
   return { error: null as NextResponse | null, userId, project };
 }
 
-export async function GET(_req: NextRequest, { params }: Params) {
-  const access = await ensureIdeaAccess(params.projectId);
+export async function GET(
+  _req: NextRequest,
+  context: { params: Promise<{ projectId: string }> },
+) {
+  const { projectId } = await context.params;
+  const access = await ensureIdeaAccess(projectId);
   if (access.error) return access.error;
 
   const ideas = await prisma.projectIdea.findMany({
-    where: { projectId: params.projectId, userId: access.userId },
+    where: { projectId, userId: access.userId },
     orderBy: { createdAt: "desc" },
   });
 
   return NextResponse.json({ ideas });
 }
 
-export async function POST(req: NextRequest, { params }: Params) {
-  const access = await ensureIdeaAccess(params.projectId);
+export async function POST(
+  req: NextRequest,
+  context: { params: Promise<{ projectId: string }> },
+) {
+  const { projectId } = await context.params;
+  const access = await ensureIdeaAccess(projectId);
   if (access.error) return access.error;
 
   const body = (await req.json().catch(() => null)) as
@@ -69,7 +73,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   const idea = await prisma.projectIdea.create({
     data: {
       userId: access.userId!,
-      projectId: params.projectId,
+      projectId,
       title: body.title,
       logline: body.logline ?? null,
       notes: body.notes ?? null,
@@ -81,10 +85,14 @@ export async function POST(req: NextRequest, { params }: Params) {
   return NextResponse.json({ idea }, { status: 201 });
 }
 
-export async function PATCH(req: NextRequest, { params }: Params) {
-  const access = await ensureIdeaAccess(params.projectId);
+export async function PATCH(
+  req: NextRequest,
+  context: { params: Promise<{ projectId: string }> },
+) {
+  const { projectId } = await context.params;
+  const access = await ensureIdeaAccess(projectId);
   if (access.error) return access.error;
-  const { project } = access;
+  const project = access.project!;
 
   const body = (await req.json().catch(() => null)) as
     | {
@@ -117,7 +125,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (body.convertedToProject !== undefined) data.convertedToProject = body.convertedToProject;
 
   const updated = await prisma.projectIdea.updateMany({
-    where: { id: body.id, userId: access.userId!, projectId: params.projectId },
+    where: { id: body.id, userId: access.userId!, projectId },
     data,
   });
 

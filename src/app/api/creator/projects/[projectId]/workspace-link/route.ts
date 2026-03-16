@@ -3,10 +3,6 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-interface Params {
-  params: { projectId: string };
-}
-
 async function ensureCreatorAccess(projectId: string) {
   const session = await getServerSession(authOptions);
   const role = (session?.user as { role?: string })?.role;
@@ -50,19 +46,23 @@ function createSlug() {
   return Math.random().toString(36).slice(2, 10);
 }
 
-export async function GET(_req: NextRequest, { params }: Params) {
-  const access = await ensureCreatorAccess(params.projectId);
+export async function GET(
+  _req: NextRequest,
+  context: { params: Promise<{ projectId: string }> },
+) {
+  const { projectId } = await context.params;
+  const access = await ensureCreatorAccess(projectId);
   if (access.error) return access.error;
 
   let link = await prisma.projectWorkspaceLink.findUnique({
-    where: { projectId: params.projectId },
+    where: { projectId },
   });
 
   if (!link) {
     const slug = createSlug();
     link = await prisma.projectWorkspaceLink.create({
       data: {
-        projectId: params.projectId,
+        projectId,
         slug,
       },
     });
@@ -71,8 +71,12 @@ export async function GET(_req: NextRequest, { params }: Params) {
   return NextResponse.json({ link });
 }
 
-export async function POST(req: NextRequest, { params }: Params) {
-  const access = await ensureCreatorAccess(params.projectId);
+export async function POST(
+  req: NextRequest,
+  context: { params: Promise<{ projectId: string }> },
+) {
+  const { projectId } = await context.params;
+  const access = await ensureCreatorAccess(projectId);
   if (access.error) return access.error;
 
   const body = (await req.json().catch(() => null)) as
@@ -82,14 +86,14 @@ export async function POST(req: NextRequest, { params }: Params) {
     | null;
 
   let link = await prisma.projectWorkspaceLink.findUnique({
-    where: { projectId: params.projectId },
+    where: { projectId },
   });
 
   if (!link) {
     const slug = createSlug();
     link = await prisma.projectWorkspaceLink.create({
       data: {
-        projectId: params.projectId,
+        projectId,
         slug,
       },
     });

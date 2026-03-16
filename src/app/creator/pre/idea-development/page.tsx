@@ -1,11 +1,12 @@
- "use client";
+"use client";
 
+import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { IdeaDevelopmentTool } from "@/components/project-tools/pre/IdeaDevelopmentTool";
 import { Skeleton } from "@/components/ui/skeleton";
 
-export default function PreIdeaDevelopmentPage() {
+function PreIdeaDevelopmentContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const projectId = searchParams.get("projectId") ?? "";
@@ -62,6 +63,14 @@ export default function PreIdeaDevelopmentPage() {
 
       <IdeaDevelopmentTool projectId={projectId || undefined} />
     </div>
+  );
+}
+
+export default function PreIdeaDevelopmentPage() {
+  return (
+    <Suspense fallback={<div className="space-y-4 p-4 text-slate-400">Loading…</div>}>
+      <PreIdeaDevelopmentContent />
+    </Suspense>
   );
 }
 

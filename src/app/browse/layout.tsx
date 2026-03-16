@@ -17,7 +17,8 @@ export default async function BrowseLayout({
   let subscriptionExpired = false;
 
   if (session?.user?.email && role === "SUBSCRIBER") {
-    const activeProfileId = cookies().get("st_viewer_profile")?.value;
+    const cookieStore = await cookies();
+    const activeProfileId = cookieStore.get("st_viewer_profile")?.value;
     if (!activeProfileId) {
       redirect("/profiles");
     }

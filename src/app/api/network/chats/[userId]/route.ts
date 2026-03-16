@@ -32,13 +32,13 @@ async function getOrCreateConversation(me: string, otherId: string) {
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { userId: string } }
+  context: { params: Promise<{ userId: string }> }
 ) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const me = session.user.id;
-  const otherId = params.userId;
+  const { userId: otherId } = await context.params;
 
   if (!(await areConnected(me, otherId))) {
     return NextResponse.json({ error: "Not connected" }, { status: 403 });
@@ -67,13 +67,13 @@ export async function GET(
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { userId: string } }
+  context: { params: Promise<{ userId: string }> }
 ) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const me = session.user.id;
-  const otherId = params.userId;
+  const { userId: otherId } = await context.params;
 
   if (!(await areConnected(me, otherId))) {
     return NextResponse.json({ error: "Not connected" }, { status: 403 });

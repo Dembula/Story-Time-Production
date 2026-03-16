@@ -3,10 +3,6 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-interface Params {
-  params: { projectId: string };
-}
-
 async function ensureAccess(projectId: string) {
   const session = await getServerSession(authOptions);
   const role = (session?.user as { role?: string })?.role;
@@ -46,19 +42,23 @@ async function ensureAccess(projectId: string) {
   return { error: null as NextResponse | null, userId };
 }
 
-export async function GET(_req: NextRequest, { params }: Params) {
-  const access = await ensureAccess(params.projectId);
+export async function GET(_req: NextRequest, context: { params: Promise<{ projectId: string }> }) {
+  const { projectId } = await context.params;
+
+  const access = await ensureAccess(projectId);
   if (access.error) return access.error;
 
   const budget = await prisma.projectBudget.findUnique({
-    where: { projectId: params.projectId },
+    where: { projectId },
     include: { lines: true },
   });
   return NextResponse.json({ budget });
 }
 
-export async function POST(req: NextRequest, { params }: Params) {
-  const access = await ensureAccess(params.projectId);
+export async function POST(req: NextRequest, context: { params: Promise<{ projectId: string }> }) {
+  const { projectId } = await context.params;
+
+  const access = await ensureAccess(projectId);
   if (access.error) return access.error;
 
   const body = (await req.json().catch(() => null)) as
@@ -72,7 +72,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   const existing = await prisma.projectBudget.findUnique({
-    where: { projectId: params.projectId },
+    where: { projectId },
   });
   if (existing) {
     return NextResponse.json({ budget: existing }, { status: 200 });
@@ -80,7 +80,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const budget = await prisma.projectBudget.create({
     data: {
-      projectId: params.projectId,
+      projectId,
       template: body.template,
       currency: "ZAR",
       totalPlanned: 0,
@@ -89,8 +89,10 @@ export async function POST(req: NextRequest, { params }: Params) {
   return NextResponse.json({ budget }, { status: 201 });
 }
 
-export async function PATCH(req: NextRequest, { params }: Params) {
-  const access = await ensureAccess(params.projectId);
+export async function PATCH(req: NextRequest, context: { params: Promise<{ projectId: string }> }) {
+  const { projectId } = await context.params;
+
+  const access = await ensureAccess(projectId);
   if (access.error) return access.error;
 
   const body = (await req.json().catch(() => null)) as
@@ -110,8 +112,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (!body?.lines) {
     return NextResponse.json({ error: "Missing lines" }, { status: 400 });
   }
-
-  const projectId = params.projectId;
 
   const budget = await prisma.projectBudget.upsert({
     where: { projectId },

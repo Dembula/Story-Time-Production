@@ -4,11 +4,11 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createAndConfirmPayment } from "@/lib/payments";
 
-interface Params {
-  params: { projectId: string };
-}
-
-export async function GET(req: NextRequest, { params }: Params) {
+export async function GET(
+  req: NextRequest,
+  context: { params: Promise<{ projectId: string }> },
+) {
+  const { projectId } = await context.params;
   const session = await getServerSession(authOptions);
   const role = (session?.user as { role?: string })?.role;
   const userId = (session?.user as { id?: string })?.id;
@@ -19,13 +19,13 @@ export async function GET(req: NextRequest, { params }: Params) {
 
   const [note, requests] = await Promise.all([
     prisma.scriptReviewNote.findFirst({
-      where: { userId, projectId: params.projectId },
+      where: { userId, projectId },
     }),
     prisma.scriptReviewRequest.findMany({
       where:
         role === "ADMIN"
-          ? { projectId: params.projectId }
-          : { projectId: params.projectId, requesterId: userId },
+          ? { projectId }
+          : { projectId, requesterId: userId },
       orderBy: { submittedAt: "desc" },
       take: 10,
       include: {
@@ -42,7 +42,11 @@ export async function GET(req: NextRequest, { params }: Params) {
   });
 }
 
-export async function POST(req: NextRequest, { params }: Params) {
+export async function POST(
+  req: NextRequest,
+  context: { params: Promise<{ projectId: string }> },
+) {
+  const { projectId } = await context.params;
   const session = await getServerSession(authOptions);
   const role = (session?.user as { role?: string })?.role;
   const userId = (session?.user as { id?: string })?.id;
@@ -52,7 +56,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   const project = await prisma.originalProject.findUnique({
-    where: { id: params.projectId },
+    where: { id: projectId },
     include: { members: true, pitches: true },
   });
 
@@ -70,7 +74,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   const latestScript = await prisma.projectScriptVersion.findFirst({
-    where: { script: { projectId: params.projectId } },
+    where: { script: { projectId } },
     orderBy: { createdAt: "desc" },
   });
 
@@ -81,7 +85,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     currency: "ZAR",
     metadata: {
       kind: "SCRIPT_REVIEW",
-      projectId: params.projectId,
+      projectId,
       requesterId: userId,
     },
   });
@@ -95,7 +99,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const requestRecord = await prisma.scriptReviewRequest.create({
     data: {
-      projectId: params.projectId,
+      projectId,
       scriptVersionId: latestScript?.id ?? null,
       requesterId: userId,
       feeAmount: amount,
@@ -111,7 +115,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       title: "Executive script review requested",
       body: `Your script for "${project.title}" has been submitted for Story Time Executive Script Review.`,
       metadata: JSON.stringify({
-        projectId: params.projectId,
+        projectId,
         reviewRequestId: requestRecord.id,
       }),
     },
@@ -120,7 +124,11 @@ export async function POST(req: NextRequest, { params }: Params) {
   return NextResponse.json({ review: requestRecord });
 }
 
-export async function PATCH(req: NextRequest, { params }: Params) {
+export async function PATCH(
+  req: NextRequest,
+  context: { params: Promise<{ projectId: string }> },
+) {
+  const { projectId } = await context.params;
   const session = await getServerSession(authOptions);
   const role = (session?.user as { role?: string })?.role;
   const userId = (session?.user as { id?: string })?.id;
@@ -143,12 +151,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     where: {
       userId_projectId: {
         userId,
-        projectId: params.projectId,
+        projectId,
       },
     },
     create: {
       userId,
-      projectId: params.projectId,
+      projectId,
       body: body.notesBody ?? "",
     },
     update: {

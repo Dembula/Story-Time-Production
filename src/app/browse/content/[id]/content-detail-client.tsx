@@ -38,7 +38,7 @@ type Content = {
   crewMembers?: { id: string; name: string; role: string; bio: string | null }[];
   minAge?: number;
   ageRating?: string | null;
-  advisory?: Record<string, unknown> | null;
+  advisory?: unknown | null;
 };
 
 export function ContentDetailClient({

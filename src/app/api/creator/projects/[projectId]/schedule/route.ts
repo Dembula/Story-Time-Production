@@ -3,10 +3,6 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-interface Params {
-  params: { projectId: string };
-}
-
 async function ensureAccess(projectId: string) {
   const session = await getServerSession(authOptions);
   const role = (session?.user as { role?: string })?.role;
@@ -63,18 +59,22 @@ function parseScenesFromScript(content: string): { number: string; heading: stri
   return scenes;
 }
 
-export async function GET(_req: NextRequest, { params }: Params) {
-  const access = await ensureAccess(params.projectId);
+export async function GET(
+  _req: NextRequest,
+  context: { params: Promise<{ projectId: string }> },
+) {
+  const { projectId } = await context.params;
+  const access = await ensureAccess(projectId);
   if (access.error) return access.error;
 
   const [shootDays, scenes] = await Promise.all([
     prisma.shootDay.findMany({
-      where: { projectId: params.projectId },
+      where: { projectId },
       orderBy: { date: "asc" },
       include: { scenes: { orderBy: { order: "asc" } } },
     }),
     prisma.projectScene.findMany({
-      where: { projectId: params.projectId },
+      where: { projectId },
       orderBy: { number: "asc" },
     }),
   ]);
@@ -94,8 +94,12 @@ export async function GET(_req: NextRequest, { params }: Params) {
   });
 }
 
-export async function POST(req: NextRequest, { params }: Params) {
-  const access = await ensureAccess(params.projectId);
+export async function POST(
+  req: NextRequest,
+  context: { params: Promise<{ projectId: string }> },
+) {
+  const { projectId } = await context.params;
+  const access = await ensureAccess(projectId);
   if (access.error) return access.error;
 
   const body = (await req.json().catch(() => null)) as
@@ -107,7 +111,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   const dateIso = body?.date ?? new Date().toISOString();
   const day = await prisma.shootDay.create({
     data: {
-      projectId: params.projectId,
+      projectId,
       date: new Date(dateIso),
       status: "PLANNED",
     },
@@ -115,8 +119,12 @@ export async function POST(req: NextRequest, { params }: Params) {
   return NextResponse.json({ day }, { status: 201 });
 }
 
-export async function PATCH(req: NextRequest, { params }: Params) {
-  const access = await ensureAccess(params.projectId);
+export async function PATCH(
+  req: NextRequest,
+  context: { params: Promise<{ projectId: string }> },
+) {
+  const { projectId } = await context.params;
+  const access = await ensureAccess(projectId);
   if (access.error) return access.error;
 
   const body = (await req.json().catch(() => null)) as
@@ -142,7 +150,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   await prisma.$transaction(async (tx) => {
     for (const d of body.days) {
       await tx.shootDay.updateMany({
-        where: { id: d.id, projectId: params.projectId },
+        where: { id: d.id, projectId },
         data: {
           date: new Date(d.date),
           unit: d.unit ?? null,
@@ -171,12 +179,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   const [shootDays, scenes] = await Promise.all([
     prisma.shootDay.findMany({
-      where: { projectId: params.projectId },
+      where: { projectId },
       orderBy: { date: "asc" },
       include: { scenes: { orderBy: { order: "asc" } } },
     }),
     prisma.projectScene.findMany({
-      where: { projectId: params.projectId },
+      where: { projectId },
       orderBy: { number: "asc" },
     }),
   ]);

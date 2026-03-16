@@ -3,10 +3,6 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-interface Params {
-  params: { projectId: string };
-}
-
 async function ensureIncidentAccess(projectId: string) {
   const session = await getServerSession(authOptions);
   const role = (session?.user as { role?: string })?.role;
@@ -37,20 +33,28 @@ async function ensureIncidentAccess(projectId: string) {
   return { error: null as NextResponse | null, userId };
 }
 
-export async function GET(_req: NextRequest, { params }: Params) {
-  const access = await ensureIncidentAccess(params.projectId);
+export async function GET(
+  _req: NextRequest,
+  context: { params: Promise<{ projectId: string }> },
+) {
+  const { projectId } = await context.params;
+  const access = await ensureIncidentAccess(projectId);
   if (access.error) return access.error;
 
   const incidents = await prisma.incidentReport.findMany({
-    where: { projectId: params.projectId },
+    where: { projectId },
     orderBy: { createdAt: "desc" },
   });
 
   return NextResponse.json({ incidents });
 }
 
-export async function POST(req: NextRequest, { params }: Params) {
-  const access = await ensureIncidentAccess(params.projectId);
+export async function POST(
+  req: NextRequest,
+  context: { params: Promise<{ projectId: string }> },
+) {
+  const { projectId } = await context.params;
+  const access = await ensureIncidentAccess(projectId);
   if (access.error) return access.error;
   const userId = access.userId!;
 
@@ -70,7 +74,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const incident = await prisma.incidentReport.create({
     data: {
-      projectId: params.projectId,
+      projectId,
       shootDayId: body.shootDayId ?? null,
       title: body.title,
       description: body.description,
@@ -83,8 +87,12 @@ export async function POST(req: NextRequest, { params }: Params) {
   return NextResponse.json({ incident }, { status: 201 });
 }
 
-export async function PATCH(req: NextRequest, { params }: Params) {
-  const access = await ensureIncidentAccess(params.projectId);
+export async function PATCH(
+  req: NextRequest,
+  context: { params: Promise<{ projectId: string }> },
+) {
+  const { projectId } = await context.params;
+  const access = await ensureIncidentAccess(projectId);
   if (access.error) return access.error;
 
   const body = (await req.json().catch(() => null)) as

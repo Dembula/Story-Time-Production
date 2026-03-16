@@ -3,10 +3,6 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-interface Params {
-  params: { projectId: string };
-}
-
 async function ensureAccess(projectId: string) {
   const session = await getServerSession(authOptions);
   const role = (session?.user as { role?: string })?.role;
@@ -46,12 +42,16 @@ async function ensureAccess(projectId: string) {
   return { error: null as NextResponse | null, userId };
 }
 
-export async function GET(_req: NextRequest, { params }: Params) {
-  const access = await ensureAccess(params.projectId);
+export async function GET(
+  _req: NextRequest,
+  context: { params: Promise<{ projectId: string }> },
+) {
+  const { projectId } = await context.params;
+  const access = await ensureAccess(projectId);
   if (access.error) return access.error;
 
   const batches = await prisma.dailiesBatch.findMany({
-    where: { projectId: params.projectId },
+    where: { projectId },
     orderBy: { createdAt: "desc" },
     include: {
       scene: true,
@@ -63,8 +63,12 @@ export async function GET(_req: NextRequest, { params }: Params) {
   return NextResponse.json({ batches });
 }
 
-export async function POST(req: NextRequest, { params }: Params) {
-  const access = await ensureAccess(params.projectId);
+export async function POST(
+  req: NextRequest,
+  context: { params: Promise<{ projectId: string }> },
+) {
+  const { projectId } = await context.params;
+  const access = await ensureAccess(projectId);
   if (access.error) return access.error;
 
   const body = (await req.json().catch(() => null)) as
@@ -79,7 +83,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const batch = await prisma.dailiesBatch.create({
     data: {
-      projectId: params.projectId,
+      projectId,
       sceneId: body?.sceneId ?? null,
       shootDayId: body?.shootDayId ?? null,
       title: body?.title ?? null,

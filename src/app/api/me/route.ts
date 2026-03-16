@@ -29,7 +29,7 @@ export async function GET() {
   const extra = await prisma.$queryRawUnsafe<{ headline: string | null; location: string | null; website: string | null }[]>(
     `SELECT "headline", "location", "website" FROM "User" WHERE "id" = $1`,
     session.user.id
-  ).catch(() => [{}]);
+  ).catch(() => []);
   const profile = extra[0];
   return NextResponse.json({
     ...user,
@@ -100,7 +100,7 @@ export async function PATCH(req: NextRequest) {
   const extra = await prisma.$queryRawUnsafe<{ headline: string | null; location: string | null; website: string | null }[]>(
     `SELECT "headline", "location", "website" FROM "User" WHERE "id" = $1`,
     session.user.id
-  ).catch(() => [{}]);
+  ).catch(() => []);
   const profile = extra[0];
   return NextResponse.json({
     ...updated,

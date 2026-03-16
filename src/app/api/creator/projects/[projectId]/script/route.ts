@@ -3,10 +3,6 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-interface Params {
-  params: { projectId: string };
-}
-
 async function requireProjectMember(projectId: string, req: NextRequest) {
   const session = await getServerSession(authOptions);
   const role = (session?.user as { role?: string })?.role;
@@ -38,12 +34,16 @@ async function requireProjectMember(projectId: string, req: NextRequest) {
 }
 
 // Fetch current script and versions for a project
-export async function GET(_req: NextRequest, { params }: Params) {
-  const auth = await requireProjectMember(params.projectId, _req);
+export async function GET(
+  _req: NextRequest,
+  context: { params: Promise<{ projectId: string }> },
+) {
+  const { projectId } = await context.params;
+  const auth = await requireProjectMember(projectId, _req);
   if (auth.error) return auth.error;
 
   const script = await prisma.projectScript.findFirst({
-    where: { projectId: params.projectId },
+    where: { projectId },
     include: {
       versions: {
         orderBy: { createdAt: "desc" },
@@ -59,8 +59,12 @@ export async function GET(_req: NextRequest, { params }: Params) {
 }
 
 // Upsert script content with autosave support
-export async function PATCH(req: NextRequest, { params }: Params) {
-  const auth = await requireProjectMember(params.projectId, req);
+export async function PATCH(
+  req: NextRequest,
+  context: { params: Promise<{ projectId: string }> },
+) {
+  const { projectId } = await context.params;
+  const auth = await requireProjectMember(projectId, req);
   if (auth.error) return auth.error;
   const userId = auth.userId!;
 
@@ -78,13 +82,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 
   let script = await prisma.projectScript.findFirst({
-    where: { projectId: params.projectId },
+    where: { projectId },
   });
 
   if (!script) {
     script = await prisma.projectScript.create({
       data: {
-        projectId: params.projectId,
+        projectId,
         title: body.title || "Screenplay",
       },
     });

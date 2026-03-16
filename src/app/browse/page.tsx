@@ -25,7 +25,8 @@ export default async function BrowsePage({
   const session = await getServerSession(authOptions);
   const role = (session?.user as { role?: string })?.role;
   if (session?.user?.id && role === "SUBSCRIBER") {
-    const profileId = cookies().get("st_viewer_profile")?.value;
+    const cookieStore = await cookies();
+    const profileId = cookieStore.get("st_viewer_profile")?.value;
     if (profileId) {
       const profile = await prisma.viewerProfile.findFirst({
         where: { id: profileId, userId: session.user.id },

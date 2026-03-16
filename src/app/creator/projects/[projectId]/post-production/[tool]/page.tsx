@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ProjectStageControls } from "../../project-stage-controls";
@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface PostProductionToolPageProps {
-  params: { projectId: string; tool: string };
+  params: Promise<{ projectId: string; tool: string }>;
 }
 
 const LABELS: Record<string, string> = {
@@ -20,7 +20,21 @@ const LABELS: Record<string, string> = {
 };
 
 export default function PostProductionToolPage({ params }: PostProductionToolPageProps) {
-  const { projectId, tool } = params;
+  const [resolved, setResolved] = useState<{ projectId: string; tool: string } | null>(null);
+
+  // Next.js 15 hands params as a Promise
+  useEffect(() => {
+    let alive = true;
+    void Promise.resolve(params).then((p) => {
+      if (alive) setResolved(p);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [params]);
+
+  const projectId = resolved?.projectId ?? "";
+  const tool = resolved?.tool ?? "";
   const title = LABELS[tool] ?? "Post-Production Workspace";
 
   if (tool === "footage-ingestion") return <FootageIngestion projectId={projectId} title={title} />;
@@ -37,7 +51,7 @@ export default function PostProductionToolPage({ params }: PostProductionToolPag
   );
 }
 
-export function FootageIngestion({ projectId, title }: { projectId?: string; title: string }) {
+function FootageIngestion({ projectId, title }: { projectId?: string; title: string }) {
   const queryClient = useQueryClient();
   const hasProject = !!projectId;
   const { data, isLoading } = useQuery({
@@ -111,7 +125,7 @@ export function FootageIngestion({ projectId, title }: { projectId?: string; tit
   );
 }
 
-export function EditingStudio({ projectId, title }: { projectId: string; title: string }) {
+function EditingStudio({ projectId, title }: { projectId: string; title: string }) {
   const queryClient = useQueryClient();
   const { data: reviewsData } = useQuery({
     queryKey: ["project-reviews", projectId],
@@ -145,7 +159,7 @@ export function EditingStudio({ projectId, title }: { projectId: string; title: 
   );
 }
 
-export function SoundDesign({ projectId, title }: { projectId: string; title: string }) {
+function SoundDesign({ projectId, title }: { projectId: string; title: string }) {
   return (
     <div className="space-y-4">
       <header>
@@ -159,7 +173,7 @@ export function SoundDesign({ projectId, title }: { projectId: string; title: st
   );
 }
 
-export function MusicScoring({ projectId, title }: { projectId?: string; title: string }) {
+function MusicScoring({ projectId, title }: { projectId?: string; title: string }) {
   const hasProject = !!projectId;
   const { data, isLoading } = useQuery({
     queryKey: ["project-music-selection", projectId],
@@ -198,7 +212,7 @@ export function MusicScoring({ projectId, title }: { projectId?: string; title: 
   );
 }
 
-export function VisualEffects({ projectId, title }: { projectId: string; title: string }) {
+function VisualEffects({ projectId, title }: { projectId: string; title: string }) {
   return (
     <div className="space-y-4">
       <header>
@@ -212,7 +226,7 @@ export function VisualEffects({ projectId, title }: { projectId: string; title: 
   );
 }
 
-export function ColorGrading({ projectId, title }: { projectId: string; title: string }) {
+function ColorGrading({ projectId, title }: { projectId: string; title: string }) {
   return (
     <div className="space-y-4">
       <header>
@@ -226,7 +240,7 @@ export function ColorGrading({ projectId, title }: { projectId: string; title: s
   );
 }
 
-export function FinalSoundMix({ projectId, title }: { projectId: string; title: string }) {
+function FinalSoundMix({ projectId, title }: { projectId: string; title: string }) {
   return (
     <div className="space-y-4">
       <header>
@@ -240,7 +254,7 @@ export function FinalSoundMix({ projectId, title }: { projectId: string; title: 
   );
 }
 
-export function FinalCutApproval({ projectId, title }: { projectId: string; title: string }) {
+function FinalCutApproval({ projectId, title }: { projectId: string; title: string }) {
   const queryClient = useQueryClient();
   const { data: reviewsData } = useQuery({
     queryKey: ["project-reviews", projectId],
@@ -283,7 +297,7 @@ export function FinalCutApproval({ projectId, title }: { projectId: string; titl
   );
 }
 
-export function FilmPackaging({ projectId, title }: { projectId: string; title: string }) {
+function FilmPackaging({ projectId, title }: { projectId: string; title: string }) {
   const { data } = useQuery({
     queryKey: ["project-footage", projectId],
     queryFn: () => fetch(`/api/creator/projects/${projectId}/footage`).then((r) => r.json()),
@@ -333,7 +347,7 @@ export function FilmPackaging({ projectId, title }: { projectId: string; title: 
   );
 }
 
-export function Distribution({ projectId, title }: { projectId?: string; title: string }) {
+function Distribution({ projectId, title }: { projectId?: string; title: string }) {
   const queryClient = useQueryClient();
   const hasProject = !!projectId;
   const { data: deliveryData } = useQuery({

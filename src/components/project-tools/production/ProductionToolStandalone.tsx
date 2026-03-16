@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import ProductionToolPageImpl from "@/app/creator/projects/[projectId]/production/[tool]/page";
@@ -11,7 +12,7 @@ interface ProductionToolStandaloneProps {
   description: string;
 }
 
-export function ProductionToolStandalone({
+function ProductionToolStandaloneContent({
   toolSlug,
   title,
   description,
@@ -71,8 +72,16 @@ export function ProductionToolStandalone({
   return (
     <div className="space-y-4">
       {header}
-      <ProductionToolPageImpl params={{ projectId: projectId || undefined, tool: toolSlug }} />
+      <ProductionToolPageImpl params={Promise.resolve({ projectId: projectId || undefined, tool: toolSlug })} />
     </div>
+  );
+}
+
+export function ProductionToolStandalone(props: ProductionToolStandaloneProps) {
+  return (
+    <Suspense fallback={<div className="space-y-4 p-4 text-slate-400">Loading…</div>}>
+      <ProductionToolStandaloneContent {...props} />
+    </Suspense>
   );
 }
 

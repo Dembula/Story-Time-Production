@@ -131,10 +131,21 @@ export function AdminOriginalsClient() {
         setPitches((prev) => prev.map((p) => (p.id === pitchId ? { ...p, ...updated } : p)));
         setReviewNote("");
         if (status === "APPROVED" && updated.project) {
+          const approvedProject = updated.project;
           setProjects((prev) => {
-            const exists = prev.some((x) => x.id === updated.project!.id);
-            if (exists) return prev.map((x) => (x.id === updated.project!.id ? { ...x, ...updated.project } : x));
-            return [{ id: updated.project.id, title: updated.project.title, logline: updated.logline, status: "DEVELOPMENT", phase: "CONCEPT", members: [] }, ...prev];
+            const exists = prev.some((x) => x.id === approvedProject.id);
+            if (exists) return prev.map((x) => (x.id === approvedProject.id ? { ...x, ...approvedProject } : x));
+            return [
+              {
+                id: approvedProject.id,
+                title: approvedProject.title,
+                logline: updated.logline,
+                status: "DEVELOPMENT",
+                phase: "CONCEPT",
+                members: [],
+              },
+              ...prev,
+            ];
           });
         }
       }

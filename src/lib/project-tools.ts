@@ -64,6 +64,7 @@ export interface ProjectToolMeta {
     | "FUNDING"
     | "PRODUCTION_CONTROL"
     | "ON_SET"
+    | "SHOOT"
     | "EQUIPMENT"
     | "RISK"
     | "WRAP"

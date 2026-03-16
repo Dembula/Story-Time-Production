@@ -3,10 +3,6 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-interface Params {
-  params: { projectId: string };
-}
-
 async function ensureAccess(projectId: string) {
   const session = await getServerSession(authOptions);
   const role = (session?.user as { role?: string })?.role;
@@ -37,23 +33,25 @@ async function ensureAccess(projectId: string) {
   return { error: null as NextResponse | null, userId };
 }
 
-export async function GET(_req: NextRequest, { params }: Params) {
-  const access = await ensureAccess(params.projectId);
+export async function GET(_req: NextRequest, context: { params: Promise<{ projectId: string }> }) {
+  const { projectId } = await context.params;
+
+  const access = await ensureAccess(projectId);
   if (access.error) return access.error;
 
   const [characters, props, locations, wardrobe, extras, vehicles, stunts, sfx] = await Promise.all([
-    prisma.breakdownCharacter.findMany({ where: { projectId: params.projectId } }),
-    prisma.breakdownProp.findMany({ where: { projectId: params.projectId } }),
-    prisma.breakdownLocation.findMany({ where: { projectId: params.projectId } }),
-    prisma.breakdownWardrobe.findMany({ where: { projectId: params.projectId } }),
-    prisma.breakdownExtra.findMany({ where: { projectId: params.projectId } }),
-    prisma.breakdownVehicle.findMany({ where: { projectId: params.projectId } }),
-    prisma.breakdownStunt.findMany({ where: { projectId: params.projectId } }),
-    prisma.breakdownSfx.findMany({ where: { projectId: params.projectId } }),
+    prisma.breakdownCharacter.findMany({ where: { projectId } }),
+    prisma.breakdownProp.findMany({ where: { projectId } }),
+    prisma.breakdownLocation.findMany({ where: { projectId } }),
+    prisma.breakdownWardrobe.findMany({ where: { projectId } }),
+    prisma.breakdownExtra.findMany({ where: { projectId } }),
+    prisma.breakdownVehicle.findMany({ where: { projectId } }),
+    prisma.breakdownStunt.findMany({ where: { projectId } }),
+    prisma.breakdownSfx.findMany({ where: { projectId } }),
   ]);
 
   return NextResponse.json({
-    projectId: params.projectId,
+    projectId,
     characters,
     props,
     locations,
@@ -66,8 +64,10 @@ export async function GET(_req: NextRequest, { params }: Params) {
 }
 
 // Bulk upsert simple breakdown items; each array element may have optional id for update
-export async function PATCH(req: NextRequest, { params }: Params) {
-  const access = await ensureAccess(params.projectId);
+export async function PATCH(req: NextRequest, context: { params: Promise<{ projectId: string }> }) {
+  const { projectId } = await context.params;
+
+  const access = await ensureAccess(projectId);
   if (access.error) return access.error;
 
   const body = (await req.json().catch(() => null)) as
@@ -86,8 +86,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (!body) {
     return NextResponse.json({ error: "Invalid body" }, { status: 400 });
   }
-
-  const projectId = params.projectId;
 
   await prisma.$transaction(async (tx) => {
     if (body.characters) {

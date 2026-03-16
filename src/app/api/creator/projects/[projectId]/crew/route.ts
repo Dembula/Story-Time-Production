@@ -3,10 +3,6 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-interface Params {
-  params: { projectId: string };
-}
-
 async function ensureCrewAccess(projectId: string) {
   const session = await getServerSession(authOptions);
   const role = (session?.user as { role?: string })?.role;
@@ -47,12 +43,17 @@ async function ensureCrewAccess(projectId: string) {
 }
 
 // List crew needs for the project with basic invitation counts
-export async function GET(_req: NextRequest, { params }: Params) {
-  const access = await ensureCrewAccess(params.projectId);
+export async function GET(
+  _req: NextRequest,
+  context: { params: Promise<{ projectId: string }> }
+) {
+  const { projectId } = await context.params;
+
+  const access = await ensureCrewAccess(projectId);
   if (access.error) return access.error;
 
   const needs = await prisma.crewRoleNeed.findMany({
-    where: { projectId: params.projectId },
+    where: { projectId },
     orderBy: { createdAt: "asc" },
     include: {
       invitations: true,
@@ -72,8 +73,13 @@ export async function GET(_req: NextRequest, { params }: Params) {
 }
 
 // Create a new crew role need
-export async function POST(req: NextRequest, { params }: Params) {
-  const access = await ensureCrewAccess(params.projectId);
+export async function POST(
+  req: NextRequest,
+  context: { params: Promise<{ projectId: string }> }
+) {
+  const { projectId } = await context.params;
+
+  const access = await ensureCrewAccess(projectId);
   if (access.error) return access.error;
 
   const body = (await req.json().catch(() => null)) as
@@ -91,7 +97,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const need = await prisma.crewRoleNeed.create({
     data: {
-      projectId: params.projectId,
+      projectId,
       department: body.department ?? null,
       role: body.role,
       seniority: body.seniority ?? null,
@@ -103,8 +109,13 @@ export async function POST(req: NextRequest, { params }: Params) {
 }
 
 // Update an existing crew role need
-export async function PATCH(req: NextRequest, { params }: Params) {
-  const access = await ensureCrewAccess(params.projectId);
+export async function PATCH(
+  req: NextRequest,
+  context: { params: Promise<{ projectId: string }> }
+) {
+  const { projectId } = await context.params;
+
+  const access = await ensureCrewAccess(projectId);
   if (access.error) return access.error;
 
   const body = (await req.json().catch(() => null)) as

@@ -160,7 +160,7 @@ export function CreatorProfileClient({ userId }: { userId: string }) {
               <span>{data.followerCount} followers</span>
               <span>{data.followingCount} following</span>
             </div>
-            {canFollowOrConnect && (
+                {canFollowOrConnect && (
               <div className="flex flex-wrap gap-2 mt-4">
                 <button
                   type="button"
@@ -181,7 +181,9 @@ export function CreatorProfileClient({ userId }: { userId: string }) {
                   )}
                   {data.following ? "Following" : "Follow"}
                 </button>
-                {(data.connectionStatus === "NONE" || data.connectionStatus === "PENDING_RECEIVED") && (
+                {(data.connectionStatus === "NONE" ||
+                  data.connectionStatus === "PENDING_RECEIVED" ||
+                  data.connectionStatus === "PENDING_SENT") && (
                   <button
                     type="button"
                     onClick={handleConnect}

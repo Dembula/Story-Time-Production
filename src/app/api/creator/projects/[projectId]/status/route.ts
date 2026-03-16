@@ -3,11 +3,11 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-interface Params {
-  params: { projectId: string };
-}
-
-export async function PATCH(request: NextRequest, { params }: Params) {
+export async function PATCH(
+  request: NextRequest,
+  context: { params: Promise<{ projectId: string }> },
+) {
+  const { projectId } = await context.params;
   const session = await getServerSession(authOptions);
   const role = (session?.user as { role?: string })?.role;
   const userId = (session?.user as { id?: string })?.id;
@@ -22,7 +22,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   }
 
   const project = await prisma.originalProject.findUnique({
-    where: { id: params.projectId },
+    where: { id: projectId },
     include: {
       pitches: {
         take: 1,

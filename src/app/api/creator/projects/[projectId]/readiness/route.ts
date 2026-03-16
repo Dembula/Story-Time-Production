@@ -3,10 +3,6 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-interface Params {
-  params: { projectId: string };
-}
-
 async function ensureReadinessAccess(projectId: string) {
   const session = await getServerSession(authOptions);
   const role = (session?.user as { role?: string })?.role;
@@ -46,11 +42,13 @@ async function ensureReadinessAccess(projectId: string) {
   return { error: null as NextResponse | null, userId, project };
 }
 
-export async function GET(_req: NextRequest, { params }: Params) {
-  const access = await ensureReadinessAccess(params.projectId);
+export async function GET(
+  _req: NextRequest,
+  context: { params: Promise<{ projectId: string }> },
+) {
+  const { projectId } = await context.params;
+  const access = await ensureReadinessAccess(projectId);
   if (access.error) return access.error;
-
-  const projectId = params.projectId;
 
   const [budget, castRoles, crewNeeds, locations, equipmentPlan, riskPlan, contracts] =
     await Promise.all([

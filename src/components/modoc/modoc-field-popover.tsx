@@ -42,7 +42,7 @@ function buildPrompt(task: string, ctx: ModocFieldContext): string {
 /** Extract incorporate-ready text from MODOC reply. For logline, prefer "Suggested logline:" line. */
 function extractIncorporateText(task: string, fullMessage: string): string {
   if (task === "logline") {
-    const match = fullMessage.match(/Suggested logline:\s*(.+?)(?:\n|$)/s);
+    const match = fullMessage.match(/Suggested logline:\s*([\s\S]+?)(?:\n|$)/);
     if (match) return match[1].trim();
   }
   if (task === "idea_notes" || task === "script") {

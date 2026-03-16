@@ -2,12 +2,13 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 
 interface PageProps {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }
 
 export default async function PublicProjectWorkspacePage({ params }: PageProps) {
+  const { slug } = await params;
   const link = await prisma.projectWorkspaceLink.findUnique({
-    where: { slug: params.slug },
+    where: { slug },
     include: {
       project: true,
     },

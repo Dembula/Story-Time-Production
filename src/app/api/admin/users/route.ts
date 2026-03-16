@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -40,7 +41,7 @@ export async function PATCH(req: NextRequest) {
         action: "USER_ROLE_CHANGE",
         entityType: "User",
         entityId: userId,
-        oldValue: before ? { role: before.role } : null,
+        oldValue: before ? { role: before.role } : Prisma.JsonNull,
         newValue: { role: updated.role },
       },
     });
@@ -56,7 +57,7 @@ export async function PATCH(req: NextRequest) {
         action: "USER_NAME_UPDATE",
         entityType: "User",
         entityId: userId,
-        oldValue: before ? { name: before.name } : null,
+        oldValue: before ? { name: before.name } : Prisma.JsonNull,
         newValue: { name: updated.name },
       },
     });
@@ -72,8 +73,8 @@ export async function PATCH(req: NextRequest) {
         action: "USER_DELETE",
         entityType: "User",
         entityId: userId,
-        oldValue: before ? { email: before.email, role: before.role } : null,
-        newValue: null,
+        oldValue: before ? { email: before.email, role: before.role } : Prisma.JsonNull,
+        newValue: Prisma.JsonNull,
       },
     });
     return NextResponse.json({ success: true });

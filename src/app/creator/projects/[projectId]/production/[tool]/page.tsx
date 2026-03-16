@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useModocOptional, useModoc } from "@/components/modoc";
 
 interface ProductionToolPageProps {
-  params: { projectId?: string; tool: string };
+  params: Promise<{ projectId?: string; tool: string }>;
 }
 
 const LABELS: Record<string, string> = {
@@ -142,7 +142,20 @@ function ProductionModocReportModal({ task, reportTitle, prompt, onClose, projec
 }
 
 export default function ProductionToolPage({ params }: ProductionToolPageProps) {
-  const { projectId, tool } = params;
+  const [resolved, setResolved] = useState<{ projectId?: string; tool: string } | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    void Promise.resolve(params).then((p) => {
+      if (alive) setResolved(p);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [params]);
+
+  const projectId = resolved?.projectId;
+  const tool = resolved?.tool ?? "";
   const title = LABELS[tool] ?? "Production Workspace";
   const hasProject = !!projectId;
 
@@ -239,7 +252,7 @@ export default function ProductionToolPage({ params }: ProductionToolPageProps) 
   );
 }
 
-export function ControlCenter({ projectId, title }: { projectId?: string; title: string }) {
+function ControlCenter({ projectId, title }: { projectId?: string; title: string }) {
   const modoc = useModocOptional();
   const [modocReportOpen, setModocReportOpen] = useState(false);
   const hasProject = !!projectId;
@@ -449,7 +462,7 @@ export function ControlCenter({ projectId, title }: { projectId?: string; title:
   );
 }
 
-export function CallSheetGenerator({ projectId, title }: { projectId?: string; title: string }) {
+function CallSheetGenerator({ projectId, title }: { projectId?: string; title: string }) {
   const modoc = useModocOptional();
   const [modocReportOpen, setModocReportOpen] = useState(false);
   const queryClient = useQueryClient();
@@ -634,7 +647,7 @@ export function CallSheetGenerator({ projectId, title }: { projectId?: string; t
   );
 }
 
-export function OnSetTasks({ projectId, title }: { projectId?: string; title: string }) {
+function OnSetTasks({ projectId, title }: { projectId?: string; title: string }) {
   const modoc = useModocOptional();
   const [modocReportOpen, setModocReportOpen] = useState(false);
   const queryClient = useQueryClient();
@@ -817,7 +830,7 @@ export function OnSetTasks({ projectId, title }: { projectId?: string; title: st
   );
 }
 
-export function Column({
+function Column({
   title,
   count,
   tasks,
@@ -863,7 +876,7 @@ export function Column({
   );
 }
 
-export function EquipmentTracking({ projectId, title }: { projectId?: string; title: string }) {
+function EquipmentTracking({ projectId, title }: { projectId?: string; title: string }) {
   const modoc = useModocOptional();
   const [modocReportOpen, setModocReportOpen] = useState(false);
   const hasProject = !!projectId;
@@ -983,7 +996,7 @@ export function EquipmentTracking({ projectId, title }: { projectId?: string; ti
   );
 }
 
-export function ShootProgress({ projectId, title }: { projectId?: string; title: string }) {
+function ShootProgress({ projectId, title }: { projectId?: string; title: string }) {
   const modoc = useModocOptional();
   const [modocReportOpen, setModocReportOpen] = useState(false);
   const hasProject = !!projectId;
@@ -1052,7 +1065,7 @@ export function ShootProgress({ projectId, title }: { projectId?: string; title:
   );
 }
 
-export function ContinuityManager({ projectId, title }: { projectId?: string; title: string }) {
+function ContinuityManager({ projectId, title }: { projectId?: string; title: string }) {
   const modoc = useModocOptional();
   const [modocReportOpen, setModocReportOpen] = useState(false);
   const queryClient = useQueryClient();
@@ -1150,7 +1163,7 @@ export function ContinuityManager({ projectId, title }: { projectId?: string; ti
   );
 }
 
-export function DailiesReview({ projectId, title }: { projectId?: string; title: string }) {
+function DailiesReview({ projectId, title }: { projectId?: string; title: string }) {
   const modoc = useModocOptional();
   const [modocReportOpen, setModocReportOpen] = useState(false);
   const queryClient = useQueryClient();
@@ -1238,7 +1251,7 @@ export function DailiesReview({ projectId, title }: { projectId?: string; title:
   );
 }
 
-export function ExpenseTracker({ projectId, title }: { projectId?: string; title: string }) {
+function ExpenseTracker({ projectId, title }: { projectId?: string; title: string }) {
   const modoc = useModocOptional();
   const [modocReportOpen, setModocReportOpen] = useState(false);
   const queryClient = useQueryClient();
@@ -1315,7 +1328,7 @@ export function ExpenseTracker({ projectId, title }: { projectId?: string; title
   );
 }
 
-export function IncidentReporting({ projectId, title }: { projectId?: string; title: string }) {
+function IncidentReporting({ projectId, title }: { projectId?: string; title: string }) {
   const modoc = useModocOptional();
   const [modocReportOpen, setModocReportOpen] = useState(false);
   const queryClient = useQueryClient();
@@ -1455,7 +1468,7 @@ export function IncidentReporting({ projectId, title }: { projectId?: string; ti
   );
 }
 
-export function ProductionWrap({ projectId, title }: { projectId?: string; title: string }) {
+function ProductionWrap({ projectId, title }: { projectId?: string; title: string }) {
   const modoc = useModocOptional();
   const [modocReportOpen, setModocReportOpen] = useState(false);
   const hasProject = !!projectId;

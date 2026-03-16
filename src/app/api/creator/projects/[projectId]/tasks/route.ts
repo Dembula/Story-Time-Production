@@ -3,10 +3,6 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-interface Params {
-  params: { projectId: string };
-}
-
 async function ensureTaskAccess(projectId: string) {
   const session = await getServerSession(authOptions);
   const role = (session?.user as { role?: string })?.role;
@@ -37,20 +33,28 @@ async function ensureTaskAccess(projectId: string) {
   return { error: null as NextResponse | null, userId };
 }
 
-export async function GET(_req: NextRequest, { params }: Params) {
-  const access = await ensureTaskAccess(params.projectId);
+export async function GET(
+  _req: NextRequest,
+  context: { params: Promise<{ projectId: string }> },
+) {
+  const { projectId } = await context.params;
+  const access = await ensureTaskAccess(projectId);
   if (access.error) return access.error;
 
   const tasks = await prisma.projectTask.findMany({
-    where: { projectId: params.projectId },
+    where: { projectId },
     orderBy: { createdAt: "asc" },
   });
 
   return NextResponse.json({ tasks });
 }
 
-export async function POST(req: NextRequest, { params }: Params) {
-  const access = await ensureTaskAccess(params.projectId);
+export async function POST(
+  req: NextRequest,
+  context: { params: Promise<{ projectId: string }> },
+) {
+  const { projectId } = await context.params;
+  const access = await ensureTaskAccess(projectId);
   if (access.error) return access.error;
   const userId = access.userId!;
 
@@ -69,7 +73,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const task = await prisma.projectTask.create({
     data: {
-      projectId: params.projectId,
+      projectId,
       title: body.title,
       description: body.description ?? null,
       department: body.department ?? null,
@@ -81,8 +85,12 @@ export async function POST(req: NextRequest, { params }: Params) {
   return NextResponse.json({ task }, { status: 201 });
 }
 
-export async function PATCH(req: NextRequest, { params }: Params) {
-  const access = await ensureTaskAccess(params.projectId);
+export async function PATCH(
+  req: NextRequest,
+  context: { params: Promise<{ projectId: string }> },
+) {
+  const { projectId } = await context.params;
+  const access = await ensureTaskAccess(projectId);
   if (access.error) return access.error;
 
   const body = (await req.json().catch(() => null)) as
