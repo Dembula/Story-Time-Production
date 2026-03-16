@@ -7,7 +7,9 @@ const COMPETITION_NOTIFICATION_TYPE = "COMPETITION_LIVE";
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
-  if ((session?.user as { role?: string })?.role !== "ADMIN") {
+  const role = (session?.user as { role?: string })?.role;
+  const adminId = (session?.user as { id?: string })?.id;
+  if (role !== "ADMIN" || !adminId) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -64,6 +66,22 @@ export async function POST(req: Request) {
         })),
       });
     }
+
+    await prisma.adminAuditLog.create({
+      data: {
+        adminUserId: adminId,
+        action: "COMPETITION_GO_LIVE",
+        entityType: "CompetitionPeriod",
+        entityId: period.id,
+        oldValue: null,
+        newValue: {
+          name: period.name,
+          startDate: period.startDate,
+          endDate: period.endDate,
+          status: period.status,
+        },
+      },
+    });
 
     return NextResponse.json({
       success: true,

@@ -5,7 +5,9 @@ import { prisma } from "@/lib/prisma";
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
-  if ((session?.user as { role?: string })?.role !== "ADMIN") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const role = (session?.user as { role?: string })?.role;
+  const adminId = (session?.user as { id?: string })?.id;
+  if (role !== "ADMIN" || !adminId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await req.json();
   const { creatorId } = body as { creatorId?: string };
@@ -17,9 +19,20 @@ export async function POST(req: Request) {
   });
   if (!period) return NextResponse.json({ error: "No open period" }, { status: 400 });
 
-  await prisma.competitionPeriod.update({
+  const updated = await prisma.competitionPeriod.update({
     where: { id: period.id },
     data: { winnerId: creatorId, status: "CLOSED" },
+  });
+
+  await prisma.adminAuditLog.create({
+    data: {
+      adminUserId: adminId,
+      action: "COMPETITION_WINNER_SET",
+      entityType: "CompetitionPeriod",
+      entityId: updated.id,
+      oldValue: { previousWinnerId: period.winnerId, previousStatus: period.status },
+      newValue: { winnerId: updated.winnerId, status: updated.status },
+    },
   });
 
   return NextResponse.json({ success: true });

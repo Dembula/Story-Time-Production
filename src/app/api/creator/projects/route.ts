@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { countIdeasByProjectForUser } from "@/lib/ideaStore";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -30,7 +29,21 @@ export async function GET() {
     orderBy: { updatedAt: "desc" },
   });
 
-  const ideaCountByProject = await countIdeasByProjectForUser(userId);
+  const ideaCounts = await prisma.projectIdea.groupBy({
+    by: ["projectId"],
+    where: {
+      userId,
+      projectId: { not: null },
+    },
+    _count: { _all: true },
+  });
+
+  const ideaCountByProject = new Map<string, number>();
+  for (const row of ideaCounts) {
+    if (row.projectId) {
+      ideaCountByProject.set(row.projectId, row._count._all);
+    }
+  }
 
   const withActivity = projects.map((p) => {
     const latestPitch = p.pitches[0];

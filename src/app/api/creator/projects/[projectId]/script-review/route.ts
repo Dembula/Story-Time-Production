@@ -3,10 +3,6 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createAndConfirmPayment } from "@/lib/payments";
-import {
-  getScriptReviewNotes,
-  upsertScriptReviewNotes,
-} from "@/lib/scriptReviewStore";
 
 interface Params {
   params: { projectId: string };
@@ -21,8 +17,10 @@ export async function GET(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const [notes, requests] = await Promise.all([
-    getScriptReviewNotes({ userId, projectId: params.projectId }),
+  const [note, requests] = await Promise.all([
+    prisma.scriptReviewNote.findFirst({
+      where: { userId, projectId: params.projectId },
+    }),
     prisma.scriptReviewRequest.findMany({
       where:
         role === "ADMIN"
@@ -39,7 +37,7 @@ export async function GET(req: NextRequest, { params }: Params) {
   ]);
 
   return NextResponse.json({
-    notes: notes ?? { body: "" },
+    notes: note ?? { body: "" },
     requests,
   });
 }
@@ -141,12 +139,23 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
   }
 
-  const record = await upsertScriptReviewNotes({
-    userId,
-    projectId: params.projectId,
-    body: body.notesBody ?? "",
+  const note = await prisma.scriptReviewNote.upsert({
+    where: {
+      userId_projectId: {
+        userId,
+        projectId: params.projectId,
+      },
+    },
+    create: {
+      userId,
+      projectId: params.projectId,
+      body: body.notesBody ?? "",
+    },
+    update: {
+      body: body.notesBody ?? "",
+    },
   });
 
-  return NextResponse.json({ notes: record });
+  return NextResponse.json({ notes: note });
 }
 

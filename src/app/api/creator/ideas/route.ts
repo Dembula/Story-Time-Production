@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import {
-  createIdeaForUser,
-  listIdeasForUser,
-  updateIdeaForUser,
-} from "@/lib/ideaStore";
+import { prisma } from "@/lib/prisma";
 
 async function ensureCreatorSession() {
   const session = await getServerSession(authOptions);
@@ -26,7 +22,10 @@ export async function GET(_req: NextRequest) {
   const access = await ensureCreatorSession();
   if (access.error) return access.error;
 
-  const ideas = await listIdeasForUser(access.userId!, null);
+  const ideas = await prisma.projectIdea.findMany({
+    where: { userId: access.userId!, projectId: null },
+    orderBy: { createdAt: "desc" },
+  });
 
   return NextResponse.json({ ideas });
 }
@@ -48,13 +47,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing title" }, { status: 400 });
   }
 
-  const idea = await createIdeaForUser({
-    userId: access.userId!,
-    projectId: null,
-    title: body.title,
-    logline: body.logline ?? null,
-    notes: body.notes ?? null,
-    genres: body.genres ?? null,
+  const idea = await prisma.projectIdea.create({
+    data: {
+      userId: access.userId!,
+      projectId: null,
+      title: body.title,
+      logline: body.logline ?? null,
+      notes: body.notes ?? null,
+      genres: body.genres ?? null,
+      convertedToProject: false,
+    },
   });
 
   return NextResponse.json({ idea }, { status: 201 });
@@ -78,20 +80,30 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Missing id" }, { status: 400 });
   }
 
-  const updated = await updateIdeaForUser({
-    userId: access.userId!,
-    id: body.id,
-    projectId: null,
-    title: body.title,
-    logline: body.logline,
-    notes: body.notes,
-    genres: body.genres,
+  const data: {
+    title?: string;
+    logline?: string | null;
+    notes?: string | null;
+    genres?: string | null;
+  } = {};
+
+  if (body.title !== undefined) data.title = body.title;
+  if (body.logline !== undefined) data.logline = body.logline;
+  if (body.notes !== undefined) data.notes = body.notes;
+  if (body.genres !== undefined) data.genres = body.genres;
+
+  const updated = await prisma.projectIdea.updateMany({
+    where: { id: body.id, userId: access.userId!, projectId: null },
+    data,
   });
 
-  if (!updated) {
+  if (updated.count === 0) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  return NextResponse.json({ idea: updated });
+  const idea = await prisma.projectIdea.findUnique({ where: { id: body.id } });
+
+  return NextResponse.json({ idea });
 }
+
 

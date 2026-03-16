@@ -159,6 +159,13 @@ model User {
   incidentReports       IncidentReport[]
   dailiesNotes          DailiesNote[]
   reviewNotes           ReviewNote[]
+
+  // Creator-owned script and notes
+  creatorScripts        CreatorScript[]
+  scriptReviewNotes     ScriptReviewNote[]
+
+  // Admin audit logs for privileged actions
+  adminAuditLogs        AdminAuditLog[]
 }
 
 model AdminRequest {
@@ -597,6 +604,8 @@ model OriginalProject {
   riskPlan      RiskPlan?
   continuityNotes ContinuityNote[]
   dailiesBatches DailiesBatch[]
+  scriptReviewNotes ScriptReviewNote[]
+  creatorScripts    CreatorScript[]
 
   @@index([status])
 }
@@ -2192,5 +2201,57 @@ model ModocMessage {
   @@index([createdAt])
 }
 
+
+/// Free-form notes a creator keeps alongside the Script Review tool.
+/// One record per (userId, projectId) pair; projectId may be null for standalone notes.
+model ScriptReviewNote {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String?
+  project   OriginalProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, projectId])
+  @@index([projectId])
+}
+
+/// Creator-owned scripts which may be standalone or linked to a project.
+/// This complements ProjectScript (which is always project-scoped).
+model CreatorScript {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String?
+  project   OriginalProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  title     String
+  type      String   // FEATURE, SHORT, EPISODE, OTHER
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([userId, projectId])
+}
+
+/// Immutable audit log of admin actions for accountability.
+model AdminAuditLog {
+  id          String   @id @default(cuid())
+  adminUserId String
+  adminUser   User     @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+  action      String   // e.g. CONTENT_REVIEW, USER_ROLE_CHANGE, SCRIPT_REVIEW_COMPLETE, COMPETITION_WINNER_SET
+  entityType  String   // e.g. Content, User, ScriptReviewRequest, CompetitionPeriod
+  entityId    String
+  oldValue    Json?
+  newValue    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([adminUserId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
 
 

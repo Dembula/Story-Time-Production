@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getBreakdown, upsertBreakdown } from "@/lib/breakdownStore";
 
 interface Params {
   params: { projectId: string };
@@ -42,8 +41,28 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const access = await ensureAccess(params.projectId);
   if (access.error) return access.error;
 
-  const record = await getBreakdown(params.projectId);
-  return NextResponse.json(record);
+  const [characters, props, locations, wardrobe, extras, vehicles, stunts, sfx] = await Promise.all([
+    prisma.breakdownCharacter.findMany({ where: { projectId: params.projectId } }),
+    prisma.breakdownProp.findMany({ where: { projectId: params.projectId } }),
+    prisma.breakdownLocation.findMany({ where: { projectId: params.projectId } }),
+    prisma.breakdownWardrobe.findMany({ where: { projectId: params.projectId } }),
+    prisma.breakdownExtra.findMany({ where: { projectId: params.projectId } }),
+    prisma.breakdownVehicle.findMany({ where: { projectId: params.projectId } }),
+    prisma.breakdownStunt.findMany({ where: { projectId: params.projectId } }),
+    prisma.breakdownSfx.findMany({ where: { projectId: params.projectId } }),
+  ]);
+
+  return NextResponse.json({
+    projectId: params.projectId,
+    characters,
+    props,
+    locations,
+    wardrobe,
+    extras,
+    vehicles,
+    stunts,
+    sfx,
+  });
 }
 
 // Bulk upsert simple breakdown items; each array element may have optional id for update
@@ -68,7 +87,178 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Invalid body" }, { status: 400 });
   }
 
-  const record = await upsertBreakdown(params.projectId, body as any);
-  return NextResponse.json(record);
+  const projectId = params.projectId;
+
+  await prisma.$transaction(async (tx) => {
+    if (body.characters) {
+      for (const ch of body.characters) {
+        const data = {
+          projectId,
+          name: ch.name,
+          description: ch.description ?? null,
+          importance: ch.importance ?? null,
+        };
+        if (ch.id) {
+          await tx.breakdownCharacter.updateMany({
+            where: { id: ch.id, projectId },
+            data,
+          });
+        } else {
+          await tx.breakdownCharacter.create({ data });
+        }
+      }
+    }
+
+    if (body.props) {
+      for (const p of body.props) {
+        const data = {
+          projectId,
+          name: p.name,
+          description: p.description ?? null,
+          special: p.special ?? false,
+        };
+        if (p.id) {
+          await tx.breakdownProp.updateMany({
+            where: { id: p.id, projectId },
+            data,
+          });
+        } else {
+          await tx.breakdownProp.create({ data });
+        }
+      }
+    }
+
+    if (body.locations) {
+      for (const l of body.locations) {
+        const data = {
+          projectId,
+          name: l.name,
+          description: l.description ?? null,
+        };
+        if (l.id) {
+          await tx.breakdownLocation.updateMany({
+            where: { id: l.id, projectId },
+            data,
+          });
+        } else {
+          await tx.breakdownLocation.create({ data });
+        }
+      }
+    }
+
+    if (body.wardrobe) {
+      for (const w of body.wardrobe) {
+        const data = {
+          projectId,
+          description: w.description,
+          character: w.character ?? null,
+        };
+        if (w.id) {
+          await tx.breakdownWardrobe.updateMany({
+            where: { id: w.id, projectId },
+            data,
+          });
+        } else {
+          await tx.breakdownWardrobe.create({ data });
+        }
+      }
+    }
+
+    if (body.extras) {
+      for (const e of body.extras) {
+        const data = {
+          projectId,
+          description: e.description,
+          quantity: e.quantity ?? 1,
+        };
+        if (e.id) {
+          await tx.breakdownExtra.updateMany({
+            where: { id: e.id, projectId },
+            data,
+          });
+        } else {
+          await tx.breakdownExtra.create({ data });
+        }
+      }
+    }
+
+    if (body.vehicles) {
+      for (const v of body.vehicles) {
+        const data = {
+          projectId,
+          description: v.description,
+          stuntRelated: v.stuntRelated ?? false,
+        };
+        if (v.id) {
+          await tx.breakdownVehicle.updateMany({
+            where: { id: v.id, projectId },
+            data,
+          });
+        } else {
+          await tx.breakdownVehicle.create({ data });
+        }
+      }
+    }
+
+    if (body.stunts) {
+      for (const s of body.stunts) {
+        const data = {
+          projectId,
+          description: s.description,
+          safetyNotes: s.safetyNotes ?? null,
+        };
+        if (s.id) {
+          await tx.breakdownStunt.updateMany({
+            where: { id: s.id, projectId },
+            data,
+          });
+        } else {
+          await tx.breakdownStunt.create({ data });
+        }
+      }
+    }
+
+    if (body.sfx) {
+      for (const fx of body.sfx) {
+        const data = {
+          projectId,
+          description: fx.description,
+          practical: fx.practical ?? false,
+        };
+        if (fx.id) {
+          await tx.breakdownSfx.updateMany({
+            where: { id: fx.id, projectId },
+            data,
+          });
+        } else {
+          await tx.breakdownSfx.create({ data });
+        }
+      }
+    }
+  });
+
+  const [characters, props, locations, wardrobe, extras, vehicles, stunts, sfx] = await Promise.all([
+    prisma.breakdownCharacter.findMany({ where: { projectId } }),
+    prisma.breakdownProp.findMany({ where: { projectId } }),
+    prisma.breakdownLocation.findMany({ where: { projectId } }),
+    prisma.breakdownWardrobe.findMany({ where: { projectId } }),
+    prisma.breakdownExtra.findMany({ where: { projectId } }),
+    prisma.breakdownVehicle.findMany({ where: { projectId } }),
+    prisma.breakdownStunt.findMany({ where: { projectId } }),
+    prisma.breakdownSfx.findMany({ where: { projectId } }),
+  ]);
+
+  return NextResponse.json({
+    projectId,
+    characters,
+    props,
+    locations,
+    wardrobe,
+    extras,
+    vehicles,
+    stunts,
+    sfx,
+  });
 }
+
 

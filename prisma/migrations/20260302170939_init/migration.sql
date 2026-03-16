@@ -3,7 +3,7 @@ CREATE TABLE "User" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "name" TEXT,
     "email" TEXT,
-    "emailVerified" DATETIME,
+    "emailVerified" TIMESTAMP,
     "image" TEXT,
     "role" TEXT NOT NULL DEFAULT 'SUBSCRIBER',
     "bio" TEXT,
@@ -13,8 +13,8 @@ CREATE TABLE "User" (
     "previousWork" TEXT,
     "isAfdaStudent" BOOLEAN NOT NULL DEFAULT false,
     "passwordHash" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP NOT NULL
 );
 
 -- CreateTable
@@ -39,7 +39,7 @@ CREATE TABLE "Session" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "sessionToken" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
-    "expires" DATETIME NOT NULL,
+    "expires" TIMESTAMP NOT NULL,
     CONSTRAINT "Session_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
@@ -65,10 +65,10 @@ CREATE TABLE "Content" (
     "published" BOOLEAN NOT NULL DEFAULT true,
     "reviewStatus" TEXT NOT NULL DEFAULT 'DRAFT',
     "reviewNote" TEXT,
-    "submittedAt" DATETIME,
-    "reviewedAt" DATETIME,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
+    "submittedAt" TIMESTAMP,
+    "reviewedAt" TIMESTAMP,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP NOT NULL,
     "creatorId" TEXT NOT NULL,
     CONSTRAINT "Content_creatorId_fkey" FOREIGN KEY ("creatorId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
@@ -80,7 +80,7 @@ CREATE TABLE "BtsVideo" (
     "videoUrl" TEXT,
     "thumbnail" TEXT,
     "sortOrder" INTEGER NOT NULL DEFAULT 0,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "contentId" TEXT NOT NULL,
     CONSTRAINT "BtsVideo_contentId_fkey" FOREIGN KEY ("contentId") REFERENCES "Content" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
@@ -89,7 +89,7 @@ CREATE TABLE "BtsVideo" (
 CREATE TABLE "WatchSession" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "durationSeconds" INTEGER NOT NULL,
-    "startedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "startedAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "userId" TEXT NOT NULL,
     "contentId" TEXT NOT NULL,
     CONSTRAINT "WatchSession_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
@@ -100,7 +100,7 @@ CREATE TABLE "WatchSession" (
 CREATE TABLE "Comment" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "body" TEXT NOT NULL,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "userId" TEXT NOT NULL,
     "contentId" TEXT NOT NULL,
     "parentId" TEXT,
@@ -113,7 +113,7 @@ CREATE TABLE "Comment" (
 CREATE TABLE "Rating" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "score" INTEGER NOT NULL,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "userId" TEXT NOT NULL,
     "contentId" TEXT NOT NULL,
     CONSTRAINT "Rating_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
@@ -123,7 +123,7 @@ CREATE TABLE "Rating" (
 -- CreateTable
 CREATE TABLE "WatchlistItem" (
     "id" TEXT NOT NULL PRIMARY KEY,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "userId" TEXT NOT NULL,
     "contentId" TEXT NOT NULL,
     CONSTRAINT "WatchlistItem_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
@@ -148,8 +148,8 @@ CREATE TABLE "MusicTrack" (
     "language" TEXT,
     "published" BOOLEAN NOT NULL DEFAULT true,
     "licenseType" TEXT NOT NULL DEFAULT 'SYNC',
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP NOT NULL,
     "creatorId" TEXT NOT NULL,
     CONSTRAINT "MusicTrack_creatorId_fkey" FOREIGN KEY ("creatorId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
@@ -159,7 +159,7 @@ CREATE TABLE "SyncDeal" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "amount" REAL NOT NULL DEFAULT 0,
     "status" TEXT NOT NULL,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "contentId" TEXT NOT NULL,
     "musicTrackId" TEXT NOT NULL,
     CONSTRAINT "SyncDeal_contentId_fkey" FOREIGN KEY ("contentId") REFERENCES "Content" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
@@ -171,7 +171,7 @@ CREATE TABLE "PlatformRevenue" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "period" TEXT NOT NULL,
     "amount" REAL NOT NULL,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- CreateTable
@@ -185,7 +185,7 @@ CREATE TABLE "PendingCreatorSignup" (
     "goals" TEXT,
     "previousWork" TEXT,
     "isAfdaStudent" BOOLEAN NOT NULL DEFAULT false,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- CreateTable
@@ -200,7 +200,7 @@ CREATE TABLE "ActivityLog" (
     "userAgent" TEXT,
     "ipAddress" TEXT,
     "deviceType" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "ActivityLog_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
@@ -212,7 +212,7 @@ CREATE TABLE "EquipmentListing" (
     "category" TEXT NOT NULL,
     "contactUrl" TEXT,
     "location" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "companyId" TEXT,
     CONSTRAINT "EquipmentListing_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "User" ("id") ON DELETE SET NULL ON UPDATE CASCADE
 );
@@ -225,8 +225,8 @@ CREATE TABLE "EquipmentRequest" (
     "startDate" TEXT,
     "endDate" TEXT,
     "paymentTransactionId" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP NOT NULL,
     "equipmentId" TEXT NOT NULL,
     "requesterId" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
@@ -239,7 +239,7 @@ CREATE TABLE "EquipmentRequest" (
 CREATE TABLE "Message" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "body" TEXT NOT NULL,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "senderId" TEXT NOT NULL,
     "receiverId" TEXT NOT NULL,
     "requestId" TEXT,
@@ -267,8 +267,8 @@ CREATE TABLE "SyncRequest" (
     "projectType" TEXT,
     "usageType" TEXT,
     "budget" REAL,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP NOT NULL,
     "trackId" TEXT NOT NULL,
     "requesterId" TEXT NOT NULL,
     "musicCreatorId" TEXT NOT NULL,
@@ -283,7 +283,7 @@ CREATE TABLE "CrewMember" (
     "name" TEXT NOT NULL,
     "role" TEXT NOT NULL,
     "bio" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "contentId" TEXT NOT NULL,
     CONSTRAINT "CrewMember_contentId_fkey" FOREIGN KEY ("contentId") REFERENCES "Content" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
@@ -294,7 +294,7 @@ CREATE TABLE "AuditionPost" (
     "roleName" TEXT NOT NULL,
     "description" TEXT,
     "status" TEXT NOT NULL DEFAULT 'OPEN',
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "contentId" TEXT NOT NULL,
     "creatorId" TEXT NOT NULL,
     CONSTRAINT "AuditionPost_contentId_fkey" FOREIGN KEY ("contentId") REFERENCES "Content" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
@@ -315,8 +315,8 @@ CREATE TABLE "OriginalProject" (
     "targetDate" TEXT,
     "posterUrl" TEXT,
     "adminNote" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP NOT NULL
 );
 
 -- CreateTable
@@ -335,8 +335,8 @@ CREATE TABLE "OriginalPitch" (
     "references" TEXT,
     "status" TEXT NOT NULL DEFAULT 'SUBMITTED',
     "adminNote" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP NOT NULL,
     "creatorId" TEXT NOT NULL,
     "projectId" TEXT,
     CONSTRAINT "OriginalPitch_creatorId_fkey" FOREIGN KEY ("creatorId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
@@ -350,7 +350,7 @@ CREATE TABLE "OriginalMember" (
     "department" TEXT,
     "status" TEXT NOT NULL DEFAULT 'INVITED',
     "note" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "userId" TEXT NOT NULL,
     "projectId" TEXT NOT NULL,
     CONSTRAINT "OriginalMember_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
@@ -374,8 +374,8 @@ CREATE TABLE "LocationListing" (
     "rules" TEXT,
     "availability" TEXT,
     "contactUrl" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP NOT NULL,
     "companyId" TEXT,
     CONSTRAINT "LocationListing_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "User" ("id") ON DELETE SET NULL ON UPDATE CASCADE
 );
@@ -390,8 +390,8 @@ CREATE TABLE "LocationBooking" (
     "endDate" TEXT,
     "crewSize" INTEGER,
     "paymentTransactionId" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP NOT NULL,
     "locationId" TEXT NOT NULL,
     "requesterId" TEXT NOT NULL,
     "ownerId" TEXT NOT NULL,
@@ -415,8 +415,8 @@ CREATE TABLE "CrewTeam" (
     "contactEmail" TEXT,
     "logoUrl" TEXT,
     "pastWorkSummary" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP NOT NULL,
     "userId" TEXT NOT NULL,
     CONSTRAINT "CrewTeam_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
@@ -434,8 +434,8 @@ CREATE TABLE "CrewTeamMember" (
     "email" TEXT,
     "phone" TEXT,
     "sortOrder" INTEGER NOT NULL DEFAULT 0,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP NOT NULL,
     "crewTeamId" TEXT NOT NULL,
     CONSTRAINT "CrewTeamMember_crewTeamId_fkey" FOREIGN KEY ("crewTeamId") REFERENCES "CrewTeam" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
@@ -450,8 +450,8 @@ CREATE TABLE "CreatorCrewRoster" (
     "phone" TEXT,
     "notes" TEXT,
     "pastProjects" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP NOT NULL,
     "creatorId" TEXT NOT NULL,
     CONSTRAINT "CreatorCrewRoster_creatorId_fkey" FOREIGN KEY ("creatorId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
@@ -464,8 +464,8 @@ CREATE TABLE "CreatorCastRoster" (
     "contactEmail" TEXT,
     "notes" TEXT,
     "pastWork" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP NOT NULL,
     "creatorId" TEXT NOT NULL,
     CONSTRAINT "CreatorCastRoster_creatorId_fkey" FOREIGN KEY ("creatorId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
@@ -477,8 +477,8 @@ CREATE TABLE "CrewTeamRequest" (
     "message" TEXT,
     "status" TEXT NOT NULL DEFAULT 'PENDING',
     "paymentTransactionId" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP NOT NULL,
     "creatorId" TEXT NOT NULL,
     "crewTeamId" TEXT NOT NULL,
     CONSTRAINT "CrewTeamRequest_creatorId_fkey" FOREIGN KEY ("creatorId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
@@ -497,8 +497,8 @@ CREATE TABLE "CastingAgency" (
     "website" TEXT,
     "contactEmail" TEXT,
     "logoUrl" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP NOT NULL,
     "userId" TEXT NOT NULL,
     CONSTRAINT "CastingAgency_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
@@ -518,8 +518,8 @@ CREATE TABLE "CastingTalent" (
     "reelUrl" TEXT,
     "contactEmail" TEXT,
     "sortOrder" INTEGER NOT NULL DEFAULT 0,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP NOT NULL,
     "castingAgencyId" TEXT NOT NULL,
     CONSTRAINT "CastingTalent_castingAgencyId_fkey" FOREIGN KEY ("castingAgencyId") REFERENCES "CastingAgency" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
@@ -533,8 +533,8 @@ CREATE TABLE "CastingInquiry" (
     "status" TEXT NOT NULL DEFAULT 'PENDING',
     "talentId" TEXT,
     "paymentTransactionId" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP NOT NULL,
     "creatorId" TEXT NOT NULL,
     "agencyId" TEXT NOT NULL,
     CONSTRAINT "CastingInquiry_creatorId_fkey" FOREIGN KEY ("creatorId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
@@ -547,12 +547,12 @@ CREATE TABLE "ViewerSubscription" (
     "userId" TEXT NOT NULL,
     "plan" TEXT NOT NULL,
     "status" TEXT NOT NULL,
-    "trialEndsAt" DATETIME,
-    "currentPeriodEnd" DATETIME,
+    "trialEndsAt" TIMESTAMP,
+    "currentPeriodEnd" TIMESTAMP,
     "deviceCount" INTEGER NOT NULL DEFAULT 1,
     "externalPaymentId" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP NOT NULL,
     CONSTRAINT "ViewerSubscription_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
@@ -563,9 +563,9 @@ CREATE TABLE "SubscriptionPayment" (
     "amount" REAL NOT NULL,
     "currency" TEXT NOT NULL DEFAULT 'ZAR',
     "status" TEXT NOT NULL,
-    "paidAt" DATETIME,
+    "paidAt" TIMESTAMP,
     "externalPaymentId" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "SubscriptionPayment_viewerSubscriptionId_fkey" FOREIGN KEY ("viewerSubscriptionId") REFERENCES "ViewerSubscription" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
@@ -577,9 +577,9 @@ CREATE TABLE "CreatorPayout" (
     "currency" TEXT NOT NULL DEFAULT 'ZAR',
     "status" TEXT NOT NULL,
     "bankReference" TEXT,
-    "paidAt" DATETIME,
+    "paidAt" TIMESTAMP,
     "period" TEXT NOT NULL,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "CreatorPayout_creatorId_fkey" FOREIGN KEY ("creatorId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
@@ -591,9 +591,9 @@ CREATE TABLE "CreatorBanking" (
     "accountNumber" TEXT NOT NULL,
     "accountType" TEXT NOT NULL,
     "branchCode" TEXT,
-    "verifiedAt" DATETIME,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
+    "verifiedAt" TIMESTAMP,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP NOT NULL,
     CONSTRAINT "CreatorBanking_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
@@ -609,7 +609,7 @@ CREATE TABLE "Transaction" (
     "type" TEXT NOT NULL,
     "referenceId" TEXT NOT NULL,
     "externalPaymentId" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "Transaction_payerId_fkey" FOREIGN KEY ("payerId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "Transaction_payeeId_fkey" FOREIGN KEY ("payeeId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
@@ -627,8 +627,8 @@ CREATE TABLE "CateringCompany" (
     "contactEmail" TEXT,
     "website" TEXT,
     "logoUrl" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP NOT NULL,
     "userId" TEXT NOT NULL,
     CONSTRAINT "CateringCompany_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
@@ -643,8 +643,8 @@ CREATE TABLE "CateringBooking" (
     "note" TEXT,
     "status" TEXT NOT NULL DEFAULT 'PENDING',
     "paymentTransactionId" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP NOT NULL,
     CONSTRAINT "CateringBooking_cateringCompanyId_fkey" FOREIGN KEY ("cateringCompanyId") REFERENCES "CateringCompany" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "CateringBooking_creatorId_fkey" FOREIGN KEY ("creatorId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
@@ -656,10 +656,10 @@ CREATE TABLE "CompanySubscription" (
     "companyType" TEXT NOT NULL,
     "plan" TEXT NOT NULL,
     "status" TEXT NOT NULL,
-    "currentPeriodEnd" DATETIME,
+    "currentPeriodEnd" TIMESTAMP,
     "externalPaymentId" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP NOT NULL,
     CONSTRAINT "CompanySubscription_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
@@ -668,10 +668,10 @@ CREATE TABLE "CreatorDistributionLicense" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "userId" TEXT NOT NULL,
     "type" TEXT NOT NULL,
-    "yearlyExpiresAt" DATETIME,
+    "yearlyExpiresAt" TIMESTAMP,
     "externalPaymentId" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP NOT NULL,
     CONSTRAINT "CreatorDistributionLicense_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
@@ -683,7 +683,7 @@ CREATE TABLE "UploadPayment" (
     "contentId" TEXT,
     "musicTrackId" TEXT,
     "transactionId" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "UploadPayment_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
@@ -691,12 +691,12 @@ CREATE TABLE "UploadPayment" (
 CREATE TABLE "CompetitionPeriod" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "name" TEXT NOT NULL,
-    "startDate" DATETIME NOT NULL,
-    "endDate" DATETIME NOT NULL,
+    "startDate" TIMESTAMP NOT NULL,
+    "endDate" TIMESTAMP NOT NULL,
     "status" TEXT NOT NULL DEFAULT 'OPEN',
     "winnerId" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP NOT NULL,
     CONSTRAINT "CompetitionPeriod_winnerId_fkey" FOREIGN KEY ("winnerId") REFERENCES "User" ("id") ON DELETE SET NULL ON UPDATE CASCADE
 );
 
@@ -706,7 +706,7 @@ CREATE TABLE "CreatorVote" (
     "voterId" TEXT NOT NULL,
     "creatorId" TEXT NOT NULL,
     "competitionPeriodId" TEXT NOT NULL,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "CreatorVote_voterId_fkey" FOREIGN KEY ("voterId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "CreatorVote_creatorId_fkey" FOREIGN KEY ("creatorId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "CreatorVote_competitionPeriodId_fkey" FOREIGN KEY ("competitionPeriodId") REFERENCES "CompetitionPeriod" ("id") ON DELETE CASCADE ON UPDATE CASCADE
@@ -719,8 +719,8 @@ CREATE TABLE "TestPayment" (
     "currency" TEXT NOT NULL DEFAULT 'ZAR',
     "status" TEXT NOT NULL DEFAULT 'PENDING',
     "metadata" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP NOT NULL
 );
 
 -- CreateTable
@@ -729,8 +729,8 @@ CREATE TABLE "UserPreference" (
     "userId" TEXT NOT NULL,
     "theme" TEXT DEFAULT 'dark',
     "accentColor" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP NOT NULL,
     CONSTRAINT "UserPreference_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 

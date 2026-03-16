@@ -2,15 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import {
-  createShootDay,
-  getSchedule,
-  saveSchedule,
-  updateScenesLibraryFromScript,
-  ScheduleScene,
-  ShootDayRecord,
-} from "@/lib/scheduleStore";
-import { listScriptsForUser } from "@/lib/scriptStore";
 
 interface Params {
   params: { projectId: string };
@@ -55,15 +46,14 @@ async function ensureAccess(projectId: string) {
   return { error: null as NextResponse | null, userId };
 }
 
-function parseScenesFromScript(content: string): ScheduleScene[] {
+function parseScenesFromScript(content: string): { number: string; heading: string | null }[] {
   const lines = content.split(/\r?\n/);
-  const scenes: ScheduleScene[] = [];
+  const scenes: { number: string; heading: string | null }[] = [];
   let sceneNumber = 1;
   for (const line of lines) {
     const trimmed = line.trim();
     if (/^(INT\.|EXT\.)/i.test(trimmed)) {
       scenes.push({
-        id: `${sceneNumber}`,
         number: `${sceneNumber}`,
         heading: trimmed,
       });
@@ -77,37 +67,30 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const access = await ensureAccess(params.projectId);
   if (access.error) return access.error;
 
-  let schedule = await getSchedule(params.projectId);
+  const [shootDays, scenes] = await Promise.all([
+    prisma.shootDay.findMany({
+      where: { projectId: params.projectId },
+      orderBy: { date: "asc" },
+      include: { scenes: { orderBy: { order: "asc" } } },
+    }),
+    prisma.projectScene.findMany({
+      where: { projectId: params.projectId },
+      orderBy: { number: "asc" },
+    }),
+  ]);
 
-  // Seed scenes library from script if empty
-  if (schedule.scenes.length === 0) {
-    const scripts = await listScriptsForUser({
-      userId: access.userId!,
-      projectId: params.projectId,
-    });
-    const latest = scripts[0];
-    if (latest?.content) {
-      const parsed = parseScenesFromScript(latest.content);
-      schedule = await updateScenesLibraryFromScript(params.projectId, parsed);
-    }
-  }
-
-  const scenesById = new Map(schedule.scenes.map((s) => [s.id, s]));
+  const scenesById = new Map(scenes.map((s) => [s.id, s]));
 
   return NextResponse.json({
-    shootDays: schedule.shootDays.map((d) => ({
+    shootDays: shootDays.map((d) => ({
       ...d,
       scenes: d.scenes.map((link) => ({
         id: `${d.id}-${link.sceneId}`,
         order: link.order,
-        scene: scenesById.get(link.sceneId) ?? {
-          id: link.sceneId,
-          number: link.sceneId,
-          heading: null,
-        },
+        scene: scenesById.get(link.sceneId) ?? null,
       })),
     })),
-    scenes: schedule.scenes,
+    scenes,
   });
 }
 
@@ -121,8 +104,14 @@ export async function POST(req: NextRequest, { params }: Params) {
       }
     | null;
 
-  const date = body?.date ?? new Date().toISOString();
-  const day = await createShootDay(params.projectId, date);
+  const dateIso = body?.date ?? new Date().toISOString();
+  const day = await prisma.shootDay.create({
+    data: {
+      projectId: params.projectId,
+      date: new Date(dateIso),
+      status: "PLANNED",
+    },
+  });
   return NextResponse.json({ day }, { status: 201 });
 }
 
@@ -150,27 +139,59 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Missing days" }, { status: 400 });
   }
 
-  const current = await getSchedule(params.projectId);
-  const existingById = new Map(current.shootDays.map((d) => [d.id, d]));
+  await prisma.$transaction(async (tx) => {
+    for (const d of body.days) {
+      await tx.shootDay.updateMany({
+        where: { id: d.id, projectId: params.projectId },
+        data: {
+          date: new Date(d.date),
+          unit: d.unit ?? null,
+          callTime: d.callTime ?? null,
+          wrapTime: d.wrapTime ?? null,
+          status: d.status,
+          locationSummary: d.locationSummary ?? null,
+        },
+      });
 
-  const nextDays: ShootDayRecord[] = body.days.map((d) => {
-    const base = existingById.get(d.id) as ShootDayRecord | undefined;
-    return {
-      id: d.id,
-      date: d.date,
-      unit: d.unit ?? null,
-      callTime: d.callTime ?? null,
-      wrapTime: d.wrapTime ?? null,
-      status: d.status ?? base?.status ?? "PLANNED",
-      locationSummary: d.locationSummary ?? null,
-      scenesBeingShot: d.scenesBeingShot ?? base?.scenesBeingShot ?? null,
-      scenes: d.scenes.map((s) => ({
-        sceneId: s.sceneId,
-        order: s.order,
-      })),
-    };
+      await tx.shootDayScene.deleteMany({
+        where: { shootDayId: d.id },
+      });
+
+      if (Array.isArray(d.scenes) && d.scenes.length > 0) {
+        await tx.shootDayScene.createMany({
+          data: d.scenes.map((s) => ({
+            shootDayId: d.id,
+            sceneId: s.sceneId,
+            order: s.order,
+          })),
+        });
+      }
+    }
   });
 
-  const updated = await saveSchedule(params.projectId, nextDays);
-  return NextResponse.json({ schedule: updated });
+  const [shootDays, scenes] = await Promise.all([
+    prisma.shootDay.findMany({
+      where: { projectId: params.projectId },
+      orderBy: { date: "asc" },
+      include: { scenes: { orderBy: { order: "asc" } } },
+    }),
+    prisma.projectScene.findMany({
+      where: { projectId: params.projectId },
+      orderBy: { number: "asc" },
+    }),
+  ]);
+
+  const scenesById = new Map(scenes.map((s) => [s.id, s]));
+
+  return NextResponse.json({
+    shootDays: shootDays.map((d) => ({
+      ...d,
+      scenes: d.scenes.map((link) => ({
+        id: `${d.id}-${link.sceneId}`,
+        order: link.order,
+        scene: scenesById.get(link.sceneId) ?? null,
+      })),
+    })),
+    scenes,
+  });
 }

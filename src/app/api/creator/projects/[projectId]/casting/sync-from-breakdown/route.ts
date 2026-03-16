@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getBreakdown } from "@/lib/breakdownStore";
 
 interface Params {
   params: { projectId: string };
@@ -48,8 +47,9 @@ export async function POST(_req: NextRequest, { params }: Params) {
   const access = await ensureCastingAccess(params.projectId);
   if (access.error) return access.error;
 
-  const breakdown = await getBreakdown(params.projectId);
-  const characters = breakdown.characters ?? [];
+  const characters = await prisma.breakdownCharacter.findMany({
+    where: { projectId: params.projectId },
+  });
 
   if (characters.length === 0) {
     return NextResponse.json({ created: 0, skipped: 0 }, { status: 200 });

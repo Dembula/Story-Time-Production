@@ -78,6 +78,25 @@ export async function PATCH(req: NextRequest) {
     },
   });
 
+  await prisma.adminAuditLog.create({
+    data: {
+      adminUserId: adminId,
+      action: "SCRIPT_REVIEW_UPDATE",
+      entityType: "ScriptReviewRequest",
+      entityId: updated.id,
+      oldValue: {
+        status: existing.status,
+        feedbackUrl: existing.feedbackUrl,
+        feedbackNotes: existing.feedbackNotes,
+      },
+      newValue: {
+        status: updated.status,
+        feedbackUrl: updated.feedbackUrl,
+        feedbackNotes: updated.feedbackNotes,
+      },
+    },
+  });
+
   if (body.status === "COMPLETED") {
     await prisma.notification.create({
       data: {

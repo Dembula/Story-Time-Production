@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import {
-  createScriptForUser,
-  listScriptsForUser,
-  updateScriptForUser,
-  ScriptType,
-} from "@/lib/scriptStore";
 import { prisma } from "@/lib/prisma";
+
+type ScriptType = "FEATURE" | "SHORT" | "EPISODE" | "OTHER";
 
 async function ensureCreatorSession() {
   const session = await getServerSession(authOptions);
@@ -31,9 +27,18 @@ export async function GET(req: NextRequest) {
   const search = req.nextUrl.searchParams;
   const projectIdParam = search.get("projectId");
 
-  const scripts = await listScriptsForUser({
-    userId: access.userId!,
-    projectId: projectIdParam === null ? undefined : projectIdParam || null,
+  const where: {
+    userId: string;
+    projectId?: string | null;
+  } = { userId: access.userId! };
+
+  if (projectIdParam !== null) {
+    where.projectId = projectIdParam || null;
+  }
+
+  const scripts = await prisma.creatorScript.findMany({
+    where,
+    orderBy: { createdAt: "desc" },
   });
 
   // Optionally decorate with project titles when linked
@@ -78,12 +83,14 @@ export async function POST(req: NextRequest) {
       ? null
       : body.projectId;
 
-  const script = await createScriptForUser({
-    userId: access.userId!,
-    projectId,
-    title: body?.title,
-    type: body?.type,
-    content: body?.content,
+  const script = await prisma.creatorScript.create({
+    data: {
+      userId: access.userId!,
+      projectId,
+      title: body?.title?.trim() || "New script",
+      type: body?.type ?? "FEATURE",
+      content: body?.content ?? "",
+    },
   });
 
   return NextResponse.json({ script }, { status: 201 });
@@ -114,19 +121,29 @@ export async function PATCH(req: NextRequest) {
       ? null
       : body.projectId;
 
-  const updated = await updateScriptForUser({
-    userId: access.userId!,
-    id: body.id,
-    projectId,
-    title: body.title,
-    type: body.type,
-    content: body.content,
+  const data: {
+    title?: string;
+    type?: ScriptType;
+    content?: string;
+    projectId?: string | null;
+  } = {};
+
+  if (body.title !== undefined) data.title = body.title;
+  if (body.type !== undefined) data.type = body.type;
+  if (body.content !== undefined) data.content = body.content;
+  if (projectId !== undefined) data.projectId = projectId;
+
+  const updated = await prisma.creatorScript.updateMany({
+    where: { id: body.id, userId: access.userId! },
+    data,
   });
 
-  if (!updated) {
+  if (updated.count === 0) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  return NextResponse.json({ script: updated });
+  const script = await prisma.creatorScript.findUnique({ where: { id: body.id } });
+
+  return NextResponse.json({ script });
 }
 

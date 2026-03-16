@@ -2,11 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import {
-  createIdeaForUser,
-  listIdeasForUser,
-  updateIdeaForUser,
-} from "@/lib/ideaStore";
 
 interface Params {
   params: { projectId: string };
@@ -46,7 +41,10 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const access = await ensureIdeaAccess(params.projectId);
   if (access.error) return access.error;
 
-  const ideas = await listIdeasForUser(access.userId!, params.projectId);
+  const ideas = await prisma.projectIdea.findMany({
+    where: { projectId: params.projectId, userId: access.userId },
+    orderBy: { createdAt: "desc" },
+  });
 
   return NextResponse.json({ ideas });
 }
@@ -68,13 +66,16 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Missing title" }, { status: 400 });
   }
 
-  const idea = await createIdeaForUser({
-    userId: access.userId!,
-    projectId: params.projectId,
-    title: body.title,
-    logline: body.logline ?? null,
-    notes: body.notes ?? null,
-    genres: body.genres ?? null,
+  const idea = await prisma.projectIdea.create({
+    data: {
+      userId: access.userId!,
+      projectId: params.projectId,
+      title: body.title,
+      logline: body.logline ?? null,
+      notes: body.notes ?? null,
+      genres: body.genres ?? null,
+      convertedToProject: false,
+    },
   });
 
   return NextResponse.json({ idea }, { status: 201 });
@@ -101,20 +102,30 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Missing id" }, { status: 400 });
   }
 
-  const idea = await updateIdeaForUser({
-    userId: access.userId!,
-    id: body.id,
-    projectId: params.projectId,
-    title: body.title,
-    logline: body.logline,
-    notes: body.notes,
-    genres: body.genres,
-    convertedToProject: body.convertedToProject,
+  const data: {
+    title?: string;
+    logline?: string | null;
+    notes?: string | null;
+    genres?: string | null;
+    convertedToProject?: boolean;
+  } = {};
+
+  if (body.title !== undefined) data.title = body.title;
+  if (body.logline !== undefined) data.logline = body.logline;
+  if (body.notes !== undefined) data.notes = body.notes;
+  if (body.genres !== undefined) data.genres = body.genres;
+  if (body.convertedToProject !== undefined) data.convertedToProject = body.convertedToProject;
+
+  const updated = await prisma.projectIdea.updateMany({
+    where: { id: body.id, userId: access.userId!, projectId: params.projectId },
+    data,
   });
 
-  if (!idea) {
+  if (updated.count === 0) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
+
+  const idea = await prisma.projectIdea.findUnique({ where: { id: body.id } });
 
   if (body.syncToProjectMeta) {
     await prisma.originalProject.update({
