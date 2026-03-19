@@ -143,11 +143,11 @@ export function SettingsClient() {
 
   return (
     <div className="space-y-10">
-      <section id="appearance" className="rounded-2xl bg-slate-800/30 border border-slate-700/50 p-6">
-        <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+      <section id="appearance" className="storytime-section p-6">
+        <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-white">
           <Sun className="w-5 h-5 text-slate-400" /> Appearance
         </h2>
-        <p className="text-sm text-slate-400 mb-4">Colour scheme</p>
+        <p className="mb-4 text-sm text-slate-400">Colour scheme</p>
         <div className="flex flex-wrap gap-3 mb-6">
           {THEMES.map((t) => (
             <button
@@ -155,8 +155,8 @@ export function SettingsClient() {
               onClick={() => handleThemeChange(t.value)}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border transition ${
                 theme === t.value
-                  ? "border-orange-500 bg-orange-500/10 text-white"
-                  : "border-slate-600 bg-slate-800/50 text-slate-300 hover:border-slate-500"
+                  ? "border-orange-400/40 bg-orange-500/12 text-white shadow-panel"
+                  : "border-white/10 bg-white/[0.03] text-slate-300 hover:border-white/18 hover:bg-white/[0.05]"
               }`}
             >
               <t.icon className="w-4 h-4" /> {t.label}
@@ -170,7 +170,7 @@ export function SettingsClient() {
               key={a.value}
               onClick={() => handleAccentChange(a.value)}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border transition ${
-                accent === a.value ? "border-white/50 bg-slate-700/50" : "border-slate-600 bg-slate-800/50 hover:border-slate-500"
+                accent === a.value ? "border-white/22 bg-white/[0.08] shadow-panel" : "border-white/10 bg-white/[0.03] hover:border-white/18 hover:bg-white/[0.05]"
               }`}
             >
               <span className={`w-4 h-4 rounded-full ${a.class}`} />
@@ -180,8 +180,8 @@ export function SettingsClient() {
         </div>
       </section>
 
-      <section id="personal" className="rounded-2xl bg-slate-800/30 border border-slate-700/50 p-6">
-        <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+      <section id="personal" className="storytime-section p-6">
+        <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-white">
           <User className="w-5 h-5 text-slate-400" /> Personal info
         </h2>
         <form onSubmit={saveName} className="space-y-3">
@@ -190,22 +190,22 @@ export function SettingsClient() {
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full max-w-md px-4 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white"
+              className="storytime-input max-w-md px-4 py-2.5"
               placeholder="Your name"
             />
           </div>
-          <button type="submit" disabled={savingName} className="px-4 py-2 rounded-lg bg-orange-500 text-white text-sm font-medium hover:bg-orange-600 disabled:opacity-50">
+          <button type="submit" disabled={savingName} className="rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white shadow-glow hover:-translate-y-0.5 hover:bg-orange-400 disabled:opacity-50">
             {savingName ? "Saving..." : "Save name"}
           </button>
         </form>
       </section>
 
-      <section id="preferences" className="rounded-2xl bg-slate-800/30 border border-slate-700/50 p-6">
-        <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+      <section id="preferences" className="storytime-section p-6">
+        <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-white">
           <Bell className="w-5 h-5 text-slate-400" /> Account preferences
         </h2>
         <div className="space-y-4">
-          <label className="flex items-center gap-3 cursor-pointer">
+          <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3">
             <input
               type="checkbox"
               checked={notifyEmail}
@@ -217,7 +217,7 @@ export function SettingsClient() {
                   body: JSON.stringify({ notifyEmail: e.target.checked }),
                 });
               }}
-              className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-orange-500 focus:ring-orange-500"
+              className="h-4 w-4 rounded border-white/12 bg-white/[0.04] text-orange-500 focus:ring-orange-500"
             />
             <span className="text-slate-300">Email notifications (recommendations, updates)</span>
           </label>
@@ -237,7 +237,7 @@ export function SettingsClient() {
                   body: JSON.stringify({ playbackQuality: v }),
                 }).finally(() => setSavingPrefs(false));
               }}
-              className="px-4 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm"
+              className="storytime-select max-w-xs px-4 py-2.5 text-sm"
             >
               <option value="auto">Auto</option>
               <option value="1080p">1080p</option>
@@ -248,14 +248,14 @@ export function SettingsClient() {
         </div>
       </section>
 
-      <section id="payment" className="rounded-2xl bg-slate-800/30 border border-slate-700/50 p-6">
-        <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+      <section id="payment" className="storytime-section p-6">
+        <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-white">
           <CreditCard className="w-5 h-5 text-slate-400" /> Payment methods
         </h2>
-        <p className="text-sm text-slate-400 mb-4">Manage saved payment methods for subscriptions. For demo purposes you can add a label and last 4 digits.</p>
+        <p className="mb-4 text-sm text-slate-400">Manage saved payment methods for subscriptions. For demo purposes you can add a label and last 4 digits.</p>
         <ul className="space-y-2 mb-6">
           {paymentMethods.map((p) => (
-            <li key={p.id} className="flex items-center justify-between py-2 px-3 rounded-lg bg-slate-900/50 border border-slate-700/50">
+            <li key={p.id} className="flex items-center justify-between rounded-xl border border-white/8 bg-white/[0.03] px-3 py-3">
               <span className="text-white font-medium">{p.label}</span>
               <span className="text-slate-400 text-sm">****{p.lastFour}</span>
               <div className="flex items-center gap-2">
@@ -279,7 +279,7 @@ export function SettingsClient() {
               value={newPaymentLabel}
               onChange={(e) => setNewPaymentLabel(e.target.value)}
               placeholder="Visa ****4242"
-              className="w-48 px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm"
+              className="storytime-input w-48 px-3 py-2 text-sm"
             />
           </div>
           <div>
@@ -289,10 +289,10 @@ export function SettingsClient() {
               onChange={(e) => setNewPaymentLastFour(e.target.value.replace(/\D/g, "").slice(0, 4))}
               placeholder="4242"
               maxLength={4}
-              className="w-24 px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm"
+              className="storytime-input w-24 px-3 py-2 text-sm"
             />
           </div>
-          <button type="submit" className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500 text-white text-sm font-medium hover:bg-orange-600">
+          <button type="submit" className="flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white shadow-glow hover:-translate-y-0.5 hover:bg-orange-400">
             <Plus className="w-4 h-4" /> Add
           </button>
         </form>

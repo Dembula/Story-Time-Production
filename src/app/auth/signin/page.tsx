@@ -30,26 +30,26 @@ export default function SignInPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0c1222] flex items-center justify-center px-4 py-12 relative">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_40%_at_50%_40%,rgba(249,115,22,0.03),transparent_60%)]" />
+    <div className="relative flex min-h-screen items-center justify-center bg-background px-4 py-12">
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_40%_at_50%_40%,rgba(249,115,22,0.08),transparent_60%)]" />
       <div className="w-full max-w-md relative z-10">
-        <Link href="/" prefetch={false} className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white mb-8 transition">
+        <Link href="/" prefetch={false} className="mb-8 inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white">
           <ArrowLeft className="w-4 h-4" />
           Back to home
         </Link>
 
-        <Link href="/" prefetch={false} className="flex items-center gap-3 justify-center mb-10">
-          <Image src="/logo.png" alt="Story Time" width={48} height={48} className="rounded-lg" />
-          <span className="text-2xl font-semibold text-white">STORY TIME</span>
+        <Link href="/" prefetch={false} className="mb-10 flex items-center justify-center gap-3">
+          <Image src="/logo.png" alt="Story Time" width={52} height={52} className="rounded-xl shadow-glow" />
+          <span className="text-2xl font-semibold tracking-[0.14em] text-white">STORY <span className="storytime-brand-text">TIME</span></span>
         </Link>
 
-        <div className="rounded-2xl border border-slate-700/50 bg-slate-800/30 p-8 backdrop-blur-sm">
-          <h1 className="text-2xl font-semibold text-white mb-2">Welcome back</h1>
-          <p className="text-slate-400 text-sm mb-6">Sign in to watch unlimited content from independent creators</p>
+        <div className="storytime-section p-8">
+          <h1 className="mb-2 font-display text-2xl font-semibold text-white">Welcome back</h1>
+          <p className="mb-6 text-sm leading-6 text-slate-300/78">Sign in to watch unlimited content from independent creators</p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium mb-2 text-slate-300">
+              <label htmlFor="email" className="mb-2 block text-sm font-medium text-slate-300">
                 Email address
               </label>
               <input
@@ -59,11 +59,11 @@ export default function SignInPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
                 required
-                className="w-full px-4 py-3 rounded-lg bg-slate-900/60 border border-slate-600 text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500"
+                className="storytime-input px-4 py-3"
               />
             </div>
             <div>
-              <label htmlFor="password" className="block text-sm font-medium mb-2 text-slate-300">
+              <label htmlFor="password" className="mb-2 block text-sm font-medium text-slate-300">
                 Password
               </label>
               <input
@@ -73,18 +73,18 @@ export default function SignInPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 required
-                className="w-full px-4 py-3 rounded-lg bg-slate-900/60 border border-slate-600 text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500"
+                className="storytime-input px-4 py-3"
               />
             </div>
             {error && (
-              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+              <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3">
                 <p className="text-sm text-red-400">{error}</p>
               </div>
             )}
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 rounded-lg bg-orange-500 text-white font-semibold hover:bg-orange-600 disabled:opacity-50 transition"
+              className="w-full rounded-xl bg-orange-500 py-3 font-semibold text-white shadow-glow hover:-translate-y-0.5 hover:bg-orange-400 disabled:opacity-50"
             >
               {loading ? "Signing in..." : "Sign In"}
             </button>
@@ -92,42 +92,42 @@ export default function SignInPage() {
 
           <div className="relative my-6">
             <span className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-slate-700" />
+              <span className="w-full border-t border-white/8" />
             </span>
-            <span className="relative flex justify-center text-xs text-slate-500 bg-slate-800/30 px-3">Or continue with</span>
+            <span className="relative flex justify-center bg-transparent px-3 text-xs text-slate-500">Or continue with</span>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <button
               type="button"
               onClick={() => signIn("google", { callbackUrl: "/profiles" })}
-              className="flex items-center justify-center gap-2 py-2.5 rounded-lg border border-slate-600 bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 transition text-sm font-medium"
+              className="storytime-panel flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-medium text-slate-300 hover:bg-white/[0.05]"
             >
               Google
             </button>
             <button
               type="button"
               onClick={() => signIn("github", { callbackUrl: "/profiles" })}
-              className="flex items-center justify-center gap-2 py-2.5 rounded-lg border border-slate-600 bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 transition text-sm font-medium"
+              className="storytime-panel flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-medium text-slate-300 hover:bg-white/[0.05]"
             >
               GitHub
             </button>
           </div>
 
-          <div className="mt-6 p-3 rounded-lg bg-slate-800/40 border border-slate-700/30">
+          <div className="storytime-panel mt-6 rounded-xl p-3">
             <p className="text-xs text-slate-500 mb-1.5 font-medium">Demo account:</p>
             <p className="text-xs text-slate-400"><code className="text-slate-300">viewer@storytime.com</code> / <code className="text-slate-300">storytime2025</code></p>
           </div>
 
           <div className="mt-4 flex items-center gap-2 justify-center text-xs text-slate-500">
             <Shield className="w-3.5 h-3.5" />
-            <span>Secured with AES-256 encryption</span>
+            <span>Protected with account and session controls</span>
           </div>
         </div>
 
         <p className="mt-6 text-center text-sm text-slate-500">
           Don&apos;t have an account?{" "}
-          <Link href="/auth/signup" className="text-orange-500 hover:text-orange-400 font-medium">
+          <Link href="/auth/signup" className="font-medium text-orange-300 hover:text-orange-200">
             Sign up
           </Link>
           {" · "}

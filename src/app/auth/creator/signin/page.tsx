@@ -31,31 +31,32 @@ export default function CreatorSignInPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0c1222] flex items-center justify-center px-4 py-12 relative">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_40%_at_50%_40%,rgba(249,115,22,0.03),transparent_60%)]" />
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-950 px-4 py-12">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.18),transparent_32%),linear-gradient(135deg,rgba(255,214,153,0.18),transparent_42%),linear-gradient(180deg,#020617_0%,#111827_55%,#1f2937_100%)]" />
+      <div className="absolute inset-x-0 top-0 h-48 bg-gradient-to-b from-amber-100/12 to-transparent" />
       <div className="w-full max-w-md relative z-10">
-        <Link href="/" prefetch={false} className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white mb-8 transition">
+        <Link href="/" prefetch={false} className="mb-8 inline-flex items-center gap-2 text-sm text-slate-300 transition hover:text-white">
           <ArrowLeft className="w-4 h-4" />
           Back to home
         </Link>
 
-        <Link href="/" prefetch={false} className="flex items-center gap-3 justify-center mb-10">
-          <Image src="/logo.png" alt="Story Time" width={48} height={48} className="rounded-lg" />
-          <span className="text-2xl font-semibold text-white">STORY TIME</span>
+        <Link href="/" prefetch={false} className="mb-10 flex items-center justify-center gap-3">
+          <Image src="/logo.png" alt="Story Time" width={52} height={52} className="rounded-xl shadow-glow" />
+          <span className="text-2xl font-semibold tracking-[0.14em] text-white">STORY <span className="storytime-brand-text">TIME</span></span>
         </Link>
 
-        <div className="rounded-2xl border border-slate-700/50 bg-slate-800/30 p-8 backdrop-blur-sm">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-400 text-sm font-medium mb-6">
+        <div className="rounded-[28px] border border-white/15 bg-gradient-to-br from-white via-stone-50 to-amber-50 p-8 text-slate-950 shadow-[0_30px_80px_-32px_rgba(0,0,0,0.72)] backdrop-blur-xl">
+          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-slate-900/8 bg-slate-950 px-3 py-1 text-sm font-semibold text-amber-200 shadow-sm">
             Creator Portal
           </div>
-          <h1 className="text-2xl font-semibold text-white mb-2">Creator Sign In</h1>
-          <p className="text-slate-400 text-sm mb-6">
+          <h1 className="mb-2 font-display text-2xl font-semibold text-slate-950">Creator Sign In</h1>
+          <p className="mb-6 text-sm leading-6 text-slate-600">
             Access your dashboard, view analytics, and manage your content
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium mb-2 text-slate-300">Email</label>
+              <label htmlFor="email" className="mb-2 block text-sm font-medium text-slate-700">Email</label>
               <input
                 id="email"
                 type="email"
@@ -63,11 +64,11 @@ export default function CreatorSignInPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="creator@example.com"
                 required
-                className="w-full px-4 py-3 rounded-lg bg-slate-900/60 border border-slate-600 text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500"
+                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-950 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-amber-400 focus:ring-2 focus:ring-amber-200/80"
               />
             </div>
             <div>
-              <label htmlFor="password" className="block text-sm font-medium mb-2 text-slate-300">Password</label>
+              <label htmlFor="password" className="mb-2 block text-sm font-medium text-slate-700">Password</label>
               <input
                 id="password"
                 type="password"
@@ -75,18 +76,18 @@ export default function CreatorSignInPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 required
-                className="w-full px-4 py-3 rounded-lg bg-slate-900/60 border border-slate-600 text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500"
+                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-950 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-amber-400 focus:ring-2 focus:ring-amber-200/80"
               />
             </div>
             {error && (
-              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
-                <p className="text-sm text-red-400">{error}</p>
+              <div className="rounded-xl border border-red-200 bg-red-50 p-3">
+                <p className="text-sm text-red-600">{error}</p>
               </div>
             )}
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 rounded-lg bg-orange-500 text-white font-semibold hover:bg-orange-600 disabled:opacity-50 transition"
+              className="w-full rounded-xl bg-slate-950 py-3 font-semibold text-white shadow-[0_18px_40px_-22px_rgba(15,23,42,0.85)] transition hover:-translate-y-0.5 hover:bg-slate-900 disabled:opacity-50"
             >
               {loading ? "Signing in..." : "Sign In"}
             </button>
@@ -94,48 +95,48 @@ export default function CreatorSignInPage() {
 
           <div className="relative my-6">
             <span className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-slate-700" />
+              <span className="w-full border-t border-slate-200" />
             </span>
-            <span className="relative flex justify-center text-xs text-slate-500 bg-slate-800/30 px-3">Or</span>
+            <span className="relative flex justify-center bg-transparent px-3 text-xs text-slate-400">Or</span>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <button
               type="button"
               onClick={() => signIn("google", { callbackUrl: "/creator/dashboard" })}
-              className="flex items-center justify-center gap-2 py-2.5 rounded-lg border border-slate-600 bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 transition text-sm font-medium"
+              className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white/90 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-white"
             >
               Google
             </button>
             <button
               type="button"
               onClick={() => signIn("github", { callbackUrl: "/creator/dashboard" })}
-              className="flex items-center justify-center gap-2 py-2.5 rounded-lg border border-slate-600 bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 transition text-sm font-medium"
+              className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white/90 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-white"
             >
               GitHub
             </button>
           </div>
 
-          <div className="mt-6 p-3 rounded-lg bg-slate-800/40 border border-slate-700/30">
-            <p className="text-xs text-slate-500 mb-1.5 font-medium">Demo creator accounts:</p>
-            <p className="text-xs text-slate-400"><code className="text-slate-300">creator@storytime.com</code> / <code className="text-slate-300">storytime2025</code></p>
-            <p className="text-xs text-slate-400"><code className="text-slate-300">music@storytime.com</code> / <code className="text-slate-300">storytime2025</code></p>
-            <p className="text-xs text-slate-400"><code className="text-slate-300">cinegear@storytime.com</code> / <code className="text-slate-300">storytime2025</code> (Equipment Co.)</p>
+          <div className="mt-6 rounded-xl border border-slate-200 bg-white/85 p-3 shadow-sm">
+            <p className="mb-1.5 text-xs font-semibold text-slate-500">Demo creator accounts:</p>
+            <p className="text-xs text-slate-600"><code className="text-slate-950">creator@storytime.com</code> / <code className="text-slate-950">storytime2025</code></p>
+            <p className="text-xs text-slate-600"><code className="text-slate-950">music@storytime.com</code> / <code className="text-slate-950">storytime2025</code></p>
+            <p className="text-xs text-slate-600"><code className="text-slate-950">cinegear@storytime.com</code> / <code className="text-slate-950">storytime2025</code> (Equipment Co.)</p>
           </div>
 
-          <div className="mt-4 flex items-center gap-2 justify-center text-xs text-slate-500">
+          <div className="mt-4 flex items-center justify-center gap-2 text-xs text-slate-500">
             <Shield className="w-3.5 h-3.5" />
-            <span>Secured with AES-256 encryption</span>
+            <span>Protected with account and session controls</span>
           </div>
         </div>
 
-        <p className="mt-6 text-center text-sm text-slate-500">
+        <p className="mt-6 text-center text-sm text-slate-400">
           Not a creator yet?{" "}
-          <Link href="/auth/creator/signup" className="text-orange-500 hover:text-orange-400 font-medium">
+          <Link href="/auth/creator/signup" className="font-medium text-amber-300 hover:text-amber-200">
             Creator sign up
           </Link>
           {" · "}
-          <Link href="/auth/signin" className="text-slate-400 hover:text-slate-300">
+          <Link href="/auth/signin" className="text-slate-300 hover:text-white">
             Viewer sign in
           </Link>
         </p>

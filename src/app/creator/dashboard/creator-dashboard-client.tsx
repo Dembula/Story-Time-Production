@@ -33,9 +33,9 @@ export function CreatorDashboardClient() {
   if (isLoading) {
     return (
       <div className="p-8 max-w-7xl mx-auto">
-        <Skeleton className="h-10 w-64 mb-8 bg-slate-800" />
+        <Skeleton className="mb-8 h-10 w-64 bg-white/[0.06]" />
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-36 bg-slate-800" />)}
+          {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-36 bg-white/[0.06]" />)}
         </div>
       </div>
     );
@@ -52,21 +52,21 @@ export function CreatorDashboardClient() {
     <div className="p-8 max-w-7xl mx-auto">
       <div className="mb-10">
         <div className="flex items-center gap-3 flex-wrap">
-          <h1 className="text-3xl font-semibold text-white tracking-tight">Creator Dashboard</h1>
+          <h1 className="font-display text-3xl font-semibold tracking-tight text-white">Creator Dashboard</h1>
           {license && (
-            <span className="px-3 py-1 rounded-full text-xs font-medium bg-slate-700/80 text-slate-300 border border-slate-600">
+            <span className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-xs font-medium text-slate-300">
               {license.type === "YEARLY_R89" ? "Yearly license" : "Pay per upload (R10)"}
             </span>
           )}
         </div>
-        <p className="text-slate-400 mt-2">
+        <p className="mt-2 text-slate-300/78">
           Track your content performance, audience engagement, and revenue. Data that Netflix would never show you.
         </p>
       </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
-        <Card className="border-slate-700/50 bg-slate-800/20 border-l-4 border-l-cyan-500/50">
+        <Card className="storytime-kpi border-l-4 border-l-cyan-500/50">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-slate-400">Total Views</CardTitle>
             <Eye className="w-5 h-5 text-cyan-400/80" />
@@ -76,7 +76,7 @@ export function CreatorDashboardClient() {
             <p className="text-xs text-slate-500 mt-1">All-time plays</p>
           </CardContent>
         </Card>
-        <Card className="border-slate-700/50 bg-slate-800/20 border-l-4 border-l-emerald-500/50">
+        <Card className="storytime-kpi border-l-4 border-l-emerald-500/50">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-slate-400">Unique Watchers</CardTitle>
             <Users className="w-5 h-5 text-emerald-400/80" />
@@ -86,7 +86,7 @@ export function CreatorDashboardClient() {
             <p className="text-xs text-slate-500 mt-1">Distinct viewers</p>
           </CardContent>
         </Card>
-        <Card className="border-slate-700/50 bg-slate-800/20 border-l-4 border-l-violet-500/50">
+        <Card className="storytime-kpi border-l-4 border-l-violet-500/50">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-slate-400">Avg Watch Time</CardTitle>
             <Clock className="w-5 h-5 text-violet-400/80" />
@@ -98,7 +98,7 @@ export function CreatorDashboardClient() {
             <p className="text-xs text-slate-500 mt-1">Per session</p>
           </CardContent>
         </Card>
-        <Card className="border-slate-700/50 bg-slate-800/20 border-l-4 border-l-orange-500/50">
+        <Card className="storytime-kpi border-l-4 border-l-orange-500/50">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-slate-400">Revenue (This Month)</CardTitle>
             <DollarSign className="w-5 h-5 text-orange-400" />
@@ -112,7 +112,7 @@ export function CreatorDashboardClient() {
 
       {/* Engagement Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-10">
-        <Card className="border-slate-700/50 bg-slate-800/20">
+        <Card className="storytime-section">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-slate-400">Overall Rating</CardTitle>
             <Star className="w-5 h-5 text-yellow-400/80" />
@@ -122,7 +122,7 @@ export function CreatorDashboardClient() {
             <p className="text-xs text-slate-500 mt-1">{totalRatings} total ratings</p>
           </CardContent>
         </Card>
-        <Card className="border-slate-700/50 bg-slate-800/20">
+        <Card className="storytime-section">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-slate-400">Total Comments</CardTitle>
             <MessageSquare className="w-5 h-5 text-blue-400/80" />
@@ -132,7 +132,7 @@ export function CreatorDashboardClient() {
             <p className="text-xs text-slate-500 mt-1">Community engagement</p>
           </CardContent>
         </Card>
-        <Card className="border-slate-700/50 bg-slate-800/20">
+        <Card className="storytime-section">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-slate-400">Catalogue Size</CardTitle>
             <Film className="w-5 h-5 text-pink-400/80" />
@@ -146,17 +146,17 @@ export function CreatorDashboardClient() {
 
       {/* Quick Links */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-10">
-        <Link href="/creator/equipment" className="p-5 rounded-2xl bg-slate-800/30 border border-slate-700/50 hover:border-orange-500/30 transition group">
+        <Link href="/creator/equipment" className="storytime-section group p-5 hover:-translate-y-1 hover:border-orange-400/22">
           <Wrench className="w-8 h-8 text-orange-500 mb-3 group-hover:scale-110 transition" />
           <h3 className="font-semibold text-white mb-1">Equipment Repository</h3>
           <p className="text-sm text-slate-400">Find cameras, lighting, sound gear, and more from rental companies</p>
         </Link>
-        <Link href="/creator/crew" className="p-5 rounded-2xl bg-slate-800/30 border border-slate-700/50 hover:border-emerald-500/30 transition group">
+        <Link href="/creator/crew" className="storytime-section group p-5 hover:-translate-y-1 hover:border-emerald-400/22">
           <UsersRound className="w-8 h-8 text-emerald-500 mb-3 group-hover:scale-110 transition" />
           <h3 className="font-semibold text-white mb-1">Crew & Cast</h3>
           <p className="text-sm text-slate-400">Manage your production team, actors, and crew members</p>
         </Link>
-        <Link href="/creator/auditions" className="p-5 rounded-2xl bg-slate-800/30 border border-slate-700/50 hover:border-violet-500/30 transition group">
+        <Link href="/creator/auditions" className="storytime-section group p-5 hover:-translate-y-1 hover:border-violet-400/22">
           <Megaphone className="w-8 h-8 text-violet-500 mb-3 group-hover:scale-110 transition" />
           <h3 className="font-semibold text-white mb-1">Auditions</h3>
           <p className="text-sm text-slate-400">Post casting calls and manage shortlisted talent</p>
@@ -165,10 +165,10 @@ export function CreatorDashboardClient() {
 
       {/* Viewer Choice Competition */}
       {competitionStats?.period && (
-        <Card className="border-slate-700/50 bg-slate-800/20 mb-10 border-l-4 border-l-amber-500/50">
+        <Card className="storytime-kpi mb-10 border-l-4 border-l-amber-500/50">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-slate-400 flex items-center gap-2"><Trophy className="w-5 h-5 text-amber-400" /> Viewer Choice Competition</CardTitle>
-            <Link href="/browse/competition" className="text-xs text-orange-400 hover:text-orange-300">View page</Link>
+            <Link href="/browse/competition" className="text-xs text-orange-300 hover:text-orange-200">View page</Link>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold text-white">#{competitionStats.rank ?? "—"} · {competitionStats.voteCount ?? 0} votes</p>
@@ -215,7 +215,7 @@ export function CreatorDashboardClient() {
         };
 
         return needsAttention.length > 0 ? (
-          <Card className="border-slate-700/50 bg-slate-800/20 mb-10 border-l-4 border-l-yellow-500/50">
+          <Card className="storytime-kpi mb-10 border-l-4 border-l-yellow-500/50">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-white">
                 <Send className="w-5 h-5 text-yellow-400" />
@@ -225,7 +225,7 @@ export function CreatorDashboardClient() {
             </CardHeader>
             <CardContent className="space-y-3">
               {needsAttention.map((c) => (
-                <div key={c.id} className="flex items-start justify-between p-4 rounded-xl border border-slate-700/50 bg-slate-800/40">
+                <div key={c.id} className="flex items-start justify-between rounded-xl border border-white/8 bg-white/[0.035] p-4">
                   <div className="flex items-start gap-3">
                     {statusIcon(c.reviewStatus || "DRAFT")}
                     <div>
@@ -235,7 +235,7 @@ export function CreatorDashboardClient() {
                       </div>
                       <p className="text-xs text-slate-500">{c.type}{c.submittedAt ? ` · Submitted ${new Date(c.submittedAt).toLocaleDateString()}` : " · Not yet submitted"}</p>
                       {c.reviewNote && (
-                        <div className="mt-2 p-2 rounded bg-orange-500/5 border border-orange-500/20">
+                        <div className="mt-2 rounded-xl border border-orange-400/18 bg-orange-500/6 p-2">
                           <p className="text-xs text-orange-400 font-medium">Admin feedback:</p>
                           <p className="text-xs text-slate-400 mt-0.5">{c.reviewNote}</p>
                         </div>
@@ -255,7 +255,7 @@ export function CreatorDashboardClient() {
       })()}
 
       {/* Content List */}
-      <Card className="border-slate-700/50 bg-slate-800/20">
+      <Card className="storytime-section">
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <CardTitle className="flex items-center gap-2 text-white">
@@ -265,12 +265,12 @@ export function CreatorDashboardClient() {
             <p className="text-sm text-slate-400 mt-1">Performance breakdown per title</p>
           </div>
           <Link href="/creator/upload">
-            <Button className="bg-orange-500 hover:bg-orange-600 text-white">Upload Content</Button>
+            <Button>Upload Content</Button>
           </Link>
         </CardHeader>
         <CardContent>
           {contentLoading ? (
-            <Skeleton className="h-48 bg-slate-800" />
+            <Skeleton className="h-48 bg-white/[0.06]" />
           ) : contents?.length > 0 ? (
             <div className="space-y-3">
               {contents.map((c: {
@@ -295,7 +295,7 @@ export function CreatorDashboardClient() {
                   CHANGES_REQUESTED: "bg-orange-500/10 text-orange-400",
                 };
                 return (
-                  <div key={c.id} className="flex items-center justify-between p-4 rounded-xl border border-slate-700/50 bg-slate-800/40 hover:bg-slate-800/60 transition">
+                  <div key={c.id} className="flex items-center justify-between rounded-xl border border-white/8 bg-white/[0.035] p-4 hover:bg-white/[0.05]">
                     <div>
                       <div className="flex items-center gap-2 mb-0.5">
                         <p className="font-medium text-white">{c.title}</p>
@@ -312,7 +312,7 @@ export function CreatorDashboardClient() {
                       </div>
                     </div>
                     <Link href={`/browse/content/${c.id}`}>
-                      <Button variant="outline" size="sm" className="border-slate-600 text-slate-300 hover:bg-slate-700">View</Button>
+                      <Button variant="outline" size="sm">View</Button>
                     </Link>
                   </div>
                 );
@@ -323,7 +323,7 @@ export function CreatorDashboardClient() {
               <Film className="w-12 h-12 text-slate-600 mx-auto mb-4" />
               <p className="text-slate-400 mb-4">No content yet. Upload your first piece to start earning.</p>
               <Link href="/creator/upload">
-                <Button className="bg-orange-500 hover:bg-orange-600 text-white">Upload Content</Button>
+                <Button>Upload Content</Button>
               </Link>
             </div>
           )}

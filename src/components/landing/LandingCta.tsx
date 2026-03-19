@@ -1,22 +1,30 @@
 import Link from "next/link";
+import { LandingReveal } from "@/components/landing/LandingReveal";
 
 export function LandingCta() {
   return (
-    <section className="py-20 px-6 bg-slate-900/30 border-t border-slate-800/40">
-      <div className="max-w-3xl mx-auto text-center">
-        <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white tracking-tight">Are you a creator?</h2>
-        <p className="text-slate-400 mb-10 text-lg">
-          Upload your films, series, podcasts, or music. Track your stats, grow your audience, and earn from every view.
-        </p>
-        <div className="flex flex-wrap justify-center gap-4">
-          <Link href="/auth/creator/signup" className="px-8 py-3.5 rounded-xl bg-orange-500 text-white font-semibold hover:bg-orange-600 transition shadow-lg shadow-orange-500/20">
-            Creator Sign Up
-          </Link>
-          <Link href="/auth/creator/signin" className="px-8 py-3.5 rounded-xl border border-slate-600 text-white font-semibold hover:bg-slate-800/50 transition">
-            Creator Sign In
-          </Link>
+    <section className="border-t border-white/8 bg-white/[0.02] px-6 py-20">
+      <LandingReveal className="mx-auto max-w-4xl text-center">
+        <div className="storytime-section relative overflow-hidden px-8 py-14">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,173,71,0.14),transparent_34%)]" />
+          <div className="relative">
+            <h2 className="mb-4 font-display text-3xl font-bold tracking-tight text-white md:text-5xl">
+              Build what outlives the moment.
+            </h2>
+            <p className="mx-auto mb-10 max-w-3xl text-lg leading-8 text-slate-300/80">
+              Story Time is for creators who want more than exposure. It is for those who want to shape culture, protect their work, and take part in building the future architecture of storytelling itself.
+            </p>
+            <div className="flex flex-wrap justify-center gap-4">
+              <Link href="/auth/creator/signup" className="rounded-2xl bg-orange-500 px-8 py-3.5 font-semibold text-white shadow-glow hover:-translate-y-0.5 hover:bg-orange-400">
+                Start Building
+              </Link>
+              <Link href="/auth/signup" className="storytime-panel rounded-2xl px-8 py-3.5 font-semibold text-white hover:-translate-y-0.5 hover:bg-white/[0.04]">
+                Enter Platform
+              </Link>
+            </div>
+          </div>
         </div>
-      </div>
+      </LandingReveal>
     </section>
   );
 }

@@ -189,8 +189,8 @@ export default async function BrowsePage({
     <div className="pb-16">
       {loadError && (
         <div className="max-w-[1800px] mx-auto px-6 md:px-12 pt-4">
-          <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-sm">
-            Content could not be loaded. Check that <code className="bg-slate-800/80 px-1 rounded">DATABASE_URL</code> in .env uses Neon&apos;s pooler port <strong>6543</strong> (e.g. <code className="bg-slate-800/80 px-1 rounded">...neon.tech:6543/neondb</code>), then restart the dev server.
+          <div className="rounded-2xl border border-amber-400/22 bg-amber-500/10 p-4 text-sm text-amber-100 shadow-panel">
+            Content could not be loaded. Check that <code className="rounded bg-black/25 px-1.5 py-0.5">DATABASE_URL</code> in .env uses Neon&apos;s pooler port <strong>6543</strong> (e.g. <code className="rounded bg-black/25 px-1.5 py-0.5">...neon.tech:6543/neondb</code>), then restart the dev server.
           </div>
         </div>
       )}
@@ -201,7 +201,7 @@ export default async function BrowsePage({
 
       <div className="max-w-[1800px] mx-auto px-6 md:px-12 -mt-16 relative z-10">
         {search && (
-          <div className="mb-8 p-4 rounded-xl bg-slate-800/50 border border-slate-700/50">
+          <div className="storytime-panel mb-8 rounded-2xl p-4">
             <p className="text-slate-300">
               Showing results for{" "}
               <span className="font-semibold text-white">&quot;{search}&quot;</span>
@@ -219,7 +219,7 @@ export default async function BrowsePage({
             <h2 className="text-2xl font-semibold text-white capitalize">
               {type.toLowerCase()}
             </h2>
-            <p className="text-slate-400 text-sm mt-1">
+            <p className="mt-1 text-sm text-slate-400">
               Browse our collection of {type.toLowerCase()}
             </p>
           </div>
@@ -414,7 +414,7 @@ export default async function BrowsePage({
             </p>
             <Link
               href="/auth/signup"
-              className="inline-flex px-6 py-3 rounded-lg bg-orange-500 text-white font-medium hover:bg-orange-600 transition"
+              className="inline-flex rounded-xl bg-orange-500 px-6 py-3 font-semibold text-white shadow-glow hover:-translate-y-0.5 hover:bg-orange-400"
             >
               Create Account
             </Link>
@@ -428,7 +428,7 @@ export default async function BrowsePage({
             </p>
             <Link
               href="/browse"
-              className="inline-block mt-4 text-orange-500 hover:text-orange-400 font-medium"
+              className="mt-4 inline-block font-medium text-orange-300 hover:text-orange-200"
             >
               Clear search
             </Link>

@@ -84,7 +84,7 @@ function ProjectRow({ project, defaultOpen = false }: { project: Project; defaul
               <li key={t.id}>
                 <Link
                   href={href}
-                  className="flex items-center justify-between gap-2 py-1.5 px-2 rounded-md text-sm text-slate-300 hover:bg-slate-800/80 hover:text-white transition"
+                  className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm text-slate-300 hover:bg-white/[0.05] hover:text-white"
                 >
                   <span className="flex items-center gap-2">
                     {done ? <CheckCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0" /> : inProgress ? <Loader2 className="w-3.5 h-3.5 text-amber-400 shrink-0 animate-spin" /> : <Circle className="w-3.5 h-3.5 text-slate-600 shrink-0" />}
@@ -103,21 +103,21 @@ function ProjectRow({ project, defaultOpen = false }: { project: Project; defaul
   };
 
   return (
-    <div ref={rowRef} id={`project-${project.id}`} className="rounded-2xl border border-slate-800 bg-slate-900/60 overflow-hidden">
+    <div ref={rowRef} id={`project-${project.id}`} className="storytime-section overflow-hidden">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between gap-4 px-4 py-3 hover:border-orange-500/30 hover:bg-slate-900/60 transition text-left"
+        className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left hover:bg-white/[0.04]"
       >
         <div className="min-w-0 flex items-center gap-2">
           {open ? <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" /> : <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />}
           <div>
             <div className="flex items-center gap-2 mb-0.5">
               <p className="font-semibold text-white truncate">{project.title}</p>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300">
+              <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] text-slate-300">
                 {stage}
               </span>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-900 border border-slate-700 text-slate-400">
+              <span className="rounded-full border border-white/8 bg-black/15 px-2 py-0.5 text-[10px] text-slate-400">
                 {project.phase}
               </span>
               {project.isOriginal && (
@@ -143,7 +143,7 @@ function ProjectRow({ project, defaultOpen = false }: { project: Project; defaul
         </div>
         <div className="hidden md:flex flex-col items-end gap-1 text-[11px] text-slate-400 w-32 shrink-0">
           <span className="self-end">{open ? "Hide" : "Show"} pipeline</span>
-          <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/[0.08]">
             <div
               className="h-full bg-gradient-to-r from-orange-500 to-emerald-400 transition-all"
               style={{ width: `${Math.min(100, progressPct)}%` }}
@@ -152,7 +152,7 @@ function ProjectRow({ project, defaultOpen = false }: { project: Project; defaul
         </div>
       </button>
       {open && (
-        <div className="border-t border-slate-800 bg-slate-950/50 px-4 py-3">
+        <div className="border-t border-white/8 bg-black/12 px-4 py-3">
           <p className="text-xs text-slate-500 mb-3">What’s been done — open a tool with this project linked:</p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {renderSection(
@@ -249,7 +249,7 @@ export function CreatorProjectsDashboardClient() {
     <div className="space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl md:text-3xl font-semibold text-white tracking-tight">
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-white md:text-3xl">
             My Projects
           </h1>
           <p className="text-sm text-slate-400 mt-1">
@@ -257,17 +257,14 @@ export function CreatorProjectsDashboardClient() {
             Pre-Production to Post-Production.
           </p>
         </div>
-        <Button
-          onClick={() => setCreating(true)}
-          className="bg-orange-500 hover:bg-orange-600 text-white flex items-center gap-2"
-        >
+        <Button onClick={() => setCreating(true)} className="flex items-center gap-2">
           <Plus className="w-4 h-4" />
           New Project
         </Button>
       </div>
 
       {creating && (
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 space-y-3">
+        <div className="storytime-section space-y-3 p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-sm font-semibold text-white">Create a new film project</h2>
           </div>
@@ -277,7 +274,7 @@ export function CreatorProjectsDashboardClient() {
               <input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="w-full rounded-md bg-slate-950/60 border border-slate-700 px-3 py-2 text-sm text-white outline-none focus:border-orange-500"
+                className="storytime-input rounded-xl px-3 py-2"
                 placeholder="e.g. The Last Light"
               />
             </div>
@@ -286,7 +283,7 @@ export function CreatorProjectsDashboardClient() {
               <select
                 value={type}
                 onChange={(e) => setType(e.target.value)}
-                className="w-full rounded-md bg-slate-950/60 border border-slate-700 px-3 py-2 text-sm text-white outline-none focus:border-orange-500"
+                className="storytime-select rounded-xl px-3 py-2"
               >
                 <option value="SHORT_FILM">Short film</option>
                 <option value="INDIE_FILM">Indie film</option>
@@ -299,7 +296,7 @@ export function CreatorProjectsDashboardClient() {
               <input
                 value={logline}
                 onChange={(e) => setLogline(e.target.value)}
-                className="w-full rounded-md bg-slate-950/60 border border-slate-700 px-3 py-2 text-sm text-white outline-none focus:border-orange-500"
+                className="storytime-input rounded-xl px-3 py-2"
                 placeholder="One sentence that sells your film."
               />
             </div>
@@ -308,7 +305,7 @@ export function CreatorProjectsDashboardClient() {
               <input
                 value={genre}
                 onChange={(e) => setGenre(e.target.value)}
-                className="w-full rounded-md bg-slate-950/60 border border-slate-700 px-3 py-2 text-sm text-white outline-none focus:border-orange-500"
+                className="storytime-input rounded-xl px-3 py-2"
                 placeholder="Drama, Sci-Fi, Thriller..."
               />
             </div>
@@ -321,7 +318,7 @@ export function CreatorProjectsDashboardClient() {
                   "inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs border transition",
                   isCollaboration
                     ? "bg-emerald-500/10 border-emerald-500 text-emerald-300"
-                    : "bg-slate-900/60 border-slate-700 text-slate-300",
+                    : "bg-white/[0.03] border-white/10 text-slate-300",
                 ].join(" ")}
               >
                 <span className="w-2 h-2 rounded-full border border-slate-500 bg-slate-900">
@@ -344,13 +341,13 @@ export function CreatorProjectsDashboardClient() {
                   Add collaborators from your network
                 </label>
                 {networkCreators.length === 0 ? (
-                  <p className="text-[11px] text-slate-500 border border-dashed border-slate-700 rounded-md px-3 py-2">
+                  <p className="rounded-xl border border-dashed border-white/12 px-3 py-2 text-[11px] text-slate-500">
                     You don&apos;t have any connected creators yet. Use the Network tab to follow
                     and connect with other creators – once a connection is accepted, you&apos;ll be
                     able to invite them here.
                   </p>
                 ) : (
-                  <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto rounded-md border border-slate-800 bg-slate-950/40 px-2 py-2">
+                  <div className="flex max-h-32 flex-wrap gap-2 overflow-y-auto rounded-xl border border-white/8 bg-black/12 px-2 py-2">
                     {networkCreators.map((c) => {
                       const active = selectedCollaborators.includes(c.id);
                       return (
@@ -362,10 +359,10 @@ export function CreatorProjectsDashboardClient() {
                             "inline-flex items-center gap-2 px-2.5 py-1.5 rounded-full text-xs border transition",
                             active
                               ? "bg-emerald-500/10 border-emerald-500 text-emerald-300"
-                              : "bg-slate-900/80 border-slate-700 text-slate-300 hover:border-slate-500",
+                              : "bg-white/[0.03] border-white/10 text-slate-300 hover:border-white/18",
                           ].join(" ")}
                         >
-                          <span className="w-5 h-5 rounded-full bg-slate-800 flex items-center justify-center text-[10px]">
+                          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/[0.06] text-[10px]">
                             {c.name?.[0]?.toUpperCase() ?? "C"}
                           </span>
                           <span className="max-w-[120px] truncate">
@@ -382,7 +379,7 @@ export function CreatorProjectsDashboardClient() {
           <div className="flex justify-end gap-2 pt-2">
             <Button
               variant="outline"
-              className="border-slate-700 text-slate-300 hover:bg-slate-800"
+              className="border-white/10 text-slate-300"
               onClick={() => {
                 setCreating(false);
                 setTitle("");
@@ -392,11 +389,7 @@ export function CreatorProjectsDashboardClient() {
             >
               Cancel
             </Button>
-            <Button
-              className="bg-orange-500 hover:bg-orange-600 text-white"
-              disabled={!title || !type || createMutation.isPending}
-              onClick={() => createMutation.mutate()}
-            >
+            <Button disabled={!title || !type || createMutation.isPending} onClick={() => createMutation.mutate()}>
               {createMutation.isPending ? "Creating..." : "Create project"}
             </Button>
           </div>
@@ -406,20 +399,17 @@ export function CreatorProjectsDashboardClient() {
       {isLoading ? (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-20 bg-slate-800/60" />
+            <Skeleton key={i} className="h-20 bg-white/[0.06]" />
           ))}
         </div>
       ) : projects.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/40 p-8 text-center">
+        <div className="storytime-empty-state p-8 text-center">
           <Film className="w-10 h-10 text-slate-600 mx-auto mb-3" />
           <p className="text-slate-200 font-medium mb-1">No projects yet</p>
           <p className="text-sm text-slate-400 mb-4">
             Create your first film project to start using the full production pipeline.
           </p>
-          <Button
-            onClick={() => setCreating(true)}
-            className="bg-orange-500 hover:bg-orange-600 text-white flex items-center gap-2 mx-auto"
-          >
+          <Button onClick={() => setCreating(true)} className="mx-auto flex items-center gap-2">
             <Plus className="w-4 h-4" />
             New Project
           </Button>

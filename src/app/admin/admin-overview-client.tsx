@@ -15,10 +15,10 @@ export function AdminOverviewClient() {
   if (isLoading) {
     return (
       <div className="p-8 max-w-7xl mx-auto">
-        <Skeleton className="h-10 w-64 mb-8 bg-slate-800" />
+        <Skeleton className="mb-8 h-10 w-64 bg-white/[0.06]" />
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-            <Skeleton key={i} className="h-36 bg-slate-800" />
+            <Skeleton key={i} className="h-36 bg-white/[0.06]" />
           ))}
         </div>
       </div>
@@ -32,8 +32,8 @@ export function AdminOverviewClient() {
   return (
     <div className="p-8 max-w-7xl mx-auto relative">
       <div className="mb-10">
-        <h1 className="text-3xl font-semibold text-white mb-2 tracking-tight">Platform Overview</h1>
-        <p className="text-slate-400">Comprehensive analytics, user intelligence, and content distribution</p>
+        <h1 className="mb-2 font-display text-3xl font-semibold tracking-tight text-white">Platform Overview</h1>
+        <p className="text-slate-300/78">Comprehensive analytics, user intelligence, and content distribution</p>
       </div>
 
       {/* KPI Cards */}
@@ -62,7 +62,7 @@ export function AdminOverviewClient() {
           };
           const href = (card as { href?: string }).href;
           const cardEl = (
-            <Card key={i} className={`border-slate-700/50 bg-slate-800/20 hover:bg-slate-800/30 transition border-l-4 ${colorMap[card.color]} ${href ? "cursor-pointer" : ""}`}>
+            <Card key={i} className={`storytime-kpi hover:-translate-y-1 hover:bg-white/[0.05] transition border-l-4 ${colorMap[card.color]} ${href ? "cursor-pointer" : ""}`}>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-slate-400">{card.label}</CardTitle>
                 <card.icon className={`w-5 h-5 ${iconColor[card.color]}`} />
@@ -80,7 +80,7 @@ export function AdminOverviewClient() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10">
         {/* Content by Type */}
         {stats?.contentByType?.length > 0 && (
-          <Card className="border-slate-700/50 bg-slate-800/20">
+          <Card className="storytime-section">
             <CardHeader>
               <CardTitle className="text-white flex items-center gap-2"><Film className="w-5 h-5 text-emerald-400" /> Content by Type</CardTitle>
               <p className="text-sm text-slate-400">Distribution across content categories</p>
@@ -96,7 +96,7 @@ export function AdminOverviewClient() {
                         <span className="text-slate-300">{c.type}</span>
                         <span className="text-white font-medium">{c._count.id}</span>
                       </div>
-                      <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden">
+                      <div className="h-2 overflow-hidden rounded-full bg-white/[0.08]">
                         <div className="h-full bg-orange-500/70 rounded-full" style={{ width: `${pct}%` }} />
                       </div>
                     </div>
@@ -109,7 +109,7 @@ export function AdminOverviewClient() {
 
         {/* Users by Role */}
         {stats?.usersByRole?.length > 0 && (
-          <Card className="border-slate-700/50 bg-slate-800/20">
+          <Card className="storytime-section">
             <CardHeader>
               <CardTitle className="text-white flex items-center gap-2"><Users className="w-5 h-5 text-cyan-400" /> Users by Role</CardTitle>
               <p className="text-sm text-slate-400">Platform audience breakdown</p>
@@ -129,7 +129,7 @@ export function AdminOverviewClient() {
                         <span className="text-slate-300">{r.role.replace(/_/g, " ")}</span>
                         <span className="text-white font-medium">{r._count.id}</span>
                       </div>
-                      <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden">
+                      <div className="h-2 overflow-hidden rounded-full bg-white/[0.08]">
                         <div className={`h-full rounded-full ${colorMap[r.role] || "bg-slate-500"}`} style={{ width: `${pct}%` }} />
                       </div>
                     </div>
@@ -143,7 +143,7 @@ export function AdminOverviewClient() {
 
       {/* Sign-ins by Role */}
       {signInEntries.length > 0 && (
-        <Card className="border-slate-700/50 bg-slate-800/20 mb-10">
+        <Card className="storytime-section mb-10">
           <CardHeader>
             <CardTitle className="text-white flex items-center gap-2"><Activity className="w-5 h-5 text-violet-400" /> Sign-ins by Role</CardTitle>
             <p className="text-sm text-slate-400">Login distribution across user types</p>
@@ -151,7 +151,7 @@ export function AdminOverviewClient() {
           <CardContent>
             <div className="flex flex-wrap gap-4">
               {signInEntries.map(([role, count]) => (
-                <div key={role} className="p-4 rounded-xl bg-slate-800/50 border border-slate-700/50 min-w-[140px]">
+                <div key={role} className="storytime-panel min-w-[140px] rounded-xl p-4">
                   <p className="text-sm text-slate-400 font-medium">{role.replace(/_/g, " ")}</p>
                   <p className="text-2xl font-bold text-white mt-1">{count}</p>
                 </div>
@@ -164,7 +164,7 @@ export function AdminOverviewClient() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10">
         {/* Device Breakdown */}
         {deviceEntries.length > 0 && (
-          <Card className="border-slate-700/50 bg-slate-800/20">
+          <Card className="storytime-section">
             <CardHeader>
               <CardTitle className="text-white flex items-center gap-2"><Monitor className="w-5 h-5 text-blue-400" /> Devices</CardTitle>
               <p className="text-sm text-slate-400">What devices are users accessing the platform from</p>
@@ -180,7 +180,7 @@ export function AdminOverviewClient() {
                         <span className="text-slate-300">{device}</span>
                         <span className="text-white font-medium">{count} ({pct.toFixed(0)}%)</span>
                       </div>
-                      <div className="h-1.5 bg-slate-700/50 rounded-full overflow-hidden">
+                      <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.08]">
                         <div className="h-full bg-blue-500/60 rounded-full" style={{ width: `${pct}%` }} />
                       </div>
                     </div>
@@ -193,7 +193,7 @@ export function AdminOverviewClient() {
 
         {/* IP Addresses */}
         {ipEntries.length > 0 && (
-          <Card className="border-slate-700/50 bg-slate-800/20">
+          <Card className="storytime-section">
             <CardHeader>
               <CardTitle className="text-white flex items-center gap-2"><Globe className="w-5 h-5 text-emerald-400" /> IP Addresses</CardTitle>
               <p className="text-sm text-slate-400">Login locations and frequency</p>
@@ -201,7 +201,7 @@ export function AdminOverviewClient() {
             <CardContent>
               <div className="max-h-72 overflow-y-auto space-y-2 pr-2">
                 {ipEntries.sort((a, b) => b[1].count - a[1].count).map(([ip, data]) => (
-                  <div key={ip} className="flex items-center justify-between p-3 rounded-lg bg-slate-800/40 border border-slate-700/30">
+                  <div key={ip} className="flex items-center justify-between rounded-xl border border-white/8 bg-white/[0.03] p-3">
                     <div className="flex items-center gap-3">
                       <Wifi className="w-4 h-4 text-slate-500" />
                       <div>
@@ -219,22 +219,22 @@ export function AdminOverviewClient() {
       </div>
 
       {/* Retention & Valuation Insights */}
-      <Card className="border-slate-700/50 bg-slate-800/20 mb-10">
+      <Card className="storytime-section mb-10">
         <CardHeader>
           <CardTitle className="text-white flex items-center gap-2"><TrendingUp className="w-5 h-5 text-orange-400" /> Retention & Valuation Insights</CardTitle>
           <p className="text-sm text-slate-400">Key metrics for platform valuation and user retention analysis</p>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="p-4 rounded-xl bg-slate-800/40 border border-slate-700/30">
+            <div className="storytime-panel rounded-xl p-4">
               <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Avg Watch / User</p>
               <p className="text-xl font-bold text-white">{Math.round((stats?.avgWatchTimePerUser ?? 0) / 60)} min</p>
             </div>
-            <div className="p-4 rounded-xl bg-slate-800/40 border border-slate-700/30">
+            <div className="storytime-panel rounded-xl p-4">
               <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Active Watchers</p>
               <p className="text-xl font-bold text-white">{stats?.uniqueWatchers ?? 0}</p>
             </div>
-            <div className="p-4 rounded-xl bg-slate-800/40 border border-slate-700/30">
+            <div className="storytime-panel rounded-xl p-4">
               <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Content/Creator Ratio</p>
               <p className="text-xl font-bold text-white">
                 {stats?.totalContent && stats?.usersByRole
@@ -242,7 +242,7 @@ export function AdminOverviewClient() {
                   : "—"}
               </p>
             </div>
-            <div className="p-4 rounded-xl bg-slate-800/40 border border-slate-700/30">
+            <div className="storytime-panel rounded-xl p-4">
               <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Revenue / User</p>
               <p className="text-xl font-bold text-orange-500">
                 ${stats?.totalUsers ? ((stats?.revenuePool ?? 0) / stats.totalUsers).toFixed(2) : "0.00"}
@@ -254,16 +254,16 @@ export function AdminOverviewClient() {
 
       {/* Recent Activity Log */}
       {stats?.recentActivity?.length > 0 && (
-        <Card className="border-slate-700/50 bg-slate-800/20">
+        <Card className="storytime-section">
           <CardHeader>
             <CardTitle className="text-white flex items-center gap-2"><Activity className="w-5 h-5 text-violet-400" /> Recent Activity</CardTitle>
             <p className="text-sm text-slate-400">Latest sign-in events across the platform</p>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="storytime-table text-sm">
                 <thead>
-                  <tr className="border-b border-slate-700/50">
+                  <tr className="border-b border-white/8">
                     <th className="text-left py-3 px-3 text-slate-400 font-medium">User</th>
                     <th className="text-left py-3 px-3 text-slate-400 font-medium">Role</th>
                     <th className="text-left py-3 px-3 text-slate-400 font-medium">IP Address</th>
@@ -273,7 +273,7 @@ export function AdminOverviewClient() {
                 </thead>
                 <tbody>
                   {stats.recentActivity.slice(0, 20).map((a: { id: string; userName?: string; userEmail?: string; role: string; ipAddress?: string; deviceType?: string; createdAt: string }) => (
-                    <tr key={a.id} className="border-b border-slate-800/50 hover:bg-slate-800/20 transition">
+                    <tr key={a.id} className="border-b border-white/6">
                       <td className="py-2.5 px-3 text-white">{a.userName || a.userEmail || "—"}</td>
                       <td className="py-2.5 px-3">
                         <span className={`px-2 py-0.5 rounded text-xs font-medium ${

@@ -31,21 +31,21 @@ export default function CreatorLayout({
   };
 
   return (
-    <div className="min-h-screen bg-[#0c1222] text-slate-100">
-      <div className="border-b border-slate-800 px-6 md:px-12 py-4">
+    <div className="min-h-screen bg-background text-slate-100">
+      <div className="border-b border-white/8 bg-white/[0.03] px-6 py-4 backdrop-blur-xl md:px-12">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={() => setSidebarOpen((v) => !v)}
-              className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white transition"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] text-slate-300 hover:bg-white/[0.08] hover:text-white"
               aria-label={sidebarOpen ? "Hide menu" : "Show menu"}
               aria-expanded={sidebarOpen}
             >
               {sidebarOpen ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeftOpen className="w-4 h-4" />}
             </button>
             <Link href="/creator/dashboard" className="text-xl font-semibold text-white">
-              <span className="text-orange-500">STORY TIME</span> Creator
+              <span className="storytime-brand-text">STORY TIME</span> Creator
             </Link>
           </div>
           <div className="flex items-center gap-3">
@@ -74,8 +74,8 @@ export default function CreatorLayout({
                     className={[
                       "flex items-center px-3 py-2 rounded-lg text-sm transition",
                       isActive
-                        ? "bg-slate-800 text-white"
-                        : "text-slate-400 hover:text-white hover:bg-slate-800/60",
+                        ? "bg-white/[0.08] text-white shadow-panel"
+                        : "text-slate-400 hover:bg-white/[0.05] hover:text-white",
                       item.highlight ? "font-medium text-orange-400 hover:text-orange-300" : "",
                     ].join(" ")}
                   >
@@ -93,8 +93,8 @@ export default function CreatorLayout({
                   className={[
                     "flex items-center px-3 py-2 rounded-lg text-sm transition",
                     pathname.startsWith("/creator/pre-production")
-                      ? "bg-slate-800 text-white"
-                      : "text-slate-400 hover:text-white hover:bg-slate-800/60",
+                      ? "bg-white/[0.08] text-white shadow-panel"
+                      : "text-slate-400 hover:bg-white/[0.05] hover:text-white",
                   ].join(" ")}
                 >
                   Pre-Production
@@ -104,8 +104,8 @@ export default function CreatorLayout({
                   className={[
                     "flex items-center px-3 py-2 rounded-lg text-sm transition",
                     pathname.startsWith("/creator/production")
-                      ? "bg-slate-800 text-white"
-                      : "text-slate-400 hover:text-white hover:bg-slate-800/60",
+                      ? "bg-white/[0.08] text-white shadow-panel"
+                      : "text-slate-400 hover:bg-white/[0.05] hover:text-white",
                   ].join(" ")}
                 >
                   Production
@@ -115,8 +115,8 @@ export default function CreatorLayout({
                   className={[
                     "flex items-center px-3 py-2 rounded-lg text-sm transition",
                     pathname.startsWith("/creator/post-production")
-                      ? "bg-slate-800 text-white"
-                      : "text-slate-400 hover:text-white hover:bg-slate-800/60",
+                      ? "bg-white/[0.08] text-white shadow-panel"
+                      : "text-slate-400 hover:bg-white/[0.05] hover:text-white",
                   ].join(" ")}
                 >
                   Post-Production
@@ -138,7 +138,7 @@ export default function CreatorLayout({
             <button
               type="button"
               onClick={() => setSidebarOpen(true)}
-              className="mb-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-700 text-xs text-slate-300 hover:bg-slate-800 hover:text-white transition"
+              className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs text-slate-300 hover:bg-white/[0.08] hover:text-white"
             >
               <PanelLeftOpen className="w-3 h-3" />
               Show menu

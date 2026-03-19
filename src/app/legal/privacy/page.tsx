@@ -1,48 +1,145 @@
+import { LegalPage } from "@/components/legal/LegalPage";
+
 export default function PrivacyPage() {
   return (
-    <article className="space-y-6 text-slate-300">
-      <h1 className="text-3xl font-bold text-white">Privacy Policy</h1>
-      <p className="text-sm text-slate-500">Last updated: February 2026</p>
-
-      <section>
-        <h2 className="text-xl font-semibold text-white mt-8 mb-2">1. Introduction</h2>
-        <p>Story Time (&quot;we&quot;, &quot;us&quot;) respects your privacy. This policy describes how we collect, use, store, and protect your personal information in line with the Protection of Personal Information Act 4 of 2013 (POPIA) and, where applicable, international standards such as the GDPR.</p>
-      </section>
-
-      <section>
-        <h2 className="text-xl font-semibold text-white mt-8 mb-2">2. Information We Collect</h2>
-        <p>We collect information you provide (e.g. name, email, payment details, profile and content data), device and log data (IP address, browser, usage), and cookies as described in our Cookie Policy. We collect only what is necessary for the services we provide.</p>
-      </section>
-
-      <section>
-        <h2 className="text-xl font-semibold text-white mt-8 mb-2">3. How We Use Your Information</h2>
-        <p>We use your information to provide and improve the Platform, process payments, communicate with you, enforce our terms, and comply with law. We may use aggregated or anonymised data for analytics and product improvement. We do not sell your personal information to third parties for their marketing.</p>
-      </section>
-
-      <section>
-        <h2 className="text-xl font-semibold text-white mt-8 mb-2">4. Legal Basis and Retention</h2>
-        <p>We process your data on the basis of consent, contract performance, legal obligation, or legitimate interests as permitted by POPIA. We retain your information for as long as your account is active or as needed for legal, tax, or safety purposes. You may request deletion subject to our retention obligations.</p>
-      </section>
-
-      <section>
-        <h2 className="text-xl font-semibold text-white mt-8 mb-2">5. Your Rights</h2>
-        <p>Under POPIA you have the right to access, correct, and object to processing of your personal information, and to lodge a complaint with the Information Regulator. You may also have rights to data portability and restriction. Requests can be sent to the contact details on the Platform. Access to information may also be requested under the Promotion of Access to Information Act 2 of 2000 (PAIA).</p>
-      </section>
-
-      <section>
-        <h2 className="text-xl font-semibold text-white mt-8 mb-2">6. Sharing and Transfers</h2>
-        <p>We may share your information with service providers (e.g. hosting, payment processors) under strict agreements. If we transfer data outside South Africa, we ensure appropriate safeguards. We may disclose information where required by law or to protect our rights and users.</p>
-      </section>
-
-      <section>
-        <h2 className="text-xl font-semibold text-white mt-8 mb-2">7. Security</h2>
-        <p>We implement technical and organisational measures to protect your personal information against unauthorised access, loss, or alteration. No system is completely secure; we encourage you to use strong passwords and secure your devices.</p>
-      </section>
-
-      <section>
-        <h2 className="text-xl font-semibold text-white mt-8 mb-2">8. Contact</h2>
-        <p>For privacy requests or questions, contact us at the address or email provided on the Platform. Our Information Officer can be contacted for POPIA and PAIA matters.</p>
-      </section>
-    </article>
+    <LegalPage
+      eyebrow="Privacy"
+      title="Privacy Policy"
+      summary="This Policy explains what information Story Time collects, how it is used, how long it may be kept, and the safeguards we apply while operating the platform."
+      lastUpdated="March 2026"
+      highlights={["POPIA aware", "Account data", "Usage data"]}
+      sections={[
+        {
+          title: "1. Information we collect",
+          content: (
+            <>
+              <p>
+                Story Time collects information you provide directly, such as account
+                registration details, profile information, creator submissions,
+                business listing information, project data, messages, and other content
+                you enter into the platform.
+              </p>
+              <p>
+                We also collect operational data such as sign-in activity, device or
+                browser details, IP-related logs, cookie data, subscription records,
+                billing metadata, usage analytics, and platform interactions that help
+                us secure and improve the service.
+              </p>
+            </>
+          ),
+        },
+        {
+          title: "2. How we use personal information",
+          content: (
+            <>
+              <p>
+                We use information to create and manage accounts, authenticate users,
+                assign roles, enable viewer profiles, gate access to age-restricted or
+                subscription-only content, process creator and platform workflows, and
+                operate moderation and review systems.
+              </p>
+              <p>
+                We may also use personal information for security monitoring, fraud
+                prevention, service analytics, policy enforcement, legal compliance,
+                internal support, and business administration.
+              </p>
+            </>
+          ),
+        },
+        {
+          title: "3. Sharing and service providers",
+          content: (
+            <>
+              <p>
+                Story Time may share information with hosting providers, infrastructure
+                partners, storage services, analytics tools, authentication providers,
+                and payment-related vendors where necessary to operate the platform.
+              </p>
+              <p>
+                We may also disclose information when required by law, when responding
+                to valid legal requests, or when needed to protect the platform, our
+                users, rights holders, or the public.
+              </p>
+            </>
+          ),
+        },
+        {
+          title: "4. Cookies, sessions, and profile controls",
+          content: (
+            <>
+              <p>
+                Story Time uses cookies and similar technologies to keep users signed
+                in, maintain session state, remember viewer profile selection, improve
+                account security, and understand how the platform is being used.
+              </p>
+              <p>
+                Some functionality may not work properly if cookies are disabled,
+                especially features related to authentication, profile management, and
+                personalized viewing access.
+              </p>
+            </>
+          ),
+        },
+        {
+          title: "5. Data retention",
+          content: (
+            <>
+              <p>
+                We retain information for as long as reasonably necessary to provide
+                the service, meet legal and accounting obligations, resolve disputes,
+                investigate abuse, maintain business records, and enforce our
+                agreements.
+              </p>
+              <p>
+                Retention periods may differ depending on the type of account, content,
+                transaction record, moderation history, or security event involved.
+              </p>
+            </>
+          ),
+        },
+        {
+          title: "6. Your rights",
+          content: (
+            <>
+              <p>
+                Subject to applicable law, including POPIA where relevant, you may have
+                the right to request access to personal information, ask for correction
+                of inaccurate records, object to certain processing, or request
+                deletion where retention is no longer required.
+              </p>
+              <p>
+                We may need to retain some records where required for legal, safety,
+                fraud, tax, audit, or operational reasons.
+              </p>
+            </>
+          ),
+        },
+        {
+          title: "7. Security safeguards",
+          content: (
+            <>
+              <p>
+                Story Time uses authentication controls, session management,
+                role-based access restrictions, infrastructure monitoring, and internal
+                review workflows to help protect personal information and platform
+                operations.
+              </p>
+              <p>
+                No online system is completely risk-free, so you should use strong
+                passwords, protect your devices, and sign out of shared systems when
+                appropriate.
+              </p>
+            </>
+          ),
+        },
+      ]}
+      footerNote={
+        <p>
+          Story Time will publish formal privacy-contact and information-officer
+          details before full commercial rollout. Until then, this policy should be
+          read together with our Terms, Cookie Policy, and the rest of the legal suite.
+        </p>
+      }
+    />
   );
 }

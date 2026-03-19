@@ -117,7 +117,7 @@ function CreatorAnalyticsModocModal({
     <>
       <div className="fixed inset-0 z-40 bg-black/60" aria-hidden onClick={onClose} />
       <div
-        className="fixed left-1/2 top-1/2 z-50 w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-cyan-500/30 bg-slate-900 shadow-xl p-6"
+        className="storytime-section fixed left-1/2 top-1/2 z-50 w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
@@ -128,12 +128,12 @@ function CreatorAnalyticsModocModal({
           <button
             type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-white p-2 rounded-lg text-xl leading-none"
+            className="rounded-lg p-2 text-xl leading-none text-slate-400 hover:bg-white/[0.05] hover:text-white"
           >
             ×
           </button>
         </div>
-        <div className="max-h-[60vh] overflow-y-auto rounded-xl bg-slate-800/60 border border-slate-700 p-4 text-sm text-slate-200 whitespace-pre-wrap">
+        <div className="max-h-[60vh] overflow-y-auto rounded-xl border border-white/8 bg-white/[0.04] p-4 text-sm text-slate-200 whitespace-pre-wrap">
           {status === "streaming" || status === "submitted" ? (
             displayContent ? displayContent : <span className="text-slate-400">MODOC is working…</span>
           ) : (
@@ -208,10 +208,10 @@ export function CreatorRevenueClient() {
     <div className="p-6 md:p-8 max-w-6xl mx-auto space-y-10">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-semibold text-white mb-2 flex items-center gap-3">
+          <h1 className="mb-2 flex items-center gap-3 font-display text-2xl font-semibold text-white md:text-3xl">
             <BarChart3 className="w-8 h-8 text-orange-500" /> Analytics
           </h1>
-          <p className="text-slate-400 text-sm md:text-base">
+          <p className="text-sm text-slate-300/78 md:text-base">
             Performance across your account and movies: revenue, audience, content, projects, and competition.
           </p>
         </div>
@@ -239,13 +239,13 @@ export function CreatorRevenueClient() {
       <div className="flex gap-2">
         <button
           onClick={() => setPeriod("month")}
-          className={`px-4 py-2 rounded-lg text-sm font-medium ${period === "month" ? "bg-orange-500 text-white" : "bg-slate-800/50 text-slate-400 border border-slate-700/50 hover:border-slate-600"}`}
+          className={`rounded-xl px-4 py-2.5 text-sm font-semibold ${period === "month" ? "bg-orange-500 text-white shadow-glow" : "border border-white/10 bg-white/[0.03] text-slate-400 hover:bg-white/[0.05]"}`}
         >
           This month
         </button>
         <button
           onClick={() => setPeriod("quarter")}
-          className={`px-4 py-2 rounded-lg text-sm font-medium ${period === "quarter" ? "bg-orange-500 text-white" : "bg-slate-800/50 text-slate-400 border border-slate-700/50 hover:border-slate-600"}`}
+          className={`rounded-xl px-4 py-2.5 text-sm font-semibold ${period === "quarter" ? "bg-orange-500 text-white shadow-glow" : "border border-white/10 bg-white/[0.03] text-slate-400 hover:bg-white/[0.05]"}`}
         >
           This quarter
         </button>
@@ -257,7 +257,7 @@ export function CreatorRevenueClient() {
           <DollarSign className="w-5 h-5 text-orange-400" /> Revenue
         </h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
+          <div className="storytime-kpi p-5">
             <div className="flex items-center gap-2 mb-2">
               <DollarSign className="w-4 h-4 text-orange-400" />
               <span className="text-xs text-slate-400">Earnings</span>
@@ -265,7 +265,7 @@ export function CreatorRevenueClient() {
             <p className="text-2xl font-bold text-white">R{data.revenue.toFixed(2)}</p>
             <p className="text-xs text-slate-500 mt-1">{data.periodStart?.slice(0, 7)} – {data.periodEnd?.slice(0, 10)}</p>
           </div>
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
+          <div className="storytime-kpi p-5">
             <div className="flex items-center gap-2 mb-2">
               <Eye className="w-4 h-4 text-emerald-400" />
               <span className="text-xs text-slate-400">Views</span>
@@ -273,7 +273,7 @@ export function CreatorRevenueClient() {
             <p className="text-2xl font-bold text-white">{data.totalViews.toLocaleString()}</p>
             <p className="text-xs text-slate-500 mt-1">R{data.perViewRand.toFixed(4)} per view</p>
           </div>
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
+          <div className="storytime-kpi p-5">
             <div className="flex items-center gap-2 mb-2">
               <Clock className="w-4 h-4 text-violet-400" />
               <span className="text-xs text-slate-400">Watch time</span>
@@ -281,7 +281,7 @@ export function CreatorRevenueClient() {
             <p className="text-2xl font-bold text-white">{Math.floor(data.watchTime / 3600)}h</p>
             <p className="text-xs text-slate-500 mt-1">R{data.perStreamRand.toFixed(2)} per stream</p>
           </div>
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
+          <div className="storytime-kpi p-5">
             <div className="flex items-center gap-2 mb-2">
               <Percent className="w-4 h-4 text-cyan-400" />
               <span className="text-xs text-slate-400">Share of pool</span>
@@ -299,7 +299,7 @@ export function CreatorRevenueClient() {
             <Users className="w-5 h-5 text-emerald-400" /> Engagement & audience
           </h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-slate-800/40 border border-slate-700/60 rounded-xl p-5">
+            <div className="storytime-kpi p-5">
               <div className="flex items-center gap-2 mb-2">
                 <Eye className="w-4 h-4 text-emerald-400" />
                 <span className="text-xs text-slate-400">Total views</span>
@@ -307,7 +307,7 @@ export function CreatorRevenueClient() {
               <p className="text-2xl font-bold text-white">{eng.totalViews.toLocaleString()}</p>
               <p className="text-xs text-slate-500 mt-1">All-time watch sessions</p>
             </div>
-            <div className="bg-slate-800/40 border border-slate-700/60 rounded-xl p-5">
+            <div className="storytime-kpi p-5">
               <div className="flex items-center gap-2 mb-2">
                 <Users className="w-4 h-4 text-emerald-400" />
                 <span className="text-xs text-slate-400">Unique viewers</span>
@@ -315,7 +315,7 @@ export function CreatorRevenueClient() {
               <p className="text-2xl font-bold text-white">{eng.uniqueWatchers.toLocaleString()}</p>
               <p className="text-xs text-slate-500 mt-1">People who watched your work</p>
             </div>
-            <div className="bg-slate-800/40 border border-slate-700/60 rounded-xl p-5">
+            <div className="storytime-kpi p-5">
               <div className="flex items-center gap-2 mb-2">
                 <Clock className="w-4 h-4 text-violet-400" />
                 <span className="text-xs text-slate-400">Avg session</span>
@@ -325,7 +325,7 @@ export function CreatorRevenueClient() {
               </p>
               <p className="text-xs text-slate-500 mt-1">Time per view</p>
             </div>
-            <div className="bg-slate-800/40 border border-slate-700/60 rounded-xl p-5">
+            <div className="storytime-kpi p-5">
               <div className="flex items-center gap-2 mb-2">
                 <MessageSquare className="w-4 h-4 text-sky-400" />
                 <span className="text-xs text-slate-400">Comments</span>
@@ -333,7 +333,7 @@ export function CreatorRevenueClient() {
               <p className="text-2xl font-bold text-white">{eng.totalComments.toLocaleString()}</p>
               <p className="text-xs text-slate-500 mt-1">Conversation & feedback</p>
             </div>
-            <div className="bg-slate-800/40 border border-slate-700/60 rounded-xl p-5">
+            <div className="storytime-kpi p-5">
               <div className="flex items-center gap-2 mb-2">
                 <Percent className="w-4 h-4 text-yellow-400" />
                 <span className="text-xs text-slate-400">Ratings</span>
@@ -341,7 +341,7 @@ export function CreatorRevenueClient() {
               <p className="text-2xl font-bold text-white">{eng.totalRatings.toLocaleString()}</p>
               <p className="text-xs text-slate-500 mt-1">Total ratings</p>
             </div>
-            <div className="bg-slate-800/40 border border-slate-700/60 rounded-xl p-5">
+            <div className="storytime-kpi p-5">
               <div className="flex items-center gap-2 mb-2">
                 <Bookmark className="w-4 h-4 text-amber-400" />
                 <span className="text-xs text-slate-400">Watchlist adds</span>
@@ -349,7 +349,7 @@ export function CreatorRevenueClient() {
               <p className="text-2xl font-bold text-white">{eng.watchlistCount.toLocaleString()}</p>
               <p className="text-xs text-slate-500 mt-1">Saved by viewers</p>
             </div>
-            <div className="bg-slate-800/40 border border-slate-700/60 rounded-xl p-5">
+            <div className="storytime-kpi p-5">
               <div className="flex items-center gap-2 mb-2">
                 <Film className="w-4 h-4 text-slate-400" />
                 <span className="text-xs text-slate-400">Titles</span>
@@ -367,15 +367,15 @@ export function CreatorRevenueClient() {
           <Film className="w-5 h-5 text-violet-400" /> Content performance
         </h2>
         {contentList.length === 0 ? (
-          <div className="rounded-2xl border border-slate-700/50 bg-slate-800/30 p-6 text-slate-500 text-sm">
+          <div className="storytime-empty-state p-6 text-sm text-slate-500">
             No content yet. Publish titles to see views, watch time, and engagement here.
           </div>
         ) : (
-          <div className="rounded-2xl border border-slate-700/50 bg-slate-800/30 overflow-hidden">
+          <div className="storytime-section overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="storytime-table text-sm">
                 <thead>
-                  <tr className="border-b border-slate-700/50 text-left text-slate-400">
+                  <tr className="border-b border-white/8 text-left">
                     <th className="px-4 py-3 font-medium">Title</th>
                     <th className="px-4 py-3 font-medium">Type</th>
                     <th className="px-4 py-3 font-medium">Views</th>
@@ -388,7 +388,7 @@ export function CreatorRevenueClient() {
                 </thead>
                 <tbody>
                   {contentList.map((c) => (
-                    <tr key={c.id} className="border-b border-slate-700/30 last:border-0 hover:bg-slate-800/50">
+                    <tr key={c.id} className="border-b border-white/6 last:border-0">
                       <td className="px-4 py-3 text-white font-medium truncate max-w-[180px]">{c.title}</td>
                       <td className="px-4 py-3 text-slate-400">{c.type}</td>
                       <td className="px-4 py-3 text-white">{c.views.toLocaleString()}</td>
@@ -412,7 +412,7 @@ export function CreatorRevenueClient() {
           <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
             <FolderKanban className="w-5 h-5 text-sky-400" /> Projects pipeline
           </h2>
-          <div className="rounded-2xl border border-slate-700/50 bg-slate-800/30 p-5 flex flex-wrap gap-6">
+          <div className="storytime-section flex flex-wrap gap-6 p-5">
             <div>
               <p className="text-xs text-slate-400 mb-1">Total projects</p>
               <p className="text-2xl font-bold text-white">{projects.total}</p>
@@ -422,7 +422,7 @@ export function CreatorRevenueClient() {
                 <p className="text-xs text-slate-400 mb-2">By phase</p>
                 <div className="flex flex-wrap gap-2">
                   {Object.entries(projects.byPhase).map(([phase, count]) => (
-                    <span key={phase} className="px-2.5 py-1 rounded-lg bg-slate-700/50 text-slate-200 text-xs">
+                    <span key={phase} className="rounded-lg border border-white/8 bg-white/[0.05] px-2.5 py-1 text-xs text-slate-200">
                       {phase}: {count}
                     </span>
                   ))}
@@ -434,7 +434,7 @@ export function CreatorRevenueClient() {
                 <p className="text-xs text-slate-400 mb-2">By status</p>
                 <div className="flex flex-wrap gap-2">
                   {Object.entries(projects.byStatus).map(([status, count]) => (
-                    <span key={status} className="px-2.5 py-1 rounded-lg bg-slate-700/50 text-slate-200 text-xs">
+                    <span key={status} className="rounded-lg border border-white/8 bg-white/[0.05] px-2.5 py-1 text-xs text-slate-200">
                       {status}: {count}
                     </span>
                   ))}
@@ -451,7 +451,7 @@ export function CreatorRevenueClient() {
           <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
             <Trophy className="w-5 h-5 text-amber-400" /> Competition
           </h2>
-          <div className="rounded-2xl border border-slate-700/50 bg-slate-800/30 p-5 flex flex-wrap gap-6">
+          <div className="storytime-section flex flex-wrap gap-6 p-5">
             {competition.periodName && <p className="text-slate-300">Period: {competition.periodName}</p>}
             {competition.endDate && <p className="text-slate-400 text-sm">Ends: {new Date(competition.endDate).toLocaleDateString()}</p>}
             {competition.rank != null && <p className="text-white font-medium">Your rank: #{competition.rank}</p>}
@@ -461,7 +461,7 @@ export function CreatorRevenueClient() {
       )}
 
       {/* How you earn */}
-      <div className="rounded-2xl bg-slate-800/30 border border-slate-700/50 p-6">
+      <div className="storytime-section p-6">
         <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
           <TrendingUp className="w-5 h-5 text-orange-400" /> How you earn
         </h2>
@@ -471,12 +471,12 @@ export function CreatorRevenueClient() {
       </div>
 
       {/* Banking */}
-      <div className="rounded-2xl bg-slate-800/30 border border-slate-700/50 p-6">
+      <div className="storytime-section p-6">
         <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
           <Building2 className="w-5 h-5 text-emerald-400" /> Banking
         </h2>
         {data.banking ? (
-          <div className="flex items-center justify-between p-4 rounded-xl bg-slate-800/50 border border-slate-700/30">
+          <div className="flex items-center justify-between rounded-xl border border-white/8 bg-white/[0.04] p-4">
             <div>
               <p className="text-white font-medium">{data.banking.bankName}</p>
               <p className="text-slate-400 text-sm">••••{data.banking.accountNumberLast4} · {data.banking.accountType}</p>
@@ -485,21 +485,21 @@ export function CreatorRevenueClient() {
             <CreditCard className="w-8 h-8 text-slate-500" />
           </div>
         ) : (
-          <form onSubmit={submitBank} className="space-y-4 max-w-md">
-            <input type="text" placeholder="Bank name" value={bankForm.bankName} onChange={(e) => setBankForm((f) => ({ ...f, bankName: e.target.value }))} required className="w-full px-4 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white placeholder:text-slate-500" />
-            <input type="text" placeholder="Account number" value={bankForm.accountNumber} onChange={(e) => setBankForm((f) => ({ ...f, accountNumber: e.target.value }))} required className="w-full px-4 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white placeholder:text-slate-500" />
-            <select value={bankForm.accountType} onChange={(e) => setBankForm((f) => ({ ...f, accountType: e.target.value }))} className="w-full px-4 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white">
+          <form onSubmit={submitBank} className="max-w-md space-y-4">
+            <input type="text" placeholder="Bank name" value={bankForm.bankName} onChange={(e) => setBankForm((f) => ({ ...f, bankName: e.target.value }))} required className="storytime-input px-4 py-2.5" />
+            <input type="text" placeholder="Account number" value={bankForm.accountNumber} onChange={(e) => setBankForm((f) => ({ ...f, accountNumber: e.target.value }))} required className="storytime-input px-4 py-2.5" />
+            <select value={bankForm.accountType} onChange={(e) => setBankForm((f) => ({ ...f, accountType: e.target.value }))} className="storytime-select px-4 py-2.5">
               <option value="CHEQUE">Cheque</option>
               <option value="SAVINGS">Savings</option>
             </select>
-            <input type="text" placeholder="Branch code (SA)" value={bankForm.branchCode} onChange={(e) => setBankForm((f) => ({ ...f, branchCode: e.target.value }))} className="w-full px-4 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white placeholder:text-slate-500" />
-            <button type="submit" disabled={submittingBank} className="px-4 py-2 rounded-lg bg-orange-500 text-white font-medium hover:bg-orange-600 disabled:opacity-50">Save banking details</button>
+            <input type="text" placeholder="Branch code (SA)" value={bankForm.branchCode} onChange={(e) => setBankForm((f) => ({ ...f, branchCode: e.target.value }))} className="storytime-input px-4 py-2.5" />
+            <button type="submit" disabled={submittingBank} className="rounded-xl bg-orange-500 px-4 py-2.5 font-semibold text-white shadow-glow hover:-translate-y-0.5 hover:bg-orange-400 disabled:opacity-50">Save banking details</button>
           </form>
         )}
       </div>
 
       {/* Payouts */}
-      <div className="rounded-2xl bg-slate-800/30 border border-slate-700/50 p-6">
+      <div className="storytime-section p-6">
         <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
           <ArrowDownToLine className="w-5 h-5 text-violet-400" /> Payouts
         </h2>
@@ -508,7 +508,7 @@ export function CreatorRevenueClient() {
         ) : (
           <ul className="space-y-2">
             {data.payouts.map((p) => (
-              <li key={p.id} className="flex justify-between items-center py-2 border-b border-slate-700/30 last:border-0 flex-wrap gap-2">
+              <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3">
                 <span className="text-white">R{p.amount.toFixed(2)}</span>
                 <span className={`text-sm ${p.status === "COMPLETED" ? "text-emerald-400" : "text-slate-500"}`}>{p.status}</span>
                 <span className="text-slate-500 text-sm">{p.period}{p.paidAt ? ` · ${new Date(p.paidAt).toLocaleDateString()}` : ""}</span>

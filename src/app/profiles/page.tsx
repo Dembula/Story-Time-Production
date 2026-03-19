@@ -24,7 +24,7 @@ export default async function ProfilesPage() {
       : [];
 
   return (
-    <div className="min-h-screen bg-[#0c1222] text-slate-100 px-6 py-16">
+    <div className="min-h-screen bg-background px-6 py-16 text-slate-100">
       <div className="max-w-4xl mx-auto">
         <ProfilesClient initialProfiles={profiles} />
       </div>

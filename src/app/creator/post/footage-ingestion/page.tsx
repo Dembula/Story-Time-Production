@@ -27,11 +27,7 @@ function PostFootageIngestionContent() {
 
   return (
     <div className="space-y-4">
-      <header className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-white">Footage Ingestion</h1>
-          <p className="mt-1 text-sm text-slate-400">Add footage assets (URLs). Associate with scene when available.</p>
-        </div>
+      <div className="flex justify-end">
         <div className="flex flex-col gap-1 text-xs text-slate-300">
           <span className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Link project (optional)</span>
           {isLoading ? (
@@ -49,7 +45,7 @@ function PostFootageIngestionContent() {
             </select>
           )}
         </div>
-      </header>
+      </div>
       <FootageIngestionTool projectId={projectId} />
     </div>
   );

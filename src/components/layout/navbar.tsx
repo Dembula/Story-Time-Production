@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useSession, signOut } from "next-auth/react";
 import { User, LogOut, Film, Music, LayoutDashboard, Settings, CreditCard, Wallet } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NotificationBell } from "@/components/layout/notification-bell";
 
 const CONTENT_TYPES = [
@@ -19,6 +19,14 @@ const CONTENT_TYPES = [
 export function Navbar() {
   const { data: session } = useSession();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 12);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   const handleSignOut = async () => {
     setMenuOpen(false);
@@ -26,11 +34,18 @@ export function Navbar() {
   };
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 border-b border-slate-800/80 backdrop-blur-xl bg-[#0c1222]/95 px-6 py-3 flex items-center justify-between">
+    <nav
+      className={[
+        "fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-3 transition-all duration-200",
+        scrolled
+          ? "border-b border-white/10 bg-[#080c16]/92 shadow-panel backdrop-blur-2xl"
+          : "border-b border-white/6 bg-[#080c16]/58 backdrop-blur-xl",
+      ].join(" ")}
+    >
       <div className="flex items-center gap-10">
-        <Link href="/browse" className="flex items-center gap-2.5">
-          <Image src="/logo.png" alt="Story Time" width={36} height={36} className="rounded-lg" />
-          <span className="text-lg font-semibold text-white">STORY TIME</span>
+        <Link href="/browse" className="flex items-center gap-3">
+          <Image src="/logo.png" alt="Story Time" width={40} height={40} className="rounded-xl shadow-glow" />
+          <span className="text-lg font-semibold tracking-[0.14em] text-white">STORY <span className="storytime-brand-text">TIME</span></span>
         </Link>
         <div className="hidden md:flex gap-8">
           <Link href="/browse" className="text-sm text-slate-300 hover:text-white transition font-medium">
@@ -55,13 +70,13 @@ export function Navbar() {
           <div className="relative">
             <button
               onClick={() => setMenuOpen(!menuOpen)}
-              className="flex items-center gap-2.5 p-2 hover:bg-slate-800/50 rounded-lg transition ml-2"
+              className="ml-2 flex items-center gap-2.5 rounded-xl border border-white/6 bg-white/[0.03] p-2 hover:border-white/12 hover:bg-white/[0.05]"
             >
               <User className="w-5 h-5 text-slate-400" />
               {session.user?.image ? (
-                <img src={session.user.image} alt="" className="w-8 h-8 rounded-full" />
+                <img src={session.user.image} alt="" className="h-8 w-8 rounded-full ring-1 ring-white/15" />
               ) : (
-                <div className="w-8 h-8 rounded-full bg-orange-500/20 flex items-center justify-center text-sm font-semibold text-orange-400">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-500/18 text-sm font-semibold text-orange-300 ring-1 ring-orange-400/20">
                   {(session.user?.name || "?")[0]}
                 </div>
               )}
@@ -69,44 +84,44 @@ export function Navbar() {
             {menuOpen && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
-                <div className="absolute right-0 top-full mt-2 w-56 rounded-xl border border-slate-700 bg-[#0c1222] py-2 shadow-xl z-50">
-                  <div className="px-4 py-3 border-b border-slate-700">
+                <div className="storytime-panel absolute right-0 top-full z-50 mt-3 w-56 rounded-2xl py-2">
+                  <div className="border-b border-white/8 px-4 py-3">
                     <p className="font-medium text-white truncate">{session.user?.name}</p>
                     <p className="text-sm text-slate-400 truncate">{session.user?.email}</p>
                   </div>
-                  <Link href="/browse" className="block px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-800/50 hover:text-white" onClick={() => setMenuOpen(false)}>
+                  <Link href="/browse" className="block px-4 py-2.5 text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white" onClick={() => setMenuOpen(false)}>
                     Browse
                   </Link>
-                  <Link href="/browse/settings" className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-800/50 hover:text-white" onClick={() => setMenuOpen(false)}>
+                  <Link href="/browse/settings" className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white" onClick={() => setMenuOpen(false)}>
                     <Settings className="w-4 h-4" /> Settings
                   </Link>
                   {(session.user as { role?: string })?.role === "SUBSCRIBER" && (
-                    <Link href="/profiles" className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-800/50 hover:text-white" onClick={() => setMenuOpen(false)}>
+                    <Link href="/profiles" className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white" onClick={() => setMenuOpen(false)}>
                       <User className="w-4 h-4" /> Who&apos;s watching?
                     </Link>
                   )}
-                  <Link href="/browse/account" className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-800/50 hover:text-white" onClick={() => setMenuOpen(false)}>
+                  <Link href="/browse/account" className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white" onClick={() => setMenuOpen(false)}>
                     <CreditCard className="w-4 h-4" /> My account
                   </Link>
-                  <Link href="/browse/settings#payment" className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-800/50 hover:text-white" onClick={() => setMenuOpen(false)}>
+                  <Link href="/browse/settings#payment" className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white" onClick={() => setMenuOpen(false)}>
                     <Wallet className="w-4 h-4" /> Payment methods
                   </Link>
                   {(session.user as { role?: string })?.role === "CONTENT_CREATOR" && (
-                    <Link href="/creator/dashboard" className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-800/50 hover:text-white" onClick={() => setMenuOpen(false)}>
+                    <Link href="/creator/dashboard" className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white" onClick={() => setMenuOpen(false)}>
                       <Film className="w-4 h-4" /> Creator Dashboard
                     </Link>
                   )}
                   {(session.user as { role?: string })?.role === "MUSIC_CREATOR" && (
-                    <Link href="/music-creator/dashboard" className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-800/50 hover:text-white" onClick={() => setMenuOpen(false)}>
+                    <Link href="/music-creator/dashboard" className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white" onClick={() => setMenuOpen(false)}>
                       <Music className="w-4 h-4" /> Music Dashboard
                     </Link>
                   )}
                   {(session.user as { role?: string })?.role === "ADMIN" && (
-                    <Link href="/admin" className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-800/50 hover:text-white" onClick={() => setMenuOpen(false)}>
+                    <Link href="/admin" className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white" onClick={() => setMenuOpen(false)}>
                       <LayoutDashboard className="w-4 h-4" /> Admin
                     </Link>
                   )}
-                  <button onClick={handleSignOut} className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-800/50 hover:text-white text-left">
+                  <button onClick={handleSignOut} className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white">
                     <LogOut className="w-4 h-4" /> Sign out
                   </button>
                 </div>
@@ -115,13 +130,13 @@ export function Navbar() {
           </div>
         ) : (
           <div className="flex items-center gap-2 ml-2">
-            <Link href="/auth/signin" className="px-4 py-2 text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800/50 rounded-lg transition">
+            <Link href="/auth/signin" className="rounded-xl px-4 py-2.5 text-sm font-medium text-slate-300 hover:bg-white/[0.05] hover:text-white">
               Sign In
             </Link>
-            <Link href="/auth/signup" className="px-4 py-2 text-sm font-medium bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition">
+            <Link href="/auth/signup" className="rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white shadow-glow hover:-translate-y-0.5 hover:bg-orange-400">
               Sign Up
             </Link>
-            <Link href="/auth/creator/signin" className="px-4 py-2 text-sm font-medium text-orange-400 hover:text-orange-300 hover:bg-orange-500/10 rounded-lg transition border-l border-slate-700 pl-4">
+            <Link href="/auth/creator/signin" className="border-l border-white/8 pl-4 text-sm font-medium text-orange-300 hover:text-orange-200">
               Creator
             </Link>
           </div>

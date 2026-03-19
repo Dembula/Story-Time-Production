@@ -37,19 +37,19 @@ export function MusicRow({
     <div className="mb-12 group/row">
       <div className="flex items-end justify-between mb-5">
         <div>
-          <h2 className="text-xl font-semibold text-white">{title}</h2>
-          {subtitle && <p className="text-slate-400 text-sm mt-1">{subtitle}</p>}
+          <h2 className="font-display text-xl font-semibold text-white">{title}</h2>
+          {subtitle && <p className="mt-1 text-sm text-slate-400">{subtitle}</p>}
         </div>
         <div className="opacity-0 group-hover/row:opacity-100 transition flex gap-2">
           <button
             onClick={() => scroll("left")}
-            className="p-2.5 rounded-full bg-slate-800/90 hover:bg-slate-700 border border-slate-600/50 transition"
+            className="rounded-full border border-white/10 bg-white/[0.06] p-2.5 shadow-panel hover:-translate-y-0.5 hover:bg-white/[0.12]"
           >
             <ChevronLeft className="w-5 h-5 text-white" />
           </button>
           <button
             onClick={() => scroll("right")}
-            className="p-2.5 rounded-full bg-slate-800/90 hover:bg-slate-700 border border-slate-600/50 transition"
+            className="rounded-full border border-white/10 bg-white/[0.06] p-2.5 shadow-panel hover:-translate-y-0.5 hover:bg-white/[0.12]"
           >
             <ChevronRight className="w-5 h-5 text-white" />
           </button>
@@ -62,26 +62,26 @@ export function MusicRow({
         {tracks.map((track) => (
           <div
             key={track.id}
-            className="flex-shrink-0 w-44 group/card rounded-xl overflow-hidden bg-slate-800/50 border border-slate-700/50 hover:border-slate-600 transition"
+            className="group/card w-44 flex-shrink-0 overflow-hidden rounded-2xl border border-white/8 bg-card/85 shadow-media hover:-translate-y-1 hover:border-white/14"
           >
-            <div className="relative aspect-square rounded-t-xl overflow-hidden bg-slate-800">
+            <div className="relative aspect-square overflow-hidden rounded-t-2xl bg-slate-900">
               {track.coverUrl ? (
                 <img
                   src={track.coverUrl}
                   alt={track.title}
-                  className="w-full h-full object-cover group-hover/card:scale-105 transition duration-300"
+                  className="h-full w-full object-cover transition duration-300 group-hover/card:scale-[1.04] group-hover/card:brightness-110"
                 />
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-slate-500">
+                <div className="flex h-full w-full items-center justify-center text-slate-500">
                   <Music className="w-12 h-12" />
                 </div>
               )}
             </div>
             <div className="p-3">
-              <p className="text-sm font-medium text-white truncate">{track.title}</p>
-              <p className="text-xs text-slate-400 truncate">{track.artistName}</p>
+              <p className="truncate text-sm font-medium text-white group-hover/card:text-orange-100">{track.title}</p>
+              <p className="truncate text-xs text-slate-400">{track.artistName}</p>
               {track.genre && (
-                <p className="text-xs text-slate-500 mt-0.5">{track.genre}</p>
+                <p className="mt-0.5 text-xs text-slate-500">{track.genre}</p>
               )}
             </div>
           </div>

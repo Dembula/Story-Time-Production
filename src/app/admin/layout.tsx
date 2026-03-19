@@ -38,14 +38,14 @@ export default function AdminLayout({
   };
 
   return (
-    <div className="min-h-screen bg-[#0c1222] relative overflow-hidden">
+    <div className="relative min-h-screen overflow-hidden bg-background text-foreground">
       <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent_0%,rgba(249,115,22,0.02)_100%)] pointer-events-none" />
       <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-orange-500/30 to-transparent" />
 
-      <header className="relative border-b border-slate-700/50 px-6 md:px-12 py-4 backdrop-blur-sm">
+      <header className="relative border-b border-white/8 bg-white/[0.03] px-6 py-4 backdrop-blur-xl md:px-12">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <Link href="/admin" className="text-xl font-semibold text-white tracking-tight">
-            <span className="text-orange-500">STORY TIME</span> Admin
+            <span className="storytime-brand-text">STORY TIME</span> Admin
           </Link>
           <div className="flex items-center gap-3">
             <NotificationBell />
@@ -71,8 +71,8 @@ export default function AdminLayout({
                   className={[
                     "flex items-center px-3 py-2 rounded-lg transition",
                     active
-                      ? "bg-slate-800 text-white"
-                      : "text-slate-400 hover:text-white hover:bg-slate-800/60",
+                      ? "bg-white/[0.08] text-white shadow-panel"
+                      : "text-slate-400 hover:bg-white/[0.05] hover:text-white",
                     item.highlight ? "font-medium text-orange-400 hover:text-orange-300" : "",
                   ].join(" ")}
                 >

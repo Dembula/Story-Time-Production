@@ -42,7 +42,7 @@ export default async function BrowseLayout({
   }
 
   return (
-    <div className="min-h-screen bg-[#0c1222]">
+    <div className="min-h-screen bg-background text-foreground">
       <Navbar />
       <main className="pt-16">{children}</main>
       <SubscriptionExpiredModal show={subscriptionExpired} />

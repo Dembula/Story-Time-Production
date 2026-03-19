@@ -23,13 +23,13 @@ export function BrowseSearchWithModoc({ defaultSearch = "", type, filter }: Prop
           name="search"
           defaultValue={defaultSearch}
           placeholder="Search films, shows, genres, titles..."
-          className="flex-1 px-4 py-3 rounded-xl bg-slate-800/80 border border-slate-700 text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500/50"
+          className="flex-1 rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-white shadow-panel placeholder:text-slate-500 focus:border-orange-400/40 focus:outline-none focus:ring-2 focus:ring-orange-500/40"
         />
         {type && <input type="hidden" name="type" value={type} />}
         {filter && <input type="hidden" name="filter" value={filter} />}
         <button
           type="submit"
-          className="px-5 py-3 rounded-xl bg-orange-500 text-white font-medium hover:bg-orange-600 transition"
+          className="rounded-2xl bg-orange-500 px-5 py-3 font-semibold text-white shadow-glow hover:-translate-y-0.5 hover:bg-orange-400"
         >
           Search
         </button>
@@ -40,12 +40,12 @@ export function BrowseSearchWithModoc({ defaultSearch = "", type, filter }: Prop
           <button
             type="button"
             onClick={() => setModocOpen(true)}
-            className="w-12 h-12 rounded-full bg-gradient-to-br from-cyan-500/90 to-orange-500/90 flex items-center justify-center shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/30 hover:scale-105 active:scale-95 transition-all duration-200 border-2 border-white/10"
+            className="flex h-12 w-12 items-center justify-center rounded-full border border-white/10 bg-gradient-to-br from-cyan-500/90 to-orange-500/90 shadow-glow hover:scale-105 active:scale-95"
             aria-label="Ask MODOC"
           >
             <Bot className="w-6 h-6 text-white" />
           </button>
-          <span className="absolute left-full ml-3 px-3 py-1.5 rounded-lg bg-slate-800/95 text-sm font-medium text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none border border-slate-700/80 shadow-xl z-10">
+          <span className="pointer-events-none absolute left-full z-10 ml-3 whitespace-nowrap rounded-xl border border-white/10 bg-[#0a0f18]/95 px-3 py-1.5 text-sm font-medium text-white opacity-0 shadow-panel transition-opacity duration-200 group-hover:opacity-100">
             Ask MODOC
           </span>
         </div>

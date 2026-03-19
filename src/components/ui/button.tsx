@@ -3,22 +3,22 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex items-center justify-center whitespace-nowrap rounded-xl text-sm font-semibold tracking-tight transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:pointer-events-none disabled:opacity-50 disabled:shadow-none",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:opacity-90",
-        destructive: "bg-red-600 text-white hover:bg-red-700",
-        outline: "border border-muted-foreground/30 hover:bg-muted",
-        secondary: "bg-muted text-muted-foreground hover:bg-muted/80",
-        ghost: "hover:bg-muted",
+        default: "bg-primary text-primary-foreground shadow-glow hover:-translate-y-0.5 hover:brightness-105 active:translate-y-0 active:brightness-95",
+        destructive: "bg-red-600 text-white shadow-panel hover:-translate-y-0.5 hover:bg-red-500",
+        outline: "border border-white/12 bg-white/[0.03] text-foreground shadow-panel hover:-translate-y-0.5 hover:border-primary/35 hover:bg-white/[0.05]",
+        secondary: "bg-secondary text-secondary-foreground shadow-panel hover:-translate-y-0.5 hover:bg-secondary/90",
+        ghost: "text-muted-foreground hover:bg-white/[0.05] hover:text-foreground",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
-        default: "h-10 px-4 py-2",
-        sm: "h-9 rounded-md px-3",
-        lg: "h-11 rounded-md px-8",
-        icon: "h-10 w-10",
+        default: "h-11 px-5 py-2.5",
+        sm: "h-9 rounded-lg px-3.5",
+        lg: "h-12 rounded-xl px-8",
+        icon: "h-11 w-11",
       },
     },
     defaultVariants: {

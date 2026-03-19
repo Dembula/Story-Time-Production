@@ -4,23 +4,85 @@
 
 @layer base {
   :root {
-    --background: 222 47% 4%;
-    --foreground: 0 0% 98%;
-    --primary: 24 95% 53%;
-    --primary-foreground: 0 0% 100%;
-    --accent: 199 89% 48%;
-    --accent-foreground: 0 0% 100%;
-    --muted: 222 20% 12%;
-    --muted-foreground: 215 16% 57%;
-    --card: 222 25% 8%;
-    --card-foreground: 0 0% 98%;
-    --surface: 222 30% 6%;
+    --background: 228 34% 5%;
+    --foreground: 32 33% 96%;
+    --primary: 31 100% 56%;
+    --primary-foreground: 24 28% 8%;
+    --accent: 39 100% 64%;
+    --accent-foreground: 24 28% 8%;
+    --muted: 225 19% 13%;
+    --muted-foreground: 220 17% 72%;
+    --card: 228 23% 9%;
+    --card-foreground: 32 33% 96%;
+    --secondary: 223 18% 16%;
+    --secondary-foreground: 32 33% 96%;
+    --surface: 228 24% 7%;
+    --border: 225 18% 18%;
+    --input: 225 18% 18%;
+    --ring: 31 100% 56%;
+  }
+
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  html {
+    color-scheme: dark;
+    scroll-behavior: smooth;
   }
 }
 
 body {
-  background: hsl(var(--background));
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top center, rgba(255, 173, 51, 0.14), transparent 30%),
+    radial-gradient(circle at 18% 18%, rgba(255, 119, 0, 0.12), transparent 24%),
+    radial-gradient(circle at 82% 12%, rgba(255, 196, 77, 0.08), transparent 22%),
+    linear-gradient(180deg, #05070d 0%, #090d18 38%, #0b1020 100%);
   color: hsl(var(--foreground));
+  font-feature-settings: "ss01" 1, "cv02" 1, "cv03" 1;
+  text-rendering: optimizeLegibility;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 18%),
+    radial-gradient(circle at bottom center, rgba(255, 140, 0, 0.09), transparent 35%);
+  z-index: -1;
+}
+
+::selection {
+  background: rgba(255, 153, 31, 0.32);
+  color: hsl(var(--foreground));
+}
+
+a,
+button,
+input,
+textarea,
+select {
+  transition:
+    color 180ms ease,
+    background-color 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    opacity 180ms ease,
+    transform 180ms ease,
+    filter 180ms ease;
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 1px rgba(255, 170, 51, 0.2), 0 0 0 4px rgba(255, 145, 0, 0.16);
+}
+
+img {
+  image-rendering: auto;
+  filter: saturate(1.06) contrast(1.05);
 }
 
 .scrollbar-hide::-webkit-scrollbar {
@@ -29,4 +91,85 @@ body {
 .scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+.storytime-panel {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 20px 60px -30px rgba(0, 0, 0, 0.78);
+  backdrop-filter: blur(18px);
+}
+
+.storytime-brand-text {
+  background: linear-gradient(135deg, #ffcb67 0%, #ff9f1c 35%, #ff7a00 70%, #ffb347 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.storytime-input,
+.storytime-select,
+.storytime-textarea {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: hsl(var(--foreground));
+  border-radius: 1rem;
+  box-shadow: 0 18px 40px -28px rgba(0, 0, 0, 0.8);
+}
+
+.storytime-input::placeholder,
+.storytime-textarea::placeholder {
+  color: rgba(148, 163, 184, 0.75);
+}
+
+.storytime-select option {
+  background: #0b1020;
+  color: hsl(var(--foreground));
+}
+
+.storytime-section {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.022));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 1.5rem;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 20px 60px -30px rgba(0, 0, 0, 0.78);
+  backdrop-filter: blur(18px);
+}
+
+.storytime-kpi {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.025));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 1.35rem;
+  box-shadow: 0 18px 44px -30px rgba(0, 0, 0, 0.82);
+}
+
+.storytime-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.storytime-table thead th {
+  color: rgba(148, 163, 184, 0.92);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.storytime-table tbody tr {
+  transition: background-color 180ms ease, transform 180ms ease;
+}
+
+.storytime-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.storytime-empty-state {
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.025);
+  border-radius: 1.5rem;
 }
