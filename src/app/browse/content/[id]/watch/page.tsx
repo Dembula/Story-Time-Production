@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { WatchClient } from "./watch-client";
+import { getViewerPlaybackState } from "@/lib/viewer-access";
+import { getViewerProfileAge } from "@/lib/viewer-profiles";
 
 export default async function WatchPage({
   params,
@@ -28,23 +30,9 @@ export default async function WatchPage({
   let profileAge: number | null = null;
   const profile = await prisma.viewerProfile.findFirst({
     where: { id: profileId, userId: session.user.id },
-    select: { age: true },
+    select: { age: true, dateOfBirth: true },
   });
-  if (profile) profileAge = profile.age;
-
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    include: { viewerSubscriptions: { orderBy: { createdAt: "desc" }, take: 1 } },
-  });
-  const sub = user?.viewerSubscriptions?.[0];
-  let subscriptionExpired = true;
-  if (sub) {
-    const trialExpired = sub.status === "TRIAL_ACTIVE" && sub.trialEndsAt && new Date(sub.trialEndsAt) < new Date();
-    const periodExpired = sub.status === "ACTIVE" && sub.currentPeriodEnd && new Date(sub.currentPeriodEnd) < new Date();
-    subscriptionExpired = trialExpired || periodExpired || sub.status === "PAST_DUE" || sub.status === "CANCELLED";
-  } else {
-    redirect("/onboarding/package");
-  }
+  if (profile) profileAge = getViewerProfileAge(profile);
 
   const content = await prisma.content.findUnique({
     where: { id, published: true },
@@ -64,9 +52,14 @@ export default async function WatchPage({
 
   if (!content || !content.videoUrl) notFound();
 
+  const playback = await getViewerPlaybackState(session.user.id, content.id);
+  if (!playback.subscription) {
+    redirect("/onboarding/package");
+  }
+
   const minAge = content.minAge ?? 0;
   const ageRestricted = profileAge != null && minAge > profileAge;
-  if (ageRestricted || subscriptionExpired) {
+  if (ageRestricted || !playback.canPlayContent) {
     redirect(`/browse/content/${id}`);
   }
 

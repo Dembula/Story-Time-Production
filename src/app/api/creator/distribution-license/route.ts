@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { paymentGateway } from "@/lib/payments";
+import { normalizeCreatorLicenseType } from "@/lib/pricing";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -31,20 +31,30 @@ export async function POST(req: Request) {
 
   const body = await req.json();
   const { type } = body as { type?: string };
-  const licenseType = type === "PER_UPLOAD_R10" ? "PER_UPLOAD_R10" : "YEARLY_R89";
+  const licenseType = normalizeCreatorLicenseType(type);
 
-  const amount = licenseType === "YEARLY_R89" ? 89 : 10;
-  const intent = await paymentGateway.createPaymentIntent({ amount, currency: "ZAR", metadata: { type: "DISTRIBUTION_LICENSE", userId: user.id } });
-  const result = await paymentGateway.confirmPayment(intent.id);
-  if (!result.success) return NextResponse.json({ error: result.error || "Payment failed" }, { status: 400 });
+  if (licenseType === "YEARLY") {
+    const license = await prisma.creatorDistributionLicense.create({
+      data: {
+        userId: user.id,
+        type: licenseType,
+        yearlyExpiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+        externalPaymentId: null,
+      },
+    });
+    return NextResponse.json({
+      license,
+      requiresPayment: false,
+      redirectTo: role === "MUSIC_CREATOR" ? "/music-creator/dashboard" : "/creator/dashboard",
+    });
+  }
 
-  const yearlyExpiresAt = licenseType === "YEARLY_R89" ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) : null;
   const license = await prisma.creatorDistributionLicense.create({
     data: {
       userId: user.id,
       type: licenseType,
-      yearlyExpiresAt,
-      externalPaymentId: intent.id,
+      yearlyExpiresAt: null,
+      externalPaymentId: null,
     },
   });
 

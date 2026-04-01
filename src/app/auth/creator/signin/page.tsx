@@ -117,13 +117,6 @@ export default function CreatorSignInPage() {
             </button>
           </div>
 
-          <div className="mt-6 rounded-xl border border-slate-200 bg-white/85 p-3 shadow-sm">
-            <p className="mb-1.5 text-xs font-semibold text-slate-500">Demo creator accounts:</p>
-            <p className="text-xs text-slate-600"><code className="text-slate-950">creator@storytime.com</code> / <code className="text-slate-950">storytime2025</code></p>
-            <p className="text-xs text-slate-600"><code className="text-slate-950">music@storytime.com</code> / <code className="text-slate-950">storytime2025</code></p>
-            <p className="text-xs text-slate-600"><code className="text-slate-950">cinegear@storytime.com</code> / <code className="text-slate-950">storytime2025</code> (Equipment Co.)</p>
-          </div>
-
           <div className="mt-4 flex items-center justify-center gap-2 text-xs text-slate-500">
             <Shield className="w-3.5 h-3.5" />
             <span>Protected with account and session controls</span>

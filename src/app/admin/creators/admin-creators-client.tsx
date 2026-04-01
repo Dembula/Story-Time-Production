@@ -7,6 +7,7 @@ import {
   GraduationCap, Globe, BookOpen, Target, Briefcase, ExternalLink, TrendingUp,
   Play, BarChart3,
 } from "lucide-react";
+import { getCreatorLicenseConfig, normalizeCreatorLicenseType } from "@/lib/pricing";
 
 interface Creator {
   id: string; name: string | null; email: string | null; role: string;
@@ -64,7 +65,9 @@ export function AdminCreatorsClient() {
                       {c.isAfdaStudent && <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400"><GraduationCap className="w-3 h-3 inline" /> Student</span>}
                       {c.creatorDistributionLicense && (
                         <span className="text-xs px-2 py-0.5 rounded-full bg-slate-600/80 text-slate-300">
-                          {c.creatorDistributionLicense.type === "YEARLY_R89" ? "Yearly license" : "Pay per upload"}
+                          {normalizeCreatorLicenseType(c.creatorDistributionLicense.type) === "YEARLY"
+                            ? `Yearly license (R${getCreatorLicenseConfig("YEARLY").price.toFixed(2)})`
+                            : `Pay per upload (R${getCreatorLicenseConfig("PER_UPLOAD").price.toFixed(2)})`}
                         </span>
                       )}
                     </div>

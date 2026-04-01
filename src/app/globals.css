@@ -173,3 +173,30 @@ img {
   background: rgba(255, 255, 255, 0.025);
   border-radius: 1.5rem;
 }
+
+.storytime-plan-card {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.02));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 1.5rem;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 20px 60px -30px rgba(0, 0, 0, 0.78);
+  backdrop-filter: blur(18px);
+}
+
+.storytime-plan-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at top right, rgba(255, 170, 51, 0.14), transparent 38%);
+  opacity: 0;
+  transition: opacity 180ms ease;
+  pointer-events: none;
+}
+
+.storytime-plan-card:hover::before,
+.storytime-plan-card[data-selected="true"]::before {
+  opacity: 1;
+}

@@ -1,5 +1,6 @@
 generator client {
   provider = "prisma-client-js"
+  output   = "../generated/prisma"
 }
 
 datasource db {
@@ -121,6 +122,8 @@ model User {
   companySubscriptions   CompanySubscription[]
   userPreference        UserPreference?
   viewerPaymentMethods  ViewerPaymentMethod[]
+  viewerContentAccesses ViewerContentAccess[]
+  paymentRecords        PaymentRecord[]
 
   notifications         Notification[]
   modocConversations   ModocConversation[]
@@ -229,6 +232,7 @@ model Content {
   crewMembers   CrewMember[]
   auditionPosts AuditionPost[]
   networkPosts  NetworkPost[]
+  viewerContentAccesses ViewerContentAccess[]
 }
 
 model BtsVideo {
@@ -270,6 +274,7 @@ model ViewerProfile {
 
   name      String
   age       Int
+  dateOfBirth DateTime?
   /// Free-form personalization and learned preferences for recommendations.
   preferences Json?
 
@@ -913,11 +918,20 @@ model ViewerSubscription {
   id                  String    @id @default(cuid())
   userId              String
   user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  paymentMethodId     String?
+  paymentMethod       ViewerPaymentMethod? @relation("ViewerSubscriptionPaymentMethod", fields: [paymentMethodId], references: [id], onDelete: SetNull)
+  viewerModel         String    @default("SUBSCRIPTION") // SUBSCRIPTION, PPV
   plan                String    // BASE_1, STANDARD_3, FAMILY_5
   status              String    // TRIAL_ACTIVE, ACTIVE, PAST_DUE, CANCELLED
   trialEndsAt         DateTime?
   currentPeriodEnd    DateTime?
   deviceCount         Int       @default(1)
+  profileLimit        Int?
+  billingEmail        String?
+  cancelAtPeriodEnd   Boolean   @default(false)
+  lastPaymentStatus   String?
+  lastPaymentAt       DateTime?
+  lastPaymentError    String?
   externalPaymentId   String?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
@@ -925,6 +939,27 @@ model ViewerSubscription {
   payments            SubscriptionPayment[]
 
   @@index([userId])
+  @@index([paymentMethodId])
+}
+
+model ViewerContentAccess {
+  id                String    @id @default(cuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contentId         String
+  content           Content   @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  accessType        String    @default("PPV_FILM") // PPV_FILM
+  amount            Float     // in ZAR
+  currency          String    @default("ZAR")
+  status            String    // COMPLETED, REFUNDED
+  purchasedAt       DateTime  @default(now())
+  expiresAt         DateTime
+  externalPaymentId String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([userId, contentId])
+  @@index([expiresAt])
 }
 
 model SubscriptionPayment {
@@ -934,11 +969,15 @@ model SubscriptionPayment {
   amount                Float     // in ZAR
   currency              String    @default("ZAR")
   status                String    // PENDING, COMPLETED, FAILED, REFUNDED
+  purpose               String?
   paidAt                DateTime?
+  failureReason         String?
+  paystackReference     String?
   externalPaymentId     String?
   createdAt             DateTime  @default(now())
 
   @@index([viewerSubscriptionId])
+  @@index([paystackReference])
 }
 
 model CreatorPayout {
@@ -983,12 +1022,14 @@ model Transaction {
   status            String    // PENDING, COMPLETED, FAILED, REFUNDED
   type              String    // LOCATION_BOOKING, EQUIPMENT_REQUEST, CREW_REQUEST, CAST_INQUIRY, CATERING_BOOKING
   referenceId       String    // booking/request/inquiry id
+  paystackReference String?
   externalPaymentId String?
   createdAt         DateTime  @default(now())
 
   @@index([payerId])
   @@index([payeeId])
   @@index([referenceId])
+  @@index([paystackReference])
 }
 
 // --- Catering ---
@@ -1041,15 +1082,23 @@ model CompanySubscription {
   id                  String    @id @default(cuid())
   userId              String
   user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  paymentMethodId     String?
+  paymentMethod       ViewerPaymentMethod? @relation("CompanySubscriptionPaymentMethod", fields: [paymentMethodId], references: [id], onDelete: SetNull)
   companyType         String    // CREW_TEAM, CASTING_AGENCY, LOCATION_OWNER, EQUIPMENT_COMPANY, CATERING_COMPANY
   plan                String    // STANDARD_R29, PROMOTED_R49
   status              String    // ACTIVE, PAST_DUE, CANCELLED
   currentPeriodEnd    DateTime?
+  billingEmail        String?
+  cancelAtPeriodEnd   Boolean   @default(false)
+  lastPaymentStatus   String?
+  lastPaymentAt       DateTime?
+  lastPaymentError    String?
   externalPaymentId   String?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
   @@index([userId])
+  @@index([paymentMethodId])
 }
 
 model CreatorDistributionLicense {
@@ -1070,12 +1119,16 @@ model UploadPayment {
   userId        String
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   amount        Float    // R10
+  status        String   @default("COMPLETED") // PENDING, COMPLETED, FAILED
   contentId     String?
   musicTrackId  String?
+  paystackReference String?
+  externalPaymentId String?
   transactionId String?
   createdAt     DateTime @default(now())
 
   @@index([userId])
+  @@index([paystackReference])
 }
 
 // --- Viewer competition ---
@@ -1122,6 +1175,50 @@ model TestPayment {
   updatedAt DateTime @updatedAt
 }
 
+model PaymentRecord {
+  id                    String   @id @default(cuid())
+  userId                String?
+  user                  User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider              String   @default("PAYSTACK")
+  purpose               String
+  status                String   @default("INITIALIZED") // INITIALIZED, PENDING, SUCCEEDED, FAILED, CANCELLED
+  amount                Float
+  currency              String   @default("ZAR")
+  email                 String?
+  metadata              Json?
+  relatedEntityType     String?
+  relatedEntityId       String?
+  paystackReference     String?  @unique
+  paystackAccessCode    String?
+  paystackAuthorizationUrl String?
+  paystackTransactionId String?
+  customerCode          String?
+  authorizationCode     String?
+  paidAt                DateTime?
+  failedAt              DateTime?
+  failureReason         String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([userId])
+  @@index([purpose])
+  @@index([status])
+}
+
+model PaymentWebhookEvent {
+  id            String   @id @default(cuid())
+  provider      String   @default("PAYSTACK")
+  eventType     String
+  eventId       String?
+  reference     String?
+  payload       Json?
+  processedAt   DateTime?
+  createdAt     DateTime @default(now())
+
+  @@unique([provider, eventType, eventId])
+  @@index([reference])
+}
+
 // --- User preferences (theme, etc.) ---
 model UserPreference {
   id              String   @id @default(cuid())
@@ -1141,12 +1238,27 @@ model ViewerPaymentMethod {
   id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider  String   @default("PAYSTACK")
+  email     String?
   label     String   // e.g. "Visa ****4242"
   lastFour  String   // last 4 digits for display
+  customerCode String?
+  authorizationCode String?
+  authorizationSignature String?
+  cardType  String?
+  bank      String?
+  expMonth  String?
+  expYear   String?
+  reusable  Boolean  @default(true)
   isDefault Boolean  @default(false)
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  viewerSubscriptions  ViewerSubscription[] @relation("ViewerSubscriptionPaymentMethod")
+  companySubscriptions CompanySubscription[] @relation("CompanySubscriptionPaymentMethod")
 
   @@index([userId])
+  @@index([authorizationCode])
 }
 
 // --- Social & notifications ---

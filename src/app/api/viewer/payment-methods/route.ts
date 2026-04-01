@@ -82,6 +82,11 @@ export async function DELETE(req: NextRequest) {
   });
   if (!method) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  const totalMethods = await prisma.viewerPaymentMethod.count({ where: { userId: session.user.id } });
+  if (totalMethods <= 1) {
+    return NextResponse.json({ error: "At least one payment method must remain on file" }, { status: 400 });
+  }
+
   await prisma.viewerPaymentMethod.delete({ where: { id } });
   if (method.isDefault) {
     const next = await prisma.viewerPaymentMethod.findFirst({ where: { userId: session.user.id } });

@@ -5,9 +5,9 @@ export default function TermsPage() {
     <LegalPage
       eyebrow="Legal"
       title="Terms of Service"
-      summary="These Terms explain how Story Time may be used by viewers, creators, partners, and administrators. They cover access to the platform, content ownership, subscription access, enforcement, and the limits of our responsibility."
-      lastUpdated="March 2026"
-      highlights={["South Africa", "Platform rules", "Content ownership"]}
+      summary="These Terms explain how Story Time may be used by viewers, creators, partners, and administrators. They cover access, content ownership, subscriptions, enforcement, payment processing, and legal rights under South African law."
+      lastUpdated="April 2026"
+      highlights={["South Africa", "Consumer Protection Act", "ECTA", "Content ownership"]}
       sections={[
         {
           title: "1. Who these Terms apply to",
@@ -23,6 +23,13 @@ export default function TermsPage() {
                 using any paid plan, you agree to these Terms together with our Privacy
                 Policy, Subscription Terms, Refund Policy, Content Policy, Copyright
                 Notice, Cookie Policy, and Acceptable Use Policy.
+              </p>
+              <p>
+                These Terms are interpreted in line with applicable South African law,
+                including the Electronic Communications and Transactions Act 25 of 2002
+                (&quot;ECTA&quot;), the Consumer Protection Act 68 of 2008 (&quot;CPA&quot;),
+                the Protection of Personal Information Act 4 of 2013 (&quot;POPIA&quot;),
+                and the Cybercrimes Act 19 of 2020.
               </p>
             </>
           ),
@@ -103,6 +110,13 @@ export default function TermsPage() {
                 you choose.
               </p>
               <p>
+                Payments may be processed through licensed third-party payment gateway
+                providers using tokenized card processing, 3D Secure authentication
+                where required, transaction risk checks, and card-network dispute
+                workflows. Story Time does not intentionally store full card PAN or CVV
+                in platform databases.
+              </p>
+              <p>
                 Revenue participation, creator economics, or business benefits may
                 depend on the product structure, audience activity, licensing status,
                 platform rules, and any additional agreements that apply to your role.
@@ -158,15 +172,21 @@ export default function TermsPage() {
                 If any part of these Terms is unenforceable, the remaining provisions
                 will continue to apply.
               </p>
+              <p>
+                To the extent required by the CPA, nothing in these Terms is intended
+                to waive non-waivable consumer rights, including fair and reasonable
+                terms (sections 48 and 49), plain language disclosure (section 22), and
+                rights linked to service performance (section 54).
+              </p>
             </>
           ),
         },
       ]}
       footerNote={
         <p>
-          Story Time will publish formal legal and operational contact details before
-          full commercial launch. Until then, these Terms should be read together with
-          the rest of the policy suite on this site.
+          Official legal and operational contact: support@story-time.online | +27
+          61 657 2691. For legal notices, billing disputes, policy questions, or
+          escalation requests, contact Story Time through these channels.
         </p>
       }
     />

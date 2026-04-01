@@ -16,11 +16,19 @@ export default async function MusicLicenseOnboardingPage() {
   if (user?.creatorDistributionLicense) redirect("/music-creator/dashboard");
 
   return (
-    <div className="min-h-screen bg-[#0c1222] flex items-center justify-center px-4 py-12">
-      <div className="max-w-lg w-full">
-        <h1 className="text-2xl font-bold text-white text-center mb-2">Choose distribution option</h1>
-        <p className="text-slate-400 text-center mb-8">Pay once to unlock music uploads</p>
+    <div className="min-h-screen bg-background px-6 py-16 text-slate-100">
+      <div className="mx-auto w-full max-w-5xl">
+        <div className="mx-auto max-w-3xl text-center">
+          <p className="mb-3 text-sm uppercase tracking-[0.28em] text-orange-300/80">Music creator onboarding</p>
+          <h1 className="font-display text-4xl font-semibold text-white md:text-5xl">Choose your distribution option</h1>
+          <p className="mt-3 text-slate-300/78">
+            Launch with the same polished onboarding style as viewer plans, while choosing the music distribution payment model that fits your release cadence.
+          </p>
+        </div>
+
+        <div className="mt-12">
         <LicenseClient />
+        </div>
       </div>
     </div>
   );

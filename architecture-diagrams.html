@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Storytime Platform Diagrams</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #0b1020;
+      --panel: #121a2c;
+      --panel-border: #25304b;
+      --text: #e8edf7;
+      --muted: #b7c2d9;
+      --accent: #4f8cff;
+      --accent-2: #2dd4bf;
+      --button-text: #0b1020;
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f5f7fb;
+        --panel: #ffffff;
+        --panel-border: #d7deee;
+        --text: #15203b;
+        --muted: #50607f;
+        --accent: #2563eb;
+        --accent-2: #0f766e;
+        --button-text: #ffffff;
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    main {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 32px 20px 56px;
+    }
+
+    h1,
+    h2,
+    p {
+      margin-top: 0;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, rgba(79, 140, 255, 0.18), rgba(45, 212, 191, 0.12));
+      border: 1px solid var(--panel-border);
+      border-radius: 18px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+
+    .hero p,
+    .note {
+      color: var(--muted);
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 16px;
+    }
+
+    button,
+    .link-button {
+      appearance: none;
+      border: 0;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      background: var(--accent);
+      color: var(--button-text);
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    button.secondary,
+    .link-button.secondary {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--panel-border);
+    }
+
+    .grid {
+      display: grid;
+      gap: 20px;
+    }
+
+    .diagram-card {
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 18px;
+      padding: 18px;
+      overflow: hidden;
+    }
+
+    .diagram-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 10px;
+    }
+
+    .diagram-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+
+    .diagram-wrap {
+      overflow: auto;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(128, 128, 128, 0.15);
+      padding: 8px;
+    }
+
+    .diagram-wrap svg {
+      max-width: none;
+      height: auto;
+      display: block;
+      margin: 0 auto;
+    }
+
+    .source-block {
+      margin-top: 12px;
+      max-height: 280px;
+      overflow: auto;
+      border-radius: 12px;
+      border: 1px solid rgba(128, 128, 128, 0.15);
+      background: rgba(0, 0, 0, 0.2);
+      padding: 12px;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 12px;
+      white-space: pre;
+      color: var(--muted);
+      display: none;
+    }
+
+    .source-block.visible {
+      display: block;
+    }
+
+    .status {
+      margin-top: 16px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    @media print {
+      body {
+        background: #ffffff;
+        color: #111827;
+      }
+
+      .hero,
+      .diagram-card {
+        border-color: #cbd5e1;
+        background: #ffffff;
+        break-inside: avoid;
+      }
+
+      .toolbar,
+      .diagram-actions,
+      .source-block {
+        display: none !important;
+      }
+    }
+  </style>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs";
+
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: "default",
+      securityLevel: "loose",
+      flowchart: { useMaxWidth: false, htmlLabels: true },
+      sequence: { useMaxWidth: false },
+    });
+
+    function downloadText(filename, text, mimeType) {
+      const blob = new Blob([text], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function serializeSvg(svg) {
+      const clone = svg.cloneNode(true);
+      clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+      clone.setAttribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
+      return new XMLSerializer().serializeToString(clone);
+    }
+
+    function attachCardActions(card) {
+      const title = card.dataset.filename;
+      const source = card.querySelector(".diagram-source").textContent.trim();
+      const sourceBlock = card.querySelector(".source-block");
+      const svg = card.querySelector("svg");
+      const actions = card.querySelector(".diagram-actions");
+
+      const sourceBtn = document.createElement("button");
+      sourceBtn.className = "secondary";
+      sourceBtn.textContent = "Toggle Source";
+      sourceBtn.addEventListener("click", () => {
+        sourceBlock.classList.toggle("visible");
+      });
+
+      const mmdBtn = document.createElement("button");
+      mmdBtn.className = "secondary";
+      mmdBtn.textContent = "Download .mmd";
+      mmdBtn.addEventListener("click", () => {
+        downloadText(`${title}.mmd`, source + "\n", "text/plain;charset=utf-8");
+      });
+
+      actions.appendChild(sourceBtn);
+      actions.appendChild(mmdBtn);
+
+      if (svg) {
+        const svgBtn = document.createElement("button");
+        svgBtn.textContent = "Download SVG";
+        svgBtn.addEventListener("click", () => {
+          downloadText(`${title}.svg`, serializeSvg(svg), "image/svg+xml;charset=utf-8");
+        });
+        actions.appendChild(svgBtn);
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      const status = document.getElementById("status");
+      try {
+        await mermaid.run({ querySelector: ".mermaid" });
+        document.querySelectorAll(".diagram-card").forEach(attachCardActions);
+        status.textContent =
+          "Diagrams rendered. Use Download SVG for email attachments or Print to PDF for a single document.";
+      } catch (error) {
+        status.textContent =
+          "Mermaid could not render in this browser. You can still download the raw .mmd source from each card.";
+        console.error(error);
+      }
+
+      document.getElementById("download-html").addEventListener("click", () => {
+        downloadText("storytime-platform-diagrams.html", document.documentElement.outerHTML, "text/html;charset=utf-8");
+      });
+
+      document.getElementById("print-pdf").addEventListener("click", () => {
+        window.print();
+      });
+
+      document.getElementById("download-all-source").addEventListener("click", () => {
+        const cards = [...document.querySelectorAll(".diagram-card")];
+        const bundle = cards
+          .map((card) => {
+            const filename = card.dataset.filename;
+            const source = card.querySelector(".diagram-source").textContent.trim();
+            return `# ${filename}.mmd\n\n${source}\n`;
+          })
+          .join("\n\n");
+        downloadText("storytime-platform-diagrams-source.txt", bundle, "text/plain;charset=utf-8");
+      });
+    });
+  </script>
+</head>
+<body>
+  <main>
+    <section class="hero">
+      <h1>Storytime Platform Diagrams</h1>
+      <p>
+        This document packages the full platform architecture, runtime flow, security posture,
+        domain model, and delivery/tooling diagrams into one downloadable set.
+      </p>
+      <p class="note">
+        Best email workflow: click <strong>Download SVG</strong> on each diagram for sharp attachments,
+        or use <strong>Print to PDF</strong> to send the whole pack as one file.
+      </p>
+      <div class="toolbar">
+        <button id="print-pdf">Print to PDF</button>
+        <button id="download-html" class="secondary">Download This HTML</button>
+        <button id="download-all-source" class="secondary">Download All Mermaid Source</button>
+      </div>
+      <div id="status" class="status">Rendering diagrams...</div>
+    </section>
+
+    <section class="grid">
+      <article class="diagram-card" data-filename="storytime-master-architecture">
+        <div class="diagram-header">
+          <div>
+            <h2>1. Master Architecture</h2>
+            <p class="note">Full platform view across frontend, backend, shared services, data, external services, security, and ops.</p>
+          </div>
+          <div class="diagram-actions"></div>
+        </div>
+        <div class="diagram-wrap">
+          <pre class="mermaid diagram-source">flowchart TB
+    classDef core fill:#dbeafe,stroke:#1d4ed8,color:#111827
+    classDef app fill:#dcfce7,stroke:#15803d,color:#111827
+    classDef data fill:#fef3c7,stroke:#b45309,color:#111827
+    classDef ext fill:#ede9fe,stroke:#6d28d9,color:#111827
+    classDef sec fill:#fee2e2,stroke:#b91c1c,color:#111827
+    classDef warn fill:#fff7ed,stroke:#c2410c,color:#111827
+    classDef ops fill:#e0f2fe,stroke:#0369a1,color:#111827
+
+    U[Platform Users]:::core
+    U --> V[Viewers / Subscribers]:::core
+    U --> C[Content Creators]:::core
+    U --> M[Music Creators]:::core
+    U --> B2B[Company Users\nCrew Team / Casting Agency /\nLocation Owner / Equipment Company /\nCatering Company]:::core
+    U --> A[Admins]:::core
+
+    subgraph FE[Frontend Layer]
+        ROOT[Next.js 15 App Router\nsrc/app/layout.tsx\nGlobal shell + providers]:::app
+        PROVIDERS[Global Providers\nSessionProvider\nQueryClientProvider\nModocProvider]:::app
+        LANDING[Marketing / Legal / About / Auth]:::app
+        BROWSE[Viewer App\ncatalog / playback / profiles /\nsubscription / recommendations]:::app
+        CREATOR[Creator App\nprojects / network / revenue /\nproduction pipeline]:::app
+        MUSIC[Music Creator App\ntracks / sync / licensing / revenue]:::app
+        COMPANY[Company Portals\ncrew / casting / location /\nequipment / catering]:::app
+        ADMIN[Admin App\nusers / content / activity /\nrevenue / moderation]:::app
+        UI[Shared UI / Components\nTailwind / Radix / Framer Motion /\nLucide / player / project tools]:::app
+    end
+
+    subgraph API[Backend Layer - Next.js Route Handlers]
+        AUTHAPI[Auth APIs]:::core
+        VIEWERAPI[Viewer APIs]:::core
+        CONTENTAPI[Content APIs]:::core
+        CREATORAPI[Creator APIs]:::core
+        MUSICAPI[Music APIs]:::core
+        COMPANYAPI[Company APIs]:::core
+        ADMINAPI[Admin APIs]:::core
+        NETWORKAPI[Network APIs]:::core
+        MODOCAPI[MODOC APIs]:::core
+        UPLOADAPI[Upload API]:::warn
+    end
+
+    subgraph DOMAIN[Shared Domain / Service Layer - src/lib]
+        AUTH[auth.ts\nNextAuth config]:::data
+        ACCESS[project-access.ts\nrole + project membership]:::data
+        PRISMA[prisma.ts\nPrisma client lifecycle]:::data
+        REVENUE[revenue.ts\ncreator revenue formulas]:::data
+        ANALYTICS[creator-analytics.ts\naggregated creator KPIs]:::data
+        TOOLREG[project-tools.ts\npre / production / post registry]:::data
+        PAYMENTS[payments.ts\npayment abstraction]:::data
+        NETWORKDB[network-db.ts\nsocial data logic]:::data
+        MODOCLIB[lib/modoc/*\nprompts / context / preferences]:::data
+        STORES[idea / script / breakdown /\nbudget / schedule / review stores]:::data
+    end
+
+    subgraph DB[Data Layer - PostgreSQL via Prisma]
+        AUTHDB[Identity\nUser / Account / Session /\nVerificationToken]:::data
+        STREAMDB[Streaming\nContent / WatchSession /\nComment / Rating / Watchlist /\nViewerProfile / ViewerSubscription]:::data
+        CREATORDB[Creator / Project\nOriginalProject / Pitch / Members /\nIdeas / Scripts / Scenes / WorkspaceLink /\nToolProgress]:::data
+        MARKETDB[Marketplace\nCrew / Casting / Location /\nEquipment / Catering]:::data
+        PRODDB[Production\nBudget / ShootDay / CallSheet /\nTasks / Contracts / Signatures /\nRisk / Continuity / Dailies / Incidents]:::data
+        ECONDB[Economy\nSubscriptionPayment / CreatorPayout /\nBanking / Transactions / Competition]:::data
+        SOCIALDB[Social\nFollows / Connections / Posts /\nChats / Notifications]:::data
+        AIDB[AI History\nModocConversation / ModocMessage]:::data
+        AUDITDB[Audit\nActivityLog / AdminAuditLog]:::data
+    end
+
+    subgraph EXT[External Services]
+        OAUTH[Google / GitHub OAuth]:::ext
+        EMAIL[SMTP / magic links]:::ext
+        STORAGE[S3-compatible object storage]:::ext
+        AI[OpenRouter]:::ext
+        HOST[Hosting assumption\nVercel / Railway style envs]:::ext
+    end
+
+    subgraph SEC[Security / Control Layer]
+        MW[Route middleware\nrole-based path protection]:::sec
+        SSR[Server-side session checks]:::sec
+        ROLE[Authorization pattern\nrole + project membership checks]:::sec
+        HASH[bcryptjs hashing + compare]:::sec
+        AUDIT[Auditability\nactivity + admin audit logs]:::sec
+    end
+
+    subgraph OPS[Tooling / Delivery]
+        TOOLING[npm + package-lock\nTypeScript\nESLint\nPrisma migrations]:::ops
+        TESTS[Current checks\nlint / typecheck /\nsmoke script]:::ops
+        GAPS[Known gaps\nno CI / no Docker /\nno formal test suite found]:::warn
+    end
+
+    U --> FE
+    ROOT --> PROVIDERS
+    BROWSE --> VIEWERAPI
+    BROWSE --> CONTENTAPI
+    BROWSE --> MODOCAPI
+    CREATOR --> CREATORAPI
+    CREATOR --> NETWORKAPI
+    CREATOR --> MODOCAPI
+    CREATOR --> UPLOADAPI
+    MUSIC --> MUSICAPI
+    MUSIC --> MODOCAPI
+    COMPANY --> COMPANYAPI
+    COMPANY --> MODOCAPI
+    ADMIN --> ADMINAPI
+    LANDING --> AUTHAPI
+
+    AUTHAPI --> AUTH
+    VIEWERAPI --> ACCESS
+    CREATORAPI --> ACCESS
+    CREATORAPI --> REVENUE
+    CREATORAPI --> ANALYTICS
+    CREATORAPI --> TOOLREG
+    CREATORAPI --> PAYMENTS
+    CREATORAPI --> STORES
+    MUSICAPI --> PAYMENTS
+    COMPANYAPI --> PAYMENTS
+    COMPANYAPI --> ACCESS
+    ADMINAPI --> PRISMA
+    NETWORKAPI --> NETWORKDB
+    MODOCAPI --> MODOCLIB
+    MODOCAPI --> ANALYTICS
+
+    AUTH --> PRISMA
+    ACCESS --> PRISMA
+    REVENUE --> PRISMA
+    ANALYTICS --> PRISMA
+    NETWORKDB --> PRISMA
+    PAYMENTS --> PRISMA
+    MODOCLIB --> PRISMA
+
+    PRISMA --> AUTHDB
+    PRISMA --> STREAMDB
+    PRISMA --> CREATORDB
+    PRISMA --> MARKETDB
+    PRISMA --> PRODDB
+    PRISMA --> ECONDB
+    PRISMA --> SOCIALDB
+    PRISMA --> AIDB
+    PRISMA --> AUDITDB
+
+    AUTH --> OAUTH
+    AUTH --> EMAIL
+    UPLOADAPI --> STORAGE
+    MODOCAPI --> AI
+
+    MW --> FE
+    SSR --> API
+    ROLE --> ACCESS
+    HASH --> AUTH
+    AUDIT --> AUDITDB
+    ROOT --> TOOLING
+    TOOLING --> TESTS
+    TESTS --> GAPS
+          </pre>
+        </div>
+        <pre class="source-block"></pre>
+      </article>
+
+      <article class="diagram-card" data-filename="storytime-runtime-flow">
+        <div class="diagram-header">
+          <div>
+            <h2>2. Runtime And Data Flow</h2>
+            <p class="note">How a request moves through the app, including auth, Prisma, uploads, and AI flows.</p>
+          </div>
+          <div class="diagram-actions"></div>
+        </div>
+        <div class="diagram-wrap">
+          <pre class="mermaid diagram-source">sequenceDiagram
+    autonumber
+    actor User
+    participant FE as Next.js Frontend
+    participant MW as Middleware
+    participant API as Route Handler
+    participant Auth as NextAuth / Session
+    participant Lib as Shared Domain Logic
+    participant Prisma as Prisma ORM
+    participant PG as PostgreSQL
+    participant S3 as S3 Storage
+    participant OR as OpenRouter
+
+    User->>FE: Open page / interact with UI
+    FE->>MW: Request protected route
+    MW-->>FE: Allow or redirect by role
+
+    FE->>API: Fetch JSON from /api/*
+    API->>Auth: getServerSession()
+    Auth-->>API: session + user role/id
+
+    alt Project-scoped creator flow
+        API->>Lib: ensureProjectAccess(projectId)
+        Lib->>Prisma: validate role + membership
+        Prisma->>PG: query project, members, pitches
+        PG-->>Prisma: rows
+        Prisma-->>Lib: result
+        Lib-->>API: allow or deny
+    end
+
+    API->>Lib: business logic
+    Lib->>Prisma: typed ORM queries
+    Prisma->>PG: SQL via Prisma engine
+    PG-->>Prisma: records / aggregates
+    Prisma-->>Lib: domain data
+    Lib-->>API: response model
+    API-->>FE: JSON payload
+    FE-->>User: updated UI
+
+    alt Upload flow
+        FE->>API: multipart/form-data upload
+        API->>S3: PutObject
+        S3-->>API: object stored
+        API-->>FE: publicUrl + path
+    end
+
+    alt MODOC AI flow
+        FE->>API: POST /api/modoc/chat
+        API->>Auth: optional session lookup
+        API->>Prisma: fetch context/history/project data
+        Prisma->>PG: query data
+        PG-->>Prisma: context records
+        API->>OR: streamText(system prompt + messages)
+        OR-->>API: streamed completion
+        API-->>FE: streaming response
+        FE-->>User: AI answer
+    end
+          </pre>
+        </div>
+        <pre class="source-block"></pre>
+      </article>
+
+      <article class="diagram-card" data-filename="storytime-security-architecture">
+        <div class="diagram-header">
+          <div>
+            <h2>3. Security Architecture And Risks</h2>
+            <p class="note">Controls that exist today, plus the highest-risk exposure points visible in the repo.</p>
+          </div>
+          <div class="diagram-actions"></div>
+        </div>
+        <div class="diagram-wrap">
+          <pre class="mermaid diagram-source">flowchart TB
+    classDef good fill:#dcfce7,stroke:#15803d,color:#111827
+    classDef med fill:#fef3c7,stroke:#b45309,color:#111827
+    classDef risk fill:#fee2e2,stroke:#b91c1c,color:#111827
+    classDef note fill:#e0f2fe,stroke:#0369a1,color:#111827
+
+    subgraph AUTHSEC[Authentication and Identity]
+        NEXTAUTH[NextAuth + Prisma Adapter]:::good
+        PROVIDERS[Providers:\nCredentials / Email / Google / GitHub]:::good
+        JWT[JWT session strategy]:::good
+        BCRYPT[bcryptjs password hashing]:::good
+        SECRET[NEXTAUTH_SECRET env-based]:::good
+        DEMO[Fallback demo password in auth.ts\nif passwordHash missing and env unset]:::risk
+    end
+
+    subgraph ACCESSSEC[Authorization]
+        MWARE[Middleware role checks\n/admin /creator /music-creator /\ncompany routes]:::good
+        SERVERCHECK[Server-side getServerSession checks]:::good
+        PROJECTCHECK[Project membership validation\nmembers + pitches + admin role]:::good
+        AUDIT[AdminAuditLog and ActivityLog]:::good
+        DUPLICATION[Authorization logic partly duplicated\nacross many route files]:::med
+    end
+
+    subgraph APPSEC[Application Security]
+        ORM[Prisma ORM\nreduced SQL injection risk]:::good
+        INPUT[Basic input validation exists in many routes]:::med
+        VALGAP[No formal validation library found\nno zod/yup/joi/valibot usage]:::med
+        ERR[Some dev-mode error leakage in signup route]:::med
+        HEADERS[No CSP / HSTS / X-Frame-Options config found]:::risk
+        RATELIMIT[No application-level rate limiting found]:::risk
+    end
+
+    subgraph DATASEC[Data and Privacy]
+        ENV[Secrets templated in .env.example\nnot hardcoded in repo]:::good
+        EMAILLEAK[Public listing endpoints expose user email\nin crew/casting directory responses]:::risk
+        AIPERSIST[AI conversations persisted in DB]:::note
+        AUDITDATA[Audit trails for some privileged actions]:::good
+    end
+
+    subgraph ENDPOINTRISKS[High-Risk Endpoint Findings]
+        UPLOADRISK[Upload route allows file upload\nwithout visible auth guard\n/api/upload/content-media]:::risk
+        MODOCRISK[MODOC chat can run with null userContext\nwhen API key exists\nanonymous cost/abuse exposure]:::risk
+        SIGNUP[Signup has basic checks only\nno rate limiting / abuse controls]:::risk
+    end
+
+    subgraph OPSSEC[Operational Security]
+        TESTS[Only lint + typecheck + smoke test]:::med
+        NOTESTS[No formal unit/integration/e2e test framework found]:::risk
+        NOCI[No CI workflow found]:::risk
+        NODOCKER[No container/deploy config found in repo]:::med
+        LOGGING[Prisma error logging configured;\nmore verbose in development]:::note
+    end
+
+    NEXTAUTH --> PROVIDERS
+    NEXTAUTH --> JWT
+    NEXTAUTH --> BCRYPT
+    NEXTAUTH --> SECRET
+    NEXTAUTH --> DEMO
+
+    MWARE --> SERVERCHECK
+    SERVERCHECK --> PROJECTCHECK
+    PROJECTCHECK --> AUDIT
+    PROJECTCHECK --> DUPLICATION
+
+    ORM --> INPUT
+    INPUT --> VALGAP
+    INPUT --> ERR
+    INPUT --> HEADERS
+    INPUT --> RATELIMIT
+
+    ENV --> EMAILLEAK
+    ENV --> AIPERSIST
+    AIPERSIST --> AUDITDATA
+
+    TESTS --> NOTESTS
+    TESTS --> NOCI
+    TESTS --> NODOCKER
+    TESTS --> LOGGING
+          </pre>
+        </div>
+        <pre class="source-block"></pre>
+      </article>
+
+      <article class="diagram-card" data-filename="storytime-data-domain">
+        <div class="diagram-header">
+          <div>
+            <h2>4. Data Domain Diagram</h2>
+            <p class="note">The major entity families and how users, content, projects, marketplaces, social, and AI history relate.</p>
+          </div>
+          <div class="diagram-actions"></div>
+        </div>
+        <div class="diagram-wrap">
+          <pre class="mermaid diagram-source">flowchart LR
+    classDef db fill:#fef3c7,stroke:#b45309,color:#111827
+
+    User[User]:::db
+    Account[Account]:::db
+    Session[Session]:::db
+    VerificationToken[VerificationToken]:::db
+
+    Content[Content]:::db
+    WatchSession[WatchSession]:::db
+    Comment[Comment]:::db
+    Rating[Rating]:::db
+    WatchlistItem[WatchlistItem]:::db
+    ViewerProfile[ViewerProfile]:::db
+    ViewerSubscription[ViewerSubscription]:::db
+    SubscriptionPayment[SubscriptionPayment]:::db
+
+    OriginalProject[OriginalProject]:::db
+    OriginalPitch[OriginalPitch]:::db
+    OriginalMember[OriginalMember]:::db
+    ProjectIdea[ProjectIdea]:::db
+    ProjectScript[ProjectScript]:::db
+    ProjectScriptVersion[ProjectScriptVersion]:::db
+    ProjectScene[ProjectScene]:::db
+    ProjectBudget[ProjectBudget]:::db
+    ProjectTask[ProjectTask]:::db
+    ShootDay[ShootDay]:::db
+    CallSheet[CallSheet]:::db
+    ProjectContract[ProjectContract]:::db
+    ProjectSignature[ProjectSignature]:::db
+    RiskPlan[RiskPlan]:::db
+    ContinuityNote[ContinuityNote]:::db
+    DailiesBatch[DailiesBatch]:::db
+    IncidentReport[IncidentReport]:::db
+    FinalDelivery[FinalDelivery]:::db
+    DistributionSubmission[DistributionSubmission]:::db
+
+    MusicTrack[MusicTrack]:::db
+    SyncRequest[SyncRequest]:::db
+    SyncDeal[SyncDeal]:::db
+
+    CrewTeam[CrewTeam]:::db
+    CastingAgency[CastingAgency]:::db
+    LocationListing[LocationListing]:::db
+    EquipmentListing[EquipmentListing]:::db
+    CateringCompany[CateringCompany]:::db
+
+    NetworkPost[NetworkPost]:::db
+    NetworkConversation[NetworkConversation]:::db
+    NetworkMessage[NetworkMessage]:::db
+    Notification[Notification]:::db
+
+    ModocConversation[ModocConversation]:::db
+    ModocMessage[ModocMessage]:::db
+
+    ActivityLog[ActivityLog]:::db
+    AdminAuditLog[AdminAuditLog]:::db
+
+    User --> Account
+    User --> Session
+    User --> Content
+    User --> WatchSession
+    User --> Comment
+    User --> Rating
+    User --> WatchlistItem
+    User --> ViewerProfile
+    User --> ViewerSubscription
+    ViewerSubscription --> SubscriptionPayment
+
+    Content --> WatchSession
+    Content --> Comment
+    Content --> Rating
+    Content --> WatchlistItem
+
+    User --> OriginalPitch
+    User --> OriginalMember
+    OriginalProject --> OriginalPitch
+    OriginalProject --> OriginalMember
+    OriginalProject --> ProjectIdea
+    OriginalProject --> ProjectScript
+    ProjectScript --> ProjectScriptVersion
+    OriginalProject --> ProjectScene
+    OriginalProject --> ProjectBudget
+    OriginalProject --> ProjectTask
+    OriginalProject --> ShootDay
+    OriginalProject --> CallSheet
+    OriginalProject --> ProjectContract
+    ProjectContract --> ProjectSignature
+    OriginalProject --> RiskPlan
+    OriginalProject --> ContinuityNote
+    OriginalProject --> DailiesBatch
+    OriginalProject --> IncidentReport
+    OriginalProject --> FinalDelivery
+    OriginalProject --> DistributionSubmission
+
+    User --> MusicTrack
+    MusicTrack --> SyncRequest
+    Content --> SyncDeal
+    MusicTrack --> SyncDeal
+
+    User --> CrewTeam
+    User --> CastingAgency
+    User --> LocationListing
+    User --> EquipmentListing
+    User --> CateringCompany
+
+    User --> NetworkPost
+    User --> NetworkConversation
+    NetworkConversation --> NetworkMessage
+    User --> Notification
+
+    User --> ModocConversation
+    ModocConversation --> ModocMessage
+
+    User --> ActivityLog
+    User --> AdminAuditLog
+          </pre>
+        </div>
+        <pre class="source-block"></pre>
+      </article>
+
+      <article class="diagram-card" data-filename="storytime-ops-tooling">
+        <div class="diagram-header">
+          <div>
+            <h2>5. Ops, Tooling, And Delivery</h2>
+            <p class="note">What is present today for build quality and what delivery/test infrastructure appears to be missing.</p>
+          </div>
+          <div class="diagram-actions"></div>
+        </div>
+        <div class="diagram-wrap">
+          <pre class="mermaid diagram-source">flowchart TB
+    classDef ok fill:#dcfce7,stroke:#15803d,color:#111827
+    classDef warn fill:#fef3c7,stroke:#b45309,color:#111827
+    classDef risk fill:#fee2e2,stroke:#b91c1c,color:#111827
+
+    subgraph DEV[Developer Toolchain]
+        NPM[npm + package-lock]:::ok
+        TS[TypeScript 5.x]:::ok
+        ESLINT[ESLint + next lint]:::ok
+        PRISMA[Prisma + migrations + seed]:::ok
+        TAILWIND[Tailwind + PostCSS]:::ok
+    end
+
+    subgraph VERIFY[Current Verification]
+        TYPECHECK[npm run typecheck]:::ok
+        LINT[npm run lint]:::ok
+        SMOKE[node scripts/smoke-dev.mjs]:::warn
+    end
+
+    subgraph MISSING[Missing or Not Found]
+        UNIT[No Jest/Vitest config found]:::risk
+        E2E[No Playwright config found]:::risk
+        CI[No .github workflows found]:::risk
+        DOCKER[No Dockerfile / docker-compose found]:::risk
+        DEPLOY[No checked-in deploy config found]:::warn
+    end
+
+    NPM --> TYPECHECK
+    TS --> TYPECHECK
+    ESLINT --> LINT
+    PRISMA --> SMOKE
+    TAILWIND --> LINT
+
+    TYPECHECK --> UNIT
+    LINT --> E2E
+    SMOKE --> CI
+    CI --> DOCKER
+    DOCKER --> DEPLOY
+          </pre>
+        </div>
+        <pre class="source-block"></pre>
+      </article>
+    </section>
+  </main>
+  <script>
+    document.querySelectorAll(".diagram-card").forEach((card) => {
+      const source = card.querySelector(".diagram-source").textContent.trim();
+      card.querySelector(".source-block").textContent = source;
+    });
+  </script>
+</body>
+</html>

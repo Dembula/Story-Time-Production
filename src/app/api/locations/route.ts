@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isFeaturedCompanyPlan } from "@/lib/pricing";
 
 function hasLocationModels(): boolean {
   return typeof (prisma as { locationListing?: unknown }).locationListing !== "undefined";
@@ -19,6 +20,7 @@ export async function GET(req: NextRequest) {
   const city = req.nextUrl.searchParams.get("city");
   const minCapacity = req.nextUrl.searchParams.get("minCapacity");
   const maxDailyRate = req.nextUrl.searchParams.get("maxDailyRate");
+  const now = new Date();
 
   const where: { companyId?: string | null; type?: string; city?: string; capacity?: { gte?: number }; dailyRate?: { lte?: number } } = {};
   if (ownerId) where.companyId = ownerId;
@@ -36,15 +38,19 @@ export async function GET(req: NextRequest) {
           id: true,
           name: true,
           email: true,
-          companySubscriptions: { where: { companyType: "LOCATION_OWNER", status: "ACTIVE" }, take: 1, select: { plan: true } },
+          companySubscriptions: {
+            where: { companyType: "LOCATION_OWNER", status: "ACTIVE", currentPeriodEnd: { gt: now } },
+            take: 1,
+            select: { plan: true },
+          },
         },
       },
       _count: { select: { bookings: true } },
     },
   });
   const sorted = [...locations].sort((a, b) => {
-    const promotedA = (a.company as { companySubscriptions?: { plan: string }[] })?.companySubscriptions?.[0]?.plan === "PROMOTED_R49" ? 0 : 1;
-    const promotedB = (b.company as { companySubscriptions?: { plan: string }[] })?.companySubscriptions?.[0]?.plan === "PROMOTED_R49" ? 0 : 1;
+    const promotedA = isFeaturedCompanyPlan((a.company as { companySubscriptions?: { plan: string }[] })?.companySubscriptions?.[0]?.plan) ? 0 : 1;
+    const promotedB = isFeaturedCompanyPlan((b.company as { companySubscriptions?: { plan: string }[] })?.companySubscriptions?.[0]?.plan) ? 0 : 1;
     return promotedA - promotedB || (a.name || "").localeCompare(b.name || "");
   });
   return NextResponse.json(sorted);

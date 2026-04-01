@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { cookies } from "next/headers";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getViewerProfileAge } from "@/lib/viewer-profiles";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -19,10 +20,10 @@ export async function GET() {
   if (profileId) {
     const profile = await prisma.viewerProfile.findFirst({
       where: { id: profileId, userId },
-      select: { id: true, age: true },
+      select: { id: true, age: true, dateOfBirth: true },
     });
     if (profile) {
-      profileAge = profile.age;
+      profileAge = getViewerProfileAge(profile);
       viewerProfileId = profile.id;
     }
   }

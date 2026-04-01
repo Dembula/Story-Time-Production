@@ -5,9 +5,9 @@ export default function SubscriptionTermsPage() {
     <LegalPage
       eyebrow="Billing"
       title="Subscription Terms"
-      summary="These terms explain how Story Time structures viewer subscriptions, creator distribution licensing, and company listing plans, and how paid access affects platform functionality."
-      lastUpdated="March 2026"
-      highlights={["ZAR pricing", "Access gating", "Role-based plans"]}
+      summary="These terms explain how Story Time structures viewer subscriptions, creator distribution licensing, and company listing plans, including billing authorization, renewals, payment gateway processing, and dispute handling."
+      lastUpdated="April 2026"
+      highlights={["ZAR pricing", "Access gating", "Role-based plans", "Gateway processing"]}
       sections={[
         {
           title: "1. Viewer subscriptions",
@@ -54,6 +54,11 @@ export default function SubscriptionTermsPage() {
                 Fees are generally denominated in South African Rand unless we clearly
                 state otherwise.
               </p>
+              <p>
+                Payments may be processed by PCI-DSS capable payment gateway partners.
+                For card payments, tokenization, payment authentication (including 3D
+                Secure where required), and gateway fraud-screening controls may apply.
+              </p>
             </>
           ),
         },
@@ -71,15 +76,20 @@ export default function SubscriptionTermsPage() {
                 billing periods by updating the relevant purchase flow and legal
                 materials.
               </p>
+              <p>
+                Material billing changes are communicated in advance where required by
+                applicable law, including CPA fair-notice expectations and ECTA
+                disclosure principles.
+              </p>
             </>
           ),
         },
       ]}
       footerNote={
         <p>
-          Refund eligibility, billing disputes, and chargeback handling are covered in
-          our separate Refund Policy. Nothing in these Subscription Terms limits rights
-          you may have under applicable consumer law.
+          Billing and subscription contact: support@story-time.online | +27 61 657
+          2691. Refund eligibility, disputes, and chargebacks are governed with the
+          Refund Policy and applicable consumer protections under South African law.
         </p>
       }
     />

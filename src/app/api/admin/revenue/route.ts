@@ -3,6 +3,15 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getCreatorRevenue, getPlatformStats, getViewerSubscriptionRevenue } from "@/lib/revenue";
+import { COMPANY_PLAN_CONFIG, CREATOR_LICENSE_CONFIG, normalizeCompanyPlan, normalizeCreatorLicenseType } from "@/lib/pricing";
+
+const PAYMENT_PURPOSES = {
+  COMPANY_SUBSCRIPTION: "COMPANY_SUBSCRIPTION",
+  COMPANY_SUBSCRIPTION_RENEWAL: "COMPANY_SUBSCRIPTION_RENEWAL",
+  CREATOR_YEARLY_LICENSE: "CREATOR_YEARLY_LICENSE",
+  CREATOR_CONTENT_UPLOAD: "CREATOR_CONTENT_UPLOAD",
+  CREATOR_MUSIC_UPLOAD: "CREATOR_MUSIC_UPLOAD",
+} as const;
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -21,15 +30,43 @@ export async function GET() {
     where: { status: "COMPLETED", createdAt: { gte: periodStart, lte: periodEnd } },
     _sum: { feeAmount: true, totalAmount: true },
   });
-  const companySubRevenue = await prisma.companySubscription.findMany({
-    where: { status: "ACTIVE" },
-    select: { plan: true },
+  const companySubRevenue = await prisma.paymentRecord.findMany({
+    where: {
+      status: "SUCCEEDED",
+      purpose: {
+        in: [PAYMENT_PURPOSES.COMPANY_SUBSCRIPTION, PAYMENT_PURPOSES.COMPANY_SUBSCRIPTION_RENEWAL],
+      },
+      paidAt: { gte: periodStart, lte: periodEnd },
+    },
+    select: { amount: true, metadata: true },
   });
-  const standardCount = companySubRevenue.filter((s) => s.plan === "STANDARD_R29").length;
-  const promotedCount = companySubRevenue.filter((s) => s.plan === "PROMOTED_R49").length;
-  const companySubTotal = standardCount * 29 + promotedCount * 49;
-  const distLicenses = await prisma.creatorDistributionLicense.findMany({ select: { type: true } });
-  const distRevenue = distLicenses.filter((l) => l.type === "YEARLY_R89").length * 89 + distLicenses.filter((l) => l.type === "PER_UPLOAD_R10").length * 0;
+  const standardCount = companySubRevenue.filter((s) => normalizeCompanyPlan((s.metadata as { plan?: string } | null)?.plan) === "STANDARD").length;
+  const promotedCount = companySubRevenue.filter((s) => normalizeCompanyPlan((s.metadata as { plan?: string } | null)?.plan) === "FEATURED").length;
+  const companySubTotal =
+    companySubRevenue.reduce((sum, payment) => sum + payment.amount, 0);
+  const yearlyLicensePayments = await prisma.paymentRecord.findMany({
+    where: {
+      status: "SUCCEEDED",
+      purpose: PAYMENT_PURPOSES.CREATOR_YEARLY_LICENSE,
+      paidAt: { gte: periodStart, lte: periodEnd },
+    },
+    select: { amount: true },
+  });
+  const perUploadPayments = await prisma.paymentRecord.findMany({
+    where: {
+      status: "SUCCEEDED",
+      purpose: {
+        in: [PAYMENT_PURPOSES.CREATOR_CONTENT_UPLOAD, PAYMENT_PURPOSES.CREATOR_MUSIC_UPLOAD],
+      },
+      paidAt: { gte: periodStart, lte: periodEnd },
+    },
+    select: { amount: true },
+  });
+  const yearlyCount = yearlyLicensePayments.length;
+  const perUploadCount = perUploadPayments.length;
+  const distRevenue =
+    yearlyLicensePayments.reduce((sum, payment) => sum + payment.amount, 0) +
+    perUploadPayments.reduce((sum, payment) => sum + payment.amount, 0);
 
   const creators = await prisma.user.findMany({
     where: { OR: [{ role: "CONTENT_CREATOR" }, { role: "MUSIC_CREATOR" }] },
@@ -89,6 +126,6 @@ export async function GET() {
     viewerSub: { viewerSubRevenue, creatorPoolFromSubs, storyTimeFromSubs },
     transactionFees: { totalFees: transactionFees._sum.feeAmount ?? 0, totalVolume: transactionFees._sum.totalAmount ?? 0 },
     companySubs: { count: companySubRevenue.length, revenue: companySubTotal },
-    distributionLicenses: { yearlyCount: distLicenses.filter((l) => l.type === "YEARLY_R89").length, perUploadCount: distLicenses.filter((l) => l.type === "PER_UPLOAD_R10").length, revenue: distLicenses.filter((l) => l.type === "YEARLY_R89").length * 89 },
+    distributionLicenses: { yearlyCount, perUploadCount, revenue: distRevenue },
   });
 }

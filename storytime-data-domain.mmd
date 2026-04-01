@@ -1,0 +1,116 @@
+flowchart LR
+    classDef db fill:#fef3c7,stroke:#b45309,color:#111827
+
+    User[User]:::db
+    Account[Account]:::db
+    Session[Session]:::db
+    VerificationToken[VerificationToken]:::db
+
+    Content[Content]:::db
+    WatchSession[WatchSession]:::db
+    Comment[Comment]:::db
+    Rating[Rating]:::db
+    WatchlistItem[WatchlistItem]:::db
+    ViewerProfile[ViewerProfile]:::db
+    ViewerSubscription[ViewerSubscription]:::db
+    SubscriptionPayment[SubscriptionPayment]:::db
+
+    OriginalProject[OriginalProject]:::db
+    OriginalPitch[OriginalPitch]:::db
+    OriginalMember[OriginalMember]:::db
+    ProjectIdea[ProjectIdea]:::db
+    ProjectScript[ProjectScript]:::db
+    ProjectScriptVersion[ProjectScriptVersion]:::db
+    ProjectScene[ProjectScene]:::db
+    ProjectBudget[ProjectBudget]:::db
+    ProjectTask[ProjectTask]:::db
+    ShootDay[ShootDay]:::db
+    CallSheet[CallSheet]:::db
+    ProjectContract[ProjectContract]:::db
+    ProjectSignature[ProjectSignature]:::db
+    RiskPlan[RiskPlan]:::db
+    ContinuityNote[ContinuityNote]:::db
+    DailiesBatch[DailiesBatch]:::db
+    IncidentReport[IncidentReport]:::db
+    FinalDelivery[FinalDelivery]:::db
+    DistributionSubmission[DistributionSubmission]:::db
+
+    MusicTrack[MusicTrack]:::db
+    SyncRequest[SyncRequest]:::db
+    SyncDeal[SyncDeal]:::db
+
+    CrewTeam[CrewTeam]:::db
+    CastingAgency[CastingAgency]:::db
+    LocationListing[LocationListing]:::db
+    EquipmentListing[EquipmentListing]:::db
+    CateringCompany[CateringCompany]:::db
+
+    NetworkPost[NetworkPost]:::db
+    NetworkConversation[NetworkConversation]:::db
+    NetworkMessage[NetworkMessage]:::db
+    Notification[Notification]:::db
+
+    ModocConversation[ModocConversation]:::db
+    ModocMessage[ModocMessage]:::db
+
+    ActivityLog[ActivityLog]:::db
+    AdminAuditLog[AdminAuditLog]:::db
+
+    User --> Account
+    User --> Session
+    User --> Content
+    User --> WatchSession
+    User --> Comment
+    User --> Rating
+    User --> WatchlistItem
+    User --> ViewerProfile
+    User --> ViewerSubscription
+    ViewerSubscription --> SubscriptionPayment
+
+    Content --> WatchSession
+    Content --> Comment
+    Content --> Rating
+    Content --> WatchlistItem
+
+    User --> OriginalPitch
+    User --> OriginalMember
+    OriginalProject --> OriginalPitch
+    OriginalProject --> OriginalMember
+    OriginalProject --> ProjectIdea
+    OriginalProject --> ProjectScript
+    ProjectScript --> ProjectScriptVersion
+    OriginalProject --> ProjectScene
+    OriginalProject --> ProjectBudget
+    OriginalProject --> ProjectTask
+    OriginalProject --> ShootDay
+    OriginalProject --> CallSheet
+    OriginalProject --> ProjectContract
+    ProjectContract --> ProjectSignature
+    OriginalProject --> RiskPlan
+    OriginalProject --> ContinuityNote
+    OriginalProject --> DailiesBatch
+    OriginalProject --> IncidentReport
+    OriginalProject --> FinalDelivery
+    OriginalProject --> DistributionSubmission
+
+    User --> MusicTrack
+    MusicTrack --> SyncRequest
+    Content --> SyncDeal
+    MusicTrack --> SyncDeal
+
+    User --> CrewTeam
+    User --> CastingAgency
+    User --> LocationListing
+    User --> EquipmentListing
+    User --> CateringCompany
+
+    User --> NetworkPost
+    User --> NetworkConversation
+    NetworkConversation --> NetworkMessage
+    User --> Notification
+
+    User --> ModocConversation
+    ModocConversation --> ModocMessage
+
+    User --> ActivityLog
+    User --> AdminAuditLog

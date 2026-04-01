@@ -8,7 +8,7 @@ import { Shield, Lock, ArrowLeft, Send } from "lucide-react";
 
 export default function AdminLoginPage() {
   const { data: session, status } = useSession();
-  const [email, setEmail] = useState("admin@storytime.com");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [requestLoading, setRequestLoading] = useState(false);
@@ -74,7 +74,10 @@ export default function AdminLoginPage() {
 
         <Link href="/" className="flex items-center gap-3 justify-center mb-10">
           <Image src="/logo.png" alt="Story Time" width={48} height={48} className="rounded-lg" />
-          <span className="text-2xl font-semibold text-white">STORY TIME</span>
+          <div className="flex flex-col">
+            <span className="text-2xl font-semibold text-white">STORY TIME</span>
+            <span className="text-[10px] tracking-wide text-slate-400">STORYTIME STUDIOS (Pty) Ltd</span>
+          </div>
         </Link>
 
         <div className="rounded-2xl border border-slate-700/50 bg-slate-800/30 p-8 backdrop-blur-sm">
@@ -133,7 +136,7 @@ export default function AdminLoginPage() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@storytime.com"
+                  placeholder="you@example.com"
                   required
                   className="w-full pl-10 pr-4 py-3 rounded-lg bg-slate-900/60 border border-slate-600 text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500"
                 />

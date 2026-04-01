@@ -6,8 +6,8 @@ export default function CopyrightPage() {
       eyebrow="Rights"
       title="Copyright and Takedown"
       summary="Story Time respects creator ownership and third-party intellectual-property rights. This notice explains how ownership works on the platform and how infringement complaints may be handled."
-      lastUpdated="March 2026"
-      highlights={["Creator-owned works", "Platform license", "Notice process"]}
+      lastUpdated="April 2026"
+      highlights={["Creator-owned works", "Platform license", "Notice process", "South African IP law"]}
       sections={[
         {
           title: "1. Ownership on Story Time",
@@ -57,6 +57,11 @@ export default function CopyrightPage() {
                 Story Time may remove or disable access to material while a complaint is
                 being assessed and may act against repeat infringers where justified.
               </p>
+              <p>
+                Notices should include sufficient details to support legal review under
+                applicable copyright frameworks, including South African Copyright Act
+                98 of 1978 standards and equivalent rights frameworks where relevant.
+              </p>
             </>
           ),
         },
@@ -95,9 +100,9 @@ export default function CopyrightPage() {
       ]}
       footerNote={
         <p>
-          Story Time still needs a dedicated public-facing takedown contact path before
-          launch at scale. That notice channel should be added here for full
-          operational readiness.
+          Copyright and takedown contact: support@story-time.online | +27 61 657
+          2691. Include rights ownership details, precise content location, authority
+          to act, and a good-faith statement in all infringement notices.
         </p>
       }
     />

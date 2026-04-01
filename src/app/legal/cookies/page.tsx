@@ -6,8 +6,8 @@ export default function CookiesPage() {
       eyebrow="Cookies"
       title="Cookie Policy"
       summary="Story Time uses cookies and similar technologies to support sign-in, session continuity, viewer profile selection, security operations, and product analytics."
-      lastUpdated="March 2026"
-      highlights={["Auth sessions", "Viewer profiles", "Security signals"]}
+      lastUpdated="April 2026"
+      highlights={["Auth sessions", "Viewer profiles", "Security signals", "POPIA aligned"]}
       sections={[
         {
           title: "1. Why we use cookies",
@@ -39,6 +39,10 @@ export default function CookiesPage() {
                 We may also use secure HTTP-only cookies in situations where profile or
                 session state must be protected from normal browser-side access.
               </p>
+              <p>
+                Cookie categories are applied in line with ECTA and POPIA principles of
+                transparency, purpose limitation, and security safeguards.
+              </p>
             </>
           ),
         },
@@ -60,6 +64,13 @@ export default function CookiesPage() {
           ),
         },
       ]}
+      footerNote={
+        <p>
+          Cookie and tracking contact: support@story-time.online | +27 61 657
+          2691. You can use these channels for consent, preference, or data-use
+          questions linked to cookies and similar technologies.
+        </p>
+      }
     />
   );
 }

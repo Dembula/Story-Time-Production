@@ -1,0 +1,57 @@
+sequenceDiagram
+    autonumber
+    actor User
+    participant FE as Next.js Frontend
+    participant MW as Middleware
+    participant API as Route Handler
+    participant Auth as NextAuth / Session
+    participant Lib as Shared Domain Logic
+    participant Prisma as Prisma ORM
+    participant PG as PostgreSQL
+    participant S3 as S3 Storage
+    participant OR as OpenRouter
+
+    User->>FE: Open page / interact with UI
+    FE->>MW: Request protected route
+    MW-->>FE: Allow or redirect by role
+
+    FE->>API: Fetch JSON from /api/*
+    API->>Auth: getServerSession()
+    Auth-->>API: session + user role/id
+
+    alt Project-scoped creator flow
+        API->>Lib: ensureProjectAccess(projectId)
+        Lib->>Prisma: validate role + membership
+        Prisma->>PG: query project, members, pitches
+        PG-->>Prisma: rows
+        Prisma-->>Lib: result
+        Lib-->>API: allow or deny
+    end
+
+    API->>Lib: business logic
+    Lib->>Prisma: typed ORM queries
+    Prisma->>PG: SQL via Prisma engine
+    PG-->>Prisma: records / aggregates
+    Prisma-->>Lib: domain data
+    Lib-->>API: response model
+    API-->>FE: JSON payload
+    FE-->>User: updated UI
+
+    alt Upload flow
+        FE->>API: multipart/form-data upload
+        API->>S3: PutObject
+        S3-->>API: object stored
+        API-->>FE: publicUrl + path
+    end
+
+    alt MODOC AI flow
+        FE->>API: POST /api/modoc/chat
+        API->>Auth: optional session lookup
+        API->>Prisma: fetch context/history/project data
+        Prisma->>PG: query data
+        PG-->>Prisma: context records
+        API->>OR: streamText(system prompt + messages)
+        OR-->>API: streamed completion
+        API-->>FE: streaming response
+        FE-->>User: AI answer
+    end

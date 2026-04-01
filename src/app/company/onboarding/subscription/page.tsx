@@ -12,6 +12,14 @@ const COMPANY_DASHBOARDS: Record<string, string> = {
   CATERING_COMPANY: "/catering-company/dashboard",
 };
 
+const COMPANY_LABELS: Record<string, string> = {
+  CREW_TEAM: "Crew team",
+  CASTING_AGENCY: "Casting agency",
+  LOCATION_OWNER: "Location company",
+  EQUIPMENT_COMPANY: "Equipment company",
+  CATERING_COMPANY: "Catering company",
+};
+
 export default async function CompanySubscriptionOnboardingPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) redirect("/auth/signin");
@@ -19,12 +27,13 @@ export default async function CompanySubscriptionOnboardingPage() {
   const role = (session.user as { role?: string })?.role;
   const companyRoles = ["CREW_TEAM", "CASTING_AGENCY", "LOCATION_OWNER", "EQUIPMENT_COMPANY", "CATERING_COMPANY"];
   if (!role || !companyRoles.includes(role)) redirect("/browse");
+  const now = new Date();
 
   const user = await prisma.user.findUnique({
     where: { email: session.user.email },
     include: {
       companySubscriptions: {
-        where: { companyType: role, status: "ACTIVE" },
+        where: { companyType: role, status: "ACTIVE", currentPeriodEnd: { gt: now } },
         orderBy: { createdAt: "desc" },
         take: 1,
       },
@@ -34,11 +43,21 @@ export default async function CompanySubscriptionOnboardingPage() {
   if (user?.companySubscriptions?.[0]) redirect(COMPANY_DASHBOARDS[role] ?? "/browse");
 
   return (
-    <div className="min-h-screen bg-[#0c1222] flex items-center justify-center px-4 py-12">
-      <div className="max-w-lg w-full">
-        <h1 className="text-2xl font-bold text-white text-center mb-2">Choose your listing plan</h1>
-        <p className="text-slate-400 text-center mb-8">Subscribe to appear in creator dashboards and receive requests.</p>
+    <div className="min-h-screen bg-background px-6 py-16 text-slate-100">
+      <div className="mx-auto w-full max-w-5xl">
+        <div className="mx-auto max-w-3xl text-center">
+          <p className="mb-3 text-sm uppercase tracking-[0.28em] text-orange-300/80">
+            {COMPANY_LABELS[role] ?? "Company"} onboarding
+          </p>
+          <h1 className="font-display text-4xl font-semibold text-white md:text-5xl">Choose your listing plan</h1>
+          <p className="mt-3 text-slate-300/78">
+            Match the same polished onboarding journey as viewer plans while choosing how prominently your company should appear to creators.
+          </p>
+        </div>
+
+        <div className="mt-12">
         <CompanySubscriptionClient dashboardUrl={COMPANY_DASHBOARDS[role]} />
+        </div>
       </div>
     </div>
   );

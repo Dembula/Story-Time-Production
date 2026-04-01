@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { cookies } from "next/headers";
 import { ContentDetailClient } from "./content-detail-client";
+import { getViewerPlaybackState, isPpvEligibleContent } from "@/lib/viewer-access";
+import { getViewerProfileAge } from "@/lib/viewer-profiles";
 
 export default async function ContentDetailPage({
   params,
@@ -14,25 +16,18 @@ export default async function ContentDetailPage({
   const session = await getServerSession(authOptions);
   let subscriptionExpired = false;
   let profileAge: number | null = null;
+  let viewerModel: "SUBSCRIPTION" | "PPV" = "SUBSCRIPTION";
+  let hasActivePpvAccess = false;
+  let hasPlaybackAccess = false;
   if (session?.user?.id && (session.user as { role?: string })?.role === "SUBSCRIBER") {
     const cookieStore = await cookies();
     const profileId = cookieStore.get("st_viewer_profile")?.value;
     if (profileId) {
       const profile = await prisma.viewerProfile.findFirst({
         where: { id: profileId, userId: session.user.id },
-        select: { age: true },
+        select: { age: true, dateOfBirth: true },
       });
-      if (profile) profileAge = profile.age;
-    }
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      include: { viewerSubscriptions: { orderBy: { createdAt: "desc" }, take: 1 } },
-    });
-    const sub = user?.viewerSubscriptions?.[0];
-    if (sub) {
-      const trialExpired = sub.status === "TRIAL_ACTIVE" && sub.trialEndsAt && new Date(sub.trialEndsAt) < new Date();
-      const periodExpired = sub.status === "ACTIVE" && sub.currentPeriodEnd && new Date(sub.currentPeriodEnd) < new Date();
-      subscriptionExpired = trialExpired || periodExpired || sub.status === "PAST_DUE" || sub.status === "CANCELLED";
+      if (profile) profileAge = getViewerProfileAge(profile);
     }
   }
 
@@ -73,6 +68,14 @@ export default async function ContentDetailPage({
 
   if (!content) notFound();
 
+  if (session?.user?.id && (session.user as { role?: string })?.role === "SUBSCRIBER") {
+    const playback = await getViewerPlaybackState(session.user.id, content.id);
+    viewerModel = playback.viewerModel;
+    subscriptionExpired = playback.viewerModel === "SUBSCRIPTION" ? playback.subscriptionExpired : false;
+    hasActivePpvAccess = playback.hasActivePpvAccess;
+    hasPlaybackAccess = playback.canPlayContent;
+  }
+
   const minAge = content.minAge ?? 0;
   const ageRestricted = profileAge != null && minAge > profileAge;
 
@@ -104,6 +107,10 @@ export default async function ContentDetailPage({
       subscriptionExpired={subscriptionExpired}
       ageRestricted={ageRestricted}
       contentMinAge={minAge}
+      viewerModel={viewerModel}
+      hasActivePpvAccess={hasActivePpvAccess}
+      hasPlaybackAccess={hasPlaybackAccess}
+      ppvEligible={isPpvEligibleContent(content.type)}
     />
   );
 }

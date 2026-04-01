@@ -6,8 +6,8 @@ export default function AcceptableUsePage() {
       eyebrow="Use Policy"
       title="Acceptable Use Policy"
       summary="This Policy explains the conduct standards that apply when using Story Time. It is designed to protect audiences, creators, rights holders, and the stability of the platform."
-      lastUpdated="March 2026"
-      highlights={["No abuse", "No scraping", "No illegal uploads"]}
+      lastUpdated="April 2026"
+      highlights={["No abuse", "No scraping", "No illegal uploads", "Cybercrimes Act"]}
       sections={[
         {
           title: "1. Lawful use only",
@@ -16,6 +16,12 @@ export default function AcceptableUsePage() {
               <p>
                 You may use Story Time only for lawful purposes and only in ways that
                 are consistent with our Terms, content policies, and service design.
+              </p>
+              <p>
+                Prohibited acts include conduct that may contravene the Cybercrimes Act
+                19 of 2020, ECTA, the Films and Publications Act 65 of 1996 (as
+                amended), or any applicable criminal, consumer, or intellectual
+                property law.
               </p>
               <p>
                 You may not use the platform to commit fraud, distribute unlawful
@@ -73,6 +79,13 @@ export default function AcceptableUsePage() {
           ),
         },
       ]}
+      footerNote={
+        <p>
+          Policy enforcement contact: support@story-time.online | +27 61 657 2691.
+          Reports of abuse, fraud, unauthorized access attempts, or unlawful content
+          may be submitted through these channels.
+        </p>
+      }
     />
   );
 }

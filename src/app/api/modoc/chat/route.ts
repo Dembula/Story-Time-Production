@@ -41,6 +41,7 @@ import { getCreatorAnalytics } from "@/lib/creator-analytics";
 import { streamText, convertToCoreMessages, type UIMessage } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { prisma } from "@/lib/prisma";
+import { getViewerProfileAge } from "@/lib/viewer-profiles";
 
 /** OpenRouter: one API for 400+ models (OpenAI, Claude, Gemini, etc.). Uses OpenAI-compatible endpoint. */
 const openRouter = createOpenAI({
@@ -153,10 +154,10 @@ export async function POST(req: Request) {
           if (profileId) {
             const profile = await prisma.viewerProfile.findFirst({
               where: { id: profileId, userId: (session.user as { id?: string }).id },
-              select: { id: true, age: true },
+              select: { id: true, age: true, dateOfBirth: true },
             });
             if (profile) {
-              profileAge = profile.age;
+              profileAge = getViewerProfileAge(profile);
               viewerProfileId = profile.id;
             }
           }

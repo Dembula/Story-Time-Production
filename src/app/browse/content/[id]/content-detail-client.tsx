@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Play, Plus, Lock, GraduationCap, Globe, BookOpen, Target, Briefcase, Music, Users as UsersIcon, X, AlertTriangle } from "lucide-react";
+import { Play, Plus, Lock, GraduationCap, Globe, BookOpen, Target, Briefcase, Music, Users as UsersIcon, X, AlertTriangle, Film } from "lucide-react";
 import { BtsSection } from "@/components/player/bts-section";
 import { CommentsSection } from "@/components/player/comments-section";
 import { RatingsSection } from "@/components/player/ratings-section";
@@ -46,16 +47,29 @@ export function ContentDetailClient({
   subscriptionExpired = false,
   ageRestricted = false,
   contentMinAge = 0,
+  viewerModel = "SUBSCRIPTION",
+  hasActivePpvAccess = false,
+  hasPlaybackAccess = false,
+  ppvEligible = false,
 }: {
   content: Content;
   subscriptionExpired?: boolean;
   ageRestricted?: boolean;
   contentMinAge?: number;
+  viewerModel?: "SUBSCRIPTION" | "PPV";
+  hasActivePpvAccess?: boolean;
+  hasPlaybackAccess?: boolean;
+  ppvEligible?: boolean;
 }) {
+  const router = useRouter();
   const { data: session } = useSession();
   const [showSubscriptionEndedModal, setShowSubscriptionEndedModal] = useState(false);
-  const isSubscriber = !!session;
-  const canPlay = isSubscriber && !subscriptionExpired && !ageRestricted;
+  const [showPpvModal, setShowPpvModal] = useState(false);
+  const [ppvLoading, setPpvLoading] = useState(false);
+  const [ppvError, setPpvError] = useState("");
+  const isSubscriber = (session?.user as { role?: string } | undefined)?.role === "SUBSCRIBER";
+  const canPlay = isSubscriber && hasPlaybackAccess && !ageRestricted;
+  const canPurchasePpv = isSubscriber && viewerModel === "PPV" && ppvEligible && !hasActivePpvAccess && !ageRestricted;
 
   let socialLinks: Record<string, string> = {};
   try {
@@ -63,6 +77,39 @@ export function ContentDetailClient({
       socialLinks = JSON.parse(content.creator.socialLinks);
     }
   } catch {}
+
+  async function handlePpvPurchase() {
+    setPpvError("");
+    setPpvLoading(true);
+    try {
+      const res = await fetch("/api/viewer/ppv", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contentId: content.id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || "Payment failed");
+      }
+
+      if (data?.alreadyOwned) {
+        setShowPpvModal(false);
+        router.push(`/browse/content/${content.id}/watch`);
+        router.refresh();
+        return;
+      }
+
+      if (data?.requiresPayment && data?.payment) {
+        throw new Error("Payments are currently disabled on this platform.");
+      }
+
+      throw new Error("Payment session could not be started.");
+    } catch (error) {
+      setPpvError(error instanceof Error ? error.message : "Payment failed");
+    } finally {
+      setPpvLoading(false);
+    }
+  }
 
   return (
     <div className="max-w-6xl mx-auto px-6 pb-16">
@@ -87,6 +134,51 @@ export function ContentDetailClient({
             >
               Go to Account &amp; renew
             </Link>
+          </div>
+        </div>
+      )}
+      {showPpvModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="relative w-full max-w-md rounded-2xl border border-slate-700 bg-slate-800 p-8 shadow-xl">
+            <button
+              type="button"
+              onClick={() => setShowPpvModal(false)}
+              className="absolute right-4 top-4 rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-700 hover:text-white"
+              aria-label="Close"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <h3 className="pr-10 text-xl font-semibold text-white">Unlock this title</h3>
+            <p className="mt-2 text-sm text-slate-400">
+              Pay R49.99 now to unlock <span className="font-medium text-white">{content.title}</span> for 30 days
+              on this PPV account.
+            </p>
+            <div className="mt-6 rounded-xl border border-orange-400/20 bg-orange-500/10 p-4">
+              <p className="text-xs uppercase tracking-wide text-orange-200/80">Pay now</p>
+              <p className="mt-1 text-3xl font-bold text-white">R49.99</p>
+            </div>
+            {ppvError && (
+              <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-300">
+                {ppvError}
+              </div>
+            )}
+            <div className="mt-6 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowPpvModal(false)}
+                className="flex-1 rounded-xl border border-slate-600 px-4 py-3 font-medium text-slate-300 transition hover:bg-slate-700/50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handlePpvPurchase}
+                disabled={ppvLoading}
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-3 font-semibold text-white transition hover:bg-orange-400 disabled:opacity-50"
+              >
+                {ppvLoading ? "Processing..." : "Pay now"}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -177,6 +269,11 @@ export function ContentDetailClient({
               )}
             </p>
           )}
+          {viewerModel === "PPV" && hasActivePpvAccess && (
+            <div className="mt-4 inline-flex rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-300">
+              Unlocked on this PPV account
+            </div>
+          )}
           {content.description && (
             <p className="mt-4 text-slate-400 max-w-2xl leading-relaxed">{content.description}</p>
           )}
@@ -187,6 +284,28 @@ export function ContentDetailClient({
                   <div className="flex items-center gap-2 px-8 py-3.5 rounded-lg bg-slate-700/50 text-slate-400 border border-slate-600 cursor-not-allowed">
                     <Lock className="w-5 h-5" /> Not available for this profile (age {contentMinAge}+)
                   </div>
+                ) : canPlay ? (
+                  <Link
+                    href={`/browse/content/${content.id}/watch`}
+                    className="flex items-center gap-2 px-8 py-3.5 rounded-lg bg-white text-slate-900 font-semibold hover:bg-slate-100 transition"
+                  >
+                    <Play className="w-5 h-5 fill-current" /> Play
+                  </Link>
+                ) : canPurchasePpv ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowPpvModal(true)}
+                    className="flex items-center gap-2 rounded-lg bg-orange-500 px-8 py-3.5 font-semibold text-white transition hover:bg-orange-400"
+                  >
+                    <Lock className="h-5 w-5" /> Pay now
+                  </button>
+                ) : viewerModel === "PPV" && !ppvEligible ? (
+                  <Link
+                    href="/browse/account/renew"
+                    className="flex items-center gap-2 rounded-lg bg-white px-8 py-3.5 font-semibold text-slate-900 transition hover:bg-slate-100"
+                  >
+                    <Lock className="h-5 w-5" /> Subscribe to watch
+                  </Link>
                 ) : subscriptionExpired ? (
                   <button
                     type="button"
@@ -195,13 +314,20 @@ export function ContentDetailClient({
                   >
                     <Play className="w-5 h-5 fill-current" /> Play
                   </button>
-                ) : (
-                  <Link
-                    href={`/browse/content/${content.id}/watch`}
-                    className="flex items-center gap-2 px-8 py-3.5 rounded-lg bg-white text-slate-900 font-semibold hover:bg-slate-100 transition"
+                ) : viewerModel === "PPV" ? (
+                  <button
+                    type="button"
+                    className="flex cursor-not-allowed items-center gap-2 rounded-lg bg-slate-700/50 px-8 py-3.5 font-semibold text-slate-400 border border-slate-600"
                   >
-                    <Play className="w-5 h-5 fill-current" /> Play
-                  </Link>
+                    <Lock className="h-5 w-5" /> Pay per eligible title only
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="flex cursor-not-allowed items-center gap-2 rounded-lg bg-slate-700/50 px-8 py-3.5 font-semibold text-slate-400 border border-slate-600"
+                  >
+                    <Lock className="h-5 w-5" /> Unavailable right now
+                  </button>
                 )}
                 <button className="flex items-center gap-2 px-8 py-3.5 rounded-lg bg-slate-700/50 text-white font-semibold hover:bg-slate-600/50 transition border border-slate-600">
                   <Plus className="w-5 h-5" /> My List
@@ -210,7 +336,7 @@ export function ContentDetailClient({
             ) : (
               <>
                 <Link href="/auth/signup" className="flex items-center gap-2 px-8 py-3.5 rounded-lg bg-orange-500 text-white font-semibold hover:bg-orange-600 transition">
-                  <Lock className="w-5 h-5" /> Subscribe to Watch
+                  <Lock className="w-5 h-5" /> Sign up to watch
                 </Link>
                 <Link href="/auth/signin" className="flex items-center gap-2 px-8 py-3.5 rounded-lg bg-slate-700/50 text-white font-semibold hover:bg-slate-600/50 transition border border-slate-600">
                   Sign In
@@ -373,6 +499,48 @@ export function ContentDetailClient({
               <p className="text-slate-400 max-w-md mx-auto mb-8">Pay in Account to resume watching.</p>
               <Link href="/browse/account/renew" className="inline-flex px-8 py-3.5 rounded-lg bg-orange-500 text-white font-semibold hover:bg-orange-600 transition">
                 Go to Account &amp; renew
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isSubscriber && viewerModel === "PPV" && !ageRestricted && !hasActivePpvAccess && ppvEligible && (
+        <div className="mt-10 overflow-hidden rounded-xl border border-slate-700/50 bg-slate-900/50">
+          <div className="aspect-video relative flex items-center justify-center">
+            <div className="relative z-10 p-12 text-center">
+              <div className="mb-6 inline-flex h-16 w-16 items-center justify-center rounded-full border border-orange-500/30 bg-orange-500/20">
+                <Film className="h-8 w-8 text-orange-400" />
+              </div>
+              <h3 className="mb-2 text-xl font-semibold text-white">Pay now to unlock this title</h3>
+              <p className="mx-auto mb-8 max-w-md text-slate-400">
+                This PPV account pays per title. Unlock this movie, show, or other title for R49.99 and keep access for 30 days.
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowPpvModal(true)}
+                className="inline-flex rounded-lg bg-orange-500 px-8 py-3.5 font-semibold text-white transition hover:bg-orange-400"
+              >
+                Pay now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isSubscriber && viewerModel === "PPV" && !ageRestricted && !ppvEligible && (
+        <div className="mt-10 overflow-hidden rounded-xl border border-slate-700/50 bg-slate-900/50">
+          <div className="aspect-video relative flex items-center justify-center">
+            <div className="relative z-10 p-12 text-center">
+              <div className="mb-6 inline-flex h-16 w-16 items-center justify-center rounded-full border border-slate-600 bg-slate-800">
+                <Lock className="h-8 w-8 text-slate-400" />
+              </div>
+              <h3 className="mb-2 text-xl font-semibold text-white">This title needs a subscription</h3>
+              <p className="mx-auto mb-8 max-w-md text-slate-400">
+                Pay Per View only unlocks one title at a time. Switch this viewer account to a subscription plan for full catalogue access.
+              </p>
+              <Link href="/browse/account/renew" className="inline-flex rounded-lg bg-orange-500 px-8 py-3.5 font-semibold text-white transition hover:bg-orange-400">
+                Choose a subscription plan
               </Link>
             </div>
           </div>

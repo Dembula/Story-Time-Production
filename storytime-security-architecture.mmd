@@ -1,0 +1,78 @@
+flowchart TB
+    classDef good fill:#dcfce7,stroke:#15803d,color:#111827
+    classDef med fill:#fef3c7,stroke:#b45309,color:#111827
+    classDef risk fill:#fee2e2,stroke:#b91c1c,color:#111827
+    classDef note fill:#e0f2fe,stroke:#0369a1,color:#111827
+
+    subgraph AUTHSEC[Authentication and Identity]
+        NEXTAUTH[NextAuth + Prisma Adapter]:::good
+        PROVIDERS[Providers:\nCredentials / Email / Google / GitHub]:::good
+        JWT[JWT session strategy]:::good
+        BCRYPT[bcryptjs password hashing]:::good
+        SECRET[NEXTAUTH_SECRET env-based]:::good
+        DEMO[Fallback demo password in auth.ts\nif passwordHash missing and env unset]:::risk
+    end
+
+    subgraph ACCESSSEC[Authorization]
+        MWARE[Middleware role checks\n/admin /creator /music-creator /\ncompany routes]:::good
+        SERVERCHECK[Server-side getServerSession checks]:::good
+        PROJECTCHECK[Project membership validation\nmembers + pitches + admin role]:::good
+        AUDIT[AdminAuditLog and ActivityLog]:::good
+        DUPLICATION[Authorization logic partly duplicated\nacross many route files]:::med
+    end
+
+    subgraph APPSEC[Application Security]
+        ORM[Prisma ORM\nreduced SQL injection risk]:::good
+        INPUT[Basic input validation exists in many routes]:::med
+        VALGAP[No formal validation library found\nno zod/yup/joi/valibot usage]:::med
+        ERR[Some dev-mode error leakage in signup route]:::med
+        HEADERS[No CSP / HSTS / X-Frame-Options config found]:::risk
+        RATELIMIT[No application-level rate limiting found]:::risk
+    end
+
+    subgraph DATASEC[Data and Privacy]
+        ENV[Secrets templated in .env.example\nnot hardcoded in repo]:::good
+        EMAILLEAK[Public listing endpoints expose user email\nin crew/casting directory responses]:::risk
+        AIPERSIST[AI conversations persisted in DB]:::note
+        AUDITDATA[Audit trails for some privileged actions]:::good
+    end
+
+    subgraph ENDPOINTRISKS[High-Risk Endpoint Findings]
+        UPLOADRISK[Upload route allows file upload\nwithout visible auth guard\n/api/upload/content-media]:::risk
+        MODOCRISK[MODOC chat can run with null userContext\nwhen API key exists\nanonymous cost/abuse exposure]:::risk
+        SIGNUP[Signup has basic checks only\nno rate limiting / abuse controls]:::risk
+    end
+
+    subgraph OPSSEC[Operational Security]
+        TESTS[Only lint + typecheck + smoke test]:::med
+        NOTESTS[No formal unit/integration/e2e test framework found]:::risk
+        NOCI[No CI workflow found]:::risk
+        NODOCKER[No container/deploy config found in repo]:::med
+        LOGGING[Prisma error logging configured;\nmore verbose in development]:::note
+    end
+
+    NEXTAUTH --> PROVIDERS
+    NEXTAUTH --> JWT
+    NEXTAUTH --> BCRYPT
+    NEXTAUTH --> SECRET
+    NEXTAUTH --> DEMO
+
+    MWARE --> SERVERCHECK
+    SERVERCHECK --> PROJECTCHECK
+    PROJECTCHECK --> AUDIT
+    PROJECTCHECK --> DUPLICATION
+
+    ORM --> INPUT
+    INPUT --> VALGAP
+    INPUT --> ERR
+    INPUT --> HEADERS
+    INPUT --> RATELIMIT
+
+    ENV --> EMAILLEAK
+    ENV --> AIPERSIST
+    AIPERSIST --> AUDITDATA
+
+    TESTS --> NOTESTS
+    TESTS --> NOCI
+    TESTS --> NODOCKER
+    TESTS --> LOGGING

@@ -9,10 +9,16 @@ export default async function CastingAgencyDashboardPage() {
   if (!session?.user?.email) redirect("/auth/signin");
   const role = (session.user as { role?: string })?.role;
   if (role !== "CASTING_AGENCY" && role !== "ADMIN") redirect("/auth/signin");
+  const now = new Date();
 
   const user = await prisma.user.findUnique({
     where: { email: session.user.email },
-    include: { companySubscriptions: { where: { companyType: "CASTING_AGENCY", status: "ACTIVE" }, take: 1 } },
+    include: {
+      companySubscriptions: {
+        where: { companyType: "CASTING_AGENCY", status: "ACTIVE", currentPeriodEnd: { gt: now } },
+        take: 1,
+      },
+    },
   });
   if (!user?.companySubscriptions?.length) redirect("/company/onboarding/subscription");
 

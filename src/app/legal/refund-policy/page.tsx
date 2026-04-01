@@ -5,9 +5,9 @@ export default function RefundPolicyPage() {
     <LegalPage
       eyebrow="Refunds"
       title="Refund Policy"
-      summary="This Policy explains how Story Time approaches refunds, billing disputes, failed charges, and chargeback-related risk across viewer, creator, and business payments."
-      lastUpdated="March 2026"
-      highlights={["Billing clarity", "Chargeback risk", "Case-by-case review"]}
+      summary="This Policy explains how Story Time handles refunds, billing disputes, failed charges, reversals, and chargeback risk across viewer, creator, and business payments."
+      lastUpdated="April 2026"
+      highlights={["Billing clarity", "Chargeback risk", "CPA aware review"]}
       sections={[
         {
           title: "1. General approach",
@@ -22,6 +22,11 @@ export default function RefundPolicyPage() {
                 Not every charge is automatically refundable. We may decline refunds
                 where access was used, where a policy breach occurred, or where the
                 request is inconsistent with the relevant plan terms.
+              </p>
+              <p>
+                Refund outcomes are assessed with reference to applicable law, including
+                relevant CPA protections and card-network operating rules that apply to
+                the transaction type.
               </p>
             </>
           ),
@@ -75,6 +80,11 @@ export default function RefundPolicyPage() {
                 We may retain transaction, sign-in, and usage records where necessary
                 to investigate and respond to a billing dispute or chargeback.
               </p>
+              <p>
+                Where chargebacks are initiated, Story Time may submit representment
+                evidence including billing records, access logs, authentication signals,
+                and service-delivery records through its payment gateway partner.
+              </p>
             </>
           ),
         },
@@ -97,9 +107,9 @@ export default function RefundPolicyPage() {
       ]}
       footerNote={
         <p>
-          Story Time still needs a published support and billing contact channel before
-          public payment launch. That operational detail should be added here before
-          taking live transactions at scale.
+          Refunds and billing disputes contact: support@story-time.online | +27 61
+          657 2691. Please include account email, transaction reference, payment date,
+          and reason for your request to support timely review.
         </p>
       }
     />

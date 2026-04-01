@@ -9,6 +9,7 @@ import { NotificationBell } from "@/components/layout/notification-bell";
 
 const primaryNavItems = [
   { href: "/creator/dashboard", label: "My Projects" },
+  { href: "/creator/account", label: "My Account" },
   { href: "/creator/network", label: "Network" },
   { href: "/creator/revenue", label: "Analytics" },
   { href: "/creator/messages", label: "Messages" },

@@ -2,10 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isFeaturedCompanyPlan } from "@/lib/pricing";
 
 export async function GET(req: NextRequest) {
   const companyId = req.nextUrl.searchParams.get("companyId");
   const where = companyId ? { companyId } : {};
+  const now = new Date();
 
   const equipment = await prisma.equipmentListing.findMany({
     where,
@@ -15,14 +17,18 @@ export async function GET(req: NextRequest) {
         select: {
           id: true,
           name: true,
-          companySubscriptions: { where: { companyType: "EQUIPMENT_COMPANY", status: "ACTIVE" }, take: 1, select: { plan: true } },
+          companySubscriptions: {
+            where: { companyType: "EQUIPMENT_COMPANY", status: "ACTIVE", currentPeriodEnd: { gt: now } },
+            take: 1,
+            select: { plan: true },
+          },
         },
       },
     },
   });
   const sorted = [...equipment].sort((a, b) => {
-    const promotedA = (a.company as { companySubscriptions?: { plan: string }[] })?.companySubscriptions?.[0]?.plan === "PROMOTED_R49" ? 0 : 1;
-    const promotedB = (b.company as { companySubscriptions?: { plan: string }[] })?.companySubscriptions?.[0]?.plan === "PROMOTED_R49" ? 0 : 1;
+    const promotedA = isFeaturedCompanyPlan((a.company as { companySubscriptions?: { plan: string }[] })?.companySubscriptions?.[0]?.plan) ? 0 : 1;
+    const promotedB = isFeaturedCompanyPlan((b.company as { companySubscriptions?: { plan: string }[] })?.companySubscriptions?.[0]?.plan) ? 0 : 1;
     return promotedA - promotedB || (a.companyName || "").localeCompare(b.companyName || "");
   });
   return NextResponse.json(sorted);

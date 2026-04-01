@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { createAndConfirmPayment } from "@/lib/payments";
 
 export async function GET(
   req: NextRequest,
@@ -80,22 +79,23 @@ export async function POST(
 
   const amount = 599.99;
 
-  const payment = await createAndConfirmPayment({
-    amount,
-    currency: "ZAR",
-    metadata: {
-      kind: "SCRIPT_REVIEW",
-      projectId,
-      requesterId: userId,
+  const payment = await prisma.paymentRecord.create({
+    data: {
+      userId,
+      provider: "DISABLED",
+      purpose: "SCRIPT_REVIEW",
+      status: "SUCCEEDED",
+      amount,
+      currency: "ZAR",
+      email: session.user?.email ?? null,
+      paidAt: new Date(),
+      metadata: {
+        kind: "SCRIPT_REVIEW",
+        projectId,
+        requesterId: userId,
+      } as any,
     },
   });
-
-  if (!payment.success) {
-    return NextResponse.json(
-      { error: payment.error ?? "Payment failed" },
-      { status: 400 }
-    );
-  }
 
   const requestRecord = await prisma.scriptReviewRequest.create({
     data: {

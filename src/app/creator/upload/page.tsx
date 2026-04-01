@@ -176,11 +176,13 @@ export default function DistributionUploadPage() {
         body: JSON.stringify(payload),
       });
 
-      if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data?.requiresPayment && data?.payment) {
+        setError("Payments are currently disabled on this platform.");
+      } else if (res.ok) {
         setSuccess(true);
         setTimeout(() => router.push("/creator/dashboard"), 2000);
       } else {
-        const data = await res.json();
         setError(data.error || "Submission failed");
       }
     } finally {
@@ -961,6 +963,7 @@ export default function DistributionUploadPage() {
           )}
         </div>
       </div>
+
     </div>
   );
 }

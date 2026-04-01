@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { compare, hash } from "bcryptjs";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -26,8 +27,8 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
   // Network profile fields (may exist in DB even if not in generated client)
-  const extra = await prisma.$queryRawUnsafe<{ headline: string | null; location: string | null; website: string | null }[]>(
-    `SELECT "headline", "location", "website" FROM "User" WHERE "id" = $1`,
+  const extra = await prisma.$queryRawUnsafe<{ headline: string | null; location: string | null; website: string | null; phoneNumber: string | null }[]>(
+    `SELECT "headline", "location", "website", "phoneNumber" FROM "User" WHERE "id" = $1`,
     session.user.id
   ).catch(() => []);
   const profile = extra[0];
@@ -36,6 +37,7 @@ export async function GET() {
     headline: profile?.headline ?? null,
     location: profile?.location ?? null,
     website: profile?.website ?? null,
+    phoneNumber: profile?.phoneNumber ?? null,
   });
 }
 
@@ -44,7 +46,7 @@ export async function PATCH(req: NextRequest) {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
-  const { name, bio, socialLinks, education, goals, previousWork, headline, location, website } = body;
+  const { name, email, phoneNumber, currentPassword, newPassword, bio, socialLinks, education, goals, previousWork, headline, location, website, isAfdaStudent } = body;
 
   const data: Record<string, unknown> = {};
   if (name !== undefined) data.name = name;
@@ -53,6 +55,35 @@ export async function PATCH(req: NextRequest) {
   if (education !== undefined) data.education = education;
   if (goals !== undefined) data.goals = goals;
   if (previousWork !== undefined) data.previousWork = previousWork;
+  if (typeof isAfdaStudent === "boolean") data.isAfdaStudent = isAfdaStudent;
+
+  if (email !== undefined) {
+    const normalized = typeof email === "string" ? email.trim().toLowerCase() : "";
+    if (!normalized) return NextResponse.json({ error: "Email is required" }, { status: 400 });
+    const existing = await prisma.user.findFirst({
+      where: { email: normalized, id: { not: session.user.id } },
+      select: { id: true },
+    });
+    if (existing) return NextResponse.json({ error: "Email already in use" }, { status: 400 });
+    data.email = normalized;
+  }
+
+  if (newPassword !== undefined) {
+    const current = typeof currentPassword === "string" ? currentPassword : "";
+    const next = typeof newPassword === "string" ? newPassword : "";
+    if (next.length < 8) {
+      return NextResponse.json({ error: "New password must be at least 8 characters" }, { status: 400 });
+    }
+    const userAuth = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { passwordHash: true },
+    });
+    if (userAuth?.passwordHash) {
+      const ok = await compare(current, userAuth.passwordHash);
+      if (!ok) return NextResponse.json({ error: "Current password is incorrect" }, { status: 400 });
+    }
+    data.passwordHash = await hash(next, 10);
+  }
 
   const updated = await prisma.user.update({
     where: { id: session.user.id },
@@ -68,11 +99,12 @@ export async function PATCH(req: NextRequest) {
       education: true,
       goals: true,
       previousWork: true,
+      isAfdaStudent: true,
     },
   });
 
   // Update network profile fields via raw SQL (columns may not be in generated client yet)
-  if (headline !== undefined || location !== undefined || website !== undefined) {
+  if (headline !== undefined || location !== undefined || website !== undefined || phoneNumber !== undefined) {
     const updates: string[] = [];
     const values: unknown[] = [];
     let i = 1;
@@ -88,6 +120,10 @@ export async function PATCH(req: NextRequest) {
       updates.push(`"website" = $${i++}`);
       values.push(website);
     }
+    if (phoneNumber !== undefined) {
+      updates.push(`"phoneNumber" = $${i++}`);
+      values.push(typeof phoneNumber === "string" ? phoneNumber.trim() : null);
+    }
     if (updates.length) {
       values.push(session.user.id);
       await prisma.$executeRawUnsafe(
@@ -97,8 +133,8 @@ export async function PATCH(req: NextRequest) {
     }
   }
 
-  const extra = await prisma.$queryRawUnsafe<{ headline: string | null; location: string | null; website: string | null }[]>(
-    `SELECT "headline", "location", "website" FROM "User" WHERE "id" = $1`,
+  const extra = await prisma.$queryRawUnsafe<{ headline: string | null; location: string | null; website: string | null; phoneNumber: string | null }[]>(
+    `SELECT "headline", "location", "website", "phoneNumber" FROM "User" WHERE "id" = $1`,
     session.user.id
   ).catch(() => []);
   const profile = extra[0];
@@ -107,5 +143,6 @@ export async function PATCH(req: NextRequest) {
     headline: profile?.headline ?? null,
     location: profile?.location ?? null,
     website: profile?.website ?? null,
+    phoneNumber: profile?.phoneNumber ?? null,
   });
 }

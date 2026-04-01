@@ -1,0 +1,38 @@
+flowchart TB
+    classDef ok fill:#dcfce7,stroke:#15803d,color:#111827
+    classDef warn fill:#fef3c7,stroke:#b45309,color:#111827
+    classDef risk fill:#fee2e2,stroke:#b91c1c,color:#111827
+
+    subgraph DEV[Developer Toolchain]
+        NPM[npm + package-lock]:::ok
+        TS[TypeScript 5.x]:::ok
+        ESLINT[ESLint + next lint]:::ok
+        PRISMA[Prisma + migrations + seed]:::ok
+        TAILWIND[Tailwind + PostCSS]:::ok
+    end
+
+    subgraph VERIFY[Current Verification]
+        TYPECHECK[npm run typecheck]:::ok
+        LINT[npm run lint]:::ok
+        SMOKE[node scripts/smoke-dev.mjs]:::warn
+    end
+
+    subgraph MISSING[Missing or Not Found]
+        UNIT[No Jest/Vitest config found]:::risk
+        E2E[No Playwright config found]:::risk
+        CI[No .github workflows found]:::risk
+        DOCKER[No Dockerfile / docker-compose found]:::risk
+        DEPLOY[No checked-in deploy config found]:::warn
+    end
+
+    NPM --> TYPECHECK
+    TS --> TYPECHECK
+    ESLINT --> LINT
+    PRISMA --> SMOKE
+    TAILWIND --> LINT
+
+    TYPECHECK --> UNIT
+    LINT --> E2E
+    SMOKE --> CI
+    CI --> DOCKER
+    DOCKER --> DEPLOY

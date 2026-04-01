@@ -6,8 +6,8 @@ export default function ContentPolicyPage() {
       eyebrow="Moderation"
       title="Content Policy"
       summary="Story Time is designed as a structured entertainment platform, not an unrestricted file dump. This Policy explains the content rules, creator responsibilities, moderation expectations, and enforcement standards that apply to uploads and public distribution."
-      lastUpdated="March 2026"
-      highlights={["Creator responsibility", "Review controls", "Age-aware access"]}
+      lastUpdated="April 2026"
+      highlights={["Creator responsibility", "Review controls", "Age-aware access", "Rights enforcement"]}
       sections={[
         {
           title: "1. Creator responsibility and rights clearances",
@@ -56,6 +56,11 @@ export default function ContentPolicyPage() {
                 Story Time may use viewer-profile age information and internal review
                 controls to restrict access to unsuitable content.
               </p>
+              <p>
+                Classification and audience controls are applied with regard to South
+                African legal standards, including the Films and Publications Act and
+                related regulations where applicable.
+              </p>
             </>
           ),
         },
@@ -95,9 +100,9 @@ export default function ContentPolicyPage() {
       ]}
       footerNote={
         <p>
-          Story Time should add a dedicated public reporting and takedown intake channel
-          before large-scale commercial rollout so rights holders and users have a
-          visible operational path for notices and disputes.
+          Content reporting and takedown contact: support@story-time.online | +27
+          61 657 2691. Rights holders and users can submit complaints, infringement
+          notices, and moderation appeals through these channels.
         </p>
       }
     />

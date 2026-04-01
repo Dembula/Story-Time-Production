@@ -1,10 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+import { cookies } from "next/headers";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getViewerProfileAge } from "@/lib/viewer-profiles";
 
 const COOKIE_NAME = "st_viewer_profile";
 const COOKIE_MAX_AGE = 365 * 24 * 60 * 60; // 1 year
+
+export async function GET() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const cookieStore = await cookies();
+  const profileId = cookieStore.get(COOKIE_NAME)?.value;
+  if (!profileId) return NextResponse.json({ profile: null });
+
+  const profile = await prisma.viewerProfile.findFirst({
+    where: { id: profileId, userId: session.user.id },
+    select: { id: true, name: true, age: true, dateOfBirth: true },
+  });
+
+  return NextResponse.json({
+    profile: profile
+      ? {
+          id: profile.id,
+          name: profile.name,
+          age: getViewerProfileAge(profile) ?? profile.age,
+          dateOfBirth: profile.dateOfBirth?.toISOString() ?? null,
+        }
+      : null,
+  });
+}
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);

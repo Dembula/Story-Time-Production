@@ -25,7 +25,7 @@ export async function POST(req: Request) {
   }
 
   const pageContextValue =
-    body.pageContext != null ? (body.pageContext as Prisma.InputJsonValue) : Prisma.JsonNull;
+    body.pageContext != null ? (body.pageContext as Prisma.InputJsonValue) : (Prisma.JsonNull as any);
 
   const conversation = await prisma.modocConversation.create({
     data: {

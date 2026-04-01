@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { User, Save, ArrowLeft } from "lucide-react";
+import { User, Save, ArrowLeft, GraduationCap } from "lucide-react";
 
 export function CreatorAccountClient({ backHref = "/creator/dashboard" }: { backHref?: string }) {
   const [form, setForm] = useState({
@@ -16,6 +16,7 @@ export function CreatorAccountClient({ backHref = "/creator/dashboard" }: { back
     headline: "",
     location: "",
     website: "",
+    isAfdaStudent: false,
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -37,6 +38,7 @@ export function CreatorAccountClient({ backHref = "/creator/dashboard" }: { back
             headline: user.headline ?? "",
             location: user.location ?? "",
             website: user.website ?? "",
+            isAfdaStudent: Boolean(user.isAfdaStudent),
           });
         }
         setLoading(false);
@@ -67,6 +69,7 @@ export function CreatorAccountClient({ backHref = "/creator/dashboard" }: { back
           headline: form.headline || undefined,
           location: form.location || undefined,
           website: form.website || undefined,
+          isAfdaStudent: form.isAfdaStudent,
         }),
       });
       if (res.ok) {
@@ -119,6 +122,45 @@ export function CreatorAccountClient({ backHref = "/creator/dashboard" }: { back
           <label className="block text-sm font-medium text-slate-300 mb-1">Email</label>
           <input value={form.email} readOnly className="w-full px-4 py-2 rounded-lg bg-slate-900/50 border border-slate-700 text-slate-400" />
           <p className="text-xs text-slate-500 mt-1">Email cannot be changed here.</p>
+        </div>
+        <div className="rounded-xl border border-white/8 bg-white/[0.03] p-4">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className={`flex h-10 w-10 items-center justify-center rounded-xl border ${
+                form.isAfdaStudent
+                  ? "border-violet-400/30 bg-violet-500/10 text-violet-300"
+                  : "border-white/8 bg-white/[0.04] text-slate-400"
+              }`}>
+                <GraduationCap className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-white">Student label</p>
+                <p className="mt-1 text-sm text-slate-400">
+                  {form.isAfdaStudent
+                    ? "Your profile is currently marked as a student creator and can appear in student-focused discovery sections."
+                    : "Your account is no longer marked as a student creator."}
+                </p>
+              </div>
+            </div>
+            {form.isAfdaStudent ? (
+              <button
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, isAfdaStudent: false }))}
+                className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-medium text-slate-200 hover:bg-white/[0.05]"
+              >
+                Remove student label
+              </button>
+            ) : (
+              <span className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1 text-xs font-medium text-slate-400">
+                Student label inactive
+              </span>
+            )}
+          </div>
+          {form.isAfdaStudent ? (
+            <p className="mt-3 text-xs text-slate-500">
+              If you have graduated or no longer want your work featured as student content, remove the label and save your changes.
+            </p>
+          ) : null}
         </div>
         <div>
           <label className="block text-sm font-medium text-slate-300 mb-1">Bio</label>

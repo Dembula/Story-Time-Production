@@ -74,7 +74,7 @@ export async function POST(req: Request) {
         action: "COMPETITION_GO_LIVE",
         entityType: "CompetitionPeriod",
         entityId: period.id,
-        oldValue: Prisma.JsonNull,
+        oldValue: Prisma.JsonNull as any,
         newValue: {
           name: period.name,
           startDate: period.startDate,

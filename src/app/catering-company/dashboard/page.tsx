@@ -9,10 +9,16 @@ export default async function CateringCompanyDashboardPage() {
   if (!session?.user?.email) redirect("/auth/signin");
   const role = (session.user as { role?: string })?.role;
   if (role !== "CATERING_COMPANY" && role !== "ADMIN") redirect("/auth/signin");
+  const now = new Date();
 
   const user = await prisma.user.findUnique({
     where: { email: session.user.email },
-    include: { companySubscriptions: { where: { companyType: "CATERING_COMPANY", status: "ACTIVE" }, take: 1 } },
+    include: {
+      companySubscriptions: {
+        where: { companyType: "CATERING_COMPANY", status: "ACTIVE", currentPeriodEnd: { gt: now } },
+        take: 1,
+      },
+    },
   });
   if (!user?.companySubscriptions?.length) redirect("/company/onboarding/subscription");
 

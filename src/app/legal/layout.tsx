@@ -1,14 +1,20 @@
 import Link from "next/link";
+import Image from "next/image";
 
 const legalLinks = [
+  { href: "/legal/regulatory-framework", label: "Regulatory Framework" },
   { href: "/legal/terms", label: "Terms" },
   { href: "/legal/privacy", label: "Privacy" },
+  { href: "/legal/payment-policy", label: "Payments" },
   { href: "/legal/refund-policy", label: "Refunds" },
   { href: "/legal/subscription-terms", label: "Subscriptions" },
   { href: "/legal/content-policy", label: "Content Policy" },
   { href: "/legal/copyright", label: "Copyright" },
   { href: "/legal/cookies", label: "Cookies" },
   { href: "/legal/acceptable-use", label: "Acceptable Use" },
+  { href: "/legal/paia-manual", label: "PAIA Manual" },
+  { href: "/legal/security-policy", label: "Security Policy" },
+  { href: "/legal/disclaimer", label: "Disclaimer" },
 ];
 
 export default function LegalLayout({
@@ -23,8 +29,9 @@ export default function LegalLayout({
 
       <header className="sticky top-0 z-20 border-b border-white/8 bg-slate-950/70 px-6 py-4 backdrop-blur-xl">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3">
-          <Link href="/" className="font-semibold tracking-[0.14em] text-slate-200 transition hover:text-white">
-            STORY <span className="storytime-brand-text">TIME</span>
+          <Link href="/" className="flex items-center gap-2 font-semibold tracking-[0.14em] text-slate-200 transition hover:text-white">
+            <Image src="/logo.png" alt="Story Time" width={24} height={24} className="rounded-md" />
+            <span>STORY <span className="storytime-brand-text">TIME</span></span>
           </Link>
           <div className="flex items-center gap-3 text-sm">
             <Link href="/about" className="text-slate-400 transition hover:text-slate-200">

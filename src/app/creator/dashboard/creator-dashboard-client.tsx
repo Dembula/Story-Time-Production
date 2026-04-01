@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import Link from "next/link";
+import { getCreatorLicenseConfig, normalizeCreatorLicenseType } from "@/lib/pricing";
 
 export function CreatorDashboardClient() {
   const { data: stats, isLoading } = useQuery({
@@ -55,7 +56,9 @@ export function CreatorDashboardClient() {
           <h1 className="font-display text-3xl font-semibold tracking-tight text-white">Creator Dashboard</h1>
           {license && (
             <span className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-xs font-medium text-slate-300">
-              {license.type === "YEARLY_R89" ? "Yearly license" : "Pay per upload (R10)"}
+              {normalizeCreatorLicenseType(license.type) === "YEARLY"
+                ? `Yearly license (R${getCreatorLicenseConfig("YEARLY").price.toFixed(2)})`
+                : `Pay per upload (R${getCreatorLicenseConfig("PER_UPLOAD").price.toFixed(2)})`}
             </span>
           )}
         </div>

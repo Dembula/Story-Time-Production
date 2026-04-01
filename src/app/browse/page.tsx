@@ -8,6 +8,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { cookies } from "next/headers";
 import Link from "next/link";
+import { getViewerProfileAge } from "@/lib/viewer-profiles";
 
 export const dynamic = "force-dynamic";
 
@@ -30,9 +31,9 @@ export default async function BrowsePage({
     if (profileId) {
       const profile = await prisma.viewerProfile.findFirst({
         where: { id: profileId, userId: session.user.id },
-        select: { age: true },
+        select: { age: true, dateOfBirth: true },
       });
-      if (profile) profileAge = profile.age;
+      if (profile) profileAge = getViewerProfileAge(profile);
     }
   }
 

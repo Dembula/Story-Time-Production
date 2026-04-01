@@ -10,7 +10,7 @@ import { prisma } from "./prisma";
 const DEMO_PASSWORD = process.env.DEMO_PASSWORD || "storytime2025";
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
+  adapter: PrismaAdapter(prisma as never),
   providers: [
     CredentialsProvider({
       id: "credentials",

@@ -1,0 +1,2366 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // Use a non-pooling direct connection for Prisma CLI migrations/DDL.
+  // Supabase: Project Settings → Database → Connection string → "Direct".
+  directUrl = env("DIRECT_URL")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// NextAuth email/magic-link verification (required when using PrismaAdapter with EmailProvider).
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  role          String    @default("SUBSCRIBER")
+  adminRights   Json? // optional fine-grained admin permissions when assigned
+  bio           String?
+  socialLinks   String?
+  education     String?
+  goals         String?
+  previousWork  String?
+  isAfdaStudent Boolean   @default(false)
+  passwordHash  String?
+  headline      String? // network profile tagline
+  location      String? // city/region for network
+  website       String? // personal or studio site
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts               Account[]
+  adminRequestsRequested AdminRequest[] @relation("AdminRequestRequester")
+  adminRequestsReviewed  AdminRequest[] @relation("AdminRequestReviewer")
+  sessions               Session[]
+
+  watchSessions WatchSession[]
+  comments      Comment[]
+  ratings       Rating[]
+  contents      Content[]
+  musicTracks   MusicTrack[]
+  watchlist     WatchlistItem[]
+  activityLogs  ActivityLog[]
+  auditionPosts AuditionPost[]
+
+  equipmentListings     EquipmentListing[]
+  equipmentRequests     EquipmentRequest[] @relation("EquipmentRequester")
+  equipmentRequestsRecv EquipmentRequest[] @relation("EquipmentCompany")
+  sentMessages          Message[]          @relation("MessageSender")
+  receivedMessages      Message[]          @relation("MessageReceiver")
+  syncRequestsSent      SyncRequest[]      @relation("SyncRequester")
+  syncRequestsRecv      SyncRequest[]      @relation("SyncMusicCreator")
+
+  originalPitches OriginalPitch[]
+  originalMembers OriginalMember[]
+  projectIdeas    ProjectIdea[]
+
+  locationListings     LocationListing[]
+  locationBookingsSent LocationBooking[] @relation("LocationRequester")
+  locationBookingsRecv LocationBooking[] @relation("LocationOwner")
+
+  crewTeam             CrewTeam?
+  castingAgency        CastingAgency?
+  cateringCompany      CateringCompany?
+  creatorCrewRoster    CreatorCrewRoster[]
+  creatorCastRoster    CreatorCastRoster[]
+  crewTeamRequestsSent CrewTeamRequest[]   @relation("CrewTeamRequester")
+  castingInquiriesSent CastingInquiry[]    @relation("CastingInquiryCreator")
+  cateringBookingsSent CateringBooking[]   @relation("CateringRequester")
+
+  viewerSubscriptions        ViewerSubscription[]
+  viewerProfiles             ViewerProfile[]
+  creatorBanking             CreatorBanking?
+  creatorPayouts             CreatorPayout[]             @relation("CreatorPayoutCreator")
+  transactionsSent           Transaction[]               @relation("TransactionPayer")
+  transactionsReceived       Transaction[]               @relation("TransactionPayee")
+  creatorDistributionLicense CreatorDistributionLicense?
+  uploadPayments             UploadPayment[]
+  creatorVotesSent           CreatorVote[]               @relation("CreatorVoteVoter")
+  creatorVotesReceived       CreatorVote[]               @relation("CreatorVoteCreator")
+  competitionWins            CompetitionPeriod[]         @relation("CompetitionWinner")
+  companySubscriptions       CompanySubscription[]
+  userPreference             UserPreference?
+  viewerPaymentMethods       ViewerPaymentMethod[]
+  viewerContentAccesses      ViewerContentAccess[]
+  paymentRecords             PaymentRecord[]
+
+  notifications      Notification[]
+  modocConversations ModocConversation[]
+
+  // Project & production tooling ownership/participation
+  projectTasksCreated            ProjectTask[]            @relation("ProjectTaskCreator")
+  projectTasksAssigned           ProjectTask[]
+  projectScriptVersionsCreated   ProjectScriptVersion[]
+  projectActivities              ProjectActivity[]
+  scriptReviewRequestsRequested  ScriptReviewRequest[]
+  scriptReviewRequestsReviewed   ScriptReviewRequest[]    @relation("ScriptReviewReviewer")
+  productionExpensesCreated      ProductionExpense[]
+  projectContractsAsCounterparty ProjectContract[]
+  projectContractsCreated        ProjectContract[]        @relation("ProjectContractCreator")
+  projectContractVersionsCreated ProjectContractVersion[] @relation("ProjectContractVersionCreator")
+  projectSignatures              ProjectSignature[]
+  pitchDecksCreated              PitchDeck[]
+  projectChatThreadsCreated      ProjectChatThread[]
+  projectChatMessages            ProjectChatMessage[]
+  crewInvitationsCreated         CrewInvitation[]
+  castingInvitationsCreated      CastingInvitation[]
+  tableReadSessionsCreated       TableReadSession[]
+  tableReadParticipants          TableReadParticipant[]
+  tableReadNotes                 TableReadNote[]
+  riskChecklistItems             RiskChecklistItem[]
+  continuityNotes                ContinuityNote[]
+
+  // Network (social / follow, connect, posts, DMs)
+  following                  CreatorFollow[]                  @relation("CreatorFollowing")
+  followers                  CreatorFollow[]                  @relation("CreatorFollower")
+  connectionRequestsSent     ConnectionRequest[]              @relation("ConnectionRequestFrom")
+  connectionRequestsReceived ConnectionRequest[]              @relation("ConnectionRequestTo")
+  networkPosts               NetworkPost[]
+  conversationParticipants   NetworkConversationParticipant[]
+  networkMessagesSent        NetworkMessage[]
+  incidentReports            IncidentReport[]
+  dailiesNotes               DailiesNote[]
+  reviewNotes                ReviewNote[]
+
+  // Creator-owned script and notes
+  creatorScripts    CreatorScript[]
+  scriptReviewNotes ScriptReviewNote[]
+
+  // Admin audit logs for privileged actions
+  adminAuditLogs AdminAuditLog[]
+}
+
+model AdminRequest {
+  id             String    @id @default(cuid())
+  status         String // PENDING, APPROVED, DENIED
+  assignedRights Json? // e.g. { "canManageUsers": true, "canManageContent": true }
+  note           String? // denial reason
+  requestedAt    DateTime  @default(now())
+  reviewedAt     DateTime?
+
+  requestedById String
+  requestedBy   User    @relation("AdminRequestRequester", fields: [requestedById], references: [id], onDelete: Cascade)
+  reviewedById  String?
+  reviewedBy    User?   @relation("AdminRequestReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([requestedById])
+  @@index([status])
+}
+
+model Content {
+  id           String    @id @default(cuid())
+  title        String
+  description  String?
+  type         String
+  posterUrl    String?
+  backdropUrl  String?
+  videoUrl     String?
+  trailerUrl   String?
+  scriptUrl    String?
+  category     String?
+  tags         String?
+  language     String?
+  country      String?
+  ageRating    String?
+  /// Minimum viewer age required to watch this title (used for profile censorship).
+  /// If not set by creator, the platform may derive this from ageRating during ingestion.
+  minAge       Int       @default(0)
+  /// Structured advisory flags and notes (e.g. { drugs: true, sex: false, violence: true, language: true, nudity: false, selfHarm: false, horror: true, discrimination: false, themes: "..." }).
+  advisory     Json?
+  year         Int?
+  duration     Int?
+  episodes     Int?
+  featured     Boolean   @default(false)
+  published    Boolean   @default(true)
+  reviewStatus String    @default("DRAFT")
+  reviewNote   String?
+  submittedAt  DateTime?
+  reviewedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  creatorId String
+  creator   User   @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  btsVideos             BtsVideo[]
+  watchSessions         WatchSession[]
+  comments              Comment[]
+  ratings               Rating[]
+  watchlist             WatchlistItem[]
+  syncDeals             SyncDeal[]
+  crewMembers           CrewMember[]
+  auditionPosts         AuditionPost[]
+  networkPosts          NetworkPost[]
+  viewerContentAccesses ViewerContentAccess[]
+}
+
+model BtsVideo {
+  id        String   @id @default(cuid())
+  title     String
+  videoUrl  String?
+  thumbnail String?
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  contentId String
+  content   Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
+}
+
+model WatchSession {
+  id              String   @id @default(cuid())
+  durationSeconds Int
+  startedAt       DateTime @default(now())
+
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contentId String
+  content   Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
+
+  viewerProfileId String?
+  viewerProfile   ViewerProfile? @relation(fields: [viewerProfileId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([contentId])
+  @@index([startedAt])
+  @@index([viewerProfileId])
+}
+
+/// Viewer sub-accounts under a single subscriber login (per-device profiles).
+model ViewerProfile {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name        String
+  age         Int
+  dateOfBirth DateTime?
+  /// Free-form personalization and learned preferences for recommendations.
+  preferences Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  watchSessions WatchSession[]
+
+  @@index([userId])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  body      String
+  createdAt DateTime @default(now())
+
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contentId String
+  content   Content   @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  parentId  String?
+  parent    Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[] @relation("CommentReplies")
+}
+
+model Rating {
+  id        String   @id @default(cuid())
+  score     Int
+  createdAt DateTime @default(now())
+
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contentId String
+  content   Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, contentId])
+  @@index([contentId])
+}
+
+model WatchlistItem {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contentId String
+  content   Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, contentId])
+}
+
+model MusicTrack {
+  id          String   @id @default(cuid())
+  title       String
+  artistName  String
+  audioUrl    String?
+  coverUrl    String?
+  genre       String?
+  mood        String?
+  bpm         Int?
+  key         String?
+  duration    Int?
+  description String?
+  tags        String?
+  isrc        String?
+  language    String?
+  published   Boolean  @default(true)
+  licenseType String   @default("SYNC")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  creatorId       String
+  creator         User             @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  syncDeals       SyncDeal[]
+  syncRequests    SyncRequest[]
+  musicSelections MusicSelection[]
+}
+
+model SyncDeal {
+  id        String   @id @default(cuid())
+  amount    Float    @default(0)
+  status    String
+  createdAt DateTime @default(now())
+
+  contentId    String
+  content      Content    @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  musicTrackId String
+  musicTrack   MusicTrack @relation(fields: [musicTrackId], references: [id], onDelete: Cascade)
+
+  @@unique([contentId, musicTrackId])
+}
+
+model PlatformRevenue {
+  id        String   @id @default(cuid())
+  period    String
+  amount    Float
+  createdAt DateTime @default(now())
+}
+
+model PendingCreatorSignup {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  type          String
+  bio           String?
+  socialLinks   String?
+  education     String?
+  goals         String?
+  previousWork  String?
+  isAfdaStudent Boolean  @default(false)
+  createdAt     DateTime @default(now())
+}
+
+model ActivityLog {
+  id         String   @id @default(cuid())
+  userId     String
+  userEmail  String?
+  userName   String?
+  role       String
+  eventType  String
+  referrer   String?
+  userAgent  String?
+  ipAddress  String?
+  deviceType String?
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([role])
+}
+
+model EquipmentListing {
+  id          String   @id @default(cuid())
+  companyName String
+  description String?
+  category    String
+  imageUrl    String?
+  contactUrl  String?
+  location    String?
+  createdAt   DateTime @default(now())
+
+  companyId String?
+  company   User?   @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  requests EquipmentRequest[]
+
+  planItems EquipmentPlanItem[]
+
+  @@index([companyId])
+}
+
+model EquipmentRequest {
+  id                   String   @id @default(cuid())
+  status               String   @default("PENDING")
+  note                 String?
+  startDate            String?
+  endDate              String?
+  paymentTransactionId String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  equipmentId String
+  equipment   EquipmentListing @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+
+  requesterId String
+  requester   User   @relation("EquipmentRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+
+  companyId String
+  company   User   @relation("EquipmentCompany", fields: [companyId], references: [id], onDelete: Cascade)
+
+  messages Message[]
+
+  @@index([requesterId])
+  @@index([companyId])
+  @@index([equipmentId])
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  body      String
+  createdAt DateTime @default(now())
+
+  senderId String
+  sender   User   @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+
+  receiverId String
+  receiver   User   @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  requestId String?
+  request   EquipmentRequest? @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  syncRequestId String?
+  syncRequest   SyncRequest? @relation(fields: [syncRequestId], references: [id], onDelete: Cascade)
+
+  locationBookingId String?
+  locationBooking   LocationBooking? @relation(fields: [locationBookingId], references: [id], onDelete: Cascade)
+
+  crewTeamRequestId String?
+  crewTeamRequest   CrewTeamRequest? @relation(fields: [crewTeamRequestId], references: [id], onDelete: Cascade)
+
+  castingInquiryId String?
+  castingInquiry   CastingInquiry? @relation(fields: [castingInquiryId], references: [id], onDelete: Cascade)
+
+  cateringBookingId String?
+  cateringBooking   CateringBooking? @relation(fields: [cateringBookingId], references: [id], onDelete: Cascade)
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([requestId])
+  @@index([syncRequestId])
+  @@index([locationBookingId])
+  @@index([crewTeamRequestId])
+  @@index([castingInquiryId])
+  @@index([cateringBookingId])
+}
+
+model SyncRequest {
+  id          String   @id @default(cuid())
+  status      String   @default("PENDING")
+  note        String?
+  projectName String?
+  projectType String?
+  usageType   String?
+  budget      Float?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  trackId String
+  track   MusicTrack @relation(fields: [trackId], references: [id], onDelete: Cascade)
+
+  requesterId String
+  requester   User   @relation("SyncRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+
+  musicCreatorId String
+  musicCreator   User   @relation("SyncMusicCreator", fields: [musicCreatorId], references: [id], onDelete: Cascade)
+
+  messages Message[]
+
+  @@index([trackId])
+  @@index([requesterId])
+  @@index([musicCreatorId])
+}
+
+model CrewMember {
+  id        String   @id @default(cuid())
+  name      String
+  role      String
+  bio       String?
+  createdAt DateTime @default(now())
+
+  contentId String
+  content   Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
+
+  @@index([contentId])
+}
+
+model AuditionPost {
+  id          String   @id @default(cuid())
+  roleName    String
+  description String?
+  status      String   @default("OPEN")
+  createdAt   DateTime @default(now())
+
+  contentId String
+  content   Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  creatorId String
+  creator   User    @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@index([contentId])
+  @@index([creatorId])
+}
+
+model OriginalProject {
+  id         String   @id @default(cuid())
+  title      String
+  logline    String?
+  synopsis   String?
+  type       String
+  genre      String?
+  status     String   @default("DEVELOPMENT")
+  phase      String   @default("CONCEPT")
+  budget     Float?
+  targetDate String?
+  posterUrl  String?
+  adminNote  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  pitches                 OriginalPitch[]
+  members                 OriginalMember[]
+  networkPosts            NetworkPost[]
+  ideas                   ProjectIdea[]
+  workspaceLinks          ProjectWorkspaceLink[]
+  toolProgress            ProjectToolProgress[]
+  distributionSubmissions DistributionSubmission[]
+  finalDeliveries         FinalDelivery[]
+  postProductionReviews   PostProductionReview[]
+  musicSelections         MusicSelection[]
+  footageAssets           FootageAsset[]
+  incidentReports         IncidentReport[]
+
+  // Pre-production & production tooling
+  scripts              ProjectScript[]
+  scenes               ProjectScene[]
+  projectActivities    ProjectActivity[]
+  scriptReviewRequests ScriptReviewRequest[]
+  breakdownCharacters  BreakdownCharacter[]
+  breakdownProps       BreakdownProp[]
+  breakdownLocations   BreakdownLocation[]
+  breakdownWardrobes   BreakdownWardrobe[]
+  breakdownExtras      BreakdownExtra[]
+  breakdownVehicles    BreakdownVehicle[]
+  breakdownStunts      BreakdownStunt[]
+  breakdownSfxs        BreakdownSfx[]
+  projectBudget        ProjectBudget?
+  productionExpenses   ProductionExpense[]
+  shootDays            ShootDay[]
+  callSheets           CallSheet[]
+  castingRoles         CastingRole[]
+  castingInvitations   CastingInvitation[]
+  crewRoleNeeds        CrewRoleNeed[]
+  crewInvitations      CrewInvitation[]
+  projectContracts     ProjectContract[]
+  fundingRequest       FundingRequest?
+  pitchDeck            PitchDeck?
+  chatThreads          ProjectChatThread[]
+  chatMessages         ProjectChatMessage[]
+  projectTasks         ProjectTask[]
+  tableReadSessions    TableReadSession[]
+  equipmentPlanItems   EquipmentPlanItem[]
+  riskPlan             RiskPlan?
+  continuityNotes      ContinuityNote[]
+  dailiesBatches       DailiesBatch[]
+  scriptReviewNotes    ScriptReviewNote[]
+  creatorScripts       CreatorScript[]
+
+  @@index([status])
+}
+
+model OriginalPitch {
+  id                  String   @id @default(cuid())
+  title               String
+  logline             String?
+  synopsis            String?
+  type                String
+  genre               String?
+  scriptUrl           String? // PDF upload URL or external link
+  scriptProjectId     String? // deprecated: use scriptId; kept for backward compat
+  scriptId            String? // ProjectScript id when attached from Pre-Production Script Writing
+  treatmentUrl        String?
+  lookbookUrl         String?
+  budgetEst           Float?
+  targetAudience      String?
+  references          String?
+  directorStatement   String?
+  productionCompany   String?
+  previousWorkSummary String?
+  intendedRelease     String?
+  keyCastCrew         String?
+  financingStatus     String?
+  status              String   @default("SUBMITTED")
+  adminNote           String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  creatorId String
+  creator   User   @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  projectId String?
+  project   OriginalProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([creatorId])
+  @@index([status])
+  @@index([projectId])
+}
+
+model OriginalMember {
+  id         String   @id @default(cuid())
+  role       String
+  department String?
+  status     String   @default("INVITED")
+  note       String?
+  createdAt  DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  projectId String
+  project   OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
+  @@index([userId])
+  @@index([projectId])
+}
+
+model LocationListing {
+  id           String   @id @default(cuid())
+  name         String
+  description  String?
+  type         String
+  address      String?
+  city         String?
+  province     String?
+  country      String?
+  capacity     Int?
+  dailyRate    Float?
+  amenities    String?
+  photoUrls    String?
+  rules        String?
+  availability String?
+  contactUrl   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  companyId String?
+  company   User?   @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  bookings           LocationBooking[]
+  breakdownLocations BreakdownLocation[]
+  projectContracts   ProjectContract[]
+
+  @@index([companyId])
+  @@index([type])
+  @@index([city])
+}
+
+model LocationBooking {
+  id                   String   @id @default(cuid())
+  status               String   @default("PENDING")
+  note                 String?
+  shootType            String?
+  startDate            String?
+  endDate              String?
+  crewSize             Int?
+  paymentTransactionId String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  locationId String
+  location   LocationListing @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  requesterId String
+  requester   User   @relation("LocationRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+
+  ownerId String
+  owner   User   @relation("LocationOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  messages Message[]
+
+  @@index([locationId])
+  @@index([requesterId])
+  @@index([ownerId])
+}
+
+// --- Crew & Cast / Auditions ---
+
+model CrewTeam {
+  id              String   @id @default(cuid())
+  companyName     String
+  tagline         String?
+  description     String?
+  location        String?
+  city            String?
+  province        String?
+  country         String?
+  specializations String? // comma or JSON: Camera, Grip, Sound, etc.
+  website         String?
+  contactEmail    String?
+  logoUrl         String?
+  pastWorkSummary String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  members          CrewTeamMember[]
+  requests         CrewTeamRequest[]
+  crewInvitations  CrewInvitation[]
+  projectContracts ProjectContract[]
+
+  @@index([userId])
+  @@index([city])
+  @@index([country])
+}
+
+model CrewTeamMember {
+  id         String   @id @default(cuid())
+  name       String
+  role       String // e.g. DP, Gaffer, Sound Mixer
+  department String? // Camera, Grip, Sound, Art, etc.
+  bio        String?
+  skills     String?
+  pastWork   String?
+  photoUrl   String?
+  email      String?
+  phone      String?
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  crewTeamId String
+  crewTeam   CrewTeam @relation(fields: [crewTeamId], references: [id], onDelete: Cascade)
+
+  crewInvitations CrewInvitation[]
+
+  @@index([crewTeamId])
+}
+
+model CreatorCrewRoster {
+  id           String   @id @default(cuid())
+  name         String
+  role         String?
+  department   String?
+  contactEmail String?
+  phone        String?
+  notes        String?
+  pastProjects String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  creatorId String
+  creator   User   @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@index([creatorId])
+}
+
+model CreatorCastRoster {
+  id           String   @id @default(cuid())
+  name         String
+  roleType     String? // Actor, Voice, etc.
+  contactEmail String?
+  notes        String?
+  pastWork     String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  creatorId String
+  creator   User   @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@index([creatorId])
+}
+
+model CrewTeamRequest {
+  id                   String   @id @default(cuid())
+  projectName          String?
+  message              String?
+  status               String   @default("PENDING") // PENDING, ACCEPTED, DECLINED
+  paymentTransactionId String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  creatorId  String
+  creator    User     @relation("CrewTeamRequester", fields: [creatorId], references: [id], onDelete: Cascade)
+  crewTeamId String
+  crewTeam   CrewTeam @relation(fields: [crewTeamId], references: [id], onDelete: Cascade)
+
+  messages Message[]
+
+  @@index([creatorId])
+  @@index([crewTeamId])
+}
+
+model CastingAgency {
+  id           String   @id @default(cuid())
+  agencyName   String
+  tagline      String?
+  description  String?
+  location     String?
+  city         String?
+  country      String?
+  website      String?
+  contactEmail String?
+  logoUrl      String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  talent             CastingTalent[]
+  inquiries          CastingInquiry[]
+  castingInvitations CastingInvitation[]
+
+  @@index([userId])
+  @@index([city])
+  @@index([country])
+}
+
+model CastingTalent {
+  id           String   @id @default(cuid())
+  name         String
+  bio          String?
+  cvUrl        String?
+  headshotUrl  String?
+  ageRange     String? // e.g. "25-35"
+  ethnicity    String?
+  gender       String?
+  skills       String? // Theatre, Film, TV, Voice, etc.
+  pastWork     String?
+  reelUrl      String?
+  contactEmail String?
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  castingAgencyId String
+  castingAgency   CastingAgency @relation(fields: [castingAgencyId], references: [id], onDelete: Cascade)
+
+  castingInvitations CastingInvitation[]
+  projectContracts   ProjectContract[]
+
+  @@index([castingAgencyId])
+}
+
+model CastingInquiry {
+  id                   String   @id @default(cuid())
+  projectName          String?
+  roleName             String?
+  message              String?
+  status               String   @default("PENDING")
+  talentId             String?
+  paymentTransactionId String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  creatorId String
+  creator   User          @relation("CastingInquiryCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  agencyId  String
+  agency    CastingAgency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  messages Message[]
+
+  @@index([creatorId])
+  @@index([agencyId])
+}
+
+// --- Viewer subscriptions & payments ---
+model ViewerSubscription {
+  id                String               @id @default(cuid())
+  userId            String
+  user              User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  paymentMethodId   String?
+  paymentMethod     ViewerPaymentMethod? @relation("ViewerSubscriptionPaymentMethod", fields: [paymentMethodId], references: [id], onDelete: SetNull)
+  viewerModel       String               @default("SUBSCRIPTION") // SUBSCRIPTION, PPV
+  plan              String // BASE_1, STANDARD_3, FAMILY_5
+  status            String // TRIAL_ACTIVE, ACTIVE, PAST_DUE, CANCELLED
+  trialEndsAt       DateTime?
+  currentPeriodEnd  DateTime?
+  deviceCount       Int                  @default(1)
+  profileLimit      Int?
+  billingEmail      String?
+  cancelAtPeriodEnd Boolean              @default(false)
+  lastPaymentStatus String?
+  lastPaymentAt     DateTime?
+  lastPaymentError  String?
+  externalPaymentId String?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  payments SubscriptionPayment[]
+
+  @@index([userId])
+  @@index([paymentMethodId])
+}
+
+model ViewerContentAccess {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contentId         String
+  content           Content  @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  accessType        String   @default("PPV_FILM") // PPV_FILM
+  amount            Float // in ZAR
+  currency          String   @default("ZAR")
+  status            String // COMPLETED, REFUNDED
+  purchasedAt       DateTime @default(now())
+  expiresAt         DateTime
+  externalPaymentId String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([userId, contentId])
+  @@index([expiresAt])
+}
+
+model SubscriptionPayment {
+  id                   String             @id @default(cuid())
+  viewerSubscriptionId String
+  viewerSubscription   ViewerSubscription @relation(fields: [viewerSubscriptionId], references: [id], onDelete: Cascade)
+  amount               Float // in ZAR
+  currency             String             @default("ZAR")
+  status               String // PENDING, COMPLETED, FAILED, REFUNDED
+  purpose              String?
+  paidAt               DateTime?
+  failureReason        String?
+  paystackReference    String?
+  externalPaymentId    String?
+  createdAt            DateTime           @default(now())
+
+  @@index([viewerSubscriptionId])
+  @@index([paystackReference])
+}
+
+model CreatorPayout {
+  id            String    @id @default(cuid())
+  creatorId     String
+  creator       User      @relation("CreatorPayoutCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  amount        Float
+  currency      String    @default("ZAR")
+  status        String // PENDING, COMPLETED, FAILED
+  bankReference String?
+  paidAt        DateTime?
+  period        String // e.g. "2026-01"
+  createdAt     DateTime  @default(now())
+
+  @@index([creatorId])
+}
+
+model CreatorBanking {
+  id            String    @id @default(cuid())
+  userId        String    @unique
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bankName      String
+  accountNumber String
+  accountType   String // CHEQUE, SAVINGS
+  branchCode    String?
+  verifiedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+model Transaction {
+  id                String   @id @default(cuid())
+  payerId           String
+  payer             User     @relation("TransactionPayer", fields: [payerId], references: [id], onDelete: Cascade)
+  payeeId           String
+  payee             User     @relation("TransactionPayee", fields: [payeeId], references: [id], onDelete: Cascade)
+  amount            Float // base amount in ZAR
+  feeAmount         Float    @default(0) // 3% in ZAR
+  totalAmount       Float // amount + feeAmount
+  status            String // PENDING, COMPLETED, FAILED, REFUNDED
+  type              String // LOCATION_BOOKING, EQUIPMENT_REQUEST, CREW_REQUEST, CAST_INQUIRY, CATERING_BOOKING
+  referenceId       String // booking/request/inquiry id
+  paystackReference String?
+  externalPaymentId String?
+  createdAt         DateTime @default(now())
+
+  @@index([payerId])
+  @@index([payeeId])
+  @@index([referenceId])
+  @@index([paystackReference])
+}
+
+// --- Catering ---
+model CateringCompany {
+  id              String   @id @default(cuid())
+  companyName     String
+  tagline         String?
+  description     String?
+  city            String?
+  country         String?
+  specializations String?
+  minOrder        Float? // minimum order value in ZAR
+  contactEmail    String?
+  website         String?
+  logoUrl         String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  bookings CateringBooking[]
+
+  @@index([userId])
+  @@index([city])
+  @@index([country])
+}
+
+model CateringBooking {
+  id                   String          @id @default(cuid())
+  cateringCompanyId    String
+  cateringCompany      CateringCompany @relation(fields: [cateringCompanyId], references: [id], onDelete: Cascade)
+  creatorId            String
+  creator              User            @relation("CateringRequester", fields: [creatorId], references: [id], onDelete: Cascade)
+  eventDate            String?
+  headCount            Int?
+  note                 String?
+  status               String          @default("PENDING")
+  paymentTransactionId String?
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+
+  messages Message[]
+
+  @@index([cateringCompanyId])
+  @@index([creatorId])
+}
+
+model CompanySubscription {
+  id                String               @id @default(cuid())
+  userId            String
+  user              User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  paymentMethodId   String?
+  paymentMethod     ViewerPaymentMethod? @relation("CompanySubscriptionPaymentMethod", fields: [paymentMethodId], references: [id], onDelete: SetNull)
+  companyType       String // CREW_TEAM, CASTING_AGENCY, LOCATION_OWNER, EQUIPMENT_COMPANY, CATERING_COMPANY
+  plan              String // STANDARD_R29, PROMOTED_R49
+  status            String // ACTIVE, PAST_DUE, CANCELLED
+  currentPeriodEnd  DateTime?
+  billingEmail      String?
+  cancelAtPeriodEnd Boolean              @default(false)
+  lastPaymentStatus String?
+  lastPaymentAt     DateTime?
+  lastPaymentError  String?
+  externalPaymentId String?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  @@index([userId])
+  @@index([paymentMethodId])
+}
+
+model CreatorDistributionLicense {
+  id                String    @id @default(cuid())
+  userId            String    @unique
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type              String // YEARLY_R89, PER_UPLOAD_R10
+  yearlyExpiresAt   DateTime?
+  externalPaymentId String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+model UploadPayment {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount            Float // R10
+  status            String   @default("COMPLETED") // PENDING, COMPLETED, FAILED
+  contentId         String?
+  musicTrackId      String?
+  paystackReference String?
+  externalPaymentId String?
+  transactionId     String?
+  createdAt         DateTime @default(now())
+
+  @@index([userId])
+  @@index([paystackReference])
+}
+
+// --- Viewer competition ---
+model CompetitionPeriod {
+  id        String   @id @default(cuid())
+  name      String
+  startDate DateTime
+  endDate   DateTime
+  status    String   @default("OPEN") // OPEN, CLOSED
+  winnerId  String?
+  winner    User?    @relation("CompetitionWinner", fields: [winnerId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  votes CreatorVote[]
+
+  @@index([status])
+  @@index([winnerId])
+}
+
+model CreatorVote {
+  id                  String            @id @default(cuid())
+  voterId             String
+  voter               User              @relation("CreatorVoteVoter", fields: [voterId], references: [id], onDelete: Cascade)
+  creatorId           String
+  creator             User              @relation("CreatorVoteCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  competitionPeriodId String
+  competitionPeriod   CompetitionPeriod @relation(fields: [competitionPeriodId], references: [id], onDelete: Cascade)
+  createdAt           DateTime          @default(now())
+
+  @@unique([voterId, competitionPeriodId])
+  @@index([competitionPeriodId])
+  @@index([creatorId])
+}
+
+// --- Test payments (mock gateway) ---
+model TestPayment {
+  id        String   @id @default(cuid())
+  amount    Float
+  currency  String   @default("ZAR")
+  status    String   @default("PENDING") // PENDING, COMPLETED, FAILED
+  metadata  String? // JSON
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PaymentRecord {
+  id                       String    @id @default(cuid())
+  userId                   String?
+  user                     User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider                 String    @default("PAYSTACK")
+  purpose                  String
+  status                   String    @default("INITIALIZED") // INITIALIZED, PENDING, SUCCEEDED, FAILED, CANCELLED
+  amount                   Float
+  currency                 String    @default("ZAR")
+  email                    String?
+  metadata                 Json?
+  relatedEntityType        String?
+  relatedEntityId          String?
+  paystackReference        String?   @unique
+  paystackAccessCode       String?
+  paystackAuthorizationUrl String?
+  paystackTransactionId    String?
+  customerCode             String?
+  authorizationCode        String?
+  paidAt                   DateTime?
+  failedAt                 DateTime?
+  failureReason            String?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([purpose])
+  @@index([status])
+}
+
+model PaymentWebhookEvent {
+  id          String    @id @default(cuid())
+  provider    String    @default("PAYSTACK")
+  eventType   String
+  eventId     String?
+  reference   String?
+  payload     Json?
+  processedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@unique([provider, eventType, eventId])
+  @@index([reference])
+}
+
+// --- User preferences (theme, etc.) ---
+model UserPreference {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  theme           String?  @default("dark") // dark, light, auto
+  accentColor     String?
+  notifyEmail     Boolean  @default(true)
+  playbackQuality String? // e.g. auto, 1080p, 720p
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model ViewerPaymentMethod {
+  id                     String   @id @default(cuid())
+  userId                 String
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider               String   @default("PAYSTACK")
+  email                  String?
+  label                  String // e.g. "Visa ****4242"
+  lastFour               String // last 4 digits for display
+  customerCode           String?
+  authorizationCode      String?
+  authorizationSignature String?
+  cardType               String?
+  bank                   String?
+  expMonth               String?
+  expYear                String?
+  reusable               Boolean  @default(true)
+  isDefault              Boolean  @default(false)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  viewerSubscriptions  ViewerSubscription[]  @relation("ViewerSubscriptionPaymentMethod")
+  companySubscriptions CompanySubscription[] @relation("CompanySubscriptionPaymentMethod")
+
+  @@index([userId])
+  @@index([authorizationCode])
+}
+
+// --- Social & notifications ---
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String // SYSTEM_RELEASE, COLLAB_REQUEST, CONTRACT_EVENT, BOOKING_UPDATE, WEEKLY_HIGHLIGHTS, etc.
+  title     String
+  body      String
+  metadata  String? // JSON payload for deep-link context
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// --- Creator Network (social: follow, connect, posts, DMs) ---
+
+model CreatorFollow {
+  id          String   @id @default(cuid())
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+
+  follower  User @relation("CreatorFollower", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("CreatorFollowing", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+}
+
+model ConnectionRequest {
+  id          String    @id @default(cuid())
+  fromId      String
+  toId        String
+  status      String    @default("PENDING") // PENDING, ACCEPTED, DECLINED
+  message     String?
+  createdAt   DateTime  @default(now())
+  respondedAt DateTime?
+
+  from User @relation("ConnectionRequestFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  to   User @relation("ConnectionRequestTo", fields: [toId], references: [id], onDelete: Cascade)
+
+  @@unique([fromId, toId])
+  @@index([fromId])
+  @@index([toId])
+  @@index([status])
+}
+
+model NetworkPost {
+  id        String   @id @default(cuid())
+  authorId  String
+  body      String? // text content
+  imageUrls String? // JSON array of image URLs
+  contentId String? // optional link to a movie/content
+  projectId String? // optional link to a project
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  author  User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  content Content?         @relation(fields: [contentId], references: [id], onDelete: SetNull)
+  project OriginalProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([authorId])
+  @@index([createdAt])
+  @@index([contentId])
+  @@index([projectId])
+}
+
+model NetworkConversation {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  participants NetworkConversationParticipant[]
+  messages     NetworkMessage[]
+}
+
+model NetworkConversationParticipant {
+  id             String   @id @default(cuid())
+  conversationId String
+  userId         String
+  joinedAt       DateTime @default(now())
+
+  conversation NetworkConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([conversationId])
+  @@index([userId])
+}
+
+model NetworkMessage {
+  id             String   @id @default(cuid())
+  conversationId String
+  senderId       String
+  body           String
+  createdAt      DateTime @default(now())
+
+  conversation NetworkConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User                @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([senderId])
+  @@index([createdAt])
+}
+
+// --- Project pipeline extensions (Creator Dashboard) ---
+
+model ProjectIdea {
+  id                 String           @id @default(cuid())
+  /// Optional link to a specific project. When null, this is a standalone idea in the creator’s vault.
+  projectId          String?
+  project            OriginalProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  /// Optional owner so standalone ideas can be scoped per creator.
+  userId             String?
+  user               User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  title              String
+  logline            String?
+  notes              String?
+  genres             String? // comma-separated for now
+  moodboardUrls      String?
+  convertedToProject Boolean          @default(false)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  @@index([projectId])
+}
+
+model ProjectScript {
+  id               String          @id @default(cuid())
+  projectId        String
+  project          OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title            String
+  currentVersionId String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  versions ProjectScriptVersion[]
+  scenes   ProjectScene[]
+
+  @@index([projectId])
+}
+
+model ProjectScriptVersion {
+  id           String        @id @default(cuid())
+  scriptId     String
+  script       ProjectScript @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+  versionLabel String?
+  content      String // screenplay text
+  createdById  String?
+  createdBy    User?         @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt    DateTime      @default(now())
+  autoSavedAt  DateTime?
+
+  tableReadSessions    TableReadSession[]
+  scriptReviewRequests ScriptReviewRequest[]
+
+  @@index([scriptId])
+  @@index([createdById])
+}
+
+model ProjectScene {
+  id                String             @id @default(cuid())
+  projectId         String
+  project           OriginalProject    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  scriptId          String?
+  script            ProjectScript?     @relation(fields: [scriptId], references: [id], onDelete: SetNull)
+  number            String // e.g. "1", "2A"
+  heading           String? // e.g. INT. HOUSE - DAY
+  summary           String?
+  pageCount         Float?
+  status            String             @default("PLANNED") // PLANNED, SCHEDULED, SHOOTING, WRAPPED
+  primaryLocationId String?            @unique
+  primaryLocation   BreakdownLocation? @relation("PrimaryLocation", fields: [primaryLocationId], references: [id], onDelete: SetNull)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  breakdownCharacters BreakdownCharacter[]
+  breakdownProps      BreakdownProp[]
+  breakdownLocations  BreakdownLocation[]  @relation("SceneBreakdown")
+  breakdownWardrobes  BreakdownWardrobe[]
+  breakdownExtras     BreakdownExtra[]
+  breakdownVehicles   BreakdownVehicle[]
+  breakdownStunts     BreakdownStunt[]
+  breakdownSfxs       BreakdownSfx[]
+  shootDayLinks       ShootDayScene[]
+  continuityNotes     ContinuityNote[]
+  dailies             DailiesBatch[]
+  footageAssets       FootageAsset[]
+
+  @@index([projectId])
+  @@index([scriptId])
+}
+
+model ProjectActivity {
+  id        String          @id @default(cuid())
+  projectId String
+  project   OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  type      String // SCRIPT_UPDATED, BUDGET_UPDATED, CONTRACT_SENT, etc.
+  message   String
+  metadata  String? // JSON
+  createdAt DateTime        @default(now())
+
+  @@index([projectId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// --- Script review ---
+
+model ScriptReviewRequest {
+  id              String                @id @default(cuid())
+  projectId       String
+  project         OriginalProject       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  scriptVersionId String?
+  scriptVersion   ProjectScriptVersion? @relation(fields: [scriptVersionId], references: [id], onDelete: SetNull)
+  requesterId     String
+  requester       User                  @relation(fields: [requesterId], references: [id], onDelete: Cascade)
+  reviewerId      String?
+  reviewer        User?                 @relation("ScriptReviewReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+  status          String                @default("PENDING_ADMIN_REVIEW") // PENDING_ADMIN_REVIEW, IN_REVIEW, COMPLETED
+  feeAmount       Float                 @default(0)
+  paymentId       String? // links to TestPayment.id
+  feedbackUrl     String?
+  feedbackNotes   String?
+  submittedAt     DateTime              @default(now())
+  reviewedAt      DateTime?
+
+  @@index([projectId])
+  @@index([requesterId])
+  @@index([reviewerId])
+  @@index([status])
+}
+
+// --- Script breakdown items ---
+
+model BreakdownCharacter {
+  id          String          @id @default(cuid())
+  projectId   String
+  project     OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sceneId     String?
+  scene       ProjectScene?   @relation(fields: [sceneId], references: [id], onDelete: SetNull)
+  name        String
+  description String?
+  importance  String? // LEAD, SUPPORTING, EXTRA
+  castable    Boolean         @default(true)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  castingRoles CastingRole[]
+
+  @@index([projectId])
+  @@index([sceneId])
+}
+
+model BreakdownProp {
+  id          String          @id @default(cuid())
+  projectId   String
+  project     OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sceneId     String?
+  scene       ProjectScene?   @relation(fields: [sceneId], references: [id], onDelete: SetNull)
+  name        String
+  description String?
+  special     Boolean         @default(false)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([projectId])
+  @@index([sceneId])
+}
+
+model BreakdownLocation {
+  id                String           @id @default(cuid())
+  projectId         String
+  project           OriginalProject  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sceneId           String?
+  scene             ProjectScene?    @relation("SceneBreakdown", fields: [sceneId], references: [id], onDelete: SetNull)
+  primaryForScene   ProjectScene?    @relation("PrimaryLocation")
+  name              String
+  description       String?
+  locationListingId String?
+  locationListing   LocationListing? @relation(fields: [locationListingId], references: [id], onDelete: SetNull)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@index([projectId])
+  @@index([sceneId])
+  @@index([locationListingId])
+}
+
+model BreakdownWardrobe {
+  id          String          @id @default(cuid())
+  projectId   String
+  project     OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sceneId     String?
+  scene       ProjectScene?   @relation(fields: [sceneId], references: [id], onDelete: SetNull)
+  description String
+  character   String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([projectId])
+  @@index([sceneId])
+}
+
+model BreakdownExtra {
+  id          String          @id @default(cuid())
+  projectId   String
+  project     OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sceneId     String?
+  scene       ProjectScene?   @relation(fields: [sceneId], references: [id], onDelete: SetNull)
+  description String
+  quantity    Int             @default(1)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([projectId])
+  @@index([sceneId])
+}
+
+model BreakdownVehicle {
+  id           String          @id @default(cuid())
+  projectId    String
+  project      OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sceneId      String?
+  scene        ProjectScene?   @relation(fields: [sceneId], references: [id], onDelete: SetNull)
+  description  String
+  stuntRelated Boolean         @default(false)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@index([projectId])
+  @@index([sceneId])
+}
+
+model BreakdownStunt {
+  id          String          @id @default(cuid())
+  projectId   String
+  project     OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sceneId     String?
+  scene       ProjectScene?   @relation(fields: [sceneId], references: [id], onDelete: SetNull)
+  description String
+  safetyNotes String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([projectId])
+  @@index([sceneId])
+}
+
+model BreakdownSfx {
+  id          String          @id @default(cuid())
+  projectId   String
+  project     OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sceneId     String?
+  scene       ProjectScene?   @relation(fields: [sceneId], references: [id], onDelete: SetNull)
+  description String
+  practical   Boolean         @default(false)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([projectId])
+  @@index([sceneId])
+}
+
+// --- Budget & expenses ---
+
+model ProjectBudget {
+  id           String          @id @default(cuid())
+  projectId    String          @unique
+  project      OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  template     String // SHORT_FILM, INDIE_FILM, FEATURE_FILM, TV_EPISODE
+  currency     String          @default("ZAR")
+  totalPlanned Float           @default(0)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  lines ProjectBudgetLine[]
+
+  @@index([projectId])
+}
+
+model ProjectBudgetLine {
+  id         String        @id @default(cuid())
+  budgetId   String
+  budget     ProjectBudget @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  department String
+  name       String
+  quantity   Float?        @default(1)
+  unitCost   Float?        @default(0)
+  total      Float         @default(0)
+  notes      String?
+
+  productionExpenses ProductionExpense[]
+
+  @@index([budgetId])
+  @@index([department])
+}
+
+model ProductionExpense {
+  id           String             @id @default(cuid())
+  projectId    String
+  project      OriginalProject    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  budgetLineId String?
+  budgetLine   ProjectBudgetLine? @relation(fields: [budgetLineId], references: [id], onDelete: SetNull)
+  department   String?
+  vendor       String?
+  description  String?
+  amount       Float
+  spentAt      DateTime
+  createdById  String?
+  createdBy    User?              @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt    DateTime           @default(now())
+
+  @@index([projectId])
+  @@index([budgetLineId])
+  @@index([department])
+}
+
+// --- Scheduling & call sheets ---
+
+model ShootDay {
+  id              String          @id @default(cuid())
+  projectId       String
+  project         OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  date            DateTime
+  unit            String? // A, B, etc.
+  callTime        String?
+  wrapTime        String?
+  status          String          @default("PLANNED")
+  locationSummary String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  scenes          ShootDayScene[]
+  callSheets      CallSheet[]
+  incidents       IncidentReport[]
+  continuityNotes ContinuityNote[]
+  dailiesBatches  DailiesBatch[]
+
+  @@index([projectId])
+  @@index([date])
+}
+
+model ShootDayScene {
+  id         String       @id @default(cuid())
+  shootDayId String
+  shootDay   ShootDay     @relation(fields: [shootDayId], references: [id], onDelete: Cascade)
+  sceneId    String
+  scene      ProjectScene @relation(fields: [sceneId], references: [id], onDelete: Cascade)
+  order      Int          @default(0)
+
+  @@index([shootDayId])
+  @@index([sceneId])
+}
+
+model CallSheet {
+  id            String          @id @default(cuid())
+  projectId     String
+  project       OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  shootDayId    String
+  shootDay      ShootDay        @relation(fields: [shootDayId], references: [id], onDelete: Cascade)
+  version       Int             @default(1)
+  title         String?
+  notes         String?
+  castJson      String? // snapshot of cast calls
+  crewJson      String? // snapshot of crew calls
+  locationsJson String?
+  scheduleJson  String?
+  createdAt     DateTime        @default(now())
+
+  @@index([projectId])
+  @@index([shootDayId])
+}
+
+// --- Casting, crew & contracts ---
+
+model CastingRole {
+  id                   String              @id @default(cuid())
+  projectId            String
+  project              OriginalProject     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  breakdownCharacterId String?
+  breakdownCharacter   BreakdownCharacter? @relation(fields: [breakdownCharacterId], references: [id], onDelete: SetNull)
+  name                 String
+  description          String?
+  status               String              @default("OPEN") // OPEN, CAST, ON_HOLD
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  invitations CastingInvitation[]
+
+  @@index([projectId])
+  @@index([breakdownCharacterId])
+}
+
+model CastingInvitation {
+  id              String          @id @default(cuid())
+  projectId       String
+  project         OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  roleId          String
+  role            CastingRole     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  creatorId       String
+  creator         User            @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  castingAgencyId String?
+  castingAgency   CastingAgency?  @relation(fields: [castingAgencyId], references: [id], onDelete: SetNull)
+  talentId        String?
+  talent          CastingTalent?  @relation(fields: [talentId], references: [id], onDelete: SetNull)
+  status          String          @default("PENDING") // PENDING, ACCEPTED, DECLINED
+  message         String?
+  response        String?
+  createdAt       DateTime        @default(now())
+  respondedAt     DateTime?
+
+  @@index([projectId])
+  @@index([roleId])
+  @@index([creatorId])
+  @@index([castingAgencyId])
+  @@index([talentId])
+}
+
+model CrewRoleNeed {
+  id         String          @id @default(cuid())
+  projectId  String
+  project    OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  department String?
+  role       String
+  seniority  String?
+  notes      String?
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  invitations CrewInvitation[]
+
+  @@index([projectId])
+}
+
+model CrewInvitation {
+  id           String          @id @default(cuid())
+  projectId    String
+  project      OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  needId       String
+  need         CrewRoleNeed    @relation(fields: [needId], references: [id], onDelete: Cascade)
+  creatorId    String
+  creator      User            @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  crewTeamId   String?
+  crewTeam     CrewTeam?       @relation(fields: [crewTeamId], references: [id], onDelete: SetNull)
+  crewMemberId String?
+  crewMember   CrewTeamMember? @relation(fields: [crewMemberId], references: [id], onDelete: SetNull)
+  status       String          @default("PENDING")
+  message      String?
+  response     String?
+  createdAt    DateTime        @default(now())
+  respondedAt  DateTime?
+
+  @@index([projectId])
+  @@index([needId])
+  @@index([creatorId])
+  @@index([crewTeamId])
+  @@index([crewMemberId])
+}
+
+model ProjectContract {
+  id                 String           @id @default(cuid())
+  projectId          String
+  project            OriginalProject  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  type               String // ACTOR, CREW, LOCATION, VENDOR
+  status             String           @default("DRAFT")
+  currentVersionId   String?
+  counterpartyUserId String?
+  counterpartyUser   User?            @relation(fields: [counterpartyUserId], references: [id], onDelete: SetNull)
+  castingTalentId    String?
+  castingTalent      CastingTalent?   @relation(fields: [castingTalentId], references: [id], onDelete: SetNull)
+  crewTeamId         String?
+  crewTeam           CrewTeam?        @relation(fields: [crewTeamId], references: [id], onDelete: SetNull)
+  locationListingId  String?
+  locationListing    LocationListing? @relation(fields: [locationListingId], references: [id], onDelete: SetNull)
+  vendorName         String?
+  subject            String?
+  createdById        String?
+  createdBy          User?            @relation("ProjectContractCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  versions   ProjectContractVersion[]
+  signatures ProjectSignature[]
+
+  @@index([projectId])
+  @@index([counterpartyUserId])
+  @@index([castingTalentId])
+  @@index([crewTeamId])
+  @@index([locationListingId])
+}
+
+model ProjectContractVersion {
+  id          String          @id @default(cuid())
+  contractId  String
+  contract    ProjectContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  version     Int
+  terms       String // plain text or HTML
+  changeNotes String?
+  createdById String?
+  createdBy   User?           @relation("ProjectContractVersionCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime        @default(now())
+
+  signatures ProjectSignature[]
+
+  @@index([contractId])
+}
+
+model ProjectSignature {
+  id         String                 @id @default(cuid())
+  contractId String
+  contract   ProjectContract        @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  versionId  String
+  version    ProjectContractVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  userId     String?
+  user       User?                  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  name       String?
+  role       String?
+  signedAt   DateTime               @default(now())
+  ipAddress  String?
+
+  @@index([contractId])
+  @@index([versionId])
+  @@index([userId])
+}
+
+// --- Funding & pitch decks ---
+
+model FundingRequest {
+  id        String          @id @default(cuid())
+  projectId String          @unique
+  project   OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  option    String // HAS_FUNDING or REQUEST_FUNDING
+  amount    Float?
+  currency  String?         @default("ZAR")
+  details   String?
+  status    String          @default("PENDING")
+  adminNote String?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@index([status])
+}
+
+model PitchDeck {
+  id          String          @id @default(cuid())
+  projectId   String          @unique
+  project     OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  template    String // SHORT_FILM, FEATURE, etc.
+  title       String?
+  createdById String?
+  createdBy   User?           @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  slides PitchDeckSlide[]
+}
+
+model PitchDeckSlide {
+  id        String    @id @default(cuid())
+  deckId    String
+  deck      PitchDeck @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  sortOrder Int       @default(0)
+  title     String?
+  body      String?
+  mediaUrl  String?
+}
+
+// --- Collaboration: chat, tasks, table reads ---
+
+model ProjectChatThread {
+  id          String          @id @default(cuid())
+  projectId   String
+  project     OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String?
+  channel     String? // GENERAL, PRODUCING, CAMERA, etc.
+  createdById String?
+  createdBy   User?           @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime        @default(now())
+
+  messages ProjectChatMessage[]
+
+  @@index([projectId])
+}
+
+model ProjectChatMessage {
+  id        String            @id @default(cuid())
+  threadId  String
+  thread    ProjectChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  projectId String
+  project   OriginalProject   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  senderId  String
+  sender    User              @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  body      String
+  createdAt DateTime          @default(now())
+
+  @@index([threadId])
+  @@index([projectId])
+  @@index([senderId])
+}
+
+model ProjectTask {
+  id          String          @id @default(cuid())
+  projectId   String
+  project     OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  department  String?
+  status      String          @default("TODO") // TODO, IN_PROGRESS, DONE
+  priority    String? // LOW, MEDIUM, HIGH
+  dueDate     DateTime?
+  assigneeId  String?
+  assignee    User?           @relation(fields: [assigneeId], references: [id], onDelete: SetNull)
+  createdById String?
+  createdBy   User?           @relation("ProjectTaskCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([projectId])
+  @@index([assigneeId])
+  @@index([department])
+}
+
+model TableReadSession {
+  id              String                @id @default(cuid())
+  projectId       String
+  project         OriginalProject       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  scriptVersionId String?
+  scriptVersion   ProjectScriptVersion? @relation(fields: [scriptVersionId], references: [id], onDelete: SetNull)
+  name            String?
+  scheduledAt     DateTime?
+  createdById     String?
+  createdBy       User?                 @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt       DateTime              @default(now())
+
+  participants TableReadParticipant[]
+  notes        TableReadNote[]
+
+  @@index([projectId])
+}
+
+model TableReadParticipant {
+  id            String           @id @default(cuid())
+  sessionId     String
+  session       TableReadSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  characterName String?
+
+  @@index([sessionId])
+  @@index([userId])
+}
+
+model TableReadNote {
+  id        String           @id @default(cuid())
+  sessionId String
+  session   TableReadSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  body      String
+  createdAt DateTime         @default(now())
+
+  @@index([sessionId])
+  @@index([userId])
+}
+
+// --- Equipment planning & risk ---
+
+model EquipmentPlanItem {
+  id                 String            @id @default(cuid())
+  projectId          String
+  project            OriginalProject   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  department         String?
+  category           String
+  description        String?
+  quantity           Int               @default(1)
+  notes              String?
+  equipmentListingId String?
+  equipmentListing   EquipmentListing? @relation(fields: [equipmentListingId], references: [id], onDelete: SetNull)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  @@index([projectId])
+  @@index([equipmentListingId])
+}
+
+model RiskPlan {
+  id        String          @id @default(cuid())
+  projectId String          @unique
+  project   OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  summary   String?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  items RiskChecklistItem[]
+}
+
+model RiskChecklistItem {
+  id          String   @id @default(cuid())
+  planId      String
+  plan        RiskPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  category    String
+  description String
+  ownerId     String?
+  owner       User?    @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  status      String   @default("OPEN") // OPEN, IN_PROGRESS, DONE
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([planId])
+  @@index([ownerId])
+}
+
+// --- Continuity, dailies, incidents ---
+
+model ContinuityNote {
+  id          String          @id @default(cuid())
+  projectId   String
+  project     OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sceneId     String?
+  scene       ProjectScene?   @relation(fields: [sceneId], references: [id], onDelete: SetNull)
+  shootDayId  String?
+  shootDay    ShootDay?       @relation(fields: [shootDayId], references: [id], onDelete: SetNull)
+  body        String
+  photoUrls   String?
+  createdById String?
+  createdBy   User?           @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime        @default(now())
+
+  @@index([projectId])
+  @@index([sceneId])
+  @@index([shootDayId])
+}
+
+model DailiesBatch {
+  id         String          @id @default(cuid())
+  projectId  String
+  project    OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sceneId    String?
+  scene      ProjectScene?   @relation(fields: [sceneId], references: [id], onDelete: SetNull)
+  shootDayId String?
+  shootDay   ShootDay?       @relation(fields: [shootDayId], references: [id], onDelete: SetNull)
+  title      String?
+  videoUrl   String?
+  notes      String?
+  createdAt  DateTime        @default(now())
+
+  reviewNotes DailiesNote[]
+
+  @@index([projectId])
+  @@index([sceneId])
+  @@index([shootDayId])
+}
+
+model DailiesNote {
+  id        String       @id @default(cuid())
+  batchId   String
+  batch     DailiesBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  body      String
+  createdAt DateTime     @default(now())
+
+  @@index([batchId])
+  @@index([userId])
+}
+
+model IncidentReport {
+  id          String          @id @default(cuid())
+  projectId   String
+  project     OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  shootDayId  String?
+  shootDay    ShootDay?       @relation(fields: [shootDayId], references: [id], onDelete: SetNull)
+  title       String
+  description String
+  severity    String          @default("LOW") // LOW, MEDIUM, HIGH
+  location    String?
+  resolved    Boolean         @default(false)
+  createdById String?
+  createdBy   User?           @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime        @default(now())
+  resolvedAt  DateTime?
+
+  @@index([projectId])
+  @@index([shootDayId])
+  @@index([severity])
+}
+
+// --- Post-production assets & review ---
+
+model FootageAsset {
+  id        String          @id @default(cuid())
+  projectId String
+  project   OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sceneId   String?
+  scene     ProjectScene?   @relation(fields: [sceneId], references: [id], onDelete: SetNull)
+  type      String // RAW_FOOTAGE, EDIT, TRAILER, BTS, POSTER, SUBTITLES, MASTER
+  label     String?
+  fileUrl   String
+  metadata  String? // JSON
+  createdAt DateTime        @default(now())
+
+  finalDelivery         FinalDelivery?
+  postProductionReviews PostProductionReview[]
+
+  @@index([projectId])
+  @@index([sceneId])
+  @@index([type])
+}
+
+model MusicSelection {
+  id        String          @id @default(cuid())
+  projectId String
+  project   OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  trackId   String
+  track     MusicTrack      @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  usage     String?
+  notes     String?
+  createdAt DateTime        @default(now())
+
+  @@index([projectId])
+  @@index([trackId])
+}
+
+model PostProductionReview {
+  id         String          @id @default(cuid())
+  projectId  String
+  project    OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  cutAssetId String?
+  cutAsset   FootageAsset?   @relation(fields: [cutAssetId], references: [id], onDelete: SetNull)
+  status     String          @default("IN_REVIEW")
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  notes ReviewNote[]
+
+  @@index([projectId])
+}
+
+model ReviewNote {
+  id          String               @id @default(cuid())
+  reviewId    String
+  review      PostProductionReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  userId      String?
+  user        User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
+  body        String
+  timestampMs Int?
+  createdAt   DateTime             @default(now())
+
+  @@index([reviewId])
+  @@index([userId])
+}
+
+model FinalDelivery {
+  id            String          @id @default(cuid())
+  projectId     String          @unique
+  project       OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  masterAssetId String?         @unique
+  masterAsset   FootageAsset?   @relation(fields: [masterAssetId], references: [id], onDelete: SetNull)
+  notes         String?
+  status        String          @default("PENDING") // PENDING, SUBMITTED, APPROVED
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+}
+
+model DistributionSubmission {
+  id          String          @id @default(cuid())
+  projectId   String
+  project     OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  target      String // STORY_TIME, NETFLIX, FESTIVAL, etc.
+  territories String?
+  rights      String?
+  status      String          @default("PENDING")
+  note        String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([projectId])
+  @@index([target])
+  @@index([status])
+}
+
+/// Workspace link for a project, used to generate a stable, trackable URL per project.
+model ProjectWorkspaceLink {
+  id            String          @id @default(cuid())
+  projectId     String          @unique
+  project       OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  slug          String          @unique // short public-facing slug, e.g. used in /p/[slug]
+  secretToken   String? // optional extra token for private links if needed
+  visitCount    Int             @default(0)
+  lastVisitedAt DateTime?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@index([projectId])
+  @@index([slug])
+}
+
+/// Normalized progress snapshot per tool within a project.
+model ProjectToolProgress {
+  id           String          @id @default(cuid())
+  projectId    String
+  project      OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  phase        String // PRE_PRODUCTION, PRODUCTION, POST_PRODUCTION
+  toolId       String // matches ids from the tool registry, e.g. idea-development
+  status       String          @default("NOT_STARTED") // NOT_STARTED, IN_PROGRESS, COMPLETE
+  percent      Int             @default(0)
+  pipelineStep String? // optional high-level step label for rollups
+  updatedAt    DateTime        @updatedAt
+  createdAt    DateTime        @default(now())
+
+  @@unique([projectId, toolId])
+  @@index([projectId])
+  @@index([phase])
+}
+
+// --- MODOC (AI assistant) conversation persistence ---
+/// One MODOC chat session (creator, viewer, admin, or company user). Enables resume and history.
+model ModocConversation {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scope       String? // browse, creator, admin, etc.
+  pageContext Json? // e.g. { projectId, tool, task }
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  messages ModocMessage[]
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+/// Single message in a MODOC conversation (user or assistant).
+model ModocMessage {
+  id             String            @id @default(cuid())
+  conversationId String
+  conversation   ModocConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String // user, assistant, system
+  content        String            @db.Text
+  createdAt      DateTime          @default(now())
+
+  @@index([conversationId])
+  @@index([createdAt])
+}
+
+/// Free-form notes a creator keeps alongside the Script Review tool.
+/// One record per (userId, projectId) pair; projectId may be null for standalone notes.
+model ScriptReviewNote {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String?
+  project   OriginalProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  body      String           @db.Text
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@unique([userId, projectId])
+  @@index([projectId])
+}
+
+/// Creator-owned scripts which may be standalone or linked to a project.
+/// This complements ProjectScript (which is always project-scoped).
+model CreatorScript {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String?
+  project   OriginalProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  title     String
+  type      String // FEATURE, SHORT, EPISODE, OTHER
+  content   String           @db.Text
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([userId, projectId])
+}
+
+/// Immutable audit log of admin actions for accountability.
+model AdminAuditLog {
+  id          String   @id @default(cuid())
+  adminUserId String
+  adminUser   User     @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+  action      String // e.g. CONTENT_REVIEW, USER_ROLE_CHANGE, SCRIPT_REVIEW_COMPLETE, COMPETITION_WINNER_SET
+  entityType  String // e.g. Content, User, ScriptReviewRequest, CompetitionPeriod
+  entityId    String
+  oldValue    Json?
+  newValue    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([adminUserId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}

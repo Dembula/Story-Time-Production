@@ -14,20 +14,41 @@ export default async function BrowseAccountPage() {
       viewerSubscriptions: {
         orderBy: { createdAt: "desc" },
         take: 1,
-        include: { payments: { orderBy: { createdAt: "desc" }, take: 5 } },
+        include: {
+          payments: { orderBy: { createdAt: "desc" }, take: 5 },
+          paymentMethod: { select: { label: true, lastFour: true } },
+        },
       },
     },
   });
 
   const raw = user?.viewerSubscriptions?.[0] ?? null;
+  const activePpvTitles =
+    raw?.viewerModel === "PPV" && user
+      ? await prisma.viewerContentAccess.count({
+          where: {
+            userId: user.id,
+            status: "COMPLETED",
+            expiresAt: { gt: new Date() },
+          },
+        })
+      : 0;
   const subscription = raw
     ? {
         id: raw.id,
+        viewerModel: raw.viewerModel,
         plan: raw.plan,
         status: raw.status,
         trialEndsAt: raw.trialEndsAt?.toISOString() ?? null,
         currentPeriodEnd: raw.currentPeriodEnd?.toISOString() ?? null,
         deviceCount: raw.deviceCount,
+        profileLimit: raw.profileLimit,
+        billingEmail: raw.billingEmail,
+        paymentMethodLabel: raw.paymentMethod?.label ?? null,
+        cancelAtPeriodEnd: raw.cancelAtPeriodEnd,
+        lastPaymentStatus: raw.lastPaymentStatus,
+        lastPaymentError: raw.lastPaymentError,
+        activePpvTitles,
         payments: raw.payments.map((p) => ({
           amount: p.amount,
           status: p.status,

@@ -13,6 +13,7 @@ export default function MusicUploadPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const [form, setForm] = useState({
     title: "", artistName: "", audioUrl: "", coverUrl: "",
     genre: "", mood: "", bpm: "", key: "", duration: "",
@@ -26,6 +27,7 @@ export default function MusicUploadPage() {
   }
 
   async function handleSubmit() {
+    setError("");
     setLoading(true);
     try {
       const res = await fetch("/api/music", {
@@ -33,8 +35,14 @@ export default function MusicUploadPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      if (res.ok) router.push("/music-creator/dashboard");
-      else { const data = await res.json(); alert(data.error || "Failed to upload"); }
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data?.requiresPayment && data?.payment) {
+        setError("Payments are currently disabled on this platform.");
+      } else if (res.ok) {
+        router.push("/music-creator/dashboard");
+      } else {
+        setError(data.error || "Failed to upload");
+      }
     } finally { setLoading(false); }
   }
 
@@ -182,6 +190,13 @@ export default function MusicUploadPage() {
           </button>
         )}
       </div>
+
+      {error ? (
+        <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-300">
+          {error}
+        </div>
+      ) : null}
+
     </div>
   );
 }

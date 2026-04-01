@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { paymentGateway } from "@/lib/payments";
 
 export async function POST(
   _req: Request,
@@ -26,13 +25,19 @@ export async function POST(
   const feeAmount = Math.round(baseAmount * 0.03 * 100) / 100;
   const totalAmount = baseAmount + feeAmount;
 
-  const intent = await paymentGateway.createPaymentIntent({
-    amount: totalAmount,
-    currency: "ZAR",
-    metadata: { type: "CATERING_BOOKING", referenceId: bookingId },
+  const paymentRecord = await prisma.paymentRecord.create({
+    data: {
+      userId: user.id,
+      provider: "DISABLED",
+      purpose: "CATERING_BOOKING",
+      status: "SUCCEEDED",
+      amount: totalAmount,
+      currency: "ZAR",
+      email: user.email,
+      paidAt: new Date(),
+      metadata: { type: "CATERING_BOOKING", referenceId: bookingId } as any,
+    },
   });
-  const result = await paymentGateway.confirmPayment(intent.id);
-  if (!result.success) return NextResponse.json({ error: result.error || "Payment failed" }, { status: 400 });
 
   const tx = await prisma.transaction.create({
     data: {
@@ -44,7 +49,7 @@ export async function POST(
       status: "COMPLETED",
       type: "CATERING_BOOKING",
       referenceId: bookingId,
-      externalPaymentId: intent.id,
+      externalPaymentId: paymentRecord.id,
     },
   });
 

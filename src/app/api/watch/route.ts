@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { cookies } from "next/headers";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getViewerPlaybackState } from "@/lib/viewer-access";
 
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -15,6 +16,11 @@ export async function POST(request: NextRequest) {
 
   if (!contentId || typeof durationSeconds !== "number") {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+  }
+
+  const playback = await getViewerPlaybackState(session.user.id, contentId);
+  if (!playback.canPlayContent) {
+    return NextResponse.json({ error: "Playback access required" }, { status: 403 });
   }
 
   let viewerProfileId: string | null = null;

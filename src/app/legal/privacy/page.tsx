@@ -5,9 +5,9 @@ export default function PrivacyPage() {
     <LegalPage
       eyebrow="Privacy"
       title="Privacy Policy"
-      summary="This Policy explains what information Story Time collects, how it is used, how long it may be kept, and the safeguards we apply while operating the platform."
-      lastUpdated="March 2026"
-      highlights={["POPIA aware", "Account data", "Usage data"]}
+      summary="This Policy explains what information Story Time collects, how it is used, retained, secured, and disclosed, including data-handling commitments under POPIA and related South African law."
+      lastUpdated="April 2026"
+      highlights={["POPIA", "PAIA-ready requests", "Account data", "Usage data"]}
       sections={[
         {
           title: "1. Information we collect",
@@ -24,6 +24,12 @@ export default function PrivacyPage() {
                 browser details, IP-related logs, cookie data, subscription records,
                 billing metadata, usage analytics, and platform interactions that help
                 us secure and improve the service.
+              </p>
+              <p>
+                Where payment features are used, we may receive limited transaction
+                metadata (for example payment status, masked card details, reference
+                IDs, and dispute status) from payment providers for reconciliation,
+                fraud controls, and support.
               </p>
             </>
           ),
@@ -59,6 +65,11 @@ export default function PrivacyPage() {
                 We may also disclose information when required by law, when responding
                 to valid legal requests, or when needed to protect the platform, our
                 users, rights holders, or the public.
+              </p>
+              <p>
+                Cross-border processing may occur where infrastructure or payment
+                providers operate internationally. In those cases, Story Time applies
+                contractual and operational safeguards aligned to POPIA section 72.
               </p>
             </>
           ),
@@ -108,6 +119,11 @@ export default function PrivacyPage() {
                 deletion where retention is no longer required.
               </p>
               <p>
+                Rights requests are handled in line with POPIA (including sections
+                23-25) and PAIA processes where applicable. We may verify identity
+                before actioning a request to protect account security.
+              </p>
+              <p>
                 We may need to retain some records where required for legal, safety,
                 fraud, tax, audit, or operational reasons.
               </p>
@@ -135,9 +151,9 @@ export default function PrivacyPage() {
       ]}
       footerNote={
         <p>
-          Story Time will publish formal privacy-contact and information-officer
-          details before full commercial rollout. Until then, this policy should be
-          read together with our Terms, Cookie Policy, and the rest of the legal suite.
+          Privacy and data-rights contact: support@story-time.online | +27 61 657
+          2691. Data subjects may use these channels to request access, correction,
+          deletion, objection, and complaint escalation.
         </p>
       }
     />

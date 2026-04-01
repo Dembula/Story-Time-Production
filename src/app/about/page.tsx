@@ -1,21 +1,71 @@
 import Link from "next/link";
+import Image from "next/image";
 
-const placeholders = [
+const sections = [
   {
-    title: "Our story",
-    text: "This section is ready for your platform narrative, founding vision, and why Story Time exists.",
+    title: "Platform Overview",
+    paragraphs: [
+      "StoryTime (Pty) Ltd is a digital content platform that enables creators to publish, distribute, and monetize story-based content while providing users with access to premium and free content experiences.",
+      "The platform facilitates interactions between content creators and users through secure, scalable, and legally compliant infrastructure.",
+    ],
   },
   {
-    title: "The team",
-    text: "Add your founders, leadership, creative operators, advisors, and the people building Story Time.",
+    title: "Service Description",
+    paragraphs: [
+      "StoryTime provides hosting and distribution of storytelling content, creator monetization tooling, access to free and paid user experiences, and secure payment processing through third-party providers.",
+      "Users may browse, purchase, or subscribe to content, while creators may upload and monetize their work subject to platform terms and applicable law.",
+    ],
   },
   {
-    title: "Company information",
-    text: "Use this space for registered business details, operating entity information, and public-facing trust signals.",
+    title: "Creator Monetization Model",
+    paragraphs: [
+      "Creators may generate revenue through one-time paid access, subscription-based access to exclusive content, and platform-supported revenue-sharing models.",
+      "StoryTime may retain a service fee or commission for facilitating transactions, disclosed where applicable. Creator earnings are subject to platform terms, payout timelines, and applicable deductions.",
+    ],
   },
   {
-    title: "Press and partnerships",
-    text: "You can add media enquiries, collaboration details, investor notes, or strategic partnership information here.",
+    title: "User Payment Obligations",
+    paragraphs: [
+      "Certain content requires payment prior to access. Pricing is displayed before any transaction is completed and may include subscriptions, one-time purchases, or other digital service charges.",
+      "All payments are final unless otherwise stated in the Refund Policy. By transacting, users accept pricing, billing terms, and service-delivery conditions.",
+    ],
+  },
+  {
+    title: "Payment Processing Disclosure",
+    paragraphs: [
+      "All financial transactions on StoryTime are securely processed through Paystack.",
+      "By making a payment, users accept the payment processor terms. Payment data is handled under industry-standard security controls, and StoryTime does not store sensitive card details.",
+      "Processing times, transaction confirmations, and payment disputes are subject to the payment provider's operational policies.",
+    ],
+  },
+  {
+    title: "Pricing Transparency, Refunds, and Disputes",
+    paragraphs: [
+      "StoryTime is committed to clear pricing. All prices are displayed before payment, hidden fees are not charged without consent, subscription cycles are disclosed, and recurring charges are shown before users subscribe.",
+      "Users should contact support before filing chargebacks. StoryTime may investigate disputes and take action, including account restrictions where abuse is detected. Refund eligibility is governed by the Refund and Cancellation Policy.",
+    ],
+  },
+  {
+    title: "Customer Support",
+    paragraphs: [
+      "StoryTime provides support for user inquiries, technical issues, and transaction-related matters.",
+      "Contact Information: +27 61 657 2691 | Email: support@story-time.online",
+      "Support requests are handled within a reasonable timeframe in line with internal service standards.",
+    ],
+  },
+  {
+    title: "User Onboarding and Consent Flow",
+    paragraphs: [
+      "StoryTime applies a structured onboarding process to ensure legal compliance and user awareness. Users create an account, review and accept Terms of Service and Privacy Policy, review pricing and plan options, and then proceed to secure payment where applicable.",
+      "No account activation or transaction processing occurs without explicit consent to the applicable legal and commercial terms.",
+    ],
+  },
+  {
+    title: "Risk Mitigation and Compliance",
+    paragraphs: [
+      "StoryTime actively implements transparent billing practices, clear refund and dispute handling, secure payment integration, suspicious activity monitoring, and enforcement of acceptable use standards.",
+      "These controls are designed to protect users, creators, and payment partners while supporting lawful platform operations.",
+    ],
   },
 ];
 
@@ -27,8 +77,9 @@ export default function AboutPage() {
 
       <header className="sticky top-0 z-20 border-b border-white/8 bg-slate-950/70 px-6 py-4 backdrop-blur-xl">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3">
-          <Link href="/" className="font-semibold tracking-[0.14em] text-slate-200 transition hover:text-white">
-            STORY <span className="storytime-brand-text">TIME</span>
+          <Link href="/" className="flex items-center gap-2 font-semibold tracking-[0.14em] text-slate-200 transition hover:text-white">
+            <Image src="/logo.png" alt="Story Time" width={24} height={24} className="rounded-md" />
+            <span>STORY <span className="storytime-brand-text">TIME</span></span>
           </Link>
           <div className="flex items-center gap-3 text-sm">
             <Link href="/legal/terms" className="text-slate-400 transition hover:text-slate-200">
@@ -48,32 +99,38 @@ export default function AboutPage() {
               About Story Time
             </div>
             <h1 className="font-display text-3xl font-semibold tracking-tight text-white md:text-4xl">
-              A space reserved for your team, story, and public trust layer.
+              PLATFORM DISCLOSURE, MONETIZATION & USER FLOW
             </h1>
             <p className="max-w-3xl text-sm leading-7 text-slate-300 md:text-base">
-              This page is intentionally left open for the information you want to add
-              later, including your team, company background, public mission, and
-              operational details.
+              Professional overview of how StoryTime (Pty) Ltd operates, how creators
+              and users engage with paid services, and how legal, payment, and support
+              commitments are applied across the platform.
             </p>
           </div>
         </section>
 
         <section className="mt-6 grid gap-4 md:grid-cols-2">
-          {placeholders.map((item) => (
+          {sections.map((item) => (
             <div
               key={item.title}
               className="rounded-3xl border border-white/8 bg-slate-950/55 p-6 shadow-panel backdrop-blur-xl"
             >
               <h2 className="mb-3 text-xl font-semibold text-white">{item.title}</h2>
-              <p className="text-sm leading-7 text-slate-300">{item.text}</p>
+              <div className="space-y-3 text-sm leading-7 text-slate-300">
+                {item.paragraphs.map((paragraph) => (
+                  <p key={paragraph}>{paragraph}</p>
+                ))}
+              </div>
             </div>
           ))}
         </section>
 
         <section className="mt-6 rounded-3xl border border-dashed border-white/10 bg-white/[0.02] p-6 text-sm leading-7 text-slate-400">
-          Add founder bios, company registration details, contact information, office
-          location, media resources, support channels, or any other trust signals you
-          want visible to viewers, creators, partners, and payment reviewers.
+          StoryTime (Pty) Ltd maintains a unified legal and operations suite covering
+          Terms of Service, Privacy Policy, Payment Policy, Refund and Cancellation
+          Policy, Cookie Policy, Acceptable Use Policy, PAIA Manual, Security Policy,
+          and Disclaimer disclosures for users, creators, partners, and compliance
+          reviewers.
         </section>
       </main>
     </div>

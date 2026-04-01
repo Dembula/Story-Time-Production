@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { paymentGateway } from "@/lib/payments";
+import { normalizeCreatorLicenseType } from "@/lib/pricing";
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -59,31 +59,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Distribution license required. Complete onboarding first." }, { status: 403 });
   }
   const license = user.creatorDistributionLicense;
-  let uploadTxId: string | null = null;
-  if (license.type === "YEARLY_R89") {
+  if (normalizeCreatorLicenseType(license.type) === "YEARLY") {
     if (license.yearlyExpiresAt && license.yearlyExpiresAt < new Date()) {
       return NextResponse.json({ error: "Yearly license expired. Renew to upload." }, { status: 402 });
     }
   } else {
-    const platform = await prisma.user.findFirst({ where: { role: "ADMIN" }, select: { id: true } });
-    if (!platform) return NextResponse.json({ error: "Platform not configured" }, { status: 500 });
-    const intent = await paymentGateway.createPaymentIntent({ amount: 10, currency: "ZAR", metadata: { type: "UPLOAD_FEE", userId: creatorId } });
-    const result = await paymentGateway.confirmPayment(intent.id);
-    if (!result.success) return NextResponse.json({ error: result.error || "Payment failed" }, { status: 400 });
-    const tx = await prisma.transaction.create({
-      data: {
-        payerId: creatorId,
-        payeeId: platform.id,
-        amount: 10,
-        feeAmount: 0,
-        totalAmount: 10,
-        status: "COMPLETED",
-        type: "UPLOAD_FEE",
-        referenceId: intent.id,
-        externalPaymentId: intent.id,
-      },
-    });
-    uploadTxId = tx.id;
+    // Payment gateway has been removed; continue with direct submission.
   }
 
   const track = await prisma.musicTrack.create({
@@ -104,12 +85,6 @@ export async function POST(request: NextRequest) {
       creatorId,
     },
   });
-
-  if (uploadTxId) {
-    await prisma.uploadPayment.create({
-      data: { userId: creatorId, amount: 10, musicTrackId: track.id, transactionId: uploadTxId },
-    });
-  }
 
   return NextResponse.json(track);
 }

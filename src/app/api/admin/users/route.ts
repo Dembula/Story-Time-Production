@@ -41,7 +41,7 @@ export async function PATCH(req: NextRequest) {
         action: "USER_ROLE_CHANGE",
         entityType: "User",
         entityId: userId,
-        oldValue: before ? { role: before.role } : Prisma.JsonNull,
+        oldValue: before ? { role: before.role } : (Prisma.JsonNull as any),
         newValue: { role: updated.role },
       },
     });
@@ -57,7 +57,7 @@ export async function PATCH(req: NextRequest) {
         action: "USER_NAME_UPDATE",
         entityType: "User",
         entityId: userId,
-        oldValue: before ? { name: before.name } : Prisma.JsonNull,
+        oldValue: before ? { name: before.name } : (Prisma.JsonNull as any),
         newValue: { name: updated.name },
       },
     });
@@ -73,8 +73,8 @@ export async function PATCH(req: NextRequest) {
         action: "USER_DELETE",
         entityType: "User",
         entityId: userId,
-        oldValue: before ? { email: before.email, role: before.role } : Prisma.JsonNull,
-        newValue: Prisma.JsonNull,
+        oldValue: before ? { email: before.email, role: before.role } : (Prisma.JsonNull as any),
+        newValue: Prisma.JsonNull as any,
       },
     });
     return NextResponse.json({ success: true });

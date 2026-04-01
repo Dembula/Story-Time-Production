@@ -1,17 +1,31 @@
 "use client";
 
 import { signIn } from "next-auth/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowLeft, Shield } from "lucide-react";
 
 export default function SignUpPage() {
+  const [consentReady, setConsentReady] = useState(false);
+  const [consentAccepted, setConsentAccepted] = useState(false);
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const viewerConsentKey = "storytime_viewer_signup_ack_v1";
+
+  useEffect(() => {
+    const alreadyAccepted = window.localStorage.getItem(viewerConsentKey) === "true";
+    setConsentReady(alreadyAccepted);
+  }, []);
+
+  function handleConsentContinue() {
+    if (!consentAccepted) return;
+    window.localStorage.setItem(viewerConsentKey, "true");
+    setConsentReady(true);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -64,10 +78,51 @@ export default function SignUpPage() {
         </Link>
 
         <div className="storytime-section p-8">
-          <h1 className="mb-2 font-display text-2xl font-semibold text-white">Create an account</h1>
-          <p className="mb-6 text-sm leading-6 text-slate-300/78">Subscribe to watch unlimited content from independent creators worldwide</p>
+          {!consentReady ? (
+            <div>
+              <h1 className="mb-2 font-display text-2xl font-semibold text-white">Terms Acknowledgement</h1>
+              <p className="mb-6 text-sm leading-6 text-slate-300/78">
+                Before creating your account, you must acknowledge the legal and payment terms that apply to Story Time.
+              </p>
+              <div className="mb-5 rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm text-slate-300">
+                <p className="mb-3">By continuing, you confirm that you have reviewed and accepted:</p>
+                <ul className="list-disc space-y-1 pl-5 text-slate-400">
+                  <li>Terms of Service and Acceptable Use standards</li>
+                  <li>Privacy Policy and Cookie Policy</li>
+                  <li>Payment Policy, Subscription Terms, and Refund Policy</li>
+                  <li>Platform disclosure, pricing, and onboarding consent flow</li>
+                </ul>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Link href="/legal/terms" className="text-orange-300 hover:text-orange-200">Terms</Link>
+                  <Link href="/legal/privacy" className="text-orange-300 hover:text-orange-200">Privacy</Link>
+                  <Link href="/legal/payment-policy" className="text-orange-300 hover:text-orange-200">Payments</Link>
+                  <Link href="/legal/refund-policy" className="text-orange-300 hover:text-orange-200">Refunds</Link>
+                </div>
+              </div>
+              <label className="mb-4 flex items-start gap-3 text-sm text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={consentAccepted}
+                  onChange={(e) => setConsentAccepted(e.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-white/20 bg-transparent"
+                />
+                <span>I acknowledge and agree to the applicable terms, privacy, payment, refund, and usage conditions.</span>
+              </label>
+              <button
+                type="button"
+                onClick={handleConsentContinue}
+                disabled={!consentAccepted}
+                className="w-full rounded-xl bg-orange-500 py-3 font-semibold text-white shadow-glow hover:-translate-y-0.5 hover:bg-orange-400 disabled:opacity-50"
+              >
+                I Acknowledge and Continue
+              </button>
+            </div>
+          ) : (
+            <>
+              <h1 className="mb-2 font-display text-2xl font-semibold text-white">Create an account</h1>
+              <p className="mb-6 text-sm leading-6 text-slate-300/78">Subscribe to watch unlimited content from independent creators worldwide</p>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label htmlFor="name" className="mb-2 block text-sm font-medium text-slate-300">Name</label>
               <input
@@ -115,16 +170,16 @@ export default function SignUpPage() {
             >
               {loading ? "Creating account..." : "Sign Up"}
             </button>
-          </form>
+              </form>
 
-          <div className="relative my-6">
+              <div className="relative my-6">
             <span className="absolute inset-0 flex items-center">
               <span className="w-full border-t border-white/8" />
             </span>
             <span className="relative flex justify-center bg-transparent px-3 text-xs text-slate-500">Or</span>
-          </div>
+              </div>
 
-          <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3">
             <button
               type="button"
               onClick={() => signIn("google", { callbackUrl: "/profiles" })}
@@ -139,17 +194,14 @@ export default function SignUpPage() {
             >
               GitHub
             </button>
-          </div>
+              </div>
 
-          <div className="storytime-panel mt-6 rounded-xl p-3">
-            <p className="text-xs text-slate-500 mb-1.5 font-medium">Demo account:</p>
-            <p className="text-xs text-slate-400"><code className="text-slate-300">viewer@storytime.com</code> / <code className="text-slate-300">storytime2025</code></p>
-          </div>
-
-          <div className="mt-4 flex items-center gap-2 justify-center text-xs text-slate-500">
-            <Shield className="w-3.5 h-3.5" />
-            <span>Your account is protected by platform access controls</span>
-          </div>
+              <div className="mt-4 flex items-center gap-2 justify-center text-xs text-slate-500">
+                <Shield className="w-3.5 h-3.5" />
+                <span>Your account is protected by platform access controls</span>
+              </div>
+            </>
+          )}
         </div>
 
         <p className="mt-6 text-center text-sm text-slate-500">

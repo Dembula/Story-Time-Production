@@ -1,12 +1,14 @@
 "use client";
 
 import { signIn } from "next-auth/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowLeft, Shield } from "lucide-react";
+import { ArrowLeft, Check, GraduationCap, Shield } from "lucide-react";
 
 export default function CreatorSignUpPage() {
+  const [consentReady, setConsentReady] = useState(false);
+  const [consentAccepted, setConsentAccepted] = useState(false);
   const [email, setEmail] = useState("");
   const [creatorType, setCreatorType] = useState<"content" | "music" | "equipment" | "location" | "crew" | "casting" | "catering" | "">("");
   const [bio, setBio] = useState("");
@@ -19,6 +21,18 @@ export default function CreatorSignUpPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [step, setStep] = useState(1);
+  const creatorConsentKey = "storytime_creator_signup_ack_v1";
+
+  useEffect(() => {
+    const alreadyAccepted = window.localStorage.getItem(creatorConsentKey) === "true";
+    setConsentReady(alreadyAccepted);
+  }, []);
+
+  function handleConsentContinue() {
+    if (!consentAccepted) return;
+    window.localStorage.setItem(creatorConsentKey, "true");
+    setConsentReady(true);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -54,7 +68,15 @@ export default function CreatorSignUpPage() {
       });
       setLoading(false);
       if (res?.ok) {
-        const redirects: Record<string, string> = { music: "/music-creator/onboarding/license", content: "/creator/onboarding/license", equipment: "/equipment-company/dashboard", location: "/location-owner/dashboard", crew: "/crew-team/dashboard", casting: "/casting-agency/dashboard", catering: "/catering-company/dashboard" };
+        const redirects: Record<string, string> = {
+          music: "/music-creator/onboarding/license",
+          content: "/creator/onboarding/license",
+          equipment: "/company/onboarding/subscription",
+          location: "/company/onboarding/subscription",
+          crew: "/company/onboarding/subscription",
+          casting: "/company/onboarding/subscription",
+          catering: "/company/onboarding/subscription",
+        };
         window.location.href = redirects[type] ?? "/creator/dashboard";
       } else {
         setError("Account created but we couldn't sign you in. Please try signing in with your email and password.");
@@ -81,6 +103,50 @@ export default function CreatorSignUpPage() {
         </Link>
 
         <div className="rounded-[28px] border border-white/15 bg-gradient-to-br from-white via-stone-50 to-amber-50 p-8 text-slate-950 shadow-[0_30px_80px_-32px_rgba(0,0,0,0.72)] backdrop-blur-xl">
+          {!consentReady ? (
+            <div>
+              <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-slate-900/8 bg-slate-950 px-3 py-1 text-sm font-semibold text-amber-200 shadow-sm">
+                Creator Portal
+              </div>
+              <h1 className="mb-2 font-display text-2xl font-semibold text-slate-950">Creator Terms Acknowledgement</h1>
+              <p className="mb-6 text-sm text-slate-600">
+                Before creating a creator account, you must acknowledge the platform's legal, monetization, and payment conditions.
+              </p>
+              <div className="mb-5 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">
+                <p className="mb-3">By continuing, you confirm review and acceptance of:</p>
+                <ul className="list-disc space-y-1 pl-5 text-slate-600">
+                  <li>Terms of Service, Content Policy, and Acceptable Use Policy</li>
+                  <li>Privacy, Cookie, and Security policies</li>
+                  <li>Payment Policy, Subscription Terms, and Refund Policy</li>
+                  <li>Creator monetization and payout conditions</li>
+                </ul>
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <Link href="/legal/terms" className="text-amber-700 hover:text-amber-800">Terms</Link>
+                  <Link href="/legal/content-policy" className="text-amber-700 hover:text-amber-800">Content Policy</Link>
+                  <Link href="/legal/payment-policy" className="text-amber-700 hover:text-amber-800">Payment Policy</Link>
+                  <Link href="/legal/refund-policy" className="text-amber-700 hover:text-amber-800">Refund Policy</Link>
+                </div>
+              </div>
+              <label className="mb-4 flex items-start gap-3 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={consentAccepted}
+                  onChange={(e) => setConsentAccepted(e.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-slate-300"
+                />
+                <span>I acknowledge and agree to the creator onboarding, legal, privacy, payment, and usage terms.</span>
+              </label>
+              <button
+                type="button"
+                onClick={handleConsentContinue}
+                disabled={!consentAccepted}
+                className="w-full rounded-xl bg-slate-950 py-3 font-semibold text-white shadow-[0_18px_40px_-22px_rgba(15,23,42,0.85)] transition hover:-translate-y-0.5 hover:bg-slate-900 disabled:opacity-50"
+              >
+                I Acknowledge and Continue
+              </button>
+            </div>
+          ) : (
+            <>
           <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-slate-900/8 bg-slate-950 px-3 py-1 text-sm font-semibold text-amber-200 shadow-sm">
             Creator Portal
           </div>
@@ -99,85 +165,23 @@ export default function CreatorSignUpPage() {
             <div className="space-y-4">
               <div>
                 <label className="mb-2 block text-sm font-medium text-slate-700">I create</label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setCreatorType("content")}
-                    className={`rounded-xl border py-2.5 text-sm font-medium transition ${
-                      creatorType === "content"
-                        ? "border-slate-950 bg-slate-950 text-white shadow-sm"
-                        : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
-                    }`}
-                  >
-                    Films / Shows
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCreatorType("music")}
-                    className={`rounded-xl border py-2.5 text-sm font-medium transition ${
-                      creatorType === "music"
-                        ? "border-slate-950 bg-slate-950 text-white shadow-sm"
-                        : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
-                    }`}
-                  >
-                    Music
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCreatorType("equipment")}
-                    className={`rounded-xl border py-2.5 text-sm font-medium transition ${
-                      creatorType === "equipment"
-                        ? "border-slate-950 bg-slate-950 text-white shadow-sm"
-                        : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
-                    }`}
-                  >
-                    Equipment Co.
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCreatorType("location")}
-                    className={`rounded-xl border py-2.5 text-sm font-medium transition ${
-                      creatorType === "location"
-                        ? "border-slate-950 bg-slate-950 text-white shadow-sm"
-                        : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
-                    }`}
-                  >
-                    Location / Property
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCreatorType("crew")}
-                    className={`rounded-xl border py-2.5 text-sm font-medium transition ${
-                      creatorType === "crew"
-                        ? "border-slate-950 bg-slate-950 text-white shadow-sm"
-                        : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
-                    }`}
-                  >
-                    Crew Team
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCreatorType("casting")}
-                    className={`rounded-xl border py-2.5 text-sm font-medium transition ${
-                      creatorType === "casting"
-                        ? "border-slate-950 bg-slate-950 text-white shadow-sm"
-                        : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
-                    }`}
-                  >
-                    Casting Agency
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCreatorType("catering")}
-                    className={`rounded-xl border py-2.5 text-sm font-medium transition ${
-                      creatorType === "catering"
-                        ? "border-slate-950 bg-slate-950 text-white shadow-sm"
-                        : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
-                    }`}
-                  >
-                    Catering
-                  </button>
-                </div>
+                <select
+                  value={creatorType}
+                  onChange={(e) => setCreatorType(e.target.value as typeof creatorType)}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-950 shadow-sm outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-200/80"
+                  required
+                >
+                  <option value="" disabled>
+                    Select account type
+                  </option>
+                  <option value="content">Films / Shows</option>
+                  <option value="music">Music</option>
+                  <option value="equipment">Equipment Co.</option>
+                  <option value="location">Location / Property</option>
+                  <option value="crew">Crew Team</option>
+                  <option value="casting">Casting Agency</option>
+                  <option value="catering">Catering</option>
+                </select>
               </div>
               <div>
                 <label htmlFor="email" className="mb-2 block text-sm font-medium text-slate-700">Email</label>
@@ -205,18 +209,37 @@ export default function CreatorSignUpPage() {
                 />
               </div>
 
-              <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-white/85 p-3 shadow-sm transition hover:border-slate-300 hover:bg-white">
-                <input
-                  type="checkbox"
-                  checked={isAfda}
-                  onChange={(e) => setIsAfda(e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300 bg-white text-amber-500 focus:ring-amber-400/30"
-                />
-                <div>
-                  <p className="text-sm font-medium text-slate-950">I am a student filmmaker</p>
-                  <p className="text-xs text-slate-500">Your work will be featured in the Student Films section</p>
+              <button
+                type="button"
+                onClick={() => setIsAfda((current) => !current)}
+                aria-pressed={isAfda}
+                className={`w-full rounded-2xl border p-4 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 ${
+                  isAfda
+                    ? "border-amber-300 bg-gradient-to-br from-amber-100 via-white to-amber-50"
+                    : "border-slate-200 bg-white/90 hover:border-slate-300 hover:bg-white"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <div className={`flex h-11 w-11 items-center justify-center rounded-2xl border ${
+                      isAfda ? "border-amber-300/70 bg-amber-200/50 text-amber-700" : "border-slate-200 bg-slate-100 text-slate-500"
+                    }`}>
+                      <GraduationCap className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-950">Student filmmaker</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Turn this on if you want your work highlighted in the Student Films section while you are still studying.
+                      </p>
+                    </div>
+                  </div>
+                  <div className={`flex h-7 w-7 items-center justify-center rounded-full border ${
+                    isAfda ? "border-amber-400 bg-amber-500 text-white" : "border-slate-300 bg-white text-transparent"
+                  }`}>
+                    <Check className="h-4 w-4" />
+                  </div>
                 </div>
-              </label>
+              </button>
 
               <button
                 type="button"
@@ -304,6 +327,8 @@ export default function CreatorSignUpPage() {
             <Shield className="w-3.5 h-3.5" />
             <span>Your creator account is protected by platform access controls</span>
           </div>
+            </>
+          )}
         </div>
 
         <p className="mt-6 text-center text-sm text-slate-400">

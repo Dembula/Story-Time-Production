@@ -1,0 +1,151 @@
+flowchart TB
+    classDef core fill:#dbeafe,stroke:#1d4ed8,color:#111827
+    classDef app fill:#dcfce7,stroke:#15803d,color:#111827
+    classDef data fill:#fef3c7,stroke:#b45309,color:#111827
+    classDef ext fill:#ede9fe,stroke:#6d28d9,color:#111827
+    classDef sec fill:#fee2e2,stroke:#b91c1c,color:#111827
+    classDef warn fill:#fff7ed,stroke:#c2410c,color:#111827
+    classDef ops fill:#e0f2fe,stroke:#0369a1,color:#111827
+
+    U[Platform Users]:::core
+    U --> V[Viewers / Subscribers]:::core
+    U --> C[Content Creators]:::core
+    U --> M[Music Creators]:::core
+    U --> B2B[Company Users\nCrew Team / Casting Agency /\nLocation Owner / Equipment Company /\nCatering Company]:::core
+    U --> A[Admins]:::core
+
+    subgraph FE[Frontend Layer]
+        ROOT[Next.js 15 App Router\nsrc/app/layout.tsx\nGlobal shell + providers]:::app
+        PROVIDERS[Global Providers\nSessionProvider\nQueryClientProvider\nModocProvider]:::app
+        LANDING[Marketing / Legal / About / Auth]:::app
+        BROWSE[Viewer App\ncatalog / playback / profiles /\nsubscription / recommendations]:::app
+        CREATOR[Creator App\nprojects / network / revenue /\nproduction pipeline]:::app
+        MUSIC[Music Creator App\ntracks / sync / licensing / revenue]:::app
+        COMPANY[Company Portals\ncrew / casting / location /\nequipment / catering]:::app
+        ADMIN[Admin App\nusers / content / activity /\nrevenue / moderation]:::app
+        UI[Shared UI / Components\nTailwind / Radix / Framer Motion /\nLucide / player / project tools]:::app
+    end
+
+    subgraph API[Backend Layer - Next.js Route Handlers]
+        AUTHAPI[Auth APIs]:::core
+        VIEWERAPI[Viewer APIs]:::core
+        CONTENTAPI[Content APIs]:::core
+        CREATORAPI[Creator APIs]:::core
+        MUSICAPI[Music APIs]:::core
+        COMPANYAPI[Company APIs]:::core
+        ADMINAPI[Admin APIs]:::core
+        NETWORKAPI[Network APIs]:::core
+        MODOCAPI[MODOC APIs]:::core
+        UPLOADAPI[Upload API]:::warn
+    end
+
+    subgraph DOMAIN[Shared Domain / Service Layer - src/lib]
+        AUTH[auth.ts\nNextAuth config]:::data
+        ACCESS[project-access.ts\nrole + project membership]:::data
+        PRISMA[prisma.ts\nPrisma client lifecycle]:::data
+        REVENUE[revenue.ts\ncreator revenue formulas]:::data
+        ANALYTICS[creator-analytics.ts\naggregated creator KPIs]:::data
+        TOOLREG[project-tools.ts\npre / production / post registry]:::data
+        PAYMENTS[payments.ts\npayment abstraction]:::data
+        NETWORKDB[network-db.ts\nsocial data logic]:::data
+        MODOCLIB[lib/modoc/*\nprompts / context / preferences]:::data
+        STORES[idea / script / breakdown /\nbudget / schedule / review stores]:::data
+    end
+
+    subgraph DB[Data Layer - PostgreSQL via Prisma]
+        AUTHDB[Identity\nUser / Account / Session /\nVerificationToken]:::data
+        STREAMDB[Streaming\nContent / WatchSession /\nComment / Rating / Watchlist /\nViewerProfile / ViewerSubscription]:::data
+        CREATORDB[Creator / Project\nOriginalProject / Pitch / Members /\nIdeas / Scripts / Scenes / WorkspaceLink /\nToolProgress]:::data
+        MARKETDB[Marketplace\nCrew / Casting / Location /\nEquipment / Catering]:::data
+        PRODDB[Production\nBudget / ShootDay / CallSheet /\nTasks / Contracts / Signatures /\nRisk / Continuity / Dailies / Incidents]:::data
+        ECONDB[Economy\nSubscriptionPayment / CreatorPayout /\nBanking / Transactions / Competition]:::data
+        SOCIALDB[Social\nFollows / Connections / Posts /\nChats / Notifications]:::data
+        AIDB[AI History\nModocConversation / ModocMessage]:::data
+        AUDITDB[Audit\nActivityLog / AdminAuditLog]:::data
+    end
+
+    subgraph EXT[External Services]
+        OAUTH[Google / GitHub OAuth]:::ext
+        EMAIL[SMTP / magic links]:::ext
+        STORAGE[S3-compatible object storage]:::ext
+        AI[OpenRouter]:::ext
+        HOST[Hosting assumption\nVercel / Railway style envs]:::ext
+    end
+
+    subgraph SEC[Security / Control Layer]
+        MW[Route middleware\nrole-based path protection]:::sec
+        SSR[Server-side session checks]:::sec
+        ROLE[Authorization pattern\nrole + project membership checks]:::sec
+        HASH[bcryptjs hashing + compare]:::sec
+        AUDIT[Auditability\nactivity + admin audit logs]:::sec
+    end
+
+    subgraph OPS[Tooling / Delivery]
+        TOOLING[npm + package-lock\nTypeScript\nESLint\nPrisma migrations]:::ops
+        TESTS[Current checks\nlint / typecheck /\nsmoke script]:::ops
+        GAPS[Known gaps\nno CI / no Docker /\nno formal test suite found]:::warn
+    end
+
+    U --> FE
+    ROOT --> PROVIDERS
+    BROWSE --> VIEWERAPI
+    BROWSE --> CONTENTAPI
+    BROWSE --> MODOCAPI
+    CREATOR --> CREATORAPI
+    CREATOR --> NETWORKAPI
+    CREATOR --> MODOCAPI
+    CREATOR --> UPLOADAPI
+    MUSIC --> MUSICAPI
+    MUSIC --> MODOCAPI
+    COMPANY --> COMPANYAPI
+    COMPANY --> MODOCAPI
+    ADMIN --> ADMINAPI
+    LANDING --> AUTHAPI
+
+    AUTHAPI --> AUTH
+    VIEWERAPI --> ACCESS
+    CREATORAPI --> ACCESS
+    CREATORAPI --> REVENUE
+    CREATORAPI --> ANALYTICS
+    CREATORAPI --> TOOLREG
+    CREATORAPI --> PAYMENTS
+    CREATORAPI --> STORES
+    MUSICAPI --> PAYMENTS
+    COMPANYAPI --> PAYMENTS
+    COMPANYAPI --> ACCESS
+    ADMINAPI --> PRISMA
+    NETWORKAPI --> NETWORKDB
+    MODOCAPI --> MODOCLIB
+    MODOCAPI --> ANALYTICS
+
+    AUTH --> PRISMA
+    ACCESS --> PRISMA
+    REVENUE --> PRISMA
+    ANALYTICS --> PRISMA
+    NETWORKDB --> PRISMA
+    PAYMENTS --> PRISMA
+    MODOCLIB --> PRISMA
+
+    PRISMA --> AUTHDB
+    PRISMA --> STREAMDB
+    PRISMA --> CREATORDB
+    PRISMA --> MARKETDB
+    PRISMA --> PRODDB
+    PRISMA --> ECONDB
+    PRISMA --> SOCIALDB
+    PRISMA --> AIDB
+    PRISMA --> AUDITDB
+
+    AUTH --> OAUTH
+    AUTH --> EMAIL
+    UPLOADAPI --> STORAGE
+    MODOCAPI --> AI
+
+    MW --> FE
+    SSR --> API
+    ROLE --> ACCESS
+    HASH --> AUTH
+    AUDIT --> AUDITDB
+    ROOT --> TOOLING
+    TOOLING --> TESTS
+    TESTS --> GAPS

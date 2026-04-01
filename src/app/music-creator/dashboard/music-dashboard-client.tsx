@@ -7,6 +7,7 @@ import {
   Music, DollarSign, Disc, Film, TrendingUp, Headphones, BarChart3,
   Clock, Users, MessageSquare, ArrowRight, Sparkles, Bell, Play,
 } from "lucide-react";
+import { getCreatorLicenseConfig, normalizeCreatorLicenseType } from "@/lib/pricing";
 
 interface SyncDeal { status: string; amount: number; content: { title: string } }
 interface SyncReq { status: string; requester: { name: string | null } }
@@ -56,7 +57,9 @@ export function MusicDashboardClient() {
             <h1 className="text-3xl font-semibold text-white tracking-tight">Music Creator Dashboard</h1>
             {license && (
               <span className="px-3 py-1 rounded-full text-xs font-medium bg-slate-700/80 text-slate-300 border border-slate-600">
-                {license.type === "YEARLY_R89" ? "Yearly license" : "Pay per upload (R10)"}
+                {normalizeCreatorLicenseType(license.type) === "YEARLY"
+                  ? `Yearly license (R${getCreatorLicenseConfig("YEARLY").price.toFixed(2)})`
+                  : `Pay per upload (R${getCreatorLicenseConfig("PER_UPLOAD").price.toFixed(2)})`}
               </span>
             )}
           </div>

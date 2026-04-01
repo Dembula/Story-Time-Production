@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { SubscriptionExpiredModal } from "./subscription-expired-modal";
 import { ViewerSuggestionsTrigger } from "./viewer-suggestions-trigger";
 import { cookies } from "next/headers";
+import { getLatestViewerSubscription, getViewerModel, isViewerSubscriptionExpired } from "@/lib/viewer-access";
 
 export default async function BrowseLayout({
   children,
@@ -17,25 +18,21 @@ export default async function BrowseLayout({
   let subscriptionExpired = false;
 
   if (session?.user?.email && role === "SUBSCRIBER") {
-    const cookieStore = await cookies();
-    const activeProfileId = cookieStore.get("st_viewer_profile")?.value;
-    if (!activeProfileId) {
-      redirect("/profiles");
-    }
     try {
       const user = await prisma.user.findUnique({
         where: { email: session.user.email },
-        include: {
-          viewerSubscriptions: { orderBy: { createdAt: "desc" }, take: 1 },
-        },
+        select: { id: true },
       });
-      const sub = user?.viewerSubscriptions?.[0];
+      const sub = user?.id ? await getLatestViewerSubscription(user.id) : null;
       if (!sub) {
         redirect("/onboarding/package");
       }
-      const trialExpired = sub.status === "TRIAL_ACTIVE" && sub.trialEndsAt && new Date(sub.trialEndsAt) < new Date();
-      const periodExpired = sub.currentPeriodEnd && new Date(sub.currentPeriodEnd) < new Date();
-      subscriptionExpired = trialExpired || periodExpired || sub.status === "PAST_DUE" || sub.status === "CANCELLED";
+      const cookieStore = await cookies();
+      const activeProfileId = cookieStore.get("st_viewer_profile")?.value;
+      if (!activeProfileId) {
+        redirect("/profiles");
+      }
+      subscriptionExpired = getViewerModel(sub) === "SUBSCRIPTION" ? isViewerSubscriptionExpired(sub) : false;
     } catch {
       // DB unreachable (e.g. wrong port or Neon suspended): still render layout
     }

@@ -114,11 +114,6 @@ export default function SignInPage() {
             </button>
           </div>
 
-          <div className="storytime-panel mt-6 rounded-xl p-3">
-            <p className="text-xs text-slate-500 mb-1.5 font-medium">Demo account:</p>
-            <p className="text-xs text-slate-400"><code className="text-slate-300">viewer@storytime.com</code> / <code className="text-slate-300">storytime2025</code></p>
-          </div>
-
           <div className="mt-4 flex items-center gap-2 justify-center text-xs text-slate-500">
             <Shield className="w-3.5 h-3.5" />
             <span>Protected with account and session controls</span>

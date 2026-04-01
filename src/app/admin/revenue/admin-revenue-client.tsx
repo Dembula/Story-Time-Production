@@ -237,12 +237,12 @@ export function AdminRevenueClient() {
               <p className="text-xs text-slate-500 mt-1">Volume: R{(data?.transactionFees?.totalVolume ?? 0).toFixed(2)}</p>
             </div>
             <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
-              <p className="text-xs text-slate-400 mb-1">Company subscriptions (R29 / R49)</p>
+              <p className="text-xs text-slate-400 mb-1">Company subscriptions (R24.99 / R44.99)</p>
               <p className="text-2xl font-bold text-white">R{(data?.companySubs?.revenue ?? 0).toFixed(2)}</p>
               <p className="text-xs text-slate-500 mt-1">{data?.companySubs?.count ?? 0} active</p>
             </div>
             <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
-              <p className="text-xs text-slate-400 mb-1">Distribution licenses (R89 yearly)</p>
+              <p className="text-xs text-slate-400 mb-1">Distribution licenses (R99.99 yearly / R24.99 upload)</p>
               <p className="text-2xl font-bold text-white">R{(data?.distributionLicenses?.revenue ?? 0).toFixed(2)}</p>
               <p className="text-xs text-slate-500 mt-1">{data?.distributionLicenses?.yearlyCount ?? 0} yearly · {data?.distributionLicenses?.perUploadCount ?? 0} per-upload</p>
             </div>

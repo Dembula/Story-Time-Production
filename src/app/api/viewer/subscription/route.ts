@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { VIEWER_MODELS, VIEWER_PLAN_CONFIG } from "@/lib/viewer-access";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -31,10 +32,23 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json();
-  const { plan, startTrial } = body as { plan?: string; startTrial?: boolean };
+  const { plan, startTrial, viewerModel } = body as {
+    plan?: string;
+    startTrial?: boolean;
+    viewerModel?: string;
+  };
 
-  const planType = plan === "STANDARD_3" ? "STANDARD_3" : plan === "FAMILY_5" ? "FAMILY_5" : "BASE_1";
-  const deviceCount = planType === "BASE_1" ? 1 : planType === "STANDARD_3" ? 3 : 5;
+  const selectedViewerModel = viewerModel === VIEWER_MODELS.PPV ? VIEWER_MODELS.PPV : VIEWER_MODELS.SUBSCRIPTION;
+  const planType =
+    selectedViewerModel === VIEWER_MODELS.PPV
+      ? "PPV_FILM"
+      : plan === "STANDARD_3"
+        ? "STANDARD_3"
+        : plan === "FAMILY_5"
+          ? "FAMILY_5"
+          : "BASE_1";
+  const planConfig = VIEWER_PLAN_CONFIG[planType];
+  const useTrial = selectedViewerModel === VIEWER_MODELS.SUBSCRIPTION && !!startTrial;
 
   const user = await prisma.user.findUnique({ where: { email: session.user.email } });
   if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -45,36 +59,130 @@ export async function POST(req: Request) {
   });
 
   if (existing && (existing.status === "TRIAL_ACTIVE" || existing.status === "ACTIVE")) {
-    return NextResponse.json({ subscription: existing, message: "Already have an active subscription" });
-  }
-
-  const trialEndsAt = startTrial ? new Date(Date.now() + 3 * 24 * 60 * 60 * 1000) : null;
-  const currentPeriodEnd = startTrial ? new Date(Date.now() + 3 * 24 * 60 * 60 * 1000) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-  const status = startTrial ? "TRIAL_ACTIVE" : "ACTIVE";
-
-  const subscription = await prisma.viewerSubscription.create({
-    data: {
-      userId: user.id,
-      plan: planType,
-      status,
-      trialEndsAt,
-      currentPeriodEnd,
-      deviceCount,
-    },
-    include: { payments: true },
-  });
-
-  if (!startTrial) {
-    await prisma.subscriptionPayment.create({
-      data: {
-        viewerSubscriptionId: subscription.id,
-        amount: planType === "BASE_1" ? 39 : planType === "STANDARD_3" ? 79 : 99,
-        currency: "ZAR",
-        status: "COMPLETED",
-        paidAt: new Date(),
-      },
+    return NextResponse.json({
+      subscription: existing,
+      profileId: null,
+      redirectTo: "/profiles",
+      message: "Already have an active subscription",
     });
   }
 
-  return NextResponse.json({ subscription });
+  if (selectedViewerModel === VIEWER_MODELS.PPV) {
+    const subscription = await prisma.viewerSubscription.create({
+      data: {
+        userId: user.id,
+        viewerModel: VIEWER_MODELS.PPV,
+        plan: "PPV_FILM",
+        status: "ACTIVE",
+        deviceCount: 1,
+        profileLimit: 1,
+        billingEmail: user.email,
+      },
+    });
+
+    return NextResponse.json({
+      subscription,
+      profileId: null,
+      redirectTo: "/profiles",
+      requiresPayment: false,
+    });
+  }
+
+  const now = new Date();
+  const trialEndsAt = useTrial ? new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000) : null;
+  const currentPeriodEnd = new Date(
+    now.getTime() + (useTrial ? 37 : 30) * 24 * 60 * 60 * 1000,
+  );
+  const subscription = await prisma.viewerSubscription.create({
+    data: {
+      userId: user.id,
+      viewerModel: selectedViewerModel,
+      plan: planType,
+      status: useTrial ? "TRIAL_ACTIVE" : "ACTIVE",
+      trialEndsAt,
+      currentPeriodEnd,
+      deviceCount: planConfig.devices,
+      profileLimit: planConfig.profiles,
+      billingEmail: user.email,
+      lastPaymentStatus: "DISABLED",
+      lastPaymentAt: now,
+    },
+  });
+
+  return NextResponse.json({
+    subscription,
+    profileId: null,
+    redirectTo: "/profiles",
+    requiresPayment: false,
+    message: "Subscription activated without payment gateway checkout.",
+  });
+}
+
+export async function PATCH(req: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const body = (await req.json().catch(() => null)) as {
+    plan?: string;
+    viewerModel?: string;
+  } | null;
+
+  const selectedViewerModel = body?.viewerModel === VIEWER_MODELS.PPV ? VIEWER_MODELS.PPV : VIEWER_MODELS.SUBSCRIPTION;
+  const planType =
+    selectedViewerModel === VIEWER_MODELS.PPV
+      ? "PPV_FILM"
+      : body?.plan === "STANDARD_3"
+        ? "STANDARD_3"
+        : body?.plan === "FAMILY_5"
+          ? "FAMILY_5"
+          : "BASE_1";
+  const planConfig = VIEWER_PLAN_CONFIG[planType];
+
+  const user = await prisma.user.findUnique({
+    where: { email: session.user.email },
+    select: { id: true, email: true },
+  });
+  if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+
+  const subscription = await prisma.viewerSubscription.findFirst({
+    where: { userId: user.id },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!subscription) {
+    return NextResponse.json({ error: "Subscription not found" }, { status: 404 });
+  }
+
+  const paymentMethod = await prisma.viewerPaymentMethod.findFirst({
+    where: { userId: user.id, isDefault: true },
+  });
+
+  if (!paymentMethod) {
+    return NextResponse.json(
+      { error: "Add a payment method before changing package" },
+      { status: 400 }
+    );
+  }
+
+  const updated = await prisma.viewerSubscription.update({
+    where: { id: subscription.id },
+    data: {
+      viewerModel: selectedViewerModel,
+      plan: planType,
+      deviceCount: planConfig.deviceCount,
+      profileLimit: planConfig.profileLimit,
+      paymentMethodId: paymentMethod.id,
+      billingEmail: subscription.billingEmail ?? user.email,
+      status: "ACTIVE",
+      lastPaymentStatus: "PENDING",
+      lastPaymentError: null,
+      lastPaymentAt: new Date(),
+    },
+  });
+
+  return NextResponse.json({
+    subscription: updated,
+    message: "Package updated. Connect Paystack charging in this flow when ready.",
+  });
 }

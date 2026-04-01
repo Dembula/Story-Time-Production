@@ -3,6 +3,7 @@ import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { PackageClient } from "./package-client";
+import { getViewerModel, isViewerSubscriptionExpired } from "@/lib/viewer-access";
 
 export default async function OnboardingPackagePage() {
   const session = await getServerSession(authOptions);
@@ -19,15 +20,23 @@ export default async function OnboardingPackagePage() {
   });
 
   const sub = user?.viewerSubscriptions?.[0];
-  const hasActive = sub && (sub.status === "TRIAL_ACTIVE" || sub.status === "ACTIVE");
-  if (hasActive) redirect("/profiles");
+  const hasActive = sub && !isViewerSubscriptionExpired(sub);
+  if (hasActive) redirect(getViewerModel(sub) === "PPV" ? "/browse" : "/profiles");
 
   return (
-    <div className="min-h-screen bg-[#0c1222] flex items-center justify-center px-4 py-12">
-      <div className="max-w-2xl w-full">
-        <h1 className="text-3xl font-bold text-white text-center mb-2">Choose your plan</h1>
-        <p className="text-slate-400 text-center mb-10">Start with a 3-day free trial or pay now</p>
+    <div className="min-h-screen bg-background px-6 py-16 text-slate-100">
+      <div className="mx-auto w-full max-w-6xl">
+        <div className="mx-auto max-w-3xl text-center">
+          <p className="mb-3 text-sm uppercase tracking-[0.28em] text-orange-300/80">Viewer onboarding</p>
+          <h1 className="font-display text-4xl font-semibold text-white md:text-5xl">Choose your viewer model</h1>
+          <p className="mt-3 text-slate-300/78">
+            Decide between full-catalogue subscription access or a single-profile PPV account before continuing.
+          </p>
+        </div>
+
+        <div className="mt-12">
         <PackageClient />
+        </div>
       </div>
     </div>
   );

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useSession, signOut } from "next-auth/react";
-import { User, LogOut, Film, Music, LayoutDashboard, Settings, CreditCard, Wallet } from "lucide-react";
+import { User, LogOut, Film, Music, LayoutDashboard, Settings } from "lucide-react";
 import { useEffect, useState } from "react";
 import { NotificationBell } from "@/components/layout/notification-bell";
 
@@ -20,6 +20,7 @@ export function Navbar() {
   const { data: session } = useSession();
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [activeProfile, setActiveProfile] = useState<{ id: string; name: string; age: number } | null>(null);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
@@ -27,6 +28,19 @@ export function Navbar() {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  useEffect(() => {
+    const role = (session?.user as { role?: string } | undefined)?.role;
+    if (role !== "SUBSCRIBER") {
+      setActiveProfile(null);
+      return;
+    }
+
+    fetch("/api/viewer/profiles/active")
+      .then((r) => r.json())
+      .then((data) => setActiveProfile(data?.profile ?? null))
+      .catch(() => setActiveProfile(null));
+  }, [session]);
 
   const handleSignOut = async () => {
     setMenuOpen(false);
@@ -80,14 +94,30 @@ export function Navbar() {
                   {(session.user?.name || "?")[0]}
                 </div>
               )}
+              {(session.user as { role?: string })?.role === "SUBSCRIBER" && activeProfile ? (
+                <span className="hidden max-w-[8rem] truncate text-sm font-medium text-white md:inline">
+                  {activeProfile.name}
+                </span>
+              ) : null}
             </button>
             {menuOpen && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
                 <div className="storytime-panel absolute right-0 top-full z-50 mt-3 w-56 rounded-2xl py-2">
                   <div className="border-b border-white/8 px-4 py-3">
-                    <p className="font-medium text-white truncate">{session.user?.name}</p>
-                    <p className="text-sm text-slate-400 truncate">{session.user?.email}</p>
+                    <p className="font-medium text-white truncate">
+                      {(session.user as { role?: string })?.role === "SUBSCRIBER" && activeProfile
+                        ? activeProfile.name
+                        : session.user?.name}
+                    </p>
+                    <p className="text-sm text-slate-400 truncate">
+                      {(session.user as { role?: string })?.role === "SUBSCRIBER" && activeProfile
+                        ? `Profile age ${activeProfile.age}`
+                        : session.user?.email}
+                    </p>
+                    {(session.user as { role?: string })?.role === "SUBSCRIBER" && activeProfile ? (
+                      <p className="mt-1 truncate text-xs text-slate-500">Account: {session.user?.email}</p>
+                    ) : null}
                   </div>
                   <Link href="/browse" className="block px-4 py-2.5 text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white" onClick={() => setMenuOpen(false)}>
                     Browse
@@ -100,12 +130,6 @@ export function Navbar() {
                       <User className="w-4 h-4" /> Who&apos;s watching?
                     </Link>
                   )}
-                  <Link href="/browse/account" className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white" onClick={() => setMenuOpen(false)}>
-                    <CreditCard className="w-4 h-4" /> My account
-                  </Link>
-                  <Link href="/browse/settings#payment" className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white" onClick={() => setMenuOpen(false)}>
-                    <Wallet className="w-4 h-4" /> Payment methods
-                  </Link>
                   {(session.user as { role?: string })?.role === "CONTENT_CREATOR" && (
                     <Link href="/creator/dashboard" className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white" onClick={() => setMenuOpen(false)}>
                       <Film className="w-4 h-4" /> Creator Dashboard
