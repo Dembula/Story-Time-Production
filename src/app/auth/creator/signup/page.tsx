@@ -110,7 +110,7 @@ export default function CreatorSignUpPage() {
               </div>
               <h1 className="mb-2 font-display text-2xl font-semibold text-slate-950">Creator Terms Acknowledgement</h1>
               <p className="mb-6 text-sm text-slate-600">
-                Before creating a creator account, you must acknowledge the platform's legal, monetization, and payment conditions.
+                Before creating a creator account, you must acknowledge the platform&apos;s legal, monetization, and payment conditions.
               </p>
               <div className="mb-5 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">
                 <p className="mb-3">By continuing, you confirm review and acceptance of:</p>
