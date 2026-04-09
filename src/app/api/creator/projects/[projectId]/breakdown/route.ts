@@ -72,14 +72,42 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ proje
 
   const body = (await req.json().catch(() => null)) as
     | {
-        characters?: { id?: string; name: string; description?: string | null; importance?: string | null }[];
-        props?: { id?: string; name: string; description?: string | null; special?: boolean }[];
-        locations?: { id?: string; name: string; description?: string | null }[];
-        wardrobe?: { id?: string; description: string; character?: string | null }[];
-        extras?: { id?: string; description: string; quantity?: number }[];
-        vehicles?: { id?: string; description: string; stuntRelated?: boolean }[];
-        stunts?: { id?: string; description: string; safetyNotes?: string | null }[];
-        sfx?: { id?: string; description: string; practical?: boolean }[];
+        characters?: {
+          id?: string;
+          name: string;
+          description?: string | null;
+          importance?: string | null;
+          sceneId?: string | null;
+        }[];
+        props?: {
+          id?: string;
+          name: string;
+          description?: string | null;
+          special?: boolean;
+          sceneId?: string | null;
+        }[];
+        locations?: {
+          id?: string;
+          name: string;
+          description?: string | null;
+          sceneId?: string | null;
+          locationListingId?: string | null;
+        }[];
+        wardrobe?: {
+          id?: string;
+          description: string;
+          character?: string | null;
+          sceneId?: string | null;
+        }[];
+        extras?: { id?: string; description: string; quantity?: number; sceneId?: string | null }[];
+        vehicles?: {
+          id?: string;
+          description: string;
+          stuntRelated?: boolean;
+          sceneId?: string | null;
+        }[];
+        stunts?: { id?: string; description: string; safetyNotes?: string | null; sceneId?: string | null }[];
+        sfx?: { id?: string; description: string; practical?: boolean; sceneId?: string | null }[];
       }
     | null;
 
@@ -95,6 +123,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ proje
           name: ch.name,
           description: ch.description ?? null,
           importance: ch.importance ?? null,
+          sceneId: ch.sceneId ?? null,
         };
         if (ch.id) {
           await tx.breakdownCharacter.updateMany({
@@ -114,6 +143,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ proje
           name: p.name,
           description: p.description ?? null,
           special: p.special ?? false,
+          sceneId: p.sceneId ?? null,
         };
         if (p.id) {
           await tx.breakdownProp.updateMany({
@@ -132,6 +162,8 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ proje
           projectId,
           name: l.name,
           description: l.description ?? null,
+          sceneId: l.sceneId ?? null,
+          locationListingId: l.locationListingId ?? null,
         };
         if (l.id) {
           await tx.breakdownLocation.updateMany({
@@ -150,6 +182,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ proje
           projectId,
           description: w.description,
           character: w.character ?? null,
+          sceneId: w.sceneId ?? null,
         };
         if (w.id) {
           await tx.breakdownWardrobe.updateMany({
@@ -168,6 +201,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ proje
           projectId,
           description: e.description,
           quantity: e.quantity ?? 1,
+          sceneId: e.sceneId ?? null,
         };
         if (e.id) {
           await tx.breakdownExtra.updateMany({
@@ -186,6 +220,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ proje
           projectId,
           description: v.description,
           stuntRelated: v.stuntRelated ?? false,
+          sceneId: v.sceneId ?? null,
         };
         if (v.id) {
           await tx.breakdownVehicle.updateMany({
@@ -204,6 +239,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ proje
           projectId,
           description: s.description,
           safetyNotes: s.safetyNotes ?? null,
+          sceneId: s.sceneId ?? null,
         };
         if (s.id) {
           await tx.breakdownStunt.updateMany({
@@ -222,6 +258,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ proje
           projectId,
           description: fx.description,
           practical: fx.practical ?? false,
+          sceneId: fx.sceneId ?? null,
         };
         if (fx.id) {
           await tx.breakdownSfx.updateMany({

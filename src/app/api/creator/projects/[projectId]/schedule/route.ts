@@ -42,21 +42,90 @@ async function ensureAccess(projectId: string) {
   return { error: null as NextResponse | null, userId };
 }
 
-function parseScenesFromScript(content: string): { number: string; heading: string | null }[] {
-  const lines = content.split(/\r?\n/);
-  const scenes: { number: string; heading: string | null }[] = [];
-  let sceneNumber = 1;
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (/^(INT\.|EXT\.)/i.test(trimmed)) {
-      scenes.push({
-        number: `${sceneNumber}`,
-        heading: trimmed,
-      });
-      sceneNumber += 1;
-    }
-  }
-  return scenes;
+const sceneScheduleInclude = {
+  script: { select: { id: true, title: true } },
+  primaryLocation: { select: { id: true, name: true, description: true } },
+  breakdownCharacters: {
+    select: { id: true, name: true, description: true, importance: true },
+    orderBy: { name: "asc" as const },
+  },
+  breakdownProps: {
+    select: { id: true, name: true, description: true, special: true },
+    orderBy: { name: "asc" as const },
+  },
+  breakdownLocations: {
+    select: { id: true, name: true, description: true },
+    orderBy: { name: "asc" as const },
+  },
+  breakdownWardrobes: {
+    select: { id: true, description: true, character: true },
+    orderBy: { description: "asc" as const },
+  },
+  breakdownExtras: {
+    select: { id: true, description: true, quantity: true },
+  },
+  breakdownVehicles: {
+    select: { id: true, description: true, stuntRelated: true },
+  },
+  breakdownStunts: {
+    select: { id: true, description: true, safetyNotes: true },
+  },
+  breakdownSfxs: {
+    select: { id: true, description: true, practical: true },
+  },
+} as const;
+
+async function loadSchedulePayload(projectId: string) {
+  const script = await prisma.projectScript.findFirst({
+    where: { projectId },
+    orderBy: { updatedAt: "desc" },
+    select: {
+      id: true,
+      title: true,
+      _count: { select: { scenes: true } },
+    },
+  });
+
+  const [shootDays, scenes] = await Promise.all([
+    prisma.shootDay.findMany({
+      where: { projectId },
+      orderBy: { date: "asc" },
+      include: {
+        scenes: { orderBy: { order: "asc" } },
+      },
+    }),
+    prisma.projectScene.findMany({
+      where: { projectId },
+      orderBy: { number: "asc" },
+      include: sceneScheduleInclude,
+    }),
+  ]);
+
+  const scenesById = new Map(scenes.map((s) => [s.id, s]));
+
+  return {
+    script: script
+      ? { id: script.id, title: script.title, sceneCount: script._count.scenes }
+      : null,
+    shootDays: shootDays.map((d) => ({
+      id: d.id,
+      date: d.date.toISOString(),
+      unit: d.unit,
+      callTime: d.callTime,
+      wrapTime: d.wrapTime,
+      status: d.status,
+      locationSummary: d.locationSummary,
+      scenesBeingShot: d.scenesBeingShot,
+      dayNotes: d.dayNotes,
+      scenes: d.scenes.map((link) => ({
+        id: `${d.id}-${link.sceneId}`,
+        order: link.order,
+        sceneId: link.sceneId,
+        scene: scenesById.get(link.sceneId) ?? null,
+      })),
+    })),
+    scenes,
+  };
 }
 
 export async function GET(
@@ -67,31 +136,7 @@ export async function GET(
   const access = await ensureAccess(projectId);
   if (access.error) return access.error;
 
-  const [shootDays, scenes] = await Promise.all([
-    prisma.shootDay.findMany({
-      where: { projectId },
-      orderBy: { date: "asc" },
-      include: { scenes: { orderBy: { order: "asc" } } },
-    }),
-    prisma.projectScene.findMany({
-      where: { projectId },
-      orderBy: { number: "asc" },
-    }),
-  ]);
-
-  const scenesById = new Map(scenes.map((s) => [s.id, s]));
-
-  return NextResponse.json({
-    shootDays: shootDays.map((d) => ({
-      ...d,
-      scenes: d.scenes.map((link) => ({
-        id: `${d.id}-${link.sceneId}`,
-        order: link.order,
-        scene: scenesById.get(link.sceneId) ?? null,
-      })),
-    })),
-    scenes,
-  });
+  return NextResponse.json(await loadSchedulePayload(projectId));
 }
 
 export async function POST(
@@ -105,8 +150,46 @@ export async function POST(
   const body = (await req.json().catch(() => null)) as
     | {
         date?: string;
+        duplicateFromDayId?: string;
       }
     | null;
+
+  if (body?.duplicateFromDayId) {
+    const src = await prisma.shootDay.findFirst({
+      where: { id: body.duplicateFromDayId, projectId },
+      include: { scenes: { orderBy: { order: "asc" } } },
+    });
+    if (!src) {
+      return NextResponse.json({ error: "Source shoot day not found" }, { status: 404 });
+    }
+    const dateIso = body.date ?? new Date(Date.now() + 86400000).toISOString();
+    const day = await prisma.$transaction(async (tx) => {
+      const created = await tx.shootDay.create({
+        data: {
+          projectId,
+          date: new Date(dateIso),
+          status: "PLANNED",
+          unit: src.unit,
+          callTime: src.callTime,
+          wrapTime: src.wrapTime,
+          locationSummary: src.locationSummary,
+          scenesBeingShot: src.scenesBeingShot,
+          dayNotes: src.dayNotes,
+        },
+      });
+      if (src.scenes.length > 0) {
+        await tx.shootDayScene.createMany({
+          data: src.scenes.map((s) => ({
+            shootDayId: created.id,
+            sceneId: s.sceneId,
+            order: s.order,
+          })),
+        });
+      }
+      return created;
+    });
+    return NextResponse.json(await loadSchedulePayload(projectId), { status: 201 });
+  }
 
   const dateIso = body?.date ?? new Date().toISOString();
   const day = await prisma.shootDay.create({
@@ -136,8 +219,9 @@ export async function PATCH(
           callTime: string | null;
           wrapTime: string | null;
           locationSummary: string | null;
-          status: string;
           scenesBeingShot?: string | null;
+          dayNotes?: string | null;
+          status: string;
           scenes: { sceneId: string; order: number }[];
         }[];
       }
@@ -158,6 +242,8 @@ export async function PATCH(
           wrapTime: d.wrapTime ?? null,
           status: d.status,
           locationSummary: d.locationSummary ?? null,
+          scenesBeingShot: d.scenesBeingShot ?? null,
+          dayNotes: d.dayNotes ?? null,
         },
       });
 
@@ -177,29 +263,28 @@ export async function PATCH(
     }
   });
 
-  const [shootDays, scenes] = await Promise.all([
-    prisma.shootDay.findMany({
-      where: { projectId },
-      orderBy: { date: "asc" },
-      include: { scenes: { orderBy: { order: "asc" } } },
-    }),
-    prisma.projectScene.findMany({
-      where: { projectId },
-      orderBy: { number: "asc" },
-    }),
-  ]);
+  return NextResponse.json(await loadSchedulePayload(projectId));
+}
 
-  const scenesById = new Map(scenes.map((s) => [s.id, s]));
+export async function DELETE(
+  req: NextRequest,
+  context: { params: Promise<{ projectId: string }> },
+) {
+  const { projectId } = await context.params;
+  const access = await ensureAccess(projectId);
+  if (access.error) return access.error;
 
-  return NextResponse.json({
-    shootDays: shootDays.map((d) => ({
-      ...d,
-      scenes: d.scenes.map((link) => ({
-        id: `${d.id}-${link.sceneId}`,
-        order: link.order,
-        scene: scenesById.get(link.sceneId) ?? null,
-      })),
-    })),
-    scenes,
+  const dayId = new URL(req.url).searchParams.get("dayId");
+  if (!dayId) {
+    return NextResponse.json({ error: "Missing dayId" }, { status: 400 });
+  }
+
+  const result = await prisma.shootDay.deleteMany({
+    where: { id: dayId, projectId },
   });
+  if (result.count === 0) {
+    return NextResponse.json({ error: "Shoot day not found" }, { status: 404 });
+  }
+
+  return NextResponse.json(await loadSchedulePayload(projectId));
 }

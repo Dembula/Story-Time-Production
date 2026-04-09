@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Bot } from "lucide-react";
@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useModocOptional, useModoc } from "@/components/modoc";
+import { useProjectSchedule, useProjectCallSheets } from "@/hooks/useCreatorProjectData";
 
 interface ProductionToolPageProps {
   params: Promise<{ projectId?: string; tool: string }>;
@@ -30,7 +31,7 @@ const LABELS: Record<string, string> = {
 
 function UnlinkedBanner() {
   return (
-    <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-sm text-amber-200/90">
+    <div className="storytime-plan-card border-amber-400/25 bg-amber-500/[0.06] px-4 py-3 text-sm text-amber-100/95">
       No project linked. Use the dropdown above to link a project and save your work, or create one from the dashboard.
     </div>
   );
@@ -243,7 +244,7 @@ export default function ProductionToolPage({ params }: ProductionToolPageProps) 
   return (
     <div className="space-y-4">
       <header>
-        <h2 className="text-xl font-semibold text-white">{title}</h2>
+        <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
         <p className="text-sm text-slate-400 mt-1">
           On-set tools for running and tracking your shoot.
         </p>
@@ -256,11 +257,7 @@ function ControlCenter({ projectId, title }: { projectId?: string; title: string
   const modoc = useModocOptional();
   const [modocReportOpen, setModocReportOpen] = useState(false);
   const hasProject = !!projectId;
-  const { data: schedule } = useQuery({
-    queryKey: ["project-schedule", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/schedule`).then((r) => r.json()),
-    enabled: hasProject,
-  });
+  const { data: schedule } = useProjectSchedule(projectId);
   const { data: tasksData } = useQuery({
     queryKey: ["project-tasks", projectId],
     queryFn: () => fetch(`/api/creator/projects/${projectId}/tasks`).then((r) => r.json()),
@@ -276,6 +273,7 @@ function ControlCenter({ projectId, title }: { projectId?: string; title: string
     queryFn: () => fetch(`/api/creator/projects/${projectId}/risk`).then((r) => r.json()),
     enabled: hasProject,
   });
+  const { data: callSheetsData } = useProjectCallSheets(projectId);
 
   const shootDays = (schedule?.shootDays ?? []) as {
     id: string;
@@ -295,12 +293,14 @@ function ControlCenter({ projectId, title }: { projectId?: string; title: string
     createdAt?: string;
   }[];
   const riskItems = (riskData?.plan?.items ?? []) as { id: string; category: string; status: string }[];
+  const callSheets = (callSheetsData?.callSheets ?? []) as { id: string; shootDayId: string; title: string | null }[];
   const today = new Date().toISOString().slice(0, 10);
   const todayDay = shootDays.find((d) => d.date.startsWith(today));
   const openTasks = tasks.filter((t) => t.status !== "DONE");
   const openIncidents = incidents.filter((i) => !i.resolved);
   const highPriorityTasks = openTasks.filter((t) => t.priority === "HIGH").slice(0, 5);
-  const openRiskItems = riskItems.filter((r) => r.status !== "MITIGATED" && r.status !== "RESOLVED").length;
+  const openRiskItems = riskItems.filter((r) => r.status !== "DONE").length;
+  const todaysCallSheet = todayDay ? callSheets.find((c) => c.shootDayId === todayDay.id) : undefined;
 
   const base = projectId ? `/creator/projects/${projectId}/production` : "#";
 
@@ -308,7 +308,7 @@ function ControlCenter({ projectId, title }: { projectId?: string; title: string
     <div className="space-y-4">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-white">{title}</h2>
+          <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
           <p className="text-sm text-slate-400 mt-1">
             Your daily command centre: today’s shoot, tasks, incidents, and risk. Use the links below to jump into any production tool.
           </p>
@@ -337,7 +337,7 @@ function ControlCenter({ projectId, title }: { projectId?: string; title: string
       )}
 
       {/* Today strip */}
-      <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4 space-y-2">
+      <div className="creator-glass-panel p-4 space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
           <span className="font-medium text-slate-200">Today&apos;s shoot</span>
           <span className="text-slate-400">{new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric", year: "numeric" })}</span>
@@ -355,13 +355,30 @@ function ControlCenter({ projectId, title }: { projectId?: string; title: string
         ) : (
           <p className="text-slate-500 text-sm">No shoot scheduled for today.</p>
         )}
-        <Link href={`${base}/call-sheet-generator`} className="inline-flex items-center gap-1 text-xs text-orange-400 hover:text-orange-300 mt-1">
-          Open Call Sheet Generator →
-        </Link>
+        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
+          <Link
+            href={todayDay ? `${base}/call-sheet-generator?dayId=${todayDay.id}` : `${base}/call-sheet-generator`}
+            className="inline-flex items-center gap-1 text-xs text-orange-400 hover:text-orange-300"
+          >
+            {todayDay
+              ? todaysCallSheet
+                ? "Open today’s saved call sheet flow →"
+                : "Build call sheet for today →"
+              : "Open Call Sheet Generator →"}
+          </Link>
+          {projectId ? (
+            <Link
+              href={`/creator/projects/${projectId}/pre-production/production-scheduling`}
+              className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-slate-200"
+            >
+              Shoot schedule (pre-prod) →
+            </Link>
+          ) : null}
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Card className="border-slate-800 bg-slate-950/70">
+        <Card className="creator-glass-panel border-0 bg-transparent shadow-none">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">Open tasks</CardTitle>
           </CardHeader>
@@ -384,7 +401,7 @@ function ControlCenter({ projectId, title }: { projectId?: string; title: string
           </CardContent>
         </Card>
 
-        <Card className="border-slate-800 bg-slate-950/70">
+        <Card className="creator-glass-panel border-0 bg-transparent shadow-none">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">Incidents</CardTitle>
           </CardHeader>
@@ -409,7 +426,7 @@ function ControlCenter({ projectId, title }: { projectId?: string; title: string
           </CardContent>
         </Card>
 
-        <Card className="border-slate-800 bg-slate-950/70">
+        <Card className="creator-glass-panel border-0 bg-transparent shadow-none">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">Risk & readiness</CardTitle>
           </CardHeader>
@@ -426,7 +443,7 @@ function ControlCenter({ projectId, title }: { projectId?: string; title: string
         </Card>
       </div>
 
-      <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-4">
+      <div className="creator-glass-panel p-4">
         <p className="text-xs font-medium text-slate-400 mb-2">Production tools</p>
         <div className="flex flex-wrap gap-2">
           <Link href={`${base}/call-sheet-generator`} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-200 text-xs hover:bg-orange-500/20 hover:text-orange-300 border border-slate-700">
@@ -501,6 +518,37 @@ function CallSheetGenerator({ projectId, title }: { projectId?: string; title: s
 
   const selectedDay = shootDays.find((d) => d.id === selectedDayId);
 
+  const appliedUrlDay = useRef(false);
+  useEffect(() => {
+    if (appliedUrlDay.current || shootDays.length === 0 || typeof window === "undefined") return;
+    const q = new URLSearchParams(window.location.search).get("dayId");
+    if (q && shootDays.some((d) => d.id === q)) {
+      setSelectedDayId(q);
+      const d = shootDays.find((x) => x.id === q);
+      if (d) setSheetTitle(`Call sheet – ${new Date(d.date).toLocaleDateString()}`);
+      appliedUrlDay.current = true;
+    }
+  }, [shootDays]);
+
+  const { data: previewPayload, isFetching: previewBusy } = useQuery({
+    queryKey: ["call-sheet-preview", projectId, selectedDayId],
+    queryFn: () =>
+      fetch(
+        `/api/creator/projects/${projectId}/call-sheets/preview?shootDayId=${encodeURIComponent(selectedDayId)}`,
+      ).then((r) => {
+        if (!r.ok) throw new Error("Preview failed");
+        return r.json();
+      }),
+    enabled: hasProject && !!selectedDayId,
+  });
+  const preview = previewPayload?.preview as
+    | {
+        cast: { characterName: string; roleName: string; talentName: string | null }[];
+        locations: { name: string; description: string | null }[];
+        schedule: { order: number; sceneNumber: string; heading: string | null }[];
+      }
+    | undefined;
+
   const createMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch(`/api/creator/projects/${projectId}/call-sheets`, {
@@ -517,6 +565,7 @@ function CallSheetGenerator({ projectId, title }: { projectId?: string; title: s
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["project-call-sheets", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["call-sheet-preview", projectId] });
       setNotes("");
       setSheetTitle("");
     },
@@ -526,7 +575,7 @@ function CallSheetGenerator({ projectId, title }: { projectId?: string; title: s
     <div className="space-y-4">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-white">{title}</h2>
+          <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
           <p className="text-sm text-slate-400 mt-1">
             Generate call sheets from your production schedule. Pick a shoot day to auto-fill scenes, call/wrap times, and locations; add notes and generate.
           </p>
@@ -556,7 +605,7 @@ function CallSheetGenerator({ projectId, title }: { projectId?: string; title: s
 
       <div className="grid gap-4 md:grid-cols-[1fr,280px]">
         <div className="space-y-4">
-          <Card className="border-slate-800 bg-slate-950/70">
+          <Card className="creator-glass-panel border-0 bg-transparent shadow-none">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">Shoot day</CardTitle>
             </CardHeader>
@@ -594,6 +643,56 @@ function CallSheetGenerator({ projectId, title }: { projectId?: string; title: s
                 </div>
               )}
 
+              {selectedDayId && (
+                <div className="rounded-xl border border-slate-700 bg-slate-950/80 p-3 space-y-2" aria-busy={previewBusy}>
+                  <p className="text-[11px] font-medium text-slate-400">
+                    Preview (from schedule, breakdown, casting)
+                  </p>
+                  {previewBusy ? (
+                    <p className="text-xs text-slate-500">Loading preview…</p>
+                  ) : preview ? (
+                    <div className="space-y-3 max-h-[280px] overflow-y-auto text-[11px]">
+                      <div>
+                        <p className="text-slate-500 mb-1">Scenes</p>
+                        <ul className="text-slate-300 space-y-0.5">
+                          {preview.schedule?.length ? (
+                            preview.schedule.map((row) => (
+                              <li key={`${row.order}-${row.sceneNumber}`}>
+                                Sc. {row.sceneNumber}
+                                {row.heading ? ` — ${row.heading}` : ""}
+                              </li>
+                            ))
+                          ) : (
+                            <li className="text-slate-500">No scenes on this day.</li>
+                          )}
+                        </ul>
+                      </div>
+                      <div>
+                        <p className="text-slate-500 mb-1">Cast ({preview.cast?.length ?? 0})</p>
+                        <ul className="text-slate-300 space-y-0.5">
+                          {(preview.cast ?? []).slice(0, 12).map((c, i) => (
+                            <li key={i}>
+                              {c.characterName}
+                              {c.talentName ? ` · ${c.talentName}` : ""}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div>
+                        <p className="text-slate-500 mb-1">Locations ({preview.locations?.length ?? 0})</p>
+                        <ul className="text-slate-300 space-y-0.5">
+                          {(preview.locations ?? []).slice(0, 8).map((loc, i) => (
+                            <li key={i}>{loc.name}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-500">Could not load preview.</p>
+                  )}
+                </div>
+              )}
+
               <div className="space-y-1">
                 <label className="text-[11px] text-slate-400">Call sheet title (optional)</label>
                 <Input
@@ -619,7 +718,7 @@ function CallSheetGenerator({ projectId, title }: { projectId?: string; title: s
                 disabled={!selectedDayId || createMutation.isPending || !hasProject}
                 onClick={() => hasProject && selectedDayId && createMutation.mutate()}
               >
-                {createMutation.isPending ? "Creating..." : "Generate call sheet"}
+                {createMutation.isPending ? "Creating..." : "Save call sheet snapshot"}
               </Button>
             </CardContent>
           </Card>
@@ -657,6 +756,16 @@ function OnSetTasks({ projectId, title }: { projectId?: string; title: string })
     queryFn: () => fetch(`/api/creator/projects/${projectId}/tasks`).then((r) => r.json()),
     enabled: hasProject,
   });
+  const { data: scheduleData } = useQuery({
+    queryKey: ["project-schedule", projectId],
+    queryFn: () => fetch(`/api/creator/projects/${projectId}/schedule`).then((r) => r.json()),
+    enabled: hasProject,
+  });
+  const { data: scenesData } = useQuery({
+    queryKey: ["project-scenes", projectId],
+    queryFn: () => fetch(`/api/creator/projects/${projectId}/scenes`).then((r) => r.json()),
+    enabled: hasProject,
+  });
   const tasks = (data?.tasks ?? []) as {
     id: string;
     title: string;
@@ -664,11 +773,18 @@ function OnSetTasks({ projectId, title }: { projectId?: string; title: string })
     status: string;
     department: string | null;
     priority: string | null;
+    shootDay?: { id: string; date: string } | null;
+    scene?: { id: string; number: string; heading: string | null } | null;
   }[];
+  const shootDays = (scheduleData?.shootDays ?? []) as { id: string; date: string }[];
+  const scenesList = (scenesData?.scenes ?? []) as { id: string; number: string; heading: string | null }[];
   const [newTitle, setNewTitle] = useState("");
   const [newDepartment, setNewDepartment] = useState("");
   const [newPriority, setNewPriority] = useState<string>("MEDIUM");
+  const [newShootDayId, setNewShootDayId] = useState<string>("");
+  const [newSceneId, setNewSceneId] = useState<string>("");
   const [filterDept, setFilterDept] = useState<string>("");
+  const [filterShootDayId, setFilterShootDayId] = useState<string>("");
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -679,6 +795,8 @@ function OnSetTasks({ projectId, title }: { projectId?: string; title: string })
           title: newTitle.trim(),
           department: newDepartment.trim() || undefined,
           priority: newPriority,
+          shootDayId: newShootDayId || undefined,
+          sceneId: newSceneId || undefined,
         }),
       });
       if (!res.ok) throw new Error("Failed");
@@ -688,6 +806,8 @@ function OnSetTasks({ projectId, title }: { projectId?: string; title: string })
       queryClient.invalidateQueries({ queryKey: ["project-tasks", projectId] });
       setNewTitle("");
       setNewDepartment("");
+      setNewShootDayId("");
+      setNewSceneId("");
     },
   });
   const updateMutation = useMutation({
@@ -703,7 +823,27 @@ function OnSetTasks({ projectId, title }: { projectId?: string; title: string })
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project-tasks", projectId] }),
   });
 
-  const filtered = filterDept ? tasks.filter((t) => (t.department || "").toLowerCase() === filterDept.toLowerCase()) : tasks;
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(
+        `/api/creator/projects/${projectId}/tasks?id=${encodeURIComponent(id)}`,
+        { method: "DELETE" },
+      );
+      if (!res.ok) throw new Error("Failed to delete");
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project-tasks", projectId] }),
+  });
+
+  const filtered = useMemo(() => {
+    let t = tasks;
+    if (filterDept) {
+      t = t.filter((x) => (x.department || "").toLowerCase() === filterDept.toLowerCase());
+    }
+    if (filterShootDayId) {
+      t = t.filter((x) => x.shootDay?.id === filterShootDayId);
+    }
+    return t;
+  }, [tasks, filterDept, filterShootDayId]);
   const todo = filtered.filter((t) => t.status === "TODO");
   const inProgress = filtered.filter((t) => t.status === "IN_PROGRESS");
   const done = filtered.filter((t) => t.status === "DONE");
@@ -713,7 +853,7 @@ function OnSetTasks({ projectId, title }: { projectId?: string; title: string })
     <div className="space-y-4">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-white">{title}</h2>
+          <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
           <p className="text-sm text-slate-400 mt-1">
             Kanban for on-set tasks. Create tasks, move them through To do → In progress → Done. Tasks created from Risk, Table Reads, or Dailies can appear here.
           </p>
@@ -741,7 +881,7 @@ function OnSetTasks({ projectId, title }: { projectId?: string; title: string })
         />
       )}
 
-      <Card className="border-slate-800 bg-slate-950/70 p-4">
+      <Card className="creator-glass-panel border-0 bg-transparent p-4 shadow-none">
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex-1 min-w-[180px] space-y-1">
             <label className="text-[11px] text-slate-400">New task</label>
@@ -782,7 +922,58 @@ function OnSetTasks({ projectId, title }: { projectId?: string; title: string })
             Add task
           </Button>
         </div>
+        <div className="flex flex-wrap items-end gap-3 mt-3 pt-3 border-t border-slate-800">
+          <div className="space-y-1">
+            <label className="text-[11px] text-slate-400">Link to shoot day</label>
+            <select
+              value={newShootDayId}
+              onChange={(e) => setNewShootDayId(e.target.value)}
+              className="rounded-md bg-slate-900 border border-slate-700 px-2 py-1.5 text-sm text-white min-w-[160px]"
+            >
+              <option value="">None</option>
+              {shootDays.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {new Date(d.date).toLocaleDateString()}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-[11px] text-slate-400">Link to scene</label>
+            <select
+              value={newSceneId}
+              onChange={(e) => setNewSceneId(e.target.value)}
+              className="rounded-md bg-slate-900 border border-slate-700 px-2 py-1.5 text-sm text-white min-w-[180px]"
+            >
+              <option value="">None</option>
+              {scenesList.map((s) => (
+                <option key={s.id} value={s.id}>
+                  Sc. {s.number}
+                  {s.heading ? ` — ${s.heading.slice(0, 24)}` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
       </Card>
+
+      {shootDays.length > 0 && (
+        <div className="flex flex-wrap gap-2 items-center">
+          <span className="text-xs text-slate-400">Filter by shoot day:</span>
+          <select
+            value={filterShootDayId}
+            onChange={(e) => setFilterShootDayId(e.target.value)}
+            className="rounded-md bg-slate-900 border border-slate-700 px-2 py-1 text-xs text-white"
+          >
+            <option value="">All shoot days</option>
+            {shootDays.map((d) => (
+              <option key={d.id} value={d.id}>
+                {new Date(d.date).toLocaleDateString()}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {departments.length > 0 && (
         <div className="flex flex-wrap gap-2 items-center">
@@ -816,14 +1007,42 @@ function OnSetTasks({ projectId, title }: { projectId?: string; title: string })
             count={todo.length}
             tasks={todo}
             onStatus={hasProject ? (id) => updateMutation.mutate({ id, status: "IN_PROGRESS" }) : undefined}
+            onDelete={
+              hasProject
+                ? (id) => {
+                    if (typeof window !== "undefined" && !window.confirm("Delete this task?")) return;
+                    deleteMutation.mutate(id);
+                  }
+                : undefined
+            }
           />
           <Column
             title="In progress"
             count={inProgress.length}
             tasks={inProgress}
             onStatus={hasProject ? (id) => updateMutation.mutate({ id, status: "DONE" }) : undefined}
+            onDelete={
+              hasProject
+                ? (id) => {
+                    if (typeof window !== "undefined" && !window.confirm("Delete this task?")) return;
+                    deleteMutation.mutate(id);
+                  }
+                : undefined
+            }
           />
-          <Column title="Done" count={done.length} tasks={done} />
+          <Column
+            title="Done"
+            count={done.length}
+            tasks={done}
+            onDelete={
+              hasProject
+                ? (id) => {
+                    if (typeof window !== "undefined" && !window.confirm("Delete this task?")) return;
+                    deleteMutation.mutate(id);
+                  }
+                : undefined
+            }
+          />
         </div>
       )}
     </div>
@@ -835,14 +1054,25 @@ function Column({
   count,
   tasks,
   onStatus,
+  onDelete,
 }: {
   title: string;
   count?: number;
-  tasks: { id: string; title: string; description?: string | null; status: string; department?: string | null; priority?: string | null }[];
+  tasks: {
+    id: string;
+    title: string;
+    description?: string | null;
+    status: string;
+    department?: string | null;
+    priority?: string | null;
+    shootDay?: { id: string; date: string } | null;
+    scene?: { id: string; number: string; heading: string | null } | null;
+  }[];
   onStatus?: (id: string) => void;
+  onDelete?: (id: string) => void;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-3">
+    <div className="creator-glass-panel p-3">
       <div className="flex items-center justify-between mb-2">
         <p className="text-xs font-medium text-slate-400">{title}</p>
         {count !== undefined && <span className="text-[11px] text-slate-500">{count}</span>}
@@ -862,13 +1092,35 @@ function Column({
                 {t.department && (
                   <span className="text-[10px] text-slate-500">{t.department}</span>
                 )}
+                {t.shootDay && (
+                  <span className="text-[10px] text-slate-600">
+                    Day {new Date(t.shootDay.date).toLocaleDateString()}
+                  </span>
+                )}
+                {t.scene && (
+                  <span className="text-[10px] text-slate-600">Sc. {t.scene.number}</span>
+                )}
               </div>
             </div>
-            {onStatus && (
-              <Button size="sm" variant="ghost" className="text-xs text-slate-400 shrink-0" onClick={() => onStatus(t.id)}>
-                →
-              </Button>
-            )}
+            <div className="flex items-center gap-0.5 shrink-0">
+              {onDelete && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-xs text-red-400/90 hover:text-red-300 px-1.5"
+                  type="button"
+                  onClick={() => onDelete(t.id)}
+                  aria-label="Delete task"
+                >
+                  ×
+                </Button>
+              )}
+              {onStatus && (
+                <Button size="sm" variant="ghost" className="text-xs text-slate-400 shrink-0" onClick={() => onStatus(t.id)}>
+                  →
+                </Button>
+              )}
+            </div>
           </li>
         ))}
       </ul>
@@ -905,7 +1157,7 @@ function EquipmentTracking({ projectId, title }: { projectId?: string; title: st
     <div className="space-y-4">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-white">{title}</h2>
+          <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
           <p className="text-sm text-slate-400 mt-1">
             See what was planned for this project and track gear on set. Planned items come from Pre-Production Equipment Planning; use the Equipment marketplace to request and track actual check-out/return.
           </p>
@@ -934,7 +1186,7 @@ function EquipmentTracking({ projectId, title }: { projectId?: string; title: st
       )}
 
       {hasProject && items.length > 0 && (
-        <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-3 flex flex-wrap gap-4 text-sm">
+        <div className="creator-glass-panel p-3 flex flex-wrap gap-4 text-sm">
           <span className="text-slate-300"><span className="font-medium text-white">{items.length}</span> line items</span>
           <span className="text-slate-300"><span className="font-medium text-white">{totalItems}</span> total units</span>
         </div>
@@ -945,7 +1197,7 @@ function EquipmentTracking({ projectId, title }: { projectId?: string; title: st
       ) : (
         <div className="space-y-4">
           {items.length === 0 ? (
-            <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-6 text-center">
+            <div className="creator-glass-panel p-6 text-center">
               <p className="text-sm text-slate-500 mb-2">
                 {!hasProject ? "Link a project above to see equipment." : "No equipment planned yet."}
               </p>
@@ -960,7 +1212,7 @@ function EquipmentTracking({ projectId, title }: { projectId?: string; title: st
             </div>
           ) : (
             Object.entries(byDepartment).map(([dept, list]) => (
-              <div key={dept} className="rounded-2xl border border-slate-800 bg-slate-950/70 p-3 space-y-2">
+              <div key={dept} className="creator-glass-panel p-3 space-y-2">
                 <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">{dept}</p>
                 <ul className="space-y-2">
                   {list.map((i) => (
@@ -982,12 +1234,12 @@ function EquipmentTracking({ projectId, title }: { projectId?: string; title: st
       <div className="grid gap-3 sm:grid-cols-2">
         <Link
           href={projectId ? `/creator/projects/${projectId}/pre-production/equipment-planning` : "/creator/pre/equipment-planning"}
-          className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 hover:border-orange-500/60 transition block"
+          className="creator-glass-panel block p-4 transition hover:border-orange-400/35"
         >
           <h3 className="text-sm font-semibold text-white mb-1">Pre-Production Equipment Planning</h3>
           <p className="text-xs text-slate-400">Edit planned cameras, lighting, audio, and gear for this project.</p>
         </Link>
-        <Link href="/creator/equipment" className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 hover:border-orange-500/60 transition block">
+        <Link href="/creator/equipment" className="creator-glass-panel block p-4 transition hover:border-orange-400/35">
           <h3 className="text-sm font-semibold text-white mb-1">Equipment marketplace & requests</h3>
           <p className="text-xs text-slate-400">View and update gear requests; track check-out and return.</p>
         </Link>
@@ -1016,7 +1268,7 @@ function ShootProgress({ projectId, title }: { projectId?: string; title: string
     <div className="space-y-4">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-white">{title}</h2>
+          <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
           <p className="text-sm text-slate-400 mt-1">
             Shoot days and scene progress.
           </p>
@@ -1052,7 +1304,7 @@ function ShootProgress({ projectId, title }: { projectId?: string; title: string
           <div className="h-full bg-emerald-500 transition-all" style={{ width: `${percent}%` }} />
         </div>
       </div>
-      <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-3">
+      <div className="creator-glass-panel p-3">
         <p className="text-xs text-slate-400 mb-2">Scenes: {sceneCount}</p>
         <ul className="space-y-1 text-sm text-slate-300">
           {scenes.slice(0, 15).map((s) => (
@@ -1097,7 +1349,7 @@ function ContinuityManager({ projectId, title }: { projectId?: string; title: st
     <div className="space-y-4">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-white">{title}</h2>
+          <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
           <p className="text-sm text-slate-400 mt-1">
             Continuity notes by scene and shoot day.
           </p>
@@ -1144,7 +1396,7 @@ function ContinuityManager({ projectId, title }: { projectId?: string; title: st
       {isLoading ? (
         <Skeleton className="h-48 bg-slate-800/60" />
       ) : (
-        <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-3 space-y-2">
+        <div className="creator-glass-panel p-3 space-y-2">
           {notes.length === 0 ? (
             <p className="text-sm text-slate-500 p-4">
               {!hasProject ? "Link a project above to add continuity notes." : "No continuity notes yet."}
@@ -1188,7 +1440,7 @@ function DailiesReview({ projectId, title }: { projectId?: string; title: string
     <div className="space-y-4">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-white">{title}</h2>
+          <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
           <p className="text-sm text-slate-400 mt-1">
             Dailies batches and review notes.
           </p>
@@ -1218,7 +1470,7 @@ function DailiesReview({ projectId, title }: { projectId?: string; title: string
       {isLoading ? (
         <Skeleton className="h-48 bg-slate-800/60" />
       ) : (
-        <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-3 space-y-3">
+        <div className="creator-glass-panel p-3 space-y-3">
           {batches.length === 0 ? (
             <p className="text-sm text-slate-500 p-4">
               {!hasProject ? "Link a project above to see dailies." : "No dailies yet. Add batches when footage is ready."}
@@ -1275,7 +1527,7 @@ function ExpenseTracker({ projectId, title }: { projectId?: string; title: strin
     <div className="space-y-4">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-white">{title}</h2>
+          <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
           <p className="text-sm text-slate-400 mt-1">
             Track expenses against your budget.
           </p>
@@ -1302,6 +1554,22 @@ function ExpenseTracker({ projectId, title }: { projectId?: string; title: strin
           projectId={projectId ?? undefined}
         />
       )}
+      {hasProject && projectId && (
+        <div className="flex flex-wrap gap-3 text-xs">
+          <Link
+            href={`/creator/projects/${projectId}/pre-production/budget-builder`}
+            className="text-orange-400 hover:text-orange-300"
+          >
+            Budget builder →
+          </Link>
+          <Link
+            href={`/creator/projects/${projectId}/pre-production/production-scheduling`}
+            className="text-slate-400 hover:text-slate-200"
+          >
+            Production schedule →
+          </Link>
+        </div>
+      )}
       <div className="flex gap-4 text-sm">
         <span className="text-slate-400">Planned: R{planned.toFixed(2)}</span>
         <span className="text-white font-medium">Spent: R{totalSpent.toFixed(2)}</span>
@@ -1311,7 +1579,7 @@ function ExpenseTracker({ projectId, title }: { projectId?: string; title: strin
           </span>
         )}
       </div>
-      <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-3 space-y-2 max-h-80 overflow-y-auto">
+      <div className="creator-glass-panel p-3 space-y-2 max-h-80 overflow-y-auto">
         {expenses.length === 0 ? (
           <p className="text-sm text-slate-500 p-4">No expenses logged yet.</p>
         ) : (
@@ -1376,7 +1644,7 @@ function IncidentReporting({ projectId, title }: { projectId?: string; title: st
     <div className="space-y-4">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-white">{title}</h2>
+          <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
           <p className="text-sm text-slate-400 mt-1">
             Log and resolve on-set incidents.
           </p>
@@ -1403,7 +1671,7 @@ function IncidentReporting({ projectId, title }: { projectId?: string; title: st
           projectId={projectId ?? undefined}
         />
       )}
-      <Card className="border-slate-800 bg-slate-950/70">
+      <Card className="creator-glass-panel border-0 bg-transparent shadow-none">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">New incident</CardTitle>
         </CardHeader>
@@ -1440,7 +1708,7 @@ function IncidentReporting({ projectId, title }: { projectId?: string; title: st
           </Button>
         </CardContent>
       </Card>
-      <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-3 space-y-2">
+      <div className="creator-glass-panel p-3 space-y-2">
         {isLoading ? (
           <Skeleton className="h-32 bg-slate-800/60" />
         ) : incidents.length === 0 ? (
@@ -1482,16 +1750,30 @@ function ProductionWrap({ projectId, title }: { projectId?: string; title: strin
     queryFn: () => fetch(`/api/creator/projects/${projectId}/incidents`).then((r) => r.json()),
     enabled: hasProject,
   });
+  const { data: tasksData } = useQuery({
+    queryKey: ["project-tasks", projectId],
+    queryFn: () => fetch(`/api/creator/projects/${projectId}/tasks`).then((r) => r.json()),
+    enabled: hasProject,
+  });
+  const { data: dailiesData } = useQuery({
+    queryKey: ["project-dailies", projectId],
+    queryFn: () => fetch(`/api/creator/projects/${projectId}/dailies`).then((r) => r.json()),
+    enabled: hasProject,
+  });
   const shootDays = (schedule?.shootDays ?? []) as { status: string }[];
   const incidents = (incidentsData?.incidents ?? []) as { resolved: boolean }[];
+  const tasks = (tasksData?.tasks ?? []) as { status: string }[];
+  const batches = (dailiesData?.batches ?? []) as { reviewNotes?: unknown[] }[];
   const completedDays = shootDays.filter((d) => d.status === "WRAPPED" || d.status === "COMPLETED").length;
   const openIncidents = incidents.filter((i) => !i.resolved).length;
+  const openTasksCount = tasks.filter((t) => t.status !== "DONE").length;
+  const dailiesPendingReview = batches.filter((b) => !b.reviewNotes || b.reviewNotes.length === 0).length;
 
   return (
     <div className="space-y-4">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-white">{title}</h2>
+          <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
           <p className="text-sm text-slate-400 mt-1">
             Confirm principal photography complete and move to Post-Production.
           </p>
@@ -1519,7 +1801,7 @@ function ProductionWrap({ projectId, title }: { projectId?: string; title: strin
         />
       )}
       {!hasProject ? (
-        <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 text-sm text-slate-400">
+        <div className="creator-glass-panel p-4 text-sm text-slate-400">
           Link a project above to see wrap status and move to post-production.
         </div>
       ) : (
@@ -1527,10 +1809,12 @@ function ProductionWrap({ projectId, title }: { projectId?: string; title: strin
           <ul className="space-y-2 text-sm text-slate-300">
             <li>• Shoot days completed: {completedDays} / {shootDays.length}</li>
             <li>• Open incidents: {openIncidents}</li>
+            <li>• Open on-set tasks: {openTasksCount}</li>
+            <li>• Dailies batches without review notes: {dailiesPendingReview}</li>
             <li>• Equipment returned or logged</li>
             <li>• Dailies reviewed and backed up</li>
           </ul>
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
+          <div className="creator-glass-panel p-4">
             <ProjectStageControls projectId={projectId!} status="PRODUCTION" phase="SHOOTING" />
           </div>
         </>

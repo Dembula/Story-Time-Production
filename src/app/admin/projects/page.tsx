@@ -10,37 +10,49 @@ export default async function AdminProjectsPage() {
     redirect("/auth/signin");
   }
 
-  const projects = await prisma.originalProject.findMany({
-    include: {
-      pitches: {
-        take: 1,
-        orderBy: { createdAt: "desc" },
+  const [projects, linkGroups] = await Promise.all([
+    prisma.originalProject.findMany({
+      include: {
+        pitches: {
+          take: 1,
+          orderBy: { createdAt: "desc" },
+        },
+        members: {
+          take: 3,
+          include: { user: true },
+        },
+        toolProgress: {
+          select: { toolId: true, status: true, phase: true },
+        },
       },
-      members: {
-        take: 3,
-        include: { user: true },
-      },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.content.groupBy({
+      by: ["linkedProjectId"],
+      where: { linkedProjectId: { not: null } },
+      _count: { _all: true },
+    }),
+  ]);
+
+  const linkedCatalogueCount: Record<string, number> = {};
+  for (const g of linkGroups) {
+    if (g.linkedProjectId) linkedCatalogueCount[g.linkedProjectId] = g._count._all;
+  }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl md:text-3xl font-semibold text-white tracking-tight">
-          Projects & Pipeline
-        </h1>
-        <p className="text-sm text-slate-400 mt-1">
-          High-level view of all Originals and creator film projects across Pre-Production,
-          Production, and Post-Production.
+    <div className="space-y-6 px-2 md:px-0">
+      <header className="storytime-plan-card p-5 md:p-6">
+        <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">
+          Operations
         </p>
-      </div>
-
-      <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-xs text-slate-400">
-        This overview surfaces projects from the Originals system (`OriginalProject`). As you add
-        more pipeline data (budgets, schedules, contracts), this page can be extended to show
-        readiness, risks, and assignment across the admin team.
-      </div>
+        <h1 className="font-display text-2xl font-semibold tracking-tight text-white md:text-3xl">
+          Projects &amp; pipeline
+        </h1>
+        <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
+          Every creator film project, tool progress snapshot, and how many catalogue submissions are
+          linked for delivery tracking.
+        </p>
+      </header>
 
       <div className="space-y-3">
         {projects.map((project) => {
@@ -48,11 +60,15 @@ export default async function AdminProjectsPage() {
           const created = new Date(project.createdAt);
           const isOriginal = !!latestPitch;
           const stage = project.status || "DEVELOPMENT";
+          const tp = project.toolProgress ?? [];
+          const toolsComplete = tp.filter((t) => t.status === "COMPLETE").length;
+          const linkedN = linkedCatalogueCount[project.id] ?? 0;
 
           return (
             <div
               key={project.id}
-              className="flex items-center justify-between gap-4 rounded-2xl border border-slate-800 bg-slate-900/70 px-4 py-3"
+              id={`project-${project.id}`}
+              className="flex scroll-mt-24 flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
             >
               <div className="min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
@@ -74,8 +90,18 @@ export default async function AdminProjectsPage() {
                   {project.genre ? `· ${project.genre}` : ""}
                 </p>
               </div>
-              <div className="flex flex-col items-end gap-1 text-[11px] text-slate-400 w-40">
-                <span className="self-end">
+              <div className="flex flex-col items-start gap-1 text-[11px] text-slate-400 sm:items-end sm:text-right">
+                <span>
+                  Tools:{" "}
+                  <span className="text-slate-200">
+                    {toolsComplete}/{tp.length || 0} complete
+                  </span>
+                </span>
+                <span>
+                  Linked catalogue:{" "}
+                  <span className="text-slate-200">{linkedN}</span>
+                </span>
+                <span>
                   Team:{" "}
                   {project.members
                     .map((m) => m.user.name || "Member")
@@ -83,7 +109,7 @@ export default async function AdminProjectsPage() {
                     .join(", ")}
                   {project.members.length > 2 && ` +${project.members.length - 2}`}
                 </span>
-                <span className="px-2 py-0.5 rounded-full bg-slate-900 border border-slate-700">
+                <span className="rounded-full border border-slate-700 bg-slate-900 px-2 py-0.5">
                   Phase: {project.phase}
                 </span>
               </div>

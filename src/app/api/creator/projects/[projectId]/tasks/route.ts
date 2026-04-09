@@ -44,6 +44,10 @@ export async function GET(
   const tasks = await prisma.projectTask.findMany({
     where: { projectId },
     orderBy: { createdAt: "asc" },
+    include: {
+      shootDay: { select: { id: true, date: true } },
+      scene: { select: { id: true, number: true, heading: true } },
+    },
   });
 
   return NextResponse.json({ tasks });
@@ -64,11 +68,30 @@ export async function POST(
         description?: string;
         department?: string;
         priority?: string;
+        shootDayId?: string | null;
+        sceneId?: string | null;
       }
     | null;
 
   if (!body?.title) {
     return NextResponse.json({ error: "Missing title" }, { status: 400 });
+  }
+
+  if (body.shootDayId) {
+    const day = await prisma.shootDay.findFirst({
+      where: { id: body.shootDayId, projectId },
+    });
+    if (!day) {
+      return NextResponse.json({ error: "Invalid shootDayId" }, { status: 400 });
+    }
+  }
+  if (body.sceneId) {
+    const sc = await prisma.projectScene.findFirst({
+      where: { id: body.sceneId, projectId },
+    });
+    if (!sc) {
+      return NextResponse.json({ error: "Invalid sceneId" }, { status: 400 });
+    }
   }
 
   const task = await prisma.projectTask.create({
@@ -78,7 +101,13 @@ export async function POST(
       description: body.description ?? null,
       department: body.department ?? null,
       priority: body.priority ?? null,
+      shootDayId: body.shootDayId ?? null,
+      sceneId: body.sceneId ?? null,
       createdById: userId,
+    },
+    include: {
+      shootDay: { select: { id: true, date: true } },
+      scene: { select: { id: true, number: true, heading: true } },
     },
   });
 
@@ -101,11 +130,37 @@ export async function PATCH(
         department?: string | null;
         status?: string;
         priority?: string | null;
+        shootDayId?: string | null;
+        sceneId?: string | null;
       }
     | null;
 
   if (!body?.id) {
     return NextResponse.json({ error: "Missing id" }, { status: 400 });
+  }
+
+  const existing = await prisma.projectTask.findFirst({
+    where: { id: body.id, projectId },
+  });
+  if (!existing) {
+    return NextResponse.json({ error: "Task not found" }, { status: 404 });
+  }
+
+  if (body.shootDayId) {
+    const day = await prisma.shootDay.findFirst({
+      where: { id: body.shootDayId, projectId },
+    });
+    if (!day) {
+      return NextResponse.json({ error: "Invalid shootDayId" }, { status: 400 });
+    }
+  }
+  if (body.sceneId) {
+    const sc = await prisma.projectScene.findFirst({
+      where: { id: body.sceneId, projectId },
+    });
+    if (!sc) {
+      return NextResponse.json({ error: "Invalid sceneId" }, { status: 400 });
+    }
   }
 
   const updated = await prisma.projectTask.update({
@@ -116,9 +171,37 @@ export async function PATCH(
       ...(body.department !== undefined ? { department: body.department } : {}),
       ...(body.status !== undefined ? { status: body.status } : {}),
       ...(body.priority !== undefined ? { priority: body.priority } : {}),
+      ...(body.shootDayId !== undefined ? { shootDayId: body.shootDayId } : {}),
+      ...(body.sceneId !== undefined ? { sceneId: body.sceneId } : {}),
+    },
+    include: {
+      shootDay: { select: { id: true, date: true } },
+      scene: { select: { id: true, number: true, heading: true } },
     },
   });
 
   return NextResponse.json({ task: updated });
 }
 
+export async function DELETE(
+  req: NextRequest,
+  context: { params: Promise<{ projectId: string }> },
+) {
+  const { projectId } = await context.params;
+  const access = await ensureTaskAccess(projectId);
+  if (access.error) return access.error;
+
+  const id = new URL(req.url).searchParams.get("id");
+  if (!id) {
+    return NextResponse.json({ error: "Missing id" }, { status: 400 });
+  }
+
+  const result = await prisma.projectTask.deleteMany({
+    where: { id, projectId },
+  });
+  if (result.count === 0) {
+    return NextResponse.json({ error: "Task not found" }, { status: 404 });
+  }
+
+  return NextResponse.json({ ok: true });
+}

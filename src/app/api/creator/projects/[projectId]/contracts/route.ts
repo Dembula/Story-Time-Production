@@ -68,6 +68,32 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Missing type" }, { status: 400 });
   }
 
+  let termsForVersion = body.terms?.trim() || "Terms to be added.";
+  if (!body.terms?.trim() || body.terms.trim() === "Terms to be added.") {
+    const [roles, characters] = await Promise.all([
+      prisma.castingRole.findMany({
+        where: { projectId },
+        take: 30,
+        select: { name: true },
+        orderBy: { createdAt: "asc" },
+      }),
+      prisma.breakdownCharacter.findMany({
+        where: { projectId },
+        take: 30,
+        select: { name: true },
+        orderBy: { name: "asc" },
+      }),
+    ]);
+    const names = [
+      ...new Set(
+        [...roles.map((r) => r.name.trim()), ...characters.map((c) => c.name.trim())].filter(Boolean),
+      ),
+    ];
+    if (names.length > 0) {
+      termsForVersion = `Cast & breakdown names (reference only): ${names.join(", ")}\n\n${termsForVersion}`;
+    }
+  }
+
   const contract = await prisma.projectContract.create({
     data: {
       projectId,
@@ -82,12 +108,12 @@ export async function POST(req: NextRequest, { params }: Params) {
     },
   });
 
-  if (body.terms) {
+  if (termsForVersion) {
     const version = await prisma.projectContractVersion.create({
       data: {
         contractId: contract.id,
         version: 1,
-        terms: body.terms,
+        terms: termsForVersion,
         createdById: userId,
       },
     });

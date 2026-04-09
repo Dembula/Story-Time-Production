@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { compare, hash } from "bcryptjs";
+import { normalizeAvatarImageUrl } from "@/lib/avatar-image-url";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -46,10 +47,18 @@ export async function PATCH(req: NextRequest) {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
-  const { name, email, phoneNumber, currentPassword, newPassword, bio, socialLinks, education, goals, previousWork, headline, location, website, isAfdaStudent } = body;
+  const { name, email, phoneNumber, currentPassword, newPassword, bio, socialLinks, education, goals, previousWork, headline, location, website, isAfdaStudent, image } = body;
 
   const data: Record<string, unknown> = {};
   if (name !== undefined) data.name = name;
+  if (image !== undefined) {
+    try {
+      data.image = normalizeAvatarImageUrl(typeof image === "string" ? image : "");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Invalid image URL";
+      return NextResponse.json({ error: msg }, { status: 400 });
+    }
+  }
   if (bio !== undefined) data.bio = bio;
   if (socialLinks !== undefined) data.socialLinks = typeof socialLinks === "string" ? socialLinks : JSON.stringify(socialLinks);
   if (education !== undefined) data.education = education;

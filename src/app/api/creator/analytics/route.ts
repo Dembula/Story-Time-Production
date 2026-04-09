@@ -1,9 +1,11 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getCreatorAnalytics } from "@/lib/creator-analytics";
 
-export async function GET() {
+const VALID_RANGES = new Set(["7d", "30d", "month", "all"]);
+
+export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
   const role = (session?.user as { role?: string })?.role;
   const creatorId = (session?.user as { id?: string })?.id;
@@ -13,6 +15,9 @@ export async function GET() {
   }
   if (!creatorId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const analytics = await getCreatorAnalytics(creatorId);
+  const raw = req.nextUrl.searchParams.get("range");
+  const range = raw && VALID_RANGES.has(raw) ? raw : "month";
+
+  const analytics = await getCreatorAnalytics(creatorId, { range });
   return NextResponse.json(analytics);
 }

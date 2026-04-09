@@ -1,10 +1,22 @@
 import { prisma } from "./prisma";
 import { getCreatorRevenue, getViewerSubscriptionRevenue } from "./revenue";
 
-const now = new Date();
-const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+export type AnalyticsRangeKey = "7d" | "30d" | "month" | "all";
+
+function resolveAnalyticsWindow(range: string | undefined): { start: Date; end: Date; key: AnalyticsRangeKey } {
+  const end = new Date();
+  if (range === "7d") return { start: new Date(end.getTime() - 7 * 86400000), end, key: "7d" };
+  if (range === "30d") return { start: new Date(end.getTime() - 30 * 86400000), end, key: "30d" };
+  if (range === "all") return { start: new Date(0), end, key: "all" };
+  return {
+    start: new Date(end.getFullYear(), end.getMonth(), 1),
+    end,
+    key: "month",
+  };
+}
 
 export type CreatorAnalytics = {
+  rangeKey: AnalyticsRangeKey;
   period: { start: string; end: string };
   revenue: {
     amount: number;
@@ -51,16 +63,19 @@ export type CreatorAnalytics = {
   } | null;
 };
 
-export async function getCreatorAnalytics(creatorId: string): Promise<CreatorAnalytics> {
-  const periodEnd = new Date();
+export async function getCreatorAnalytics(
+  creatorId: string,
+  options?: { range?: string },
+): Promise<CreatorAnalytics> {
+  const { start: windowStart, end: periodEnd, key: rangeKey } = resolveAnalyticsWindow(options?.range);
   const [revenueResult, watchSessions, totalViewsPeriod, totalViewsAllTime, uniqueWatchers, watchTimeAgg, contentCount, totalComments, totalRatings, watchlistCount, contentList, projects, competitionPeriod, creatorVotes] = await Promise.all([
-    getCreatorRevenue(creatorId, thisMonthStart, periodEnd),
+    getCreatorRevenue(creatorId, windowStart, periodEnd),
     prisma.watchSession.findMany({
-      where: { content: { creatorId }, startedAt: { gte: thisMonthStart, lte: periodEnd } },
+      where: { content: { creatorId }, startedAt: { gte: windowStart, lte: periodEnd } },
       select: { durationSeconds: true, contentId: true },
     }),
     prisma.watchSession.count({
-      where: { content: { creatorId }, startedAt: { gte: thisMonthStart, lte: periodEnd } },
+      where: { content: { creatorId }, startedAt: { gte: windowStart, lte: periodEnd } },
     }),
     prisma.watchSession.count({ where: { content: { creatorId } } }),
     prisma.watchSession.groupBy({
@@ -123,7 +138,7 @@ export async function getCreatorAnalytics(creatorId: string): Promise<CreatorAna
     })(),
   ]);
 
-  const viewerSubRevenue = await getViewerSubscriptionRevenue(thisMonthStart, periodEnd);
+  const viewerSubRevenue = await getViewerSubscriptionRevenue(windowStart, periodEnd);
   const creatorPool = viewerSubRevenue * 0.6;
   const perViewRand = totalViewsPeriod > 0 ? revenueResult.revenue / totalViewsPeriod : 0;
   const perStreamRand = watchSessions.length > 0 ? revenueResult.revenue / watchSessions.length : 0;
@@ -160,8 +175,9 @@ export async function getCreatorAnalytics(creatorId: string): Promise<CreatorAna
   });
 
   return {
+    rangeKey,
     period: {
-      start: thisMonthStart.toISOString(),
+      start: windowStart.toISOString(),
       end: periodEnd.toISOString(),
     },
     revenue: {

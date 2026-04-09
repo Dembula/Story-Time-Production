@@ -50,16 +50,51 @@ export async function GET(
   const access = await ensureReadinessAccess(projectId);
   if (access.error) return access.error;
 
-  const [budget, castRoles, crewNeeds, locations, equipmentPlan, riskPlan, contracts] =
-    await Promise.all([
-      prisma.projectBudget.findUnique({ where: { projectId } }),
-      prisma.castingRole.count({ where: { projectId } }),
-      prisma.crewRoleNeed.count({ where: { projectId } }),
-      prisma.breakdownLocation.count({ where: { projectId } }),
-      prisma.equipmentPlanItem.count({ where: { projectId } }),
-      prisma.riskPlan.findUnique({ where: { projectId } }),
-      prisma.projectContract.count({ where: { projectId } }),
-    ]);
+  const [
+    budget,
+    castRoles,
+    crewNeeds,
+    locations,
+    equipmentPlan,
+    riskPlan,
+    contracts,
+    sceneCount,
+    breakdownCharacterCount,
+    charactersWithScene,
+    shootDays,
+    callSheets,
+    unsignedContracts,
+    openRiskItems,
+  ] = await Promise.all([
+    prisma.projectBudget.findUnique({ where: { projectId } }),
+    prisma.castingRole.count({ where: { projectId } }),
+    prisma.crewRoleNeed.count({ where: { projectId } }),
+    prisma.breakdownLocation.count({ where: { projectId } }),
+    prisma.equipmentPlanItem.count({ where: { projectId } }),
+    prisma.riskPlan.findUnique({ where: { projectId } }),
+    prisma.projectContract.count({ where: { projectId } }),
+    prisma.projectScene.count({ where: { projectId } }),
+    prisma.breakdownCharacter.count({ where: { projectId } }),
+    prisma.breakdownCharacter.count({ where: { projectId, sceneId: { not: null } } }),
+    prisma.shootDay.findMany({ where: { projectId }, select: { id: true } }),
+    prisma.callSheet.findMany({ where: { projectId }, select: { shootDayId: true } }),
+    prisma.projectContract.count({
+      where: { projectId, NOT: { status: { in: ["SIGNED", "EXECUTED", "CLOSED"] } } },
+    }),
+    prisma.riskChecklistItem.count({
+      where: {
+        plan: { projectId },
+        NOT: { status: "DONE" },
+      },
+    }),
+  ]);
+
+  const coveredDays = new Set(callSheets.map((c) => c.shootDayId));
+  const daysWithoutCallSheet = shootDays.filter((d) => !coveredDays.has(d.id)).length;
+  const breakdownSceneCoveragePercent =
+    breakdownCharacterCount === 0
+      ? null
+      : Math.round((charactersWithScene / breakdownCharacterCount) * 100);
 
   const checklist = {
     hasBudget: !!budget,
@@ -77,6 +112,16 @@ export async function GET(
   return NextResponse.json({
     checklist,
     readinessPercent,
+    metrics: {
+      scriptSceneCount: sceneCount,
+      breakdownCharacterCount,
+      breakdownCharactersWithScene: charactersWithScene,
+      breakdownSceneCoveragePercent,
+      scheduledShootDayCount: shootDays.length,
+      shootDaysWithoutCallSheet: daysWithoutCallSheet,
+      unsignedContractCount: unsignedContracts,
+      openRiskItemCount: openRiskItems,
+    },
   });
 }
 

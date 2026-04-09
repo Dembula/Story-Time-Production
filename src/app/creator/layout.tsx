@@ -11,7 +11,7 @@ const primaryNavItems = [
   { href: "/creator/dashboard", label: "My Projects" },
   { href: "/creator/account", label: "My Account" },
   { href: "/creator/network", label: "Network" },
-  { href: "/creator/revenue", label: "Analytics" },
+  { href: "/creator/analytics", label: "Analytics" },
   { href: "/creator/messages", label: "Messages" },
   { href: "/creator/originals/submit", label: "Originals", highlight: true },
 ];
@@ -121,6 +121,17 @@ export default function CreatorLayout({
                   ].join(" ")}
                 >
                   Post-Production
+                </Link>
+                <Link
+                  href="/creator/upload"
+                  className={[
+                    "flex items-center px-3 py-2 rounded-lg text-sm transition",
+                    pathname === "/creator/upload"
+                      ? "bg-white/[0.08] text-white shadow-panel"
+                      : "text-slate-400 hover:bg-white/[0.05] hover:text-white",
+                  ].join(" ")}
+                >
+                  Catalogue upload
                 </Link>
               </div>
 

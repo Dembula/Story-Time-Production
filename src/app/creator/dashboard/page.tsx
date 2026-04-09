@@ -18,8 +18,8 @@ export default async function CreatorDashboardPage() {
   }
 
   return (
-    <div className="p-4 md:p-6">
-      <div className="max-w-7xl mx-auto space-y-8">
+    <div className="px-6 py-8 md:px-12 md:py-10">
+      <div className="max-w-5xl mx-auto space-y-10">
         <CreatorProjectsDashboardClient />
       </div>
     </div>

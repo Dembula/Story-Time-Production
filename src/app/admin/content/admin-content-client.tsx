@@ -2,11 +2,18 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 import {
   CheckCircle, XCircle, Clock, Eye, AlertTriangle, Film, Star,
   MessageSquare, Users, ChevronDown, ChevronUp, Send, Shield,
   Sparkles, Globe, Tag, Calendar, EyeOff, Play, Search, ExternalLink,
 } from "lucide-react";
+import {
+  REVIEW_CTA_PRESET_TEMPLATES,
+  resolveCtaPresetPath,
+  parseReviewFeedback,
+  type ReviewFeedbackKind,
+} from "@/lib/review-feedback";
 
 interface ContentItem {
   id: string;
@@ -28,12 +35,49 @@ interface ContentItem {
   featured: boolean;
   reviewStatus: string;
   reviewNote: string | null;
+  reviewFeedback?: unknown;
+  linkedProjectId?: string | null;
+  linkedProject?: { id: string; title: string } | null;
   submittedAt: string | null;
   reviewedAt: string | null;
   createdAt: string;
   creator: { id: string; name: string | null; email: string | null; isAfdaStudent: boolean };
   _count: { watchSessions: number; ratings: number; comments: number; crewMembers: number };
   crewMembers: { name: string; role: string }[];
+}
+
+type FeedbackDraftRow = { kind: ReviewFeedbackKind; message: string; presetPath: string };
+
+function AdminPipelineDigest({ projectId }: { projectId: string }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin-project-digest", projectId],
+    queryFn: () => fetch(`/api/admin/projects/${projectId}/digest`).then((r) => r.json()),
+  });
+  if (isLoading) {
+    return <p className="text-xs text-slate-500">Loading pipeline…</p>;
+  }
+  if (!data?.project) return null;
+  const tp = (data.toolProgress ?? []) as { toolId: string; status: string; percent: number }[];
+  const complete = tp.filter((t) => t.status === "COMPLETE").length;
+  const lc = (data.linkedContent ?? []) as { id: string; title: string; reviewStatus: string }[];
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 space-y-2">
+      <p className="text-xs font-medium text-orange-300/90">Linked project pipeline</p>
+      <p className="text-[11px] text-slate-400">
+        {data.project.title} · {complete}/{tp.length || 0} tools marked complete (snapshot)
+      </p>
+      {lc.length > 0 && (
+        <div className="text-[11px] text-slate-500">
+          <span className="text-slate-400">Catalogue linked: </span>
+          {lc.map((x) => (
+            <span key={x.id} className="mr-2">
+              {x.title} ({x.reviewStatus})
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 const STATUS_TABS = [
@@ -65,7 +109,8 @@ export function AdminContentClient() {
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [previewing, setPreviewing] = useState<string | null>(null);
-  const [reviewNote, setReviewNote] = useState("");
+  const [noteById, setNoteById] = useState<Record<string, string>>({});
+  const [feedbackById, setFeedbackById] = useState<Record<string, FeedbackDraftRow[]>>({});
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   useEffect(() => {
@@ -76,17 +121,62 @@ export function AdminContentClient() {
       .finally(() => setLoading(false));
   }, [tab]);
 
+  function ensureDraftsFor(c: ContentItem) {
+    setNoteById((prev) =>
+      prev[c.id] !== undefined ? prev : { ...prev, [c.id]: c.reviewNote || "" },
+    );
+    setFeedbackById((prev) => {
+      if (prev[c.id] !== undefined) return prev;
+      const parsed = parseReviewFeedback(c.reviewFeedback);
+      const rows: FeedbackDraftRow[] = parsed.map((p) => {
+        const preset =
+          REVIEW_CTA_PRESET_TEMPLATES.find(
+            (t) => resolveCtaPresetPath(t.path, c.linkedProject?.id ?? null) === p.ctaPath,
+          )?.path ?? "";
+        return {
+          kind: p.kind,
+          message: p.message,
+          presetPath: preset,
+        };
+      });
+      return { ...prev, [c.id]: rows };
+    });
+  }
+
   async function handleReview(contentId: string, action: string, featured?: boolean) {
     setActionLoading(contentId);
+    const item = content.find((x) => x.id === contentId);
+    const note = noteById[contentId] ?? "";
+    const rows = feedbackById[contentId] ?? [];
+    const linkedId = item?.linkedProject?.id ?? item?.linkedProjectId ?? null;
+    const withCta = rows
+      .filter((r) => r.message.trim())
+      .map((r) => {
+        const path = r.presetPath ? resolveCtaPresetPath(r.presetPath, linkedId) : null;
+        const label = REVIEW_CTA_PRESET_TEMPLATES.find((t) => t.path === r.presetPath)?.label;
+        return {
+          kind: r.kind,
+          message: r.message.trim(),
+          ...(path ? { ctaPath: path, ...(label ? { ctaLabel: label } : {}) } : {}),
+        };
+      });
+
     const res = await fetch("/api/admin/content/review", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contentId, action, reviewNote, featured }),
+      body: JSON.stringify({
+        contentId,
+        action,
+        reviewNote: note,
+        featured,
+        ...(action === "REJECT" || action === "REQUEST_CHANGES" ? { reviewFeedback: withCta } : {}),
+      }),
     });
     if (res.ok) {
       const updated = await res.json();
       setContent((prev) => prev.map((c) => (c.id === contentId ? { ...c, ...updated } : c)));
-      setReviewNote("");
+      setNoteById((prev) => ({ ...prev, [contentId]: "" }));
+      setFeedbackById((prev) => ({ ...prev, [contentId]: [] }));
     }
     setActionLoading(null);
   }
@@ -100,13 +190,23 @@ export function AdminContentClient() {
   const totalViews = content.reduce((s, c) => s + c._count.watchSessions, 0);
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8">
-      <div>
-        <h1 className="text-3xl font-semibold text-white mb-2 flex items-center gap-3">
-          <Shield className="w-8 h-8 text-orange-500" /> Content Vetting & Management
+    <div className="mx-auto max-w-7xl space-y-8 px-4 py-6 md:px-8 md:py-8">
+      <header className="storytime-plan-card p-5 md:p-6">
+        <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">
+          Catalogue &amp; rights
+        </p>
+        <h1 className="flex items-center gap-3 font-display text-2xl font-semibold tracking-tight text-white md:text-3xl">
+          <Shield className="h-8 w-8 text-orange-500" /> Content vetting
         </h1>
-        <p className="text-slate-400">Review general catalogue submissions (films, series, etc.), preview content, approve or request changes. <strong className="text-slate-300">Story Time Original</strong> submissions (script + full package from Creator → Originals) are in <strong className="text-orange-400/90">Originals</strong>.</p>
-      </div>
+        <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
+          General catalogue submissions (films, series, podcasts). Structured feedback and notifications go to the
+          creator. <strong className="text-slate-300">Story Time Original</strong> pitch packages live under{" "}
+          <Link href="/admin/originals" className="text-orange-400 hover:text-orange-300">
+            Originals
+          </Link>
+          .
+        </p>
+      </header>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         {[
@@ -182,7 +282,16 @@ export function AdminContentClient() {
         <div className="space-y-3">
           {filtered.map((c) => (
             <div key={c.id} className="bg-slate-800/50 border border-slate-700/50 rounded-xl overflow-hidden">
-              <div className="p-5 cursor-pointer hover:bg-slate-800/70 transition" onClick={() => setExpanded(expanded === c.id ? null : c.id)}>
+              <div
+                className="p-5 cursor-pointer hover:bg-slate-800/70 transition"
+                onClick={() => {
+                  if (expanded === c.id) setExpanded(null);
+                  else {
+                    ensureDraftsFor(c);
+                    setExpanded(c.id);
+                  }
+                }}
+              >
                 <div className="flex items-start gap-4">
                   {c.posterUrl && <img src={c.posterUrl} alt="" className="w-12 h-18 rounded-lg object-cover flex-shrink-0" />}
                   <div className="flex-1 min-w-0">
@@ -236,7 +345,22 @@ export function AdminContentClient() {
                         {c.episodes && <div><span className="text-slate-500">Episodes:</span> <span className="text-slate-300">{c.episodes}</span></div>}
                         <div><span className="text-slate-500">Submitted:</span> <span className="text-slate-300">{c.submittedAt ? new Date(c.submittedAt).toLocaleDateString() : "—"}</span></div>
                         <div><span className="text-slate-500">Reviewed:</span> <span className="text-slate-300">{c.reviewedAt ? new Date(c.reviewedAt).toLocaleDateString() : "—"}</span></div>
+                        <div className="md:col-span-2">
+                          <span className="text-slate-500">Linked project: </span>
+                          {c.linkedProject ? (
+                            <Link
+                              href={`/admin/projects#${c.linkedProject.id}`}
+                              className="text-orange-400 hover:text-orange-300"
+                            >
+                              {c.linkedProject.title}
+                            </Link>
+                          ) : (
+                            <span className="text-slate-300">—</span>
+                          )}
+                        </div>
                       </div>
+
+                      {c.linkedProject?.id && <AdminPipelineDigest projectId={c.linkedProject.id} />}
 
                       {c.crewMembers.length > 0 && (
                         <><h4 className="text-sm font-medium text-slate-300 mt-4">Cast & Crew</h4><div className="flex flex-wrap gap-1.5">{c.crewMembers.map((cm, i) => (<span key={i} className="px-2 py-0.5 rounded bg-slate-700/50 text-xs text-slate-300">{cm.name} — <span className="text-orange-400">{cm.role}</span></span>))}</div></>
@@ -280,7 +404,92 @@ export function AdminContentClient() {
 
                   <div className="border-t border-slate-700/50 pt-5 space-y-3">
                     <h4 className="text-sm font-medium text-white flex items-center gap-2"><Sparkles className="w-4 h-4 text-orange-400" /> Review Actions</h4>
-                    <textarea value={reviewNote} onChange={(e) => setReviewNote(e.target.value)} placeholder="Admin note (optional)..." rows={2} className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 text-sm" />
+                    <textarea
+                      value={noteById[c.id] ?? ""}
+                      onChange={(e) => setNoteById((prev) => ({ ...prev, [c.id]: e.target.value }))}
+                      placeholder="Admin note (visible to creator on reject / changes)…"
+                      rows={2}
+                      className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 text-sm"
+                    />
+                    <div className="space-y-2">
+                      <p className="text-xs text-slate-500">Structured feedback (reject / request changes) — optional CTA deep-links</p>
+                      {(feedbackById[c.id] ?? []).map((row, idx) => (
+                        <div key={idx} className="flex flex-col gap-2 rounded-lg border border-slate-700/50 bg-slate-900/40 p-3 md:flex-row md:flex-wrap">
+                          <select
+                            value={row.kind}
+                            onChange={(e) =>
+                              setFeedbackById((prev) => {
+                                const list = [...(prev[c.id] ?? [])];
+                                list[idx] = { ...list[idx], kind: e.target.value as ReviewFeedbackKind };
+                                return { ...prev, [c.id]: list };
+                              })
+                            }
+                            className="rounded-lg border border-slate-600 bg-slate-900 px-2 py-1.5 text-xs text-white"
+                          >
+                            {(["CATALOGUE", "SCRIPT", "METADATA", "LEGAL", "OTHER"] as const).map((k) => (
+                              <option key={k} value={k}>
+                                {k}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            value={row.message}
+                            onChange={(e) =>
+                              setFeedbackById((prev) => {
+                                const list = [...(prev[c.id] ?? [])];
+                                list[idx] = { ...list[idx], message: e.target.value };
+                                return { ...prev, [c.id]: list };
+                              })
+                            }
+                            placeholder="What should they fix?"
+                            className="min-w-[200px] flex-1 rounded-lg border border-slate-600 bg-slate-900 px-3 py-1.5 text-xs text-white"
+                          />
+                          <select
+                            value={row.presetPath}
+                            onChange={(e) =>
+                              setFeedbackById((prev) => {
+                                const list = [...(prev[c.id] ?? [])];
+                                list[idx] = { ...list[idx], presetPath: e.target.value };
+                                return { ...prev, [c.id]: list };
+                              })
+                            }
+                            className="min-w-[180px] rounded-lg border border-slate-600 bg-slate-900 px-2 py-1.5 text-xs text-white"
+                          >
+                            <option value="">No button</option>
+                            {REVIEW_CTA_PRESET_TEMPLATES.map((t) => (
+                              <option key={t.path} value={t.path} disabled={t.path.includes("{projectId}") && !c.linkedProject}>
+                                {t.label}
+                                {t.path.includes("{projectId}") && !c.linkedProject ? " (needs link)" : ""}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setFeedbackById((prev) => {
+                                const list = [...(prev[c.id] ?? [])].filter((_, i) => i !== idx);
+                                return { ...prev, [c.id]: list };
+                              })
+                            }
+                            className="text-xs text-red-400 hover:text-red-300"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFeedbackById((prev) => ({
+                            ...prev,
+                            [c.id]: [...(prev[c.id] ?? []), { kind: "CATALOGUE", message: "", presetPath: "" }],
+                          }))
+                        }
+                        className="text-xs text-orange-400 hover:text-orange-300"
+                      >
+                        + Add feedback row
+                      </button>
+                    </div>
                     <div className="flex flex-wrap gap-2">
                       {c.reviewStatus !== "APPROVED" && (
                         <button onClick={() => handleReview(c.id, "APPROVE")} disabled={actionLoading === c.id} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-green-500/10 text-green-400 border border-green-500/30 hover:bg-green-500/20 transition text-sm disabled:opacity-50"><CheckCircle className="w-3.5 h-3.5" />Approve</button>

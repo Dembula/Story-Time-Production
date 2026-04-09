@@ -15,25 +15,6 @@ export interface ScriptWritingToolProps {
 export function ScriptWritingTool({ projectId, title = "Script Writing" }: ScriptWritingToolProps) {
   const queryClient = useQueryClient();
 
-  // #region agent log
-  fetch("http://127.0.0.1:7661/ingest/e765b01c-cec5-485d-8f2c-447ed6fafc98", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Debug-Session-Id": "d1fe7d",
-    },
-    body: JSON.stringify({
-      sessionId: "d1fe7d",
-      runId: "pre-fix",
-      hypothesisId: "H1",
-      location: "ScriptWritingTool.tsx:line18",
-      message: "ScriptWritingTool mount",
-      data: { hasProjectId: !!projectId },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
-
   const { data } = useQuery({
     enabled: !!projectId,
     queryKey: ["project-script", projectId],
@@ -67,9 +48,11 @@ export function ScriptWritingTool({ projectId, title = "Script Writing" }: Scrip
       }
     | undefined;
 
-  const [scriptTitle, setScriptTitle] = useState(script?.title ?? "Screenplay");
+  const [scriptTitle, setScriptTitle] = useState("");
   const [content, setContent] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [savedTitle, setSavedTitle] = useState("");
+  const [savedContent, setSavedContent] = useState("");
+  const [contentHydrated, setContentHydrated] = useState(false);
 
   const saveMutation = useMutation({
     mutationFn: async (payload: {
@@ -85,43 +68,44 @@ export function ScriptWritingTool({ projectId, title = "Script Writing" }: Scrip
       if (!res.ok) throw new Error("Failed to save script");
       return res.json();
     },
-    onSettled: () => {
-      setSaving(false);
+    onSuccess: (_data, variables) => {
+      if (variables.title !== undefined) setSavedTitle(variables.title);
+      if (variables.content !== undefined) setSavedContent(variables.content);
       queryClient.invalidateQueries({ queryKey: ["project-script", projectId] });
     },
   });
 
   useEffect(() => {
-    if (script?.title) {
+    if (script?.title != null) {
       setScriptTitle(script.title);
+      setSavedTitle(script.title);
     }
   }, [script?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!projectId) return;
     let cancelled = false;
+    setContentHydrated(false);
     (async () => {
       const res = await fetch(`/api/creator/projects/${projectId}/script`);
       if (!res.ok) return;
       const json = await res.json();
       const latest = json.script?.versions?.[0];
-      if (!cancelled && latest?.content) {
-        setContent(latest.content as string);
+      const next = (latest?.content as string) ?? "";
+      if (!cancelled) {
+        setContent(next);
+        setSavedContent(next);
+        setContentHydrated(true);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [projectId]);
+  }, [projectId, script?.id]);
 
-  useEffect(() => {
-    if (!content || !projectId) return;
-    setSaving(true);
-    const timeout = setTimeout(() => {
-      saveMutation.mutate({ content });
-    }, 1200);
-    return () => clearTimeout(timeout);
-  }, [content]); // eslint-disable-line react-hooks/exhaustive-deps
+  const scriptDirty =
+    contentHydrated &&
+    (scriptTitle !== savedTitle || content !== savedContent);
 
   if (!projectId) {
     return (
@@ -129,7 +113,7 @@ export function ScriptWritingTool({ projectId, title = "Script Writing" }: Scrip
         <header>
           <h2 className="text-xl font-semibold text-white">{title}</h2>
           <p className="text-sm text-slate-400 mt-1">
-            Select a project to start writing and autosaving your screenplay.
+            Select a project to start writing your screenplay.
           </p>
         </header>
       </div>
@@ -142,23 +126,51 @@ export function ScriptWritingTool({ projectId, title = "Script Writing" }: Scrip
 
   return (
     <div className="space-y-4">
-      <header className="flex items-center justify-between gap-3">
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-xl font-semibold text-white">{title}</h2>
           <p className="text-sm text-slate-400 mt-1">
-            Screenplay workspace with screenplay-style text and automatic draft
-            saving while you type.
+            Screenplay workspace — save when you are ready. Use &quot;Save new draft&quot; to keep a
+            version history snapshot.
           </p>
         </div>
-        <div className="flex flex-col items-end gap-1">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           <span className="text-[11px] text-slate-400">
-            {saving ? "Saving..." : "Auto-saved"}
+            {saveMutation.isPending ? "Saving…" : scriptDirty ? "Unsaved changes" : "Saved"}
           </span>
           <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="border-slate-600 text-slate-200 hover:bg-slate-800 text-[11px]"
+            disabled={!scriptDirty || saveMutation.isPending}
+            onClick={() => {
+              setScriptTitle(savedTitle);
+              setContent(savedContent);
+            }}
+          >
+            Discard
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            className="bg-orange-500 hover:bg-orange-600 text-white text-[11px]"
+            disabled={!scriptDirty || saveMutation.isPending}
+            onClick={() =>
+              saveMutation.mutate({ title: scriptTitle, content })
+            }
+          >
+            Save
+          </Button>
+          <Button
+            type="button"
             size="sm"
             variant="outline"
             className="border-slate-700 text-slate-200 hover:bg-slate-800 text-[11px]"
-            onClick={() => saveMutation.mutate({ content, createNewVersion: true })}
+            disabled={saveMutation.isPending}
+            onClick={() =>
+              saveMutation.mutate({ content, createNewVersion: true })
+            }
           >
             Save new draft
           </Button>
@@ -171,7 +183,6 @@ export function ScriptWritingTool({ projectId, title = "Script Writing" }: Scrip
           <Input
             value={scriptTitle}
             onChange={(e) => setScriptTitle(e.target.value)}
-            onBlur={() => scriptTitle && saveMutation.mutate({ title: scriptTitle })}
             className="bg-slate-900 border-slate-700 text-sm text-white"
           />
         </div>
@@ -221,4 +232,3 @@ export function ScriptWritingTool({ projectId, title = "Script Writing" }: Scrip
     </div>
   );
 }
-

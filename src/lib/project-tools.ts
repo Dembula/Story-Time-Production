@@ -392,6 +392,11 @@ export const POST_PRODUCTION_TOOLS: ProjectToolMeta[] = [
   },
 ];
 
+/** Post-production tools surfaced on the creator hub and dashboard (product scope: music + distribution only). */
+export const POST_PRODUCTION_HUB_TOOLS: ProjectToolMeta[] = POST_PRODUCTION_TOOLS.filter(
+  (t) => t.toolSlug === "music-scoring" || t.toolSlug === "distribution",
+);
+
 export const ALL_PROJECT_TOOLS: ProjectToolMeta[] = [
   ...PRE_PRODUCTION_TOOLS,
   ...PRODUCTION_TOOLS,
@@ -400,5 +405,19 @@ export const ALL_PROJECT_TOOLS: ProjectToolMeta[] = [
 
 export function findToolBySlug(slug: string): ProjectToolMeta | undefined {
   return ALL_PROJECT_TOOLS.find((t) => t.toolSlug === slug);
+}
+
+/** Canonical URL for a tool inside the project workspace (not standalone /creator/pre?projectId=). */
+export function getProjectToolHref(
+  projectId: string,
+  tool: Pick<ProjectToolMeta, "phase" | "toolSlug">,
+): string {
+  if (tool.phase === "PRE_PRODUCTION") {
+    return `/creator/projects/${projectId}/pre-production/${tool.toolSlug}`;
+  }
+  if (tool.phase === "PRODUCTION") {
+    return `/creator/projects/${projectId}/production/${tool.toolSlug}`;
+  }
+  return `/creator/projects/${projectId}/post-production/${tool.toolSlug}`;
 }
 

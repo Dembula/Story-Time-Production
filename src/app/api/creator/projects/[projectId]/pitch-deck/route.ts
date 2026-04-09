@@ -43,10 +43,33 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   const template = body?.template ?? "SHORT_FILM";
-  const defaultSlides = [
-    { title: "Title", body: "", sortOrder: 0 },
-    { title: "Logline", body: "", sortOrder: 1 },
-    { title: "Story", body: "", sortOrder: 2 },
+  const project = await prisma.originalProject.findUnique({
+    where: { id: projectId },
+    include: { ideas: { take: 1, orderBy: { createdAt: "asc" } } },
+  });
+  const idea = project?.ideas[0];
+  const loglineText = (idea?.logline ?? project?.logline ?? "").trim();
+  const genreText = (project?.genre ?? "").trim();
+  const poster = (project?.posterUrl ?? "").trim();
+
+  const defaultSlides: {
+    title: string;
+    body: string;
+    sortOrder: number;
+    mediaUrl?: string | null;
+  }[] = [
+    {
+      title: "Title",
+      body: project?.title ?? "",
+      sortOrder: 0,
+      mediaUrl: poster || null,
+    },
+    {
+      title: "Logline",
+      body: [loglineText, genreText ? `Genre: ${genreText}` : ""].filter(Boolean).join("\n\n"),
+      sortOrder: 1,
+    },
+    { title: "Story", body: (project?.synopsis ?? "").trim(), sortOrder: 2 },
     { title: "Team", body: "", sortOrder: 3 },
     { title: "Budget & Timeline", body: "", sortOrder: 4 },
     { title: "Ask", body: "", sortOrder: 5 },
@@ -56,15 +79,18 @@ export async function POST(req: NextRequest, { params }: Params) {
     data: {
       projectId,
       template,
-      title: body?.title ?? null,
+      title: body?.title ?? project?.title ?? null,
       createdById: userId,
       slides: {
-        create: (body?.slides?.length ? body.slides : defaultSlides).map((s, i) => ({
-          sortOrder: i,
-          title: s.title ?? null,
-          body: s.body ?? null,
-          mediaUrl: "mediaUrl" in s ? (s as { mediaUrl?: string | null }).mediaUrl ?? null : null,
-        })),
+        create: (body?.slides?.length ? body.slides : defaultSlides).map((s, i) => {
+          const slide = s as { title?: string | null; body?: string | null; mediaUrl?: string | null };
+          return {
+            sortOrder: i,
+            title: slide.title ?? null,
+            body: slide.body ?? null,
+            mediaUrl: slide.mediaUrl ?? null,
+          };
+        }),
       },
     },
     include: { slides: { orderBy: { sortOrder: "asc" } } },

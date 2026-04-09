@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
+import { notifyUser } from "@/lib/notify-user";
+import { buildAppUrl } from "@/lib/app-url";
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -189,66 +192,115 @@ export async function POST(req: NextRequest) {
 
   if (action === "REVIEW_PITCH" && role === "ADMIN") {
     const { pitchId, status, adminNote, projectId } = body;
+    const adminId = session.user.id;
 
-    const result = await prisma.$transaction(async (tx) => {
-      const existingPitch = await tx.originalPitch.findUnique({
-        where: { id: pitchId },
-        include: { project: true },
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        const existingPitch = await tx.originalPitch.findUnique({
+          where: { id: pitchId },
+          include: { project: true },
+        });
+
+        if (!existingPitch) {
+          throw new Error("Pitch not found");
+        }
+
+        let resolvedProjectId = projectId ?? existingPitch.projectId ?? null;
+
+        if (status === "APPROVED" && !resolvedProjectId) {
+          const createdProject = await tx.originalProject.create({
+            data: {
+              title: existingPitch.title,
+              logline: existingPitch.logline,
+              synopsis: existingPitch.synopsis,
+              type: existingPitch.type,
+              genre: existingPitch.genre,
+              status: "DEVELOPMENT",
+              phase: "CONCEPT",
+              budget: existingPitch.budgetEst ?? null,
+            },
+          });
+
+          resolvedProjectId = createdProject.id;
+
+          await tx.originalMember.create({
+            data: {
+              projectId: createdProject.id,
+              userId: existingPitch.creatorId,
+              role: "Creator",
+              department: "Producing",
+              status: "ACTIVE",
+            },
+          });
+        }
+
+        const updated = await tx.originalPitch.update({
+          where: { id: pitchId },
+          data: {
+            status,
+            adminNote: adminNote || null,
+            projectId: resolvedProjectId,
+          },
+          include: {
+            creator: { select: { id: true, name: true, email: true } },
+            project: { select: { id: true, title: true } },
+          },
+        });
+
+        return updated;
       });
 
-      if (!existingPitch) {
-        throw new Error("Pitch not found");
-      }
+    const notifyStatuses = ["APPROVED", "DECLINED", "CHANGES_REQUESTED"] as const;
+    if ((notifyStatuses as readonly string[]).includes(result.status)) {
+      const projectUrl = result.project?.id
+        ? `/creator/projects/${result.project.id}/workspace`
+        : "/creator/originals/submit";
+      const titles: Record<string, string> = {
+        APPROVED: "Your Originals pitch was approved",
+        DECLINED: "Originals pitch update",
+        CHANGES_REQUESTED: "Changes requested on your Originals pitch",
+      };
+      const bodies: Record<string, string> = {
+        APPROVED: `"${result.title}" is approved. Your project workspace is ready.`,
+        DECLINED: `"${result.title}" was not approved. See Originals for admin notes.`,
+        CHANGES_REQUESTED: `Please update "${result.title}" and resubmit. See Originals for details.`,
+      };
+      const t = titles[result.status] ?? "Originals pitch updated";
+      const b = bodies[result.status] ?? `Your pitch "${result.title}" was updated.`;
 
-      let resolvedProjectId = projectId ?? existingPitch.projectId ?? null;
+      await notifyUser({
+        userId: result.creatorId,
+        type: "ORIGINALS_PITCH_DECISION",
+        title: t,
+        body: b,
+        metadata: { url: projectUrl, pitchId: result.id, projectId: result.project?.id ?? undefined },
+        email: {
+          subject: t,
+          text: `${b}\n\nOpen: ${buildAppUrl(projectUrl)}`,
+        },
+      });
 
-      // When an Originals submission is approved, ensure it is backed by an OriginalProject
-      // and that the creator is attached as a member so it appears in their dashboard pipeline.
-      if (status === "APPROVED" && !resolvedProjectId) {
-        const createdProject = await tx.originalProject.create({
-          data: {
-            title: existingPitch.title,
-            logline: existingPitch.logline,
-            synopsis: existingPitch.synopsis,
-            type: existingPitch.type,
-            genre: existingPitch.genre,
-            status: "DEVELOPMENT",
-            phase: "CONCEPT",
-            budget: existingPitch.budgetEst ?? null,
-          },
-        });
-
-        resolvedProjectId = createdProject.id;
-
-        // Attach the pitch creator as the lead creator on the new project
-        await tx.originalMember.create({
-          data: {
-            projectId: createdProject.id,
-            userId: existingPitch.creatorId,
-            role: "Creator",
-            department: "Producing",
-            status: "ACTIVE",
-          },
-        });
-      }
-
-      const updated = await tx.originalPitch.update({
-        where: { id: pitchId },
+      await prisma.adminAuditLog.create({
         data: {
-          status,
-          adminNote: adminNote || null,
-          projectId: resolvedProjectId,
-        },
-        include: {
-          creator: { select: { id: true, name: true, email: true } },
-          project: { select: { id: true, title: true } },
+          adminUserId: adminId,
+          action: "ORIGINALS_PITCH_REVIEW",
+          entityType: "OriginalPitch",
+          entityId: result.id,
+          newValue: {
+            status: result.status,
+            projectId: result.projectId,
+            adminNote: result.adminNote,
+          } as Prisma.InputJsonValue,
         },
       });
+    }
 
-      return updated;
-    });
-
-    return NextResponse.json(result);
+      return NextResponse.json(result);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Failed";
+      const statusCode = msg === "Pitch not found" ? 404 : 500;
+      return NextResponse.json({ error: msg }, { status: statusCode });
+    }
   }
 
   if (action === "PROMOTE_IDEA" && role === "ADMIN") {

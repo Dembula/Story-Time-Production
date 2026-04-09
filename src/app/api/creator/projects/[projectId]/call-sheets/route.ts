@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { buildCallSheetPayload, snapshotToJsonStrings } from "@/lib/call-sheet-builder";
 
 async function ensureAccess(projectId: string) {
   const session = await getServerSession(authOptions);
@@ -85,16 +86,22 @@ export async function POST(
     return NextResponse.json({ error: "Missing shootDayId" }, { status: 400 });
   }
 
+  const built = await buildCallSheetPayload(projectId, body.shootDayId);
+  if (!built) {
+    return NextResponse.json({ error: "Shoot day not found" }, { status: 404 });
+  }
+  const snap = snapshotToJsonStrings(built);
+
   const callSheet = await prisma.callSheet.create({
     data: {
       projectId,
       shootDayId: body.shootDayId,
       title: body.title ?? null,
       notes: body.notes ?? null,
-      castJson: body.castJson ?? null,
-      crewJson: body.crewJson ?? null,
-      locationsJson: body.locationsJson ?? null,
-      scheduleJson: body.scheduleJson ?? null,
+      castJson: body.castJson ?? snap.castJson,
+      crewJson: body.crewJson ?? snap.crewJson,
+      locationsJson: body.locationsJson ?? snap.locationsJson,
+      scheduleJson: body.scheduleJson ?? snap.scheduleJson,
     },
   });
 

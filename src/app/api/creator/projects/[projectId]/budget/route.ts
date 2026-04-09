@@ -125,6 +125,19 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ proje
   });
 
   await prisma.$transaction(async (tx) => {
+    const submittedIds = new Set(
+      body.lines.map((l) => l.id).filter((id): id is string => Boolean(id)),
+    );
+    const existingLines = await tx.projectBudgetLine.findMany({
+      where: { budgetId: budget.id },
+      select: { id: true },
+    });
+    for (const row of existingLines) {
+      if (!submittedIds.has(row.id)) {
+        await tx.projectBudgetLine.delete({ where: { id: row.id } });
+      }
+    }
+
     for (const line of body.lines) {
       const data: {
         department?: string;

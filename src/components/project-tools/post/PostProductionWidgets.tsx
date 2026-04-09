@@ -275,11 +275,15 @@ export function Distribution({
       </div>
 
       <Link
-        href="/creator/upload"
+        href={hasProject && projectId ? `/creator/upload?projectId=${projectId}` : "/creator/upload"}
         className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 hover:border-orange-500/60 block"
       >
         <h3 className="text-sm font-semibold text-white mb-1">Upload &amp; delivery</h3>
-        <p className="text-xs text-slate-400">Deliver final master and metadata to Story Time.</p>
+        <p className="text-xs text-slate-400">
+          {hasProject
+            ? "Open the catalogue wizard with this project linked for tracking."
+            : "Deliver final master and metadata to Story Time."}
+        </p>
       </Link>
 
       {hasProject && (

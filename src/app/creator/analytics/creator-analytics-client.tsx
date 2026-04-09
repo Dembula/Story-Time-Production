@@ -38,7 +38,8 @@ type RevenueData = {
   payouts: { id: string; amount: number; currency: string; status: string; period: string; paidAt: string | null }[];
 };
 
-type CreatorAnalytics = {
+type CreatorAnalyticsPayload = {
+  rangeKey: "7d" | "30d" | "month" | "all";
   period: { start: string; end: string };
   revenue: {
     amount: number;
@@ -74,6 +75,13 @@ type CreatorAnalytics = {
   }>;
   projects: { total: number; byPhase: Record<string, number>; byStatus: Record<string, number> };
   competition: { periodName: string | null; endDate: string | null; rank: number | null; voteCount: number } | null;
+};
+
+const RANGE_LABEL: Record<CreatorAnalyticsPayload["rangeKey"], string> = {
+  "7d": "Last 7 days",
+  "30d": "Last 30 days",
+  month: "This month (calendar)",
+  all: "All time",
 };
 
 function getModocMessageContent(message: { content?: string; parts?: Array<{ type: string; text?: string }> }): string {
@@ -145,31 +153,42 @@ function CreatorAnalyticsModocModal({
   );
 }
 
-export function CreatorRevenueClient() {
+export function CreatorAnalyticsClient() {
   const modoc = useModocOptional();
   const [modocReportOpen, setModocReportOpen] = useState(false);
   const [revenueData, setRevenueData] = useState<RevenueData | null>(null);
-  const [analytics, setAnalytics] = useState<CreatorAnalytics | null>(null);
+  const [analytics, setAnalytics] = useState<CreatorAnalyticsPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<"month" | "quarter">("month");
+  const [analyticsRange, setAnalyticsRange] = useState<CreatorAnalyticsPayload["rangeKey"]>("month");
   const [bankForm, setBankForm] = useState({ bankName: "", accountNumber: "", accountType: "CHEQUE", branchCode: "" });
   const [submittingBank, setSubmittingBank] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
     Promise.all([
       fetch(`/api/creator/revenue?period=${period}`).then((r) => r.json()),
-      fetch("/api/creator/analytics").then(async (r) => {
+      fetch(`/api/creator/analytics?range=${analyticsRange}`).then(async (r) => {
         const data = await r.json();
         return r.ok && data?.period ? data : null;
       }),
     ])
       .then(([revenue, analyticsData]) => {
+        if (cancelled) return;
         setRevenueData(revenue);
         setAnalytics(analyticsData ?? null);
       })
-      .catch(() => setRevenueData(null))
-      .finally(() => setLoading(false));
-  }, [period]);
+      .catch(() => {
+        if (!cancelled) setRevenueData(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [period, analyticsRange]);
 
   async function submitBank(e: React.FormEvent) {
     e.preventDefault();
@@ -200,6 +219,7 @@ export function CreatorRevenueClient() {
 
   const data = revenueData;
   const eng = analytics?.engagement;
+  const win = analytics?.revenue;
   const contentList = analytics?.contentPerformance ?? [];
   const projects = analytics?.projects;
   const competition = analytics?.competition;
@@ -235,26 +255,96 @@ export function CreatorRevenueClient() {
         />
       )}
 
-      {/* Period toggle for revenue */}
-      <div className="flex gap-2">
-        <button
-          onClick={() => setPeriod("month")}
-          className={`rounded-xl px-4 py-2.5 text-sm font-semibold ${period === "month" ? "bg-orange-500 text-white shadow-glow" : "border border-white/10 bg-white/[0.03] text-slate-400 hover:bg-white/[0.05]"}`}
-        >
-          This month
-        </button>
-        <button
-          onClick={() => setPeriod("quarter")}
-          className={`rounded-xl px-4 py-2.5 text-sm font-semibold ${period === "quarter" ? "bg-orange-500 text-white shadow-glow" : "border border-white/10 bg-white/[0.03] text-slate-400 hover:bg-white/[0.05]"}`}
-        >
-          This quarter
-        </button>
+      <div className="space-y-3">
+        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Payout & revenue period</p>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setPeriod("month")}
+            className={`rounded-xl px-4 py-2.5 text-sm font-semibold ${period === "month" ? "bg-orange-500 text-white shadow-glow" : "border border-white/10 bg-white/[0.03] text-slate-400 hover:bg-white/[0.05]"}`}
+          >
+            This month
+          </button>
+          <button
+            type="button"
+            onClick={() => setPeriod("quarter")}
+            className={`rounded-xl px-4 py-2.5 text-sm font-semibold ${period === "quarter" ? "bg-orange-500 text-white shadow-glow" : "border border-white/10 bg-white/[0.03] text-slate-400 hover:bg-white/[0.05]"}`}
+          >
+            This quarter
+          </button>
+        </div>
+        <p className="text-xs text-slate-500">
+          Earnings, banking, and payout figures use this period. It may differ from the analytics window below.
+        </p>
       </div>
 
-      {/* Revenue (period) */}
+      <div className="space-y-3">
+        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Analytics window</p>
+        <div className="flex flex-wrap gap-2">
+          {(["7d", "30d", "month", "all"] as const).map((key) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setAnalyticsRange(key)}
+              className={`rounded-xl px-4 py-2.5 text-sm font-semibold ${analyticsRange === key ? "bg-cyan-600/90 text-white shadow-glow" : "border border-white/10 bg-white/[0.03] text-slate-400 hover:bg-white/[0.05]"}`}
+            >
+              {RANGE_LABEL[key]}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-slate-500">
+          Window snapshot and pool math for views/streams use this range. Engagement and the content table stay all-time.
+        </p>
+      </div>
+
+      {win && (
+        <section>
+          <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-cyan-400" /> Window snapshot
+            <span className="text-xs font-normal text-slate-500">({RANGE_LABEL[analytics?.rangeKey ?? "month"]})</span>
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="storytime-kpi p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <DollarSign className="w-4 h-4 text-orange-400" />
+                <span className="text-xs text-slate-400">Attributed earnings</span>
+              </div>
+              <p className="text-2xl font-bold text-white">R{win.amount.toFixed(2)}</p>
+              <p className="text-xs text-slate-500 mt-1">Share in this window</p>
+            </div>
+            <div className="storytime-kpi p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <Eye className="w-4 h-4 text-emerald-400" />
+                <span className="text-xs text-slate-400">Views</span>
+              </div>
+              <p className="text-2xl font-bold text-white">{win.totalViews.toLocaleString()}</p>
+              <p className="text-xs text-slate-500 mt-1">R{win.perViewRand.toFixed(4)} per view</p>
+            </div>
+            <div className="storytime-kpi p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <Clock className="w-4 h-4 text-violet-400" />
+                <span className="text-xs text-slate-400">Watch time</span>
+              </div>
+              <p className="text-2xl font-bold text-white">{Math.floor(win.watchTimeSeconds / 3600)}h</p>
+              <p className="text-xs text-slate-500 mt-1">R{win.perStreamRand.toFixed(2)} per stream</p>
+            </div>
+            <div className="storytime-kpi p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <Percent className="w-4 h-4 text-cyan-400" />
+                <span className="text-xs text-slate-400">Share of pool</span>
+              </div>
+              <p className="text-2xl font-bold text-white">{win.sharePercent.toFixed(2)}%</p>
+              <p className="text-xs text-slate-500 mt-1">Creator pool R{win.creatorPool.toFixed(2)}</p>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Revenue (payout period) */}
       <section>
         <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
           <DollarSign className="w-5 h-5 text-orange-400" /> Revenue
+          <span className="text-xs font-normal text-slate-500">(payout period)</span>
         </h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="storytime-kpi p-5">
@@ -263,7 +353,9 @@ export function CreatorRevenueClient() {
               <span className="text-xs text-slate-400">Earnings</span>
             </div>
             <p className="text-2xl font-bold text-white">R{data.revenue.toFixed(2)}</p>
-            <p className="text-xs text-slate-500 mt-1">{data.periodStart?.slice(0, 7)} – {data.periodEnd?.slice(0, 10)}</p>
+            <p className="text-xs text-slate-500 mt-1">
+              {data.periodStart?.slice(0, 7)} – {data.periodEnd?.slice(0, 10)}
+            </p>
           </div>
           <div className="storytime-kpi p-5">
             <div className="flex items-center gap-2 mb-2">
@@ -292,11 +384,11 @@ export function CreatorRevenueClient() {
         </div>
       </section>
 
-      {/* Engagement & audience (all-time) */}
       {eng && (
         <section>
           <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
             <Users className="w-5 h-5 text-emerald-400" /> Engagement & audience
+            <span className="text-xs font-normal text-slate-500">(all-time)</span>
           </h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="storytime-kpi p-5">
@@ -361,10 +453,10 @@ export function CreatorRevenueClient() {
         </section>
       )}
 
-      {/* Content performance */}
       <section>
         <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
           <Film className="w-5 h-5 text-violet-400" /> Content performance
+          <span className="text-xs font-normal text-slate-500">(all-time)</span>
         </h2>
         {contentList.length === 0 ? (
           <div className="storytime-empty-state p-6 text-sm text-slate-500">
@@ -406,7 +498,6 @@ export function CreatorRevenueClient() {
         )}
       </section>
 
-      {/* Projects pipeline */}
       {projects && projects.total > 0 && (
         <section>
           <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
@@ -445,7 +536,6 @@ export function CreatorRevenueClient() {
         </section>
       )}
 
-      {/* Competition */}
       {competition && (competition.periodName || competition.rank != null) && (
         <section>
           <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
@@ -460,7 +550,6 @@ export function CreatorRevenueClient() {
         </section>
       )}
 
-      {/* How you earn */}
       <div className="storytime-section p-6">
         <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
           <TrendingUp className="w-5 h-5 text-orange-400" /> How you earn
@@ -470,7 +559,6 @@ export function CreatorRevenueClient() {
         </p>
       </div>
 
-      {/* Banking */}
       <div className="storytime-section p-6">
         <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
           <Building2 className="w-5 h-5 text-emerald-400" /> Banking
@@ -479,26 +567,57 @@ export function CreatorRevenueClient() {
           <div className="flex items-center justify-between rounded-xl border border-white/8 bg-white/[0.04] p-4">
             <div>
               <p className="text-white font-medium">{data.banking.bankName}</p>
-              <p className="text-slate-400 text-sm">••••{data.banking.accountNumberLast4} · {data.banking.accountType}</p>
+              <p className="text-slate-400 text-sm">
+                ••••{data.banking.accountNumberLast4} · {data.banking.accountType}
+              </p>
               {data.banking.verified && <span className="text-xs text-emerald-400">Verified</span>}
             </div>
             <CreditCard className="w-8 h-8 text-slate-500" />
           </div>
         ) : (
           <form onSubmit={submitBank} className="max-w-md space-y-4">
-            <input type="text" placeholder="Bank name" value={bankForm.bankName} onChange={(e) => setBankForm((f) => ({ ...f, bankName: e.target.value }))} required className="storytime-input px-4 py-2.5" />
-            <input type="text" placeholder="Account number" value={bankForm.accountNumber} onChange={(e) => setBankForm((f) => ({ ...f, accountNumber: e.target.value }))} required className="storytime-input px-4 py-2.5" />
-            <select value={bankForm.accountType} onChange={(e) => setBankForm((f) => ({ ...f, accountType: e.target.value }))} className="storytime-select px-4 py-2.5">
+            <input
+              type="text"
+              placeholder="Bank name"
+              value={bankForm.bankName}
+              onChange={(e) => setBankForm((f) => ({ ...f, bankName: e.target.value }))}
+              required
+              className="storytime-input px-4 py-2.5"
+            />
+            <input
+              type="text"
+              placeholder="Account number"
+              value={bankForm.accountNumber}
+              onChange={(e) => setBankForm((f) => ({ ...f, accountNumber: e.target.value }))}
+              required
+              className="storytime-input px-4 py-2.5"
+            />
+            <select
+              value={bankForm.accountType}
+              onChange={(e) => setBankForm((f) => ({ ...f, accountType: e.target.value }))}
+              className="storytime-select px-4 py-2.5"
+            >
               <option value="CHEQUE">Cheque</option>
               <option value="SAVINGS">Savings</option>
             </select>
-            <input type="text" placeholder="Branch code (SA)" value={bankForm.branchCode} onChange={(e) => setBankForm((f) => ({ ...f, branchCode: e.target.value }))} className="storytime-input px-4 py-2.5" />
-            <button type="submit" disabled={submittingBank} className="rounded-xl bg-orange-500 px-4 py-2.5 font-semibold text-white shadow-glow hover:-translate-y-0.5 hover:bg-orange-400 disabled:opacity-50">Save banking details</button>
+            <input
+              type="text"
+              placeholder="Branch code (SA)"
+              value={bankForm.branchCode}
+              onChange={(e) => setBankForm((f) => ({ ...f, branchCode: e.target.value }))}
+              className="storytime-input px-4 py-2.5"
+            />
+            <button
+              type="submit"
+              disabled={submittingBank}
+              className="rounded-xl bg-orange-500 px-4 py-2.5 font-semibold text-white shadow-glow hover:-translate-y-0.5 hover:bg-orange-400 disabled:opacity-50"
+            >
+              Save banking details
+            </button>
           </form>
         )}
       </div>
 
-      {/* Payouts */}
       <div className="storytime-section p-6">
         <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
           <ArrowDownToLine className="w-5 h-5 text-violet-400" /> Payouts
@@ -511,7 +630,10 @@ export function CreatorRevenueClient() {
               <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3">
                 <span className="text-white">R{p.amount.toFixed(2)}</span>
                 <span className={`text-sm ${p.status === "COMPLETED" ? "text-emerald-400" : "text-slate-500"}`}>{p.status}</span>
-                <span className="text-slate-500 text-sm">{p.period}{p.paidAt ? ` · ${new Date(p.paidAt).toLocaleDateString()}` : ""}</span>
+                <span className="text-slate-500 text-sm">
+                  {p.period}
+                  {p.paidAt ? ` · ${new Date(p.paidAt).toLocaleDateString()}` : ""}
+                </span>
               </li>
             ))}
           </ul>

@@ -13,6 +13,32 @@ export async function GET(req: NextRequest) {
   const crewTeamRequestId = req.nextUrl.searchParams.get("crewTeamRequestId");
   const castingInquiryId = req.nextUrl.searchParams.get("castingInquiryId");
   const cateringBookingId = req.nextUrl.searchParams.get("cateringBookingId");
+  const peerId = req.nextUrl.searchParams.get("peerId");
+
+  if (peerId) {
+    if (peerId === userId) return NextResponse.json([]);
+    const dmMessages = await prisma.message.findMany({
+      where: {
+        AND: [
+          {
+            OR: [
+              { senderId: userId, receiverId: peerId },
+              { senderId: peerId, receiverId: userId },
+            ],
+          },
+          { requestId: null },
+          { locationBookingId: null },
+          { crewTeamRequestId: null },
+          { castingInquiryId: null },
+          { cateringBookingId: null },
+          { syncRequestId: null },
+        ],
+      },
+      orderBy: { createdAt: "asc" },
+      include: { sender: { select: { id: true, name: true, role: true } } },
+    });
+    return NextResponse.json(dmMessages);
+  }
 
   if (requestId) {
     const messages = await prisma.message.findMany({

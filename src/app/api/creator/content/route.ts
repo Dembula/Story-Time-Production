@@ -22,11 +22,26 @@ export async function GET(request: NextRequest) {
 
   if (!creatorId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const singleId = request.nextUrl.searchParams.get("id");
+  if (singleId) {
+    const one = await prisma.content.findFirst({
+      where: { id: singleId, creatorId },
+      include: {
+        _count: { select: { watchSessions: true, ratings: true, comments: true } },
+        ratings: { select: { score: true } },
+        linkedProject: { select: { id: true, title: true } },
+      },
+    });
+    if (!one) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json(one);
+  }
+
   const contents = await prisma.content.findMany({
     where: { creatorId },
     include: {
       _count: { select: { watchSessions: true, ratings: true, comments: true } },
       ratings: { select: { score: true } },
+      linkedProject: { select: { id: true, title: true } },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -68,6 +83,25 @@ export async function POST(request: NextRequest) {
   const minAge = typeof body.minAge === "number" ? Math.max(0, Math.min(21, body.minAge)) : body.minAge != null ? Math.max(0, Math.min(21, parseInt(String(body.minAge), 10) || 0)) : 0;
   const advisory = body.advisory && typeof body.advisory === "object" ? body.advisory : null;
 
+  let linkedProjectId: string | null = null;
+  const rawLink = body.linkedProjectId;
+  if (rawLink != null && String(rawLink).trim()) {
+    const pid = String(rawLink).trim();
+    const project = await prisma.originalProject.findUnique({
+      where: { id: pid },
+      include: { members: { where: { userId: creatorId }, select: { id: true } }, pitches: { where: { creatorId }, select: { id: true } } },
+    });
+    if (!project) {
+      return NextResponse.json({ error: "Linked project not found" }, { status: 400 });
+    }
+    const allowed =
+      role === "ADMIN" || project.members.length > 0 || project.pitches.length > 0;
+    if (!allowed) {
+      return NextResponse.json({ error: "You are not a member of this project" }, { status: 403 });
+    }
+    linkedProjectId = pid;
+  }
+
   const content = await prisma.content.create({
     data: {
       title: body.title,
@@ -93,6 +127,7 @@ export async function POST(request: NextRequest) {
       reviewStatus: body.reviewStatus || "DRAFT",
       submittedAt: body.submittedAt ? new Date(body.submittedAt) : null,
       creatorId,
+      ...(linkedProjectId ? { linkedProjectId } : {}),
     },
   });
 

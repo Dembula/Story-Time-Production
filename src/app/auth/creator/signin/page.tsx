@@ -41,7 +41,13 @@ export default function CreatorSignInPage() {
         </Link>
 
         <Link href="/" prefetch={false} className="mb-10 flex items-center justify-center gap-3">
-          <Image src="/logo.png" alt="Story Time" width={52} height={52} className="rounded-xl shadow-glow" />
+          <Image
+            src="/creator-logo.png"
+            alt="Story Time Creator"
+            width={52}
+            height={52}
+            className="rounded-xl shadow-glow"
+          />
           <span className="text-2xl font-semibold tracking-[0.14em] text-white">STORY <span className="storytime-brand-text">TIME</span></span>
         </Link>
 

@@ -189,39 +189,44 @@ model AdminRequest {
 }
 
 model Content {
-  id           String    @id @default(cuid())
-  title        String
-  description  String?
-  type         String
-  posterUrl    String?
-  backdropUrl  String?
-  videoUrl     String?
-  trailerUrl   String?
-  scriptUrl    String?
-  category     String?
-  tags         String?
-  language     String?
-  country      String?
-  ageRating    String?
+  id             String    @id @default(cuid())
+  title          String
+  description    String?
+  type           String
+  posterUrl      String?
+  backdropUrl    String?
+  videoUrl       String?
+  trailerUrl     String?
+  scriptUrl      String?
+  category       String?
+  tags           String?
+  language       String?
+  country        String?
+  ageRating      String?
   /// Minimum viewer age required to watch this title (used for profile censorship).
   /// If not set by creator, the platform may derive this from ageRating during ingestion.
-  minAge       Int       @default(0)
+  minAge         Int       @default(0)
   /// Structured advisory flags and notes (e.g. { drugs: true, sex: false, violence: true, language: true, nudity: false, selfHarm: false, horror: true, discrimination: false, themes: "..." }).
-  advisory     Json?
-  year         Int?
-  duration     Int?
-  episodes     Int?
-  featured     Boolean   @default(false)
-  published    Boolean   @default(true)
-  reviewStatus String    @default("DRAFT")
-  reviewNote   String?
-  submittedAt  DateTime?
-  reviewedAt   DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  advisory       Json?
+  year           Int?
+  duration       Int?
+  episodes       Int?
+  featured       Boolean   @default(false)
+  published      Boolean   @default(true)
+  reviewStatus   String    @default("DRAFT")
+  reviewNote     String?
+  /// Structured admin feedback items: kind, message, optional ctaLabel/ctaPath (app paths only).
+  reviewFeedback Json?
+  submittedAt    DateTime?
+  reviewedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   creatorId String
   creator   User   @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  linkedProjectId String?
+  linkedProject   OriginalProject? @relation(fields: [linkedProjectId], references: [id], onDelete: SetNull)
 
   btsVideos             BtsVideo[]
   watchSessions         WatchSession[]
@@ -233,6 +238,8 @@ model Content {
   auditionPosts         AuditionPost[]
   networkPosts          NetworkPost[]
   viewerContentAccesses ViewerContentAccess[]
+
+  @@index([linkedProjectId])
 }
 
 model BtsVideo {
@@ -578,39 +585,40 @@ model OriginalProject {
   incidentReports         IncidentReport[]
 
   // Pre-production & production tooling
-  scripts              ProjectScript[]
-  scenes               ProjectScene[]
-  projectActivities    ProjectActivity[]
-  scriptReviewRequests ScriptReviewRequest[]
-  breakdownCharacters  BreakdownCharacter[]
-  breakdownProps       BreakdownProp[]
-  breakdownLocations   BreakdownLocation[]
-  breakdownWardrobes   BreakdownWardrobe[]
-  breakdownExtras      BreakdownExtra[]
-  breakdownVehicles    BreakdownVehicle[]
-  breakdownStunts      BreakdownStunt[]
-  breakdownSfxs        BreakdownSfx[]
-  projectBudget        ProjectBudget?
-  productionExpenses   ProductionExpense[]
-  shootDays            ShootDay[]
-  callSheets           CallSheet[]
-  castingRoles         CastingRole[]
-  castingInvitations   CastingInvitation[]
-  crewRoleNeeds        CrewRoleNeed[]
-  crewInvitations      CrewInvitation[]
-  projectContracts     ProjectContract[]
-  fundingRequest       FundingRequest?
-  pitchDeck            PitchDeck?
-  chatThreads          ProjectChatThread[]
-  chatMessages         ProjectChatMessage[]
-  projectTasks         ProjectTask[]
-  tableReadSessions    TableReadSession[]
-  equipmentPlanItems   EquipmentPlanItem[]
-  riskPlan             RiskPlan?
-  continuityNotes      ContinuityNote[]
-  dailiesBatches       DailiesBatch[]
-  scriptReviewNotes    ScriptReviewNote[]
-  creatorScripts       CreatorScript[]
+  scripts                ProjectScript[]
+  scenes                 ProjectScene[]
+  projectActivities      ProjectActivity[]
+  scriptReviewRequests   ScriptReviewRequest[]
+  breakdownCharacters    BreakdownCharacter[]
+  breakdownProps         BreakdownProp[]
+  breakdownLocations     BreakdownLocation[]
+  breakdownWardrobes     BreakdownWardrobe[]
+  breakdownExtras        BreakdownExtra[]
+  breakdownVehicles      BreakdownVehicle[]
+  breakdownStunts        BreakdownStunt[]
+  breakdownSfxs          BreakdownSfx[]
+  projectBudget          ProjectBudget?
+  productionExpenses     ProductionExpense[]
+  shootDays              ShootDay[]
+  callSheets             CallSheet[]
+  castingRoles           CastingRole[]
+  castingInvitations     CastingInvitation[]
+  crewRoleNeeds          CrewRoleNeed[]
+  crewInvitations        CrewInvitation[]
+  projectContracts       ProjectContract[]
+  fundingRequest         FundingRequest?
+  pitchDeck              PitchDeck?
+  chatThreads            ProjectChatThread[]
+  chatMessages           ProjectChatMessage[]
+  projectTasks           ProjectTask[]
+  tableReadSessions      TableReadSession[]
+  equipmentPlanItems     EquipmentPlanItem[]
+  riskPlan               RiskPlan?
+  continuityNotes        ContinuityNote[]
+  dailiesBatches         DailiesBatch[]
+  scriptReviewNotes      ScriptReviewNote[]
+  creatorScripts         CreatorScript[]
+  linkedCatalogueContent Content[]
 
   @@index([status])
 }
@@ -1453,6 +1461,7 @@ model ProjectScene {
   continuityNotes     ContinuityNote[]
   dailies             DailiesBatch[]
   footageAssets       FootageAsset[]
+  projectTasks        ProjectTask[]
 
   @@index([projectId])
   @@index([scriptId])
@@ -1697,6 +1706,10 @@ model ShootDay {
   wrapTime        String?
   status          String          @default("PLANNED")
   locationSummary String?
+  /// Free-text slate / coverage notes (e.g. pickups, partial scenes)
+  scenesBeingShot String?         @db.Text
+  /// Parking, meals, safety, department notes for this shoot day
+  dayNotes        String?         @db.Text
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
@@ -1705,6 +1718,7 @@ model ShootDay {
   incidents       IncidentReport[]
   continuityNotes ContinuityNote[]
   dailiesBatches  DailiesBatch[]
+  projectTasks    ProjectTask[]
 
   @@index([projectId])
   @@index([date])
@@ -1980,6 +1994,10 @@ model ProjectTask {
   dueDate     DateTime?
   assigneeId  String?
   assignee    User?           @relation(fields: [assigneeId], references: [id], onDelete: SetNull)
+  shootDayId  String?
+  shootDay    ShootDay?       @relation(fields: [shootDayId], references: [id], onDelete: SetNull)
+  sceneId     String?
+  scene       ProjectScene?   @relation(fields: [sceneId], references: [id], onDelete: SetNull)
   createdById String?
   createdBy   User?           @relation("ProjectTaskCreator", fields: [createdById], references: [id], onDelete: SetNull)
   createdAt   DateTime        @default(now())
@@ -1988,6 +2006,8 @@ model ProjectTask {
   @@index([projectId])
   @@index([assigneeId])
   @@index([department])
+  @@index([shootDayId])
+  @@index([sceneId])
 }
 
 model TableReadSession {

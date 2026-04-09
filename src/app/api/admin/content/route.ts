@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
     where,
     include: {
       creator: { select: { id: true, name: true, email: true, isAfdaStudent: true } },
+      linkedProject: { select: { id: true, title: true } },
       _count: { select: { watchSessions: true, ratings: true, comments: true, crewMembers: true } },
       crewMembers: { select: { name: true, role: true }, take: 5 },
     },

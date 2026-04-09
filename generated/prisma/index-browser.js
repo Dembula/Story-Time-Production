@@ -207,11 +207,13 @@ exports.Prisma.ContentScalarFieldEnum = {
   published: 'published',
   reviewStatus: 'reviewStatus',
   reviewNote: 'reviewNote',
+  reviewFeedback: 'reviewFeedback',
   submittedAt: 'submittedAt',
   reviewedAt: 'reviewedAt',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt',
-  creatorId: 'creatorId'
+  creatorId: 'creatorId',
+  linkedProjectId: 'linkedProjectId'
 };
 
 exports.Prisma.BtsVideoScalarFieldEnum = {
@@ -1139,6 +1141,8 @@ exports.Prisma.ShootDayScalarFieldEnum = {
   wrapTime: 'wrapTime',
   status: 'status',
   locationSummary: 'locationSummary',
+  scenesBeingShot: 'scenesBeingShot',
+  dayNotes: 'dayNotes',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 };
@@ -1312,6 +1316,8 @@ exports.Prisma.ProjectTaskScalarFieldEnum = {
   priority: 'priority',
   dueDate: 'dueDate',
   assigneeId: 'assigneeId',
+  shootDayId: 'shootDayId',
+  sceneId: 'sceneId',
   createdById: 'createdById',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'

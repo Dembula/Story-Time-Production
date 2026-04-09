@@ -5,12 +5,13 @@ import { ProjectWorkspaceShell } from "./project-workspace-shell";
 
 interface ProjectLayoutProps {
   children: ReactNode;
-  params: { projectId: string };
+  params: Promise<{ projectId: string }>;
 }
 
 export default async function ProjectLayout({ children, params }: ProjectLayoutProps) {
+  const { projectId } = await params;
   const project = await prisma.originalProject.findUnique({
-    where: { id: params.projectId },
+    where: { id: projectId },
     include: {
       members: { include: { user: true } },
       pitches: {

@@ -72,10 +72,24 @@ export function NotificationBell() {
                   let linkUrl: string | null = null;
                   try {
                     if (n.metadata) {
-                      const meta = JSON.parse(n.metadata) as { url?: string };
+                      const meta = JSON.parse(n.metadata) as {
+                        url?: string;
+                        contentId?: string;
+                        projectId?: string;
+                        pitchId?: string;
+                      };
                       if (meta?.url) linkUrl = meta.url;
+                      else if (meta?.contentId) {
+                        linkUrl = `/creator/catalogue/reviews/${meta.contentId}`;
+                      } else if (meta?.pitchId && meta?.projectId) {
+                        linkUrl = `/creator/projects/${meta.projectId}/workspace`;
+                      } else if (meta?.pitchId) {
+                        linkUrl = "/creator/originals/submit";
+                      }
                     }
-                  } catch {}
+                  } catch {
+                    /* ignore */
+                  }
                   const className = [
                     "block border-b border-white/6 px-4 py-3 last:border-b-0",
                     n.read ? "bg-transparent" : "bg-white/[0.04]",

@@ -1,17 +1,20 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
-import Link from "next/link";
-import { Plus, Users, Clock, Film, ChevronDown, ChevronRight, CheckCircle, Circle, Loader2 } from "lucide-react";
+import { Plus, Users, Clock, Film, ChevronDown, ChevronRight, CheckCircle, Circle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   PRE_PRODUCTION_TOOLS,
   PRODUCTION_TOOLS,
-  POST_PRODUCTION_TOOLS,
+  POST_PRODUCTION_HUB_TOOLS,
+  getProjectToolHref,
+  type ProjectPhase,
 } from "@/lib/project-tools";
+import { CreatorToolNavCard, type CreatorToolNavStatus } from "@/components/creator/creator-tool-nav-card";
 
 type ToolProgress = { toolId: string; phase: string; status: string; percent: number };
 
@@ -36,12 +39,63 @@ type NetworkCreator = {
   connectionStatus?: string;
 };
 
-function toolHref(phase: string, toolSlug: string, projectId: string): string {
-  const base = phase === "PRE_PRODUCTION" ? "/creator/pre" : phase === "PRODUCTION" ? "/creator/production" : "/creator/post";
-  return `${base}/${toolSlug}?projectId=${projectId}`;
+function toolHref(phase: ProjectPhase, toolSlug: string, projectId: string): string {
+  return getProjectToolHref(projectId, { phase, toolSlug });
 }
 
-function ProjectRow({ project, defaultOpen = false }: { project: Project; defaultOpen?: boolean }) {
+const TRACKED_TOOL_IDS = new Set<string>([
+  ...PRE_PRODUCTION_TOOLS.map((t) => t.id),
+  ...PRODUCTION_TOOLS.map((t) => t.id),
+  ...POST_PRODUCTION_HUB_TOOLS.map((t) => t.id),
+]);
+
+/** Maps DB phase to pipeline step 1–3 for UI emphasis. */
+function pipelineStepFromPhase(phase: string): 1 | 2 | 3 {
+  if (phase === "POST_PRODUCTION") return 3;
+  if (phase === "PRODUCTION") return 2;
+  return 1;
+}
+
+type ContentListRow = {
+  id: string;
+  title: string;
+  reviewStatus: string;
+  linkedProjectId?: string | null;
+};
+
+type LinkedCatalogueChip = { id: string; reviewStatus: string; title: string };
+
+function pickLinkedCatalogue(projectId: string, contents: ContentListRow[]): LinkedCatalogueChip | null {
+  const tracked = ["PENDING", "REJECTED", "CHANGES_REQUESTED"];
+  const rows = contents.filter((c) => c.linkedProjectId === projectId && tracked.includes(c.reviewStatus));
+  if (rows.length === 0) return null;
+  const rank = (s: string) => (s === "REJECTED" ? 3 : s === "CHANGES_REQUESTED" ? 2 : 1);
+  rows.sort((a, b) => rank(b.reviewStatus) - rank(a.reviewStatus));
+  const top = rows[0];
+  return { id: top.id, reviewStatus: top.reviewStatus, title: top.title };
+}
+
+function catalogueChipStyle(status: string): string {
+  if (status === "REJECTED") return "border-red-500/40 bg-red-500/10 text-red-200";
+  if (status === "CHANGES_REQUESTED") return "border-orange-500/40 bg-orange-500/10 text-orange-200";
+  return "border-amber-500/35 bg-amber-500/10 text-amber-100";
+}
+
+function catalogueChipLabel(status: string): string {
+  if (status === "REJECTED") return "Catalogue rejected";
+  if (status === "CHANGES_REQUESTED") return "Catalogue: changes requested";
+  return "Catalogue in review";
+}
+
+function ProjectRow({
+  project,
+  defaultOpen = false,
+  linkedCatalogue,
+}: {
+  project: Project;
+  defaultOpen?: boolean;
+  linkedCatalogue: LinkedCatalogueChip | null;
+}) {
   const [open, setOpen] = useState(defaultOpen);
   const rowRef = useRef<HTMLDivElement>(null);
 
@@ -60,112 +114,244 @@ function ProjectRow({ project, defaultOpen = false }: { project: Project; defaul
 
   const updated = new Date(project.updatedAt);
   const stage = project.status || "DEVELOPMENT";
-  const doneCount = progress.filter((p) => p.status === "COMPLETE").length + (ideasCount > 0 ? 1 : 0);
-  const totalTools = PRE_PRODUCTION_TOOLS.length + PRODUCTION_TOOLS.length + POST_PRODUCTION_TOOLS.length;
-  const progressPct = totalTools > 0 ? Math.round((doneCount / Math.max(totalTools, 1)) * 100) : 0;
+  const activeStep = pipelineStepFromPhase(project.phase);
+
+  const completedTracked = progress.filter((p) => TRACKED_TOOL_IDS.has(p.toolId) && p.status === "COMPLETE").length;
+  const ideaExtra =
+    ideasCount > 0 && progressMap.get("idea-development")?.status !== "COMPLETE" ? 1 : 0;
+  const doneCount = completedTracked + ideaExtra;
+  const totalTools =
+    PRE_PRODUCTION_TOOLS.length + PRODUCTION_TOOLS.length + POST_PRODUCTION_HUB_TOOLS.length;
+  const progressPct = totalTools > 0 ? Math.round((doneCount / totalTools) * 100) : 0;
+
+  function phaseDoneTotal(
+    tools: { id: string; label: string; description: string; toolSlug: string; phase: ProjectPhase }[],
+  ): { done: number; total: number } {
+    let done = 0;
+    for (const t of tools) {
+      const prog = progressMap.get(t.id);
+      const isIdea = t.id === "idea-development" && ideasCount > 0;
+      if (prog?.status === "COMPLETE" || isIdea) done += 1;
+    }
+    return { done, total: tools.length };
+  }
+
+  const pre = phaseDoneTotal(
+    PRE_PRODUCTION_TOOLS.map((t) => ({
+      id: t.id,
+      label: t.label,
+      description: t.description,
+      toolSlug: t.toolSlug,
+      phase: t.phase,
+    })),
+  );
+  const prod = phaseDoneTotal(
+    PRODUCTION_TOOLS.map((t) => ({
+      id: t.id,
+      label: t.label,
+      description: t.description,
+      toolSlug: t.toolSlug,
+      phase: t.phase,
+    })),
+  );
+  const post = phaseDoneTotal(
+    POST_PRODUCTION_HUB_TOOLS.map((t) => ({
+      id: t.id,
+      label: t.label,
+      description: t.description,
+      toolSlug: t.toolSlug,
+      phase: t.phase,
+    })),
+  );
 
   const renderSection = (
+    eyebrow: string,
     title: string,
-    tools: { id: string; label: string; toolSlug: string; phase: string }[]
+    stepNum: 1 | 2 | 3,
+    phaseSummary: { done: number; total: number },
+    tools: { id: string; label: string; description: string; toolSlug: string; phase: ProjectPhase }[],
   ) => {
     if (tools.length === 0) return null;
+    const isCurrent = activeStep === stepNum;
     return (
-      <div className="mb-3 last:mb-0">
-        <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500 mb-1.5">{title}</p>
-        <ul className="space-y-1">
+      <div
+        className={[
+          "rounded-2xl border p-5 md:p-6 lg:p-8",
+          isCurrent
+            ? "border-orange-500/40 bg-orange-500/[0.06] shadow-[0_0_0_1px_rgba(249,115,22,0.12)]"
+            : "border-white/10 bg-slate-900/40",
+        ].join(" ")}
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-white/10 pb-4 mb-5">
+          <div>
+            <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">{eyebrow}</p>
+            <h3 className="mt-1 font-display text-xl font-semibold tracking-tight text-white">{title}</h3>
+            <p className="mt-1 text-xs text-slate-500">
+              {phaseSummary.done} / {phaseSummary.total} tools marked complete · opens in project workspace
+            </p>
+          </div>
+          {isCurrent ? (
+            <span className="shrink-0 rounded-full bg-orange-500/20 px-3 py-1 text-[11px] font-semibold text-orange-200">
+              Current phase
+            </span>
+          ) : (
+            <span className="shrink-0 rounded-full border border-white/10 px-3 py-1 text-[11px] text-slate-500">
+              Step {stepNum}
+            </span>
+          )}
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-2">
           {tools.map((t) => {
             const prog = progressMap.get(t.id);
             const isIdeaLinked = t.id === "idea-development" && ideasCount > 0;
             const done = prog?.status === "COMPLETE" || isIdeaLinked;
             const inProgress = prog?.status === "IN_PROGRESS";
-            const statusText = done ? "Done" : isIdeaLinked ? "Linked" : inProgress ? "In progress" : "Not started";
+            let status: CreatorToolNavStatus = "not_started";
+            if (done) status = isIdeaLinked && prog?.status !== "COMPLETE" ? "linked" : "done";
+            else if (inProgress) status = "in_progress";
             const href = toolHref(t.phase, t.toolSlug, project.id);
             return (
-              <li key={t.id}>
-                <Link
-                  href={href}
-                  className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm text-slate-300 hover:bg-white/[0.05] hover:text-white"
-                >
-                  <span className="flex items-center gap-2">
-                    {done ? <CheckCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0" /> : inProgress ? <Loader2 className="w-3.5 h-3.5 text-amber-400 shrink-0 animate-spin" /> : <Circle className="w-3.5 h-3.5 text-slate-600 shrink-0" />}
-                    {t.label}
-                  </span>
-                  <span className={`text-[11px] ${done ? "text-emerald-400" : isIdeaLinked ? "text-orange-400" : inProgress ? "text-amber-400" : "text-slate-500"}`}>
-                    {statusText}
-                  </span>
-                </Link>
-              </li>
+              <CreatorToolNavCard
+                key={t.id}
+                href={href}
+                label={t.label}
+                description={t.description}
+                status={status}
+              />
             );
           })}
-        </ul>
+        </div>
       </div>
     );
   };
 
+  const pipelineSteps: { id: 1 | 2 | 3; label: string }[] = [
+    { id: 1, label: "Pre-production" },
+    { id: 2, label: "Production" },
+    { id: 3, label: "Post-production" },
+  ];
+
   return (
-    <div ref={rowRef} id={`project-${project.id}`} className="storytime-section overflow-hidden">
+    <div ref={rowRef} id={`project-${project.id}`} className="storytime-plan-card overflow-hidden">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left hover:bg-white/[0.04]"
+        className="flex w-full flex-col gap-4 p-5 text-left transition hover:bg-white/[0.03] md:flex-row md:items-center md:justify-between md:gap-6"
       >
-        <div className="min-w-0 flex items-center gap-2">
-          {open ? <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" /> : <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />}
-          <div>
-            <div className="flex items-center gap-2 mb-0.5">
-              <p className="font-semibold text-white truncate">{project.title}</p>
-              <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] text-slate-300">
-                {stage}
-              </span>
-              <span className="rounded-full border border-white/8 bg-black/15 px-2 py-0.5 text-[10px] text-slate-400">
-                {project.phase}
-              </span>
+        <div className="min-w-0 flex flex-1 items-start gap-3">
+          {open ? <ChevronDown className="mt-1 w-5 h-5 text-slate-400 shrink-0" /> : <ChevronRight className="mt-1 w-5 h-5 text-slate-400 shrink-0" />}
+          <div className="min-w-0 flex-1 space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="font-display text-lg font-semibold text-white md:text-xl">{project.title}</p>
+              <span className="rounded-full bg-white/[0.08] px-2.5 py-0.5 text-[11px] text-slate-200">{stage}</span>
+              <span className="rounded-full border border-white/10 px-2.5 py-0.5 text-[11px] text-slate-400">{project.phase}</span>
               {project.isOriginal && (
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-300 border border-orange-500/40">
+                <span className="rounded-full border border-orange-500/40 bg-orange-500/10 px-2.5 py-0.5 text-[11px] text-orange-300">
                   Original
                 </span>
               )}
+              {linkedCatalogue && (
+                <Link
+                  href={`/creator/catalogue/reviews/${linkedCatalogue.id}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className={[
+                    "rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition hover:brightness-110",
+                    catalogueChipStyle(linkedCatalogue.reviewStatus),
+                  ].join(" ")}
+                >
+                  {catalogueChipLabel(linkedCatalogue.reviewStatus)}
+                </Link>
+              )}
             </div>
-            <p className="text-xs text-slate-400 truncate">
+            <p className="text-sm text-slate-400">
               {project.genre || "Unspecified genre"} · Last edited {updated.toLocaleDateString()}
             </p>
-            <div className="mt-2 flex items-center gap-4 text-[11px] text-slate-400">
-              <span className="flex items-center gap-1">
-                <Clock className="w-3 h-3" />
-                {doneCount} done
+            {/* Stepper aligned with project.phase */}
+            <div className="flex flex-wrap items-center gap-2">
+              {pipelineSteps.map((s, idx) => {
+                const reached = activeStep >= s.id;
+                const current = activeStep === s.id;
+                return (
+                  <div key={s.id} className="flex items-center gap-2">
+                    <span
+                      className={[
+                        "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium",
+                        current
+                          ? "border-orange-500/50 bg-orange-500/15 text-orange-100"
+                          : reached
+                            ? "border-green-500/30 bg-green-500/10 text-green-300"
+                            : "border-white/10 bg-white/[0.03] text-slate-500",
+                      ].join(" ")}
+                    >
+                      {reached && !current ? (
+                        <CheckCircle className="h-3.5 w-3.5 shrink-0 text-green-400" />
+                      ) : (
+                        <Circle className={`h-3.5 w-3.5 shrink-0 ${current ? "text-orange-400" : "text-slate-600"}`} />
+                      )}
+                      {s.label}
+                    </span>
+                    {idx < pipelineSteps.length - 1 && <span className="hidden text-slate-600 sm:inline">→</span>}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex flex-wrap gap-4 text-xs text-slate-500">
+              <span className="flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5" />
+                Pipeline {doneCount}/{totalTools} tracked tools
               </span>
-              <span className="flex items-center gap-1">
-                <Users className="w-3 h-3" />
+              <span className="flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5" />
                 {project.members.length + 1} team member{project.members.length + 1 !== 1 ? "s" : ""}
               </span>
             </div>
           </div>
         </div>
-        <div className="hidden md:flex flex-col items-end gap-1 text-[11px] text-slate-400 w-32 shrink-0">
-          <span className="self-end">{open ? "Hide" : "Show"} pipeline</span>
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/[0.08]">
+        <div className="flex w-full flex-col gap-2 md:w-48 md:shrink-0">
+          <span className="text-xs text-slate-500 md:text-right">{open ? "Hide" : "Show"} full pipeline</span>
+          <div className="h-2 w-full overflow-hidden rounded-full bg-white/[0.08]">
             <div
-              className="h-full bg-gradient-to-r from-orange-500 to-emerald-400 transition-all"
+              className="h-full rounded-full bg-gradient-to-r from-orange-500 to-emerald-400 transition-all duration-500"
               style={{ width: `${Math.min(100, progressPct)}%` }}
             />
           </div>
+          <span className="text-[11px] text-slate-500 md:text-right">{progressPct}% overall</span>
         </div>
       </button>
       {open && (
-        <div className="border-t border-white/8 bg-black/12 px-4 py-3">
-          <p className="text-xs text-slate-500 mb-3">What’s been done — open a tool with this project linked:</p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="border-t border-white/[0.08] bg-black/25 px-4 py-6 md:px-6 md:py-8 lg:px-10 lg:py-10">
+          <p className="mb-6 max-w-3xl text-sm leading-relaxed text-slate-400">
+            Each phase stacks below — only <span className="text-slate-300">Music &amp; scoring</span> and{" "}
+            <span className="text-slate-300">Distribution</span> count in post-production tracking. Tool status comes from
+            your saves inside each workspace.
+          </p>
+          <div className="flex flex-col gap-8 lg:gap-10">
+            {renderSection("Phase 1", "Pre-production", 1, pre, PRE_PRODUCTION_TOOLS.map((t) => ({
+              id: t.id,
+              label: t.label,
+              description: t.description,
+              toolSlug: t.toolSlug,
+              phase: t.phase,
+            })))}
+            {renderSection("Phase 2", "Production", 2, prod, PRODUCTION_TOOLS.map((t) => ({
+              id: t.id,
+              label: t.label,
+              description: t.description,
+              toolSlug: t.toolSlug,
+              phase: t.phase,
+            })))}
             {renderSection(
-              "Pre-Production",
-              PRE_PRODUCTION_TOOLS.map((t) => ({ id: t.id, label: t.label, toolSlug: t.toolSlug, phase: t.phase }))
-            )}
-            {renderSection(
-              "Production",
-              PRODUCTION_TOOLS.map((t) => ({ id: t.id, label: t.label, toolSlug: t.toolSlug, phase: t.phase }))
-            )}
-            {renderSection(
-              "Post-Production",
-              POST_PRODUCTION_TOOLS.map((t) => ({ id: t.id, label: t.label, toolSlug: t.toolSlug, phase: t.phase }))
+              "Phase 3",
+              "Post-production",
+              3,
+              post,
+              POST_PRODUCTION_HUB_TOOLS.map((t) => ({
+                id: t.id,
+                label: t.label,
+                description: t.description,
+                toolSlug: t.toolSlug,
+                phase: t.phase,
+              })),
             )}
           </div>
         </div>
@@ -182,6 +368,12 @@ export function CreatorProjectsDashboardClient() {
     queryKey: ["creator-projects"],
     queryFn: () => fetch("/api/creator/projects").then((r) => r.json()),
   });
+
+  const { data: contentListRaw } = useQuery({
+    queryKey: ["creator-content-dashboard"],
+    queryFn: () => fetch("/api/creator/content").then((r) => r.json()),
+  });
+  const contents: ContentListRow[] = Array.isArray(contentListRaw) ? contentListRaw : [];
 
   const [creating, setCreating] = useState(false);
   const [title, setTitle] = useState("");
@@ -246,25 +438,34 @@ export function CreatorProjectsDashboardClient() {
   };
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="font-display text-2xl font-semibold tracking-tight text-white md:text-3xl">
-            My Projects
-          </h1>
-          <p className="text-sm text-slate-400 mt-1">
-            Manage all your films in one production pipeline. Open a project to move it from
-            Pre-Production to Post-Production.
-          </p>
+    <div className="space-y-10">
+      <header className="storytime-plan-card p-5 md:p-6 lg:p-8">
+        <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
+          <div className="min-w-0 space-y-2">
+            <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">Creator pipeline</p>
+            <h1 className="font-display text-2xl font-semibold tracking-tight text-white md:text-3xl">My Projects</h1>
+            <p className="max-w-2xl text-sm leading-relaxed text-slate-400 md:text-base">
+              Same rhythm as Distribution upload: one clear flow per project. Expand a film to see all three phases in a
+              vertical stack — progress counts only tools we ship (including Music + Distribution in post).
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-col gap-2 self-start sm:flex-row sm:items-center md:self-center">
+            <Link
+              href="/creator/upload"
+              className="inline-flex items-center justify-center rounded-xl border border-white/15 bg-white/[0.04] px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:border-orange-400/35 hover:bg-orange-500/10 hover:text-white"
+            >
+              Catalogue upload
+            </Link>
+            <Button onClick={() => setCreating(true)} className="flex items-center gap-2">
+              <Plus className="w-4 h-4" />
+              New Project
+            </Button>
+          </div>
         </div>
-        <Button onClick={() => setCreating(true)} className="flex items-center gap-2">
-          <Plus className="w-4 h-4" />
-          New Project
-        </Button>
-      </div>
+      </header>
 
       {creating && (
-        <div className="storytime-section space-y-3 p-4">
+        <div className="rounded-xl border border-slate-700/50 bg-slate-800/30 space-y-4 p-5 md:p-6">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-sm font-semibold text-white">Create a new film project</h2>
           </div>
@@ -397,9 +598,9 @@ export function CreatorProjectsDashboardClient() {
       )}
 
       {isLoading ? (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-20 bg-white/[0.06]" />
+            <Skeleton key={i} className="h-24 rounded-xl bg-white/[0.06]" />
           ))}
         </div>
       ) : projects.length === 0 ? (
@@ -415,12 +616,13 @@ export function CreatorProjectsDashboardClient() {
           </Button>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-5">
           {projects.map((project) => (
             <ProjectRow
               key={project.id}
               project={project}
               defaultOpen={project.id === openProjectId}
+              linkedCatalogue={pickLinkedCatalogue(project.id, contents)}
             />
           ))}
         </div>

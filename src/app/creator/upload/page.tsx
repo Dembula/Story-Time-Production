@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import {
   Upload, Film, Info, Image as ImageIcon, Settings, Users, Music,
   ArrowRight, ArrowLeft, CheckCircle, AlertCircle, Send, Save,
@@ -53,8 +54,33 @@ const STEPS = [
 interface CrewEntry { name: string; role: string; }
 interface BtsEntry { title: string; videoUrl: string; }
 
-export default function DistributionUploadPage() {
+const inputClass =
+  "storytime-input w-full rounded-xl px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:border-orange-500 focus:outline-none";
+const selectClass =
+  "storytime-select w-full rounded-xl px-4 py-3 text-sm text-white focus:border-orange-500 focus:outline-none";
+
+function DistributionUploadInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const projectIdFromUrl = searchParams.get("projectId");
+  const [linkedProject, setLinkedProject] = useState<{ id: string; title: string } | null>(null);
+
+  useEffect(() => {
+    if (!projectIdFromUrl) {
+      setLinkedProject(null);
+      return;
+    }
+    fetch("/api/creator/projects")
+      .then((r) => r.json())
+      .then((d) => {
+        const p = (d.projects ?? []).find((x: { id: string }) => x.id === projectIdFromUrl);
+        setLinkedProject(
+          p ? { id: p.id, title: p.title } : { id: projectIdFromUrl, title: "Your project" },
+        );
+      })
+      .catch(() => setLinkedProject({ id: projectIdFromUrl, title: "Linked project" }));
+  }, [projectIdFromUrl]);
+
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -168,6 +194,7 @@ export default function DistributionUploadPage() {
         btsVideos: btsVideos.filter((b) => b.title && b.videoUrl),
         minAge,
         advisory: advisoryPayload,
+        ...(linkedProject ? { linkedProjectId: linkedProject.id } : {}),
       };
 
       const res = await fetch("/api/creator/content", {
@@ -192,66 +219,140 @@ export default function DistributionUploadPage() {
 
   if (success) {
     return (
-      <div className="min-h-[70vh] flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <div className="w-16 h-16 rounded-full bg-green-500/10 border border-green-500/30 flex items-center justify-center mx-auto">
-            <CheckCircle className="w-8 h-8 text-green-400" />
+      <div className="min-h-[70vh] flex items-center justify-center px-6">
+        <div className="storytime-plan-card max-w-md space-y-4 p-8 text-center">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-green-500/30 bg-green-500/10">
+            <CheckCircle className="h-8 w-8 text-green-400" />
           </div>
-          <h2 className="text-2xl font-bold text-white">Submission Received!</h2>
-          <p className="text-slate-400">Your content has been submitted for review. Our team will vet it shortly.</p>
-          <p className="text-xs text-slate-500">Redirecting to dashboard...</p>
+          <h2 className="font-display text-2xl font-semibold text-white">Submission received</h2>
+          <p className="text-sm text-slate-400">
+            Your content is in review. Our team will vet it before it can go live in the catalogue.
+          </p>
+          <p className="text-xs text-slate-500">Redirecting to My Projects…</p>
         </div>
       </div>
     );
   }
 
+  function stepComplete(id: number): boolean {
+    if (id === 1) return !!form.type;
+    if (id === 2) return !!form.title && !!form.description;
+    if (id === 3) return !!form.videoUrl;
+    if (id === 4) return !!form.language && !!form.ageRating;
+    if (id === 5) return true;
+    return false;
+  }
+
   return (
-    <div className="max-w-5xl mx-auto px-6 md:px-12 py-10">
-      <div className="mb-8">
-        <button
-          onClick={() => router.push("/creator/dashboard")}
-          className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white mb-4 transition"
-        >
-          <ArrowLeft className="w-4 h-4" /> Back to Creator home
-        </button>
-        <h1 className="text-3xl font-bold text-white flex items-center gap-3">
-          <Upload className="w-8 h-8 text-orange-500" /> Distribution &amp; Delivery
-        </h1>
-        <p className="text-slate-400 mt-1">
-          Submit your finished film, series, show, or podcast for Story Time review and
-          distribution. This is the final handoff step before your title can go live in the
-          catalogue.
-        </p>
-      </div>
-
-      {/* Progress steps */}
-      <div className="flex items-center gap-1 mb-10 overflow-x-auto pb-2">
-        {STEPS.map((s, idx) => (
-          <div key={s.id} className="flex items-center">
-            <button
-              onClick={() => { if (s.id <= step || canAdvance()) setStep(s.id); }}
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition whitespace-nowrap ${
-                step === s.id
-                  ? "bg-orange-500 text-white"
-                  : s.id < step
-                  ? "bg-green-500/10 text-green-400 border border-green-500/30"
-                  : "bg-slate-800/50 text-slate-500 border border-slate-700/50"
-              }`}
-            >
-              {s.id < step ? <CheckCircle className="w-4 h-4" /> : <s.icon className="w-4 h-4" />}
-              <span className="hidden sm:inline">{s.label}</span>
-              <span className="sm:hidden">{s.id}</span>
-            </button>
-            {idx < STEPS.length - 1 && <div className="w-4 h-px bg-slate-700 mx-1" />}
+    <div className="px-6 py-8 md:px-12 md:py-10">
+      <div className="mx-auto max-w-6xl space-y-8">
+        <header className="storytime-plan-card p-5 md:p-6 lg:p-8">
+          <Link
+            href="/creator/dashboard"
+            className="mb-4 inline-flex items-center gap-2 text-sm text-slate-400 transition hover:text-white"
+          >
+            <ArrowLeft className="h-4 w-4" /> Back to My Projects
+          </Link>
+          <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">
+            Distribution &amp; delivery
+          </p>
+          <h1 className="flex items-center gap-3 font-display text-2xl font-semibold tracking-tight text-white md:text-3xl">
+            <Upload className="h-8 w-8 shrink-0 text-orange-500" />
+            Catalogue submission
+          </h1>
+          <p className="mt-3 max-w-3xl text-sm leading-relaxed text-slate-400 md:text-base">
+            Six guided steps — same rhythm as the rest of the creator hub. Add masters, metadata, and cast &amp; crew,
+            then submit for vetting. Nothing goes public until approved.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-3 text-xs text-slate-500">
+            <Link href="/creator/post-production" className="text-orange-400 hover:text-orange-300">
+              Post-production hub
+            </Link>
+            <span className="text-slate-600">·</span>
+            <span>Autosave intent: use Save draft on the last step until you are ready.</span>
           </div>
-        ))}
-      </div>
+        </header>
 
-      {error && (
-        <div className="mb-6 p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 flex-shrink-0" /> {error}
-        </div>
-      )}
+        {linkedProject && (
+          <div className="creator-glass-panel flex flex-wrap items-center justify-between gap-3 rounded-xl border border-orange-500/25 bg-orange-500/[0.06] p-4">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-orange-200/80">Linked pipeline</p>
+              <p className="text-sm font-medium text-white">Project: {linkedProject.title}</p>
+              <p className="text-xs text-slate-400">
+                This submission is associated with your film for your own tracking. Catalogue listing is still subject
+                to review.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => router.replace("/creator/upload")}
+              className="shrink-0 rounded-lg border border-white/15 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/[0.06]"
+            >
+              Clear link
+            </button>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-12 lg:gap-10">
+          <aside className="lg:col-span-4">
+            <div className="creator-glass-panel space-y-3 p-4 lg:sticky lg:top-24">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Submission steps</p>
+              <div className="flex gap-2 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:pb-0">
+                {STEPS.map((s) => {
+                  const active = step === s.id;
+                  const past = s.id < step;
+                  const complete = stepComplete(s.id);
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => {
+                        if (s.id <= step || canAdvance()) setStep(s.id);
+                      }}
+                      className={[
+                        "flex w-full min-w-[140px] items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-sm font-medium transition lg:min-w-0",
+                        active
+                          ? "border-orange-500/50 bg-orange-500/15 text-white shadow-glow"
+                          : past && complete
+                            ? "border-green-500/30 bg-green-500/10 text-green-200"
+                            : past
+                              ? "border-white/10 bg-white/[0.05] text-slate-300"
+                              : "border-white/10 bg-white/[0.03] text-slate-400 hover:border-white/20",
+                      ].join(" ")}
+                    >
+                      {past && complete ? (
+                        <CheckCircle className="h-4 w-4 shrink-0 text-green-400" />
+                      ) : (
+                        <s.icon className="h-4 w-4 shrink-0 opacity-80" />
+                      )}
+                      <span className="truncate">
+                        <span className="text-[10px] text-slate-500 lg:hidden">Step {s.id} · </span>
+                        {s.label}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="border-t border-white/10 pt-3 text-xs text-slate-500">
+                Step {step} of {STEPS.length}
+                {linkedProject && (
+                  <>
+                    <br />
+                    <span className="text-orange-200/80">Linked: {linkedProject.title}</span>
+                  </>
+                )}
+              </div>
+            </div>
+          </aside>
+
+          <div className="space-y-6 lg:col-span-8">
+            {error && (
+              <div className="flex items-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
+                <AlertCircle className="h-4 w-4 shrink-0" /> {error}
+              </div>
+            )}
+
+            <div className="creator-glass-panel rounded-2xl border border-white/10 p-5 md:p-8">
 
       {/* Step 1: Content Type */}
       {step === 1 && (
@@ -964,6 +1065,24 @@ export default function DistributionUploadPage() {
         </div>
       </div>
 
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
+  );
+}
+
+export default function DistributionUploadPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-[50vh] items-center justify-center">
+          <div className="h-10 w-10 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
+        </div>
+      }
+    >
+      <DistributionUploadInner />
+    </Suspense>
   );
 }

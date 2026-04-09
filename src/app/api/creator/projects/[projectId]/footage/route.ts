@@ -99,3 +99,52 @@ export async function POST(
 
   return NextResponse.json({ asset }, { status: 201 });
 }
+
+export async function PATCH(
+  req: NextRequest,
+  context: { params: Promise<{ projectId: string }> },
+) {
+  const { projectId } = await context.params;
+  const access = await ensureAccess(projectId);
+  if (access.error) return access.error;
+
+  const body = (await req.json().catch(() => null)) as
+    | {
+        id: string;
+        sceneId?: string | null;
+        label?: string | null;
+        type?: string;
+      }
+    | null;
+
+  if (!body?.id) {
+    return NextResponse.json({ error: "Missing id" }, { status: 400 });
+  }
+
+  const existing = await prisma.footageAsset.findFirst({
+    where: { id: body.id, projectId },
+  });
+  if (!existing) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  if (body.sceneId) {
+    const sc = await prisma.projectScene.findFirst({
+      where: { id: body.sceneId, projectId },
+    });
+    if (!sc) {
+      return NextResponse.json({ error: "Invalid sceneId" }, { status: 400 });
+    }
+  }
+
+  const asset = await prisma.footageAsset.update({
+    where: { id: body.id },
+    data: {
+      ...(body.sceneId !== undefined ? { sceneId: body.sceneId } : {}),
+      ...(body.label !== undefined ? { label: body.label } : {}),
+      ...(body.type !== undefined ? { type: body.type } : {}),
+    },
+  });
+
+  return NextResponse.json({ asset });
+}
