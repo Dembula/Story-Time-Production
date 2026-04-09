@@ -1,7 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 export const runtime = "nodejs";
+
+const DEFAULT_MAX_UPLOAD_MB = 200;
+const ALLOWED_MIME_TYPES = new Set([
+  "application/pdf",
+  "image/avif",
+  "image/gif",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "video/mp4",
+  "video/quicktime",
+  "video/webm",
+  "video/x-matroska",
+]);
 
 const s3Client = new S3Client({
   region: process.env.STORAGE_REGION,
@@ -15,8 +31,33 @@ const s3Client = new S3Client({
   forcePathStyle: Boolean(process.env.STORAGE_ENDPOINT),
 });
 
+function maxUploadBytes(): number {
+  const parsed = Number(process.env.UPLOAD_MAX_FILE_SIZE_MB);
+  const mb = Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_MAX_UPLOAD_MB;
+  return Math.floor(mb * 1024 * 1024);
+}
+
+function normalizePublicBaseUrl(bucket: string): string {
+  const raw = process.env.STORAGE_PUBLIC_BASE_URL?.trim();
+  const fallback = `https://${bucket}.s3.${process.env.STORAGE_REGION}.amazonaws.com`;
+  if (!raw) return fallback;
+  if (/^https?:\/\//i.test(raw)) return raw.replace(/\/$/, "");
+  return `https://${raw.replace(/\/$/, "")}`;
+}
+
+function sanitizeExtension(fileName: string): string {
+  const ext = fileName.split(".").pop()?.toLowerCase() || "bin";
+  return ext.replace(/[^a-z0-9]/g, "") || "bin";
+}
+
 export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    const userId = (session?.user as { id?: string } | undefined)?.id;
+    if (!session || !userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const bucket = process.env.STORAGE_BUCKET_NAME;
 
     if (!bucket || !process.env.STORAGE_REGION) {
@@ -33,10 +74,33 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing file field in form-data" }, { status: 400 });
     }
 
+    if (!ALLOWED_MIME_TYPES.has(file.type)) {
+      return NextResponse.json(
+        {
+          error:
+            "Unsupported file type. Allowed types: PDF, JPG/PNG/WEBP/AVIF/GIF, MP4/WEBM/MOV/MKV.",
+        },
+        { status: 400 },
+      );
+    }
+
+    const maxBytes = maxUploadBytes();
+    if (file.size <= 0) {
+      return NextResponse.json({ error: "File is empty." }, { status: 400 });
+    }
+    if (file.size > maxBytes) {
+      return NextResponse.json(
+        {
+          error: `File too large. Max size is ${Math.floor(maxBytes / (1024 * 1024))}MB.`,
+        },
+        { status: 413 },
+      );
+    }
+
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    const fileExt = file.name.split(".").pop() || "bin";
+    const fileExt = sanitizeExtension(file.name);
     const now = new Date();
     const key = [
       "uploads",
@@ -54,11 +118,9 @@ export async function POST(request: NextRequest) {
       }),
     );
 
-    const baseUrl =
-      process.env.STORAGE_PUBLIC_BASE_URL ||
-      `https://${bucket}.s3.${process.env.STORAGE_REGION}.amazonaws.com`;
+    const baseUrl = normalizePublicBaseUrl(bucket);
 
-    const publicUrl = `${baseUrl.replace(/\/$/, "")}/${encodeURIComponent(key)}`;
+    const publicUrl = `${baseUrl}/${key.split("/").map(encodeURIComponent).join("/")}`;
 
     return NextResponse.json(
       {
