@@ -8,6 +8,7 @@ import {
   ArrowRight, ArrowLeft, CheckCircle, AlertCircle, Send, Save,
   Clapperboard, Globe, Tag, Clock, Calendar, Star, Tv, Shield, FileText,
 } from "lucide-react";
+import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
 
 const TYPES = [
   { value: "MOVIE", label: "Movie", icon: Film, desc: "Feature or short film" },
@@ -145,18 +146,7 @@ function DistributionUploadInner() {
   }
 
   async function uploadToStorage(file: File): Promise<string> {
-    const formData = new FormData();
-    formData.append("file", file);
-    const res = await fetch("/api/upload/content-media", {
-      method: "POST",
-      body: formData,
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      throw new Error(data.error || "Upload failed");
-    }
-    const data = await res.json();
-    return data.publicUrl as string;
+    return uploadContentMediaViaApi(file);
   }
 
   function canAdvance(): boolean {
@@ -492,7 +482,9 @@ function DistributionUploadInner() {
                         updateField("videoUrl", url);
                       } catch (err) {
                         console.error(err);
-                        setError("Failed to upload main video. Please try again.");
+                        setError(
+                          err instanceof Error ? err.message : "Failed to upload main video. Please try again.",
+                        );
                       } finally {
                         setUploadingMainVideo(false);
                       }
@@ -533,7 +525,9 @@ function DistributionUploadInner() {
                         updateField("trailerUrl", url);
                       } catch (err) {
                         console.error(err);
-                        setError("Failed to upload trailer. Please try again.");
+                        setError(
+                          err instanceof Error ? err.message : "Failed to upload trailer. Please try again.",
+                        );
                       } finally {
                         setUploadingTrailer(false);
                       }

@@ -10,16 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProjectStageControls } from "@/app/creator/projects/[projectId]/project-stage-controls";
-
-async function uploadContentMediaFile(file: File): Promise<string> {
-  const fd = new FormData();
-  fd.append("file", file);
-  const res = await fetch("/api/upload/content-media", { method: "POST", body: fd });
-  const data = (await res.json().catch(() => ({}))) as { error?: string; publicUrl?: string };
-  if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : "Upload failed");
-  if (!data.publicUrl) throw new Error("Upload did not return a file URL");
-  return data.publicUrl;
-}
+import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
 
 export function FootageIngestion({
   projectId,
@@ -140,7 +131,7 @@ export function FootageIngestion({
                   if (!file) return;
                   setUploadingFile(true);
                   try {
-                    const url = await uploadContentMediaFile(file);
+                    const url = await uploadContentMediaViaApi(file);
                     setFileUrl(url);
                   } catch (err) {
                     console.error(err);

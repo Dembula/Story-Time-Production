@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
@@ -16,7 +16,9 @@ import {
   Send,
   MessageSquare,
   Upload,
+  X,
 } from "lucide-react";
+import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
 
 type Tab = "feed" | "discover" | "chats";
 
@@ -57,6 +59,44 @@ interface ProjectOption {
   title: string;
 }
 
+/** Supports JSON array, JSON-encoded string, or a single raw https URL stored in DB. */
+function parseFeedPostImageUrls(imageUrls: string | null | undefined): string[] {
+  if (imageUrls == null) return [];
+  const s = String(imageUrls).trim();
+  if (!s) return [];
+  try {
+    const parsed: unknown = JSON.parse(s);
+    if (Array.isArray(parsed)) {
+      return parsed
+        .filter((u): u is string => typeof u === "string" && u.trim().length > 0)
+        .map((u) => u.trim());
+    }
+    if (typeof parsed === "string" && parsed.trim().length > 0) return [parsed.trim()];
+  } catch {
+    /* not JSON */
+  }
+  if (/^https?:\/\//i.test(s)) return [s];
+  return [];
+}
+
+function mapApiRowToFeedPost(p: Record<string, unknown>): FeedPost {
+  return {
+    id: p.id as string,
+    authorId: p.authorId as string,
+    body: (p.body as string) ?? null,
+    imageUrls: typeof p.imageUrls === "string" ? p.imageUrls : p.imageUrls != null ? String(p.imageUrls) : null,
+    contentId: (p.contentId as string) ?? null,
+    createdAt: typeof p.createdAt === "string" ? p.createdAt : new Date(p.createdAt as Date).toISOString(),
+    author: (p.author as PostAuthor) ?? {
+      id: p.authorId as string,
+      name: null,
+      image: null,
+      headline: null,
+    },
+    content: p.content as FeedPost["content"],
+  };
+}
+
 export function NetworkClient() {
   const [tab, setTab] = useState<Tab>("feed");
   const [posts, setPosts] = useState<FeedPost[]>([]);
@@ -64,8 +104,12 @@ export function NetworkClient() {
   const [loading, setLoading] = useState(true);
   const [postBody, setPostBody] = useState("");
   const [postImageUrl, setPostImageUrl] = useState("");
+  const [postImageLocalPreview, setPostImageLocalPreview] = useState<string | null>(null);
   const [postImageUploading, setPostImageUploading] = useState(false);
   const [postImageError, setPostImageError] = useState("");
+  const [pasteImageUrlOpen, setPasteImageUrlOpen] = useState(false);
+  const [pasteImageUrlDraft, setPasteImageUrlDraft] = useState("");
+  const imageUploadGen = useRef(0);
   const [brokenPostImages, setBrokenPostImages] = useState<Record<string, boolean>>({});
   const [posting, setPosting] = useState(false);
   const [myId, setMyId] = useState<string | null>(null);
@@ -144,23 +188,7 @@ export function NetworkClient() {
         .then((r) => r.json())
         .then((d) => {
           const raw = d.posts ?? [];
-          setPosts(
-            raw.map((p: Record<string, unknown>) => ({
-              id: p.id as string,
-              authorId: p.authorId as string,
-              body: (p.body as string) ?? null,
-              imageUrls: (p.imageUrls as string) ?? null,
-              contentId: (p.contentId as string) ?? null,
-              createdAt: typeof p.createdAt === "string" ? p.createdAt : new Date(p.createdAt as Date).toISOString(),
-              author: (p.author as PostAuthor) ?? {
-                id: p.authorId as string,
-                name: null,
-                image: null,
-                headline: null,
-              },
-              content: p.content as FeedPost["content"],
-            })),
-          );
+          setPosts(raw.map((p: Record<string, unknown>) => mapApiRowToFeedPost(p)));
         })
         .catch(() => setPosts([]))
         .finally(() => setLoading(false));
@@ -177,6 +205,22 @@ export function NetworkClient() {
         .catch(() => setChats([]))
         .finally(() => setLoading(false));
     }
+  }, [tab]);
+
+  useEffect(() => {
+    if (tab !== "feed") return;
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      fetch(`/api/network/posts?mode=feed&limit=30`)
+        .then((r) => r.json())
+        .then((d) => {
+          const raw = d.posts ?? [];
+          setPosts(raw.map((p: Record<string, unknown>) => mapApiRowToFeedPost(p)));
+        })
+        .catch(() => {});
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
   }, [tab]);
 
   useEffect(() => {
@@ -256,9 +300,21 @@ export function NetworkClient() {
     }
   }
 
+  function clearPostAttachment() {
+    setPostImageLocalPreview((prev) => {
+      if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
+      return null;
+    });
+    setPostImageUrl("");
+    setPostImageError("");
+    setPasteImageUrlDraft("");
+  }
+
   async function submitPost(e: React.FormEvent) {
     e.preventDefault();
-    if (!postBody.trim() || posting) return;
+    const hasText = postBody.trim().length > 0;
+    const hasImage = postImageUrl.trim().length > 0;
+    if ((!hasText && !hasImage) || posting || postImageUploading) return;
     setPosting(true);
     try {
       const imageUrls = postImageUrl.trim() ? [postImageUrl.trim()] : undefined;
@@ -266,28 +322,18 @@ export function NetworkClient() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          body: postBody.trim(),
+          body: hasText ? postBody.trim() : null,
           ...(imageUrls ? { imageUrls } : {}),
         }),
       });
       if (res.ok) {
-        const row = await res.json();
-        const post: FeedPost = {
-          id: row.id,
-          authorId: row.authorId,
-          body: row.body ?? null,
-          imageUrls: row.imageUrls ?? null,
-          contentId: row.contentId ?? null,
-          createdAt: typeof row.createdAt === "string" ? row.createdAt : new Date(row.createdAt).toISOString(),
-          author: row.author ?? {
-            id: row.authorId,
-            name: null,
-            image: null,
-            headline: null,
-          },
-          content: row.content ?? null,
-        };
+        const row = (await res.json()) as Record<string, unknown>;
+        const post = mapApiRowToFeedPost(row);
         setPostBody("");
+        setPostImageLocalPreview((prev) => {
+          if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
+          return null;
+        });
         setPostImageUrl("");
         setPosts((prev) => [post, ...prev]);
       }
@@ -425,47 +471,137 @@ export function NetworkClient() {
                   className="w-full px-4 py-3 rounded-xl bg-slate-800/80 border border-slate-700 text-white placeholder:text-slate-500 resize-none focus:outline-none focus:ring-2 focus:ring-orange-500/50"
                   maxLength={2000}
                 />
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-600 bg-slate-900/80 px-3 py-2 text-xs text-slate-200 hover:bg-slate-800 shrink-0">
-                    {postImageUploading ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Upload className="h-3.5 w-3.5" />
-                    )}
-                    {postImageUploading ? "Uploading…" : "Attach image"}
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/heic,image/heif"
-                      className="hidden"
-                      disabled={postImageUploading}
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        e.target.value = "";
-                        if (!file) return;
+                <div className="flex flex-col gap-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-600 bg-slate-900/80 px-3 py-2 text-xs text-slate-200 hover:bg-slate-800 shrink-0">
+                      {postImageUploading ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Upload className="h-3.5 w-3.5" />
+                      )}
+                      {postImageUploading ? "Uploading in background…" : "Attach image"}
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/heic,image/heif"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          e.target.value = "";
+                          if (!file) return;
+                          setPostImageError("");
+                          imageUploadGen.current += 1;
+                          const gen = imageUploadGen.current;
+                          setPostImageLocalPreview((prev) => {
+                            if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
+                            return URL.createObjectURL(file);
+                          });
+                          setPostImageUrl("");
+                          setPostImageUploading(true);
+                          void (async () => {
+                            try {
+                              const publicUrl = await uploadContentMediaViaApi(file);
+                              if (gen !== imageUploadGen.current) return;
+                              setPostImageLocalPreview((prev) => {
+                                if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
+                                return null;
+                              });
+                              setPostImageUrl(publicUrl);
+                            } catch (uploadErr) {
+                              if (gen !== imageUploadGen.current) return;
+                              setPostImageError(
+                                uploadErr instanceof Error ? uploadErr.message : "Image upload failed.",
+                              );
+                              setPostImageLocalPreview((prev) => {
+                                if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
+                                return null;
+                              });
+                            } finally {
+                              if (gen === imageUploadGen.current) setPostImageUploading(false);
+                            }
+                          })();
+                        }}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPasteImageUrlOpen((o) => !o);
                         setPostImageError("");
-                        setPostImageUploading(true);
-                        try {
-                          const fd = new FormData();
-                          fd.append("file", file);
-                          const res = await fetch("/api/upload/content-media", { method: "POST", body: fd });
-                          const data = (await res.json().catch(() => ({}))) as { publicUrl?: string; error?: string };
-                          if (!res.ok || !data.publicUrl) {
-                            setPostImageError(data.error || "Image upload failed.");
+                      }}
+                      className="text-xs text-slate-400 hover:text-orange-400 underline-offset-2 hover:underline"
+                    >
+                      {pasteImageUrlOpen ? "Hide paste URL" : "Paste image URL instead"}
+                    </button>
+                  </div>
+                  {postImageLocalPreview || postImageUrl ? (
+                    <div className="flex items-start gap-3 rounded-xl border border-slate-700 bg-slate-950/80 p-3">
+                      <div className="relative h-28 w-28 shrink-0 overflow-hidden rounded-lg bg-slate-800 ring-1 ring-slate-600/80">
+                        {/* eslint-disable-next-line @next/next/no-img-element -- blob: and arbitrary storage URLs */}
+                        <img
+                          src={postImageLocalPreview || postImageUrl}
+                          alt=""
+                          className="h-full w-full object-cover"
+                        />
+                        {postImageUploading ? (
+                          <div className="absolute inset-0 flex items-center justify-center bg-slate-950/60 backdrop-blur-[1px]">
+                            <Loader2 className="h-6 w-6 animate-spin text-orange-400" />
+                          </div>
+                        ) : null}
+                      </div>
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <p className="text-xs text-slate-400">
+                          {postImageUploading
+                            ? "You can keep writing your post while the image uploads."
+                            : postImageUrl
+                              ? "Image ready to post."
+                              : null}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            imageUploadGen.current += 1;
+                            clearPostAttachment();
+                            setPostImageUploading(false);
+                          }}
+                          className="inline-flex items-center gap-1 rounded-lg border border-slate-600 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"
+                        >
+                          <X className="h-3 w-3" />
+                          Remove image
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                  {pasteImageUrlOpen ? (
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <input
+                        value={pasteImageUrlDraft}
+                        onChange={(e) => setPasteImageUrlDraft(e.target.value)}
+                        placeholder="https://… (direct image link)"
+                        className="w-full min-w-0 px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm text-white placeholder:text-slate-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const u = pasteImageUrlDraft.trim();
+                          if (!/^https?:\/\//i.test(u)) {
+                            setPostImageError("Paste a full image URL (https://…)");
                             return;
                           }
-                          setPostImageUrl(data.publicUrl);
-                        } finally {
+                          imageUploadGen.current += 1;
+                          setPostImageLocalPreview((prev) => {
+                            if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
+                            return null;
+                          });
+                          setPostImageUrl(u);
+                          setPostImageError("");
                           setPostImageUploading(false);
-                        }
-                      }}
-                    />
-                  </label>
-                  <input
-                    value={postImageUrl}
-                    onChange={(e) => setPostImageUrl(e.target.value)}
-                    placeholder="Image fills here after upload, or paste a direct image URL"
-                    className="w-full min-w-0 px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm text-white placeholder:text-slate-500"
-                  />
+                        }}
+                        className="shrink-0 rounded-lg bg-slate-700 px-3 py-2 text-xs font-medium text-white hover:bg-slate-600"
+                      >
+                        Use URL
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
                 {postImageError ? <p className="text-xs text-amber-300">{postImageError}</p> : null}
               </div>
@@ -473,7 +609,9 @@ export function NetworkClient() {
             <div className="flex justify-end">
               <button
                 type="submit"
-                disabled={!postBody.trim() || posting}
+                disabled={
+                  (!postBody.trim() && !postImageUrl.trim()) || posting || postImageUploading
+                }
                 className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500 text-white font-medium hover:bg-orange-600 disabled:opacity-50 disabled:pointer-events-none"
               >
                 {posting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
@@ -491,7 +629,10 @@ export function NetworkClient() {
               <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-12 text-center text-slate-400">
                 <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
                 <p className="font-medium text-white">No posts in your feed yet</p>
-                <p className="text-sm mt-1">Follow creators from Discover to see their posts here, or post first.</p>
+                <p className="text-sm mt-1">
+                  Follow creators from Discover to see their updates here, or share your own posts below—they stay in
+                  your feed.
+                </p>
                 <button
                   type="button"
                   onClick={() => setTab("discover")}
@@ -535,41 +676,34 @@ export function NetworkClient() {
                     <span className="text-xs text-slate-500 shrink-0">{formatDate(post.createdAt)}</span>
                   </div>
                   {post.body && <p className="text-slate-200 whitespace-pre-wrap break-words mb-3">{post.body}</p>}
-                  {post.imageUrls &&
-                    (() => {
-                      try {
-                        const urls = JSON.parse(post.imageUrls) as string[];
-                        if (Array.isArray(urls) && urls.length > 0) {
-                          return (
-                            <div className="flex flex-wrap gap-2 mb-3">
-                              {urls.slice(0, 4).map((url, i) => (
-                                <div key={i} className="relative w-24 h-24 rounded-lg overflow-hidden bg-slate-800">
-                                  <img
-                                    src={url}
-                                    alt=""
-                                    className="h-full w-full object-cover"
-                                    onError={() => setBrokenPostImages((prev) => ({ ...prev, [url]: true }))}
-                                  />
-                                  {brokenPostImages[url] ? (
-                                    <a
-                                      href={url}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="absolute inset-0 flex items-center justify-center bg-slate-900/85 px-1 text-center text-[10px] text-orange-300 underline"
-                                    >
-                                      Open file
-                                    </a>
-                                  ) : null}
-                                </div>
-                              ))}
-                            </div>
-                          );
-                        }
-                      } catch {
-                        return null;
-                      }
-                      return null;
-                    })()}
+                  {(() => {
+                    const urls = parseFeedPostImageUrls(post.imageUrls);
+                    if (urls.length === 0) return null;
+                    return (
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        {urls.slice(0, 4).map((url, i) => (
+                          <div key={`${post.id}-${i}`} className="relative w-24 h-24 rounded-lg overflow-hidden bg-slate-800">
+                            <img
+                              src={url}
+                              alt=""
+                              className="h-full w-full object-cover"
+                              onError={() => setBrokenPostImages((prev) => ({ ...prev, [url]: true }))}
+                            />
+                            {brokenPostImages[url] ? (
+                              <a
+                                href={url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="absolute inset-0 flex items-center justify-center bg-slate-900/85 px-1 text-center text-[10px] text-orange-300 underline"
+                              >
+                                Open file
+                              </a>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
                   {post.content && (
                     <Link
                       href={`/browse/content/${post.content.id}`}

@@ -14,6 +14,7 @@ import { useProjectSchedule, useProjectCallSheets } from "@/hooks/useCreatorProj
 import { ProductionModocReportModal } from "../production-modoc-modal";
 import { ProductionControlCenterClient } from "../production-control-center-client";
 import { CallSheetGenerator } from "../call-sheet-generator-client";
+import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
 
 interface ProductionToolPageProps {
   params: Promise<{ projectId?: string; tool: string }>;
@@ -746,22 +747,20 @@ function EquipmentTracking({ projectId, title }: { projectId?: string; title: st
   );
 
   const uploadChecklistPhoto = useCallback(async (itemId: string, file: File) => {
-    const fd = new FormData();
-    fd.set("file", file);
     setUploadingChecklistItemId(itemId);
     try {
-      const res = await fetch("/api/upload/content-media", { method: "POST", body: fd });
-      const json = (await res.json().catch(() => ({}))) as { publicUrl?: string; error?: string };
-      if (!res.ok || !json.publicUrl) throw new Error(json.error || "Photo upload failed");
+      const publicUrl = await uploadContentMediaViaApi(file);
       setChecklistDrafts((prev) => ({
         ...prev,
         [itemId]: {
           ...(prev[itemId] ?? { label: "", physicallyPresent: true, note: "", photoUrl: null }),
-          photoUrl: json.publicUrl ?? null,
+          photoUrl: publicUrl,
         },
       }));
       setToast("Checklist photo uploaded.");
-      return json.publicUrl;
+      return publicUrl;
+    } catch (e) {
+      setToast((e as Error).message || "Photo upload failed");
     } finally {
       setUploadingChecklistItemId(null);
     }
@@ -1776,14 +1775,10 @@ function ContinuityManager({ projectId, title }: { projectId?: string; title: st
   });
 
   const uploadMedia = async (file: File) => {
-    const fd = new FormData();
-    fd.set("file", file);
     setUploadingMedia(true);
     try {
-      const res = await fetch("/api/upload/content-media", { method: "POST", body: fd });
-      const json = (await res.json().catch(() => ({}))) as { publicUrl?: string; error?: string };
-      if (!res.ok || !json.publicUrl) throw new Error(json.error || "Upload failed");
-      setPendingMediaByDraft((prev) => [...prev, json.publicUrl!]);
+      const publicUrl = await uploadContentMediaViaApi(file);
+      setPendingMediaByDraft((prev) => [...prev, publicUrl]);
     } finally {
       setUploadingMedia(false);
     }
@@ -2306,16 +2301,12 @@ function ExpenseTracker({ projectId, title }: { projectId?: string; title: strin
   });
 
   const uploadFile = async (file: File, type: "receipt" | "proof") => {
-    const fd = new FormData();
-    fd.set("file", file);
     if (type === "receipt") setReceiptUploading(true);
     else setProofUploading(true);
     try {
-      const res = await fetch("/api/upload/content-media", { method: "POST", body: fd });
-      const json = (await res.json().catch(() => ({}))) as { publicUrl?: string; error?: string };
-      if (!res.ok || !json.publicUrl) throw new Error(json.error || "Upload failed");
-      if (type === "receipt") setReceiptUrls((prev) => [...prev, json.publicUrl!]);
-      else setPaymentProofUrls((prev) => [...prev, json.publicUrl!]);
+      const publicUrl = await uploadContentMediaViaApi(file);
+      if (type === "receipt") setReceiptUrls((prev) => [...prev, publicUrl]);
+      else setPaymentProofUrls((prev) => [...prev, publicUrl]);
     } finally {
       if (type === "receipt") setReceiptUploading(false);
       else setProofUploading(false);
@@ -2721,15 +2712,11 @@ function IncidentReporting({ projectId, title }: { projectId?: string; title: st
   });
 
   const uploadEvidence = async (file: File) => {
-    const formData = new FormData();
-    formData.set("file", file);
     setUploadingMedia(true);
     try {
-      const res = await fetch("/api/upload/content-media", { method: "POST", body: formData });
-      const data = (await res.json()) as { publicUrl?: string; error?: string };
-      if (!res.ok || !data.publicUrl) throw new Error(data.error || "Upload failed");
-      if (file.type.startsWith("video/")) setDraftVideos((prev) => [...prev, data.publicUrl!]);
-      else setDraftMedia((prev) => [...prev, data.publicUrl!]);
+      const publicUrl = await uploadContentMediaViaApi(file);
+      if (file.type.startsWith("video/")) setDraftVideos((prev) => [...prev, publicUrl]);
+      else setDraftMedia((prev) => [...prev, publicUrl]);
     } catch (error) {
       setToast((error as Error).message);
     } finally {

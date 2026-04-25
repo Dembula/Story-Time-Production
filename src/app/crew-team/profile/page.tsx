@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Briefcase, Save, ArrowLeft, Upload, Loader2 } from "lucide-react";
+import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
 
 type Team = {
   id: string;
@@ -169,11 +170,8 @@ export default function CrewTeamProfilePage() {
                   if (!file) return;
                   setUploadingLogo(true);
                   try {
-                    const fd = new FormData();
-                    fd.append("file", file);
-                    const res = await fetch("/api/upload/content-media", { method: "POST", body: fd });
-                    const data = await res.json();
-                    if (data.publicUrl) setForm((f) => ({ ...f, logoUrl: data.publicUrl }));
+                    const publicUrl = await uploadContentMediaViaApi(file);
+                    setForm((f) => ({ ...f, logoUrl: publicUrl }));
                   } finally {
                     setUploadingLogo(false);
                   }

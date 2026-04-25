@@ -9,6 +9,7 @@ import {
   VISUAL_PLANNING_CATEGORIES,
   type VisualPlanningCategoryId,
 } from "@/lib/visual-planning-categories";
+import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
 
 export type VisualPlanningAsset = {
   id: string;
@@ -23,15 +24,7 @@ const VISUAL_UPLOAD_ACCEPT =
   "image/jpeg,image/jpg,image/png,image/webp,image/avif,image/gif,image/heic,image/heif";
 
 async function uploadToStorage(file: File): Promise<string> {
-  const formData = new FormData();
-  formData.append("file", file);
-  const res = await fetch("/api/upload/content-media", { method: "POST", body: formData });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error((data as { error?: string }).error || "Upload failed");
-  }
-  const data = await res.json();
-  return (data as { publicUrl: string }).publicUrl;
+  return uploadContentMediaViaApi(file);
 }
 
 export function VisualPlanningCatalogue({ projectId }: { projectId: string }) {

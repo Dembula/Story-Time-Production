@@ -3,16 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Music, ChevronRight, ChevronLeft, Check, Upload, Info, Loader2 } from "lucide-react";
-
-async function uploadContentMediaFile(file: File): Promise<string> {
-  const fd = new FormData();
-  fd.append("file", file);
-  const res = await fetch("/api/upload/content-media", { method: "POST", body: fd });
-  const data = (await res.json().catch(() => ({}))) as { error?: string; publicUrl?: string };
-  if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : "Upload failed");
-  if (!data.publicUrl) throw new Error("Upload did not return a file URL");
-  return data.publicUrl;
-}
+import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
 
 const GENRES = ["Indie", "Electronic", "Synthwave", "Ambient", "Hip-Hop", "Afro-Electronic", "World Fusion", "Jazz", "Classical", "Rock", "Pop", "R&B", "Soul", "Folk", "Afrobeat", "Amapiano", "Gqom", "Kwaito", "Other"];
 const MOODS = ["Dreamy", "Energetic", "Moody", "Peaceful", "Confident", "Nostalgic", "Spiritual", "Melancholic", "Festive", "Dark", "Uplifting", "Romantic", "Tense", "Playful"];
@@ -152,7 +143,7 @@ export default function MusicUploadPage() {
                     setUploadingAudio(true);
                     setError("");
                     try {
-                      const url = await uploadContentMediaFile(file);
+                      const url = await uploadContentMediaViaApi(file);
                       updateField("audioUrl", url);
                     } catch (err) {
                       setError((err as Error).message);
@@ -184,7 +175,7 @@ export default function MusicUploadPage() {
                     setUploadingCover(true);
                     setError("");
                     try {
-                      const url = await uploadContentMediaFile(file);
+                      const url = await uploadContentMediaViaApi(file);
                       updateField("coverUrl", url);
                     } catch (err) {
                       setError((err as Error).message);

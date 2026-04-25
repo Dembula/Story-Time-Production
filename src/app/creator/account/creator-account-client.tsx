@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { CreatorAccountVaultHub } from "@/components/creator/creator-account-vault-hub";
 import { CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY } from "@/lib/pricing";
+import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
 
 type CreatorRevenuePayload = {
   revenue: number;
@@ -917,17 +918,12 @@ export function CreatorAccountClient({ backHref = "/creator/command-center" }: {
                   setUploadingProfilePhoto(true);
                   setError("");
                   try {
-                    const fd = new FormData();
-                    fd.append("file", file);
-                    const res = await fetch("/api/upload/content-media", { method: "POST", body: fd });
-                    const data = (await res.json().catch(() => ({}))) as { publicUrl?: string; error?: string };
-                    if (!res.ok || !data.publicUrl) {
-                      flashError(typeof data.error === "string" ? data.error : "Upload failed");
-                      return;
-                    }
-                    const merged = { ...networkRef.current, image: data.publicUrl };
+                    const publicUrl = await uploadContentMediaViaApi(file);
+                    const merged = { ...networkRef.current, image: publicUrl };
                     const ok = await persistPublicProfile(merged);
                     if (ok) flashSuccess("Profile photo uploaded and saved.");
+                  } catch (err) {
+                    flashError(err instanceof Error ? err.message : "Upload failed");
                   } finally {
                     setUploadingProfilePhoto(false);
                   }

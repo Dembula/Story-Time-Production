@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Users, Plus, Trash2, ArrowLeft, FileText, Film, Upload } from "lucide-react";
+import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
 
 export default function CastingAgencyTalentPage() {
   const [talent, setTalent] = useState<{ id: string; name: string; bio: string | null; cvUrl: string | null; headshotUrl: string | null; ageRange: string | null; skills: string | null; pastWork: string | null; reelUrl: string | null }[]>([]);
@@ -27,11 +28,8 @@ export default function CastingAgencyTalentPage() {
     if (!file) return;
     setUploadingHeadshot(true);
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await fetch("/api/upload/content-media", { method: "POST", body: fd });
-      const data = await res.json();
-      if (data.publicUrl) setForm((f) => ({ ...f, headshotUrl: data.publicUrl }));
+      const publicUrl = await uploadContentMediaViaApi(file);
+      setForm((f) => ({ ...f, headshotUrl: publicUrl }));
     } finally {
       setUploadingHeadshot(false);
     }
@@ -41,11 +39,8 @@ export default function CastingAgencyTalentPage() {
     if (!file) return;
     setUploadingCv(true);
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await fetch("/api/upload/content-media", { method: "POST", body: fd });
-      const data = await res.json();
-      if (data.publicUrl) setForm((f) => ({ ...f, cvUrl: data.publicUrl }));
+      const publicUrl = await uploadContentMediaViaApi(file);
+      setForm((f) => ({ ...f, cvUrl: publicUrl }));
     } finally {
       setUploadingCv(false);
     }
@@ -55,11 +50,8 @@ export default function CastingAgencyTalentPage() {
     if (!file) return;
     setUploadingReel(true);
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await fetch("/api/upload/content-media", { method: "POST", body: fd });
-      const data = await res.json();
-      if (data.publicUrl) setForm((f) => ({ ...f, reelUrl: data.publicUrl }));
+      const publicUrl = await uploadContentMediaViaApi(file);
+      setForm((f) => ({ ...f, reelUrl: publicUrl }));
     } finally {
       setUploadingReel(false);
     }

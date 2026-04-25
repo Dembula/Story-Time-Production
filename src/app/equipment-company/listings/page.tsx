@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { Package, Plus, MapPin, Globe, Tag, Upload } from "lucide-react";
+import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
 
 interface Listing {
   id: string;
@@ -46,11 +47,8 @@ export default function ListingsPage() {
     if (!file) return;
     setUploading(true);
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await fetch("/api/upload/content-media", { method: "POST", body: fd });
-      const data = await res.json();
-      if (data.publicUrl) setForm((f) => ({ ...f, imageUrl: data.publicUrl }));
+      const publicUrl = await uploadContentMediaViaApi(file);
+      setForm((f) => ({ ...f, imageUrl: publicUrl }));
     } finally {
       setUploading(false);
     }

@@ -1,84 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { ingestToCloudflareStreamFromUrl } from "@/lib/cloudflare-stream";
-import { upsertStreamAsset } from "@/lib/stream-asset-store";
-import { getStorageConfig } from "@/lib/storage-config";
+import {
+  ALLOWED_CONTENT_MEDIA_MIME_TYPES,
+  buildUserScopedUploadKey,
+  contentMediaMaxUploadBytes,
+  resolveContentTypeForUpload,
+} from "@/lib/content-media-shared";
+import { finalizeContentMediaUpload } from "@/lib/content-media-post-upload";
+import { createContentMediaS3Client } from "@/lib/content-media-s3";
 
 export const runtime = "nodejs";
-
-const DEFAULT_MAX_UPLOAD_MB = 1024;
-const ALLOWED_MIME_TYPES = new Set([
-  "application/pdf",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "text/plain",
-  "image/avif",
-  "image/gif",
-  "image/heic",
-  "image/heif",
-  "image/jpeg",
-  "image/jpg",
-  "image/png",
-  "image/webp",
-  "video/3gpp",
-  "video/3gpp2",
-  "video/avi",
-  "video/hevc",
-  "video/h265",
-  "video/mpeg",
-  "video/mp2t",
-  "video/x-m4v",
-  "video/x-msvideo",
-  "video/x-ms-wmv",
-  "video/mp4",
-  "video/quicktime",
-  "video/webm",
-  "video/x-matroska",
-  "audio/mpeg",
-  "audio/mp3",
-  "audio/wav",
-  "audio/x-wav",
-  "audio/flac",
-  "audio/aac",
-  "audio/mp4",
-  "audio/ogg",
-  "audio/webm",
-]);
-
-const storage = getStorageConfig();
-
-const s3Client = new S3Client({
-  region: storage.region || undefined,
-  endpoint: storage.endpoint || undefined,
-  credentials: storage.accessKeyId && storage.secretAccessKey
-    ? {
-        accessKeyId: storage.accessKeyId,
-        secretAccessKey: storage.secretAccessKey,
-      }
-    : undefined,
-  forcePathStyle: Boolean(storage.endpoint),
-});
-
-function maxUploadBytes(): number {
-  const parsed = Number(process.env.UPLOAD_MAX_FILE_SIZE_MB);
-  const mb = Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_MAX_UPLOAD_MB;
-  return Math.floor(mb * 1024 * 1024);
-}
-
-function normalizePublicBaseUrl(bucket: string): string {
-  const raw = storage.publicBaseUrl;
-  const fallback = `https://${bucket}.s3.${storage.region}.amazonaws.com`;
-  if (!raw) return fallback;
-  if (/^https?:\/\//i.test(raw)) return raw.replace(/\/$/, "");
-  return `https://${raw.replace(/\/$/, "")}`;
-}
-
-function sanitizeExtension(fileName: string): string {
-  const ext = fileName.split(".").pop()?.toLowerCase() || "bin";
-  return ext.replace(/[^a-z0-9]/g, "") || "bin";
-}
+export const maxDuration = 120;
 
 export async function POST(request: NextRequest) {
   try {
@@ -88,11 +22,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { client: s3Client, storage } = createContentMediaS3Client();
     const bucket = storage.bucket;
 
     if (!bucket || !storage.region) {
       return NextResponse.json(
-        { error: "Storage is not configured. Set STORAGE_BUCKET_NAME/STORAGE_REGION (or S3_BUCKET_NAME/S3_REGION)." },
+        {
+          error:
+            "Storage is not configured. Set STORAGE_BUCKET_NAME/STORAGE_REGION (or S3_BUCKET_NAME/S3_REGION).",
+        },
         { status: 500 },
       );
     }
@@ -104,7 +42,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing file field in form-data" }, { status: 400 });
     }
 
-    if (!ALLOWED_MIME_TYPES.has(file.type)) {
+    const contentType = resolveContentTypeForUpload(file);
+
+    if (!ALLOWED_CONTENT_MEDIA_MIME_TYPES.has(contentType)) {
       return NextResponse.json(
         {
           error:
@@ -114,7 +54,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const maxBytes = maxUploadBytes();
+    const maxBytes = contentMediaMaxUploadBytes();
     if (file.size <= 0) {
       return NextResponse.json({ error: "File is empty." }, { status: 400 });
     }
@@ -130,75 +70,24 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    const fileExt = sanitizeExtension(file.name);
-    const now = new Date();
-    const key = [
-      "uploads",
-      now.getUTCFullYear(),
-      String(now.getUTCMonth() + 1).padStart(2, "0"),
-      `${now.getTime()}-${Math.random().toString(36).slice(2)}.${fileExt}`,
-    ].join("/");
+    const key = buildUserScopedUploadKey(userId, file.name);
 
     await s3Client.send(
       new PutObjectCommand({
         Bucket: bucket,
         Key: key,
         Body: buffer,
-        ContentType: file.type || "application/octet-stream",
+        ContentType: contentType,
       }),
     );
 
-    const baseUrl = normalizePublicBaseUrl(bucket);
+    const payload = await finalizeContentMediaUpload({
+      key,
+      contentType,
+      fileNameForMeta: file.name,
+    });
 
-    const sourceUrl = `${baseUrl}/${key.split("/").map(encodeURIComponent).join("/")}`;
-    let publicUrl = sourceUrl;
-    let stream:
-      | {
-          uid: string;
-          state: string;
-          iframeUrl: string;
-          hlsUrl: string;
-          dashUrl: string;
-          mp4Url: string;
-          thumbnailUrl: string;
-        }
-      | null = null;
-    if (file.type.startsWith("video/")) {
-      try {
-        stream = await ingestToCloudflareStreamFromUrl(sourceUrl, {
-          source: "storytime-upload",
-          fileName: file.name,
-          mime: file.type,
-        });
-        publicUrl = stream.mp4Url;
-        await upsertStreamAsset({
-          uid: stream.uid,
-          sourceUrl,
-          playbackUrl: stream.mp4Url,
-          hlsUrl: stream.hlsUrl,
-          iframeUrl: stream.iframeUrl,
-          status: stream.state,
-        });
-      } catch (streamErr) {
-        console.error("Cloudflare Stream ingestion failed; falling back to S3 URL:", streamErr);
-      }
-    }
-
-    return NextResponse.json(
-      {
-        ok: true,
-        bucket,
-        path: key,
-        publicUrl,
-        sourceUrl,
-        streamUid: stream?.uid ?? null,
-        streamStatus: stream?.state ?? null,
-        streamPlaybackUrl: stream?.mp4Url ?? null,
-        streamIframeUrl: stream?.iframeUrl ?? null,
-        streamHlsUrl: stream?.hlsUrl ?? null,
-      },
-      { status: 201 },
-    );
+    return NextResponse.json(payload, { status: 201 });
   } catch (err) {
     console.error("Upload error:", err);
     return NextResponse.json({ error: "Upload failed" }, { status: 500 });

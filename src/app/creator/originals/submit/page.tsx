@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   Sparkles, FileText, Send, Clapperboard, DollarSign, Users, AlertCircle, Upload, Loader2,
 } from "lucide-react";
+import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
 
 type ScriptSource = "scripts" | "upload" | "url";
 
@@ -57,12 +58,11 @@ export default function OriginalsSubmitPage() {
 
   async function uploadScriptFile(): Promise<string | null> {
     if (!scriptFile) return null;
-    const formData = new FormData();
-    formData.set("file", scriptFile);
-    const res = await fetch("/api/upload/content-media", { method: "POST", body: formData });
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data.publicUrl ?? null;
+    try {
+      return await uploadContentMediaViaApi(scriptFile);
+    } catch {
+      return null;
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -276,11 +276,8 @@ export default function OriginalsSubmitPage() {
                     if (!file) return;
                     setUploadingTreatment(true);
                     try {
-                      const fd = new FormData();
-                      fd.append("file", file);
-                      const res = await fetch("/api/upload/content-media", { method: "POST", body: fd });
-                      const data = await res.json();
-                      if (data.publicUrl) setForm((f) => ({ ...f, treatmentUrl: data.publicUrl }));
+                      const publicUrl = await uploadContentMediaViaApi(file);
+                      setForm((f) => ({ ...f, treatmentUrl: publicUrl }));
                     } finally {
                       setUploadingTreatment(false);
                     }
@@ -305,11 +302,8 @@ export default function OriginalsSubmitPage() {
                     if (!file) return;
                     setUploadingLookbook(true);
                     try {
-                      const fd = new FormData();
-                      fd.append("file", file);
-                      const res = await fetch("/api/upload/content-media", { method: "POST", body: fd });
-                      const data = await res.json();
-                      if (data.publicUrl) setForm((f) => ({ ...f, lookbookUrl: data.publicUrl }));
+                      const publicUrl = await uploadContentMediaViaApi(file);
+                      setForm((f) => ({ ...f, lookbookUrl: publicUrl }));
                     } finally {
                       setUploadingLookbook(false);
                     }

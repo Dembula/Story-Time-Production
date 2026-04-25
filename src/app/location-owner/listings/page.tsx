@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { MapPin, Plus, Tag, DollarSign, Users, Image, Upload } from "lucide-react";
+import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
 
 const LOCATION_TYPES = ["Studio", "House", "Warehouse", "Outdoor", "Office", "Historical", "Restaurant", "Other"];
 const AMENITIES_OPTIONS = ["Parking", "Power", "WiFi", "Restrooms", "Green Room", "Kitchen", "AC", "Security", "Loading Dock", "Wardrobe"];
@@ -52,11 +53,11 @@ export default function LocationListingsPage() {
     if (!file) return;
     setUploadingPhoto(true);
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await fetch("/api/upload/content-media", { method: "POST", body: fd });
-      const data = await res.json();
-      if (data.publicUrl) setForm((f) => ({ ...f, photoUrls: f.photoUrls ? f.photoUrls.trimEnd() + "\n" + data.publicUrl : data.publicUrl }));
+      const publicUrl = await uploadContentMediaViaApi(file);
+      setForm((f) => ({
+        ...f,
+        photoUrls: f.photoUrls ? f.photoUrls.trimEnd() + "\n" + publicUrl : publicUrl,
+      }));
     } finally {
       setUploadingPhoto(false);
     }

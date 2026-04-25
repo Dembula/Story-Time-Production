@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Users, Plus, Trash2, ArrowLeft, Upload } from "lucide-react";
+import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
 
 export default function CrewTeamTeamPage() {
   const [members, setMembers] = useState<{ id: string; name: string; role: string; department: string | null; bio: string | null; photoUrl: string | null }[]>([]);
@@ -31,11 +32,8 @@ export default function CrewTeamTeamPage() {
     if (!file) return;
     setUploading(true);
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await fetch("/api/upload/content-media", { method: "POST", body: fd });
-      const data = await res.json();
-      if (data.publicUrl) setForm((f) => ({ ...f, photoUrl: data.publicUrl }));
+      const publicUrl = await uploadContentMediaViaApi(file);
+      setForm((f) => ({ ...f, photoUrl: publicUrl }));
     } finally {
       setUploading(false);
     }

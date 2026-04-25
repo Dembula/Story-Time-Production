@@ -21,6 +21,7 @@ import {
   Upload,
   Users,
 } from "lucide-react";
+import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
 
 type StudioKind = "INDIVIDUAL" | "COMPANY" | null;
 
@@ -28,6 +29,9 @@ type StudioKind = "INDIVIDUAL" | "COMPANY" | null;
 const ACCOUNT_DOC_DEFAULT_MAX_BYTES = 25 * 1024 * 1024;
 
 async function postUploadForm(route: "/api/upload/account-document" | "/api/upload/content-media", file: File): Promise<string> {
+  if (route === "/api/upload/content-media") {
+    return uploadContentMediaViaApi(file);
+  }
   const fd = new FormData();
   fd.append("file", file);
   const res = await fetch(route, { method: "POST", body: fd });
