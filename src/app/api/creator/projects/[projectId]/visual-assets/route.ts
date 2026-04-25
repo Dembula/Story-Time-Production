@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ensureProjectAccess } from "@/lib/project-access";
 import { isVisualPlanningCategory } from "@/lib/visual-planning-categories";
+import { validateStorageUrlField } from "@/lib/storage-origin";
 
 interface Params {
   params: Promise<{ projectId: string }>;
@@ -43,9 +44,8 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   const url = body.imageUrl.trim();
-  if (!/^https?:\/\//i.test(url)) {
-    return NextResponse.json({ error: "imageUrl must be an http(s) URL" }, { status: 400 });
-  }
+  const imageErr = validateStorageUrlField(url, "imageUrl", { allowNull: false });
+  if (imageErr) return NextResponse.json({ error: imageErr }, { status: 400 });
 
   const agg = await prisma.projectVisualAsset.aggregate({
     where: { projectId, category: body.category },

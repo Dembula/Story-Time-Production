@@ -148,6 +148,8 @@ function TextArea({
 
 const VAULT_MEDIA_ACCEPT =
   "image/*,video/*,audio/*,.pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const VAULT_UPLOAD_GUIDANCE =
+  "Supported: JPG, PNG, WEBP, AVIF, GIF, HEIC/HEIF, MP4/MOV/WEBM/MKV/MPEG/AVI/WMV/M4V/HEVC, MP3/WAV/FLAC/AAC/OGG, PDF, DOC/DOCX, TXT. Max: up to 1GB for media uploads.";
 
 function VaultMediaUpload({
   label,
@@ -185,6 +187,7 @@ function VaultMediaUpload({
           />
         </label>
       </div>
+      <p className="mt-1.5 text-[11px] text-slate-500">{VAULT_UPLOAD_GUIDANCE}</p>
       {fileUrl ? (
         <p className="mt-1.5 truncate text-xs text-slate-500" title={fileUrl}>
           Stored URL:{" "}

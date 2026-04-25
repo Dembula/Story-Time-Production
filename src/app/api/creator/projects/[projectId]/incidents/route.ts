@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { embedMeta, parseEmbeddedMeta } from "@/lib/marketplace-profile-meta";
+import { validateStorageUrlList } from "@/lib/storage-origin";
+import { ensureCloudflareStreamPlaybackUrl } from "@/lib/cloudflare-stream";
 
 async function ensureIncidentAccess(projectId: string) {
   const session = await getServerSession(authOptions);
@@ -384,6 +386,22 @@ export async function POST(
   if (!body?.title || !body.description) {
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
   }
+  const normalizedMediaUrls = await Promise.all(
+    (body.mediaUrls ?? []).map((url) =>
+      ensureCloudflareStreamPlaybackUrl(url, { area: "incidents-media", projectId }),
+    ),
+  );
+  const safeMediaUrls = normalizedMediaUrls.filter((url): url is string => Boolean(url));
+  const normalizedVideoUrls = await Promise.all(
+    (body.videoUrls ?? []).map((url) =>
+      ensureCloudflareStreamPlaybackUrl(url, { area: "incidents-video", projectId }),
+    ),
+  );
+  const safeVideoUrls = normalizedVideoUrls.filter((url): url is string => Boolean(url));
+  const mediaErr = validateStorageUrlList(safeMediaUrls, "mediaUrls");
+  if (mediaErr) return NextResponse.json({ error: mediaErr }, { status: 400 });
+  const videoErr = validateStorageUrlList(safeVideoUrls, "videoUrls");
+  if (videoErr) return NextResponse.json({ error: videoErr }, { status: 400 });
 
   const severity = parseSeverity(body.severity);
   const status = parseStatus(body.status ?? "OPEN");
@@ -398,8 +416,8 @@ export async function POST(
     involvedNames: body.involvedNames ?? [],
     equipmentIds: body.equipmentIds ?? [],
     equipmentLabels: body.equipmentLabels ?? [],
-    mediaUrls: body.mediaUrls ?? [],
-    videoUrls: body.videoUrls ?? [],
+    mediaUrls: safeMediaUrls,
+    videoUrls: safeVideoUrls,
     actionSteps: body.actionSteps ?? [],
     resolutionNotes: body.resolutionNotes ?? null,
     rootCause: body.rootCause ?? null,
@@ -531,6 +549,28 @@ export async function PATCH(
   if (!body?.id) {
     return NextResponse.json({ error: "Missing id" }, { status: 400 });
   }
+  const normalizedPatchMediaUrls = body.mediaUrls !== undefined
+    ? (await Promise.all(
+        body.mediaUrls.map((url) =>
+          ensureCloudflareStreamPlaybackUrl(url, { area: "incidents-media", projectId }),
+        ),
+      )).filter((url): url is string => Boolean(url))
+    : undefined;
+  const normalizedPatchVideoUrls = body.videoUrls !== undefined
+    ? (await Promise.all(
+        body.videoUrls.map((url) =>
+          ensureCloudflareStreamPlaybackUrl(url, { area: "incidents-video", projectId }),
+        ),
+      )).filter((url): url is string => Boolean(url))
+    : undefined;
+  if (body.mediaUrls !== undefined) {
+    const mediaErr = validateStorageUrlList(normalizedPatchMediaUrls, "mediaUrls");
+    if (mediaErr) return NextResponse.json({ error: mediaErr }, { status: 400 });
+  }
+  if (body.videoUrls !== undefined) {
+    const videoErr = validateStorageUrlList(normalizedPatchVideoUrls, "videoUrls");
+    if (videoErr) return NextResponse.json({ error: videoErr }, { status: 400 });
+  }
 
   const existing = await prisma.incidentReport.findFirst({ where: { id: body.id, projectId } });
   if (!existing) {
@@ -556,8 +596,8 @@ export async function PATCH(
     ...(body.involvedNames !== undefined ? { involvedNames: body.involvedNames } : {}),
     ...(body.equipmentIds !== undefined ? { equipmentIds: body.equipmentIds } : {}),
     ...(body.equipmentLabels !== undefined ? { equipmentLabels: body.equipmentLabels } : {}),
-    ...(body.mediaUrls !== undefined ? { mediaUrls: body.mediaUrls } : {}),
-    ...(body.videoUrls !== undefined ? { videoUrls: body.videoUrls } : {}),
+    ...(body.mediaUrls !== undefined ? { mediaUrls: normalizedPatchMediaUrls } : {}),
+    ...(body.videoUrls !== undefined ? { videoUrls: normalizedPatchVideoUrls } : {}),
     ...(body.actionSteps !== undefined ? { actionSteps: body.actionSteps } : {}),
     ...(body.resolutionNotes !== undefined ? { resolutionNotes: body.resolutionNotes } : {}),
     ...(body.rootCause !== undefined ? { rootCause: body.rootCause } : {}),

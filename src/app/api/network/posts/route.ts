@@ -8,6 +8,7 @@ import {
   getPostsByIds,
 } from "@/lib/network-db";
 import { enrichNetworkPostsForFeed } from "@/lib/network-post-enrich";
+import { validateStorageUrlList } from "@/lib/storage-origin";
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -37,6 +38,8 @@ export async function POST(req: NextRequest) {
     imageUrls?: string | string[];
     contentId?: string;
   };
+  const imageErr = validateStorageUrlList(body.imageUrls, "imageUrls");
+  if (imageErr) return NextResponse.json({ error: imageErr }, { status: 400 });
 
   const imageStr =
     body.imageUrls == null

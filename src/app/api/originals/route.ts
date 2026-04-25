@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { notifyUser } from "@/lib/notify-user";
 import { buildAppUrl } from "@/lib/app-url";
+import { validateStorageUrlField } from "@/lib/storage-origin";
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -134,6 +135,8 @@ export async function POST(req: NextRequest) {
 
   if (action === "CREATE_PROJECT" && role === "ADMIN") {
     const { title, logline, synopsis, type, genre, budget, targetDate, posterUrl } = body;
+    const posterErr = validateStorageUrlField(posterUrl, "posterUrl");
+    if (posterErr) return NextResponse.json({ error: posterErr }, { status: 400 });
     const project = await prisma.originalProject.create({
       data: { title, logline, synopsis, type, genre, budget: budget ? Number(budget) : null, targetDate, posterUrl },
     });
@@ -150,6 +153,14 @@ export async function POST(req: NextRequest) {
     } = body;
     if (!title?.trim() || !logline?.trim()) {
       return NextResponse.json({ error: "Title and logline are required" }, { status: 400 });
+    }
+    for (const [field, value] of [
+      ["scriptUrl", scriptUrl],
+      ["treatmentUrl", treatmentUrl],
+      ["lookbookUrl", lookbookUrl],
+    ] as const) {
+      const error = validateStorageUrlField(value, field);
+      if (error) return NextResponse.json({ error }, { status: 400 });
     }
     const hasScript = scriptUrl?.trim() || scriptProjectId?.trim() || scriptId?.trim();
     if (!hasScript) {

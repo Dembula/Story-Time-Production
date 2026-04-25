@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { normalizeCreatorLicenseType } from "@/lib/pricing";
+import { validateStorageUrlField } from "@/lib/storage-origin";
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -49,6 +50,10 @@ export async function POST(request: NextRequest) {
   const { title, artistName, audioUrl, coverUrl, genre, mood, bpm, key, duration, description, tags, isrc, language, licenseType } = body;
 
   if (!title || !artistName) return NextResponse.json({ error: "title and artistName required" }, { status: 400 });
+  const audioErr = validateStorageUrlField(audioUrl, "audioUrl");
+  if (audioErr) return NextResponse.json({ error: audioErr }, { status: 400 });
+  const coverErr = validateStorageUrlField(coverUrl, "coverUrl");
+  if (coverErr) return NextResponse.json({ error: coverErr }, { status: 400 });
 
   const creatorId = session!.user!.id as string;
   const user = await prisma.user.findUnique({

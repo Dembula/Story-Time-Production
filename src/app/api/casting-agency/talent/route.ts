@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { embedMeta } from "@/lib/marketplace-profile-meta";
+import { validateStorageUrlField } from "@/lib/storage-origin";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -20,6 +21,14 @@ export async function POST(req: Request) {
   const agency = await prisma.castingAgency.findUnique({ where: { userId: userId! } });
   if (!agency) return NextResponse.json({ error: "Create agency profile first" }, { status: 400 });
   const body = await req.json();
+  for (const [field, value] of [
+    ["cvUrl", body.cvUrl],
+    ["headshotUrl", body.headshotUrl],
+    ["reelUrl", body.reelUrl],
+  ] as const) {
+    const error = validateStorageUrlField(value, field);
+    if (error) return NextResponse.json({ error }, { status: 400 });
+  }
   const profile = body.profile ?? {};
   const talent = await prisma.castingTalent.create({
     data: {

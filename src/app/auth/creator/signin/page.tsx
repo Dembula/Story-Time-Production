@@ -131,7 +131,7 @@ export default function CreatorSignInPage() {
 
         <p className="mt-6 text-center text-sm text-slate-400">
           Not a creator yet?{" "}
-          <Link href="/auth/creator/signup" className="font-medium text-amber-300 hover:text-amber-200">
+          <Link href="/auth/creator/signup/terms" className="font-medium text-amber-300 hover:text-amber-200">
             Creator sign up
           </Link>
           {" · "}

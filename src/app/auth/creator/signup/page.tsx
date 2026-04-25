@@ -1,14 +1,14 @@
 "use client";
 
 import { signIn } from "next-auth/react";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowLeft, Check, GraduationCap, Shield } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 
-export default function CreatorSignUpPage() {
+function CreatorSignUpPageInner() {
   const [consentReady, setConsentReady] = useState(false);
-  const [consentAccepted, setConsentAccepted] = useState(false);
   const [email, setEmail] = useState("");
   const [creatorType, setCreatorType] = useState<"content" | "music" | "equipment" | "location" | "crew" | "casting" | "catering" | "">("");
   const [accountStructure, setAccountStructure] = useState<"INDIVIDUAL" | "COMPANY" | "">("COMPANY");
@@ -61,18 +61,11 @@ export default function CreatorSignUpPage() {
   const [equipmentDailyRate, setEquipmentDailyRate] = useState("");
   const [equipmentQuantity, setEquipmentQuantity] = useState("");
   const [equipmentAvailability, setEquipmentAvailability] = useState("");
-  const creatorConsentKey = "storytime_creator_signup_ack_v1";
+  const searchParams = useSearchParams();
 
   useEffect(() => {
-    const alreadyAccepted = window.localStorage.getItem(creatorConsentKey) === "true";
-    setConsentReady(alreadyAccepted);
-  }, []);
-
-  function handleConsentContinue() {
-    if (!consentAccepted) return;
-    window.localStorage.setItem(creatorConsentKey, "true");
-    setConsentReady(true);
-  }
+    setConsentReady(searchParams.get("termsAccepted") === "1");
+  }, [searchParams]);
 
   function handleCreatorTypeChange(next: typeof creatorType) {
     setCreatorType(next);
@@ -184,7 +177,7 @@ export default function CreatorSignUpPage() {
         setError((regData?.error as string) || "Registration failed. Please try again.");
         return;
       }
-      const res = await signIn("credentials", {
+      const res = await signIn("credentials-creator", {
         email: trimmedEmail,
         password,
         redirect: false,
@@ -239,40 +232,14 @@ export default function CreatorSignUpPage() {
               </div>
               <h1 className="mb-2 font-display text-2xl font-semibold text-slate-950">Creator Terms Acknowledgement</h1>
               <p className="mb-6 text-sm text-slate-600">
-                Before creating a creator account, you must acknowledge the platform&apos;s legal, monetization, and payment conditions.
+                Continue to the dedicated terms screen to acknowledge legal, monetization, and payment conditions before creator signup.
               </p>
-              <div className="mb-5 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">
-                <p className="mb-3">By continuing, you confirm review and acceptance of:</p>
-                <ul className="list-disc space-y-1 pl-5 text-slate-600">
-                  <li>Terms of Service, Content Policy, and Acceptable Use Policy</li>
-                  <li>Privacy, Cookie, and Security policies</li>
-                  <li>Payment Policy, Subscription Terms, and Refund Policy</li>
-                  <li>Creator monetization and payout conditions</li>
-                </ul>
-                <div className="mt-4 flex flex-wrap gap-3">
-                  <Link href="/legal/terms" className="text-amber-700 hover:text-amber-800">Terms</Link>
-                  <Link href="/legal/content-policy" className="text-amber-700 hover:text-amber-800">Content Policy</Link>
-                  <Link href="/legal/payment-policy" className="text-amber-700 hover:text-amber-800">Payment Policy</Link>
-                  <Link href="/legal/refund-policy" className="text-amber-700 hover:text-amber-800">Refund Policy</Link>
-                </div>
-              </div>
-              <label className="mb-4 flex items-start gap-3 text-sm text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={consentAccepted}
-                  onChange={(e) => setConsentAccepted(e.target.checked)}
-                  className="mt-1 h-4 w-4 rounded border-slate-300"
-                />
-                <span>I acknowledge and agree to the creator onboarding, legal, privacy, payment, and usage terms.</span>
-              </label>
-              <button
-                type="button"
-                onClick={handleConsentContinue}
-                disabled={!consentAccepted}
-                className="w-full rounded-xl bg-slate-950 py-3 font-semibold text-white shadow-[0_18px_40px_-22px_rgba(15,23,42,0.85)] transition hover:-translate-y-0.5 hover:bg-slate-900 disabled:opacity-50"
+              <Link
+                href="/auth/creator/signup/terms"
+                className="inline-flex w-full items-center justify-center rounded-xl bg-slate-950 py-3 font-semibold text-white shadow-[0_18px_40px_-22px_rgba(15,23,42,0.85)] transition hover:-translate-y-0.5 hover:bg-slate-900"
               >
-                I Acknowledge and Continue
-              </button>
+                Review terms and continue
+              </Link>
             </div>
           ) : (
             <>
@@ -704,5 +671,13 @@ export default function CreatorSignUpPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function CreatorSignUpPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-slate-950" />}>
+      <CreatorSignUpPageInner />
+    </Suspense>
   );
 }

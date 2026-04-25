@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { validateStorageUrlField } from "@/lib/storage-origin";
+import { ensureCloudflareStreamPlaybackUrl, extractCloudflareStreamUid } from "@/lib/cloudflare-stream";
+import { setStreamAssetEntity } from "@/lib/stream-asset-store";
 
 async function ensureAccess(projectId: string) {
   const session = await getServerSession(authOptions);
@@ -85,6 +88,13 @@ export async function POST(
   if (!body?.type || !body?.fileUrl) {
     return NextResponse.json({ error: "Missing type or fileUrl" }, { status: 400 });
   }
+  const normalizedFileUrl = await ensureCloudflareStreamPlaybackUrl(body.fileUrl, {
+    area: "footage",
+    projectId,
+  });
+  const fileErr = validateStorageUrlField(normalizedFileUrl, "fileUrl", { allowNull: false });
+  if (fileErr) return NextResponse.json({ error: fileErr }, { status: 400 });
+  const finalFileUrl = normalizedFileUrl ?? body.fileUrl;
 
   const asset = await prisma.footageAsset.create({
     data: {
@@ -92,10 +102,12 @@ export async function POST(
       sceneId: body.sceneId ?? null,
       type: body.type,
       label: body.label ?? null,
-      fileUrl: body.fileUrl,
+      fileUrl: finalFileUrl,
       metadata: body.metadata ?? null,
     },
   });
+  const uid = extractCloudflareStreamUid(finalFileUrl);
+  if (uid) await setStreamAssetEntity(uid, "FootageAsset", asset.id);
 
   return NextResponse.json({ asset }, { status: 201 });
 }

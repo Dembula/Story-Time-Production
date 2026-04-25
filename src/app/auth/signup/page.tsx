@@ -1,31 +1,24 @@
 "use client";
 
 import { signIn } from "next-auth/react";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowLeft, Shield } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 
-export default function SignUpPage() {
+function SignUpPageInner() {
   const [consentReady, setConsentReady] = useState(false);
-  const [consentAccepted, setConsentAccepted] = useState(false);
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const viewerConsentKey = "storytime_viewer_signup_ack_v1";
+  const searchParams = useSearchParams();
 
   useEffect(() => {
-    const alreadyAccepted = window.localStorage.getItem(viewerConsentKey) === "true";
-    setConsentReady(alreadyAccepted);
-  }, []);
-
-  function handleConsentContinue() {
-    if (!consentAccepted) return;
-    window.localStorage.setItem(viewerConsentKey, "true");
-    setConsentReady(true);
-  }
+    setConsentReady(searchParams.get("termsAccepted") === "1");
+  }, [searchParams]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -46,7 +39,7 @@ export default function SignUpPage() {
         return;
       }
 
-      const res = await signIn("credentials", {
+      const res = await signIn("credentials-viewer", {
         email: email.trim().toLowerCase(),
         password,
         redirect: false,
@@ -82,40 +75,14 @@ export default function SignUpPage() {
             <div>
               <h1 className="mb-2 font-display text-2xl font-semibold text-white">Terms Acknowledgement</h1>
               <p className="mb-6 text-sm leading-6 text-slate-300/78">
-                Before creating your account, you must acknowledge the legal and payment terms that apply to Story Time.
+                Continue to the dedicated terms screen to acknowledge legal and payment terms before creating your account.
               </p>
-              <div className="mb-5 rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm text-slate-300">
-                <p className="mb-3">By continuing, you confirm that you have reviewed and accepted:</p>
-                <ul className="list-disc space-y-1 pl-5 text-slate-400">
-                  <li>Terms of Service and Acceptable Use standards</li>
-                  <li>Privacy Policy and Cookie Policy</li>
-                  <li>Payment Policy, Subscription Terms, and Refund Policy</li>
-                  <li>Platform disclosure, pricing, and onboarding consent flow</li>
-                </ul>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <Link href="/legal/terms" className="text-orange-300 hover:text-orange-200">Terms</Link>
-                  <Link href="/legal/privacy" className="text-orange-300 hover:text-orange-200">Privacy</Link>
-                  <Link href="/legal/payment-policy" className="text-orange-300 hover:text-orange-200">Payments</Link>
-                  <Link href="/legal/refund-policy" className="text-orange-300 hover:text-orange-200">Refunds</Link>
-                </div>
-              </div>
-              <label className="mb-4 flex items-start gap-3 text-sm text-slate-300">
-                <input
-                  type="checkbox"
-                  checked={consentAccepted}
-                  onChange={(e) => setConsentAccepted(e.target.checked)}
-                  className="mt-1 h-4 w-4 rounded border-white/20 bg-transparent"
-                />
-                <span>I acknowledge and agree to the applicable terms, privacy, payment, refund, and usage conditions.</span>
-              </label>
-              <button
-                type="button"
-                onClick={handleConsentContinue}
-                disabled={!consentAccepted}
-                className="w-full rounded-xl bg-orange-500 py-3 font-semibold text-white shadow-glow hover:-translate-y-0.5 hover:bg-orange-400 disabled:opacity-50"
+              <Link
+                href="/auth/signup/terms"
+                className="inline-flex w-full items-center justify-center rounded-xl bg-orange-500 py-3 font-semibold text-white shadow-glow hover:-translate-y-0.5 hover:bg-orange-400"
               >
-                I Acknowledge and Continue
-              </button>
+                Review terms and continue
+              </Link>
             </div>
           ) : (
             <>
@@ -212,5 +179,13 @@ export default function SignUpPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function SignUpPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-background" />}>
+      <SignUpPageInner />
+    </Suspense>
   );
 }

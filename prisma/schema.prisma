@@ -2474,6 +2474,25 @@ model FootageAsset {
   @@index([type])
 }
 
+model StreamAsset {
+  id            String   @id @default(cuid())
+  uid           String   @unique
+  sourceUrl     String?
+  playbackUrl   String?
+  hlsUrl        String?
+  iframeUrl     String?
+  status        String   @default("queued")
+  entityType    String?
+  entityId      String?
+  lastError     String?
+  lastWebhookAt DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([entityType, entityId])
+  @@index([status])
+}
+
 model MusicSelection {
   id          String   @id @default(cuid())
   projectId   String

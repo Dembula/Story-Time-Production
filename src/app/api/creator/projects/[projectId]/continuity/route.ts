@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { validateStorageUrlList } from "@/lib/storage-origin";
+import { ensureCloudflareStreamPlaybackUrl } from "@/lib/cloudflare-stream";
 
 const CONTINUITY_META_START = "[ST_CONTINUITY_META]";
 const CONTINUITY_META_END = "[/ST_CONTINUITY_META]";
@@ -85,6 +87,8 @@ function toJsonMedia(value: string[] | undefined): string | null {
   const arr = (value ?? []).filter(Boolean);
   return arr.length ? JSON.stringify(arr) : null;
 }
+
+const VIDEO_EXT_RE = /\.(mp4|mov|webm|mkv|m4v|avi|wmv|mpeg|mpg)(\?|$)/i;
 
 async function ensureAccess(projectId: string) {
   const session = await getServerSession(authOptions);
@@ -328,16 +332,26 @@ export async function POST(
       : Array.isArray(body.photoUrls)
         ? body.photoUrls.filter(Boolean)
         : [];
+  const normalizedPhotoUrls = await Promise.all(
+    photoUrls.map((url) =>
+      VIDEO_EXT_RE.test(url)
+        ? ensureCloudflareStreamPlaybackUrl(url, { area: "continuity", projectId })
+        : Promise.resolve(url),
+    ),
+  );
+  const safePhotoUrls = normalizedPhotoUrls.filter((url): url is string => Boolean(url));
+  const photoErr = validateStorageUrlList(safePhotoUrls, "photoUrls");
+  if (photoErr) return NextResponse.json({ error: photoErr }, { status: 400 });
   const mergedMeta: ContinuityMeta = {
     ...(body.meta ?? {}),
     linkedImageUrls:
       body.meta?.linkedImageUrls && body.meta.linkedImageUrls.length > 0
         ? body.meta.linkedImageUrls
-        : photoUrls.filter((url) => !/\.(mp4|mov|webm|mkv)(\?|$)/i.test(url)),
+        : safePhotoUrls.filter((url) => !/\.(mp4|mov|webm|mkv)(\?|$)/i.test(url)),
     linkedVideoUrls:
       body.meta?.linkedVideoUrls && body.meta.linkedVideoUrls.length > 0
         ? body.meta.linkedVideoUrls
-        : photoUrls.filter((url) => /\.(mp4|mov|webm|mkv)(\?|$)/i.test(url)),
+        : safePhotoUrls.filter((url) => /\.(mp4|mov|webm|mkv)(\?|$)/i.test(url)),
     capturedAt: body.meta?.capturedAt ?? new Date().toISOString(),
     capturedByUserId: body.meta?.capturedByUserId ?? userId,
   };
@@ -348,7 +362,7 @@ export async function POST(
       sceneId: body.sceneId ?? null,
       shootDayId: body.shootDayId ?? null,
       body: composeContinuityBody(body.body, mergedMeta),
-      photoUrls: toJsonMedia(photoUrls),
+      photoUrls: toJsonMedia(safePhotoUrls),
       createdById: userId,
     },
   });
@@ -394,13 +408,25 @@ export async function PATCH(
       : typeof body.photoUrls === "string"
         ? parseMediaString(body.photoUrls)
         : (body.photoUrls ?? []).filter(Boolean);
+  const normalizedNextUrls = await Promise.all(
+    nextUrls.map((url) =>
+      VIDEO_EXT_RE.test(url)
+        ? ensureCloudflareStreamPlaybackUrl(url, { area: "continuity", projectId })
+        : Promise.resolve(url),
+    ),
+  );
+  const safeNextUrls = normalizedNextUrls.filter((url): url is string => Boolean(url));
+  if (body.photoUrls !== undefined) {
+    const photoErr = validateStorageUrlList(safeNextUrls, "photoUrls");
+    if (photoErr) return NextResponse.json({ error: photoErr }, { status: 400 });
+  }
   const nextMeta: ContinuityMeta = {
     ...parsed.meta,
     ...(body.meta ?? {}),
     linkedImageUrls:
-      body.meta?.linkedImageUrls ?? parsed.meta.linkedImageUrls ?? nextUrls.filter((url) => !/\.(mp4|mov|webm|mkv)(\?|$)/i.test(url)),
+      body.meta?.linkedImageUrls ?? parsed.meta.linkedImageUrls ?? safeNextUrls.filter((url) => !/\.(mp4|mov|webm|mkv)(\?|$)/i.test(url)),
     linkedVideoUrls:
-      body.meta?.linkedVideoUrls ?? parsed.meta.linkedVideoUrls ?? nextUrls.filter((url) => /\.(mp4|mov|webm|mkv)(\?|$)/i.test(url)),
+      body.meta?.linkedVideoUrls ?? parsed.meta.linkedVideoUrls ?? safeNextUrls.filter((url) => /\.(mp4|mov|webm|mkv)(\?|$)/i.test(url)),
   };
 
   const note = await prisma.continuityNote.update({
@@ -411,7 +437,7 @@ export async function PATCH(
       ...(body.body !== undefined || body.meta !== undefined
         ? { body: composeContinuityBody(body.body ?? parsed.plain, nextMeta) }
         : {}),
-      ...(body.photoUrls !== undefined ? { photoUrls: toJsonMedia(nextUrls) } : {}),
+      ...(body.photoUrls !== undefined ? { photoUrls: toJsonMedia(safeNextUrls) } : {}),
     },
   });
 

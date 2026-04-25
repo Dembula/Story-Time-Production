@@ -2,10 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { ingestToCloudflareStreamFromUrl } from "@/lib/cloudflare-stream";
+import { upsertStreamAsset } from "@/lib/stream-asset-store";
 
 export const runtime = "nodejs";
 
-const DEFAULT_MAX_UPLOAD_MB = 200;
+const DEFAULT_MAX_UPLOAD_MB = 1024;
 const ALLOWED_MIME_TYPES = new Set([
   "application/pdf",
   "application/msword",
@@ -13,9 +15,22 @@ const ALLOWED_MIME_TYPES = new Set([
   "text/plain",
   "image/avif",
   "image/gif",
+  "image/heic",
+  "image/heif",
   "image/jpeg",
+  "image/jpg",
   "image/png",
   "image/webp",
+  "video/3gpp",
+  "video/3gpp2",
+  "video/avi",
+  "video/hevc",
+  "video/h265",
+  "video/mpeg",
+  "video/mp2t",
+  "video/x-m4v",
+  "video/x-msvideo",
+  "video/x-ms-wmv",
   "video/mp4",
   "video/quicktime",
   "video/webm",
@@ -90,7 +105,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "Unsupported file type. Allowed: PDF, Word (.doc/.docx), plain text, images (JPG/PNG/WEBP/AVIF/GIF), video (MP4/WEBM/MOV/MKV), audio (MP3/WAV/FLAC/AAC/OGG).",
+            "Unsupported file type. Allowed: PDF, Word (.doc/.docx), plain text, images (JPG/PNG/WEBP/AVIF/GIF/HEIC/HEIF), video (MP4/MOV/WEBM/MKV/MPEG/AVI/WMV/M4V/HEVC), audio (MP3/WAV/FLAC/AAC/OGG).",
         },
         { status: 400 },
       );
@@ -132,7 +147,39 @@ export async function POST(request: NextRequest) {
 
     const baseUrl = normalizePublicBaseUrl(bucket);
 
-    const publicUrl = `${baseUrl}/${key.split("/").map(encodeURIComponent).join("/")}`;
+    const sourceUrl = `${baseUrl}/${key.split("/").map(encodeURIComponent).join("/")}`;
+    let publicUrl = sourceUrl;
+    let stream:
+      | {
+          uid: string;
+          state: string;
+          iframeUrl: string;
+          hlsUrl: string;
+          dashUrl: string;
+          mp4Url: string;
+          thumbnailUrl: string;
+        }
+      | null = null;
+    if (file.type.startsWith("video/")) {
+      try {
+        stream = await ingestToCloudflareStreamFromUrl(sourceUrl, {
+          source: "storytime-upload",
+          fileName: file.name,
+          mime: file.type,
+        });
+        publicUrl = stream.mp4Url;
+        await upsertStreamAsset({
+          uid: stream.uid,
+          sourceUrl,
+          playbackUrl: stream.mp4Url,
+          hlsUrl: stream.hlsUrl,
+          iframeUrl: stream.iframeUrl,
+          status: stream.state,
+        });
+      } catch (streamErr) {
+        console.error("Cloudflare Stream ingestion failed; falling back to S3 URL:", streamErr);
+      }
+    }
 
     return NextResponse.json(
       {
@@ -140,6 +187,12 @@ export async function POST(request: NextRequest) {
         bucket,
         path: key,
         publicUrl,
+        sourceUrl,
+        streamUid: stream?.uid ?? null,
+        streamStatus: stream?.state ?? null,
+        streamPlaybackUrl: stream?.mp4Url ?? null,
+        streamIframeUrl: stream?.iframeUrl ?? null,
+        streamHlsUrl: stream?.hlsUrl ?? null,
       },
       { status: 201 },
     );

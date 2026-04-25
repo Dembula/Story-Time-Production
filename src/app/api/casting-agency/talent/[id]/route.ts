@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { embedMeta, parseEmbeddedMeta, type ActorMarketMeta } from "@/lib/marketplace-profile-meta";
+import { validateStorageUrlField } from "@/lib/storage-origin";
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
@@ -12,6 +13,15 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const talent = await prisma.castingTalent.findUnique({ where: { id }, include: { castingAgency: true } });
   if (!talent || talent.castingAgency.userId !== userId) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const body = await req.json();
+  for (const [field, value] of [
+    ["cvUrl", body.cvUrl],
+    ["headshotUrl", body.headshotUrl],
+    ["reelUrl", body.reelUrl],
+  ] as const) {
+    if (value === undefined) continue;
+    const error = validateStorageUrlField(value, field);
+    if (error) return NextResponse.json({ error }, { status: 400 });
+  }
   const currentMeta = parseEmbeddedMeta<ActorMarketMeta>(talent.bio).meta;
   const profile = body.profile ?? {};
   const updated = await prisma.castingTalent.update({

@@ -3,6 +3,9 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isCreatorLicensePeriodActive, normalizeCreatorLicenseType } from "@/lib/pricing";
+import { validateStorageUrlField } from "@/lib/storage-origin";
+import { ensureCloudflareStreamPlaybackUrl, extractCloudflareStreamUid } from "@/lib/cloudflare-stream";
+import { setStreamAssetEntity, getStreamStatusesByUids } from "@/lib/stream-asset-store";
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -33,7 +36,17 @@ export async function GET(request: NextRequest) {
       },
     });
     if (!one) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    return NextResponse.json(one);
+    const uids = [extractCloudflareStreamUid(one.videoUrl), extractCloudflareStreamUid(one.trailerUrl)].filter(
+      (v): v is string => Boolean(v),
+    );
+    const statuses = await getStreamStatusesByUids(uids);
+    return NextResponse.json({
+      ...one,
+      stream: {
+        video: statuses.get(extractCloudflareStreamUid(one.videoUrl) ?? ""),
+        trailer: statuses.get(extractCloudflareStreamUid(one.trailerUrl) ?? ""),
+      },
+    });
   }
 
   const contents = await prisma.content.findMany({
@@ -46,7 +59,22 @@ export async function GET(request: NextRequest) {
     orderBy: { createdAt: "desc" },
   });
 
-  return NextResponse.json(contents);
+  const allUids = contents.flatMap((item) =>
+    [extractCloudflareStreamUid(item.videoUrl), extractCloudflareStreamUid(item.trailerUrl)].filter(
+      (v): v is string => Boolean(v),
+    ),
+  );
+  const statuses = await getStreamStatusesByUids(allUids);
+
+  return NextResponse.json(
+    contents.map((item) => ({
+      ...item,
+      stream: {
+        video: statuses.get(extractCloudflareStreamUid(item.videoUrl) ?? ""),
+        trailer: statuses.get(extractCloudflareStreamUid(item.trailerUrl) ?? ""),
+      },
+    })),
+  );
 }
 
 export async function POST(request: NextRequest) {
@@ -60,6 +88,16 @@ export async function POST(request: NextRequest) {
 
   if (!body.title || !body.type) {
     return NextResponse.json({ error: "title and type required" }, { status: 400 });
+  }
+  for (const [field, value] of [
+    ["posterUrl", body.posterUrl],
+    ["backdropUrl", body.backdropUrl],
+    ["videoUrl", body.videoUrl],
+    ["trailerUrl", body.trailerUrl],
+    ["scriptUrl", body.scriptUrl],
+  ] as const) {
+    const error = validateStorageUrlField(value, field);
+    if (error) return NextResponse.json({ error }, { status: 400 });
   }
 
   const creatorId = session!.user!.id as string;
@@ -107,6 +145,25 @@ export async function POST(request: NextRequest) {
     linkedProjectId = pid;
   }
 
+  const videoUrl = await ensureCloudflareStreamPlaybackUrl(body.videoUrl || null, {
+    area: "content-video",
+    creatorId,
+  });
+  const trailerUrl = await ensureCloudflareStreamPlaybackUrl(body.trailerUrl || null, {
+    area: "content-trailer",
+    creatorId,
+  });
+  const btsVideosInput = Array.isArray(body.btsVideos) ? body.btsVideos : [];
+  const btsVideosPrepared = await Promise.all(
+    btsVideosInput.map(async (b: any) => ({
+      ...b,
+      videoUrl: await ensureCloudflareStreamPlaybackUrl(b?.videoUrl ?? null, {
+        area: "content-bts",
+        creatorId,
+      }),
+    })),
+  );
+
   const content = await prisma.content.create({
     data: {
       title: body.title,
@@ -114,8 +171,8 @@ export async function POST(request: NextRequest) {
       type: body.type,
       posterUrl: body.posterUrl || null,
       backdropUrl: body.backdropUrl || null,
-      videoUrl: body.videoUrl || null,
-      trailerUrl: body.trailerUrl || null,
+      videoUrl,
+      trailerUrl,
       scriptUrl: body.scriptUrl || null,
       category: body.category || null,
       tags: body.tags || null,
@@ -136,6 +193,11 @@ export async function POST(request: NextRequest) {
     },
   });
 
+  for (const streamUrl of [videoUrl, trailerUrl]) {
+    const uid = extractCloudflareStreamUid(streamUrl);
+    if (uid) await setStreamAssetEntity(uid, "Content", content.id);
+  }
+
   if (body.crew && Array.isArray(body.crew)) {
     for (const c of body.crew) {
       if (c.name && c.role) {
@@ -146,8 +208,14 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  if (body.btsVideos && Array.isArray(body.btsVideos)) {
-    const valid = body.btsVideos.filter((b: any) => b.title && b.videoUrl);
+  if (btsVideosPrepared.length > 0) {
+    for (const clip of btsVideosPrepared as Array<{ videoUrl?: unknown; thumbnail?: unknown }>) {
+      const videoErr = validateStorageUrlField(clip.videoUrl, "btsVideos.videoUrl", { allowNull: false });
+      if (videoErr) return NextResponse.json({ error: videoErr }, { status: 400 });
+      const thumbErr = validateStorageUrlField(clip.thumbnail, "btsVideos.thumbnail");
+      if (thumbErr) return NextResponse.json({ error: thumbErr }, { status: 400 });
+    }
+    const valid = btsVideosPrepared.filter((b: any) => b.title && b.videoUrl);
     if (valid.length > 0) {
       await prisma.$transaction(
         valid.map((b: any, index: number) =>
@@ -162,6 +230,10 @@ export async function POST(request: NextRequest) {
           }),
         ),
       );
+      for (const b of valid) {
+        const uid = extractCloudflareStreamUid(b.videoUrl ?? null);
+        if (uid) await setStreamAssetEntity(uid, "Content", content.id);
+      }
     }
   }
 

@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isFeaturedCompanyPlan } from "@/lib/pricing";
 import { parseEmbeddedMeta, embedMeta, type LocationMarketMeta } from "@/lib/marketplace-profile-meta";
+import { validateStorageUrlList } from "@/lib/storage-origin";
 
 function hasLocationModels(): boolean {
   return typeof (prisma as { locationListing?: unknown }).locationListing !== "undefined";
@@ -91,6 +92,8 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
+  const photoErr = validateStorageUrlList(body.photoUrls, "photoUrls");
+  if (photoErr) return NextResponse.json({ error: photoErr }, { status: 400 });
   const profile = body.profile ?? {};
   const listing = await prisma.locationListing.create({
     data: {

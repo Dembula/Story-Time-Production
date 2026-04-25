@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { validateStorageUrlField } from "@/lib/storage-origin";
+import { ensureCloudflareStreamPlaybackUrl, extractCloudflareStreamUid } from "@/lib/cloudflare-stream";
+import { setStreamAssetEntity } from "@/lib/stream-asset-store";
 
 async function ensureAccess(projectId: string) {
   const session = await getServerSession(authOptions);
@@ -81,16 +84,25 @@ export async function POST(
       }
     | null;
 
+  const normalizedVideoUrl = await ensureCloudflareStreamPlaybackUrl(body?.videoUrl ?? null, {
+    area: "dailies",
+    projectId,
+  });
+  const videoErr = validateStorageUrlField(normalizedVideoUrl, "videoUrl");
+  if (videoErr) return NextResponse.json({ error: videoErr }, { status: 400 });
+
   const batch = await prisma.dailiesBatch.create({
     data: {
       projectId,
       sceneId: body?.sceneId ?? null,
       shootDayId: body?.shootDayId ?? null,
       title: body?.title ?? null,
-      videoUrl: body?.videoUrl ?? null,
+      videoUrl: normalizedVideoUrl,
       notes: body?.notes ?? null,
     },
   });
+  const uid = extractCloudflareStreamUid(normalizedVideoUrl);
+  if (uid) await setStreamAssetEntity(uid, "DailiesBatch", batch.id);
 
   return NextResponse.json({ batch }, { status: 201 });
 }

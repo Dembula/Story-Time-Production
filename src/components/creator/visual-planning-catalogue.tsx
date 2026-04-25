@@ -19,6 +19,9 @@ export type VisualPlanningAsset = {
   sortOrder: number;
 };
 
+const VISUAL_UPLOAD_ACCEPT =
+  "image/jpeg,image/jpg,image/png,image/webp,image/avif,image/gif,image/heic,image/heif";
+
 async function uploadToStorage(file: File): Promise<string> {
   const formData = new FormData();
   formData.append("file", file);
@@ -169,7 +172,7 @@ export function VisualPlanningCatalogue({ projectId }: { projectId: string }) {
               ))}
             </select>
           </div>
-          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onPickFile} />
+          <input ref={fileRef} type="file" accept={VISUAL_UPLOAD_ACCEPT} className="hidden" onChange={onPickFile} />
           <Button
             type="button"
             size="sm"
@@ -203,6 +206,9 @@ export function VisualPlanningCatalogue({ projectId }: { projectId: string }) {
             </Button>
           </div>
         </div>
+        <p className="text-[11px] text-slate-500">
+          Supported image formats: JPG, PNG, WEBP, AVIF, GIF, HEIC/HEIF. Max upload size: up to 1GB.
+        </p>
         {uploadError ? <p className="text-[11px] text-amber-200/90">{uploadError}</p> : null}
       </div>
 

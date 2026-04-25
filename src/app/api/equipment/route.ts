@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isFeaturedCompanyPlan } from "@/lib/pricing";
 import { parseEmbeddedMeta, embedMeta, type EquipmentMarketMeta } from "@/lib/marketplace-profile-meta";
+import { validateStorageUrlField } from "@/lib/storage-origin";
 
 export async function GET(req: NextRequest) {
   const companyId = req.nextUrl.searchParams.get("companyId");
@@ -76,6 +77,8 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
+  const imageErr = validateStorageUrlField(body.imageUrl, "imageUrl");
+  if (imageErr) return NextResponse.json({ error: imageErr }, { status: 400 });
   const profile = body.profile ?? {};
   const listing = await prisma.equipmentListing.create({
     data: {
