@@ -3,6 +3,55 @@ import type { ContentMediaFinalizePayload } from "@/lib/content-media-post-uploa
 
 export type { ContentMediaFinalizePayload };
 
+const NETWORK_ERROR_NAMES = new Set(["TypeError"]);
+const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
+
+function isNetworkFetchError(error: unknown): boolean {
+  return error instanceof Error && NETWORK_ERROR_NAMES.has(error.name);
+}
+
+async function wait(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchWithRetry(
+  input: RequestInfo | URL,
+  init: RequestInit,
+  options?: { attempts?: number; retryDelayMs?: number },
+): Promise<Response> {
+  const attempts = Math.max(1, options?.attempts ?? 3);
+  const retryDelayMs = Math.max(150, options?.retryDelayMs ?? 500);
+  let lastErr: unknown;
+  for (let i = 0; i < attempts; i += 1) {
+    try {
+      const res = await fetch(input, init);
+      if (RETRYABLE_STATUS.has(res.status) && i < attempts - 1) {
+        await wait(retryDelayMs * (i + 1));
+        continue;
+      }
+      return res;
+    } catch (err) {
+      lastErr = err;
+      if (!isNetworkFetchError(err) || i >= attempts - 1) break;
+      await wait(retryDelayMs * (i + 1));
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error("Network request failed");
+}
+
+function buildDirectUploadFailureMessage(status: number, detail: string): string {
+  if (detail.includes("SignatureDoesNotMatch")) {
+    return "Direct upload signature mismatch. Confirm bucket region/env vars match and retry.";
+  }
+  if (detail.includes("AccessDenied")) {
+    return "Direct upload was denied by S3 policy/CORS. Ensure bucket CORS allows PUT + OPTIONS from this app origin.";
+  }
+  if (detail.includes("<Error>")) {
+    return "Direct upload to storage was rejected. Check S3 CORS (PUT + OPTIONS from your app origin) and bucket policy.";
+  }
+  return `Direct upload failed (${status}). Check S3 CORS allows PUT + OPTIONS for this exact site origin.`;
+}
+
 /**
  * Uploads a file through `/api/upload/content-media`.
  * Files larger than {@link CONTENT_MEDIA_DIRECT_UPLOAD_MAX_BYTES} use a presigned S3 PUT
@@ -17,7 +66,7 @@ export async function uploadContentMediaViaApiFull(file: File): Promise<ContentM
   if (file.size <= CONTENT_MEDIA_DIRECT_UPLOAD_MAX_BYTES) {
     const formData = new FormData();
     formData.append("file", file);
-    const res = await fetch("/api/upload/content-media", {
+    const res = await fetchWithRetry("/api/upload/content-media", {
       method: "POST",
       body: formData,
     });
@@ -31,7 +80,7 @@ export async function uploadContentMediaViaApiFull(file: File): Promise<ContentM
     return data as ContentMediaFinalizePayload;
   }
 
-  const presignRes = await fetch("/api/upload/content-media/presign", {
+  const presignRes = await fetchWithRetry("/api/upload/content-media/presign", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -59,22 +108,32 @@ export async function uploadContentMediaViaApiFull(file: File): Promise<ContentM
     "Content-Type": presignJson.contentType,
   };
 
-  const putRes = await fetch(presignJson.uploadUrl, {
-    method: "PUT",
-    body: file,
-    headers: putHeaders,
-  });
+  let putRes: Response;
+  try {
+    putRes = await fetchWithRetry(
+      presignJson.uploadUrl,
+      {
+        method: "PUT",
+        body: file,
+        headers: putHeaders,
+      },
+      { attempts: 2, retryDelayMs: 700 },
+    );
+  } catch (err) {
+    if (isNetworkFetchError(err)) {
+      throw new Error(
+        "Upload connection failed before storage accepted the file. Check S3 CORS allows PUT + OPTIONS from this site origin.",
+      );
+    }
+    throw err instanceof Error ? err : new Error("Direct upload failed");
+  }
 
   if (!putRes.ok) {
     const detail = await putRes.text().catch(() => "");
-    throw new Error(
-      detail?.includes("<Error>")
-        ? "Direct upload to storage was rejected. Check S3 CORS (PUT from your site origin) and bucket policy."
-        : `Direct upload failed (${putRes.status}). If this persists, add a CORS rule on the S3 bucket for PUT from your app origin.`,
-    );
+    throw new Error(buildDirectUploadFailureMessage(putRes.status, detail));
   }
 
-  const completeRes = await fetch("/api/upload/content-media/complete", {
+  const completeRes = await fetchWithRetry("/api/upload/content-media/complete", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({

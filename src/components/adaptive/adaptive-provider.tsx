@@ -41,7 +41,7 @@ function classFromBreakpoint(bp: DeviceBreakpoint): DeviceClass {
 
 function getInputMode(bp: DeviceBreakpoint, width: number, ua: string): InputMode {
   if (isLikelyTv(width, ua)) return "remote";
-  const coarse = window.matchMedia("(pointer: coarse)").matches;
+  const coarse = typeof window.matchMedia === "function" ? window.matchMedia("(pointer: coarse)").matches : false;
   if (coarse && (bp === "xs" || bp === "sm" || bp === "md")) return "touch";
   return "mouse";
 }
@@ -74,7 +74,13 @@ export function AdaptiveUiProvider({ children }: { children: React.ReactNode }) 
   });
 
   useEffect(() => {
-    const update = () => setState(computeAdaptiveState());
+    const update = () => {
+      try {
+        setState(computeAdaptiveState());
+      } catch {
+        // Keep last known safe state if a browser/webview lacks a required API.
+      }
+    };
     update();
     window.addEventListener("resize", update);
     window.addEventListener("orientationchange", update);

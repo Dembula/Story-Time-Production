@@ -7,6 +7,8 @@ import Image from "next/image";
 import { ArrowLeft, Shield } from "lucide-react";
 
 export default function SignInPage() {
+  const hasGoogleProvider = Boolean(process.env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED === "true");
+  const hasGitHubProvider = Boolean(process.env.NEXT_PUBLIC_GITHUB_AUTH_ENABLED === "true");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -100,19 +102,38 @@ export default function SignInPage() {
           <div className="grid grid-cols-2 gap-3">
             <button
               type="button"
-              onClick={() => signIn("google", { callbackUrl: "/profiles" })}
+              disabled={!hasGoogleProvider}
+              onClick={async () => {
+                try {
+                  await signIn("google", { callbackUrl: "/profiles" });
+                } catch {
+                  setError("Google sign-in is currently unavailable. Use email/password.");
+                }
+              }}
               className="storytime-panel flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-medium text-slate-300 hover:bg-white/[0.05]"
             >
               Google
             </button>
             <button
               type="button"
-              onClick={() => signIn("github", { callbackUrl: "/profiles" })}
+              disabled={!hasGitHubProvider}
+              onClick={async () => {
+                try {
+                  await signIn("github", { callbackUrl: "/profiles" });
+                } catch {
+                  setError("GitHub sign-in is currently unavailable. Use email/password.");
+                }
+              }}
               className="storytime-panel flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-medium text-slate-300 hover:bg-white/[0.05]"
             >
               GitHub
             </button>
           </div>
+          {(!hasGoogleProvider || !hasGitHubProvider) && (
+            <p className="mt-3 text-center text-xs text-slate-500">
+              Some social sign-in providers are disabled in this environment.
+            </p>
+          )}
 
           <div className="mt-4 flex items-center gap-2 justify-center text-xs text-slate-500">
             <Shield className="w-3.5 h-3.5" />

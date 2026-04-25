@@ -7,6 +7,8 @@ import Image from "next/image";
 import { ArrowLeft, Shield } from "lucide-react";
 
 export default function CreatorSignInPage() {
+  const hasGoogleProvider = Boolean(process.env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED === "true");
+  const hasGitHubProvider = Boolean(process.env.NEXT_PUBLIC_GITHUB_AUTH_ENABLED === "true");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -109,19 +111,38 @@ export default function CreatorSignInPage() {
           <div className="grid grid-cols-2 gap-3">
             <button
               type="button"
-              onClick={() => signIn("google", { callbackUrl: "/creator/command-center" })}
+              disabled={!hasGoogleProvider}
+              onClick={async () => {
+                try {
+                  await signIn("google", { callbackUrl: "/creator/command-center" });
+                } catch {
+                  setError("Google sign-in is currently unavailable. Use creator email/password.");
+                }
+              }}
               className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white/90 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-white"
             >
               Google
             </button>
             <button
               type="button"
-              onClick={() => signIn("github", { callbackUrl: "/creator/command-center" })}
+              disabled={!hasGitHubProvider}
+              onClick={async () => {
+                try {
+                  await signIn("github", { callbackUrl: "/creator/command-center" });
+                } catch {
+                  setError("GitHub sign-in is currently unavailable. Use creator email/password.");
+                }
+              }}
               className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white/90 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-white"
             >
               GitHub
             </button>
           </div>
+          {(!hasGoogleProvider || !hasGitHubProvider) && (
+            <p className="mt-3 text-center text-xs text-slate-500">
+              Some social sign-in providers are disabled in this environment.
+            </p>
+          )}
 
           <div className="mt-4 flex items-center justify-center gap-2 text-xs text-slate-500">
             <Shield className="w-3.5 h-3.5" />

@@ -9,6 +9,29 @@ import { prisma } from "./prisma";
 import { findUserActiveStudioProfileId, findUserForCredentialsLogin } from "./prisma-user-studio-compat";
 
 const DEMO_PASSWORD = process.env.DEMO_PASSWORD || "storytime2025";
+const googleClientId = process.env.GOOGLE_CLIENT_ID?.trim() ?? "";
+const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim() ?? "";
+const githubClientId = process.env.GITHUB_ID?.trim() ?? "";
+const githubClientSecret = process.env.GITHUB_SECRET?.trim() ?? "";
+
+const oauthProviders = [
+  ...(googleClientId && googleClientSecret
+    ? [
+        GoogleProvider({
+          clientId: googleClientId,
+          clientSecret: googleClientSecret,
+        }),
+      ]
+    : []),
+  ...(githubClientId && githubClientSecret
+    ? [
+        GitHubProvider({
+          clientId: githubClientId,
+          clientSecret: githubClientSecret,
+        }),
+      ]
+    : []),
+];
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma as never),
@@ -104,14 +127,7 @@ export const authOptions: NextAuthOptions = {
       },
       from: process.env.EMAIL_FROM || "noreply@storytime.com",
     }),
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID || "",
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
-    }),
-    GitHubProvider({
-      clientId: process.env.GITHUB_ID || "",
-      clientSecret: process.env.GITHUB_SECRET || "",
-    }),
+    ...oauthProviders,
   ],
   session: {
     strategy: "jwt",

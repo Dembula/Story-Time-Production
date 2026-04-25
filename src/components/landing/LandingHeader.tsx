@@ -18,16 +18,30 @@ export function LandingHeader() {
   }, []);
 
   useEffect(() => {
-    const mediaQuery = window.matchMedia("(orientation: portrait)");
+    type LegacyMediaQueryList = MediaQueryList & {
+      addListener?: (listener: (this: MediaQueryList, ev: MediaQueryListEvent) => void) => void;
+      removeListener?: (listener: (this: MediaQueryList, ev: MediaQueryListEvent) => void) => void;
+    };
+    const mediaQuery = typeof window.matchMedia === "function" ? window.matchMedia("(orientation: portrait)") : null;
+    const legacyMediaQuery = mediaQuery as LegacyMediaQueryList | null;
     const updateMode = () => {
-      setIsPortraitMobile(window.innerWidth < 768 && mediaQuery.matches);
+      const portrait = mediaQuery ? mediaQuery.matches : window.innerHeight >= window.innerWidth;
+      setIsPortraitMobile(window.innerWidth < 768 && portrait);
       setAuthMenuOpen(null);
     };
     updateMode();
-    mediaQuery.addEventListener("change", updateMode);
+    if (mediaQuery && "addEventListener" in mediaQuery) {
+      mediaQuery.addEventListener("change", updateMode);
+    } else if (legacyMediaQuery?.addListener) {
+      legacyMediaQuery.addListener(updateMode);
+    }
     window.addEventListener("resize", updateMode);
     return () => {
-      mediaQuery.removeEventListener("change", updateMode);
+      if (mediaQuery && "removeEventListener" in mediaQuery) {
+        mediaQuery.removeEventListener("change", updateMode);
+      } else if (legacyMediaQuery?.removeListener) {
+        legacyMediaQuery.removeListener(updateMode);
+      }
       window.removeEventListener("resize", updateMode);
     };
   }, []);
