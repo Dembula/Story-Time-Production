@@ -51,6 +51,8 @@ export function FullscreenPlayer({
   const videoRef = useRef<HTMLVideoElement>(null);
   const hideControlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onTimeUpdateRef = useRef(onTimeUpdate);
+  const navigatingBackRef = useRef(false);
+  const orientationLockedRef = useRef(false);
   onTimeUpdateRef.current = onTimeUpdate;
 
   const [controlsVisible, setControlsVisible] = useState(true);
@@ -62,6 +64,7 @@ export function FullscreenPlayer({
   const [audioOpen, setAudioOpen] = useState(false);
   const [subtitleTrack, setSubtitleTrack] = useState<string>("off");
   const [audioTrack, setAudioTrack] = useState<string>(language || "en");
+  const [isMobileLike, setIsMobileLike] = useState(false);
 
   const videoSrc = src || PLACEHOLDER_VIDEO;
 
@@ -100,10 +103,11 @@ export function FullscreenPlayer({
   }, []);
 
   const goBack = useCallback(() => {
+    navigatingBackRef.current = true;
     if (containerRef.current && document.fullscreenElement === containerRef.current) {
       document.exitFullscreen().catch(() => {});
     }
-    router.push(contentDetailUrl);
+    router.replace(contentDetailUrl);
   }, [contentDetailUrl, router]);
 
   const showControls = useCallback(() => {
@@ -146,10 +150,22 @@ export function FullscreenPlayer({
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const computeMobileLike = () => {
+      const coarse = typeof window.matchMedia === "function" ? window.matchMedia("(pointer: coarse)").matches : false;
+      setIsMobileLike(coarse || window.innerWidth < 900);
+    };
+    computeMobileLike();
+    window.addEventListener("resize", computeMobileLike);
+    return () => window.removeEventListener("resize", computeMobileLike);
+  }, []);
+
+  useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
     const enterFullscreen = () => {
+      if (isMobileLike) return;
       if (!document.fullscreenElement) {
         container
           .requestFullscreen()
@@ -165,7 +181,10 @@ export function FullscreenPlayer({
 
     const onFullscreenChange = () => {
       if (!document.fullscreenElement) {
-        router.push(contentDetailUrl);
+        if (!navigatingBackRef.current) {
+          navigatingBackRef.current = true;
+          router.replace(contentDetailUrl);
+        }
       }
     };
     document.addEventListener("fullscreenchange", onFullscreenChange);
@@ -175,7 +194,45 @@ export function FullscreenPlayer({
         clearTimeout(hideControlsTimerRef.current);
       }
     };
-  }, [contentDetailUrl, router]);
+  }, [contentDetailUrl, isMobileLike, router]);
+
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    const lockLandscape = async () => {
+      if (!isMobileLike) return;
+      const orientationApi = screen.orientation as ScreenOrientation & {
+        lock?: (orientation: "landscape" | "landscape-primary" | "landscape-secondary") => Promise<void>;
+      };
+      if (!orientationApi?.lock) return;
+      try {
+        await orientationApi.lock("landscape");
+        orientationLockedRef.current = true;
+      } catch {
+        // Some browsers require fullscreen/user gesture; best effort only.
+      }
+    };
+    const onPlay = () => {
+      void lockLandscape();
+    };
+    v.addEventListener("play", onPlay);
+    return () => {
+      v.removeEventListener("play", onPlay);
+    };
+  }, [isMobileLike]);
+
+  useEffect(() => {
+    return () => {
+      const orientationApi = screen.orientation as ScreenOrientation & { unlock?: () => void };
+      if (orientationLockedRef.current && orientationApi?.unlock) {
+        try {
+          orientationApi.unlock();
+        } catch {
+          // no-op
+        }
+      }
+    };
+  }, []);
 
   const formatTime = (seconds: number) => {
     if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
@@ -189,10 +246,7 @@ export function FullscreenPlayer({
       ref={containerRef}
       className="fixed inset-0 z-50 bg-black flex flex-col"
       onClick={showControls}
-      onTouchEnd={(e) => {
-        e.preventDefault();
-        showControls();
-      }}
+      onTouchEnd={showControls}
     >
       <video
         ref={videoRef}
@@ -248,6 +302,31 @@ export function FullscreenPlayer({
           </button>
         </div>
       )}
+
+      {/* Mobile-friendly quick seek controls over the video */}
+      <div
+        className={`absolute inset-y-0 left-0 right-0 z-[6] flex items-center justify-between px-4 transition-opacity duration-300 ${controlsVisible ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={seekBack}
+          className="flex h-16 w-16 items-center justify-center rounded-full bg-black/45 text-white hover:bg-black/60 transition-colors touch-manipulation"
+          aria-label="Rewind 10 seconds"
+        >
+          <Rewind className="h-7 w-7" />
+          <span className="sr-only">Back 10 seconds</span>
+        </button>
+        <button
+          type="button"
+          onClick={seekForward}
+          className="flex h-16 w-16 items-center justify-center rounded-full bg-black/45 text-white hover:bg-black/60 transition-colors touch-manipulation"
+          aria-label="Forward 10 seconds"
+        >
+          <FastForward className="h-7 w-7" />
+          <span className="sr-only">Forward 10 seconds</span>
+        </button>
+      </div>
 
       {/* End card: restart + next episode */}
       {isEnded && (
