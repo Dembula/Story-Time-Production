@@ -16,7 +16,7 @@ export default function CreatorSignInPage() {
     e.preventDefault();
     setError("");
     setLoading(true);
-    const res = await signIn("credentials", {
+    const res = await signIn("credentials-creator", {
       email,
       password,
       redirect: false,
@@ -26,7 +26,7 @@ export default function CreatorSignInPage() {
     if (res?.ok) {
       window.location.href = "/creator/command-center";
     } else {
-      setError("Invalid email or password.");
+      setError("Invalid creator credentials or this account belongs to the viewer portal.");
     }
   }
 

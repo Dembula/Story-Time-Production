@@ -16,7 +16,7 @@ export default function SignInPage() {
     e.preventDefault();
     setError("");
     setLoading(true);
-    const res = await signIn("credentials", {
+    const res = await signIn("credentials-viewer", {
       email,
       password,
       redirect: false,
@@ -25,7 +25,7 @@ export default function SignInPage() {
     if (res?.ok) {
       window.location.href = "/profiles";
     } else {
-      setError("Invalid email or password.");
+      setError("Invalid viewer credentials or this account belongs to the creator portal.");
     }
   }
 
