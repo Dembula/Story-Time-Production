@@ -20,7 +20,7 @@ export type VisualPlanningAsset = {
 };
 
 const VISUAL_UPLOAD_ACCEPT =
-  "image/jpeg,image/jpg,image/png,image/webp,image/avif,image/gif,image/heic,image/heif";
+  "image/jpeg,image/jpg,image/png,image/webp,image/avif,image/gif";
 
 async function uploadToStorage(file: File): Promise<string> {
   const formData = new FormData();
@@ -41,6 +41,7 @@ export function VisualPlanningCatalogue({ projectId }: { projectId: string }) {
   const [uploadCategory, setUploadCategory] = useState<VisualPlanningCategoryId>("moodboard");
   const [pasteUrl, setPasteUrl] = useState("");
   const [uploadError, setUploadError] = useState("");
+  const [brokenAssetIds, setBrokenAssetIds] = useState<Record<string, boolean>>({});
 
   const { data, isLoading } = useQuery({
     queryKey: ["project-visual-assets", projectId],
@@ -122,6 +123,10 @@ export function VisualPlanningCatalogue({ projectId }: { projectId: string }) {
     if (!file) return;
     if (!file.type.startsWith("image/")) {
       setUploadError("Please choose an image file.");
+      return;
+    }
+    if (file.type === "image/heic" || file.type === "image/heif") {
+      setUploadError("HEIC/HEIF uploads can fail to display in browsers. Please convert to JPG/PNG/WebP before uploading.");
       return;
     }
     setUploadError("");
@@ -207,7 +212,7 @@ export function VisualPlanningCatalogue({ projectId }: { projectId: string }) {
           </div>
         </div>
         <p className="text-[11px] text-slate-500">
-          Supported image formats: JPG, PNG, WEBP, AVIF, GIF, HEIC/HEIF. Max upload size: up to 1GB.
+          Supported image formats: JPG, PNG, WEBP, AVIF, GIF. Max upload size: up to 1GB.
         </p>
         {uploadError ? <p className="text-[11px] text-amber-200/90">{uploadError}</p> : null}
       </div>
@@ -256,7 +261,18 @@ export function VisualPlanningCatalogue({ projectId }: { projectId: string }) {
               className="group flex flex-col rounded-xl border border-slate-800 bg-slate-950/80 overflow-hidden shadow-sm hover:border-slate-600/80 transition"
             >
               <div className="relative aspect-[3/4] bg-slate-900">
-                <img src={a.imageUrl} alt={a.title || "Reference"} className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
+                <img
+                  src={a.imageUrl}
+                  alt={a.title || "Reference"}
+                  className="absolute inset-0 w-full h-full object-cover"
+                  loading="lazy"
+                  onError={() => setBrokenAssetIds((prev) => ({ ...prev, [a.id]: true }))}
+                />
+                {brokenAssetIds[a.id] ? (
+                  <div className="absolute inset-0 flex items-center justify-center bg-slate-900/90 px-2 text-center text-[10px] text-amber-200">
+                    Could not display this image on this device.
+                  </div>
+                ) : null}
                 <div className="absolute top-2 left-2">
                   <span className="rounded-md bg-black/55 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-white/90 backdrop-blur-sm">
                     {labelFor(a.category)}

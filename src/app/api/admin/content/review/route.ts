@@ -6,6 +6,8 @@ import { Prisma } from "@prisma/client";
 import { notifyUser } from "@/lib/notify-user";
 import { sanitizeReviewFeedback } from "@/lib/review-feedback";
 import { buildAppUrl } from "@/lib/app-url";
+import { extractCloudflareStreamUid, isCloudflareStreamUrl } from "@/lib/cloudflare-stream";
+import { getStreamStatusesByUids } from "@/lib/stream-asset-store";
 
 function reviewDetailUrl(contentId: string) {
   return `/creator/catalogue/reviews/${contentId}`;
@@ -31,6 +33,8 @@ export async function PATCH(req: NextRequest) {
     select: {
       id: true,
       title: true,
+      videoUrl: true,
+      trailerUrl: true,
       reviewStatus: true,
       published: true,
       creatorId: true,
@@ -76,6 +80,22 @@ export async function PATCH(req: NextRequest) {
   };
 
   if (action === "APPROVE") {
+    const uids = [extractCloudflareStreamUid(before.videoUrl), extractCloudflareStreamUid(before.trailerUrl)].filter(
+      (v): v is string => Boolean(v),
+    );
+    if (uids.length > 0 && (isCloudflareStreamUrl(before.videoUrl ?? "") || isCloudflareStreamUrl(before.trailerUrl ?? ""))) {
+      const statuses = await getStreamStatusesByUids(uids);
+      const blocked = [...statuses.entries()].find(([, value]) => {
+        const state = (value.status ?? "").toLowerCase();
+        return state && !["ready", "live", "completed", "success"].includes(state);
+      });
+      if (blocked) {
+        return NextResponse.json(
+          { error: "This title is still processing for playback. Please approve after stream status is ready." },
+          { status: 409 },
+        );
+      }
+    }
     const updated = await prisma.content.update({
       where: { id: contentId },
       data: {

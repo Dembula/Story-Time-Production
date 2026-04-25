@@ -65,6 +65,7 @@ export function NetworkClient() {
   const [postBody, setPostBody] = useState("");
   const [postImageUrl, setPostImageUrl] = useState("");
   const [postImageUploading, setPostImageUploading] = useState(false);
+  const [postImageError, setPostImageError] = useState("");
   const [posting, setPosting] = useState(false);
   const [myId, setMyId] = useState<string | null>(null);
   const [myRole, setMyRole] = useState<string | null>(null);
@@ -440,13 +441,18 @@ export function NetworkClient() {
                         const file = e.target.files?.[0];
                         e.target.value = "";
                         if (!file) return;
+                        setPostImageError("");
                         setPostImageUploading(true);
                         try {
                           const fd = new FormData();
                           fd.append("file", file);
                           const res = await fetch("/api/upload/content-media", { method: "POST", body: fd });
-                          const data = (await res.json().catch(() => ({}))) as { publicUrl?: string };
-                          if (res.ok && data.publicUrl) setPostImageUrl(data.publicUrl);
+                          const data = (await res.json().catch(() => ({}))) as { publicUrl?: string; error?: string };
+                          if (!res.ok || !data.publicUrl) {
+                            setPostImageError(data.error || "Image upload failed.");
+                            return;
+                          }
+                          setPostImageUrl(data.publicUrl);
                         } finally {
                           setPostImageUploading(false);
                         }
@@ -460,6 +466,7 @@ export function NetworkClient() {
                     className="w-full min-w-0 px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm text-white placeholder:text-slate-500"
                   />
                 </div>
+                {postImageError ? <p className="text-xs text-amber-300">{postImageError}</p> : null}
               </div>
             </div>
             <div className="flex justify-end">
