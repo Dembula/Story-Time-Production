@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import Link from "next/link";
 
 export default function AppError({
   error,
@@ -28,12 +29,12 @@ export default function AppError({
           >
             Reload Page
           </button>
-          <a
+          <Link
             href="/"
             className="rounded-lg border border-white/15 px-4 py-2 text-sm font-medium text-slate-200 hover:bg-white/[0.05]"
           >
             Go Home
-          </a>
+          </Link>
         </div>
       </div>
     </div>
