@@ -483,7 +483,7 @@ export async function POST(
           embedMeta(parsed.plain, {
             ...(existingMeta as Record<string, unknown>),
             linkedTaskIds: [...new Set([...(existingMeta.linkedTaskIds ?? []), task.id])],
-          }) ?? parsed.plain,
+          }) ?? parsed.plain ?? "",
       },
     });
   }

@@ -116,7 +116,7 @@ export function ModocProvider({ children }: { children: ReactNode }) {
     } catch {
       return null;
     }
-  }, []);
+  }, [setConversationId]);
 
   const loadConversation = useCallback(
     async (id: string) => {
@@ -137,7 +137,7 @@ export function ModocProvider({ children }: { children: ReactNode }) {
         // ignore
       }
     },
-    [chat]
+    [chat, setConversationId]
   );
 
   const clearConversationId = useCallback(() => {

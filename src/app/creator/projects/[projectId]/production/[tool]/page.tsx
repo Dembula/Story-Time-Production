@@ -757,7 +757,7 @@ function EquipmentTracking({ projectId, title }: { projectId?: string; title: st
         ...prev,
         [itemId]: {
           ...(prev[itemId] ?? { label: "", physicallyPresent: true, note: "", photoUrl: null }),
-          photoUrl: json.publicUrl,
+          photoUrl: json.publicUrl ?? null,
         },
       }));
       setToast("Checklist photo uploaded.");

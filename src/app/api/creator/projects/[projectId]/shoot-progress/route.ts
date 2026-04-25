@@ -332,7 +332,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ project
       ...(alerts.length > 0 ? alerts.slice(0, 12).map((a) => `${a.severity}: ${a.message}`) : ["No active alerts"]),
     ];
     const pdf = buildSimplePdf(lines);
-    return new NextResponse(pdf, {
+    return new NextResponse(new Uint8Array(pdf), {
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `attachment; filename="shoot-progress-producer-summary-${projectId}.pdf"`,
@@ -459,7 +459,6 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ proje
 
   await prisma.shootDayControlBoard.update({
     where: { shootDayId: shootDay.id },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     data: { sceneProgress: { ...sceneProgress, [link.id]: next } as any },
   });
 

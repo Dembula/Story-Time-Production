@@ -106,7 +106,13 @@ export function Navbar() {
             >
               <User className="w-5 h-5 text-slate-400" />
               {session.user?.image ? (
-                <img src={session.user.image} alt="" className="h-8 w-8 rounded-full ring-1 ring-white/15" />
+                <Image
+                  src={session.user.image}
+                  alt={session.user?.name ? `${session.user.name} avatar` : "User avatar"}
+                  width={32}
+                  height={32}
+                  className="h-8 w-8 rounded-full ring-1 ring-white/15"
+                />
               ) : (
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-500/18 text-sm font-semibold text-orange-300 ring-1 ring-orange-400/20">
                   {(session.user?.name || "?")[0]}

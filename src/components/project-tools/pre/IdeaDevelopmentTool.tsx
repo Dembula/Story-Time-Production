@@ -34,15 +34,19 @@ export function IdeaDevelopmentTool({
     queryFn: () => fetch(listEndpoint).then((r) => r.json()),
   });
 
-  const ideas = (data?.ideas ?? []) as {
-    id: string;
-    title: string;
-    logline: string | null;
-    notes: string | null;
-    genres: string | null;
-    convertedToProject: boolean;
-    updatedAt: string;
-  }[];
+  const ideas = useMemo(
+    () =>
+      (data?.ideas ?? []) as {
+        id: string;
+        title: string;
+        logline: string | null;
+        notes: string | null;
+        genres: string | null;
+        convertedToProject: boolean;
+        updatedAt: string;
+      }[],
+    [data?.ideas]
+  );
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = useMemo(
@@ -83,7 +87,7 @@ export function IdeaDevelopmentTool({
       setDraft(null);
       setDirty(false);
     }
-  }, [selected?.id]);
+  }, [selected]);
 
   const createMutation = useMutation({
     mutationFn: async () => {

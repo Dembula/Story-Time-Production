@@ -441,7 +441,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   });
 
   if (action === "LOG_ISSUE" && body.issue) {
-    const members = await prisma.projectMember.findMany({
+    const members = await prisma.originalMember.findMany({
       where: { projectId },
       select: { userId: true },
       take: 80,

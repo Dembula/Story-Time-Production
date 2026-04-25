@@ -2,6 +2,7 @@
 
 import { Play } from "lucide-react";
 import { useState } from "react";
+import Image from "next/image";
 
 type BtsVideo = {
   id: string;
@@ -42,10 +43,12 @@ export function BtsSection({ btsVideos }: { btsVideos: BtsVideo[] }) {
             ) : (
               <>
                 {bts.thumbnail ? (
-                  <img
+                  <Image
                     src={bts.thumbnail}
                     alt={bts.title}
-                    className="w-full h-full object-cover"
+                    fill
+                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                    className="object-cover"
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">

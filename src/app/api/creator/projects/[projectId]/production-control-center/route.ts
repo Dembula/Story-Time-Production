@@ -269,7 +269,6 @@ export async function POST(req: NextRequest, context: { params: Promise<{ projec
   const patchBoard = async (data: Record<string, unknown>) => {
     await prisma.shootDayControlBoard.update({
       where: { shootDayId },
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Prisma client types refresh after `prisma generate`
       data: data as any,
     });
   };

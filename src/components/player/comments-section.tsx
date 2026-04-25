@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
+import Image from "next/image";
 import { Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -91,9 +92,11 @@ export function CommentsSection({ contentId }: { contentId: string }) {
           <div key={c.id} className="border-l-2 border-slate-600 pl-4">
             <div className="flex items-center gap-2">
               {c.user.image ? (
-                <img
+                <Image
                   src={c.user.image}
-                  alt=""
+                  alt={c.user.name ? `${c.user.name} avatar` : "User avatar"}
+                  width={32}
+                  height={32}
                   className="w-8 h-8 rounded-full"
                 />
               ) : (
