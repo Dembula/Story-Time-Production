@@ -20,7 +20,7 @@ export type VisualPlanningAsset = {
 };
 
 const VISUAL_UPLOAD_ACCEPT =
-  "image/jpeg,image/jpg,image/png,image/webp,image/avif,image/gif";
+  "image/jpeg,image/jpg,image/png,image/webp,image/avif,image/gif,image/heic,image/heif";
 
 async function uploadToStorage(file: File): Promise<string> {
   const formData = new FormData();
@@ -125,10 +125,6 @@ export function VisualPlanningCatalogue({ projectId }: { projectId: string }) {
       setUploadError("Please choose an image file.");
       return;
     }
-    if (file.type === "image/heic" || file.type === "image/heif") {
-      setUploadError("HEIC/HEIF uploads can fail to display in browsers. Please convert to JPG/PNG/WebP before uploading.");
-      return;
-    }
     setUploadError("");
     try {
       const imageUrl = await uploadToStorage(file);
@@ -212,7 +208,8 @@ export function VisualPlanningCatalogue({ projectId }: { projectId: string }) {
           </div>
         </div>
         <p className="text-[11px] text-slate-500">
-          Supported image formats: JPG, PNG, WEBP, AVIF, GIF. Max upload size: up to 1GB.
+          Supported image formats: JPG, PNG, WEBP, AVIF, GIF, HEIC/HEIF. If a device cannot decode HEIC/HEIF, open the source
+          file link or upload JPG/PNG for universal display.
         </p>
         {uploadError ? <p className="text-[11px] text-amber-200/90">{uploadError}</p> : null}
       </div>
@@ -269,8 +266,11 @@ export function VisualPlanningCatalogue({ projectId }: { projectId: string }) {
                   onError={() => setBrokenAssetIds((prev) => ({ ...prev, [a.id]: true }))}
                 />
                 {brokenAssetIds[a.id] ? (
-                  <div className="absolute inset-0 flex items-center justify-center bg-slate-900/90 px-2 text-center text-[10px] text-amber-200">
-                    Could not display this image on this device.
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-slate-900/90 px-2 text-center text-[10px] text-amber-200">
+                    <span>Could not display this image on this device.</span>
+                    <a href={a.imageUrl} target="_blank" rel="noreferrer" className="text-orange-300 underline">
+                      Open source file
+                    </a>
                   </div>
                 ) : null}
                 <div className="absolute top-2 left-2">

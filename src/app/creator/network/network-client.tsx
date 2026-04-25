@@ -66,6 +66,7 @@ export function NetworkClient() {
   const [postImageUrl, setPostImageUrl] = useState("");
   const [postImageUploading, setPostImageUploading] = useState(false);
   const [postImageError, setPostImageError] = useState("");
+  const [brokenPostImages, setBrokenPostImages] = useState<Record<string, boolean>>({});
   const [posting, setPosting] = useState(false);
   const [myId, setMyId] = useState<string | null>(null);
   const [myRole, setMyRole] = useState<string | null>(null);
@@ -434,7 +435,7 @@ export function NetworkClient() {
                     {postImageUploading ? "Uploading…" : "Attach image"}
                     <input
                       type="file"
-                      accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+                      accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/heic,image/heif"
                       className="hidden"
                       disabled={postImageUploading}
                       onChange={async (e) => {
@@ -543,7 +544,22 @@ export function NetworkClient() {
                             <div className="flex flex-wrap gap-2 mb-3">
                               {urls.slice(0, 4).map((url, i) => (
                                 <div key={i} className="relative w-24 h-24 rounded-lg overflow-hidden bg-slate-800">
-                                  <Image src={url} alt="" fill className="object-cover" />
+                                  <img
+                                    src={url}
+                                    alt=""
+                                    className="h-full w-full object-cover"
+                                    onError={() => setBrokenPostImages((prev) => ({ ...prev, [url]: true }))}
+                                  />
+                                  {brokenPostImages[url] ? (
+                                    <a
+                                      href={url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="absolute inset-0 flex items-center justify-center bg-slate-900/85 px-1 text-center text-[10px] text-orange-300 underline"
+                                    >
+                                      Open file
+                                    </a>
+                                  ) : null}
                                 </div>
                               ))}
                             </div>
