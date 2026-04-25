@@ -23,22 +23,31 @@ export async function GET() {
       goals: true,
       previousWork: true,
       isAfdaStudent: true,
+      headline: true,
+      location: true,
+      website: true,
+      professionalName: true,
+      bannerImageUrl: true,
+      primaryRole: true,
+      skills: true,
+      expertiseAreas: true,
+      yearsExperience: true,
+      availabilityStatus: true,
+      reputationScore: true,
+      networkProfilePublic: true,
+      creatorAccountStructure: true,
+      creatorTeamSeatCap: true,
     },
   });
   if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
-  // Network profile fields (may exist in DB even if not in generated client)
-  const extra = await prisma.$queryRawUnsafe<{ headline: string | null; location: string | null; website: string | null; phoneNumber: string | null }[]>(
-    `SELECT "headline", "location", "website", "phoneNumber" FROM "User" WHERE "id" = $1`,
-    session.user.id
-  ).catch(() => []);
-  const profile = extra[0];
+  const phoneRow = await prisma
+    .$queryRawUnsafe<{ phoneNumber: string | null }[]>(`SELECT "phoneNumber" FROM "User" WHERE "id" = $1`, session.user.id)
+    .catch(() => []);
+
   return NextResponse.json({
     ...user,
-    headline: profile?.headline ?? null,
-    location: profile?.location ?? null,
-    website: profile?.website ?? null,
-    phoneNumber: profile?.phoneNumber ?? null,
+    phoneNumber: phoneRow[0]?.phoneNumber ?? null,
   });
 }
 

@@ -11,6 +11,9 @@ export default function CreatorSignUpPage() {
   const [consentAccepted, setConsentAccepted] = useState(false);
   const [email, setEmail] = useState("");
   const [creatorType, setCreatorType] = useState<"content" | "music" | "equipment" | "location" | "crew" | "casting" | "catering" | "">("");
+  const [accountStructure, setAccountStructure] = useState<"INDIVIDUAL" | "COMPANY" | "">("COMPANY");
+  /** Total seats including the registering admin (1–5). Only used for film/music company accounts. */
+  const [teamSeatCap, setTeamSeatCap] = useState(2);
   const [bio, setBio] = useState("");
   const [socialLinks, setSocialLinks] = useState("");
   const [education, setEducation] = useState("");
@@ -21,6 +24,43 @@ export default function CreatorSignUpPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [step, setStep] = useState(1);
+  const [companyName, setCompanyName] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [city, setCity] = useState("");
+  const [country, setCountry] = useState("");
+  const [website, setWebsite] = useState("");
+  const [actorFullName, setActorFullName] = useState("");
+  const [actorAgeRange, setActorAgeRange] = useState("");
+  const [actorGender, setActorGender] = useState("");
+  const [actorLanguages, setActorLanguages] = useState("");
+  const [actorSkills, setActorSkills] = useState("");
+  const [actorExperience, setActorExperience] = useState("");
+  const [actorDailyRate, setActorDailyRate] = useState("");
+  const [actorProjectRate, setActorProjectRate] = useState("");
+  const [actorAvailability, setActorAvailability] = useState("");
+  const [actorShowreel, setActorShowreel] = useState("");
+  const [crewMemberName, setCrewMemberName] = useState("");
+  const [crewRole, setCrewRole] = useState("");
+  const [crewDepartment, setCrewDepartment] = useState("");
+  const [crewExperience, setCrewExperience] = useState("");
+  const [crewDailyRate, setCrewDailyRate] = useState("");
+  const [crewAvailability, setCrewAvailability] = useState("");
+  const [crewSkills, setCrewSkills] = useState("");
+  const [crewPortfolio, setCrewPortfolio] = useState("");
+  const [locationName, setLocationName] = useState("");
+  const [locationType, setLocationType] = useState("");
+  const [locationAddress, setLocationAddress] = useState("");
+  const [locationDailyRate, setLocationDailyRate] = useState("");
+  const [locationHourlyRate, setLocationHourlyRate] = useState("");
+  const [locationAvailability, setLocationAvailability] = useState("");
+  const [locationPermits, setLocationPermits] = useState("");
+  const [locationRestrictions, setLocationRestrictions] = useState("");
+  const [equipmentName, setEquipmentName] = useState("");
+  const [equipmentCategory, setEquipmentCategory] = useState("");
+  const [equipmentSpecs, setEquipmentSpecs] = useState("");
+  const [equipmentDailyRate, setEquipmentDailyRate] = useState("");
+  const [equipmentQuantity, setEquipmentQuantity] = useState("");
+  const [equipmentAvailability, setEquipmentAvailability] = useState("");
   const creatorConsentKey = "storytime_creator_signup_ack_v1";
 
   useEffect(() => {
@@ -34,25 +74,108 @@ export default function CreatorSignUpPage() {
     setConsentReady(true);
   }
 
+  function handleCreatorTypeChange(next: typeof creatorType) {
+    setCreatorType(next);
+    if (next === "content" || next === "music") {
+      setAccountStructure("");
+      setTeamSeatCap(2);
+    } else if (["equipment", "location", "crew", "casting", "catering"].includes(next)) {
+      setAccountStructure("COMPANY");
+      setTeamSeatCap(2);
+    } else {
+      setAccountStructure("");
+      setTeamSeatCap(2);
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    setLoading(true);
     const type = creatorType || "content";
+    const trimmedEmail = email.trim().toLowerCase();
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+    if (type === "content" || type === "music") {
+      if (accountStructure !== "INDIVIDUAL" && accountStructure !== "COMPANY") {
+        setError("Select Individual creator or Company / team account before continuing.");
+        return;
+      }
+      if (accountStructure === "COMPANY" && (teamSeatCap < 1 || teamSeatCap > 5)) {
+        setError("Choose a team size between 1 and 5.");
+        return;
+      }
+    }
+    setLoading(true);
     try {
       const regRes = await fetch("/api/creator/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email,
+          email: trimmedEmail,
           password,
           type,
+          accountStructure: type === "content" || type === "music" ? accountStructure : accountStructure || "COMPANY",
+          teamSeatCap:
+            (type === "content" || type === "music") && accountStructure === "COMPANY" ? teamSeatCap : undefined,
+          companyName,
+          contactEmail,
+          city,
+          country,
+          website,
           bio,
           socialLinks,
           education,
           goals,
           previousWork,
           isAfda,
+          actorProfile: creatorType === "casting" ? {
+            fullName: actorFullName || undefined,
+            ageRange: actorAgeRange || undefined,
+            gender: actorGender || undefined,
+            languages: actorLanguages.split(",").map((v) => v.trim()).filter(Boolean),
+            skills: actorSkills.split(",").map((v) => v.trim()).filter(Boolean),
+            experienceLevel: actorExperience || undefined,
+            dailyRate: actorDailyRate ? Number(actorDailyRate) : undefined,
+            projectRate: actorProjectRate ? Number(actorProjectRate) : undefined,
+            availability: actorAvailability || undefined,
+            showreel: actorShowreel || undefined,
+            pastWork: previousWork || undefined,
+            contactInfo: contactEmail || email,
+          } : undefined,
+          crewProfile: creatorType === "crew" ? {
+            name: crewMemberName || undefined,
+            role: crewRole || undefined,
+            department: crewDepartment || undefined,
+            experienceLevel: crewExperience || undefined,
+            dailyRate: crewDailyRate ? Number(crewDailyRate) : undefined,
+            availability: crewAvailability || undefined,
+            location: city || undefined,
+            skills: crewSkills.split(",").map((v) => v.trim()).filter(Boolean),
+            portfolio: crewPortfolio || undefined,
+          } : undefined,
+          locationProfile: creatorType === "location" ? {
+            name: locationName || undefined,
+            address: locationAddress || undefined,
+            type: locationType || undefined,
+            description: bio || undefined,
+            availability: locationAvailability || undefined,
+            rentalCostPerDay: locationDailyRate ? Number(locationDailyRate) : undefined,
+            rentalCostPerHour: locationHourlyRate ? Number(locationHourlyRate) : undefined,
+            permitRequirements: locationPermits || undefined,
+            restrictions: locationRestrictions || undefined,
+            region: city || undefined,
+          } : undefined,
+          equipmentProfile: creatorType === "equipment" ? {
+            name: equipmentName || undefined,
+            category: equipmentCategory || undefined,
+            specifications: equipmentSpecs || undefined,
+            dailyRentalRate: equipmentDailyRate ? Number(equipmentDailyRate) : undefined,
+            quantityAvailable: equipmentQuantity ? Number(equipmentQuantity) : undefined,
+            availability: equipmentAvailability || undefined,
+            location: city || undefined,
+          } : undefined,
         }),
       });
       const regData = regRes.ok ? null : (await regRes.json().catch(() => ({})));
@@ -62,7 +185,7 @@ export default function CreatorSignUpPage() {
         return;
       }
       const res = await signIn("credentials", {
-        email,
+        email: trimmedEmail,
         password,
         redirect: false,
       });
@@ -77,7 +200,7 @@ export default function CreatorSignUpPage() {
           casting: "/company/onboarding/subscription",
           catering: "/company/onboarding/subscription",
         };
-        window.location.href = redirects[type] ?? "/creator/dashboard";
+        window.location.href = redirects[type] ?? "/creator/command-center";
       } else {
         setError("Account created but we couldn't sign you in. Please try signing in with your email and password.");
       }
@@ -173,12 +296,12 @@ export default function CreatorSignUpPage() {
                 <label className="mb-2 block text-sm font-medium text-slate-700">I create</label>
                 <select
                   value={creatorType}
-                  onChange={(e) => setCreatorType(e.target.value as typeof creatorType)}
+                  onChange={(e) => handleCreatorTypeChange(e.target.value as typeof creatorType)}
                   className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-950 shadow-sm outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-200/80"
                   required
                 >
                   <option value="" disabled>
-                    Select account type
+                    Select what you create
                   </option>
                   <option value="content">Films / Shows</option>
                   <option value="music">Music</option>
@@ -189,6 +312,94 @@ export default function CreatorSignUpPage() {
                   <option value="catering">Catering</option>
                 </select>
               </div>
+              {(creatorType === "content" || creatorType === "music") && (
+                <div className="space-y-3 rounded-xl border border-amber-200/70 bg-gradient-to-br from-amber-50 to-white p-4">
+                  <p className="text-sm font-semibold text-slate-900">Studio account type</p>
+                  <p className="text-xs leading-relaxed text-slate-600">
+                    Choose how your Story Time account is structured. This is stored on your profile for verification and
+                    team workflows later.
+                  </p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => setAccountStructure("INDIVIDUAL")}
+                      className={`rounded-xl border px-4 py-3 text-left text-sm transition ${
+                        accountStructure === "INDIVIDUAL"
+                          ? "border-amber-500 bg-white shadow-md ring-1 ring-amber-300/60"
+                          : "border-slate-200 bg-white/80 hover:border-slate-300"
+                      }`}
+                    >
+                      <span className="font-semibold text-slate-900">Individual creator</span>
+                      <span className="mt-1 block text-xs text-slate-600">Single login — you manage your catalogue and payouts alone.</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAccountStructure("COMPANY")}
+                      className={`rounded-xl border px-4 py-3 text-left text-sm transition ${
+                        accountStructure === "COMPANY"
+                          ? "border-amber-500 bg-white shadow-md ring-1 ring-amber-300/60"
+                          : "border-slate-200 bg-white/80 hover:border-slate-300"
+                      }`}
+                    >
+                      <span className="font-semibold text-slate-900">Company / team</span>
+                      <span className="mt-1 block text-xs text-slate-600">
+                        Multi-user studio — you are the admin; teammates join by invite (up to five logins total).
+                      </span>
+                    </button>
+                  </div>
+                  {accountStructure === "COMPANY" && (
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium text-slate-700">Team size (logins)</label>
+                      <p className="mb-2 text-[11px] leading-snug text-slate-500">
+                        Total seats including you as the main admin. Each seat is a separate profile/login after you
+                        invite and approve them.
+                      </p>
+                      <select
+                        value={teamSeatCap}
+                        onChange={(e) => setTeamSeatCap(Number(e.target.value))}
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-950 shadow-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-200/80"
+                      >
+                        {[1, 2, 3, 4, 5].map((n) => (
+                          <option key={n} value={n}>
+                            {n === 1
+                              ? "1 — admin only (add teammates later)"
+                              : `${n} — you + ${n - 1} teammate${n === 2 ? "" : "s"}`}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              )}
+              {["equipment", "location", "crew", "casting", "catering"].includes(creatorType) ? (
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-slate-700">Account setup</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setAccountStructure("INDIVIDUAL")}
+                      className={`rounded-xl border px-4 py-2 text-sm ${
+                        accountStructure === "INDIVIDUAL"
+                          ? "border-amber-400 bg-amber-100/60 text-slate-900"
+                          : "border-slate-200 bg-white text-slate-600"
+                      }`}
+                    >
+                      Individual
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAccountStructure("COMPANY")}
+                      className={`rounded-xl border px-4 py-2 text-sm ${
+                        accountStructure === "COMPANY"
+                          ? "border-amber-400 bg-amber-100/60 text-slate-900"
+                          : "border-slate-200 bg-white text-slate-600"
+                      }`}
+                    >
+                      Company
+                    </button>
+                  </div>
+                </div>
+              ) : null}
               <div>
                 <label htmlFor="email" className="mb-2 block text-sm font-medium text-slate-700">Email</label>
                 <input
@@ -211,9 +422,41 @@ export default function CreatorSignUpPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   required
+                  minLength={8}
+                  autoComplete="new-password"
                   className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-950 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-amber-400 focus:ring-2 focus:ring-amber-200/80"
                 />
+                <p className="mt-1.5 text-xs text-slate-500">At least 8 characters.</p>
               </div>
+              {["equipment", "location", "crew", "casting", "catering"].includes(creatorType) ? (
+                <>
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">
+                      {accountStructure === "COMPANY" ? "Company name" : "Public profile name"}
+                    </label>
+                    <input
+                      value={companyName}
+                      onChange={(e) => setCompanyName(e.target.value)}
+                      placeholder={accountStructure === "COMPANY" ? "Studio / Company name" : "Your public professional name"}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-950 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-amber-400 focus:ring-2 focus:ring-amber-200/80"
+                    />
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <input
+                      value={city}
+                      onChange={(e) => setCity(e.target.value)}
+                      placeholder="City"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-950 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-amber-400 focus:ring-2 focus:ring-amber-200/80"
+                    />
+                    <input
+                      value={country}
+                      onChange={(e) => setCountry(e.target.value)}
+                      placeholder="Country"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-950 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-amber-400 focus:ring-2 focus:ring-amber-200/80"
+                    />
+                  </div>
+                </>
+              ) : null}
 
               <button
                 type="button"
@@ -249,8 +492,25 @@ export default function CreatorSignUpPage() {
 
               <button
                 type="button"
-                onClick={() => { if (creatorType && email && password) setStep(2); }}
-                disabled={!creatorType || !email || !password}
+                onClick={() => {
+                  if (!creatorType || !email.trim() || password.length < 8) return;
+                  if (
+                    (creatorType === "content" || creatorType === "music") &&
+                    accountStructure !== "INDIVIDUAL" &&
+                    accountStructure !== "COMPANY"
+                  ) {
+                    return;
+                  }
+                  setStep(2);
+                }}
+                disabled={
+                  !creatorType ||
+                  !email.trim() ||
+                  password.length < 8 ||
+                  ((creatorType === "content" || creatorType === "music") &&
+                    accountStructure !== "INDIVIDUAL" &&
+                    accountStructure !== "COMPANY")
+                }
                 className="w-full rounded-xl bg-slate-950 py-3 font-semibold text-white shadow-[0_18px_40px_-22px_rgba(15,23,42,0.85)] transition hover:-translate-y-0.5 hover:bg-slate-900 disabled:opacity-50"
               >
                 Next: Your Profile
@@ -305,6 +565,105 @@ export default function CreatorSignUpPage() {
                   className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-950 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-amber-400 focus:ring-2 focus:ring-amber-200/80"
                 />
               </div>
+              {["equipment", "location", "crew", "casting", "catering"].includes(creatorType) ? (
+                <>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-slate-700">Contact email</label>
+                      <input
+                        value={contactEmail}
+                        onChange={(e) => setContactEmail(e.target.value)}
+                        placeholder="bookings@company.com"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-950 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-amber-400 focus:ring-2 focus:ring-amber-200/80"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-slate-700">Website</label>
+                      <input
+                        value={website}
+                        onChange={(e) => setWebsite(e.target.value)}
+                        placeholder="https://..."
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-950 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-amber-400 focus:ring-2 focus:ring-amber-200/80"
+                      />
+                    </div>
+                  </div>
+                </>
+              ) : null}
+              {creatorType === "casting" ? (
+                <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-sm font-medium text-slate-700">Initial actor profile</p>
+                  <input value={actorFullName} onChange={(e) => setActorFullName(e.target.value)} placeholder="Actor full name" className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-slate-950" />
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <input value={actorAgeRange} onChange={(e) => setActorAgeRange(e.target.value)} placeholder="Age range" className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-slate-950" />
+                    <input value={actorGender} onChange={(e) => setActorGender(e.target.value)} placeholder="Gender" className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-slate-950" />
+                  </div>
+                  <input value={actorLanguages} onChange={(e) => setActorLanguages(e.target.value)} placeholder="Languages (comma separated)" className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-slate-950" />
+                  <input value={actorSkills} onChange={(e) => setActorSkills(e.target.value)} placeholder="Skills / accents (comma separated)" className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-slate-950" />
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <input value={actorExperience} onChange={(e) => setActorExperience(e.target.value)} placeholder="Experience level" className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-slate-950" />
+                    <input value={actorAvailability} onChange={(e) => setActorAvailability(e.target.value)} placeholder="Availability" className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-slate-950" />
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <input value={actorDailyRate} onChange={(e) => setActorDailyRate(e.target.value)} placeholder="Daily rate (ZAR)" className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-slate-950" />
+                    <input value={actorProjectRate} onChange={(e) => setActorProjectRate(e.target.value)} placeholder="Project rate (ZAR)" className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-slate-950" />
+                  </div>
+                  <input
+                    value={actorShowreel}
+                    onChange={(e) => setActorShowreel(e.target.value)}
+                    placeholder="Vimeo, YouTube, or direct link to your reel (upload more after signup)"
+                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-slate-950"
+                  />
+                </div>
+              ) : null}
+              {creatorType === "crew" ? (
+                <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-sm font-medium text-slate-700">Primary crew profile</p>
+                  <input value={crewMemberName} onChange={(e) => setCrewMemberName(e.target.value)} placeholder="Name" className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-slate-950" />
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <input value={crewRole} onChange={(e) => setCrewRole(e.target.value)} placeholder="Role" className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-slate-950" />
+                    <input value={crewDepartment} onChange={(e) => setCrewDepartment(e.target.value)} placeholder="Department" className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-slate-950" />
+                  </div>
+                  <input value={crewSkills} onChange={(e) => setCrewSkills(e.target.value)} placeholder="Skills / tools (comma separated)" className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-slate-950" />
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <input value={crewExperience} onChange={(e) => setCrewExperience(e.target.value)} placeholder="Experience level" className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-slate-950" />
+                    <input value={crewAvailability} onChange={(e) => setCrewAvailability(e.target.value)} placeholder="Availability" className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-slate-950" />
+                  </div>
+                  <input value={crewDailyRate} onChange={(e) => setCrewDailyRate(e.target.value)} placeholder="Daily rate (ZAR)" className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-slate-950" />
+                  <input value={crewPortfolio} onChange={(e) => setCrewPortfolio(e.target.value)} placeholder="Portfolio / past work" className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-slate-950" />
+                </div>
+              ) : null}
+              {creatorType === "location" ? (
+                <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-sm font-medium text-slate-700">Initial location profile</p>
+                  <input value={locationName} onChange={(e) => setLocationName(e.target.value)} placeholder="Location name" className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-slate-950" />
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <input value={locationType} onChange={(e) => setLocationType(e.target.value)} placeholder="Type (house, studio, etc.)" className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-slate-950" />
+                    <input value={locationAddress} onChange={(e) => setLocationAddress(e.target.value)} placeholder="Address" className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-slate-950" />
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <input value={locationDailyRate} onChange={(e) => setLocationDailyRate(e.target.value)} placeholder="Daily rental (ZAR)" className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-slate-950" />
+                    <input value={locationHourlyRate} onChange={(e) => setLocationHourlyRate(e.target.value)} placeholder="Hourly rental (ZAR)" className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-slate-950" />
+                  </div>
+                  <input value={locationAvailability} onChange={(e) => setLocationAvailability(e.target.value)} placeholder="Availability calendar / rules" className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-slate-950" />
+                  <input value={locationPermits} onChange={(e) => setLocationPermits(e.target.value)} placeholder="Permit requirements" className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-slate-950" />
+                  <input value={locationRestrictions} onChange={(e) => setLocationRestrictions(e.target.value)} placeholder="Restrictions (noise, time limits, etc.)" className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-slate-950" />
+                </div>
+              ) : null}
+              {creatorType === "equipment" ? (
+                <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-sm font-medium text-slate-700">Initial equipment profile</p>
+                  <input value={equipmentName} onChange={(e) => setEquipmentName(e.target.value)} placeholder="Equipment name" className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-slate-950" />
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <input value={equipmentCategory} onChange={(e) => setEquipmentCategory(e.target.value)} placeholder="Category (camera, lighting...)" className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-slate-950" />
+                    <input value={equipmentQuantity} onChange={(e) => setEquipmentQuantity(e.target.value)} placeholder="Quantity available" className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-slate-950" />
+                  </div>
+                  <input value={equipmentSpecs} onChange={(e) => setEquipmentSpecs(e.target.value)} placeholder="Specifications" className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-slate-950" />
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <input value={equipmentDailyRate} onChange={(e) => setEquipmentDailyRate(e.target.value)} placeholder="Daily rental rate (ZAR)" className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-slate-950" />
+                    <input value={equipmentAvailability} onChange={(e) => setEquipmentAvailability(e.target.value)} placeholder="Availability" className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-slate-950" />
+                  </div>
+                </div>
+              ) : null}
               {error && (
                 <div className="rounded-xl border border-red-200 bg-red-50 p-3">
                   <p className="text-sm text-red-600">{error}</p>

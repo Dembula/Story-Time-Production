@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { buildCallSheetPayload } from "@/lib/call-sheet-builder";
+import { buildProductionDataEngine } from "@/lib/production-day-engine";
 
 async function ensureAccess(projectId: string) {
   const session = await getServerSession(authOptions);
@@ -54,5 +55,13 @@ export async function GET(
     return NextResponse.json({ error: "Shoot day not found" }, { status: 404 });
   }
 
-  return NextResponse.json({ preview: payload });
+  const engine = await buildProductionDataEngine(prisma, projectId, null);
+  const day = engine?.productionDays.find((d) => d.id === shootDayId) ?? null;
+  const dayConflicts = (engine?.conflicts ?? []).filter((c) => c.dayIds.includes(shootDayId));
+
+  return NextResponse.json({
+    preview: payload,
+    productionDay: day,
+    conflicts: dayConflicts,
+  });
 }

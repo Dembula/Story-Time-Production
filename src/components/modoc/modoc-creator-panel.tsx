@@ -96,7 +96,7 @@ export function ModocCreatorPanel({
               <span className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full bg-emerald-400/80 ring-2 ring-slate-900" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-white tracking-tight">MODOC</h2>
+              <h2 className="text-xl font-bold text-white tracking-tight">AI assistant</h2>
               <p className="text-sm text-slate-400 mt-0.5">{labels.subtitle}</p>
             </div>
           </div>
@@ -155,7 +155,7 @@ export function ModocCreatorPanel({
                   <span className="w-2 h-2 rounded-full bg-cyan-400 animate-bounce [animation-delay:150ms]" />
                   <span className="w-2 h-2 rounded-full bg-cyan-400 animate-bounce [animation-delay:300ms]" />
                 </div>
-                <span className="text-sm text-slate-400">MODOC is thinking…</span>
+                <span className="text-sm text-slate-400">Generating…</span>
               </div>
             </div>
           )}

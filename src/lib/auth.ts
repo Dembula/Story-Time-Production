@@ -6,6 +6,7 @@ import EmailProvider from "next-auth/providers/email";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
 import { prisma } from "./prisma";
+import { findUserActiveStudioProfileId, findUserForCredentialsLogin } from "./prisma-user-studio-compat";
 
 const DEMO_PASSWORD = process.env.DEMO_PASSWORD || "storytime2025";
 
@@ -21,10 +22,7 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || credentials.password == null) return null;
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email.toLowerCase() },
-          select: { id: true, email: true, name: true, role: true, passwordHash: true, image: true },
-        });
+        const user = await findUserForCredentialsLogin(credentials.email.toLowerCase());
         if (!user) return null;
         if (user.passwordHash) {
           const ok = await compare(credentials.password, user.passwordHash);
@@ -38,7 +36,15 @@ export const authOptions: NextAuthOptions = {
           name: user.name,
           role: user.role,
           image: user.image,
-        } as { id: string; email: string; name: string | null; role: string; image: string | null };
+          activeCreatorStudioProfileId: user.activeCreatorStudioProfileId,
+        } as {
+          id: string;
+          email: string;
+          name: string | null;
+          role: string;
+          image: string | null;
+          activeCreatorStudioProfileId: string | null;
+        };
       },
     }),
     EmailProvider({
@@ -114,12 +120,22 @@ export const authOptions: NextAuthOptions = {
         token.name = user.name ?? null;
         token.email = user.email ?? null;
         token.picture = (user as { image?: string | null }).image ?? null;
+        const u = user as { activeCreatorStudioProfileId?: string | null };
+        if ("activeCreatorStudioProfileId" in u) {
+          token.activeCreatorStudioProfileId = u.activeCreatorStudioProfileId ?? null;
+        } else {
+          token.activeCreatorStudioProfileId = await findUserActiveStudioProfileId(user.id);
+        }
       }
       if (trigger === "update" && session && typeof session === "object") {
         const s = session as Record<string, unknown>;
         if ("name" in s) token.name = (s.name as string | null | undefined) ?? null;
         if ("email" in s) token.email = (s.email as string | null | undefined) ?? null;
         if ("image" in s) token.picture = (s.image as string | null | undefined) ?? null;
+        if ("activeCreatorStudioProfileId" in s) {
+          token.activeCreatorStudioProfileId =
+            (s.activeCreatorStudioProfileId as string | null | undefined) ?? null;
+        }
       }
       return token;
     },
@@ -130,6 +146,8 @@ export const authOptions: NextAuthOptions = {
         if (token.name !== undefined) session.user.name = token.name;
         if (token.email !== undefined) session.user.email = token.email;
         if (token.picture !== undefined) session.user.image = token.picture;
+        (session.user as { activeCreatorStudioProfileId?: string | null }).activeCreatorStudioProfileId =
+          (token as { activeCreatorStudioProfileId?: string | null }).activeCreatorStudioProfileId ?? null;
       }
       return session;
     },

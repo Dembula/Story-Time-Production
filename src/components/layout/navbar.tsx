@@ -6,6 +6,7 @@ import { useSession, signOut } from "next-auth/react";
 import { User, LogOut, Film, Music, LayoutDashboard, Settings } from "lucide-react";
 import { useEffect, useState } from "react";
 import { NotificationBell } from "@/components/layout/notification-bell";
+import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
 
 const CONTENT_TYPES = [
   { label: "Movies", value: "MOVIE" },
@@ -18,7 +19,9 @@ const CONTENT_TYPES = [
 
 export function Navbar() {
   const { data: session } = useSession();
+  const { deviceClass } = useAdaptiveUi();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [navOpen, setNavOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [activeProfile, setActiveProfile] = useState<{ id: string; name: string; age: number } | null>(null);
 
@@ -47,21 +50,25 @@ export function Navbar() {
     await signOut({ callbackUrl: "/" });
   };
 
+  const compactNav = deviceClass === "mobile";
+  const tvMode = deviceClass === "tv";
+
   return (
     <nav
       className={[
-        "fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-3 transition-all duration-200",
+        "fixed top-0 left-0 right-0 z-50 adaptive-tv-surface flex items-center justify-between transition-all duration-200",
+        compactNav ? "px-3 py-2" : "px-4 sm:px-6 py-3",
         scrolled
           ? "border-b border-white/10 bg-[#080c16]/92 shadow-panel backdrop-blur-2xl"
           : "border-b border-white/6 bg-[#080c16]/58 backdrop-blur-xl",
       ].join(" ")}
     >
-      <div className="flex items-center gap-10">
+      <div className="flex items-center gap-3 sm:gap-8">
         <Link href="/browse" className="flex items-center gap-3">
-          <Image src="/logo.png" alt="Story Time" width={40} height={40} className="rounded-xl shadow-glow" />
-          <span className="text-lg font-semibold tracking-[0.14em] text-white">STORY <span className="storytime-brand-text">TIME</span></span>
+          <Image src="/logo.png" alt="Story Time" width={compactNav ? 32 : 40} height={compactNav ? 32 : 40} className="rounded-xl shadow-glow" />
+          <span className={`${tvMode ? "text-2xl" : "text-lg"} font-semibold tracking-[0.14em] text-white`}>STORY <span className="storytime-brand-text">TIME</span></span>
         </Link>
-        <div className="hidden md:flex gap-8">
+        <div className={`${compactNav ? "hidden" : "hidden md:flex"} gap-5 xl:gap-8`}>
           <Link href="/browse" className="text-sm text-slate-300 hover:text-white transition font-medium">
             Home
           </Link>
@@ -78,13 +85,24 @@ export function Navbar() {
       </div>
 
       <div className="flex items-center gap-2">
+        {compactNav && (
+          <button
+            type="button"
+            onClick={() => setNavOpen((v) => !v)}
+            className="adaptive-interactive rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1 text-xs text-slate-200"
+            aria-label="Toggle navigation"
+            aria-expanded={navOpen}
+          >
+            Menu
+          </button>
+        )}
         {session && <NotificationBell />}
 
         {session ? (
           <div className="relative">
             <button
               onClick={() => setMenuOpen(!menuOpen)}
-              className="ml-2 flex items-center gap-2.5 rounded-xl border border-white/6 bg-white/[0.03] p-2 hover:border-white/12 hover:bg-white/[0.05]"
+              className="adaptive-interactive ml-2 flex items-center gap-2.5 rounded-xl border border-white/6 bg-white/[0.03] p-2 hover:border-white/12 hover:bg-white/[0.05]"
             >
               <User className="w-5 h-5 text-slate-400" />
               {session.user?.image ? (
@@ -166,6 +184,26 @@ export function Navbar() {
           </div>
         )}
       </div>
+
+      {compactNav && navOpen && (
+        <div className="absolute left-0 right-0 top-full border-b border-white/10 bg-[#080c16]/95 px-3 py-2 backdrop-blur-xl">
+          <div className="grid grid-cols-2 gap-1">
+            <Link href="/browse" className="adaptive-interactive rounded-lg px-3 py-2 text-sm text-slate-200 hover:bg-white/[0.05]" onClick={() => setNavOpen(false)}>
+              Home
+            </Link>
+            {CONTENT_TYPES.map((t) => (
+              <Link
+                key={t.value}
+                href={t.value === "AFDA" ? "/browse?filter=afda" : t.value === "MUSIC" ? "/browse?filter=music" : `/browse?type=${t.value}`}
+                className="adaptive-interactive rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-white/[0.05] hover:text-white"
+                onClick={() => setNavOpen(false)}
+              >
+                {t.label}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
     </nav>
   );

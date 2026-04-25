@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ensureProjectAccess } from "@/lib/project-access";
 import { prisma } from "@/lib/prisma";
 import { parseScenesFromScreenplay } from "@/lib/scene-parser";
+import { parseSluglineMeta } from "@/lib/slugline-meta";
 
 export async function POST(
   req: NextRequest,
@@ -51,13 +52,14 @@ export async function POST(
 
   await prisma.$transaction(async (tx) => {
     for (const { number, heading } of parsed) {
+      const { intExt, timeOfDay } = parseSluglineMeta(heading);
       const existing = await tx.projectScene.findFirst({
         where: { scriptId: script.id, number },
       });
       if (existing) {
         await tx.projectScene.update({
           where: { id: existing.id },
-          data: { heading },
+          data: { heading, intExt, timeOfDay } as any,
         });
       } else {
         await tx.projectScene.create({
@@ -66,7 +68,9 @@ export async function POST(
             scriptId: script.id,
             number,
             heading,
-          },
+            intExt,
+            timeOfDay,
+          } as any,
         });
       }
     }
@@ -81,10 +85,22 @@ export async function POST(
     }
   });
 
-  const scenes = await prisma.projectScene.findMany({
+  const rows = await prisma.projectScene.findMany({
     where: { projectId },
     orderBy: { number: "asc" },
-    select: { id: true, number: true, heading: true, scriptId: true },
+  });
+  const scenes = rows.map((row) => {
+    const r = row as Record<string, unknown>;
+    return {
+      id: row.id,
+      number: row.number,
+      heading: row.heading,
+      scriptId: row.scriptId,
+      storyDay: typeof r.storyDay === "number" ? r.storyDay : null,
+      intExt: typeof r.intExt === "string" ? r.intExt : null,
+      timeOfDay: typeof r.timeOfDay === "string" ? r.timeOfDay : null,
+      summary: typeof r.summary === "string" ? r.summary : null,
+    };
   });
 
   return NextResponse.json({ ok: true, count: parsed.length, scenes });

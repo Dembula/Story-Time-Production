@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import {
+  buildProductionDataEngine,
+  composeShootDayNotes,
+  parseShootDayNotes,
+} from "@/lib/production-day-engine";
+import { SIGNED_CONTRACT_STATUSES } from "@/lib/contract-template-engine";
 
 async function ensureAccess(projectId: string) {
   const session = await getServerSession(authOptions);
@@ -73,20 +79,55 @@ const sceneScheduleInclude = {
   breakdownSfxs: {
     select: { id: true, description: true, practical: true },
   },
+  breakdownMakeups: {
+    select: { id: true, notes: true, character: true },
+    orderBy: { notes: "asc" as const },
+  },
 } as const;
 
-async function loadSchedulePayload(projectId: string) {
-  const script = await prisma.projectScript.findFirst({
+async function buildContractGate(projectId: string) {
+  const contracts = await prisma.projectContract.findMany({
     where: { projectId },
-    orderBy: { updatedAt: "desc" },
     select: {
       id: true,
-      title: true,
-      _count: { select: { scenes: true } },
+      type: true,
+      status: true,
+      subject: true,
+      castingTalent: { select: { name: true } },
+      crewTeam: { select: { companyName: true } },
+      locationListing: { select: { name: true } },
+      vendorName: true,
     },
+    orderBy: { createdAt: "desc" },
   });
+  const unsigned = contracts.filter((c) => !SIGNED_CONTRACT_STATUSES.has(c.status));
+  return {
+    totalContracts: contracts.length,
+    signedContracts: contracts.length - unsigned.length,
+    unsignedContracts: unsigned.length,
+    blocking: unsigned.length > 0,
+    unsignedDetails: unsigned.slice(0, 20).map((c) => ({
+      id: c.id,
+      type: c.type,
+      status: c.status,
+      subject: c.subject,
+      party:
+        c.castingTalent?.name ??
+        c.crewTeam?.companyName ??
+        c.locationListing?.name ??
+        c.vendorName ??
+        null,
+    })),
+  };
+}
 
-  const [shootDays, scenes] = await Promise.all([
+async function loadSchedulePayload(projectId: string, userId: string | null) {
+  const productionData = await buildProductionDataEngine(prisma, projectId, userId);
+  if (!productionData) {
+    return null;
+  }
+
+  const [shootDays, scenes, contractGate] = await Promise.all([
     prisma.shootDay.findMany({
       where: { projectId },
       orderBy: { date: "asc" },
@@ -96,35 +137,50 @@ async function loadSchedulePayload(projectId: string) {
     }),
     prisma.projectScene.findMany({
       where: { projectId },
-      orderBy: { number: "asc" },
       include: sceneScheduleInclude,
     }),
+    buildContractGate(projectId),
   ]);
 
+  scenes.sort((a, b) =>
+    a.number.localeCompare(b.number, undefined, { numeric: true, sensitivity: "base" }),
+  );
   const scenesById = new Map(scenes.map((s) => [s.id, s]));
+  const productionDayById = new Map(productionData.productionDays.map((day) => [day.id, day]));
 
   return {
-    script: script
-      ? { id: script.id, title: script.title, sceneCount: script._count.scenes }
-      : null,
-    shootDays: shootDays.map((d) => ({
-      id: d.id,
-      date: d.date.toISOString(),
-      unit: d.unit,
-      callTime: d.callTime,
-      wrapTime: d.wrapTime,
-      status: d.status,
-      locationSummary: d.locationSummary,
-      scenesBeingShot: d.scenesBeingShot,
-      dayNotes: d.dayNotes,
-      scenes: d.scenes.map((link) => ({
-        id: `${d.id}-${link.sceneId}`,
-        order: link.order,
-        sceneId: link.sceneId,
-        scene: scenesById.get(link.sceneId) ?? null,
-      })),
-    })),
+    script: productionData.script,
+    shootDays: shootDays.map((d, idx) => {
+      const parsed = parseShootDayNotes(d.dayNotes);
+      return {
+        id: d.id,
+        shootDayNumber: idx + 1,
+        date: d.date.toISOString(),
+        unit: d.unit,
+        callTime: d.callTime,
+        wrapTime: d.wrapTime,
+        status: d.status,
+        locationSummary: d.locationSummary,
+        scenesBeingShot: d.scenesBeingShot,
+        dayNotes: parsed.plainNotes,
+        weather: parsed.structured.weather ?? null,
+        transportDetails: parsed.structured.transportDetails ?? null,
+        pickupDropoffInfo: parsed.structured.pickupDropoffInfo ?? null,
+        accommodation: parsed.structured.accommodation ?? null,
+        cateringNotes: parsed.structured.cateringNotes ?? null,
+        callSheetNotes: parsed.structured.callSheetNotes ?? null,
+        scenes: d.scenes.map((link) => ({
+          id: `${d.id}-${link.sceneId}`,
+          order: link.order,
+          sceneId: link.sceneId,
+          scene: scenesById.get(link.sceneId) ?? null,
+        })),
+      };
+    }),
     scenes,
+    productionDays: productionData.productionDays,
+    conflicts: productionData.conflicts,
+    contractGate,
   };
 }
 
@@ -136,7 +192,9 @@ export async function GET(
   const access = await ensureAccess(projectId);
   if (access.error) return access.error;
 
-  return NextResponse.json(await loadSchedulePayload(projectId));
+  const payload = await loadSchedulePayload(projectId, access.userId);
+  if (!payload) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  return NextResponse.json(payload);
 }
 
 export async function POST(
@@ -188,7 +246,9 @@ export async function POST(
       }
       return created;
     });
-    return NextResponse.json(await loadSchedulePayload(projectId), { status: 201 });
+    const payload = await loadSchedulePayload(projectId, access.userId);
+    if (!payload) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json(payload, { status: 201 });
   }
 
   const dateIso = body?.date ?? new Date().toISOString();
@@ -221,6 +281,12 @@ export async function PATCH(
           locationSummary: string | null;
           scenesBeingShot?: string | null;
           dayNotes?: string | null;
+          weather?: string | null;
+          transportDetails?: string | null;
+          pickupDropoffInfo?: string | null;
+          accommodation?: string | null;
+          cateringNotes?: string | null;
+          callSheetNotes?: string | null;
           status: string;
           scenes: { sceneId: string; order: number }[];
         }[];
@@ -231,8 +297,37 @@ export async function PATCH(
     return NextResponse.json({ error: "Missing days" }, { status: 400 });
   }
 
+  const contractGate = await buildContractGate(projectId);
+  if (contractGate.blocking) {
+    return NextResponse.json(
+      {
+        error:
+          "Schedule commit blocked. Some linked resources are still unconfirmed because their contracts are not signed.",
+        contractGate,
+      },
+      { status: 409 },
+    );
+  }
+
   await prisma.$transaction(async (tx) => {
     for (const d of body.days) {
+      const current = await tx.shootDay.findFirst({
+        where: { id: d.id, projectId },
+        select: { dayNotes: true },
+      });
+      const existing = parseShootDayNotes(current?.dayNotes);
+      const combinedDayNotes = composeShootDayNotes(
+        d.dayNotes ?? existing.plainNotes,
+        {
+          weather: d.weather ?? existing.structured.weather ?? null,
+          transportDetails: d.transportDetails ?? existing.structured.transportDetails ?? null,
+          pickupDropoffInfo: d.pickupDropoffInfo ?? existing.structured.pickupDropoffInfo ?? null,
+          accommodation: d.accommodation ?? existing.structured.accommodation ?? null,
+          cateringNotes: d.cateringNotes ?? existing.structured.cateringNotes ?? null,
+          callSheetNotes: d.callSheetNotes ?? existing.structured.callSheetNotes ?? null,
+        },
+      );
+
       await tx.shootDay.updateMany({
         where: { id: d.id, projectId },
         data: {
@@ -243,7 +338,7 @@ export async function PATCH(
           status: d.status,
           locationSummary: d.locationSummary ?? null,
           scenesBeingShot: d.scenesBeingShot ?? null,
-          dayNotes: d.dayNotes ?? null,
+          dayNotes: combinedDayNotes,
         },
       });
 
@@ -261,9 +356,11 @@ export async function PATCH(
         });
       }
     }
-  });
+  }, { timeout: 60000, maxWait: 10000 });
 
-  return NextResponse.json(await loadSchedulePayload(projectId));
+  const payload = await loadSchedulePayload(projectId, access.userId);
+  if (!payload) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  return NextResponse.json(payload);
 }
 
 export async function DELETE(
@@ -286,5 +383,7 @@ export async function DELETE(
     return NextResponse.json({ error: "Shoot day not found" }, { status: 404 });
   }
 
-  return NextResponse.json(await loadSchedulePayload(projectId));
+  const payload = await loadSchedulePayload(projectId, access.userId);
+  if (!payload) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  return NextResponse.json(payload);
 }

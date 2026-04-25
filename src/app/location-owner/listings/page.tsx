@@ -155,14 +155,15 @@ export default function LocationListingsPage() {
             </div>
           </div>
           <div>
-            <label className="block text-xs text-slate-400 mb-1">Photos (upload or paste URLs, one per line)</label>
+            <label className="block text-xs text-slate-400 mb-1">Photos</label>
+            <p className="text-[11px] text-slate-500 mb-1">Use Upload for each image (URLs stack, one per line). Optional: paste extra direct image links only.</p>
             <div className="flex gap-2 mb-1">
               <label className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800 border border-slate-600 text-slate-300 text-sm cursor-pointer w-fit">
                 <Upload className="w-4 h-4" /> {uploadingPhoto ? "Uploading..." : "Upload image"}
                 <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} disabled={uploadingPhoto} />
               </label>
             </div>
-            <textarea value={form.photoUrls} onChange={(e) => setForm({ ...form, photoUrls: e.target.value })} rows={2} placeholder="https://... or use Upload above" className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" />
+            <textarea value={form.photoUrls} onChange={(e) => setForm({ ...form, photoUrls: e.target.value })} rows={2} placeholder="Optional: one image URL per line (e.g. legacy hosting)" className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" />
           </div>
           <div><label className="block text-xs text-slate-400 mb-1">House rules</label><textarea value={form.rules} onChange={(e) => setForm({ ...form, rules: e.target.value })} rows={2} placeholder="No smoking, quiet after 10pm..." className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" /></div>
           <div><label className="block text-xs text-slate-400 mb-1">Availability notes</label><input value={form.availability} onChange={(e) => setForm({ ...form, availability: e.target.value })} placeholder="e.g. Weekdays only, book 2 weeks ahead" className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" /></div>

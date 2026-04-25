@@ -6,6 +6,17 @@ export default withAuth(
     const role = req.nextauth.token?.role as string | undefined;
     const path = req.nextUrl.pathname;
 
+    if (path.startsWith("/creator/join/")) {
+      return NextResponse.next();
+    }
+
+    if (
+      path.startsWith("/creator/company") &&
+      (role === "CONTENT_CREATOR" || role === "MUSIC_CREATOR" || role === "ADMIN")
+    ) {
+      return NextResponse.next();
+    }
+
     if (path.startsWith("/admin") && role !== "ADMIN") {
       return NextResponse.redirect(new URL("/browse", req.url));
     }
@@ -35,7 +46,10 @@ export default withAuth(
   },
   {
     callbacks: {
-      authorized: ({ token }) => !!token,
+      authorized: ({ token, req }) => {
+        if (req.nextUrl.pathname.startsWith("/creator/join/")) return true;
+        return !!token;
+      },
     },
     pages: {
       signIn: "/auth/signin",

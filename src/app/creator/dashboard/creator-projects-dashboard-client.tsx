@@ -14,6 +14,7 @@ import {
   getProjectToolHref,
   type ProjectPhase,
 } from "@/lib/project-tools";
+import { CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY, formatCreatorLicenseSummary } from "@/lib/pricing";
 import { CreatorToolNavCard, type CreatorToolNavStatus } from "@/components/creator/creator-tool-nav-card";
 
 type ToolProgress = { toolId: string; phase: string; status: string; percent: number };
@@ -37,6 +38,13 @@ type NetworkCreator = {
   image: string | null;
   following: boolean;
   connectionStatus?: string;
+};
+
+type CollabInviteRow = {
+  id: string;
+  status: string;
+  role: string;
+  project: { id: string; title: string };
 };
 
 function toolHref(phase: ProjectPhase, toolSlug: string, projectId: string): string {
@@ -91,10 +99,12 @@ function ProjectRow({
   project,
   defaultOpen = false,
   linkedCatalogue,
+  pipelineAccess = true,
 }: {
   project: Project;
   defaultOpen?: boolean;
   linkedCatalogue: LinkedCatalogueChip | null;
+  pipelineAccess?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const rowRef = useRef<HTMLDivElement>(null);
@@ -120,9 +130,17 @@ function ProjectRow({
   const ideaExtra =
     ideasCount > 0 && progressMap.get("idea-development")?.status !== "COMPLETE" ? 1 : 0;
   const doneCount = completedTracked + ideaExtra;
-  const totalTools =
-    PRE_PRODUCTION_TOOLS.length + PRODUCTION_TOOLS.length + POST_PRODUCTION_HUB_TOOLS.length;
-  const progressPct = totalTools > 0 ? Math.round((doneCount / totalTools) * 100) : 0;
+  const totalTools = pipelineAccess
+    ? PRE_PRODUCTION_TOOLS.length + PRODUCTION_TOOLS.length + POST_PRODUCTION_HUB_TOOLS.length
+    : 1;
+  const distDone = progressMap.get("distribution")?.status === "COMPLETE";
+  const progressPct = pipelineAccess
+    ? totalTools > 0
+      ? Math.round((doneCount / totalTools) * 100)
+      : 0
+    : distDone
+      ? 100
+      : 0;
 
   function phaseDoneTotal(
     tools: { id: string; label: string; description: string; toolSlug: string; phase: ProjectPhase }[],
@@ -266,9 +284,10 @@ function ProjectRow({
             <p className="text-sm text-slate-400">
               {project.genre || "Unspecified genre"} · Last edited {updated.toLocaleDateString()}
             </p>
-            {/* Stepper aligned with project.phase */}
+            {/* Stepper aligned with project.phase (full pipeline only) */}
             <div className="flex flex-wrap items-center gap-2">
-              {pipelineSteps.map((s, idx) => {
+              {pipelineAccess ? (
+                pipelineSteps.map((s, idx) => {
                 const reached = activeStep >= s.id;
                 const current = activeStep === s.id;
                 return (
@@ -293,12 +312,19 @@ function ProjectRow({
                     {idx < pipelineSteps.length - 1 && <span className="hidden text-slate-600 sm:inline">→</span>}
                   </div>
                 );
-              })}
+              })
+              ) : (
+                <span className="rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs text-slate-400">
+                  Upload plan — catalogue &amp; distribution only
+                </span>
+              )}
             </div>
             <div className="flex flex-wrap gap-4 text-xs text-slate-500">
               <span className="flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5" />
-                Pipeline {doneCount}/{totalTools} tracked tools
+                {pipelineAccess
+                  ? `Pipeline ${doneCount}/${totalTools} tracked tools`
+                  : "No in-app pipeline on your plan"}
               </span>
               <span className="flex items-center gap-1.5">
                 <Users className="w-3.5 h-3.5" />
@@ -308,7 +334,10 @@ function ProjectRow({
           </div>
         </div>
         <div className="flex w-full flex-col gap-2 md:w-48 md:shrink-0">
-          <span className="text-xs text-slate-500 md:text-right">{open ? "Hide" : "Show"} full pipeline</span>
+          <span className="text-xs text-slate-500 md:text-right">
+            {open ? "Hide" : "Show"}{" "}
+            {pipelineAccess ? "full pipeline" : "distribution"}
+          </span>
           <div className="h-2 w-full overflow-hidden rounded-full bg-white/[0.08]">
             <div
               className="h-full rounded-full bg-gradient-to-r from-orange-500 to-emerald-400 transition-all duration-500"
@@ -321,37 +350,68 @@ function ProjectRow({
       {open && (
         <div className="border-t border-white/[0.08] bg-black/25 px-4 py-6 md:px-6 md:py-8 lg:px-10 lg:py-10">
           <p className="mb-6 max-w-3xl text-sm leading-relaxed text-slate-400">
-            Each phase stacks below — only <span className="text-slate-300">Music &amp; scoring</span> and{" "}
-            <span className="text-slate-300">Distribution</span> count in post-production tracking. Tool status comes from
-            your saves inside each workspace.
+            {pipelineAccess ? (
+              <>
+                Each phase stacks below — only <span className="text-slate-300">Music &amp; scoring</span> and{" "}
+                <span className="text-slate-300">Distribution</span> count in post-production tracking. Tool status comes
+                from your saves inside each workspace.
+              </>
+            ) : (
+              <>
+                Your plan includes linked catalogue submission for this project. Open{" "}
+                <span className="text-slate-300">Distribution</span> below, or use{" "}
+                <span className="text-slate-300">Catalogue upload</span> in the sidebar.
+              </>
+            )}
           </p>
           <div className="flex flex-col gap-8 lg:gap-10">
-            {renderSection("Phase 1", "Pre-production", 1, pre, PRE_PRODUCTION_TOOLS.map((t) => ({
-              id: t.id,
-              label: t.label,
-              description: t.description,
-              toolSlug: t.toolSlug,
-              phase: t.phase,
-            })))}
-            {renderSection("Phase 2", "Production", 2, prod, PRODUCTION_TOOLS.map((t) => ({
-              id: t.id,
-              label: t.label,
-              description: t.description,
-              toolSlug: t.toolSlug,
-              phase: t.phase,
-            })))}
-            {renderSection(
-              "Phase 3",
-              "Post-production",
-              3,
-              post,
-              POST_PRODUCTION_HUB_TOOLS.map((t) => ({
-                id: t.id,
-                label: t.label,
-                description: t.description,
-                toolSlug: t.toolSlug,
-                phase: t.phase,
-              })),
+            {pipelineAccess ? (
+              <>
+                {renderSection("Phase 1", "Pre-production", 1, pre, PRE_PRODUCTION_TOOLS.map((t) => ({
+                  id: t.id,
+                  label: t.label,
+                  description: t.description,
+                  toolSlug: t.toolSlug,
+                  phase: t.phase,
+                })))}
+                {renderSection("Phase 2", "Production", 2, prod, PRODUCTION_TOOLS.map((t) => ({
+                  id: t.id,
+                  label: t.label,
+                  description: t.description,
+                  toolSlug: t.toolSlug,
+                  phase: t.phase,
+                })))}
+                {renderSection(
+                  "Phase 3",
+                  "Post-production",
+                  3,
+                  post,
+                  POST_PRODUCTION_HUB_TOOLS.map((t) => ({
+                    id: t.id,
+                    label: t.label,
+                    description: t.description,
+                    toolSlug: t.toolSlug,
+                    phase: t.phase,
+                  })),
+                )}
+              </>
+            ) : (
+              renderSection(
+                "Distribution",
+                "Catalogue & linked delivery",
+                3,
+                {
+                  done: progressMap.get("distribution")?.status === "COMPLETE" ? 1 : 0,
+                  total: 1,
+                },
+                POST_PRODUCTION_HUB_TOOLS.filter((t) => t.toolSlug === "distribution").map((t) => ({
+                  id: t.id,
+                  label: t.label,
+                  description: t.description,
+                  toolSlug: t.toolSlug,
+                  phase: t.phase,
+                })),
+              )
             )}
           </div>
         </div>
@@ -363,10 +423,47 @@ function ProjectRow({
 export function CreatorProjectsDashboardClient() {
   const searchParams = useSearchParams();
   const openProjectId = searchParams.get("openProject");
+  const showPipelineUpgrade = searchParams.get("upgrade") === "pipeline";
   const queryClient = useQueryClient();
+  const { data: licensePayload } = useQuery({
+    queryKey: [...CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY],
+    queryFn: () => fetch("/api/creator/distribution-license").then((r) => r.json()),
+  });
+  const pipelineAccess = Boolean(licensePayload?.pipelineAccess);
+  const planSummary =
+    typeof licensePayload?.planSummary === "string" && licensePayload.planSummary
+      ? licensePayload.planSummary
+      : licensePayload?.license
+        ? formatCreatorLicenseSummary(licensePayload.license.type)
+        : "";
+
   const { data, isLoading } = useQuery({
     queryKey: ["creator-projects"],
     queryFn: () => fetch("/api/creator/projects").then((r) => r.json()),
+  });
+
+  const { data: collabInvitesRaw, refetch: refetchCollabInvites } = useQuery({
+    queryKey: ["creator-collab-invites"],
+    queryFn: () => fetch("/api/originals?type=my-projects").then((r) => (r.ok ? r.json() : [])),
+  });
+  const collabInvites: CollabInviteRow[] = Array.isArray(collabInvitesRaw)
+    ? collabInvitesRaw.filter((m: CollabInviteRow) => m.status === "INVITED")
+    : [];
+
+  const respondInviteMutation = useMutation({
+    mutationFn: async ({ memberId, accept }: { memberId: string; accept: boolean }) => {
+      const res = await fetch("/api/originals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "RESPOND_INVITE", memberId, accept }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      refetchCollabInvites();
+      queryClient.invalidateQueries({ queryKey: ["creator-projects"] });
+    },
   });
 
   const { data: contentListRaw } = useQuery({
@@ -442,12 +539,36 @@ export function CreatorProjectsDashboardClient() {
       <header className="storytime-plan-card p-5 md:p-6 lg:p-8">
         <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
           <div className="min-w-0 space-y-2">
-            <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">Creator pipeline</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">
+                {pipelineAccess ? "Creator pipeline" : "My projects & catalogue"}
+              </p>
+              {planSummary ? (
+                <span className="rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-0.5 text-[10px] font-medium text-slate-400">
+                  {planSummary}
+                </span>
+              ) : null}
+            </div>
             <h1 className="font-display text-2xl font-semibold tracking-tight text-white md:text-3xl">My Projects</h1>
             <p className="max-w-2xl text-sm leading-relaxed text-slate-400 md:text-base">
-              Same rhythm as Distribution upload: one clear flow per project. Expand a film to see all three phases in a
-              vertical stack — progress counts only tools we ship (including Music + Distribution in post).
+              {pipelineAccess ? (
+                <>
+                  Same rhythm as Distribution upload: one clear flow per project. Expand a film to see all three phases in
+                  a vertical stack — progress counts only tools we ship (including Music + Distribution in post).
+                </>
+              ) : (
+                <>
+                  Use projects to organise titles and link catalogue submissions. Pre-production, production, and
+                  post-production tools are not on your plan — upgrade to the full pipeline to unlock them everywhere.
+                </>
+              )}
             </p>
+            {showPipelineUpgrade && !pipelineAccess ? (
+              <div className="rounded-xl border border-orange-400/25 bg-orange-500/10 px-4 py-3 text-sm text-orange-100">
+                That area requires the <strong className="text-white">full pipeline</strong> plan. Contact support to
+                switch plans, or use a new account and choose pipeline access during onboarding.
+              </div>
+            ) : null}
           </div>
           <div className="flex shrink-0 flex-col gap-2 self-start sm:flex-row sm:items-center md:self-center">
             <Link
@@ -463,6 +584,47 @@ export function CreatorProjectsDashboardClient() {
           </div>
         </div>
       </header>
+
+      {collabInvites.length > 0 && (
+        <div className="rounded-xl border border-violet-500/30 bg-violet-950/25 px-4 py-4 md:px-5">
+          <p className="text-xs font-medium uppercase tracking-wide text-violet-200/90">Collaboration invites</p>
+          <p className="mt-1 text-sm text-slate-300">
+            Creators you connected with on Network can invite you onto a project. Accept to join the team.
+          </p>
+          <ul className="mt-3 space-y-2">
+            {collabInvites.map((inv) => (
+              <li
+                key={inv.id}
+                className="flex flex-col gap-2 rounded-lg border border-slate-700/60 bg-slate-900/50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-white truncate">{inv.project.title}</p>
+                  <p className="text-xs text-slate-400">Role: {inv.role}</p>
+                </div>
+                <div className="flex shrink-0 flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-slate-600"
+                    disabled={respondInviteMutation.isPending}
+                    onClick={() => respondInviteMutation.mutate({ memberId: inv.id, accept: false })}
+                  >
+                    Decline
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="bg-violet-600 hover:bg-violet-500"
+                    disabled={respondInviteMutation.isPending}
+                    onClick={() => respondInviteMutation.mutate({ memberId: inv.id, accept: true })}
+                  >
+                    Accept
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {creating && (
         <div className="rounded-xl border border-slate-700/50 bg-slate-800/30 space-y-4 p-5 md:p-6">
@@ -608,7 +770,9 @@ export function CreatorProjectsDashboardClient() {
           <Film className="w-10 h-10 text-slate-600 mx-auto mb-3" />
           <p className="text-slate-200 font-medium mb-1">No projects yet</p>
           <p className="text-sm text-slate-400 mb-4">
-            Create your first film project to start using the full production pipeline.
+            {pipelineAccess
+              ? "Create your first film project to start using the full production pipeline."
+              : "Create a project to link catalogue uploads and Originals to a single title."}
           </p>
           <Button onClick={() => setCreating(true)} className="mx-auto flex items-center gap-2">
             <Plus className="w-4 h-4" />
@@ -623,6 +787,7 @@ export function CreatorProjectsDashboardClient() {
               project={project}
               defaultOpen={project.id === openProjectId}
               linkedCatalogue={pickLinkedCatalogue(project.id, contents)}
+              pipelineAccess={pipelineAccess}
             />
           ))}
         </div>

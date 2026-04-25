@@ -131,7 +131,7 @@ function CreatorAnalyticsModocModal({
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-white flex items-center gap-2">
             <Bot className="w-5 h-5 text-cyan-400" />
-            MODOC analytics report
+            AI analytics report
           </h3>
           <button
             type="button"
@@ -143,9 +143,9 @@ function CreatorAnalyticsModocModal({
         </div>
         <div className="max-h-[60vh] overflow-y-auto rounded-xl border border-white/8 bg-white/[0.04] p-4 text-sm text-slate-200 whitespace-pre-wrap">
           {status === "streaming" || status === "submitted" ? (
-            displayContent ? displayContent : <span className="text-slate-400">MODOC is working…</span>
+            displayContent ? displayContent : <span className="text-slate-400">Generating…</span>
           ) : (
-            displayContent || "Waiting for MODOC…"
+            displayContent || "Generating…"
           )}
         </div>
       </div>
@@ -244,7 +244,7 @@ export function CreatorAnalyticsClient() {
             onClick={() => setModocReportOpen(true)}
           >
             <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
-            Get MODOC analytics report
+            Get AI analytics report
           </Button>
         )}
       </div>

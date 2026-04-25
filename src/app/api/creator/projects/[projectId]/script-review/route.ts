@@ -29,6 +29,14 @@ export async function GET(
       take: 10,
       include: {
         project: { select: { title: true } },
+        scriptVersion: {
+          select: {
+            id: true,
+            versionLabel: true,
+            createdAt: true,
+            script: { select: { title: true } },
+          },
+        },
         requester: { select: { name: true, email: true } },
         reviewer: { select: { name: true, email: true } },
       },
@@ -72,10 +80,26 @@ export async function POST(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const latestScript = await prisma.projectScriptVersion.findFirst({
-    where: { script: { projectId } },
-    orderBy: { createdAt: "desc" },
-  });
+  const body = (await req.json().catch(() => null)) as { scriptVersionId?: string } | null;
+  const providedScriptVersionId = body?.scriptVersionId?.trim() || null;
+  let scriptVersionId = providedScriptVersionId;
+
+  if (scriptVersionId) {
+    const selectedVersion = await prisma.projectScriptVersion.findFirst({
+      where: { id: scriptVersionId, script: { projectId } },
+      select: { id: true },
+    });
+    if (!selectedVersion) {
+      return NextResponse.json({ error: "Selected script does not belong to this project" }, { status: 400 });
+    }
+  } else {
+    const latestScript = await prisma.projectScriptVersion.findFirst({
+      where: { script: { projectId } },
+      orderBy: { createdAt: "desc" },
+      select: { id: true },
+    });
+    scriptVersionId = latestScript?.id ?? null;
+  }
 
   const amount = 599.99;
 
@@ -93,6 +117,7 @@ export async function POST(
         kind: "SCRIPT_REVIEW",
         projectId,
         requesterId: userId,
+        scriptVersionId,
       } as any,
     },
   });
@@ -100,7 +125,7 @@ export async function POST(
   const requestRecord = await prisma.scriptReviewRequest.create({
     data: {
       projectId,
-      scriptVersionId: latestScript?.id ?? null,
+      scriptVersionId,
       requesterId: userId,
       feeAmount: amount,
       paymentId: payment.id,

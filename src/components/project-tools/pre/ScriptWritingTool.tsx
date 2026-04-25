@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Bot } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ModocFieldPopover } from "@/components/modoc";
 import { useModocOptional } from "@/components/modoc/use-modoc";
+import { parseScenesFromScreenplay } from "@/lib/scene-parser";
 
 export interface ScriptWritingToolProps {
   projectId?: string;
@@ -68,10 +69,22 @@ export function ScriptWritingTool({ projectId, title = "Script Writing" }: Scrip
       if (!res.ok) throw new Error("Failed to save script");
       return res.json();
     },
-    onSuccess: (_data, variables) => {
+    onSuccess: async (_data, variables) => {
       if (variables.title !== undefined) setSavedTitle(variables.title);
       if (variables.content !== undefined) setSavedContent(variables.content);
       queryClient.invalidateQueries({ queryKey: ["project-script", projectId] });
+      if (variables.content !== undefined && projectId) {
+        try {
+          await fetch(`/api/creator/projects/${projectId}/scenes/sync-from-script`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ removeOrphans: false }),
+          });
+        } catch {
+          /* Scene sync is best-effort (e.g. no slug lines yet). */
+        }
+        void queryClient.invalidateQueries({ queryKey: ["project-scenes", projectId] });
+      }
     },
   });
 
@@ -106,6 +119,8 @@ export function ScriptWritingTool({ projectId, title = "Script Writing" }: Scrip
   const scriptDirty =
     contentHydrated &&
     (scriptTitle !== savedTitle || content !== savedContent);
+
+  const detectedSceneCount = useMemo(() => parseScenesFromScreenplay(content).length, [content]);
 
   if (!projectId) {
     return (
@@ -187,6 +202,18 @@ export function ScriptWritingTool({ projectId, title = "Script Writing" }: Scrip
           />
         </div>
         <div className="space-y-1">
+          <p className="text-[11px] text-slate-500">
+            Scene headings detected in this draft:{" "}
+            <span className="font-medium text-slate-300">{detectedSceneCount}</span>
+            {detectedSceneCount === 0 ? (
+              <span className="text-slate-600"> (add lines starting with INT. or EXT.)</span>
+            ) : (
+              <span className="text-slate-600">
+                {" "}
+                — saving syncs them to Script Breakdown for this project.
+              </span>
+            )}
+          </p>
           <div className="flex items-center justify-between gap-2">
             <label className="text-xs text-slate-400">Screenplay</label>
             {modoc && (
@@ -196,7 +223,7 @@ export function ScriptWritingTool({ projectId, title = "Script Writing" }: Scrip
                 className="text-xs font-medium text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
               >
                 <Bot className="w-3.5 h-3.5" />
-                Get MODOC suggestions
+                Get AI suggestions
               </button>
             )}
           </div>

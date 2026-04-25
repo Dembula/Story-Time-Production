@@ -20,7 +20,7 @@ const items = [
   { icon: Upload, title: "Release to the World", desc: "Bring stories to audiences without surrendering control, using creator-led publishing that keeps distribution in your hands." },
   { icon: Map, title: "Sustainable Creator Pathways", desc: "Build a practice that can last, supported by a model designed around clarity, continuity, and respect for creative contribution." },
   { icon: BarChart3, title: "Audience Understanding", desc: "See how your work is being received so you can respond with intention, deepen your voice, and shape what comes next." },
-  { icon: Sparkles, title: "MODOC Intelligence", desc: "Use AI as a creative companion for development, structure, discovery, and reflection rather than a replacement for your point of view." },
+  { icon: Sparkles, title: "Built-in AI", desc: "Use AI as a creative companion for development, structure, discovery, and reflection rather than a replacement for your point of view." },
   { icon: Network, title: "Identity & Presence", desc: "Build a professional creative identity that helps your work be seen, remembered, and connected to a wider cultural conversation." },
   { icon: MessagesSquare, title: "Collaboration in Context", desc: "Work with people inside the same ecosystem, where communication stays close to the project and relationships can deepen naturally." },
   { icon: Music, title: "Sound, Rights & Discovery", desc: "Find music, connect with composers, and shape the sonic identity of a project without leaving the world you are building." },

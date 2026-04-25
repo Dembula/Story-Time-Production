@@ -1,7 +1,16 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { CreatorAccountClient } from "@/app/creator/account/creator-account-client";
+
+function AccountPageFallback() {
+  return (
+    <div className="flex items-center justify-center min-h-[40vh]">
+      <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+}
 
 export default async function MusicCreatorAccountPage() {
   const session = await getServerSession(authOptions);
@@ -10,5 +19,9 @@ export default async function MusicCreatorAccountPage() {
     redirect("/auth/signin");
   }
 
-  return <CreatorAccountClient backHref="/music-creator/dashboard" />;
+  return (
+    <Suspense fallback={<AccountPageFallback />}>
+      <CreatorAccountClient backHref="/music-creator/dashboard" />
+    </Suspense>
+  );
 }

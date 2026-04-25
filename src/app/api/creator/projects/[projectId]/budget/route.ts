@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import {
+  type BudgetTemplate,
+  runBudgetEngine,
+} from "@/lib/budget-engine";
 
 async function ensureAccess(projectId: string) {
   const session = await getServerSession(authOptions);
@@ -48,11 +52,159 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ projec
   const access = await ensureAccess(projectId);
   if (access.error) return access.error;
 
-  const budget = await prisma.projectBudget.findUnique({
-    where: { projectId },
-    include: { lines: true },
+  const project = await prisma.originalProject.findUnique({
+    where: { id: projectId },
+    include: {
+      linkedCatalogueContent: {
+        select: { duration: true },
+        take: 1,
+        orderBy: { createdAt: "desc" },
+      },
+      projectBudget: {
+        include: { lines: true },
+      },
+      productionExpenses: {
+        select: { amount: true, department: true },
+      },
+      crewRoleNeeds: {
+        select: {
+          department: true,
+          role: true,
+          seniority: true,
+          notes: true,
+        },
+      },
+      castingRoles: {
+        select: {
+          name: true,
+          status: true,
+        },
+      },
+      equipmentPlanItems: {
+        select: {
+          category: true,
+          quantity: true,
+          notes: true,
+        },
+      },
+      shootDays: {
+        select: {
+          id: true,
+          scenes: { select: { sceneId: true } },
+        },
+      },
+      scenes: {
+        include: {
+          primaryLocation: {
+            include: {
+              locationListing: {
+                select: { dailyRate: true, rules: true },
+              },
+            },
+          },
+          breakdownCharacters: { select: { importance: true } },
+          breakdownProps: { select: { id: true } },
+          breakdownWardrobes: { select: { id: true } },
+          breakdownExtras: { select: { quantity: true } },
+          breakdownVehicles: { select: { id: true } },
+          breakdownStunts: { select: { id: true } },
+          breakdownSfxs: { select: { id: true } },
+          breakdownMakeups: { select: { id: true } },
+        },
+      },
+    },
   });
-  return NextResponse.json({ budget });
+  if (!project) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  const budget = project.projectBudget;
+  const salaryByRoleName = new Map<string, number>();
+  for (const line of budget?.lines ?? []) {
+    if ((line.department ?? "").toUpperCase() !== "CAST") continue;
+    const amount = Number(line.unitCost ?? line.total ?? 0);
+    if (!Number.isFinite(amount)) continue;
+    const normalized = line.name
+      .replace(/^Salary\s*·\s*/i, "")
+      .trim()
+      .toLowerCase();
+    if (!normalized) continue;
+    salaryByRoleName.set(normalized, amount);
+  }
+  const templateCandidate = (budget?.template ?? "SHORT_FILM") as BudgetTemplate;
+  const template: BudgetTemplate =
+    [
+      "SHORT_FILM",
+      "INDIE_FILM",
+      "FEATURE_FILM",
+      "TV_EPISODE",
+      "SERIES_PILOT",
+      "STUDENT_PRODUCTION",
+      "COMMERCIAL_SHOOT",
+    ].includes(templateCandidate)
+      ? templateCandidate
+      : "SHORT_FILM";
+
+  const shootDayCounts = new Map<string, number>();
+  for (const day of project.shootDays) {
+    for (const link of day.scenes) {
+      shootDayCounts.set(link.sceneId, (shootDayCounts.get(link.sceneId) ?? 0) + 1);
+    }
+  }
+
+  const linkedDuration = project.linkedCatalogueContent[0]?.duration ?? null;
+  const engine = runBudgetEngine({
+    template,
+    projectDurationMinutes: linkedDuration ?? null,
+    logisticsDistanceKm: null,
+    shootDaysCount: project.shootDays.length,
+    scenes: project.scenes.map((scene) => ({
+      id: scene.id,
+      number: scene.number,
+      heading: scene.heading,
+      intExt: scene.intExt,
+      timeOfDay: scene.timeOfDay,
+      pageCount: scene.pageCount,
+      storyDay: scene.storyDay,
+      primaryLocationName: scene.primaryLocation?.name ?? null,
+      locationDailyRate: scene.primaryLocation?.locationListing?.dailyRate ?? null,
+      locationRules: scene.primaryLocation?.locationListing?.rules ?? null,
+      characters: scene.breakdownCharacters,
+      propsCount: scene.breakdownProps.length,
+      wardrobeCount: scene.breakdownWardrobes.length,
+      extrasCount: scene.breakdownExtras.length,
+      extrasQty: scene.breakdownExtras.reduce((acc, row) => acc + (row.quantity ?? 0), 0),
+      vehiclesCount: scene.breakdownVehicles.length,
+      stuntsCount: scene.breakdownStunts.length,
+      sfxCount: scene.breakdownSfxs.length,
+      makeupsCount: scene.breakdownMakeups.length,
+      shootDaysAssigned: shootDayCounts.get(scene.id) ?? 0,
+    })),
+    manualLines: (budget?.lines ?? []).map((line) => ({
+      department: line.department,
+      name: line.name,
+      quantity: line.quantity,
+      unitCost: line.unitCost,
+      total: line.total,
+    })),
+    expenses: project.productionExpenses,
+    crewNeeds: project.crewRoleNeeds,
+    castRoles: project.castingRoles.map((role) => ({
+      name: role.name,
+      status: role.status,
+      linkedSalaryAmount: salaryByRoleName.get(role.name.toLowerCase()) ?? null,
+    })),
+    equipmentItems: project.equipmentPlanItems.map((item) => ({
+      category: item.category,
+      quantity: item.quantity,
+      notes: item.notes,
+    })),
+  });
+
+  return NextResponse.json({
+    budget,
+    engine,
+  });
 }
 
 export async function POST(req: NextRequest, context: { params: Promise<{ projectId: string }> }) {
@@ -63,7 +215,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ projec
 
   const body = (await req.json().catch(() => null)) as
     | {
-        template: "SHORT_FILM" | "INDIE_FILM" | "FEATURE_FILM" | "TV_EPISODE";
+        template: BudgetTemplate;
       }
     | null;
 
@@ -174,7 +326,21 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ proje
         });
       }
     }
-  });
+
+    const freshLines = await tx.projectBudgetLine.findMany({
+      where: { budgetId: budget.id },
+      select: { total: true, quantity: true, unitCost: true },
+    });
+    const totalPlanned = freshLines.reduce((acc, line) => {
+      const explicit = line.total ?? null;
+      if (explicit != null && Number.isFinite(explicit)) return acc + explicit;
+      return acc + (line.quantity ?? 0) * (line.unitCost ?? 0);
+    }, 0);
+    await tx.projectBudget.update({
+      where: { id: budget.id },
+      data: { totalPlanned },
+    });
+  }, { timeout: 60000, maxWait: 10000 });
 
   const updatedBudget = await prisma.projectBudget.findUnique({
     where: { id: budget.id },

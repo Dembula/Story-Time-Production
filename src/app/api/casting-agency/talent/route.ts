@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { embedMeta } from "@/lib/marketplace-profile-meta";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -19,11 +20,20 @@ export async function POST(req: Request) {
   const agency = await prisma.castingAgency.findUnique({ where: { userId: userId! } });
   if (!agency) return NextResponse.json({ error: "Create agency profile first" }, { status: 400 });
   const body = await req.json();
+  const profile = body.profile ?? {};
   const talent = await prisma.castingTalent.create({
     data: {
       castingAgencyId: agency.id,
       name: body.name,
-      bio: body.bio ?? null,
+      bio: embedMeta(body.bio ?? null, {
+        location: profile.location ?? null,
+        languages: profile.languages ?? [],
+        experienceLevel: profile.experienceLevel ?? null,
+        dailyRate: profile.dailyRate ?? null,
+        projectRate: profile.projectRate ?? null,
+        availability: profile.availability ?? null,
+        contactVisibility: profile.contactVisibility ?? "PRIVATE",
+      }),
       cvUrl: body.cvUrl ?? null,
       headshotUrl: body.headshotUrl ?? null,
       ageRange: body.ageRange ?? null,

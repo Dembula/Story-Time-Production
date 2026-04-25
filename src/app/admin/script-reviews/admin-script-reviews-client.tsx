@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { FileText, CheckCircle2, Clock, AlertTriangle, ArrowRight } from "lucide-react";
+import { FileText, CheckCircle2, Clock, AlertTriangle, ArrowRight, Upload, Loader2 } from "lucide-react";
 
 type Request = {
   id: string;
@@ -37,6 +37,7 @@ export function AdminScriptReviewsClient() {
   const [localFeedbackUrl, setLocalFeedbackUrl] = useState("");
   const [localFeedbackNotes, setLocalFeedbackNotes] = useState("");
   const [localStatus, setLocalStatus] = useState<string | null>(null);
+  const [uploadingFeedback, setUploadingFeedback] = useState(false);
 
   useEffect(() => {
     fetch("/api/admin/script-reviews")
@@ -244,14 +245,51 @@ export function AdminScriptReviewsClient() {
                   </div>
 
                   <div>
-                    <label className="block text-slate-400 mb-1">
-                      Feedback URL (link to PDF / Doc)
-                    </label>
+                    <label className="block text-slate-400 mb-1">Feedback document (PDF or Word)</label>
+                    <div className="mb-2 flex flex-wrap items-center gap-2">
+                      <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-slate-600 bg-slate-900 px-3 py-2 text-[11px] text-slate-200 hover:bg-slate-800">
+                        {uploadingFeedback ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Upload className="h-3.5 w-3.5" />
+                        )}
+                        {uploadingFeedback ? "Uploading…" : "Upload file"}
+                        <input
+                          type="file"
+                          accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                          className="hidden"
+                          disabled={uploadingFeedback}
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            e.target.value = "";
+                            if (!file) return;
+                            setUploadingFeedback(true);
+                            try {
+                              const fd = new FormData();
+                              fd.append("file", file);
+                              const res = await fetch("/api/upload/account-document", {
+                                method: "POST",
+                                body: fd,
+                              });
+                              const json = (await res.json().catch(() => ({}))) as { publicUrl?: string; error?: string };
+                              if (res.ok && json.publicUrl) setLocalFeedbackUrl(json.publicUrl);
+                              else if (json.error) {
+                                // eslint-disable-next-line no-alert
+                                alert(json.error);
+                              }
+                            } finally {
+                              setUploadingFeedback(false);
+                            }
+                          }}
+                        />
+                      </label>
+                    </div>
+                    <label className="block text-slate-500 mb-1 text-[10px]">Or paste a direct link</label>
                     <input
                       type="url"
                       value={localFeedbackUrl}
                       onChange={(e) => setLocalFeedbackUrl(e.target.value)}
-                      placeholder="https://..."
+                      placeholder="https://… (hosted PDF / doc)"
                       className="w-full px-3 py-2 rounded-md bg-slate-900 border border-slate-700 text-slate-100 text-xs outline-none focus:border-orange-500"
                     />
                   </div>

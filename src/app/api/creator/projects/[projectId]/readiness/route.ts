@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { parseRiskItemDescription, parseRiskPlanSummary } from "@/lib/risk-insurance-db";
 
 async function ensureReadinessAccess(projectId: string) {
   const session = await getServerSession(authOptions);
@@ -89,6 +90,38 @@ export async function GET(
     }),
   ]);
 
+  const parsedRiskPlan = parseRiskPlanSummary(riskPlan?.summary ?? null);
+  const riskItems = riskPlan
+    ? await prisma.riskChecklistItem.findMany({
+        where: { planId: riskPlan.id },
+        select: { id: true, category: true, status: true, description: true },
+      })
+    : [];
+  const structuredRiskItems = riskItems.map((item) => {
+    const parsed = parseRiskItemDescription(item.description);
+    return {
+      ...item,
+      severity: parsed.meta.severity ?? "MEDIUM",
+      mitigationPlan: parsed.meta.mitigationPlan ?? null,
+      linkedPolicyIds: parsed.meta.linkedPolicyIds ?? [],
+    };
+  });
+  const unresolvedHighRiskCount = structuredRiskItems.filter(
+    (item) => item.status !== "DONE" && item.severity === "HIGH",
+  ).length;
+  const unresolvedWithoutInsurance = structuredRiskItems.filter(
+    (item) => item.status !== "DONE" && (item.linkedPolicyIds?.length ?? 0) === 0,
+  ).length;
+  const unresolvedLegalRiskCount = structuredRiskItems.filter(
+    (item) => item.status !== "DONE" && item.category === "LEGAL",
+  ).length;
+  const incompleteChecklistCount = (parsedRiskPlan.meta.checklists ?? []).filter((item) => !item.checked).length;
+  const riskGateBlocking =
+    unresolvedHighRiskCount > 0 ||
+    unresolvedWithoutInsurance > 0 ||
+    unresolvedLegalRiskCount > 0 ||
+    incompleteChecklistCount > 0;
+
   const coveredDays = new Set(callSheets.map((c) => c.shootDayId));
   const daysWithoutCallSheet = shootDays.filter((d) => !coveredDays.has(d.id)).length;
   const breakdownSceneCoveragePercent =
@@ -103,6 +136,7 @@ export async function GET(
     hasLocations: locations > 0,
     hasEquipmentPlan: equipmentPlan > 0,
     hasRiskPlan: !!riskPlan,
+    riskGatePassed: !riskGateBlocking,
     hasContracts: contracts > 0,
   };
 
@@ -121,6 +155,11 @@ export async function GET(
       shootDaysWithoutCallSheet: daysWithoutCallSheet,
       unsignedContractCount: unsignedContracts,
       openRiskItemCount: openRiskItems,
+      unresolvedHighRiskCount,
+      unresolvedWithoutInsurance,
+      unresolvedLegalRiskCount,
+      incompleteRiskChecklistCount: incompleteChecklistCount,
+      riskGateBlocking,
     },
   });
 }

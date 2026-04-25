@@ -10,6 +10,8 @@ export default function CastingAgencyTalentPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: "", bio: "", cvUrl: "", headshotUrl: "", ageRange: "", skills: "", pastWork: "", reelUrl: "" });
   const [uploadingHeadshot, setUploadingHeadshot] = useState(false);
+  const [uploadingCv, setUploadingCv] = useState(false);
+  const [uploadingReel, setUploadingReel] = useState(false);
 
   useEffect(() => {
     fetch("/api/casting-agency/talent").then((r) => r.json()).then((arr) => { setTalent(Array.isArray(arr) ? arr : []); setLoading(false); });
@@ -34,6 +36,34 @@ export default function CastingAgencyTalentPage() {
       setUploadingHeadshot(false);
     }
   }
+  async function handleCvUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingCv(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/upload/content-media", { method: "POST", body: fd });
+      const data = await res.json();
+      if (data.publicUrl) setForm((f) => ({ ...f, cvUrl: data.publicUrl }));
+    } finally {
+      setUploadingCv(false);
+    }
+  }
+  async function handleReelUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingReel(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/upload/content-media", { method: "POST", body: fd });
+      const data = await res.json();
+      if (data.publicUrl) setForm((f) => ({ ...f, reelUrl: data.publicUrl }));
+    } finally {
+      setUploadingReel(false);
+    }
+  }
   async function deleteTalent(id: string) {
     if (!confirm("Remove this talent?")) return;
     const res = await fetch(`/api/casting-agency/talent/${id}`, { method: "DELETE" });
@@ -55,15 +85,36 @@ export default function CastingAgencyTalentPage() {
           <input placeholder="Age range" value={form.ageRange} onChange={(e) => setForm((f) => ({ ...f, ageRange: e.target.value }))} className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm" />
           <input placeholder="Skills" value={form.skills} onChange={(e) => setForm((f) => ({ ...f, skills: e.target.value }))} className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm" />
           <textarea placeholder="Past work" value={form.pastWork} onChange={(e) => setForm((f) => ({ ...f, pastWork: e.target.value }))} rows={2} className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm resize-none" />
-          <input placeholder="CV URL" value={form.cvUrl} onChange={(e) => setForm((f) => ({ ...f, cvUrl: e.target.value }))} className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm" />
-          <div className="flex items-center gap-2 flex-wrap">
-            <input placeholder="Headshot URL" value={form.headshotUrl} onChange={(e) => setForm((f) => ({ ...f, headshotUrl: e.target.value }))} className="flex-1 min-w-0 px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm" />
-            <label className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800 border border-slate-600 text-slate-300 text-sm cursor-pointer shrink-0">
-              <Upload className="w-4 h-4" /> {uploadingHeadshot ? "Uploading..." : "Upload"}
-              <input type="file" accept="image/*" className="hidden" onChange={handleHeadshotUpload} disabled={uploadingHeadshot} />
-            </label>
+          <div className="flex flex-col gap-1">
+            <span className="text-xs text-slate-500">CV (PDF)</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800 border border-slate-600 text-slate-300 text-sm cursor-pointer shrink-0">
+                <Upload className="w-4 h-4" /> {uploadingCv ? "Uploading..." : "Upload PDF"}
+                <input type="file" accept="application/pdf" className="hidden" onChange={handleCvUpload} disabled={uploadingCv} />
+              </label>
+              <input placeholder="Or paste CV PDF link" value={form.cvUrl} onChange={(e) => setForm((f) => ({ ...f, cvUrl: e.target.value }))} className="flex-1 min-w-0 px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm" />
+            </div>
           </div>
-          <input placeholder="Reel URL" value={form.reelUrl} onChange={(e) => setForm((f) => ({ ...f, reelUrl: e.target.value }))} className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm" />
+          <div className="flex flex-col gap-1">
+            <span className="text-xs text-slate-500">Headshot</span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <label className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800 border border-slate-600 text-slate-300 text-sm cursor-pointer shrink-0">
+                <Upload className="w-4 h-4" /> {uploadingHeadshot ? "Uploading..." : "Upload JPEG/PNG"}
+                <input type="file" accept="image/*" className="hidden" onChange={handleHeadshotUpload} disabled={uploadingHeadshot} />
+              </label>
+              <input placeholder="Or paste image URL" value={form.headshotUrl} onChange={(e) => setForm((f) => ({ ...f, headshotUrl: e.target.value }))} className="flex-1 min-w-0 px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm" />
+            </div>
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="text-xs text-slate-500">Showreel (video file)</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800 border border-slate-600 text-slate-300 text-sm cursor-pointer shrink-0">
+                <Upload className="w-4 h-4" /> {uploadingReel ? "Uploading..." : "Upload video"}
+                <input type="file" accept="video/*" className="hidden" onChange={handleReelUpload} disabled={uploadingReel} />
+              </label>
+              <input placeholder="Or paste reel / Vimeo link" value={form.reelUrl} onChange={(e) => setForm((f) => ({ ...f, reelUrl: e.target.value }))} className="flex-1 min-w-0 px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm" />
+            </div>
+          </div>
           <div className="flex gap-2"><button onClick={addTalent} disabled={!form.name.trim()} className="px-4 py-2 rounded-lg bg-violet-500 text-white text-sm font-medium disabled:opacity-50">Save</button><button onClick={() => setShowForm(false)} className="px-4 py-2 rounded-lg bg-slate-700 text-slate-300 text-sm">Cancel</button></div>
         </div>
       )}

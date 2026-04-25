@@ -8,6 +8,9 @@ export const runtime = "nodejs";
 const DEFAULT_MAX_UPLOAD_MB = 200;
 const ALLOWED_MIME_TYPES = new Set([
   "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "text/plain",
   "image/avif",
   "image/gif",
   "image/jpeg",
@@ -17,6 +20,15 @@ const ALLOWED_MIME_TYPES = new Set([
   "video/quicktime",
   "video/webm",
   "video/x-matroska",
+  "audio/mpeg",
+  "audio/mp3",
+  "audio/wav",
+  "audio/x-wav",
+  "audio/flac",
+  "audio/aac",
+  "audio/mp4",
+  "audio/ogg",
+  "audio/webm",
 ]);
 
 const s3Client = new S3Client({
@@ -78,7 +90,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "Unsupported file type. Allowed types: PDF, JPG/PNG/WEBP/AVIF/GIF, MP4/WEBM/MOV/MKV.",
+            "Unsupported file type. Allowed: PDF, Word (.doc/.docx), plain text, images (JPG/PNG/WEBP/AVIF/GIF), video (MP4/WEBM/MOV/MKV), audio (MP3/WAV/FLAC/AAC/OGG).",
         },
         { status: 400 },
       );

@@ -1,7 +1,8 @@
  "use client";
 
 import Link from "next/link";
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Bot, ChevronDown, ChevronRight, Clapperboard, FileText } from "lucide-react";
 import { ProjectStageControls } from "../../project-stage-controls";
@@ -11,6 +12,9 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ModocFieldPopover } from "@/components/modoc";
 import { useModoc, useModocOptional } from "@/components/modoc/use-modoc";
+import { parseScenesFromScreenplay } from "@/lib/scene-parser";
+import { parseSluglineMeta } from "@/lib/slugline-meta";
+import { VisualPlanningCatalogue } from "@/components/creator/visual-planning-catalogue";
 
 interface PreProductionToolPageProps {
   params: Promise<{ projectId?: string; tool: string }>;
@@ -29,7 +33,6 @@ const LABELS: Record<string, string> = {
   "visual-planning": "Visual Planning",
   "legal-contracts": "Legal & Contracts",
   "funding-hub": "Funding Hub",
-  "pitch-deck-builder": "Pitch Deck Builder",
   "table-reads": "Table Reads",
   "production-workspace": "Production Workspace",
   "equipment-planning": "Equipment Planning",
@@ -85,7 +88,7 @@ export default function PreProductionToolPage({ params }: PreProductionToolPageP
     return (
       <>
         {!hasProject && <UnlinkedBanner />}
-        <ScriptReviewWorkspace projectId={projectId} title={title} />
+        <ScriptReviewWorkspaceV2 projectId={projectId} title={title} />
       </>
     );
   }
@@ -158,15 +161,6 @@ export default function PreProductionToolPage({ params }: PreProductionToolPageP
       <>
         {!hasProject && <UnlinkedBanner />}
         <FundingHubWorkspace projectId={projectId} title={title} />
-      </>
-    );
-  }
-
-  if (tool === "pitch-deck-builder") {
-    return (
-      <>
-        {!hasProject && <UnlinkedBanner />}
-        <PitchDeckWorkspace projectId={projectId} title={title} />
       </>
     );
   }
@@ -519,7 +513,7 @@ function IdeaDevelopmentWorkspace({ projectId, title }: IdeaDevelopmentWorkspace
                         className="text-xs font-medium text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
                       >
                         <Bot className="w-3.5 h-3.5" />
-                        Get MODOC insights
+                        Get AI insights
                       </button>
                     )}
                   </div>
@@ -541,7 +535,7 @@ function IdeaDevelopmentWorkspace({ projectId, title }: IdeaDevelopmentWorkspace
                         className="text-xs font-medium text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
                       >
                         <Bot className="w-3.5 h-3.5" />
-                        Get MODOC pointers
+                        Get AI pointers
                       </button>
                     )}
                   </div>
@@ -911,7 +905,7 @@ function ScriptWritingWorkspace({ projectId, title }: ScriptWritingWorkspaceProp
                         className="text-xs font-medium text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
                       >
                         <Bot className="w-3.5 h-3.5" />
-                        Get MODOC suggestions
+                        Get AI suggestions
                       </button>
                     )}
                     <span className="text-[10px] text-slate-500">|</span>
@@ -1129,7 +1123,7 @@ function ModocScriptReviewModal({ scriptTitle, scriptContent, onComplete, onClos
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-white flex items-center gap-2">
             <Bot className="w-5 h-5 text-cyan-400" />
-            MODOC script review — {scriptTitle}
+            AI script review — {scriptTitle}
           </h3>
           <button type="button" onClick={onClose} className="text-slate-400 hover:text-white p-2 rounded-lg">×</button>
         </div>
@@ -1138,10 +1132,10 @@ function ModocScriptReviewModal({ scriptTitle, scriptContent, onComplete, onClos
             displayContent ? (
               displayContent
             ) : (
-              <span className="text-slate-400">MODOC is reviewing your script…</span>
+              <span className="text-slate-400">AI is reviewing your script…</span>
             )
           ) : (
-            displayContent || "Waiting for MODOC…"
+            displayContent || "Generating…"
           )}
         </div>
       </div>
@@ -1160,7 +1154,6 @@ const MODOC_REPORT_TASKS = [
   "visual_planning",
   "legal_contracts",
   "funding_hub",
-  "pitch_deck",
   "table_reads",
   "production_workspace",
   "risk_insurance",
@@ -1197,8 +1190,6 @@ function ModocReportModal({ task, reportTitle, prompt, onClose, onApplyToBreakdo
                 ? "legal-contracts"
                 : task === "funding_hub"
                   ? "funding-hub"
-                  : task === "pitch_deck"
-                    ? "pitch-deck-builder"
                     : task === "table_reads"
                       ? "table-reads"
                       : task === "production_workspace"
@@ -1240,9 +1231,9 @@ function ModocReportModal({ task, reportTitle, prompt, onClose, onApplyToBreakdo
         </div>
         <div className="max-h-[60vh] overflow-y-auto rounded-xl bg-slate-800/60 border border-slate-700 p-4 text-sm text-slate-200 whitespace-pre-wrap">
           {status === "streaming" || status === "submitted" ? (
-            displayContent ? displayContent : <span className="text-slate-400">MODOC is working…</span>
+            displayContent ? displayContent : <span className="text-slate-400">Generating…</span>
           ) : (
-            displayContent || "Waiting for MODOC…"
+            displayContent || "Generating…"
           )}
         </div>
         {canApply && (
@@ -1262,16 +1253,18 @@ function ModocReportModal({ task, reportTitle, prompt, onClose, onApplyToBreakdo
   );
 }
 
-/** Parse MODOC breakdown response for lines like "CHARACTER: a | b | c" and return items to merge into draft */
+/** Parse MODOC breakdown response for lines like "CHARACTER: name" or legacy "CHARACTER: a | b | c" */
 function parseModocBreakdownResponse(text: string): Partial<BreakdownPayload> {
   const result: Partial<BreakdownPayload> = {};
   const lines = text.split(/\r?\n/);
   for (const line of lines) {
     const t = line.trim();
     if (!t) continue;
-    const charMatch = t.match(/^CHARACTER:\s*(.+?)\s*\|\s*(.+?)\s*\|\s*(.+)$/i);
-    if (charMatch) {
-      (result.characters = result.characters ?? []).push({ name: charMatch[1].trim(), importance: charMatch[2].trim(), description: charMatch[3].trim() });
+    const charLoose = t.match(/^CHARACTER:\s*(.+)$/i);
+    if (charLoose) {
+      const parts = charLoose[1].split("|").map((s) => s.trim()).filter(Boolean);
+      const name = parts[0] ?? "";
+      if (name) (result.characters = result.characters ?? []).push({ name });
       continue;
     }
     const propMatch = t.match(/^PROP:\s*(.+?)\s*\|\s*(.+)$/i);
@@ -1309,6 +1302,14 @@ function parseModocBreakdownResponse(text: string): Partial<BreakdownPayload> {
       (result.sfx = result.sfx ?? []).push({ description: sfxMatch[1].trim(), practical: /yes|true/i.test(sfxMatch[2]) });
       continue;
     }
+    const makeupMatch = t.match(/^MAKEUP:\s*(.+?)(?:\s*\|\s*(.+))?$/i);
+    if (makeupMatch) {
+      (result.makeups = result.makeups ?? []).push({
+        notes: makeupMatch[1].trim(),
+        character: makeupMatch[2]?.trim() || null,
+      });
+      continue;
+    }
   }
   return result;
 }
@@ -1325,6 +1326,7 @@ function ScriptReviewWorkspace({ projectId, title }: ScriptReviewWorkspaceProps)
   const [notes, setNotes] = useState("");
   const [notesDirty, setNotesDirty] = useState(false);
   const [notesSaving, setNotesSaving] = useState(false);
+  const [notesSaveMessage, setNotesSaveMessage] = useState("");
   const [selectedScriptId, setSelectedScriptId] = useState<string>("");
   const [modocReviewScriptId, setModocReviewScriptId] = useState<string | null>(null);
   const [modocReviews, setModocReviews] = useState<Array<{ id: string; scriptId: string; scriptTitle: string; reviewText: string; createdAt: string }>>([]);
@@ -1539,7 +1541,7 @@ function ScriptReviewWorkspace({ projectId, title }: ScriptReviewWorkspaceProps)
           {hasProject && modocReviews.length > 0 && (
             <Card className="creator-glass-panel border-0 bg-transparent text-slate-50 shadow-none">
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm">MODOC review history</CardTitle>
+                <CardTitle className="text-sm">AI review history</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 text-xs text-slate-300">
                 <ul className="space-y-3">
@@ -1549,7 +1551,7 @@ function ScriptReviewWorkspace({ projectId, title }: ScriptReviewWorkspaceProps)
                       className="rounded-lg border border-cyan-500/20 bg-slate-900/60 px-3 py-3"
                     >
                       <div className="flex items-center justify-between gap-2 mb-2">
-                        <span className="font-medium text-cyan-200/90">MODOC review · {r.scriptTitle}</span>
+                        <span className="font-medium text-cyan-200/90">AI review · {r.scriptTitle}</span>
                         <span className="text-[10px] text-slate-500">
                           {new Date(r.createdAt).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })}
                         </span>
@@ -1583,8 +1585,8 @@ function ScriptReviewWorkspace({ projectId, title }: ScriptReviewWorkspaceProps)
               </ul>
               {modoc && projectScripts.length > 0 && (
                 <div className="pt-3 border-t border-slate-700/60 space-y-2">
-                  <p className="font-medium text-slate-200">MODOC review</p>
-                  <p className="text-[11px] text-slate-400">Get an AI review of a script (free). Pick the script and run MODOC.</p>
+                  <p className="font-medium text-slate-200">AI script review</p>
+                  <p className="text-[11px] text-slate-400">Get an AI review of a script (free). Pick the script and run it.</p>
                   <select
                     value={selectedScriptId || projectScripts[0]?.id || ""}
                     onChange={(e) => setSelectedScriptId(e.target.value)}
@@ -1606,7 +1608,7 @@ function ScriptReviewWorkspace({ projectId, title }: ScriptReviewWorkspaceProps)
                     }}
                   >
                     <Bot className="w-3.5 h-3.5 mr-2 inline" />
-                    Get MODOC review
+                    Get AI review
                   </Button>
                 </div>
               )}
@@ -1661,6 +1663,530 @@ function ScriptReviewWorkspace({ projectId, title }: ScriptReviewWorkspaceProps)
   );
 }
 
+type InternalReviewEntryV2 = {
+  id: string;
+  scriptVersionId: string;
+  scriptLabel: string;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type ScriptReviewNoteBodyV2 = {
+  draftByScript?: Record<string, string>;
+  internalReviews?: InternalReviewEntryV2[];
+};
+
+function parseScriptReviewNoteBodyV2(raw: unknown): ScriptReviewNoteBodyV2 {
+  if (typeof raw !== "string" || !raw.trim()) return {};
+  try {
+    const parsed = JSON.parse(raw) as ScriptReviewNoteBodyV2;
+    return {
+      draftByScript: parsed?.draftByScript ?? {},
+      internalReviews: Array.isArray(parsed?.internalReviews) ? parsed.internalReviews : [],
+    };
+  } catch {
+    return {};
+  }
+}
+
+function stringifyScriptReviewNoteBodyV2(payload: ScriptReviewNoteBodyV2): string {
+  return JSON.stringify(
+    {
+      draftByScript: payload.draftByScript ?? {},
+      internalReviews: payload.internalReviews ?? [],
+    },
+    null,
+    2,
+  );
+}
+
+function ScriptReviewWorkspaceV2({ projectId, title }: ScriptReviewWorkspaceProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
+
+  const [workingProjectId, setWorkingProjectId] = useState(projectId ?? "");
+  const [selectedVersionId, setSelectedVersionId] = useState("");
+  const [payScriptVersionId, setPayScriptVersionId] = useState("");
+  const [internalDraft, setInternalDraft] = useState("");
+  const [internalDraftDirty, setInternalDraftDirty] = useState(false);
+  const [paymentOpen, setPaymentOpen] = useState(false);
+  const [processingPayment, setProcessingPayment] = useState(false);
+  const [notesSaving, setNotesSaving] = useState(false);
+  const [notesSaveMessage, setNotesSaveMessage] = useState("");
+  const [paymentEmail, setPaymentEmail] = useState("");
+  const [paymentName, setPaymentName] = useState("");
+  const [paymentMessage, setPaymentMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    setWorkingProjectId(projectId ?? "");
+  }, [projectId]);
+
+  const { data: projectsData } = useQuery({
+    queryKey: ["creator-projects", "script-review-selector-v2"],
+    queryFn: () => fetch("/api/creator/projects").then((r) => r.json()),
+  });
+  const creatorProjects = (projectsData?.projects ?? []) as Array<{ id: string; title: string }>;
+
+  useEffect(() => {
+    if (!workingProjectId && creatorProjects.length > 0) {
+      setWorkingProjectId(creatorProjects[0].id);
+    }
+  }, [workingProjectId, creatorProjects]);
+
+  const hasProject = !!workingProjectId;
+  const notesEndpoint = hasProject
+    ? `/api/creator/projects/${workingProjectId}/script-review`
+    : "/api/creator/script-review/notes";
+
+  const { data: scriptData, isLoading: scriptLoading } = useQuery({
+    enabled: hasProject,
+    queryKey: ["project-script-review-script-v2", workingProjectId],
+    queryFn: () => fetch(`/api/creator/projects/${workingProjectId}/script`).then((r) => r.json()),
+  });
+
+  const scriptTitle = (scriptData?.script?.title as string | undefined) ?? "Project script";
+  const scriptVersions = ((scriptData?.script?.versions as Array<{
+    id: string;
+    versionLabel: string | null;
+    content: string;
+    createdAt: string;
+  }> | undefined) ?? []);
+  const { data: creatorScriptsData } = useQuery({
+    enabled: hasProject,
+    queryKey: ["creator-scripts", "script-review-v2", workingProjectId],
+    queryFn: () => fetch(`/api/creator/scripts?projectId=${workingProjectId}`).then((r) => r.json()),
+  });
+  const creatorScripts = ((creatorScriptsData?.scripts as Array<{
+    id: string;
+    title: string;
+    content: string;
+    updatedAt: string;
+  }> | undefined) ?? []);
+
+  const draftOptions = [
+    ...scriptVersions.map((v) => ({
+      id: `project-version:${v.id}`,
+      origin: "project-version" as const,
+      title: scriptTitle,
+      label: `${scriptTitle} · ${v.versionLabel || "Project draft"} · ${new Date(v.createdAt).toLocaleDateString()}`,
+      content: v.content ?? "",
+      scriptVersionId: v.id,
+      creatorScriptId: null as string | null,
+    })),
+    ...creatorScripts.map((s) => ({
+      id: `creator-script:${s.id}`,
+      origin: "creator-script" as const,
+      title: s.title,
+      label: `${s.title} · Library script · ${new Date(s.updatedAt).toLocaleDateString()}`,
+      content: s.content ?? "",
+      scriptVersionId: null as string | null,
+      creatorScriptId: s.id,
+    })),
+  ];
+
+  useEffect(() => {
+    if (draftOptions.length === 0) {
+      setSelectedVersionId("");
+      setPayScriptVersionId("");
+      return;
+    }
+    if (!selectedVersionId) setSelectedVersionId(draftOptions[0].id);
+    if (!payScriptVersionId) setPayScriptVersionId(draftOptions[0].id);
+  }, [draftOptions, selectedVersionId, payScriptVersionId]);
+
+  const selectedDraft = draftOptions.find((v) => v.id === selectedVersionId) ?? draftOptions[0];
+  const reviewDraft = draftOptions.find((v) => v.id === payScriptVersionId) ?? draftOptions[0];
+
+  const { data, isLoading } = useQuery({
+    enabled: hasProject,
+    queryKey: ["script-review-v2", workingProjectId],
+    queryFn: () => fetch(notesEndpoint).then((r) => r.json()),
+  });
+
+  const requests = ((data?.requests as Array<{
+    id: string;
+    status: string;
+    feeAmount: number;
+    submittedAt: string;
+    reviewedAt: string | null;
+    feedbackUrl: string | null;
+    feedbackNotes: string | null;
+    scriptVersion?: { id: string; versionLabel: string | null; script: { title: string } } | null;
+  }>) ?? []);
+
+  const parsedBody = useMemo(
+    () => parseScriptReviewNoteBodyV2((data?.notes?.body as string) ?? ""),
+    [data?.notes?.body],
+  );
+  const internalReviews = parsedBody.internalReviews ?? [];
+
+  useEffect(() => {
+    if (!selectedVersionId) return;
+    setInternalDraft((parsedBody.draftByScript ?? {})[selectedVersionId] ?? "");
+    setInternalDraftDirty(false);
+  }, [selectedVersionId, parsedBody]);
+
+  const hasOpenRequest = requests.some(
+    (r) => r.status === "PENDING_ADMIN_REVIEW" || r.status === "IN_REVIEW",
+  );
+
+  const saveNotesMutation = useMutation({
+    mutationFn: async (body: string) => {
+      const res = await fetch(notesEndpoint, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notesBody: body }),
+      });
+      if (!res.ok) throw new Error("Failed to save notes");
+      return res.json();
+    },
+    onMutate: () => setNotesSaving(true),
+    onSuccess: () => {
+      setNotesSaveMessage("Saved");
+    },
+    onError: () => {
+      setNotesSaveMessage("Could not save notes. Try again.");
+    },
+    onSettled: () => {
+      setNotesSaving(false);
+      queryClient.invalidateQueries({ queryKey: ["script-review-v2", workingProjectId] });
+    },
+  });
+
+  const requestMutation = useMutation({
+    mutationFn: async (scriptVersionId: string) => {
+      const res = await fetch(`/api/creator/projects/${workingProjectId}/script-review`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scriptVersionId }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || "Failed to submit for executive review");
+      return json;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["script-review-v2", workingProjectId] });
+    },
+  });
+
+  const updateProjectRoute = (nextProjectId: string) => {
+    if (!nextProjectId) return;
+    if (pathname.startsWith("/creator/projects/") && projectId) {
+      const nextPath = pathname.replace(`/creator/projects/${projectId}`, `/creator/projects/${nextProjectId}`);
+      router.push(nextPath);
+      return;
+    }
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("projectId", nextProjectId);
+    router.push(`${pathname}?${params.toString()}`);
+  };
+
+  const saveDraft = () => {
+    if (!selectedVersionId) return;
+    const nextBody: ScriptReviewNoteBodyV2 = {
+      draftByScript: {
+        ...(parsedBody.draftByScript ?? {}),
+        [selectedVersionId]: internalDraft,
+      },
+      internalReviews,
+    };
+    saveNotesMutation.mutate(stringifyScriptReviewNoteBodyV2(nextBody), {
+      onSuccess: () => {
+        setInternalDraftDirty(false);
+        setNotesSaveMessage("Draft notes saved");
+      },
+    });
+  };
+
+  const addInternalReview = () => {
+    if (!selectedDraft || !internalDraft.trim()) return;
+    const nextBody: ScriptReviewNoteBodyV2 = {
+      draftByScript: {
+        ...(parsedBody.draftByScript ?? {}),
+        [selectedDraft.id]: internalDraft,
+      },
+      internalReviews: [
+        {
+          id: `internal-${Date.now()}`,
+          scriptVersionId: selectedDraft.id,
+          scriptLabel: selectedDraft.label,
+          notes: internalDraft.trim(),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+        ...internalReviews,
+      ],
+    };
+    saveNotesMutation.mutate(stringifyScriptReviewNoteBodyV2(nextBody), {
+      onSuccess: () => {
+        setInternalDraftDirty(false);
+        setNotesSaveMessage("Review added to history");
+      },
+    });
+  };
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "s") return;
+      if (!internalDraftDirty || notesSaving || !selectedVersionId) return;
+      event.preventDefault();
+      saveDraft();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [internalDraftDirty, notesSaving, selectedVersionId, internalDraft, parsedBody, internalReviews]);
+
+  async function handleProcessPayment() {
+    if (!reviewDraft) return;
+    setProcessingPayment(true);
+    setPaymentMessage(null);
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+      let scriptVersionIdForSubmission = reviewDraft.scriptVersionId;
+      if (!scriptVersionIdForSubmission && reviewDraft.creatorScriptId) {
+        const publishRes = await fetch(
+          `/api/creator/projects/${workingProjectId}/script/publish-from-creator-script`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ creatorScriptId: reviewDraft.creatorScriptId }),
+          },
+        );
+        if (!publishRes.ok) {
+          const publishErr = await publishRes.json().catch(() => ({}));
+          throw new Error(publishErr.error || "Failed to link script to this project");
+        }
+        const projectScriptRes = await fetch(`/api/creator/projects/${workingProjectId}/script`);
+        const projectScriptJson = await projectScriptRes.json().catch(() => ({}));
+        scriptVersionIdForSubmission = projectScriptJson?.script?.versions?.[0]?.id ?? null;
+      }
+      if (!scriptVersionIdForSubmission) {
+        throw new Error("No project script version available for submission");
+      }
+      await requestMutation.mutateAsync(scriptVersionIdForSubmission);
+      void queryClient.invalidateQueries({ queryKey: ["project-script-review-script-v2", workingProjectId] });
+      setPaymentOpen(false);
+      setPaymentMessage("Payment successful. Script submitted to executive review.");
+    } catch (error) {
+      setPaymentMessage((error as Error).message);
+    } finally {
+      setProcessingPayment(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <header className="storytime-plan-card p-5 md:p-6">
+        <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">
+          Pre-production workspace
+        </p>
+        <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
+        <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
+          Select a project, open script drafts side-by-side with your internal review, and submit
+          a paid executive review when needed.
+        </p>
+      </header>
+
+      <section className="storytime-section p-4 md:p-5 space-y-3">
+        <div className="grid gap-3 md:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-[11px] uppercase tracking-wide text-slate-500">Working project</label>
+            <select
+              value={workingProjectId}
+              onChange={(e) => {
+                setWorkingProjectId(e.target.value);
+                updateProjectRoute(e.target.value);
+              }}
+              className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-orange-500"
+            >
+              {creatorProjects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.title}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-[11px] uppercase tracking-wide text-slate-500">Script draft</label>
+            <select
+              value={selectedVersionId}
+              onChange={(e) => setSelectedVersionId(e.target.value)}
+              disabled={!hasProject || draftOptions.length === 0}
+              className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-orange-500 disabled:opacity-60"
+            >
+              {draftOptions.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </section>
+
+      {!hasProject ? (
+        <div className="rounded-xl border border-dashed border-slate-700 bg-slate-900/40 px-4 py-8 text-center text-sm text-slate-400">
+          Select a project to start script review.
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <Card className="creator-glass-panel border-0 bg-transparent text-slate-50 shadow-none">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm">Script preview</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {scriptLoading ? (
+                <Skeleton className="h-80 bg-slate-800/60" />
+              ) : !selectedDraft ? (
+                <p className="text-sm text-slate-500">No script versions found for this project yet.</p>
+              ) : (
+                <div className="rounded-lg border border-slate-700 bg-slate-950/60 p-4">
+                  <p className="mb-2 text-xs text-slate-400">
+                    {selectedDraft.label}
+                  </p>
+                  <div className="max-h-[520px] overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed text-slate-200">
+                    {selectedDraft.content || "This draft is empty."}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="creator-glass-panel border-0 bg-transparent text-slate-50 shadow-none">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm">Internal review panel</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <textarea
+                rows={20}
+                value={internalDraft}
+                onChange={(e) => {
+                  setInternalDraft(e.target.value);
+                  setInternalDraftDirty(true);
+                }}
+                className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-orange-500"
+                placeholder="Write internal review notes for this script draft..."
+              />
+              <div className="flex flex-wrap justify-between gap-2">
+                <span className="text-[11px] text-slate-500">
+                  {notesSaving ? "Saving..." : internalDraftDirty ? "Unsaved changes" : "Saved"}
+                </span>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" className="border-slate-600 text-xs text-slate-100" disabled={notesSaving || !internalDraftDirty} onClick={saveDraft}>
+                    Save draft notes
+                  </Button>
+                  <Button size="sm" className="bg-orange-500 text-xs text-white hover:bg-orange-600" disabled={notesSaving || !internalDraft.trim() || !selectedDraft} onClick={addInternalReview}>
+                    Add to internal history
+                  </Button>
+                </div>
+              </div>
+              {notesSaveMessage ? (
+                <p className="text-[11px] text-slate-400">{notesSaveMessage}</p>
+              ) : null}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {hasProject && (
+        <Card className="creator-glass-panel border-0 bg-transparent text-slate-50 shadow-none">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm">ADmkn executive submission</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-xs text-slate-300">
+            <p>Choose the script version to send, then pay to submit it to the executive review queue.</p>
+            <p className="font-medium text-orange-300">Price: R599.99 per submission</p>
+            <select
+              value={payScriptVersionId}
+              onChange={(e) => setPayScriptVersionId(e.target.value)}
+              className="w-full max-w-md rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-white outline-none focus:border-orange-500"
+            >
+              {draftOptions.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.label}
+                </option>
+              ))}
+            </select>
+            <Button className="bg-orange-500 hover:bg-orange-600 text-white" disabled={hasOpenRequest || !reviewDraft || processingPayment} onClick={() => setPaymentOpen(true)}>
+              {processingPayment ? "Processing payment..." : "Pay & submit for executive review"}
+            </Button>
+            {hasOpenRequest && <p className="text-[11px] text-amber-300">You already have an open executive review for this project.</p>}
+            {paymentMessage && <p className="text-[11px] text-emerald-300">{paymentMessage}</p>}
+            {requestMutation.error && <p className="text-[11px] text-red-400">{(requestMutation.error as Error).message}</p>}
+
+            {paymentOpen && (
+              <div className="rounded-xl border border-orange-400/30 bg-slate-950/70 p-4 space-y-3">
+                <p className="text-xs font-medium text-orange-200">Payment gateway</p>
+                <Input value={paymentName} onChange={(e) => setPaymentName(e.target.value)} placeholder="Card holder name" />
+                <Input type="email" value={paymentEmail} onChange={(e) => setPaymentEmail(e.target.value)} placeholder="Billing email" />
+                <div className="flex justify-end gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setPaymentOpen(false)}>Cancel</Button>
+                  <Button size="sm" className="bg-orange-500 hover:bg-orange-600 text-white" disabled={processingPayment || !paymentName.trim() || !paymentEmail.trim()} onClick={handleProcessPayment}>
+                    Confirm payment
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      <Card className="creator-glass-panel border-0 bg-transparent text-slate-50 shadow-none">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm">Review history</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-400">Internal reviews</p>
+            {internalReviews.length === 0 ? (
+              <p className="text-xs text-slate-500">No internal reviews recorded yet.</p>
+            ) : (
+              <ul className="space-y-2">
+                {internalReviews.map((r) => (
+                  <li key={r.id} className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+                    <p className="text-xs font-medium text-slate-200">{r.scriptLabel}</p>
+                    <p className="mt-1 whitespace-pre-wrap text-xs text-slate-300">{r.notes}</p>
+                    <p className="mt-2 text-[11px] text-slate-500">{new Date(r.createdAt).toLocaleString()}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div>
+            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-400">Executive reviews</p>
+            {isLoading ? (
+              <p className="text-xs text-slate-500">Loading executive history...</p>
+            ) : requests.length === 0 ? (
+              <p className="text-xs text-slate-500">No executive submissions yet.</p>
+            ) : (
+              <ul className="space-y-2">
+                {requests.map((r) => (
+                  <li key={r.id} className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+                    <p className="text-xs font-medium text-slate-200">
+                      {(r.scriptVersion?.script?.title ?? scriptTitle) + " · " + (r.scriptVersion?.versionLabel || "Submitted draft")}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-400">R{r.feeAmount.toFixed(2)} · {r.status.replace(/_/g, " ")}</p>
+                    {r.feedbackNotes && <p className="mt-1 whitespace-pre-wrap text-xs text-slate-300">{r.feedbackNotes}</p>}
+                    {r.feedbackUrl && (
+                      <a href={r.feedbackUrl} target="_blank" rel="noreferrer" className="mt-1 inline-block text-xs text-orange-300 underline hover:text-orange-200">
+                        Open executive feedback file
+                      </a>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 // --- Script Breakdown (multi-category) ---
 
 interface ScriptBreakdownWorkspaceProps {
@@ -1695,7 +2221,29 @@ type BreakdownPayload = {
   vehicles?: { id?: string; description: string; stuntRelated?: boolean; sceneId?: string | null }[];
   stunts?: { id?: string; description: string; safetyNotes?: string | null; sceneId?: string | null }[];
   sfx?: { id?: string; description: string; practical?: boolean; sceneId?: string | null }[];
+  makeups?: { id?: string; notes: string; character?: string | null; sceneId?: string | null }[];
 };
+
+type BreakdownCategoryTab =
+  | "characters"
+  | "props"
+  | "locations"
+  | "wardrobe"
+  | "extras"
+  | "vehicles"
+  | "stunts"
+  | "sfx"
+  | "makeups";
+
+type BreakdownTab = "scenes" | BreakdownCategoryTab;
+
+function attachSceneIdToBreakdownRows<T extends { sceneId?: string | null }>(
+  rows: T[],
+  sid: string | null,
+): T[] {
+  if (!sid) return rows;
+  return rows.map((r) => ({ ...r, sceneId: r.sceneId ?? sid }));
+}
 
 function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspaceProps) {
   const queryClient = useQueryClient();
@@ -1711,37 +2259,211 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
     queryKey: ["creator-scripts-breakdown", projectId],
     queryFn: () => fetch(`/api/creator/scripts?projectId=${projectId}`).then((r) => r.json()),
   });
+  const { data: projectScriptData } = useQuery({
+    enabled: !!hasProject && !!projectId,
+    queryKey: ["project-script-breakdown", projectId],
+    queryFn: () => fetch(`/api/creator/projects/${projectId}/script`).then((r) => r.json()),
+  });
+  const { data: scriptReviewData } = useQuery({
+    enabled: !!hasProject && !!projectId,
+    queryKey: ["script-review-note-breakdown", projectId],
+    queryFn: () => fetch(`/api/creator/projects/${projectId}/script-review`).then((r) => r.json()),
+  });
   const { data: scenesListData } = useQuery({
     enabled: hasProject,
     queryKey: ["project-scenes", projectId],
     queryFn: () => fetch(`/api/creator/projects/${projectId}/scenes`).then((r) => r.json()),
   });
-  const projectScenesForBreakdown = (scenesListData?.scenes ?? []) as {
+  const projectScenesForBreakdownUnsorted = (scenesListData?.scenes ?? []) as {
     id: string;
     number: string;
     heading: string | null;
+    storyDay: number | null;
+    intExt: string | null;
+    timeOfDay: string | null;
+    summary: string | null;
   }[];
-  const projectScripts = (scriptsData?.scripts ?? []) as Array<{ id: string; title: string; content?: string }>;
+  const projectScenesForBreakdown = [...projectScenesForBreakdownUnsorted].sort((a, b) => {
+    const aNum = Number(a.number);
+    const bNum = Number(b.number);
+    const aIsNum = Number.isFinite(aNum);
+    const bIsNum = Number.isFinite(bNum);
+    if (aIsNum && bIsNum && aNum !== bNum) return aNum - bNum;
+    if (aIsNum && !bIsNum) return -1;
+    if (!aIsNum && bIsNum) return 1;
+    return a.number.localeCompare(b.number, undefined, { numeric: true, sensitivity: "base" });
+  });
+  const projectScripts = (scriptsData?.scripts ?? []) as Array<{ id: string; title: string; content?: string; updatedAt?: string }>;
+  const projectScriptTitle = (projectScriptData?.script?.title as string | undefined) ?? "Project script";
+  const projectScriptVersions = ((projectScriptData?.script?.versions as Array<{
+    id: string;
+    versionLabel: string | null;
+    content: string;
+    createdAt: string;
+  }> | undefined) ?? []);
+  const breakdownScriptOptions = [
+    ...projectScriptVersions.map((v) => ({
+      id: `project-version:${v.id}`,
+      title: projectScriptTitle,
+      label: `${projectScriptTitle} · ${v.versionLabel || "Project draft"} · ${new Date(v.createdAt).toLocaleDateString()}`,
+      content: v.content ?? "",
+    })),
+    ...projectScripts.map((s) => ({
+      id: `creator-script:${s.id}`,
+      title: s.title,
+      label: `${s.title} · Library script${s.updatedAt ? ` · ${new Date(s.updatedAt).toLocaleDateString()}` : ""}`,
+      content: s.content ?? "",
+    })),
+  ];
   const [breakdownScriptId, setBreakdownScriptId] = useState<string>("");
-  const [breakdownSceneFilter, setBreakdownSceneFilter] = useState<string>("");
-  const selectedScript = breakdownScriptId ? projectScripts.find((s) => s.id === breakdownScriptId) ?? projectScripts[0] : projectScripts[0];
+  /** Scene used for category tabs: new rows and filtered list (from screenplay sync). */
+  const [activeSceneId, setActiveSceneId] = useState<string>("");
+  const [sceneSyncMessage, setSceneSyncMessage] = useState<string>("");
+  const selectedScript = breakdownScriptId
+    ? breakdownScriptOptions.find((s) => s.id === breakdownScriptId) ?? breakdownScriptOptions[0]
+    : breakdownScriptOptions[0];
+  const parsedReviewNote = parseScriptReviewNoteBodyV2((scriptReviewData?.notes?.body as string) ?? "");
+  const latestInternalReviewNote = parsedReviewNote.internalReviews?.[0]?.notes?.trim() ?? "";
+  const latestInternalReviewLabel = parsedReviewNote.internalReviews?.[0]?.scriptLabel ?? "";
 
   useEffect(() => {
-    if (projectScripts.length > 0 && !breakdownScriptId) {
-      setBreakdownScriptId(projectScripts[0].id);
+    if (breakdownScriptOptions.length > 0 && !breakdownScriptId) {
+      setBreakdownScriptId(breakdownScriptOptions[0].id);
     }
-  }, [projectScripts, breakdownScriptId]);
+  }, [breakdownScriptOptions, breakdownScriptId]);
+
+  useEffect(() => {
+    if (projectScenesForBreakdown.length === 0) {
+      setActiveSceneId("");
+      return;
+    }
+    setActiveSceneId((prev) => {
+      if (prev && projectScenesForBreakdown.some((s) => s.id === prev)) return prev;
+      return projectScenesForBreakdown[0].id;
+    });
+  }, [projectScenesForBreakdown]);
+
+  const latestProjectScriptContent = useMemo(() => {
+    const v = projectScriptVersions[0];
+    return v?.content ?? "";
+  }, [projectScriptVersions]);
+
+  const detectedSceneHeadingsInScript = useMemo(
+    () => parseScenesFromScreenplay(latestProjectScriptContent).length,
+    [latestProjectScriptContent],
+  );
 
   const modoc = useModocOptional();
   const [modocReportOpen, setModocReportOpen] = useState(false);
 
-  const [tab, setTab] = useState<
-    "characters" | "props" | "locations" | "wardrobe" | "extras" | "vehicles" | "stunts" | "sfx"
-  >("characters");
+  const syncScenesMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/creator/projects/${projectId}/scenes/sync-from-script`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ removeOrphans: false }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || "Could not sync scenes");
+      return json as { count: number };
+    },
+    onSuccess: (result) => {
+      setSceneSyncMessage(
+        result.count > 0
+          ? `Synced ${result.count} scene${result.count === 1 ? "" : "s"} from your project screenplay.`
+          : "Scenes are up to date with the screenplay.",
+      );
+      void queryClient.invalidateQueries({ queryKey: ["project-scenes", projectId] });
+    },
+    onError: (error) => {
+      setSceneSyncMessage((error as Error).message);
+    },
+  });
+
+  type SceneEditFields = { storyDay?: string; intExt?: string; timeOfDay?: string; summary?: string };
+  const [sceneEdits, setSceneEdits] = useState<Record<string, SceneEditFields>>({});
+  const [aiPopulateMessage, setAiPopulateMessage] = useState("");
+
+  const getSceneField = (s: (typeof projectScenesForBreakdown)[0], key: keyof SceneEditFields): string => {
+    const o = sceneEdits[s.id]?.[key];
+    if (o !== undefined) return o;
+    if (key === "storyDay") return s.storyDay != null ? String(s.storyDay) : "";
+    if (key === "intExt") return s.intExt ?? "";
+    if (key === "timeOfDay") return s.timeOfDay ?? "";
+    return s.summary ?? "";
+  };
+
+  const setSceneField = (id: string, key: keyof SceneEditFields, value: string) => {
+    setSceneEdits((prev) => ({ ...prev, [id]: { ...prev[id], [key]: value } }));
+  };
+
+  const saveSceneDetailsMutation = useMutation({
+    mutationFn: async (payload: { id: string; storyDay: string; intExt: string; timeOfDay: string; summary: string }) => {
+      const storyDayNum =
+        payload.storyDay.trim() === "" ? null : Math.floor(Number.parseInt(payload.storyDay, 10));
+      if (payload.storyDay.trim() !== "" && !Number.isFinite(storyDayNum)) {
+        throw new Error("Story day must be a whole number or empty.");
+      }
+      const res = await fetch(`/api/creator/projects/${projectId}/scenes`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scenes: [
+            {
+              id: payload.id,
+              storyDay: storyDayNum,
+              intExt: payload.intExt.trim() || null,
+              timeOfDay: payload.timeOfDay.trim() || null,
+              summary: payload.summary.trim() || null,
+            },
+          ],
+        }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((j as { error?: string }).error || "Could not save scene");
+      return j;
+    },
+    onSuccess: (_, vars) => {
+      void queryClient.invalidateQueries({ queryKey: ["project-scenes", projectId] });
+      setSceneEdits((prev) => {
+        const next = { ...prev };
+        delete next[vars.id];
+        return next;
+      });
+    },
+  });
+
+  const autoPopulateMutation = useMutation({
+    mutationFn: async (opts: { mode: "full" | "scenes" }) => {
+      const res = await fetch(`/api/creator/projects/${projectId}/breakdown/auto-populate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: opts.mode }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((j as { error?: string }).error || "AI populate failed");
+      return j as { warnings?: string[] };
+    },
+    onSuccess: (out) => {
+      setSceneEdits({});
+      void queryClient.invalidateQueries({ queryKey: ["project-scenes", projectId] });
+      void queryClient.invalidateQueries({ queryKey: ["project-breakdown", projectId] });
+      const w = (out.warnings ?? []).filter(Boolean);
+      setAiPopulateMessage(
+        w.length > 0 ? `Done. Notes: ${w.slice(0, 6).join(" · ")}${w.length > 6 ? "…" : ""}` : "AI breakdown applied.",
+      );
+    },
+    onError: (e) => {
+      setAiPopulateMessage((e as Error).message);
+    },
+  });
+
+  const [tab, setTab] = useState<BreakdownTab>("scenes");
 
   const [draft, setDraft] = useState<BreakdownPayload | null>(null);
   const [savedSnapshot, setSavedSnapshot] = useState<BreakdownPayload | null>(null);
   const [saving, setSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState("");
 
   useEffect(() => {
     if (data && !draft) {
@@ -1754,6 +2476,7 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
         vehicles: data.vehicles ?? [],
         stunts: data.stunts ?? [],
         sfx: data.sfx ?? [],
+        makeups: (data as { makeups?: BreakdownPayload["makeups"] }).makeups ?? [],
       };
       setDraft(initial);
       setSavedSnapshot(JSON.parse(JSON.stringify(initial)) as BreakdownPayload);
@@ -1778,12 +2501,27 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
     onMutate: () => setSaving(true),
     onSuccess: (_d, payload) => {
       setSavedSnapshot(JSON.parse(JSON.stringify(payload)) as BreakdownPayload);
+      setSaveMessage("Breakdown saved");
+    },
+    onError: () => {
+      setSaveMessage("Could not save breakdown. Try again.");
     },
     onSettled: () => {
       setSaving(false);
       queryClient.invalidateQueries({ queryKey: ["project-breakdown", projectId] });
     },
   });
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "s") return;
+      if (!breakdownDirty || saving || !draft) return;
+      event.preventDefault();
+      saveMutation.mutate(draft);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [breakdownDirty, saving, draft, saveMutation]);
 
   if (!hasProject) {
     return (
@@ -1802,49 +2540,34 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
     );
   }
 
-  const breakdownRowsRaw = (draft[tab] as any[]) ?? [];
+  const categoryTab = tab === "scenes" ? null : tab;
+  const breakdownRowsRaw = categoryTab ? ((draft[categoryTab] as any[]) ?? []) : [];
   const breakdownRowsDisplayed = breakdownRowsRaw
     .map((row, idx) => ({ row, idx }))
-    .filter(
-      ({ row }) =>
-        !breakdownSceneFilter || (row as { sceneId?: string | null }).sceneId === breakdownSceneFilter,
+    .filter(({ row }) =>
+      projectScenesForBreakdown.length === 0
+        ? true
+        : (row as { sceneId?: string | null }).sceneId === activeSceneId,
     );
-  const scenePicker = (idx: number, row: { sceneId?: string | null }) => (
-    <div className="md:col-span-4 space-y-0.5">
-      <label className="text-[10px] text-slate-500">Scene (optional)</label>
-      <select
-        value={row.sceneId ?? ""}
-        onChange={(e) => updateRow(idx, "sceneId", e.target.value || null)}
-        className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-[11px] text-white outline-none focus:border-orange-500"
-      >
-        <option value="">Not tied to a scene</option>
-        {projectScenesForBreakdown.map((s) => (
-          <option key={s.id} value={s.id}>
-            Sc. {s.number}
-            {s.heading ? ` — ${s.heading.slice(0, 48)}${s.heading.length > 48 ? "…" : ""}` : ""}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
 
-  const sceneForNewRow = breakdownSceneFilter || null;
+  const sceneForNewRow =
+    projectScenesForBreakdown.length === 0 ? null : activeSceneId || null;
   const addRow = () => {
+    if (!categoryTab) return;
+    if (projectScenesForBreakdown.length > 0 && !activeSceneId) return;
     const id = undefined;
-    if (tab === "characters") {
+    const t = categoryTab;
+    if (t === "characters") {
       setDraft({
         ...draft,
-        characters: [
-          ...(draft.characters ?? []),
-          { id, name: "", description: "", importance: "", sceneId: sceneForNewRow },
-        ],
+        characters: [...(draft.characters ?? []), { id, name: "", sceneId: sceneForNewRow }],
       });
-    } else if (tab === "props") {
+    } else if (t === "props") {
       setDraft({
         ...draft,
         props: [...(draft.props ?? []), { id, name: "", description: "", special: false, sceneId: sceneForNewRow }],
       });
-    } else if (tab === "locations") {
+    } else if (t === "locations") {
       setDraft({
         ...draft,
         locations: [
@@ -1852,47 +2575,53 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
           { id, name: "", description: "", sceneId: sceneForNewRow, locationListingId: null },
         ],
       });
-    } else if (tab === "wardrobe") {
+    } else if (t === "wardrobe") {
       setDraft({
         ...draft,
         wardrobe: [...(draft.wardrobe ?? []), { id, description: "", character: "", sceneId: sceneForNewRow }],
       });
-    } else if (tab === "extras") {
+    } else if (t === "extras") {
       setDraft({
         ...draft,
         extras: [...(draft.extras ?? []), { id, description: "", quantity: 1, sceneId: sceneForNewRow }],
       });
-    } else if (tab === "vehicles") {
+    } else if (t === "vehicles") {
       setDraft({
         ...draft,
         vehicles: [...(draft.vehicles ?? []), { id, description: "", stuntRelated: false, sceneId: sceneForNewRow }],
       });
-    } else if (tab === "stunts") {
+    } else if (t === "stunts") {
       setDraft({
         ...draft,
         stunts: [...(draft.stunts ?? []), { id, description: "", safetyNotes: "", sceneId: sceneForNewRow }],
       });
-    } else if (tab === "sfx") {
+    } else if (t === "sfx") {
       setDraft({
         ...draft,
         sfx: [...(draft.sfx ?? []), { id, description: "", practical: false, sceneId: sceneForNewRow }],
+      });
+    } else if (t === "makeups") {
+      setDraft({
+        ...draft,
+        makeups: [...(draft.makeups ?? []), { id, notes: "", character: "", sceneId: sceneForNewRow }],
       });
     }
   };
 
   const updateRow = (index: number, field: string, value: any) => {
+    if (!categoryTab) return;
     const copy = { ...draft } as any;
-    copy[tab] = [...(copy[tab] ?? [])];
-    copy[tab][index] = { ...copy[tab][index], [field]: value };
+    copy[categoryTab] = [...(copy[categoryTab] ?? [])];
+    copy[categoryTab][index] = { ...copy[categoryTab][index], [field]: value };
     setDraft(copy);
   };
 
   const removeRow = (index: number) => {
-    if (!draft) return;
+    if (!draft || !categoryTab) return;
     const copy = { ...draft } as any;
-    const arr = [...(copy[tab] ?? [])];
+    const arr = [...(copy[categoryTab] ?? [])];
     arr.splice(index, 1);
-    copy[tab] = arr;
+    copy[categoryTab] = arr;
     setDraft(copy);
   };
 
@@ -1906,8 +2635,9 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
             </p>
             <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
             <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
-            Extract characters, props, locations, wardrobe, extras, vehicles, stunts, and SFX from
-            your script. This data powers casting, locations, equipment, and risk tools later.
+            Build a scene-by-scene breakdown: scenes come from your project screenplay (Script Writing).
+            Tag characters, props, locations, wardrobe, extras, vehicles, stunts, SFX, and makeup per scene.
+            This powers casting, locations, equipment, and risk tools later.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -1920,7 +2650,7 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
               onClick={() => setModocReportOpen(true)}
             >
               <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
-              Get MODOC breakdown report
+              Get AI breakdown report
             </Button>
           )}
           <div className="flex flex-wrap items-center gap-2">
@@ -1949,30 +2679,42 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
               Save
             </Button>
           </div>
+          {saveMessage ? <p className="text-[11px] text-slate-400">{saveMessage}</p> : null}
         </div>
         </div>
       </header>
 
-      {projectScripts.length > 0 && (
+      {breakdownScriptOptions.length > 0 && (
         <div className="rounded-lg border border-slate-800 bg-slate-900/50 px-4 py-3">
           <label className="text-xs font-medium text-slate-400 block mb-2">Script for this breakdown</label>
           <select
-            value={breakdownScriptId || projectScripts[0]?.id || ""}
+            value={breakdownScriptId || breakdownScriptOptions[0]?.id || ""}
             onChange={(e) => setBreakdownScriptId(e.target.value)}
             className="w-full max-w-md rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-cyan-500"
           >
             <option value="">Select a script</option>
-            {projectScripts.map((s) => (
+            {breakdownScriptOptions.map((s) => (
               <option key={s.id} value={s.id}>
-                {s.title}
+                {s.label}
               </option>
             ))}
           </select>
-          <p className="text-[11px] text-slate-500 mt-1">MODOC will use the selected script to detect elements and can auto-fill the breakdown when you click &quot;Add to breakdown&quot;.</p>
+          <p className="text-[11px] text-slate-500 mt-1">AI will use the selected script to detect elements and can auto-fill the breakdown when you click &quot;Add to breakdown&quot;.</p>
         </div>
       )}
 
       <div className="flex flex-wrap gap-2 text-xs">
+        <button
+          type="button"
+          onClick={() => setTab("scenes")}
+          className={`px-3 py-1.5 rounded-full border text-[11px] ${
+            tab === "scenes"
+              ? "bg-orange-500 border-orange-500 text-white"
+              : "bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800"
+          }`}
+        >
+          Scene breakdown
+        </button>
         {(
           [
             "characters",
@@ -1983,7 +2725,8 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
             "vehicles",
             "stunts",
             "sfx",
-          ] as typeof tab[]
+            "makeups",
+          ] as BreakdownCategoryTab[]
         ).map((key) => (
           <button
             key={key}
@@ -1995,81 +2738,339 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
                 : "bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800"
             }`}
           >
-            {key === "sfx" ? "SFX" : key.charAt(0).toUpperCase() + key.slice(1)}
+            {key === "sfx" ? "SFX" : key === "makeups" ? "Makeup" : key.charAt(0).toUpperCase() + key.slice(1)}
           </button>
         ))}
       </div>
 
-      {projectScenesForBreakdown.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 text-xs rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-2">
-          <span className="text-slate-400">Filter by scene</span>
-          <select
-            value={breakdownSceneFilter}
-            onChange={(e) => setBreakdownSceneFilter(e.target.value)}
-            className="rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-[11px] text-white outline-none focus:border-orange-500 min-w-[200px]"
-          >
-            <option value="">All items</option>
-            {projectScenesForBreakdown.map((s) => (
-              <option key={s.id} value={s.id}>
-                Sc. {s.number}
-                {s.heading ? ` — ${s.heading.slice(0, 32)}` : ""}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      <div className="creator-glass-panel p-3 space-y-2">
-        <div className="flex items-center justify-between mb-1">
-          <p className="text-xs text-slate-400">
-            {breakdownRowsDisplayed.length} item{breakdownRowsDisplayed.length === 1 ? "" : "s"}
-            {breakdownSceneFilter ? ` (filtered)` : ""}
-          </p>
-          <Button
-            size="sm"
-            variant="outline"
-            className="border-slate-700 text-slate-200 hover:bg-slate-800 text-[11px]"
-            onClick={addRow}
-          >
-            Add row
-          </Button>
-        </div>
-        <div className="max-h-[380px] overflow-y-auto space-y-2 text-xs">
-          {breakdownRowsDisplayed.length === 0 ? (
-            <p className="text-slate-500 text-xs">No items yet. Add your first one.</p>
-          ) : (
-            breakdownRowsDisplayed.map(({ row, idx }) => (
-              <div
-                key={row.id ?? idx}
-                className="grid grid-cols-1 md:grid-cols-4 gap-2 rounded-xl bg-slate-900/80 border border-slate-800 px-3 py-2"
+      <div className="rounded-lg border border-slate-800 bg-slate-900/50 px-4 py-3 space-y-3">
+        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+          <div className="space-y-1 min-w-0">
+            <p className="text-xs font-medium text-slate-200">Scenes from your screenplay</p>
+            <p className="text-[11px] text-slate-500">
+              Scene rows are created from <strong className="text-slate-400">INT.</strong> /{" "}
+              <strong className="text-slate-400">EXT.</strong> slug lines in the project script (Script Writing).
+              Your latest draft shows <strong className="text-slate-300">{detectedSceneHeadingsInScript}</strong>{" "}
+              scene heading{detectedSceneHeadingsInScript === 1 ? "" : "s"} detected.
+            </p>
+            {projectId ? (
+              <Link
+                href={`/creator/projects/${projectId}/pre-production/script-writing`}
+                className="inline-block text-[11px] font-medium text-cyan-400 hover:text-cyan-300"
               >
-                {tab === "characters" && (
+                Open Script Writing →
+              </Link>
+            ) : null}
+          </div>
+          <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center shrink-0">
+            <Button
+              type="button"
+              size="sm"
+              className="bg-orange-500 hover:bg-orange-600 text-white text-[11px]"
+              disabled={syncScenesMutation.isPending}
+              onClick={() => {
+                setSceneSyncMessage("");
+                syncScenesMutation.mutate();
+              }}
+            >
+              {syncScenesMutation.isPending ? "Syncing…" : "Sync scenes from screenplay"}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              className="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] disabled:opacity-40"
+              disabled={!latestProjectScriptContent.trim() || autoPopulateMutation.isPending}
+              onClick={() => {
+                if (
+                  !window.confirm(
+                    "AI will replace all breakdown rows (characters, props, locations, wardrobe, extras, vehicles, stunts, SFX, makeup) for this project. Scene slug metadata will be updated from the analysis. Continue?",
+                  )
+                ) {
+                  return;
+                }
+                setAiPopulateMessage("");
+                autoPopulateMutation.mutate({ mode: "full" });
+              }}
+            >
+              {autoPopulateMutation.isPending ? "Running AI…" : "AI: full breakdown"}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="border-slate-600 text-slate-200 hover:bg-slate-800 text-[11px] disabled:opacity-40"
+              disabled={!latestProjectScriptContent.trim() || autoPopulateMutation.isPending}
+              onClick={() => {
+                setAiPopulateMessage("");
+                autoPopulateMutation.mutate({ mode: "scenes" });
+              }}
+            >
+              AI: scene fields only
+            </Button>
+          </div>
+        </div>
+        {projectScenesForBreakdown.length > 0 && tab !== "scenes" ? (
+          <div className="flex flex-wrap items-center gap-2 border-t border-slate-800 pt-3 text-xs">
+            <span className="text-slate-400">Editing scene</span>
+            <select
+              value={activeSceneId}
+              onChange={(e) => setActiveSceneId(e.target.value)}
+              className="rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-[11px] text-white outline-none focus:border-orange-500 min-w-[220px]"
+            >
+              {projectScenesForBreakdown.map((s) => (
+                <option key={s.id} value={s.id}>
+                  Sc. {s.number}
+                  {s.heading ? ` — ${s.heading.slice(0, 40)}${s.heading.length > 40 ? "…" : ""}` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
+        {sceneSyncMessage ? <p className="text-[11px] text-slate-400">{sceneSyncMessage}</p> : null}
+        {aiPopulateMessage ? (
+          <p
+            className={`text-[11px] ${
+              /\b(fail|error|could not)\b/i.test(aiPopulateMessage) ? "text-amber-200/90" : "text-emerald-200/90"
+            }`}
+          >
+            {aiPopulateMessage}
+          </p>
+        ) : null}
+        {!latestProjectScriptContent.trim() ? (
+          <p className="text-[11px] text-slate-500">
+            Save a project screenplay in Script Writing to enable AI breakdown (full script is read from the latest project draft).
+          </p>
+        ) : null}
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.35fr_1fr]">
+        <div className="creator-glass-panel p-3 space-y-2">
+          {tab === "scenes" ? (
+            <>
+              <p className="text-xs text-slate-400 mb-2">
+                Set story day, INT/EXT, time of day, and a short description per scene (or use <strong className="text-slate-300">AI: full breakdown</strong> /{" "}
+                <strong className="text-slate-300">AI: scene fields only</strong> above). Category tabs tag characters, props, locations, and the rest per scene.
+              </p>
+              <div className="max-h-[520px] overflow-y-auto space-y-3 text-xs">
+                {projectScenesForBreakdown.length === 0 ? (
+                  <p className="text-slate-500">
+                    No scenes yet. Add <strong className="text-slate-400">INT.</strong> / <strong className="text-slate-400">EXT.</strong>{" "}
+                    slug lines in Script Writing, save your draft, then use <strong className="text-slate-400">Sync scenes from screenplay</strong>{" "}
+                    above.
+                  </p>
+                ) : (
+                  projectScenesForBreakdown.map((s) => {
+                    const ch = (draft.characters ?? []).filter((r) => r.sceneId === s.id);
+                    const pr = (draft.props ?? []).filter((r) => r.sceneId === s.id);
+                    const loc = (draft.locations ?? []).filter((r) => r.sceneId === s.id);
+                    const wd = (draft.wardrobe ?? []).filter((r) => r.sceneId === s.id);
+                    const ex = (draft.extras ?? []).filter((r) => r.sceneId === s.id);
+                    const vh = (draft.vehicles ?? []).filter((r) => r.sceneId === s.id);
+                    const st = (draft.stunts ?? []).filter((r) => r.sceneId === s.id);
+                    const fx = (draft.sfx ?? []).filter((r) => r.sceneId === s.id);
+                    const mu = (draft.makeups ?? []).filter((r) => r.sceneId === s.id);
+                    const line = (label: string, text: string) => (
+                      <li>
+                        <span className="text-slate-500">{label}</span> {text || "—"}
+                      </li>
+                    );
+                    const slugGuess = parseSluglineMeta(s.heading);
+                    const slugHintParts: string[] = [];
+                    if (!getSceneField(s, "intExt").trim() && slugGuess.intExt) slugHintParts.push(slugGuess.intExt);
+                    if (!getSceneField(s, "timeOfDay").trim() && slugGuess.timeOfDay) slugHintParts.push(slugGuess.timeOfDay);
+                    const slugHintText = slugHintParts.length ? `From slugline: ${slugHintParts.join(" · ")}` : null;
+                    return (
+                      <div key={s.id} className="rounded-xl border border-slate-800 bg-slate-900/80 p-3 space-y-3">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-[11px] font-semibold text-white">Scene {s.number}</p>
+                            <p className="text-slate-400 text-[11px] mt-0.5 break-words">{s.heading || "—"}</p>
+                          </div>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="border-slate-600 text-slate-200 hover:bg-slate-800 text-[10px] h-7 shrink-0"
+                            onClick={() => {
+                              setActiveSceneId(s.id);
+                              setTab("characters");
+                            }}
+                          >
+                            Edit breakdown rows
+                          </Button>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 items-end">
+                          <div className="space-y-1">
+                            <label className="text-[10px] uppercase tracking-wide text-slate-500">Story day</label>
+                            <Input
+                              type="text"
+                              inputMode="numeric"
+                              placeholder="e.g. 1"
+                              value={getSceneField(s, "storyDay")}
+                              onChange={(e) => setSceneField(s.id, "storyDay", e.target.value)}
+                              className="bg-slate-950 border-slate-700 text-[11px] h-8"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] uppercase tracking-wide text-slate-500">INT / EXT</label>
+                            <select
+                              value={getSceneField(s, "intExt")}
+                              onChange={(e) => setSceneField(s.id, "intExt", e.target.value)}
+                              className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-[11px] text-white outline-none focus:border-orange-500 h-8"
+                            >
+                              <option value="">—</option>
+                              <option value="INT">INT</option>
+                              <option value="EXT">EXT</option>
+                              <option value="INT_EXT">INT./EXT.</option>
+                              <option value="UNKNOWN">Unknown</option>
+                            </select>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] uppercase tracking-wide text-slate-500">Time of day</label>
+                            <select
+                              value={getSceneField(s, "timeOfDay")}
+                              onChange={(e) => setSceneField(s.id, "timeOfDay", e.target.value)}
+                              className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-[11px] text-white outline-none focus:border-orange-500 h-8"
+                            >
+                              <option value="">—</option>
+                              <option value="DAY">Day</option>
+                              <option value="NIGHT">Night</option>
+                              <option value="DAWN">Dawn</option>
+                              <option value="DUSK">Dusk</option>
+                              <option value="CONTINUOUS">Continuous</option>
+                              <option value="LATER">Later</option>
+                              <option value="SAME">Same</option>
+                              <option value="MORNING">Morning</option>
+                              <option value="AFTERNOON">Afternoon</option>
+                              <option value="EVENING">Evening</option>
+                            </select>
+                          </div>
+                          <div className="flex flex-wrap gap-2 lg:justify-end">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="border-slate-600 text-slate-200 hover:bg-slate-800 text-[10px] h-8"
+                              disabled={!s.heading?.trim()}
+                              onClick={() => {
+                                const meta = parseSluglineMeta(s.heading);
+                                setSceneEdits((prev) => ({
+                                  ...prev,
+                                  [s.id]: {
+                                    ...prev[s.id],
+                                    ...(meta.intExt ? { intExt: meta.intExt } : {}),
+                                    ...(meta.timeOfDay ? { timeOfDay: meta.timeOfDay } : {}),
+                                  },
+                                }));
+                              }}
+                            >
+                              Fill INT/time from slugline
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="bg-orange-500 hover:bg-orange-600 text-white text-[10px] h-8"
+                              disabled={
+                                saveSceneDetailsMutation.isPending &&
+                                saveSceneDetailsMutation.variables?.id === s.id
+                              }
+                              onClick={() =>
+                                saveSceneDetailsMutation.mutate({
+                                  id: s.id,
+                                  storyDay: getSceneField(s, "storyDay"),
+                                  intExt: getSceneField(s, "intExt"),
+                                  timeOfDay: getSceneField(s, "timeOfDay"),
+                                  summary: getSceneField(s, "summary"),
+                                })
+                              }
+                            >
+                              {saveSceneDetailsMutation.isPending && saveSceneDetailsMutation.variables?.id === s.id
+                                ? "Saving…"
+                                : "Save scene"}
+                            </Button>
+                          </div>
+                        </div>
+                        {slugHintText ? <p className="text-[10px] text-slate-500">{slugHintText}</p> : null}
+                        <div className="space-y-1">
+                          <label className="text-[10px] uppercase tracking-wide text-slate-500">Description</label>
+                          <textarea
+                            value={getSceneField(s, "summary")}
+                            onChange={(e) => setSceneField(s.id, "summary", e.target.value)}
+                            placeholder="Short scene summary for production (or run AI to draft from the script)."
+                            rows={3}
+                            className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-2 text-[11px] text-slate-100 placeholder:text-slate-600 outline-none focus:border-orange-500 resize-y min-h-[4.5rem]"
+                          />
+                        </div>
+                        <ul className="space-y-1 text-[11px] text-slate-300 border-t border-slate-800 pt-2">
+                          {line("Characters:", ch.map((c) => c.name).filter(Boolean).join(", "))}
+                          {line("Props:", pr.map((p) => p.name).filter(Boolean).join(", "))}
+                          {line("Locations:", loc.map((l) => l.name).filter(Boolean).join(", "))}
+                          {line(
+                            "Wardrobe:",
+                            wd.map((w) => (w.character ? `${w.description} (${w.character})` : w.description)).join("; "),
+                          )}
+                          {line("Extras:", ex.map((e) => `${e.description}${e.quantity ? ` ×${e.quantity}` : ""}`).join("; "))}
+                          {line("Vehicles:", vh.map((v) => v.description).filter(Boolean).join(", "))}
+                          {line("Stunts:", st.map((x) => x.description).filter(Boolean).join(", "))}
+                          {line("SFX:", fx.map((x) => x.description).filter(Boolean).join(", "))}
+                          {line(
+                            "Makeup:",
+                            mu
+                              .map((m) => (m.character ? `${m.notes} (${m.character})` : m.notes))
+                              .filter(Boolean)
+                              .join("; "),
+                          )}
+                        </ul>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-xs text-slate-400">
+              {breakdownRowsDisplayed.length} item{breakdownRowsDisplayed.length === 1 ? "" : "s"}
+              {projectScenesForBreakdown.length > 0 && activeSceneId
+                ? ` · Scene ${projectScenesForBreakdown.find((x) => x.id === activeSceneId)?.number ?? ""}`
+                : ""}
+            </p>
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-slate-700 text-slate-200 hover:bg-slate-800 text-[11px]"
+              onClick={addRow}
+              disabled={projectScenesForBreakdown.length > 0 && !activeSceneId}
+            >
+              Add row
+            </Button>
+          </div>
+          <div className="max-h-[520px] overflow-y-auto space-y-2 text-xs">
+            {breakdownRowsDisplayed.length === 0 ? (
+              <p className="text-slate-500 text-xs">
+                {projectScenesForBreakdown.length > 0
+                  ? "No items for this scene yet. Add your first one."
+                  : "No items yet. Sync scenes from your screenplay to tag breakdown per scene."}
+              </p>
+            ) : (
+              breakdownRowsDisplayed.map(({ row, idx }) => (
+                <div
+                  key={row.id ?? idx}
+                  className="grid grid-cols-1 md:grid-cols-4 gap-2 rounded-xl bg-slate-900/80 border border-slate-800 px-3 py-2"
+                >
+                {categoryTab === "characters" && (
                   <>
-                    {scenePicker(idx, row)}
                     <Input
                       value={row.name}
                       onChange={(e) => updateRow(idx, "name", e.target.value)}
                       placeholder="Character name"
-                      className="bg-slate-950 border-slate-700 text-[11px]"
-                    />
-                    <Input
-                      value={row.importance ?? ""}
-                      onChange={(e) => updateRow(idx, "importance", e.target.value)}
-                      placeholder="Importance (Lead, Support...)"
-                      className="bg-slate-950 border-slate-700 text-[11px]"
-                    />
-                    <textarea
-                      value={row.description ?? ""}
-                      onChange={(e) => updateRow(idx, "description", e.target.value)}
-                      rows={2}
-                      className="md:col-span-2 w-full rounded-md bg-slate-950 border border-slate-700 px-2 py-1 text-[11px] text-white outline-none"
-                      placeholder="Short description"
+                      className="md:col-span-3 bg-slate-950 border-slate-700 text-[11px]"
                     />
                   </>
                 )}
-                {tab === "props" && (
+                {categoryTab === "props" && (
                   <>
-                    {scenePicker(idx, row)}
                     <Input
                       value={row.name}
                       onChange={(e) => updateRow(idx, "name", e.target.value)}
@@ -2094,9 +3095,8 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
                     </label>
                   </>
                 )}
-                {tab === "locations" && (
+                {categoryTab === "locations" && (
                   <>
-                    {scenePicker(idx, row)}
                     <Input
                       value={row.name}
                       onChange={(e) => updateRow(idx, "name", e.target.value)}
@@ -2123,9 +3123,8 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
                     </div>
                   </>
                 )}
-                {tab === "wardrobe" && (
+                {categoryTab === "wardrobe" && (
                   <>
-                    {scenePicker(idx, row)}
                     <Input
                       value={row.description}
                       onChange={(e) => updateRow(idx, "description", e.target.value)}
@@ -2140,9 +3139,8 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
                     />
                   </>
                 )}
-                {tab === "extras" && (
+                {categoryTab === "extras" && (
                   <>
-                    {scenePicker(idx, row)}
                     <Input
                       value={row.description}
                       onChange={(e) => updateRow(idx, "description", e.target.value)}
@@ -2158,9 +3156,8 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
                     />
                   </>
                 )}
-                {tab === "vehicles" && (
+                {categoryTab === "vehicles" && (
                   <>
-                    {scenePicker(idx, row)}
                     <Input
                       value={row.description}
                       onChange={(e) => updateRow(idx, "description", e.target.value)}
@@ -2178,9 +3175,8 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
                     </label>
                   </>
                 )}
-                {tab === "stunts" && (
+                {categoryTab === "stunts" && (
                   <>
-                    {scenePicker(idx, row)}
                     <Input
                       value={row.description}
                       onChange={(e) => updateRow(idx, "description", e.target.value)}
@@ -2196,9 +3192,8 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
                     />
                   </>
                 )}
-                {tab === "sfx" && (
+                {categoryTab === "sfx" && (
                   <>
-                    {scenePicker(idx, row)}
                     <Input
                       value={row.description}
                       onChange={(e) => updateRow(idx, "description", e.target.value)}
@@ -2216,6 +3211,23 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
                     </label>
                   </>
                 )}
+                {categoryTab === "makeups" && (
+                  <>
+                    <textarea
+                      value={(row as { notes?: string }).notes ?? ""}
+                      onChange={(e) => updateRow(idx, "notes", e.target.value)}
+                      rows={3}
+                      className="md:col-span-3 w-full rounded-md bg-slate-950 border border-slate-700 px-2 py-1 text-[11px] text-white outline-none"
+                      placeholder="Hair, makeup, prosthetics, continuity notes — what the team needs for this scene"
+                    />
+                    <Input
+                      value={(row as { character?: string | null }).character ?? ""}
+                      onChange={(e) => updateRow(idx, "character", e.target.value)}
+                      placeholder="Character (optional)"
+                      className="bg-slate-950 border-slate-700 text-[11px]"
+                    />
+                  </>
+                )}
                 <div className="flex justify-end md:col-span-4 pt-0.5">
                   <button
                     type="button"
@@ -2225,17 +3237,54 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
                     Remove
                   </button>
                 </div>
-              </div>
-            ))
+                </div>
+              ))
+            )}
+          </div>
+            </>
           )}
         </div>
+
+        <Card className="creator-glass-panel border-0 bg-transparent text-slate-50 shadow-none">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm">Script preview</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {!selectedScript ? (
+              <p className="text-sm text-slate-500">
+                No script selected for this breakdown.
+              </p>
+            ) : (
+              <div className="rounded-lg border border-slate-700 bg-slate-950/60 p-4">
+                <p className="mb-2 text-xs text-slate-400">{selectedScript.label}</p>
+                <div className="max-h-[520px] overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed text-slate-200">
+                  {selectedScript.content || "This script is empty."}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
+
+      <section className="storytime-section p-4">
+        <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Latest script review note</p>
+        {latestInternalReviewNote ? (
+          <div className="mt-2 rounded-lg border border-slate-800 bg-slate-900/55 px-3 py-2">
+            {latestInternalReviewLabel ? (
+              <p className="text-[11px] text-slate-400 mb-1">{latestInternalReviewLabel}</p>
+            ) : null}
+            <p className="text-xs text-slate-200 whitespace-pre-wrap line-clamp-4">{latestInternalReviewNote}</p>
+          </div>
+        ) : (
+          <p className="mt-2 text-xs text-slate-500">No script review notes yet.</p>
+        )}
+      </section>
 
       {modoc && modocReportOpen && selectedScript && (
         <ModocReportModal
           task="script_breakdown"
-          reportTitle={`MODOC breakdown — ${selectedScript.title}`}
-          prompt={`The creator has linked **this script** to the breakdown. Use only this script to generate your report.\n\nScript title: ${selectedScript.title}\n\nGenerate a script breakdown report. Identify and list: scenes (INT/EXT, day/night), characters (with importance if clear), props, locations, wardrobe, extras, vehicles, stunts, SFX. Format as a clear production-ready report with section headers. At the end, list any items the creator can add to their breakdown using exactly one line per item:\nCHARACTER: name | importance | description\nPROP: name | description\nLOCATION: name | description\nWARDROBE: description | character\nEXTRAS: description | quantity\nVEHICLE: description | stunt (yes/no)\nSTUNT: description | safety notes\nSFX: description | practical (yes/no)\n\nCurrent breakdown so far (for context): ${JSON.stringify(draft).slice(0, 1500)}.\n\nScript content:\n\n${(selectedScript.content ?? "").slice(0, 12000)}`}
+          reportTitle={`Breakdown report — ${selectedScript.title}`}
+          prompt={`The creator has linked **this script** to the breakdown. Use only this script to generate your report.\n\nScript title: ${selectedScript.title}\n\nGenerate a script breakdown report. Identify and list: scenes (INT/EXT, day/night), characters, props, locations, wardrobe, extras, vehicles, stunts, SFX, makeup and hair. Format as a clear production-ready report with section headers. At the end, list any items the creator can add to their breakdown using exactly one line per item:\nCHARACTER: name\nPROP: name | description\nLOCATION: name | description\nWARDROBE: description | character\nEXTRAS: description | quantity\nVEHICLE: description | stunt (yes/no)\nSTUNT: description | safety notes\nSFX: description | practical (yes/no)\nMAKEUP: notes | character (optional)\n\nCurrent breakdown so far (for context): ${JSON.stringify(draft).slice(0, 1500)}.\n\nScript content:\n\n${(selectedScript.content ?? "").slice(0, 12000)}`}
           onClose={() => setModocReportOpen(false)}
           onApplyToBreakdown={(responseText) => {
             const parsed = parseModocBreakdownResponse(responseText);
@@ -2247,20 +3296,38 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
               !parsed.extras?.length &&
               !parsed.vehicles?.length &&
               !parsed.stunts?.length &&
-              !parsed.sfx?.length
+              !parsed.sfx?.length &&
+              !parsed.makeups?.length
             ) return;
+            const sid = projectScenesForBreakdown.length > 0 ? activeSceneId || null : null;
             setDraft((prev) => {
               if (!prev) return prev;
               return {
                 ...prev,
-                characters: [...(prev.characters ?? []), ...(parsed.characters ?? [])],
-                props: [...(prev.props ?? []), ...(parsed.props ?? [])],
-                locations: [...(prev.locations ?? []), ...(parsed.locations ?? [])],
-                wardrobe: [...(prev.wardrobe ?? []), ...(parsed.wardrobe ?? [])],
-                extras: [...(prev.extras ?? []), ...(parsed.extras ?? [])],
-                vehicles: [...(prev.vehicles ?? []), ...(parsed.vehicles ?? [])],
-                stunts: [...(prev.stunts ?? []), ...(parsed.stunts ?? [])],
-                sfx: [...(prev.sfx ?? []), ...(parsed.sfx ?? [])],
+                characters: [
+                  ...(prev.characters ?? []),
+                  ...attachSceneIdToBreakdownRows(parsed.characters ?? [], sid),
+                ],
+                props: [...(prev.props ?? []), ...attachSceneIdToBreakdownRows(parsed.props ?? [], sid)],
+                locations: [
+                  ...(prev.locations ?? []),
+                  ...attachSceneIdToBreakdownRows(parsed.locations ?? [], sid),
+                ],
+                wardrobe: [
+                  ...(prev.wardrobe ?? []),
+                  ...attachSceneIdToBreakdownRows(parsed.wardrobe ?? [], sid),
+                ],
+                extras: [...(prev.extras ?? []), ...attachSceneIdToBreakdownRows(parsed.extras ?? [], sid)],
+                vehicles: [
+                  ...(prev.vehicles ?? []),
+                  ...attachSceneIdToBreakdownRows(parsed.vehicles ?? [], sid),
+                ],
+                stunts: [...(prev.stunts ?? []), ...attachSceneIdToBreakdownRows(parsed.stunts ?? [], sid)],
+                sfx: [...(prev.sfx ?? []), ...attachSceneIdToBreakdownRows(parsed.sfx ?? [], sid)],
+                makeups: [
+                  ...(prev.makeups ?? []),
+                  ...attachSceneIdToBreakdownRows(parsed.makeups ?? [], sid),
+                ],
               };
             });
           }}
@@ -2291,6 +3358,11 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
     queryFn: () => fetch(`/api/creator/projects/${projectId}/breakdown`).then((r) => r.json()),
     enabled: !!hasProject && !!projectId,
   });
+  const { data: scenesData } = useQuery({
+    queryKey: ["project-scenes", projectId],
+    queryFn: () => fetch(`/api/creator/projects/${projectId}/scenes`).then((r) => r.json()),
+    enabled: !!hasProject && !!projectId,
+  });
 
   const modoc = useModocOptional();
   const [modocReportOpen, setModocReportOpen] = useState(false);
@@ -2311,25 +3383,248 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
         }[];
       }
     | undefined;
+  const engine = data?.engine as
+    | {
+        dashboard?: {
+          estimatedTotal: number;
+          actualSpend: number;
+          variance: number;
+          contingencyPercent: number;
+          contingencyAllocation: number;
+          costPerMinute: number;
+          dailyBurnRate: number;
+          shootDaysCount: number;
+        };
+        byDepartment?: Array<{
+          department: string;
+          estimated: number;
+          actual: number;
+          variance: number;
+        }>;
+        sceneLineItems?: Array<{
+          key: string;
+          sceneId: string;
+          sceneNumber: string;
+          sceneHeading: string | null;
+          category: string;
+          department: string;
+          name: string;
+          quantity: number;
+          unitCost: number;
+          total: number;
+          notes: string;
+        }>;
+        optimizationSuggestions?: string[];
+      }
+    | undefined;
+
+  type BudgetScene = { id: string; number: string; heading: string | null };
+  type BudgetRow = {
+    id?: string;
+    key: string;
+    department: string;
+    name: string;
+    quantity: number;
+    unitCost: number;
+    total: number;
+    notes: string;
+    sceneId: string | null;
+    sceneNumber: string | null;
+    sceneHeading: string | null;
+    category: string;
+  };
+
+  const projectScenes = ((scenesData?.scenes as BudgetScene[] | undefined) ?? []).sort((a, b) =>
+    a.number.localeCompare(b.number, undefined, { numeric: true, sensitivity: "base" }),
+  );
+  const sceneById = new Map(projectScenes.map((s) => [s.id, s]));
 
   const [templateChoice, setTemplateChoice] = useState<
-    "SHORT_FILM" | "INDIE_FILM" | "FEATURE_FILM" | "TV_EPISODE"
+    | "SHORT_FILM"
+    | "INDIE_FILM"
+    | "FEATURE_FILM"
+    | "TV_EPISODE"
+    | "SERIES_PILOT"
+    | "STUDENT_PRODUCTION"
+    | "COMMERCIAL_SHOOT"
   >("SHORT_FILM");
 
-  const [draftLines, setDraftLines] = useState<any[]>([]);
-  const [savedLines, setSavedLines] = useState<any[]>([]);
+  const [draftRows, setDraftRows] = useState<BudgetRow[]>([]);
+  const [savedRows, setSavedRows] = useState<BudgetRow[]>([]);
+  const [saveMessage, setSaveMessage] = useState("");
+
+  function calcTotal(quantity: number, unitCost: number): number {
+    return Math.max(0, quantity) * Math.max(0, unitCost);
+  }
+
+  function normalizeRows(rows: BudgetRow[]): BudgetRow[] {
+    return rows.map((r) => ({
+      ...r,
+      quantity: Number.isFinite(r.quantity) ? r.quantity : 1,
+      unitCost: Number.isFinite(r.unitCost) ? r.unitCost : 0,
+      total: calcTotal(r.quantity, r.unitCost),
+      notes: r.notes ?? "",
+    }));
+  }
+
+  function buildTemplateRowsFromBreakdown(): BudgetRow[] {
+    if (!breakdownData) return [];
+    const next: BudgetRow[] = [];
+    const pushRow = (
+      sceneId: string | null,
+      category: string,
+      department: string,
+      name: string,
+      quantity = 1,
+      notes = "",
+    ) => {
+      const scene = sceneId ? sceneById.get(sceneId) : null;
+      const sceneNumber = scene?.number ?? null;
+      next.push({
+        key: `${sceneId ?? "none"}|${category}|${name}`.toLowerCase(),
+        department,
+        name,
+        quantity,
+        unitCost: 0,
+        total: 0,
+        notes,
+        sceneId,
+        sceneNumber,
+        sceneHeading: scene?.heading ?? null,
+        category,
+      });
+    };
+
+    const characters = (breakdownData.characters ?? []) as Array<{ name: string; sceneId?: string | null }>;
+    const props = (breakdownData.props ?? []) as Array<{ name: string; sceneId?: string | null; special?: boolean }>;
+    const locations = (breakdownData.locations ?? []) as Array<{ name: string; sceneId?: string | null }>;
+    const wardrobe = (breakdownData.wardrobe ?? []) as Array<{ description: string; character?: string | null; sceneId?: string | null }>;
+    const extras = (breakdownData.extras ?? []) as Array<{ description: string; quantity?: number; sceneId?: string | null }>;
+    const vehicles = (breakdownData.vehicles ?? []) as Array<{ description: string; sceneId?: string | null; stuntRelated?: boolean }>;
+    const stunts = (breakdownData.stunts ?? []) as Array<{ description: string; safetyNotes?: string | null; sceneId?: string | null }>;
+    const sfx = (breakdownData.sfx ?? []) as Array<{ description: string; practical?: boolean; sceneId?: string | null }>;
+    const makeups = ((breakdownData as { makeups?: Array<{ notes: string; character?: string | null; sceneId?: string | null }> })
+      .makeups ?? []) as Array<{ notes: string; character?: string | null; sceneId?: string | null }>;
+
+    characters.forEach((c) => pushRow(c.sceneId ?? null, "CHARACTER", "CAST", `Character: ${c.name || "Unspecified"}`, 1));
+    props.forEach((p) => pushRow(p.sceneId ?? null, "PROP", "PROPS", `Prop: ${p.name || "Unspecified"}`, 1, p.special ? "Special/hero prop" : ""));
+    locations.forEach((l) => pushRow(l.sceneId ?? null, "LOCATION", "LOCATIONS", `Location: ${l.name || "Unspecified"}`, 1));
+    wardrobe.forEach((w) =>
+      pushRow(
+        w.sceneId ?? null,
+        "WARDROBE",
+        "WARDROBE",
+        `Wardrobe: ${w.description || "Unspecified"}`,
+        1,
+        w.character ? `Character: ${w.character}` : "",
+      ),
+    );
+    extras.forEach((e) => pushRow(e.sceneId ?? null, "EXTRAS", "CASTING", `Extras: ${e.description || "Unspecified"}`, e.quantity ?? 1));
+    vehicles.forEach((v) =>
+      pushRow(v.sceneId ?? null, "VEHICLE", "TRANSPORT", `Vehicle: ${v.description || "Unspecified"}`, 1, v.stuntRelated ? "Stunt related" : ""),
+    );
+    stunts.forEach((s) =>
+      pushRow(s.sceneId ?? null, "STUNT", "STUNTS", `Stunt: ${s.description || "Unspecified"}`, 1, s.safetyNotes ?? ""),
+    );
+    sfx.forEach((fx) =>
+      pushRow(
+        fx.sceneId ?? null,
+        "SFX",
+        "SFX",
+        `SFX: ${fx.description || "Unspecified"}`,
+        1,
+        fx.practical ? "Practical effect" : "Non-practical effect",
+      ),
+    );
+    makeups.forEach((m) =>
+      pushRow(
+        m.sceneId ?? null,
+        "MAKEUP",
+        "HAIR_MAKEUP",
+        `Makeup: ${m.notes || "Unspecified"}`,
+        1,
+        m.character ? `Character: ${m.character}` : "",
+      ),
+    );
+
+    return normalizeRows(next);
+  }
+
+  function buildTemplateRowsFromEngine(): BudgetRow[] {
+    const items = engine?.sceneLineItems ?? [];
+    if (!items.length) return [];
+    return normalizeRows(
+      items.map((item) => ({
+        id: undefined,
+        key: item.key,
+        department: item.department,
+        name: item.name,
+        quantity: Number(item.quantity ?? 1),
+        unitCost: Number(item.unitCost ?? 0),
+        total: Number(item.total ?? 0),
+        notes: item.notes ?? "",
+        sceneId: item.sceneId ?? null,
+        sceneNumber: item.sceneNumber ?? null,
+        sceneHeading: item.sceneHeading ?? null,
+        category: item.category ?? "ENGINE",
+      })),
+    );
+  }
 
   useEffect(() => {
-    if (budget) {
-      const lines = budget.lines;
-      setDraftLines(lines);
-      setSavedLines(JSON.parse(JSON.stringify(lines)));
-    }
-  }, [budget?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!budget) return;
+    const engineRows = buildTemplateRowsFromEngine();
+    const template = engineRows.length > 0 ? engineRows : buildTemplateRowsFromBreakdown();
+    const saved = (budget.lines ?? []).map((line) => ({
+      key: `${line.department}|${line.name}`.toLowerCase(),
+      unitCost: Number(line.unitCost ?? 0),
+      quantity: Number(line.quantity ?? 1),
+      notes: line.notes ?? "",
+      id: line.id,
+    }));
+    const savedByKey = new Map(saved.map((s) => [s.key, s]));
+
+    const merged = template.map((row) => {
+      const lookup = `${row.department}|${row.name}`.toLowerCase();
+      const fromSaved = savedByKey.get(lookup);
+      if (!fromSaved) return row;
+      return {
+        ...row,
+        id: fromSaved.id,
+        quantity: fromSaved.quantity,
+        unitCost: fromSaved.unitCost,
+        notes: fromSaved.notes,
+        total: calcTotal(fromSaved.quantity, fromSaved.unitCost),
+      };
+    });
+
+    // Keep manual rows creators may have added previously.
+    const templateKeySet = new Set(merged.map((r) => `${r.department}|${r.name}`.toLowerCase()));
+    const manualRows = (budget.lines ?? [])
+      .filter((line) => !templateKeySet.has(`${line.department}|${line.name}`.toLowerCase()))
+      .map((line) => ({
+        id: line.id,
+        key: `manual|${line.id}`,
+        department: line.department,
+        name: line.name,
+        quantity: Number(line.quantity ?? 1),
+        unitCost: Number(line.unitCost ?? 0),
+        total: Number(line.total ?? 0),
+        notes: line.notes ?? "",
+        sceneId: null,
+        sceneNumber: null,
+        sceneHeading: null,
+        category: "MANUAL",
+      }));
+
+    const finalRows = normalizeRows([...merged, ...manualRows]);
+    setDraftRows(finalRows);
+    setSavedRows(JSON.parse(JSON.stringify(finalRows)));
+  }, [budget?.id, breakdownData, scenesData]);
 
   const budgetDirty =
-    draftLines.length > 0 || savedLines.length > 0
-      ? JSON.stringify(draftLines) !== JSON.stringify(savedLines)
+    draftRows.length > 0 || savedRows.length > 0
+      ? JSON.stringify(draftRows) !== JSON.stringify(savedRows)
       : false;
 
   const initMutation = useMutation({
@@ -2348,7 +3643,16 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
   });
 
   const saveMutation = useMutation({
-    mutationFn: async (lines: any[]) => {
+    mutationFn: async (rows: BudgetRow[]) => {
+      const lines = rows.map((r) => ({
+        id: r.id,
+        department: r.department,
+        name: r.name,
+        quantity: r.quantity,
+        unitCost: r.unitCost,
+        total: r.total,
+        notes: r.notes || null,
+      }));
       const res = await fetch(`/api/creator/projects/${projectId}/budget`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -2357,8 +3661,12 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
       if (!res.ok) throw new Error("Failed to save budget");
       return res.json();
     },
-    onSuccess: (_d, lines) => {
-      setSavedLines(JSON.parse(JSON.stringify(lines)));
+    onSuccess: (_d, rows) => {
+      setSavedRows(JSON.parse(JSON.stringify(rows)));
+      setSaveMessage("Budget saved");
+    },
+    onError: () => {
+      setSaveMessage("Could not save budget. Try again.");
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["project-budget", projectId] });
@@ -2366,39 +3674,61 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
   });
 
   const addLine = () => {
-    setDraftLines([
-      ...draftLines,
+    setDraftRows([
+      ...draftRows,
       {
+        key: `manual-${Date.now()}`,
         id: undefined,
-        department: "UNASSIGNED",
+        department: "MANUAL",
         name: "",
         quantity: 1,
         unitCost: 0,
         total: 0,
         notes: "",
+        sceneId: null,
+        sceneNumber: null,
+        sceneHeading: null,
+        category: "MANUAL",
       },
     ]);
   };
 
   const removeLine = (index: number) => {
-    setDraftLines(draftLines.filter((_, i) => i !== index));
+    setDraftRows(draftRows.filter((_, i) => i !== index));
   };
 
-  const updateLine = (index: number, field: string, value: any) => {
-    const copy = [...draftLines];
+  const updateLine = (index: number, field: keyof BudgetRow, value: string | number) => {
+    const copy = [...draftRows];
     const line = { ...copy[index] };
-    (line as any)[field] = value;
-    const qty = line.quantity ?? 1;
-    const unit = line.unitCost ?? 0;
-    line.total = qty * unit;
+    (line as unknown as Record<string, unknown>)[field] = value;
+    const qty = Number(line.quantity ?? 1);
+    const unit = Number(line.unitCost ?? 0);
+    line.total = calcTotal(qty, unit);
     copy[index] = line;
-    setDraftLines(copy);
+    setDraftRows(copy);
   };
 
   const total = useMemo(
-    () => draftLines.reduce((sum: number, l: any) => sum + (l.total ?? 0), 0),
-    [draftLines]
+    () => draftRows.reduce((sum: number, l) => sum + (l.total ?? 0), 0),
+    [draftRows]
   );
+
+  const rowsByScene = useMemo(() => {
+    const map = new Map<string, BudgetRow[]>();
+    for (const row of draftRows) {
+      const key = row.sceneNumber ? `SCENE ${row.sceneNumber}` : "UNASSIGNED";
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(row);
+    }
+    for (const [, rows] of map) {
+      rows.sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
+    }
+    return Array.from(map.entries()).sort((a, b) => {
+      if (a[0] === "UNASSIGNED") return 1;
+      if (b[0] === "UNASSIGNED") return -1;
+      return a[0].localeCompare(b[0], undefined, { numeric: true });
+    });
+  }, [draftRows]);
 
   return (
     <div className="space-y-4">
@@ -2432,7 +3762,7 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
               onClick={() => setModocReportOpen(true)}
             >
               <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
-              Get MODOC budget insights
+              Get AI budget insights
             </Button>
           )}
           {budget && (
@@ -2446,7 +3776,7 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
                 variant="outline"
                 className="border-slate-600 text-[11px]"
                 disabled={!budgetDirty || saveMutation.isPending}
-                onClick={() => setDraftLines(JSON.parse(JSON.stringify(savedLines)))}
+                onClick={() => setDraftRows(JSON.parse(JSON.stringify(savedRows)))}
               >
                 Discard
               </Button>
@@ -2455,7 +3785,7 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
                 size="sm"
                 className="bg-orange-500 hover:bg-orange-600 text-white text-[11px]"
                 disabled={!budgetDirty || saveMutation.isPending}
-                onClick={() => saveMutation.mutate(draftLines)}
+                onClick={() => saveMutation.mutate(draftRows)}
               >
                 Save
               </Button>
@@ -2474,6 +3804,9 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
                 <option value="INDIE_FILM">Indie film</option>
                 <option value="FEATURE_FILM">Feature film</option>
                 <option value="TV_EPISODE">TV episode</option>
+                <option value="SERIES_PILOT">Series pilot</option>
+                <option value="STUDENT_PRODUCTION">Student production</option>
+                <option value="COMMERCIAL_SHOOT">Commercial shoot</option>
               </select>
               <Button
                 size="sm"
@@ -2492,8 +3825,8 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
       {modoc && budget && modocReportOpen && (
         <ModocReportModal
           task="budget"
-          reportTitle="MODOC budget insights"
-          prompt={`Analyze this project's script breakdown and current budget, then suggest department-level estimates and cost-saving measures.\n\nBreakdown summary: ${JSON.stringify(breakdownData ?? {}).slice(0, 2000)}\n\nCurrent budget (template: ${budget.template}, total planned: R${total.toFixed(2)}):\n${JSON.stringify(draftLines).slice(0, 2500)}\n\nProvide: suggested departments/line items, rough estimate ranges or ratios, and 2–4 concrete cost-saving tips.`}
+          reportTitle="Budget insights"
+          prompt={`Analyze this project's script breakdown and current budget, then suggest department-level estimates and cost-saving measures.\n\nBreakdown summary: ${JSON.stringify(breakdownData ?? {}).slice(0, 2000)}\n\nCurrent budget (template: ${budget.template}, total planned: R${total.toFixed(2)}):\n${JSON.stringify(draftRows).slice(0, 2500)}\n\nProvide: suggested departments/line items, rough estimate ranges or ratios, and 2–4 concrete cost-saving tips.`}
           onClose={() => setModocReportOpen(false)}
         />
       )}
@@ -2506,6 +3839,81 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
         </div>
       ) : (
         <div className="space-y-3">
+          {engine?.dashboard && (
+            <div className="grid gap-2 md:grid-cols-3">
+              <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-3">
+                <p className="text-[11px] text-slate-400">Estimated budget</p>
+                <p className="text-sm font-semibold text-emerald-300">
+                  R{engine.dashboard.estimatedTotal.toFixed(2)}
+                </p>
+              </div>
+              <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-3">
+                <p className="text-[11px] text-slate-400">Actual spend</p>
+                <p className="text-sm font-semibold text-white">
+                  R{engine.dashboard.actualSpend.toFixed(2)}
+                </p>
+              </div>
+              <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-3">
+                <p className="text-[11px] text-slate-400">Variance</p>
+                <p
+                  className={`text-sm font-semibold ${
+                    engine.dashboard.variance < 0 ? "text-red-300" : "text-emerald-300"
+                  }`}
+                >
+                  R{engine.dashboard.variance.toFixed(2)}
+                </p>
+              </div>
+              <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-3">
+                <p className="text-[11px] text-slate-400">Contingency</p>
+                <p className="text-sm font-semibold text-slate-100">
+                  R{engine.dashboard.contingencyAllocation.toFixed(2)} (
+                  {(engine.dashboard.contingencyPercent * 100).toFixed(0)}%)
+                </p>
+              </div>
+              <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-3">
+                <p className="text-[11px] text-slate-400">Cost per minute</p>
+                <p className="text-sm font-semibold text-slate-100">
+                  R{engine.dashboard.costPerMinute.toFixed(2)}
+                </p>
+              </div>
+              <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-3">
+                <p className="text-[11px] text-slate-400">Daily burn rate</p>
+                <p className="text-sm font-semibold text-slate-100">
+                  R{engine.dashboard.dailyBurnRate.toFixed(2)}
+                </p>
+              </div>
+            </div>
+          )}
+          {!!engine?.byDepartment?.length && (
+            <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-3">
+              <p className="text-[11px] uppercase tracking-wide text-slate-400">
+                Department summaries
+              </p>
+              <div className="mt-2 grid gap-1.5 md:grid-cols-2">
+                {engine.byDepartment.map((dept) => (
+                  <div
+                    key={dept.department}
+                    className="flex items-center justify-between rounded-md border border-slate-800 bg-slate-950/70 px-2 py-1.5 text-[11px]"
+                  >
+                    <span className="text-slate-300">{dept.department.replaceAll("_", " ")}</span>
+                    <span className="text-slate-100">
+                      Est R{dept.estimated.toFixed(0)} · Act R{dept.actual.toFixed(0)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {!!engine?.optimizationSuggestions?.length && (
+            <div className="rounded-xl border border-cyan-500/30 bg-cyan-500/5 p-3">
+              <p className="text-[11px] uppercase tracking-wide text-cyan-200">Optimization insights</p>
+              <ul className="mt-2 space-y-1 text-[11px] text-slate-200">
+                {engine.optimizationSuggestions.map((suggestion, idx) => (
+                  <li key={`${idx}-${suggestion.slice(0, 16)}`}>- {suggestion}</li>
+                ))}
+              </ul>
+            </div>
+          )}
           <div className="flex items-center justify-between text-xs text-slate-300">
             <span>
               Template:{" "}
@@ -2515,71 +3923,90 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
               Total planned: R{total.toFixed(2)}
             </span>
           </div>
-          <div className="creator-glass-panel max-h-[420px] overflow-y-auto text-xs">
-            <table className="w-full border-collapse">
-              <thead className="bg-slate-900/80 text-slate-300 sticky top-0">
-                <tr>
-                  <th className="px-3 py-2 text-left font-medium text-[11px] w-32">Department</th>
-                  <th className="px-3 py-2 text-left font-medium text-[11px]">Line item</th>
-                  <th className="px-3 py-2 text-right font-medium text-[11px] w-16">Qty</th>
-                  <th className="px-3 py-2 text-right font-medium text-[11px] w-24">Unit</th>
-                  <th className="px-3 py-2 text-right font-medium text-[11px] w-24">Total</th>
-                  <th className="px-3 py-2 text-right font-medium text-[11px] w-16"> </th>
-                </tr>
-              </thead>
-              <tbody>
-                {draftLines.map((line: any, idx: number) => (
-                  <tr key={line.id ?? idx} className="border-t border-slate-800">
-                    <td className="px-3 py-1.5 align-top">
-                      <Input
-                        value={line.department}
-                        onChange={(e) => updateLine(idx, "department", e.target.value)}
-                        className="bg-slate-950 border-slate-800 text-[11px]"
-                      />
-                    </td>
-                    <td className="px-3 py-1.5 align-top">
-                      <Input
-                        value={line.name}
-                        onChange={(e) => updateLine(idx, "name", e.target.value)}
-                        className="bg-slate-950 border-slate-800 text-[11px]"
-                      />
-                    </td>
-                    <td className="px-3 py-1.5 align-top text-right">
-                      <Input
-                        type="number"
-                        value={line.quantity ?? 1}
-                        onChange={(e) =>
-                          updateLine(idx, "quantity", Number(e.target.value || 1))
-                        }
-                        className="bg-slate-950 border-slate-800 text-[11px] text-right"
-                      />
-                    </td>
-                    <td className="px-3 py-1.5 align-top text-right">
-                      <Input
-                        type="number"
-                        value={line.unitCost ?? 0}
-                        onChange={(e) =>
-                          updateLine(idx, "unitCost", Number(e.target.value || 0))
-                        }
-                        className="bg-slate-950 border-slate-800 text-[11px] text-right"
-                      />
-                    </td>
-                    <td className="px-3 py-1.5 align-top text-right text-slate-100">
-                      R{(line.total ?? 0).toFixed(2)}
-                    </td>
-                    <td className="px-3 py-1.5 align-top text-right">
-                      <button
-                        type="button"
-                        className="text-[10px] font-medium text-red-400 hover:text-red-300"
-                        onClick={() => removeLine(idx)}
-                      >
-                        Remove
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="space-y-3">
+            {rowsByScene.map(([sceneLabel, rows]) => (
+              <div key={sceneLabel} className="creator-glass-panel p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-xs font-medium text-slate-200">{sceneLabel}</p>
+                  <p className="text-[11px] text-slate-400">
+                    Subtotal: R{rows.reduce((sum, r) => sum + r.total, 0).toFixed(2)}
+                  </p>
+                </div>
+                <div className="max-h-[320px] overflow-y-auto">
+                  <table className="w-full border-collapse text-xs">
+                    <thead className="sticky top-0 bg-slate-900/85 text-slate-300">
+                      <tr>
+                        <th className="px-2 py-2 text-left font-medium text-[11px] w-28">Category</th>
+                        <th className="px-2 py-2 text-left font-medium text-[11px] w-28">Department</th>
+                        <th className="px-2 py-2 text-left font-medium text-[11px]">Item</th>
+                        <th className="px-2 py-2 text-right font-medium text-[11px] w-16">Qty</th>
+                        <th className="px-2 py-2 text-right font-medium text-[11px] w-24">Unit</th>
+                        <th className="px-2 py-2 text-right font-medium text-[11px] w-24">Total</th>
+                        <th className="px-2 py-2 text-right font-medium text-[11px] w-16" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((line) => {
+                        const idx = draftRows.findIndex((r) => r.key === line.key && r.name === line.name);
+                        return (
+                          <tr key={`${line.key}-${idx}`} className="border-t border-slate-800">
+                            <td className="px-2 py-1.5 text-[11px] text-slate-300">{line.category}</td>
+                            <td className="px-2 py-1.5">
+                              <Input
+                                value={line.department}
+                                onChange={(e) => updateLine(idx, "department", e.target.value)}
+                                className="bg-slate-950 border-slate-800 text-[11px]"
+                              />
+                            </td>
+                            <td className="px-2 py-1.5 space-y-1">
+                              <Input
+                                value={line.name}
+                                onChange={(e) => updateLine(idx, "name", e.target.value)}
+                                className="bg-slate-950 border-slate-800 text-[11px]"
+                              />
+                              <Input
+                                value={line.notes ?? ""}
+                                onChange={(e) => updateLine(idx, "notes", e.target.value)}
+                                className="bg-slate-950 border-slate-800 text-[10px]"
+                                placeholder="Notes (e.g. rental days, supplier)"
+                              />
+                            </td>
+                            <td className="px-2 py-1.5">
+                              <Input
+                                type="number"
+                                value={line.quantity}
+                                onChange={(e) => updateLine(idx, "quantity", Number(e.target.value || 0))}
+                                className="bg-slate-950 border-slate-800 text-[11px] text-right"
+                              />
+                            </td>
+                            <td className="px-2 py-1.5">
+                              <Input
+                                type="number"
+                                value={line.unitCost}
+                                onChange={(e) => updateLine(idx, "unitCost", Number(e.target.value || 0))}
+                                className="bg-slate-950 border-slate-800 text-[11px] text-right"
+                              />
+                            </td>
+                            <td className="px-2 py-1.5 text-right text-slate-100">
+                              R{line.total.toFixed(2)}
+                            </td>
+                            <td className="px-2 py-1.5 text-right">
+                              <button
+                                type="button"
+                                className="text-[10px] font-medium text-red-400 hover:text-red-300"
+                                onClick={() => removeLine(idx)}
+                              >
+                                Remove
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
           </div>
           <div className="flex items-center justify-between text-xs text-slate-400">
             <Button
@@ -2590,6 +4017,7 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
             >
               Add line
             </Button>
+            {saveMessage ? <span className="text-[11px] text-slate-400">{saveMessage}</span> : null}
             <span className="text-[11px]">
               Save to sync with the Production Expense Tracker.
             </span>
@@ -2635,12 +4063,14 @@ type ScheduleSceneDetail = {
   breakdownVehicles: { id: string; description: string; stuntRelated: boolean }[];
   breakdownStunts: { id: string; description: string; safetyNotes: string | null }[];
   breakdownSfxs: { id: string; description: string; practical: boolean }[];
+  breakdownMakeups: { id: string; notes: string; character: string | null }[];
 };
 
 type ScheduleResponse = {
   script: { id: string; title: string; sceneCount: number } | null;
   shootDays: {
     id: string;
+    shootDayNumber?: number;
     date: string;
     unit: string | null;
     callTime: string | null;
@@ -2649,6 +4079,12 @@ type ScheduleResponse = {
     locationSummary: string | null;
     scenesBeingShot: string | null;
     dayNotes: string | null;
+    weather?: string | null;
+    transportDetails?: string | null;
+    pickupDropoffInfo?: string | null;
+    accommodation?: string | null;
+    cateringNotes?: string | null;
+    callSheetNotes?: string | null;
     scenes: {
       id: string;
       order: number;
@@ -2657,6 +4093,71 @@ type ScheduleResponse = {
     }[];
   }[];
   scenes: ScheduleSceneDetail[];
+  productionDays?: {
+    id: string;
+    shootDayNumber: number;
+    date: string;
+    callTime: string | null;
+    wrapTime: string | null;
+    location: string | null;
+    weather: string | null;
+    notes: string | null;
+    logistics: {
+      transportDetails: string | null;
+      pickupDropoffInfo: string | null;
+      accommodation: string | null;
+      cateringNotes: string | null;
+    };
+    scenes: {
+      sceneId: string;
+      order: number;
+      number: string;
+      heading: string | null;
+      description: string | null;
+      estimatedShootDurationMinutes: number;
+    }[];
+    castRequired: {
+      key: string;
+      name: string;
+      roleOrCharacter: string;
+      callTime: string | null;
+      wrapTime: string | null;
+      contactInfo: string | null;
+    }[];
+    crewRequired: {
+      key: string;
+      name: string;
+      role: string;
+      department: string;
+      callTime: string | null;
+      wrapTime: string | null;
+    }[];
+    equipmentRequired: {
+      key: string;
+      equipmentName: string;
+      category: string;
+      quantity: number;
+    }[];
+  }[];
+  conflicts?: {
+    type: string;
+    severity: "LOW" | "MEDIUM" | "HIGH";
+    message: string;
+    dayIds: string[];
+  }[];
+  contractGate?: {
+    totalContracts: number;
+    signedContracts: number;
+    unsignedContracts: number;
+    blocking: boolean;
+    unsignedDetails: {
+      id: string;
+      type: string;
+      status: string;
+      subject: string | null;
+      party: string | null;
+    }[];
+  };
 };
 
 function useScheduleDayAggregate(day: ScheduleResponse["shootDays"][number] | null) {
@@ -2671,6 +4172,7 @@ function useScheduleDayAggregate(day: ScheduleResponse["shootDays"][number] | nu
         vehicles: [] as { key: string; text: string; stunt: boolean; sceneNums: string[] }[],
         stunts: [] as { key: string; text: string; safety: string | null; sceneNums: string[] }[],
         sfx: [] as { key: string; text: string; practical: boolean; sceneNums: string[] }[],
+        makeups: [] as { key: string; text: string; character: string | null; sceneNums: string[] }[],
       };
     }
     const ordered = day.scenes.slice().sort((a, b) => a.order - b.order);
@@ -2688,6 +4190,7 @@ function useScheduleDayAggregate(day: ScheduleResponse["shootDays"][number] | nu
     const vehicleM = new Map<string, { text: string; stunt: boolean; scenes: Set<string> }>();
     const stuntM = new Map<string, { text: string; safety: string | null; scenes: Set<string> }>();
     const sfxM = new Map<string, { text: string; practical: boolean; scenes: Set<string> }>();
+    const makeupM = new Map<string, { text: string; character: string | null; scenes: Set<string> }>();
 
     const addScene = (set: Set<string>, num: string) => {
       set.add(num);
@@ -2798,6 +4301,19 @@ function useScheduleDayAggregate(day: ScheduleResponse["shootDays"][number] | nu
           prev.scenes.add(sn);
         }
       }
+      for (const mu of sc.breakdownMakeups ?? []) {
+        const key = `mu:${mu.id}`;
+        const prev = makeupM.get(key);
+        if (!prev) {
+          makeupM.set(key, {
+            text: mu.notes,
+            character: mu.character,
+            scenes: new Set([sn]),
+          });
+        } else {
+          prev.scenes.add(sn);
+        }
+      }
     }
 
     const sortNums = (s: Set<string>) =>
@@ -2853,6 +4369,12 @@ function useScheduleDayAggregate(day: ScheduleResponse["shootDays"][number] | nu
         practical: v.practical,
         sceneNums: sortNums(v.scenes),
       })),
+      makeups: [...makeupM.entries()].map(([key, v]) => ({
+        key,
+        text: v.text,
+        character: v.character,
+        sceneNums: sortNums(v.scenes),
+      })),
     };
   }, [day]);
 }
@@ -2885,6 +4407,11 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
     queryFn: () => fetch(`/api/creator/projects/${projectId}/schedule`).then((r) => r.json()),
     enabled: hasProject,
   });
+  const { data: callSheetsData } = useQuery({
+    queryKey: ["project-call-sheets", projectId],
+    queryFn: () => fetch(`/api/creator/projects/${projectId}/call-sheets`).then((r) => r.json()),
+    enabled: hasProject,
+  });
 
   const modoc = useModocOptional();
   const [modocReportOpen, setModocReportOpen] = useState(false);
@@ -2893,6 +4420,8 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
   const [draftDays, setDraftDays] = useState<ScheduleResponse["shootDays"] | null>(null);
   const [savedSchedule, setSavedSchedule] = useState<ScheduleResponse["shootDays"] | null>(null);
   const [expandedSceneRowId, setExpandedSceneRowId] = useState<string | null>(null);
+  const [scheduleMessage, setScheduleMessage] = useState("");
+  const [scenePickerIds, setScenePickerIds] = useState<string[]>([]);
 
   useEffect(() => {
     if (data && !draftDays) {
@@ -2908,6 +4437,11 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
   const selectedDay =
     draftDays?.find((d) => d.id === selectedDayId) ?? draftDays?.[0] ?? null;
   const dayAggregate = useScheduleDayAggregate(selectedDay);
+  const selectedProductionDay =
+    (data?.productionDays ?? []).find((d) => d.id === selectedDay?.id) ?? null;
+  const selectedDayConflicts = (data?.conflicts ?? []).filter((c) =>
+    selectedDay ? c.dayIds.includes(selectedDay.id) : false,
+  );
 
   const scheduleWarnings = useMemo(() => {
     if (!selectedDay) return [] as string[];
@@ -2985,17 +4519,58 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error("Failed to save schedule");
-      return res.json() as Promise<ScheduleResponse>;
+      const json = (await res.json().catch(() => ({}))) as ScheduleResponse & { error?: string };
+      if (!res.ok) {
+        throw new Error(
+          json?.error ||
+            "Failed to save schedule",
+        );
+      }
+      return json;
     },
     onSuccess: (fresh) => {
       queryClient.setQueryData(["project-schedule", projectId], fresh);
       const next = JSON.parse(JSON.stringify(fresh.shootDays)) as ScheduleResponse["shootDays"];
       setDraftDays(next);
       setSavedSchedule(JSON.parse(JSON.stringify(fresh.shootDays)) as ScheduleResponse["shootDays"]);
+      setScheduleMessage("Schedule saved.");
+    },
+    onError: (error) => {
+      setScheduleMessage((error as Error).message);
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: ["project-schedule", projectId] });
+    },
+  });
+  const createCallSheetMutation = useMutation({
+    mutationFn: async (shootDayId: string) => {
+      const res = await fetch(`/api/creator/projects/${projectId}/call-sheets`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shootDayId }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || "Failed to generate call sheet");
+      return json as {
+        callSheet: {
+          id: string;
+          title: string | null;
+          shootDayId: string;
+          notes: string | null;
+          castJson: string;
+          crewJson: string;
+          locationsJson: string;
+          scheduleJson: string;
+          createdAt: string;
+        };
+      };
+    },
+    onSuccess: () => {
+      setScheduleMessage("Call sheet generated and saved.");
+      void queryClient.invalidateQueries({ queryKey: ["project-call-sheets", projectId] });
+    },
+    onError: (error) => {
+      setScheduleMessage((error as Error).message);
     },
   });
 
@@ -3026,8 +4601,17 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
     !!savedSchedule &&
     scheduleFingerprint(draftDays) !== scheduleFingerprint(savedSchedule);
 
+  const scheduleSaveBlocked = Boolean(data?.contractGate?.blocking);
+
   const persistSchedule = () => {
     if (!draftDays) return;
+    if (scheduleSaveBlocked) {
+      setScheduleMessage(
+        "Schedule save is blocked until all project contracts are signed. Open Legal & Contracts to complete agreements.",
+      );
+      return;
+    }
+    setScheduleMessage("");
     saveMutation.mutate({
       days: draftDays.map((d) => ({
         id: d.id,
@@ -3039,12 +4623,55 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
         status: d.status,
         scenesBeingShot: d.scenesBeingShot ?? null,
         dayNotes: d.dayNotes ?? null,
+        weather: d.weather ?? null,
+        transportDetails: d.transportDetails ?? null,
+        pickupDropoffInfo: d.pickupDropoffInfo ?? null,
+        accommodation: d.accommodation ?? null,
+        cateringNotes: d.cateringNotes ?? null,
+        callSheetNotes: d.callSheetNotes ?? null,
         scenes: d.scenes.map((s) => ({
           sceneId: s.scene?.id ?? s.sceneId,
           order: s.order,
         })),
       })),
     });
+  };
+
+  const autoPopulateDayFromScene = (
+    day: NonNullable<typeof draftDays>[number],
+    scene: ScheduleSceneDetail,
+    nextScenes: NonNullable<typeof draftDays>[number]["scenes"],
+  ) => {
+    const locationText = scene.primaryLocation?.name
+      || scene.breakdownLocations?.[0]?.name
+      || "";
+    const sceneToken = `Sc. ${scene.number}${scene.heading ? ` ${scene.heading}` : ""}`;
+    const nextLocationSummary = day.locationSummary?.trim()
+      ? day.locationSummary
+      : locationText
+        ? `Primary location: ${locationText}`
+        : null;
+    const nextScenesBeingShot = day.scenesBeingShot?.trim()
+      ? day.scenesBeingShot
+      : nextScenes
+          .slice()
+          .sort((a, b) => a.order - b.order)
+          .map((s) => `Sc. ${s.scene?.number ?? s.sceneId}`)
+          .join(", ");
+    const callHints: string[] = [];
+    if ((scene.breakdownCharacters?.length ?? 0) > 0) callHints.push(`Cast: ${scene.breakdownCharacters.map((c) => c.name).join(", ")}`);
+    if ((scene.breakdownProps?.length ?? 0) > 0) callHints.push(`Props: ${scene.breakdownProps.map((p) => p.name).join(", ")}`);
+    if ((scene.breakdownWardrobes?.length ?? 0) > 0) callHints.push(`Wardrobe: ${scene.breakdownWardrobes.map((w) => w.description).join(", ")}`);
+    const hintsText = callHints.length > 0 ? `\nAuto notes from ${sceneToken}:\n${callHints.join("\n")}` : "";
+    const nextDayNotes = day.dayNotes?.trim()
+      ? day.dayNotes
+      : hintsText.trim() || null;
+    return {
+      ...day,
+      locationSummary: nextLocationSummary,
+      scenesBeingShot: nextScenesBeingShot || null,
+      dayNotes: nextDayNotes,
+    };
   };
 
   const updateDayField = (
@@ -3079,6 +4706,9 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
   };
 
   const allScenes = data?.scenes ?? [];
+  const allScenesSorted = [...allScenes].sort((a, b) =>
+    a.number.localeCompare(b.number, undefined, { numeric: true, sensitivity: "base" }),
+  );
 
   /** Scenes not assigned to any shoot day (so they can be assigned to the selected day) */
   const assignedSceneIds = new Set(
@@ -3086,7 +4716,37 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
       d.scenes.map((s) => s.scene?.id ?? s.sceneId),
     ) ?? [],
   );
-  const unassignedScenes = allScenes.filter((s) => !assignedSceneIds.has(s.id));
+  const unassignedScenes = allScenesSorted.filter((s) => !assignedSceneIds.has(s.id));
+
+  useEffect(() => {
+    if (!selectedDay) {
+      setScenePickerIds([]);
+      return;
+    }
+    const ids = selectedDay.scenes
+      .slice()
+      .sort((a, b) => a.order - b.order)
+      .map((s) => s.scene?.id ?? s.sceneId);
+    setScenePickerIds(ids);
+  }, [selectedDay?.id]);
+
+  const applySceneSelectionForDay = () => {
+    if (!selectedDay) return;
+    const picked = allScenesSorted.filter((s) => scenePickerIds.includes(s.id));
+    const nextScenes = picked.map((scene, index) => ({
+      id: `${selectedDay.id}-${scene.id}`,
+      sceneId: scene.id,
+      order: index,
+      scene,
+    }));
+    updateScenesForDay(selectedDay.id, nextScenes);
+    if (picked.length > 0) {
+      const patched = autoPopulateDayFromScene(selectedDay, picked[0], nextScenes);
+      setDraftDays((prev) =>
+        prev ? prev.map((d) => (d.id === selectedDay.id ? patched : d)) : prev,
+      );
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -3102,10 +4762,16 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
             sheets and the Production Control Center.
           </p>
         </div>
-        <div className="flex w-full min-w-0 flex-col gap-2 lg:max-w-[min(100%,36rem)] xl:max-w-none">
+        <div className="flex min-w-0 shrink-0 flex-col gap-2 md:w-auto lg:max-w-[min(100%,36rem)] xl:max-w-none">
           <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400 lg:justify-end">
             <span className="mr-auto shrink-0 lg:mr-0">
-              {saveMutation.isPending ? "Saving…" : scheduleDirty ? "Unsaved changes" : "Saved"}
+              {saveMutation.isPending
+                ? "Saving…"
+                : scheduleSaveBlocked && scheduleDirty
+                  ? "Save blocked (unsigned contracts)"
+                  : scheduleDirty
+                    ? "Unsaved changes"
+                    : "Saved"}
             </span>
             <Button
               type="button"
@@ -3113,6 +4779,11 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
               variant="outline"
               className="border-slate-600 text-slate-200 hover:bg-slate-800 text-[11px]"
               disabled={!scheduleDirty || saveMutation.isPending || !draftDays}
+              title={
+                scheduleSaveBlocked
+                  ? "Revert local schedule edits. Saving to the server still requires signed contracts."
+                  : undefined
+              }
               onClick={() => {
                 if (savedSchedule) {
                   setDraftDays(JSON.parse(JSON.stringify(savedSchedule)) as ScheduleResponse["shootDays"]);
@@ -3125,10 +4796,30 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
               type="button"
               size="sm"
               className="bg-orange-500 hover:bg-orange-600 text-white text-[11px]"
-              disabled={!scheduleDirty || saveMutation.isPending || !draftDays}
+              disabled={!scheduleDirty || saveMutation.isPending || !draftDays || scheduleSaveBlocked}
+              title={
+                scheduleSaveBlocked
+                  ? "Sign all project contracts in Legal & Contracts before saving the schedule."
+                  : undefined
+              }
               onClick={() => persistSchedule()}
             >
               Save
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="border-emerald-500/40 text-emerald-200 hover:bg-emerald-500/10 text-[11px]"
+              disabled={!selectedDay || createCallSheetMutation.isPending || scheduleSaveBlocked}
+              title={
+                scheduleSaveBlocked
+                  ? "Call sheet generation requires signed contracts for this project."
+                  : undefined
+              }
+              onClick={() => selectedDay && createCallSheetMutation.mutate(selectedDay.id)}
+            >
+              {createCallSheetMutation.isPending ? "Generating..." : "Generate call sheet"}
             </Button>
           </div>
           <div className="flex flex-wrap items-center gap-2 lg:justify-end">
@@ -3141,7 +4832,7 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
                 onClick={() => setModocReportOpen(true)}
               >
                 <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
-                MODOC suggestions
+                AI suggestions
               </Button>
             )}
             <Button
@@ -3177,6 +4868,9 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
             </Button>
           </div>
         </div>
+        {scheduleMessage ? (
+          <p className="text-[11px] text-slate-400">{scheduleMessage}</p>
+        ) : null}
         </div>
       </header>
 
@@ -3224,6 +4918,31 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
           </div>
         </div>
       )}
+      {data?.contractGate?.blocking ? (
+        <div className="rounded-xl border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100/95 space-y-2">
+          <p className="font-medium text-amber-200/90">
+            Schedule save is blocked until contracts are signed ({data.contractGate.unsignedContracts} unsigned).
+          </p>
+          {data.contractGate.unsignedDetails.length > 0 ? (
+            <ul className="list-disc pl-4 space-y-0.5">
+              {data.contractGate.unsignedDetails.slice(0, 5).map((entry) => (
+                <li key={entry.id}>
+                  {(entry.subject || entry.type).trim()} · {entry.status}
+                  {entry.party ? ` · ${entry.party}` : ""}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {projectId ? (
+            <Link
+              href={`/creator/projects/${projectId}/pre-production/legal-contracts`}
+              className="inline-flex text-[11px] font-medium text-amber-200 underline underline-offset-2 hover:text-amber-100"
+            >
+              Open Legal & Contracts
+            </Link>
+          ) : null}
+        </div>
+      ) : null}
 
       {scheduleWarnings.length > 0 && selectedDay && (
         <div
@@ -3238,11 +4957,26 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
           </ul>
         </div>
       )}
+      {selectedDayConflicts.length > 0 && selectedDay && (
+        <div
+          className="rounded-xl border border-red-500/30 bg-red-500/5 px-3 py-2 text-[11px] text-red-100/90 space-y-1"
+          role="status"
+        >
+          <p className="font-medium text-red-200/90">Conflict detection</p>
+          <ul className="list-disc pl-4 space-y-0.5">
+            {selectedDayConflicts.map((c, i) => (
+              <li key={`${c.type}-${i}`}>
+                [{c.severity}] {c.message}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {modoc && modocReportOpen && draftDays && (
         <ModocReportModal
           task="schedule"
-          reportTitle="MODOC schedule optimization"
+          reportTitle="Schedule suggestions"
           prompt={`Optimize this production schedule. Consider: grouping scenes by location, cast/crew efficiency, minimizing downtime.\n\nScript: ${data?.script ? `${data.script.title} (${data.script.sceneCount} scenes)` : "none"}.\n\nCurrent schedule:\nShoot days: ${JSON.stringify(draftDays.map((d) => ({ date: d.date, unit: d.unit, callTime: d.callTime, wrapTime: d.wrapTime, locationSummary: d.locationSummary, status: d.status, sceneCount: d.scenes?.length ?? 0 })))}.\n\nAvailable scenes (summary): ${JSON.stringify((data?.scenes ?? []).map((s) => ({ number: s.number, heading: s.heading, pages: s.pageCount, status: s.status })))}.\n\nSuggest: day groupings, scene order, location clustering, and 2–4 tips to maximize efficiency and minimize downtime.`}
           onClose={() => setModocReportOpen(false)}
         />
@@ -3364,13 +5098,12 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
                         <Input
                           type="date"
                           value={selectedDay.date.slice(0, 10)}
-                          onChange={(e) =>
-                            updateDayField(
-                              selectedDay.id,
-                              "date",
-                              new Date(e.target.value).toISOString(),
-                            )
-                          }
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            if (!raw) return;
+                            const nextIso = new Date(`${raw}T00:00:00.000Z`).toISOString();
+                            updateDayField(selectedDay.id, "date", nextIso);
+                          }}
                           className="bg-slate-900 border-slate-700 text-[11px]"
                         />
                       </div>
@@ -3432,6 +5165,63 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
                         </select>
                       </div>
                     </div>
+                    <div className="grid grid-cols-1 min-[480px]:grid-cols-2 lg:grid-cols-3 gap-2 text-xs">
+                      <div className="space-y-1">
+                        <label className="text-slate-400">Weather</label>
+                        <Input
+                          value={selectedDay.weather ?? ""}
+                          onChange={(e) =>
+                            updateDayField(selectedDay.id, "weather", e.target.value || null)
+                          }
+                          placeholder="Sunny, overcast, rain risk..."
+                          className="bg-slate-900 border-slate-700 text-[11px]"
+                        />
+                      </div>
+                      <div className="space-y-1 min-[480px]:col-span-2">
+                        <label className="text-slate-400">Transport details</label>
+                        <Input
+                          value={selectedDay.transportDetails ?? ""}
+                          onChange={(e) =>
+                            updateDayField(selectedDay.id, "transportDetails", e.target.value || null)
+                          }
+                          placeholder="Crew vans, truck dispatch, ETA..."
+                          className="bg-slate-900 border-slate-700 text-[11px]"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-slate-400">Pickup / drop-off</label>
+                        <Input
+                          value={selectedDay.pickupDropoffInfo ?? ""}
+                          onChange={(e) =>
+                            updateDayField(selectedDay.id, "pickupDropoffInfo", e.target.value || null)
+                          }
+                          placeholder="Basecamp 06:00, drop 19:30"
+                          className="bg-slate-900 border-slate-700 text-[11px]"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-slate-400">Accommodation</label>
+                        <Input
+                          value={selectedDay.accommodation ?? ""}
+                          onChange={(e) =>
+                            updateDayField(selectedDay.id, "accommodation", e.target.value || null)
+                          }
+                          placeholder="Hotel / guest house details"
+                          className="bg-slate-900 border-slate-700 text-[11px]"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-slate-400">Catering notes</label>
+                        <Input
+                          value={selectedDay.cateringNotes ?? ""}
+                          onChange={(e) =>
+                            updateDayField(selectedDay.id, "cateringNotes", e.target.value || null)
+                          }
+                          placeholder="Meal windows, dietary notes"
+                          className="bg-slate-900 border-slate-700 text-[11px]"
+                        />
+                      </div>
+                    </div>
                     <div className="space-y-1">
                       <label className="text-xs text-slate-400">Location summary</label>
                       <textarea
@@ -3480,6 +5270,18 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
                         }
                         className="w-full rounded-md bg-slate-900 border border-slate-700 px-3 py-2 text-xs text-white outline-none focus:border-orange-500"
                         placeholder="Parking, meals, safety, department heads, basecamp…"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-slate-400">Call sheet notes</label>
+                      <textarea
+                        rows={3}
+                        value={selectedDay.callSheetNotes ?? ""}
+                        onChange={(e) =>
+                          updateDayField(selectedDay.id, "callSheetNotes", e.target.value || null)
+                        }
+                        className="w-full rounded-md bg-slate-900 border border-slate-700 px-3 py-2 text-xs text-white outline-none focus:border-orange-500"
+                        placeholder="Parking map, safety briefing, emergency contacts..."
                       />
                     </div>
                   </CardContent>
@@ -3546,6 +5348,13 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
                         b: `${fx.text} · Sc. ${fx.sceneNums.join(", ")}`,
                       })),
                     },
+                    {
+                      title: "Makeup & hair",
+                      rows: dayAggregate.makeups.map((m) => ({
+                        a: m.character || "—",
+                        b: `${m.text} · Sc. ${m.sceneNums.join(", ")}`,
+                      })),
+                    },
                   ].filter((b) => b.rows.length > 0);
                   const miniTable = (
                     title: string,
@@ -3571,336 +5380,51 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
                   return (
                     <>
                       <div className="space-y-2 text-xs">
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                          <div>
-                            <p className="text-sm font-medium text-slate-200">Scene strip</p>
-                            <p className="text-[11px] text-slate-500 mt-0.5">
-                              Order reflects shoot order. Expand a row for script breakdown tied to that
-                              scene.
+                        <Card className="creator-glass-panel border-0 bg-transparent text-slate-50 shadow-none">
+                          <CardHeader className="pb-2">
+                            <CardTitle className="text-sm">Scene selection for this day</CardTitle>
+                            <p className="text-[11px] text-slate-500 font-normal mt-1">
+                              Select one or more scenes for this shoot day. These selections drive the
+                              strip, breakdown links, and call sheet context.
                             </p>
-                          </div>
-                          <span className="text-[10px] text-slate-500 shrink-0">
-                            {selectedDay.scenes.length} on this day
-                          </span>
-                        </div>
-                        <div className="creator-glass-panel overflow-x-auto max-h-[min(380px,50vh)] overflow-y-auto">
-                          <table className="w-full border-collapse text-[11px] min-w-[640px]">
-                            <thead>
-                              <tr className="border-b border-slate-800 text-left text-slate-500">
-                                <th className="p-2 w-8" aria-label="Expand" />
-                                <th className="p-2 w-10">#</th>
-                                <th className="p-2 min-w-[180px]">Scene</th>
-                                <th className="p-2 w-14 hidden sm:table-cell">Pages</th>
-                                <th className="p-2 hidden md:table-cell w-24">Status</th>
-                                <th className="p-2 hidden lg:table-cell min-w-[140px]">
-                                  Location
-                                </th>
-                                <th className="p-2 text-center w-12 hidden md:table-cell">Cast</th>
-                                <th className="p-2 text-center w-12 hidden md:table-cell">Props</th>
-                                <th className="p-2 text-right w-32">Actions</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {sortedDayScenes.length === 0 ? (
-                                <tr>
-                                  <td colSpan={9} className="p-4 text-slate-500">
-                                    No scenes on this day yet. Add rows from the unassigned table below.
-                                  </td>
-                                </tr>
-                              ) : (
-                                sortedDayScenes.map((link, index) => {
-                                  const sc = link.scene;
-                                  const expanded = expandedSceneRowId === link.id;
-                                  return (
-                                    <Fragment key={link.id}>
-                                      <tr className="border-b border-slate-800/80 hover:bg-slate-900/40">
-                                        <td className="p-1 align-middle">
-                                          <button
-                                            type="button"
-                                            className="p-1 rounded text-slate-400 hover:text-white disabled:opacity-30"
-                                            title={sc ? "Show breakdown" : "Scene missing"}
-                                            disabled={!sc}
-                                            onClick={() =>
-                                              setExpandedSceneRowId(expanded ? null : link.id)
-                                            }
-                                          >
-                                            {expanded ? (
-                                              <ChevronDown className="w-4 h-4" />
-                                            ) : (
-                                              <ChevronRight className="w-4 h-4" />
-                                            )}
-                                          </button>
-                                        </td>
-                                        <td className="p-2 text-slate-300 font-mono tabular-nums">
-                                          {sc?.number ?? "—"}
-                                        </td>
-                                        <td className="p-2 text-slate-100">
-                                          {sc ? (
-                                            <>
-                                              <span className="line-clamp-2">
-                                                {sc.heading || "Untitled scene"}
-                                              </span>
-                                              {sc.summary && (
-                                                <span className="block text-[10px] text-slate-500 mt-0.5 line-clamp-2">
-                                                  {sc.summary}
-                                                </span>
-                                              )}
-                                            </>
-                                          ) : (
-                                            <span className="text-amber-400/90">
-                                              Scene was removed — remove this row or re-save script
-                                              scenes.
-                                            </span>
-                                          )}
-                                        </td>
-                                        <td className="p-2 text-slate-400 hidden sm:table-cell">
-                                          {sc?.pageCount != null ? String(sc.pageCount) : "—"}
-                                        </td>
-                                        <td className="p-2 text-slate-400 hidden md:table-cell">
-                                          {sc?.status ?? "—"}
-                                        </td>
-                                        <td className="p-2 text-slate-400 hidden lg:table-cell">
-                                          {sc?.primaryLocation?.name ?? "—"}
-                                        </td>
-                                        <td className="p-2 text-center text-slate-400 hidden md:table-cell">
-                                          {sc ? sc.breakdownCharacters.length : "—"}
-                                        </td>
-                                        <td className="p-2 text-center text-slate-400 hidden md:table-cell">
-                                          {sc ? sc.breakdownProps.length : "—"}
-                                        </td>
-                                        <td className="p-2 text-right whitespace-nowrap">
-                                          <button
-                                            type="button"
-                                            className="px-1.5 py-0.5 rounded text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-40"
-                                            title="Earlier"
-                                            disabled={index === 0}
-                                            onClick={() => {
-                                              const next = sortedDayScenes.slice();
-                                              [next[index - 1], next[index]] = [
-                                                next[index],
-                                                next[index - 1],
-                                              ];
-                                              updateScenesForDay(
-                                                selectedDay.id,
-                                                next.map((l, i) => ({ ...l, order: i })),
-                                              );
-                                            }}
-                                          >
-                                            ↑
-                                          </button>
-                                          <button
-                                            type="button"
-                                            className="px-1.5 py-0.5 rounded text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-40"
-                                            title="Later"
-                                            disabled={index === sortedDayScenes.length - 1}
-                                            onClick={() => {
-                                              const next = sortedDayScenes.slice();
-                                              [next[index], next[index + 1]] = [
-                                                next[index + 1],
-                                                next[index],
-                                              ];
-                                              updateScenesForDay(
-                                                selectedDay.id,
-                                                next.map((l, i) => ({ ...l, order: i })),
-                                              );
-                                            }}
-                                          >
-                                            ↓
-                                          </button>
-                                          <button
-                                            type="button"
-                                            className="text-[10px] text-red-400 hover:text-red-300 ml-1"
-                                            onClick={() => {
-                                              const next = sortedDayScenes.filter((_, i) => i !== index);
-                                              updateScenesForDay(
-                                                selectedDay.id,
-                                                next.map((l, i) => ({ ...l, order: i })),
-                                              );
-                                              if (expandedSceneRowId === link.id) {
-                                                setExpandedSceneRowId(null);
-                                              }
-                                            }}
-                                          >
-                                            Remove
-                                          </button>
-                                        </td>
-                                      </tr>
-                                      {expanded && sc && (
-                                        <tr className="bg-slate-900/70 border-b border-slate-800">
-                                          <td colSpan={9} className="p-3">
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                              {miniTable(
-                                                "Cast",
-                                                sc.breakdownCharacters.map((c) => ({
-                                                  a: c.name,
-                                                  b: [c.importance, c.description]
-                                                    .filter(Boolean)
-                                                    .join(" · ") || "—",
-                                                })),
-                                              )}
-                                              {miniTable(
-                                                "Locations",
-                                                [
-                                                  ...(sc.primaryLocation
-                                                    ? [
-                                                        {
-                                                          a: `${sc.primaryLocation.name} (primary)`,
-                                                          b:
-                                                            sc.primaryLocation.description || "—",
-                                                        },
-                                                      ]
-                                                    : []),
-                                                  ...sc.breakdownLocations.map((loc) => ({
-                                                    a: loc.name,
-                                                    b: loc.description || "—",
-                                                  })),
-                                                ],
-                                              )}
-                                              {miniTable(
-                                                "Props",
-                                                sc.breakdownProps.map((p) => ({
-                                                  a: p.name + (p.special ? " ★" : ""),
-                                                  b: p.description || "—",
-                                                })),
-                                              )}
-                                              {miniTable(
-                                                "Wardrobe",
-                                                sc.breakdownWardrobes.map((w) => ({
-                                                  a: w.character || "—",
-                                                  b: w.description,
-                                                })),
-                                              )}
-                                              {miniTable(
-                                                "Extras",
-                                                sc.breakdownExtras.map((x) => ({
-                                                  a: `${x.quantity}×`,
-                                                  b: x.description,
-                                                })),
-                                              )}
-                                              {miniTable(
-                                                "Vehicles",
-                                                sc.breakdownVehicles.map((v) => ({
-                                                  a: v.stuntRelated ? "Stunt" : "Vehicle",
-                                                  b: v.description,
-                                                })),
-                                              )}
-                                              {miniTable(
-                                                "Stunts",
-                                                sc.breakdownStunts.map((st) => ({
-                                                  a: st.description,
-                                                  b: st.safetyNotes || "—",
-                                                })),
-                                              )}
-                                              {miniTable(
-                                                "SFX",
-                                                sc.breakdownSfxs.map((fx) => ({
-                                                  a: fx.practical ? "Practical" : "SFX",
-                                                  b: fx.description,
-                                                })),
-                                              )}
-                                            </div>
-                                            {sc.script && (
-                                              <p className="text-[10px] text-slate-500 mt-3">
-                                                Script: {sc.script.title}
-                                              </p>
-                                            )}
-                                          </td>
-                                        </tr>
-                                      )}
-                                    </Fragment>
-                                  );
-                                })
-                              )}
-                            </tbody>
-                          </table>
-                        </div>
+                          </CardHeader>
+                          <CardContent className="space-y-2">
+                            <select
+                              multiple
+                              value={scenePickerIds}
+                              onChange={(e) => {
+                                const values = Array.from(e.target.selectedOptions).map((o) => o.value);
+                                setScenePickerIds(values);
+                              }}
+                              className="h-40 w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-2 text-xs text-white outline-none focus:border-orange-500"
+                            >
+                              {allScenesSorted.map((scene) => (
+                                <option key={scene.id} value={scene.id}>
+                                  {`Sc. ${scene.number} ${scene.heading || "Untitled scene"}`}
+                                </option>
+                              ))}
+                            </select>
+                            <div className="flex justify-end">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="border-slate-700 text-[11px]"
+                                onClick={applySceneSelectionForDay}
+                              >
+                                Apply scene selection
+                              </Button>
+                            </div>
+                          </CardContent>
+                        </Card>
+
+                      <div className="rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2 text-[11px] text-slate-400">
+                        {scenePickerIds.length === 0
+                          ? "No scenes selected for this day yet."
+                          : `${scenePickerIds.length} scene${scenePickerIds.length === 1 ? "" : "s"} selected for this day.`}
                       </div>
 
-                      <div className="space-y-2 text-xs">
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                          <div>
-                            <p className="text-sm font-medium text-slate-200">
-                              Unassigned project scenes
-                            </p>
-                            <p className="text-[11px] text-slate-500 mt-0.5">
-                              Pulled from the same scene list as your script; add to this shoot day to
-                              link breakdown data.
-                            </p>
-                          </div>
-                          <span className="text-[10px] text-slate-500 shrink-0">
-                            {unassignedScenes.length} available
-                          </span>
-                        </div>
-                        <div className="creator-glass-panel overflow-x-auto max-h-[min(280px,40vh)] overflow-y-auto">
-                          <table className="w-full border-collapse text-[11px] min-w-[520px]">
-                            <thead>
-                              <tr className="border-b border-slate-800 text-left text-slate-500">
-                                <th className="p-2">Scene</th>
-                                <th className="p-2 hidden sm:table-cell">Pages</th>
-                                <th className="p-2 hidden md:table-cell">Script</th>
-                                <th className="p-2 hidden lg:table-cell">Location</th>
-                                <th className="p-2 text-right w-28"> </th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {unassignedScenes.length === 0 ? (
-                                <tr>
-                                  <td colSpan={5} className="p-4 text-slate-500">
-                                    All project scenes are on a shoot day.
-                                  </td>
-                                </tr>
-                              ) : (
-                                unassignedScenes.map((scene) => (
-                                  <tr
-                                    key={scene.id}
-                                    className="border-b border-slate-800/80 hover:bg-slate-900/40"
-                                  >
-                                    <td className="p-2 text-slate-100">
-                                      <span className="font-mono text-slate-400 mr-1.5">
-                                        {scene.number}
-                                      </span>
-                                      {scene.heading || "Untitled"}
-                                    </td>
-                                    <td className="p-2 text-slate-400 hidden sm:table-cell">
-                                      {scene.pageCount != null ? String(scene.pageCount) : "—"}
-                                    </td>
-                                    <td className="p-2 text-slate-400 hidden md:table-cell truncate max-w-[120px]">
-                                      {scene.script?.title ?? "—"}
-                                    </td>
-                                    <td className="p-2 text-slate-400 hidden lg:table-cell truncate max-w-[140px]">
-                                      {scene.primaryLocation?.name ?? "—"}
-                                    </td>
-                                    <td className="p-2 text-right">
-                                      <button
-                                        type="button"
-                                        className="text-[10px] text-emerald-400 hover:text-emerald-300 font-medium"
-                                        onClick={() => {
-                                          const sorted = selectedDay.scenes
-                                            .slice()
-                                            .sort((a, b) => a.order - b.order);
-                                          const nextOrder = sorted.length;
-                                          updateScenesForDay(selectedDay.id, [
-                                            ...selectedDay.scenes,
-                                            {
-                                              id: `${selectedDay.id}-${scene.id}`,
-                                              sceneId: scene.id,
-                                              order: nextOrder,
-                                              scene,
-                                            },
-                                          ]);
-                                        }}
-                                      >
-                                        Add to this day
-                                      </button>
-                                    </td>
-                                  </tr>
-                                ))
-                              )}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-
+                      {selectedDay.scenes.length > 0 && (
                       <Card className="creator-glass-panel border-0 bg-transparent text-slate-50 shadow-none">
                         <CardHeader className="pb-2">
                           <CardTitle className="text-sm">Day at a glance</CardTitle>
@@ -3952,6 +5476,165 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
                           )}
                         </CardContent>
                       </Card>
+                      )}
+
+                      {selectedProductionDay && (
+                        <Card className="creator-glass-panel border-0 bg-transparent text-slate-50 shadow-none">
+                          <CardHeader className="pb-2">
+                            <CardTitle className="text-sm">Production day output pipeline</CardTitle>
+                            <p className="text-[11px] text-slate-500 font-normal mt-1">
+                              Structured output auto-generated from scenes, cast, crew, locations, and equipment.
+                            </p>
+                          </CardHeader>
+                          <CardContent className="space-y-3 text-[11px]">
+                            <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+                              <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-2.5">
+                                <p className="text-[10px] uppercase tracking-wide text-slate-400 mb-1">Scenes</p>
+                                <ul className="space-y-1 text-slate-300 max-h-36 overflow-y-auto">
+                                  {selectedProductionDay.scenes.map((s) => (
+                                    <li key={`${s.sceneId}-${s.order}`}>
+                                      Sc. {s.number} · {s.estimatedShootDurationMinutes}m
+                                      {s.heading ? ` · ${s.heading}` : ""}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                              <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-2.5">
+                                <p className="text-[10px] uppercase tracking-wide text-slate-400 mb-1">Cast required</p>
+                                <ul className="space-y-1 text-slate-300 max-h-36 overflow-y-auto">
+                                  {selectedProductionDay.castRequired.length === 0 ? (
+                                    <li className="text-slate-500">No cast linked yet.</li>
+                                  ) : (
+                                    selectedProductionDay.castRequired.map((c) => (
+                                      <li key={c.key}>
+                                        {c.name} · {c.roleOrCharacter}
+                                        {c.callTime ? ` · ${c.callTime}` : ""}
+                                      </li>
+                                    ))
+                                  )}
+                                </ul>
+                              </div>
+                              <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-2.5">
+                                <p className="text-[10px] uppercase tracking-wide text-slate-400 mb-1">Crew required</p>
+                                <ul className="space-y-1 text-slate-300 max-h-36 overflow-y-auto">
+                                  {selectedProductionDay.crewRequired.length === 0 ? (
+                                    <li className="text-slate-500">No crew roles linked yet.</li>
+                                  ) : (
+                                    selectedProductionDay.crewRequired.map((c) => (
+                                      <li key={c.key}>
+                                        {c.role} · {c.department}
+                                        {c.name ? ` · ${c.name}` : ""}
+                                      </li>
+                                    ))
+                                  )}
+                                </ul>
+                              </div>
+                              <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-2.5">
+                                <p className="text-[10px] uppercase tracking-wide text-slate-400 mb-1">Equipment</p>
+                                <ul className="space-y-1 text-slate-300 max-h-36 overflow-y-auto">
+                                  {selectedProductionDay.equipmentRequired.length === 0 ? (
+                                    <li className="text-slate-500">No equipment items linked yet.</li>
+                                  ) : (
+                                    selectedProductionDay.equipmentRequired.map((e) => (
+                                      <li key={e.key}>
+                                        {e.equipmentName} · {e.category} · Qty {e.quantity}
+                                      </li>
+                                    ))
+                                  )}
+                                </ul>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )}
+
+                      <Card className="creator-glass-panel border-0 bg-transparent text-slate-50 shadow-none">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm">Saved call sheets</CardTitle>
+                          <p className="text-[11px] text-slate-500 font-normal mt-1">
+                            Generate from this schedule, then download to your device.
+                          </p>
+                        </CardHeader>
+                        <CardContent className="space-y-2">
+                          {((callSheetsData?.callSheets as Array<{
+                            id: string;
+                            shootDayId: string;
+                            createdAt: string;
+                            title: string | null;
+                            castJson: string;
+                            crewJson: string;
+                            locationsJson: string;
+                            scheduleJson: string;
+                            notes: string | null;
+                            shootDay?: { date?: string } | null;
+                          }>) ?? []).length === 0 ? (
+                            <p className="text-xs text-slate-500">No saved call sheets yet.</p>
+                          ) : (
+                            ((callSheetsData?.callSheets as Array<{
+                              id: string;
+                              shootDayId: string;
+                              createdAt: string;
+                              title: string | null;
+                              castJson: string;
+                              crewJson: string;
+                              locationsJson: string;
+                              scheduleJson: string;
+                              notes: string | null;
+                              shootDay?: { date?: string } | null;
+                            }>) ?? []).slice(0, 8).map((cs) => (
+                              <div key={cs.id} className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">
+                                <div className="min-w-0">
+                                  <p className="truncate text-xs text-slate-200">
+                                    {cs.title || `Call sheet · ${new Date(cs.createdAt).toLocaleDateString()}`}
+                                  </p>
+                                  <p className="text-[10px] text-slate-500">
+                                    {cs.shootDay?.date ? new Date(cs.shootDay.date).toLocaleDateString() : "Shoot day"} · saved {new Date(cs.createdAt).toLocaleString()}
+                                  </p>
+                                </div>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  className="border-slate-700 text-[11px]"
+                                  onClick={() => {
+                                    const lines: string[] = [];
+                                    lines.push(cs.title || "Call Sheet");
+                                    lines.push(`Saved: ${new Date(cs.createdAt).toLocaleString()}`);
+                                    lines.push("");
+                                    lines.push("Schedule");
+                                    lines.push(cs.scheduleJson || "");
+                                    lines.push("");
+                                    lines.push("Locations");
+                                    lines.push(cs.locationsJson || "");
+                                    lines.push("");
+                                    lines.push("Cast");
+                                    lines.push(cs.castJson || "");
+                                    lines.push("");
+                                    lines.push("Crew");
+                                    lines.push(cs.crewJson || "");
+                                    lines.push("");
+                                    if (cs.notes) {
+                                      lines.push("Notes");
+                                      lines.push(cs.notes);
+                                      lines.push("");
+                                    }
+                                    const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
+                                    const url = URL.createObjectURL(blob);
+                                    const a = document.createElement("a");
+                                    a.href = url;
+                                    a.download = `${(cs.title || "call-sheet").replace(/[^a-z0-9-_]+/gi, "-").toLowerCase()}.txt`;
+                                    a.click();
+                                    URL.revokeObjectURL(url);
+                                  }}
+                                >
+                                  Download
+                                </Button>
+                              </div>
+                            ))
+                          )}
+                        </CardContent>
+                      </Card>
+                    </div>
                     </>
                   );
                 })()}
@@ -3988,6 +5671,11 @@ function CastingPortalWorkspace({
     queryFn: () => fetch(`/api/creator/projects/${projectId}/casting/invitations`).then((r) => r.json()),
     enabled: hasProject,
   });
+  const { data: agenciesData } = useQuery({
+    queryKey: ["casting-agencies-directory"],
+    queryFn: () => fetch("/api/casting-agencies").then((r) => r.json()),
+    enabled: true,
+  });
   const roles = (rolesData?.roles ?? []) as {
     id: string;
     name: string;
@@ -3995,6 +5683,8 @@ function CastingPortalWorkspace({
     status: string;
     invitationsCount: number;
     castInvitations: number;
+    linkedSalary?: { amount: number } | null;
+    assignedCast?: { name: string; contactEmail: string | null; notes: string | null } | null;
   }[];
   const invitations = (invitationsData ?? []) as {
     id: string;
@@ -4004,6 +5694,24 @@ function CastingPortalWorkspace({
     castingAgency: { id: string; agencyName: string } | null;
     talent: { id: string; name: string } | null;
   }[];
+  const agencies = (agenciesData ?? []) as Array<{
+    id: string;
+    agencyName: string;
+    city: string | null;
+    country: string | null;
+    _count?: { talent?: number; inquiries?: number };
+  }>;
+  const [expandedAgencyId, setExpandedAgencyId] = useState<string | null>(null);
+  const [expandedAgencyTalent, setExpandedAgencyTalent] = useState<
+    Array<{ id: string; name: string; ageRange: string | null; skills: string | null }>
+  >([]);
+  const [selectedRoleId, setSelectedRoleId] = useState<string>("");
+  const [auditionWhen, setAuditionWhen] = useState("");
+  const [auditionDetails, setAuditionDetails] = useState("");
+  const [roleEdits, setRoleEdits] = useState<
+    Record<string, { actorName: string; actorEmail: string; actorNotes: string; salaryAmount: string }>
+  >({});
+  const [portalMessage, setPortalMessage] = useState("");
   const rolesContext =
     roles.length > 0
       ? roles.map((r) => `${r.name}${r.description ? `: ${r.description}` : ""} (${r.status})`).join("\n")
@@ -4048,7 +5756,106 @@ function CastingPortalWorkspace({
       alert(err?.message || "Could not create role. Make sure you are linked to a project and signed in as a creator.");
     },
   });
+  const updateRoleMutation = useMutation({
+    mutationFn: async (payload: {
+      id: string;
+      actorName: string;
+      actorEmail: string;
+      actorNotes: string;
+      salaryAmount: number | null;
+    }) => {
+      const res = await fetch(`/api/creator/projects/${projectId}/casting`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: payload.id,
+          actorName: payload.actorName || null,
+          actorEmail: payload.actorEmail || null,
+          actorNotes: payload.actorNotes || null,
+          salaryAmount: payload.salaryAmount,
+          markCast: Boolean(payload.actorName),
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || "Failed to update role");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      setPortalMessage("Role and salary saved.");
+      queryClient.invalidateQueries({ queryKey: ["project-casting", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["project-budget", projectId] });
+    },
+  });
+  const confirmHireMutation = useMutation({
+    mutationFn: async (payload: { invitationId: string; salaryAmount: number; salaryNotes?: string }) => {
+      const res = await fetch(`/api/creator/projects/${projectId}/casting/confirm-hire`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || "Failed to confirm hire");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      setPortalMessage("Hire confirmed. Contract draft created and acquisition fee paid (R19.99).");
+      queryClient.invalidateQueries({ queryKey: ["project-casting", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["project-casting-invitations", projectId] });
+    },
+  });
+  const advertiseMutation = useMutation({
+    mutationFn: async (payload: { roleId: string; scheduledAt: string; details: string }) => {
+      const res = await fetch(`/api/creator/projects/${projectId}/casting/advertise-role`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || "Failed to publish audition listing");
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setPortalMessage(
+        `Audition listing published to ${data?.invitationsCreated ?? 0} agencies. Listing fee paid (R99.99).`,
+      );
+      queryClient.invalidateQueries({ queryKey: ["project-casting-invitations", projectId] });
+    },
+  });
   const [newName, setNewName] = useState("");
+  useEffect(() => {
+    if (roles.length === 0) return;
+
+    const validSelected = roles.some((r) => r.id === selectedRoleId);
+    if (!selectedRoleId || !validSelected) {
+      setSelectedRoleId(roles[0].id);
+    }
+
+    setRoleEdits((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const r of roles) {
+        if (!next[r.id]) {
+          next[r.id] = {
+            actorName: r.assignedCast?.name ?? "",
+            actorEmail: r.assignedCast?.contactEmail ?? "",
+            actorNotes: r.assignedCast?.notes ?? "",
+            salaryAmount:
+              r.linkedSalary?.amount !== undefined && r.linkedSalary?.amount !== null
+                ? String(r.linkedSalary.amount)
+                : "",
+          };
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [roles, selectedRoleId]);
   return (
     <div className="space-y-4">
       <header className="storytime-plan-card p-5 md:p-6">
@@ -4072,7 +5879,7 @@ function CastingPortalWorkspace({
               onClick={() => setModocReportOpen(true)}
             >
               <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
-              Get MODOC casting suggestions
+              Get AI casting suggestions
             </Button>
           )}
           <Input
@@ -4122,7 +5929,7 @@ function CastingPortalWorkspace({
       {modoc && modocReportOpen && (
         <ModocReportModal
           task="casting_portal"
-          reportTitle="MODOC casting suggestions"
+          reportTitle="Casting suggestions"
           prompt={`Match actors to our casting roles and suggest audition/communication tips.\n\nCasting roles:\n${rolesContext}\n\nUse the roles and talent provided in your context to suggest actor–role matches and optionally audition scheduling or communication tips.`}
           onClose={() => setModocReportOpen(false)}
           projectId={projectId ?? undefined}
@@ -4132,6 +5939,11 @@ function CastingPortalWorkspace({
         <Skeleton className="h-48 bg-slate-800/60" />
       ) : (
         <div className="creator-glass-panel p-4 space-y-4">
+          {portalMessage && (
+            <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+              {portalMessage}
+            </p>
+          )}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-white">Casting roles</h3>
@@ -4144,20 +5956,196 @@ function CastingPortalWorkspace({
                 {!hasProject ? "Link a project above to manage roles." : "No roles yet. Add a role or sync from Script Breakdown."}
               </p>
             ) : (
-              <div className="space-y-1.5">
+              <div className="space-y-2.5">
                 {roles.map((r) => (
                   <div
                     key={r.id}
-                    className="flex items-center justify-between rounded-xl bg-slate-900/80 border border-slate-800 px-3 py-2 text-sm"
+                    className="rounded-xl bg-slate-900/80 border border-slate-800 px-3 py-3 text-sm space-y-2"
                   >
-                    <span className="text-white font-medium">{r.name}</span>
-                    <span className="text-xs text-slate-400">
-                      {r.status} · {r.invitationsCount} invite(s)
-                    </span>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-white font-medium">{r.name}</span>
+                      <span className="text-xs text-slate-400">
+                        {r.status} · {r.invitationsCount} invite(s)
+                      </span>
+                    </div>
+                    <div className="grid gap-2 md:grid-cols-4">
+                      <Input
+                        value={roleEdits[r.id]?.actorName ?? ""}
+                        onChange={(e) =>
+                          setRoleEdits((prev) => ({
+                            ...prev,
+                            [r.id]: { ...(prev[r.id] ?? { actorName: "", actorEmail: "", actorNotes: "", salaryAmount: "" }), actorName: e.target.value },
+                          }))
+                        }
+                        placeholder="Actor name"
+                        className="bg-slate-950 border-slate-700 text-xs"
+                      />
+                      <Input
+                        value={roleEdits[r.id]?.actorEmail ?? ""}
+                        onChange={(e) =>
+                          setRoleEdits((prev) => ({
+                            ...prev,
+                            [r.id]: { ...(prev[r.id] ?? { actorName: "", actorEmail: "", actorNotes: "", salaryAmount: "" }), actorEmail: e.target.value },
+                          }))
+                        }
+                        placeholder="Actor email"
+                        className="bg-slate-950 border-slate-700 text-xs"
+                      />
+                      <Input
+                        value={roleEdits[r.id]?.salaryAmount ?? ""}
+                        onChange={(e) =>
+                          setRoleEdits((prev) => ({
+                            ...prev,
+                            [r.id]: { ...(prev[r.id] ?? { actorName: "", actorEmail: "", actorNotes: "", salaryAmount: "" }), salaryAmount: e.target.value },
+                          }))
+                        }
+                        placeholder="Salary (ZAR)"
+                        className="bg-slate-950 border-slate-700 text-xs"
+                      />
+                      <Button
+                        size="sm"
+                        className="bg-orange-500 hover:bg-orange-600 text-xs"
+                        disabled={updateRoleMutation.isPending}
+                        onClick={() =>
+                          updateRoleMutation.mutate({
+                            id: r.id,
+                            actorName: roleEdits[r.id]?.actorName ?? "",
+                            actorEmail: roleEdits[r.id]?.actorEmail ?? "",
+                            actorNotes: roleEdits[r.id]?.actorNotes ?? "",
+                            salaryAmount:
+                              roleEdits[r.id]?.salaryAmount?.trim()
+                                ? Number(roleEdits[r.id]?.salaryAmount)
+                                : null,
+                          })
+                        }
+                      >
+                        Save cast + salary
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>
             )}
+          </div>
+
+          <div className="border-t border-slate-800 pt-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-white">Casting agencies directory</h3>
+              <p className="text-[11px] text-slate-500">{agencies.length} agency{agencies.length === 1 ? "" : "ies"}</p>
+            </div>
+            {roles.length > 0 && (
+              <div className="grid gap-2 md:grid-cols-[1fr_auto_auto] items-end">
+                <select
+                  value={selectedRoleId}
+                  onChange={(e) => setSelectedRoleId(e.target.value)}
+                  className="h-9 rounded-md border border-slate-700 bg-slate-950 px-2 text-xs text-white"
+                >
+                  {roles.map((r) => (
+                    <option key={r.id} value={r.id}>{r.name}</option>
+                  ))}
+                </select>
+                <Input
+                  value={auditionWhen}
+                  onChange={(e) => setAuditionWhen(e.target.value)}
+                  placeholder="Audition schedule/time"
+                  className="bg-slate-950 border-slate-700 text-xs"
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-orange-500/40 text-orange-200 hover:bg-orange-500/10 text-xs"
+                  disabled={!selectedRoleId || advertiseMutation.isPending}
+                  onClick={() =>
+                    advertiseMutation.mutate({
+                      roleId: selectedRoleId,
+                      scheduledAt: auditionWhen,
+                      details: auditionDetails,
+                    })
+                  }
+                >
+                  Publish audition (R99.99)
+                </Button>
+              </div>
+            )}
+            <textarea
+              value={auditionDetails}
+              onChange={(e) => setAuditionDetails(e.target.value)}
+              rows={2}
+              placeholder="Audition brief, role specifics, callback details..."
+              className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white"
+            />
+            <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+              {agencies.map((a) => (
+                <div key={a.id} className="rounded-lg border border-slate-800 bg-slate-900/70 px-3 py-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <p className="text-sm text-slate-200">{a.agencyName}</p>
+                      <p className="text-[11px] text-slate-500">
+                        {a.city ?? "Unknown city"}, {a.country ?? "Unknown country"} · Talent: {a._count?.talent ?? 0}
+                      </p>
+                    </div>
+                    <div className="flex gap-1.5">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-slate-700 text-[11px]"
+                        onClick={async () => {
+                          const res = await fetch(`/api/casting-agencies/${a.id}`);
+                          const detail = await res.json();
+                          setExpandedAgencyId(expandedAgencyId === a.id ? null : a.id);
+                          setExpandedAgencyTalent(
+                            Array.isArray(detail?.talent) ? detail.talent.slice(0, 12) : [],
+                          );
+                        }}
+                      >
+                        {expandedAgencyId === a.id ? "Hide" : "View"}
+                      </Button>
+                    </div>
+                  </div>
+                  {expandedAgencyId === a.id && (
+                    <div className="mt-2 space-y-1">
+                      {expandedAgencyTalent.length === 0 ? (
+                        <p className="text-[11px] text-slate-500">No cast profiles listed.</p>
+                      ) : (
+                        expandedAgencyTalent.map((t) => (
+                          <div key={t.id} className="flex items-center justify-between rounded-md border border-slate-800 px-2 py-1 text-[11px]">
+                            <span className="text-slate-300">{t.name}</span>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 border-slate-700 px-2 text-[10px]"
+                              disabled={!selectedRoleId}
+                              onClick={async () => {
+                                if (!selectedRoleId) return;
+                                const res = await fetch(`/api/creator/projects/${projectId}/casting/invitations`, {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({
+                                    roleId: selectedRoleId,
+                                    castingAgencyId: a.id,
+                                    talentId: t.id,
+                                    message: `Casting request for selected role. Audition details: ${auditionDetails || "N/A"}`,
+                                  }),
+                                });
+                                if (!res.ok) {
+                                  const data = await res.json().catch(() => null);
+                                  alert(data?.error || "Could not send request");
+                                  return;
+                                }
+                                setPortalMessage("Casting request sent.");
+                                queryClient.invalidateQueries({ queryKey: ["project-casting-invitations", projectId] });
+                              }}
+                            >
+                              Request
+                            </Button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
 
           <div className="border-t border-slate-800 pt-3">
@@ -4209,24 +6197,39 @@ function CastingPortalWorkspace({
               </div>
             )}
           </div>
+          {invitations
+            .filter((inv) => inv.status === "ACCEPTED" && inv.talent)
+            .slice(0, 6)
+            .map((inv) => (
+              <div key={`accepted-${inv.id}`} className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-100">
+                <div className="flex items-center justify-between gap-2">
+                  <p>
+                    {inv.role.name} accepted by {inv.talent?.name} ({inv.castingAgency?.agencyName ?? "agency"}).
+                  </p>
+                  <Button
+                    size="sm"
+                    className="h-7 bg-emerald-600 hover:bg-emerald-700 text-[11px]"
+                    disabled={confirmHireMutation.isPending}
+                    onClick={() => {
+                      const salaryInput =
+                        typeof window !== "undefined"
+                          ? window.prompt(`Planned salary for ${inv.role.name} (ZAR):`, "0")
+                          : "0";
+                      const salaryAmount = Number(salaryInput ?? "0") || 0;
+                      confirmHireMutation.mutate({
+                        invitationId: inv.id,
+                        salaryAmount,
+                        salaryNotes: `Linked from accepted invitation ${inv.id}`,
+                      });
+                    }}
+                  >
+                    Create contract + pay R19.99
+                  </Button>
+                </div>
+              </div>
+            ))}
         </div>
       )}
-      <div className="grid gap-4 md:grid-cols-2">
-        <Link
-          href={hasProject ? `/creator/cast?projectId=${projectId}` : "/creator/cast"}
-          className="creator-glass-panel p-4 transition hover:border-orange-400/35"
-        >
-          <h3 className="text-sm font-semibold text-white mb-1">Browse casting</h3>
-          <p className="text-xs text-slate-400">Manage roles, post auditions, shortlist talent.</p>
-        </Link>
-        <Link
-          href="/creator/auditions"
-          className="creator-glass-panel p-4 transition hover:border-orange-400/35"
-        >
-          <h3 className="text-sm font-semibold text-white mb-1">Auditions & callbacks</h3>
-          <p className="text-xs text-slate-400">Create and track auditions for this project.</p>
-        </Link>
-      </div>
     </div>
   );
 }
@@ -4240,10 +6243,48 @@ function CrewMarketplaceWorkspace({
   const hasProject = !!projectId;
   const modoc = useModocOptional();
   const [modocReportOpen, setModocReportOpen] = useState(false);
+  const [filterCity, setFilterCity] = useState("");
+  const [filterCountry, setFilterCountry] = useState("");
+  const [filterRole, setFilterRole] = useState("");
+  const [filterDepartment, setFilterDepartment] = useState("");
+  const [filterSkill, setFilterSkill] = useState("");
+  const [selectedNeedId, setSelectedNeedId] = useState("");
+  const [portalMessage, setPortalMessage] = useState("");
+  const [newNeedRole, setNewNeedRole] = useState("");
+  const [newNeedDepartment, setNewNeedDepartment] = useState("");
+  const [newNeedSeniority, setNewNeedSeniority] = useState("");
+  const [newNeedNotes, setNewNeedNotes] = useState("");
+  const [newInternalName, setNewInternalName] = useState("");
+  const [newInternalRole, setNewInternalRole] = useState("");
+  const [newInternalDepartment, setNewInternalDepartment] = useState("");
+  const [newInternalEmail, setNewInternalEmail] = useState("");
+  const [newInternalPhone, setNewInternalPhone] = useState("");
+
+  const directoryQuery = useMemo(() => {
+    const params = new URLSearchParams();
+    if (filterCity.trim()) params.set("city", filterCity.trim());
+    if (filterCountry.trim()) params.set("country", filterCountry.trim());
+    if (filterRole.trim()) params.set("role", filterRole.trim());
+    if (filterDepartment.trim()) params.set("department", filterDepartment.trim());
+    if (filterSkill.trim()) params.set("specialization", filterSkill.trim());
+    const query = params.toString();
+    return query ? `/api/crew-teams?${query}` : "/api/crew-teams";
+  }, [filterCity, filterCountry, filterRole, filterDepartment, filterSkill]);
+
   const { data, isLoading } = useQuery({
     queryKey: ["project-crew", projectId],
     queryFn: () => fetch(`/api/creator/projects/${projectId}/crew`).then((r) => r.json()),
     enabled: hasProject,
+  });
+  const { data: crewDirectoryData, isLoading: isDirectoryLoading } = useQuery({
+    queryKey: ["crew-teams-directory", directoryQuery],
+    queryFn: () => fetch(directoryQuery).then((r) => r.json()),
+    enabled: true,
+  });
+  const { data: internalRosterData, isLoading: isInternalLoading } = useQuery({
+    queryKey: ["creator-crew-roster"],
+    queryFn: () => fetch("/api/creator/crew-roster").then((r) => r.json()),
+    enabled: true,
   });
   const needs = (data?.needs ?? []) as {
     id: string;
@@ -4252,24 +6293,222 @@ function CrewMarketplaceWorkspace({
     seniority: string | null;
     notes: string | null;
     invitationsCount: number;
+    linkedRate?: number | null;
+    assignedCrew?: string | null;
   }[];
+  const crewDirectory = (crewDirectoryData ?? []) as Array<{
+    id: string;
+    companyName: string;
+    city: string | null;
+    country: string | null;
+    specializations: string | null;
+    members?: Array<{
+      id: string;
+      name: string;
+      role: string;
+      department: string | null;
+      experienceLevel?: string | null;
+      dailyRate?: number | null;
+      skills: string[];
+      portfolio?: string | null;
+      availability?: string | null;
+    }>;
+    _count?: { members?: number; requests?: number };
+  }>;
+  const internalRoster = (internalRosterData ?? []) as Array<{
+    id: string;
+    name: string;
+    role: string | null;
+    department: string | null;
+    contactEmail: string | null;
+    phone: string | null;
+    notes: string | null;
+    pastProjects: string | null;
+  }>;
+
+  const [needEdits, setNeedEdits] = useState<
+    Record<
+      string,
+      {
+        role: string;
+        department: string;
+        seniority: string;
+        notes: string;
+        hireName: string;
+        hireEmail: string;
+        hirePhone: string;
+        dailyRate: string;
+      }
+    >
+  >({});
+
   const needsContext =
     needs.length > 0
-      ? needs.map((n) => `${n.role}${n.department ? ` (${n.department})` : ""}${n.seniority ? `, ${n.seniority}` : ""}${n.notes ? ` — ${n.notes}` : ""}`).join("\n")
+      ? needs
+          .map(
+            (n) =>
+              `${n.role}${n.department ? ` (${n.department})` : ""}${n.seniority ? `, ${n.seniority}` : ""}${n.notes ? ` — ${n.notes}` : ""}${n.assignedCrew ? ` | Assigned: ${n.assignedCrew}` : ""}${n.linkedRate != null ? ` | Rate: R${n.linkedRate}` : ""}`,
+          )
+          .join("\n")
       : "No crew needs yet. Add a role to start.";
   const createMutation = useMutation({
-    mutationFn: async (role: string) => {
+    mutationFn: async (payload: {
+      role: string;
+      department: string;
+      seniority: string;
+      notes: string;
+    }) => {
       const res = await fetch(`/api/creator/projects/${projectId}/crew`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role }),
+        body: JSON.stringify({
+          role: payload.role,
+          department: payload.department || null,
+          seniority: payload.seniority || null,
+          notes: payload.notes || null,
+        }),
       });
-      if (!res.ok) throw new Error("Failed to add need");
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.error || "Failed to add need");
+      }
       return res.json();
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project-crew", projectId] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project-crew", projectId] });
+      setNewNeedRole("");
+      setNewNeedDepartment("");
+      setNewNeedSeniority("");
+      setNewNeedNotes("");
+      setPortalMessage("Crew need added.");
+    },
   });
-  const [newRole, setNewRole] = useState("");
+  const updateNeedMutation = useMutation({
+    mutationFn: async (payload: {
+      id: string;
+      role: string;
+      department: string;
+      seniority: string;
+      notes: string;
+      hireName: string;
+      hireEmail: string;
+      hirePhone: string;
+      dailyRate: string;
+    }) => {
+      const res = await fetch(`/api/creator/projects/${projectId}/crew`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: payload.id,
+          role: payload.role,
+          department: payload.department || null,
+          seniority: payload.seniority || null,
+          notes: payload.notes || null,
+          hireName: payload.hireName || null,
+          hireEmail: payload.hireEmail || null,
+          hirePhone: payload.hirePhone || null,
+          dailyRate: payload.dailyRate.trim() ? Number(payload.dailyRate) : null,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.error || "Failed to update need");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project-crew", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["project-budget", projectId] });
+      setPortalMessage("Crew need, assignment, and budget rate saved.");
+    },
+  });
+  const inviteTeamMutation = useMutation({
+    mutationFn: async (payload: { crewTeamId: string; message: string }) => {
+      const res = await fetch("/api/crew-teams/requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          crewTeamId: payload.crewTeamId,
+          projectName: projectId ?? null,
+          message: payload.message,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.error || "Failed to send crew request");
+      }
+      return res.json();
+    },
+    onSuccess: () => setPortalMessage("Crew team request sent."),
+  });
+  const createInternalMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/creator/crew-roster", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newInternalName,
+          role: newInternalRole || null,
+          department: newInternalDepartment || null,
+          contactEmail: newInternalEmail || null,
+          phone: newInternalPhone || null,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.error || "Failed to add internal crew member");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["creator-crew-roster"] });
+      setNewInternalName("");
+      setNewInternalRole("");
+      setNewInternalDepartment("");
+      setNewInternalEmail("");
+      setNewInternalPhone("");
+      setPortalMessage("Internal crew member recorded.");
+    },
+  });
+  const deleteInternalMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/creator/crew-roster/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to remove member");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["creator-crew-roster"] });
+      setPortalMessage("Internal crew member removed.");
+    },
+  });
+
+  useEffect(() => {
+    if (needs.length === 0) return;
+    if (!selectedNeedId || !needs.some((n) => n.id === selectedNeedId)) {
+      setSelectedNeedId(needs[0].id);
+    }
+    setNeedEdits((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const n of needs) {
+        if (!next[n.id]) {
+          next[n.id] = {
+            role: n.role,
+            department: n.department ?? "",
+            seniority: n.seniority ?? "",
+            notes: n.notes ?? "",
+            hireName: n.assignedCrew ?? "",
+            hireEmail: "",
+            hirePhone: "",
+            dailyRate: n.linkedRate != null ? String(n.linkedRate) : "",
+          };
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [needs, selectedNeedId]);
+
   return (
     <div className="space-y-4">
       <header className="storytime-plan-card p-5 md:p-6">
@@ -4280,76 +6519,339 @@ function CrewMarketplaceWorkspace({
             </p>
             <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
             <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
-            Define crew needs for this project and connect to the crew marketplace.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          {modoc && (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="border-cyan-500/50 text-cyan-200 hover:bg-cyan-500/10 text-xs"
-              onClick={() => setModocReportOpen(true)}
-            >
-              <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
-              Get MODOC crew suggestions
-            </Button>
-          )}
-          <Input
-            value={newRole}
-            onChange={(e) => setNewRole(e.target.value)}
-            placeholder="e.g. DP, Gaffer"
-            className="bg-slate-900 border-slate-700 text-sm w-36"
-          />
-          <Button
-            size="sm"
-            className="bg-emerald-600 hover:bg-emerald-700"
-            onClick={() => {
-              if (hasProject && newRole.trim()) {
-                createMutation.mutate(newRole.trim());
-                setNewRole("");
-              }
-            }}
-            disabled={createMutation.isPending || !hasProject}
-            title={!hasProject ? "Link a project above to add crew needs" : undefined}
-          >
-            Add need
-          </Button>
-        </div>
+              Build a serious hiring pipeline across marketplace companies, independent professionals,
+              and your internal team roster. All selections can be tracked against project roles and rates.
+            </p>
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            {modoc && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="border-cyan-500/50 text-cyan-200 hover:bg-cyan-500/10 text-xs"
+                onClick={() => setModocReportOpen(true)}
+              >
+                <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
+                Get AI crew suggestions
+              </Button>
+            )}
+          </div>
         </div>
       </header>
       {modoc && modocReportOpen && (
         <ModocReportModal
           task="crew_marketplace"
-          reportTitle="MODOC crew suggestions"
+          reportTitle="Crew suggestions"
           prompt={`Match crew teams and members to our crew needs and suggest hiring steps.\n\nCrew needs:\n${needsContext}\n\nUse the crew needs and available teams/members provided in your context to suggest matches and streamline hiring.`}
           onClose={() => setModocReportOpen(false)}
           projectId={projectId ?? undefined}
         />
       )}
+      {portalMessage && (
+        <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+          {portalMessage}
+        </p>
+      )}
       {isLoading ? (
         <Skeleton className="h-48 bg-slate-800/60" />
       ) : (
-        <div className="creator-glass-panel p-3 space-y-2">
+        <div className="creator-glass-panel p-4 space-y-4">
+          <div className="grid gap-2 md:grid-cols-4">
+            <Input value={newNeedRole} onChange={(e) => setNewNeedRole(e.target.value)} placeholder="Need role (e.g. 1st AD)" className="bg-slate-900 border-slate-700 text-xs" />
+            <Input value={newNeedDepartment} onChange={(e) => setNewNeedDepartment(e.target.value)} placeholder="Department" className="bg-slate-900 border-slate-700 text-xs" />
+            <Input value={newNeedSeniority} onChange={(e) => setNewNeedSeniority(e.target.value)} placeholder="Seniority" className="bg-slate-900 border-slate-700 text-xs" />
+            <Button
+              size="sm"
+              className="bg-emerald-600 hover:bg-emerald-700 text-xs"
+              disabled={!hasProject || createMutation.isPending || !newNeedRole.trim()}
+              onClick={() =>
+                createMutation.mutate({
+                  role: newNeedRole.trim(),
+                  department: newNeedDepartment,
+                  seniority: newNeedSeniority,
+                  notes: newNeedNotes,
+                })
+              }
+            >
+              Add crew need
+            </Button>
+          </div>
+          <textarea
+            value={newNeedNotes}
+            onChange={(e) => setNewNeedNotes(e.target.value)}
+            rows={2}
+            placeholder="Need notes / scope / shoot day requirements..."
+            className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-white"
+          />
           {needs.length === 0 ? (
             <p className="text-xs text-slate-500 p-4">
               {!hasProject ? "Link a project above to manage crew needs." : "No crew needs yet. Add a role to start."}
             </p>
           ) : (
-            needs.map((n) => (
-              <div
-                key={n.id}
-                className="flex items-center justify-between rounded-xl bg-slate-900/80 border border-slate-800 px-3 py-2 text-sm"
-              >
-                <span className="text-white">{n.role}</span>
-                {n.department && (
-                  <span className="text-xs text-slate-400">{n.department}</span>
-                )}
-                <span className="text-xs text-slate-400">{n.invitationsCount} invite(s)</span>
-              </div>
-            ))
+            <div className="space-y-2">
+              {needs.map((n) => (
+                <div key={n.id} className="rounded-xl bg-slate-900/80 border border-slate-800 p-3 text-sm space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-white font-medium">{n.role}</p>
+                    <p className="text-[11px] text-slate-400">
+                      {n.department ?? "No department"} · {n.invitationsCount} request(s)
+                      {n.assignedCrew ? ` · Assigned: ${n.assignedCrew}` : ""}
+                    </p>
+                  </div>
+                  <div className="grid gap-2 md:grid-cols-4">
+                    <Input
+                      value={needEdits[n.id]?.role ?? ""}
+                      onChange={(e) =>
+                        setNeedEdits((prev) => ({ ...prev, [n.id]: { ...(prev[n.id] ?? { role: "", department: "", seniority: "", notes: "", hireName: "", hireEmail: "", hirePhone: "", dailyRate: "" }), role: e.target.value } }))
+                      }
+                      placeholder="Role"
+                      className="bg-slate-950 border-slate-700 text-xs"
+                    />
+                    <Input
+                      value={needEdits[n.id]?.department ?? ""}
+                      onChange={(e) =>
+                        setNeedEdits((prev) => ({ ...prev, [n.id]: { ...(prev[n.id] ?? { role: "", department: "", seniority: "", notes: "", hireName: "", hireEmail: "", hirePhone: "", dailyRate: "" }), department: e.target.value } }))
+                      }
+                      placeholder="Department"
+                      className="bg-slate-950 border-slate-700 text-xs"
+                    />
+                    <Input
+                      value={needEdits[n.id]?.seniority ?? ""}
+                      onChange={(e) =>
+                        setNeedEdits((prev) => ({ ...prev, [n.id]: { ...(prev[n.id] ?? { role: "", department: "", seniority: "", notes: "", hireName: "", hireEmail: "", hirePhone: "", dailyRate: "" }), seniority: e.target.value } }))
+                      }
+                      placeholder="Seniority"
+                      className="bg-slate-950 border-slate-700 text-xs"
+                    />
+                    <Input
+                      value={needEdits[n.id]?.dailyRate ?? ""}
+                      onChange={(e) =>
+                        setNeedEdits((prev) => ({ ...prev, [n.id]: { ...(prev[n.id] ?? { role: "", department: "", seniority: "", notes: "", hireName: "", hireEmail: "", hirePhone: "", dailyRate: "" }), dailyRate: e.target.value } }))
+                      }
+                      placeholder="Day rate (ZAR)"
+                      className="bg-slate-950 border-slate-700 text-xs"
+                    />
+                  </div>
+                  <div className="grid gap-2 md:grid-cols-3">
+                    <Input
+                      value={needEdits[n.id]?.hireName ?? ""}
+                      onChange={(e) =>
+                        setNeedEdits((prev) => ({ ...prev, [n.id]: { ...(prev[n.id] ?? { role: "", department: "", seniority: "", notes: "", hireName: "", hireEmail: "", hirePhone: "", dailyRate: "" }), hireName: e.target.value } }))
+                      }
+                      placeholder="Assigned person / team contact"
+                      className="bg-slate-950 border-slate-700 text-xs"
+                    />
+                    <Input
+                      value={needEdits[n.id]?.hireEmail ?? ""}
+                      onChange={(e) =>
+                        setNeedEdits((prev) => ({ ...prev, [n.id]: { ...(prev[n.id] ?? { role: "", department: "", seniority: "", notes: "", hireName: "", hireEmail: "", hirePhone: "", dailyRate: "" }), hireEmail: e.target.value } }))
+                      }
+                      placeholder="Contact email"
+                      className="bg-slate-950 border-slate-700 text-xs"
+                    />
+                    <Input
+                      value={needEdits[n.id]?.hirePhone ?? ""}
+                      onChange={(e) =>
+                        setNeedEdits((prev) => ({ ...prev, [n.id]: { ...(prev[n.id] ?? { role: "", department: "", seniority: "", notes: "", hireName: "", hireEmail: "", hirePhone: "", dailyRate: "" }), hirePhone: e.target.value } }))
+                      }
+                      placeholder="Phone"
+                      className="bg-slate-950 border-slate-700 text-xs"
+                    />
+                  </div>
+                  <textarea
+                    value={needEdits[n.id]?.notes ?? ""}
+                    onChange={(e) =>
+                      setNeedEdits((prev) => ({ ...prev, [n.id]: { ...(prev[n.id] ?? { role: "", department: "", seniority: "", notes: "", hireName: "", hireEmail: "", hirePhone: "", dailyRate: "" }), notes: e.target.value } }))
+                    }
+                    rows={2}
+                    placeholder="Notes, scene/day assignment scope, requirements..."
+                    className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white"
+                  />
+                  <div className="flex justify-end">
+                    <Button
+                      size="sm"
+                      className="bg-orange-500 hover:bg-orange-600 text-xs"
+                      disabled={updateNeedMutation.isPending}
+                      onClick={() =>
+                        updateNeedMutation.mutate({
+                          id: n.id,
+                          role: needEdits[n.id]?.role ?? n.role,
+                          department: needEdits[n.id]?.department ?? "",
+                          seniority: needEdits[n.id]?.seniority ?? "",
+                          notes: needEdits[n.id]?.notes ?? "",
+                          hireName: needEdits[n.id]?.hireName ?? "",
+                          hireEmail: needEdits[n.id]?.hireEmail ?? "",
+                          hirePhone: needEdits[n.id]?.hirePhone ?? "",
+                          dailyRate: needEdits[n.id]?.dailyRate ?? "",
+                        })
+                      }
+                    >
+                      Save need + assignment
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
+          <div className="border-t border-slate-800 pt-3 space-y-2">
+            <div className="grid gap-2 md:grid-cols-5">
+              <Input value={filterCity} onChange={(e) => setFilterCity(e.target.value)} placeholder="City" className="bg-slate-900 border-slate-700 text-xs" />
+              <Input value={filterCountry} onChange={(e) => setFilterCountry(e.target.value)} placeholder="Country" className="bg-slate-900 border-slate-700 text-xs" />
+              <Input value={filterRole} onChange={(e) => setFilterRole(e.target.value)} placeholder="Role" className="bg-slate-900 border-slate-700 text-xs" />
+              <Input value={filterDepartment} onChange={(e) => setFilterDepartment(e.target.value)} placeholder="Department" className="bg-slate-900 border-slate-700 text-xs" />
+              <Input value={filterSkill} onChange={(e) => setFilterSkill(e.target.value)} placeholder="Skill / specialization" className="bg-slate-900 border-slate-700 text-xs" />
+            </div>
+            <h3 className="text-sm font-semibold text-white">Marketplace teams and independent professionals</h3>
+            <div className="flex flex-col gap-1">
+              <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500">Target crew need for marketplace actions</p>
+              <select
+                value={selectedNeedId}
+                onChange={(e) => setSelectedNeedId(e.target.value)}
+                disabled={needs.length === 0}
+                className="h-10 w-full md:w-[340px] rounded-lg border border-slate-600 bg-slate-900 px-3 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {needs.length === 0 ? (
+                  <option value="">No crew needs yet</option>
+                ) : (
+                  needs.map((n) => (
+                    <option key={n.id} value={n.id}>
+                      {n.role}
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
+            {isDirectoryLoading ? (
+              <Skeleton className="h-24 bg-slate-800/60" />
+            ) : crewDirectory.length === 0 ? (
+              <p className="text-xs text-slate-500 p-3 rounded-xl bg-slate-900/60">No marketplace matches for current filters.</p>
+            ) : (
+              <div className="space-y-2 max-h-[26rem] overflow-y-auto pr-1">
+                {crewDirectory.map((team) => (
+                  <div key={team.id} className="rounded-xl border border-slate-800 bg-slate-900/70 p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-white font-medium">{team.companyName}</p>
+                        <p className="text-[11px] text-slate-500">
+                          {[team.city, team.country].filter(Boolean).join(", ") || "Location not specified"}
+                          {team.specializations ? ` · ${team.specializations}` : ""}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-slate-700 text-[11px]"
+                        disabled={inviteTeamMutation.isPending || !hasProject}
+                        onClick={() =>
+                          inviteTeamMutation.mutate({
+                            crewTeamId: team.id,
+                            message: selectedNeedId
+                              ? `Project crew request for ${needs.find((n) => n.id === selectedNeedId)?.role ?? "selected role"}.`
+                              : "Project crew request from Crew Marketplace.",
+                          })
+                        }
+                      >
+                        Send team request
+                      </Button>
+                    </div>
+                    <div className="space-y-1">
+                      {(team.members ?? []).slice(0, 8).map((member) => (
+                        <div key={member.id} className="rounded-md border border-slate-800 px-2 py-1.5 text-[11px] flex items-center justify-between gap-2">
+                          <div>
+                            <p className="text-slate-200">{member.name} · {member.role}</p>
+                            <p className="text-slate-500">
+                              {member.department ?? "No department"}
+                              {member.experienceLevel ? ` · ${member.experienceLevel}` : ""}
+                              {member.dailyRate != null ? ` · R${member.dailyRate}/day` : ""}
+                            </p>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-6 border-slate-700 px-2 text-[10px]"
+                            disabled={!selectedNeedId}
+                            onClick={() => {
+                              const need = needs.find((n) => n.id === selectedNeedId);
+                              if (!need) return;
+                              setNeedEdits((prev) => ({
+                                ...prev,
+                                [need.id]: {
+                                  ...(prev[need.id] ?? {
+                                    role: need.role,
+                                    department: need.department ?? "",
+                                    seniority: need.seniority ?? "",
+                                    notes: need.notes ?? "",
+                                    hireName: "",
+                                    hireEmail: "",
+                                    hirePhone: "",
+                                    dailyRate: "",
+                                  }),
+                                  hireName: member.name,
+                                  dailyRate: member.dailyRate != null ? String(member.dailyRate) : prev[need.id]?.dailyRate ?? "",
+                                },
+                              }));
+                              setPortalMessage(`Prepared assignment from marketplace member ${member.name}. Save the need to persist.`);
+                            }}
+                          >
+                            Assign to selected need
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="border-t border-slate-800 pt-3 space-y-2">
+            <h3 className="text-sm font-semibold text-white">Internal team register (individuals / in-house)</h3>
+            <div className="grid gap-2 md:grid-cols-5">
+              <Input value={newInternalName} onChange={(e) => setNewInternalName(e.target.value)} placeholder="Name" className="bg-slate-900 border-slate-700 text-xs" />
+              <Input value={newInternalRole} onChange={(e) => setNewInternalRole(e.target.value)} placeholder="Role" className="bg-slate-900 border-slate-700 text-xs" />
+              <Input value={newInternalDepartment} onChange={(e) => setNewInternalDepartment(e.target.value)} placeholder="Department" className="bg-slate-900 border-slate-700 text-xs" />
+              <Input value={newInternalEmail} onChange={(e) => setNewInternalEmail(e.target.value)} placeholder="Email" className="bg-slate-900 border-slate-700 text-xs" />
+              <Input value={newInternalPhone} onChange={(e) => setNewInternalPhone(e.target.value)} placeholder="Phone" className="bg-slate-900 border-slate-700 text-xs" />
+            </div>
+            <div className="flex justify-end">
+              <Button
+                size="sm"
+                className="bg-emerald-600 hover:bg-emerald-700 text-xs"
+                disabled={createInternalMutation.isPending || !newInternalName.trim()}
+                onClick={() => createInternalMutation.mutate()}
+              >
+                Add internal crew member
+              </Button>
+            </div>
+            {isInternalLoading ? (
+              <Skeleton className="h-16 bg-slate-800/60" />
+            ) : internalRoster.length === 0 ? (
+              <p className="text-xs text-slate-500 p-3 rounded-xl bg-slate-900/60">No internal crew recorded yet.</p>
+            ) : (
+              <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
+                {internalRoster.map((member) => (
+                  <div key={member.id} className="rounded-xl bg-slate-900/80 border border-slate-800 px-3 py-2 text-xs flex items-center justify-between gap-2">
+                    <div>
+                      <p className="text-slate-200">{member.name} · {member.role ?? "Role not set"}</p>
+                      <p className="text-slate-500">
+                        {member.department ?? "No department"}
+                        {member.contactEmail ? ` · ${member.contactEmail}` : ""}
+                        {member.phone ? ` · ${member.phone}` : ""}
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 border-slate-700 px-2 text-[10px]"
+                      onClick={() => deleteInternalMutation.mutate(member.id)}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
       <Link
@@ -4357,7 +6859,7 @@ function CrewMarketplaceWorkspace({
         className="creator-glass-panel block p-4 transition hover:border-emerald-400/35"
       >
         <h3 className="text-sm font-semibold text-white mb-1">Open Crew marketplace</h3>
-        <p className="text-xs text-slate-400">Find and invite crew teams for this film.</p>
+        <p className="text-xs text-slate-400">Browse full crew teams directory and conversation threads.</p>
       </Link>
     </div>
   );
@@ -4368,19 +6870,142 @@ function LocationMarketplaceWorkspace({
   projectId,
   title,
 }: { projectId?: string; title: string }) {
+  const queryClient = useQueryClient();
   const hasProject = !!projectId;
   const modoc = useModocOptional();
   const [modocReportOpen, setModocReportOpen] = useState(false);
+  const [filterType, setFilterType] = useState("");
+  const [filterRegion, setFilterRegion] = useState("");
+  const [filterAvailability, setFilterAvailability] = useState("");
+  const [filterMaxRate, setFilterMaxRate] = useState("");
+  const [filterMinCapacity, setFilterMinCapacity] = useState("");
+  const [selectedBreakdownLocationId, setSelectedBreakdownLocationId] = useState("");
+  const [selectedListingId, setSelectedListingId] = useState("");
+  const [bookingStartDate, setBookingStartDate] = useState("");
+  const [bookingEndDate, setBookingEndDate] = useState("");
+  const [bookingCrewSize, setBookingCrewSize] = useState("");
+  const [bookingNote, setBookingNote] = useState("");
+  const [portalMessage, setPortalMessage] = useState("");
+
+  const listingQueryUrl = useMemo(() => {
+    const params = new URLSearchParams();
+    if (filterType.trim()) params.set("type", filterType.trim());
+    if (filterRegion.trim()) params.set("region", filterRegion.trim());
+    if (filterAvailability.trim()) params.set("availability", filterAvailability.trim());
+    if (filterMaxRate.trim()) params.set("maxDailyRate", filterMaxRate.trim());
+    if (filterMinCapacity.trim()) params.set("minCapacity", filterMinCapacity.trim());
+    const query = params.toString();
+    return query ? `/api/locations?${query}` : "/api/locations";
+  }, [filterType, filterRegion, filterAvailability, filterMaxRate, filterMinCapacity]);
+
   const { data: breakdown } = useQuery({
     queryKey: ["project-breakdown", projectId],
     queryFn: () => fetch(`/api/creator/projects/${projectId}/breakdown`).then((r) => r.json()),
     enabled: hasProject,
   });
-  const locations = (breakdown?.locations ?? []) as { id: string; name: string; description: string | null }[];
+  const { data: listingsData, isLoading: isListingsLoading } = useQuery({
+    queryKey: ["locations-directory", listingQueryUrl],
+    queryFn: () => fetch(listingQueryUrl).then((r) => r.json()),
+    enabled: true,
+  });
+  const { data: scheduleData } = useQuery({
+    queryKey: ["project-schedule", projectId],
+    queryFn: () => fetch(`/api/creator/projects/${projectId}/schedule`).then((r) => r.json()),
+    enabled: hasProject,
+  });
+  const locations = (breakdown?.locations ?? []) as Array<{
+    id: string;
+    name: string;
+    description: string | null;
+    sceneId?: string | null;
+    locationListingId?: string | null;
+  }>;
+  const listings = (listingsData ?? []) as Array<{
+    id: string;
+    name: string;
+    type: string;
+    city: string | null;
+    country: string | null;
+    capacity: number | null;
+    dailyRate: number | null;
+    profile?: {
+      permitRequirements?: string | null;
+      restrictions?: string | null;
+      hourlyRate?: number | null;
+      dailyRate?: number | null;
+      availability?: string | null;
+      logistics?: string | null;
+    };
+    _count?: { bookings?: number };
+  }>;
+  const shootDays = (scheduleData?.shootDays ?? []) as Array<{
+    id: string;
+    locationSummary: string | null;
+    date: string;
+  }>;
   const locationContext =
     locations.length > 0
       ? locations.map((l) => `${l.name}${l.description ? `: ${l.description}` : ""}`).join("\n")
       : "No breakdown locations yet. Add locations in Script Breakdown first.";
+  const assignLocationMutation = useMutation({
+    mutationFn: async (payload: { locationId: string; listingId: string }) => {
+      const current = locations.find((l) => l.id === payload.locationId);
+      if (!current) throw new Error("Breakdown location not found");
+      const res = await fetch(`/api/creator/projects/${projectId}/breakdown`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          locations: [
+            {
+              id: current.id,
+              name: current.name,
+              description: current.description,
+              sceneId: current.sceneId ?? null,
+              locationListingId: payload.listingId,
+            },
+          ],
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.error || "Failed to assign location");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project-breakdown", projectId] });
+      setPortalMessage("Marketplace location linked to breakdown.");
+    },
+  });
+  const requestBookingMutation = useMutation({
+    mutationFn: async (listingId: string) => {
+      const res = await fetch("/api/location-bookings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          locationId: listingId,
+          shootType: "PRODUCTION",
+          startDate: bookingStartDate || null,
+          endDate: bookingEndDate || null,
+          crewSize: bookingCrewSize ? Number(bookingCrewSize) : null,
+          note: bookingNote || null,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.error || "Failed to send booking request");
+      }
+      return res.json();
+    },
+    onSuccess: () => setPortalMessage("Location booking request sent."),
+  });
+
+  useEffect(() => {
+    if (!selectedBreakdownLocationId && locations.length > 0) {
+      setSelectedBreakdownLocationId(locations[0].id);
+    }
+  }, [locations, selectedBreakdownLocationId]);
+
   return (
     <div className="space-y-4">
       <header className="storytime-plan-card p-5 md:p-6">
@@ -4391,51 +7016,159 @@ function LocationMarketplaceWorkspace({
             </p>
             <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
             <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
-            Required locations from your breakdown. Book via the locations workspace.
-          </p>
-        </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
-          {modoc && (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="border-cyan-500/50 text-cyan-200 hover:bg-cyan-500/10 text-xs"
-              onClick={() => setModocReportOpen(true)}
-            >
-              <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
-              Get MODOC location suggestions
-            </Button>
-          )}
-        </div>
+              Run location discovery, assignment, booking requests, and logistics checks from one robust workspace.
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            {modoc && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="border-cyan-500/50 text-cyan-200 hover:bg-cyan-500/10 text-xs"
+                onClick={() => setModocReportOpen(true)}
+              >
+                <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
+                Get AI location suggestions
+              </Button>
+            )}
+          </div>
         </div>
       </header>
       {modoc && modocReportOpen && (
         <ModocReportModal
           task="location_marketplace"
-          reportTitle="MODOC location scouting"
+          reportTitle="Location scouting"
           prompt={`Match our breakdown locations to available sites and suggest logistics (accessibility, suitability for filming).\n\nBreakdown locations:\n${locationContext}\n\nUse the location listings and breakdown data provided in your context to suggest matches and logistical notes.`}
           onClose={() => setModocReportOpen(false)}
           projectId={projectId ?? undefined}
         />
       )}
-      <div className="creator-glass-panel p-3 space-y-2">
+      {portalMessage && (
+        <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+          {portalMessage}
+        </p>
+      )}
+      <div className="creator-glass-panel p-4 space-y-4">
+        <h3 className="text-sm font-semibold text-white">Required locations from script breakdown</h3>
         {locations.length === 0 ? (
           <p className="text-xs text-slate-500 p-4">
             {!hasProject ? "Link a project above to see locations from Script Breakdown." : "Add locations in Script Breakdown first."}
           </p>
         ) : (
-          locations.map((loc) => (
-            <div
-              key={loc.id}
-              className="flex items-center justify-between rounded-xl bg-slate-900/80 border border-slate-800 px-3 py-2 text-sm"
-            >
-              <span className="text-white">{loc.name}</span>
-              {loc.description && (
-                <span className="text-xs text-slate-400 truncate max-w-[200px]">{loc.description}</span>
-              )}
-            </div>
-          ))
+          <div className="space-y-2">
+            {locations.map((loc) => {
+              const linked = listings.find((l) => l.id === loc.locationListingId);
+              const usageCount = shootDays.filter((d) => (d.locationSummary ?? "").toLowerCase().includes(loc.name.toLowerCase())).length;
+              return (
+                <div key={loc.id} className="rounded-xl bg-slate-900/80 border border-slate-800 px-3 py-2.5 text-sm space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-white font-medium">{loc.name}</span>
+                    <span className="text-[11px] text-slate-500">{usageCount} shoot day(s) currently referencing this location</span>
+                  </div>
+                  <p className="text-xs text-slate-400">{loc.description || "No description provided."}</p>
+                  <p className="text-[11px] text-slate-500">
+                    Linked marketplace listing: {linked ? `${linked.name} (${linked.city ?? "Unknown city"})` : "Not linked"}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+      <div className="creator-glass-panel p-4 space-y-4">
+        <div className="grid gap-2 md:grid-cols-5">
+          <Input value={filterType} onChange={(e) => setFilterType(e.target.value)} placeholder="Type (studio, house...)" className="bg-slate-900 border-slate-700 text-xs" />
+          <Input value={filterRegion} onChange={(e) => setFilterRegion(e.target.value)} placeholder="Region / city" className="bg-slate-900 border-slate-700 text-xs" />
+          <Input value={filterAvailability} onChange={(e) => setFilterAvailability(e.target.value)} placeholder="Availability" className="bg-slate-900 border-slate-700 text-xs" />
+          <Input value={filterMaxRate} onChange={(e) => setFilterMaxRate(e.target.value)} placeholder="Max daily rate" className="bg-slate-900 border-slate-700 text-xs" />
+          <Input value={filterMinCapacity} onChange={(e) => setFilterMinCapacity(e.target.value)} placeholder="Min capacity" className="bg-slate-900 border-slate-700 text-xs" />
+        </div>
+        <div className="grid gap-2 md:grid-cols-[1fr_1fr_auto] items-end">
+          <select
+            value={selectedBreakdownLocationId}
+            onChange={(e) => setSelectedBreakdownLocationId(e.target.value)}
+            className="h-9 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white"
+          >
+            {locations.map((loc) => (
+              <option key={loc.id} value={loc.id}>
+                {loc.name}
+              </option>
+            ))}
+          </select>
+          <select
+            value={selectedListingId}
+            onChange={(e) => setSelectedListingId(e.target.value)}
+            className="h-9 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white"
+          >
+            <option value="">Select listing to link</option>
+            {listings.map((listing) => (
+              <option key={listing.id} value={listing.id}>
+                {listing.name} · {listing.city ?? "Unknown city"}
+              </option>
+            ))}
+          </select>
+          <Button
+            size="sm"
+            className="bg-orange-500 hover:bg-orange-600 text-xs"
+            disabled={!selectedBreakdownLocationId || !selectedListingId || assignLocationMutation.isPending}
+            onClick={() =>
+              assignLocationMutation.mutate({
+                locationId: selectedBreakdownLocationId,
+                listingId: selectedListingId,
+              })
+            }
+          >
+            Link listing to breakdown location
+          </Button>
+        </div>
+        <div className="grid gap-2 md:grid-cols-4">
+          <Input value={bookingStartDate} onChange={(e) => setBookingStartDate(e.target.value)} placeholder="Start date (YYYY-MM-DD)" className="bg-slate-900 border-slate-700 text-xs" />
+          <Input value={bookingEndDate} onChange={(e) => setBookingEndDate(e.target.value)} placeholder="End date (YYYY-MM-DD)" className="bg-slate-900 border-slate-700 text-xs" />
+          <Input value={bookingCrewSize} onChange={(e) => setBookingCrewSize(e.target.value)} placeholder="Crew size" className="bg-slate-900 border-slate-700 text-xs" />
+          <Input value={bookingNote} onChange={(e) => setBookingNote(e.target.value)} placeholder="Booking note / logistics note" className="bg-slate-900 border-slate-700 text-xs" />
+        </div>
+        <h3 className="text-sm font-semibold text-white">Marketplace listings</h3>
+        {isListingsLoading ? (
+          <Skeleton className="h-24 bg-slate-800/60" />
+        ) : listings.length === 0 ? (
+          <p className="text-xs text-slate-500 p-3 rounded-xl bg-slate-900/60">No listings found for current filters.</p>
+        ) : (
+          <div className="space-y-2 max-h-[28rem] overflow-y-auto pr-1">
+            {listings.map((listing) => (
+              <div key={listing.id} className="rounded-xl border border-slate-800 bg-slate-900/70 p-3 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm text-white font-medium">{listing.name}</p>
+                    <p className="text-[11px] text-slate-500">
+                      {listing.type} · {[listing.city, listing.country].filter(Boolean).join(", ") || "Unknown location"}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-slate-700 text-[11px]"
+                    disabled={requestBookingMutation.isPending}
+                    onClick={() => requestBookingMutation.mutate(listing.id)}
+                  >
+                    Request booking
+                  </Button>
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  Daily: R{Number(listing.profile?.dailyRate ?? listing.dailyRate ?? 0).toLocaleString()} · Hourly:{" "}
+                  {listing.profile?.hourlyRate != null ? `R${Number(listing.profile.hourlyRate).toLocaleString()}` : "N/A"} ·
+                  Capacity: {listing.capacity ?? "N/A"} · Bookings: {listing._count?.bookings ?? 0}
+                </p>
+                {(listing.profile?.permitRequirements || listing.profile?.restrictions || listing.profile?.logistics) && (
+                  <div className="rounded-md border border-slate-800 px-2 py-1.5 text-[11px] text-slate-400 space-y-1">
+                    {listing.profile?.permitRequirements ? <p>Permit: {listing.profile.permitRequirements}</p> : null}
+                    {listing.profile?.restrictions ? <p>Restrictions: {listing.profile.restrictions}</p> : null}
+                    {listing.profile?.logistics ? <p>Logistics: {listing.profile.logistics}</p> : null}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         )}
       </div>
       <Link
@@ -4443,7 +7176,7 @@ function LocationMarketplaceWorkspace({
         className="creator-glass-panel p-4 transition hover:border-orange-400/35 block"
       >
         <h3 className="text-sm font-semibold text-white mb-1">Open Locations</h3>
-        <p className="text-xs text-slate-400">Discover, request, and confirm locations.</p>
+        <p className="text-xs text-slate-400">Discover, request, and confirm locations with full messaging history.</p>
       </Link>
     </div>
   );
@@ -4458,39 +7191,108 @@ function LegalContractsWorkspace({
   const hasProject = !!projectId;
   const modoc = useModocOptional();
   const [modocReportOpen, setModocReportOpen] = useState(false);
+  const [portalMessage, setPortalMessage] = useState("");
   const { data, isLoading } = useQuery({
     queryKey: ["project-contracts", projectId],
     queryFn: () => fetch(`/api/creator/projects/${projectId}/contracts`).then((r) => r.json()),
     enabled: hasProject,
   });
-  const contracts = (data?.contracts ?? []) as {
+  const contracts = (data?.contracts ?? []) as Array<{
     id: string;
     type: string;
+    normalizedType: string;
     status: string;
+    statusTone: "slate" | "blue" | "amber" | "emerald" | "red";
     subject: string | null;
     createdAt: string;
-    latestVersion: { id: string; version: number } | null;
+    latestVersion: { id: string; version: number; terms: string; createdAt: string } | null;
     signaturesCount: number;
     actor?: { id: string; name: string } | null;
     crewTeam?: { id: string; name: string } | null;
     location?: { id: string; name: string } | null;
     vendorName?: string | null;
-  }[];
+  }>;
+  const templates = (data?.templates ?? []) as Array<{
+    type: string;
+    label: string;
+    description: string;
+    body: string;
+    placeholders: string[];
+  }>;
+  const resourceContext = data?.resourceContext as
+    | {
+        project: {
+          id: string;
+          title: string;
+          productionCompany: string;
+          startDate: string;
+          endDate: string;
+        };
+        resources: {
+          actors: Array<{ id: string; label: string }>;
+          crew: Array<{ id: string; label: string }>;
+          locations: Array<{ id: string; label: string }>;
+          equipment: Array<{ id: string; label: string }>;
+        };
+      }
+    | undefined;
+  const metrics = (data?.metrics ?? {
+    total: 0,
+    signed: 0,
+    sent: 0,
+    drafts: 0,
+    unconfirmed: 0,
+  }) as { total: number; signed: number; sent: number; drafts: number; unconfirmed: number };
+
   const [showCreate, setShowCreate] = useState(false);
-  const [newType, setNewType] = useState("ACTOR");
+  const [newType, setNewType] = useState("ACTOR_AGREEMENT");
+  const [resourceType, setResourceType] = useState<"ACTOR" | "CREW" | "LOCATION" | "EQUIPMENT" | "GENERAL">(
+    "ACTOR",
+  );
+  const [resourceId, setResourceId] = useState("");
   const [newSubject, setNewSubject] = useState("");
-  const [newVendorName, setNewVendorName] = useState("");
-  const [newTerms, setNewTerms] = useState("");
+  const [newPaymentTerms, setNewPaymentTerms] = useState("");
+  const [newCustomClauses, setNewCustomClauses] = useState("");
+  const [newTemplateBody, setNewTemplateBody] = useState("");
+  const selectedTemplate = templates.find((t) => t.type === newType) ?? templates[0] ?? null;
+  const selectedResources = useMemo(() => {
+    if (!resourceContext) return [];
+    if (resourceType === "ACTOR") return resourceContext.resources.actors;
+    if (resourceType === "CREW") return resourceContext.resources.crew;
+    if (resourceType === "LOCATION") return resourceContext.resources.locations;
+    if (resourceType === "EQUIPMENT") return resourceContext.resources.equipment;
+    return [];
+  }, [resourceContext, resourceType]);
+
+  useEffect(() => {
+    if (!showCreate || !selectedTemplate) return;
+    setNewTemplateBody(selectedTemplate.body);
+  }, [selectedTemplate, showCreate]);
+
+  useEffect(() => {
+    if (selectedResources.length === 0) {
+      setResourceId("");
+      return;
+    }
+    if (!resourceId || !selectedResources.some((r) => r.id === resourceId)) {
+      setResourceId(selectedResources[0].id);
+    }
+  }, [resourceId, selectedResources]);
+
   const createMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (sendContract?: boolean) => {
       const res = await fetch(`/api/creator/projects/${projectId}/contracts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          type: newType,
+          templateType: newType,
+          resourceType,
+          resourceId: resourceId || null,
           subject: newSubject || null,
-          vendorName: newType === "VENDOR" && newVendorName ? newVendorName : null,
-          terms: newTerms || "Terms to be added.",
+          templateBody: newTemplateBody || selectedTemplate?.body || "",
+          customClauses: newCustomClauses || null,
+          paymentTerms: newPaymentTerms || null,
+          sendContract: !!sendContract,
         }),
       });
       if (!res.ok) throw new Error("Failed to create contract");
@@ -4498,12 +7300,65 @@ function LegalContractsWorkspace({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["project-contracts", projectId] });
+      setPortalMessage("Contract generated successfully.");
       setShowCreate(false);
       setNewSubject("");
-      setNewVendorName("");
-      setNewTerms("");
+      setNewPaymentTerms("");
+      setNewCustomClauses("");
     },
   });
+  const contractActionMutation = useMutation({
+    mutationFn: async ({
+      contractId,
+      kind,
+      action,
+    }: {
+      contractId: string;
+      kind: "status" | "respond";
+      action: string;
+    }) => {
+      if (kind === "status") {
+        const res = await fetch(`/api/creator/projects/${projectId}/contracts`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: contractId, status: action }),
+        });
+        if (!res.ok) throw new Error("Failed to update contract");
+        return res.json();
+      }
+      const res = await fetch(`/api/creator/projects/${projectId}/contracts/${contractId}/respond`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      if (!res.ok) throw new Error("Failed to respond to contract");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project-contracts", projectId] });
+      setPortalMessage("Contract status updated.");
+    },
+  });
+
+  function toneClasses(tone: "slate" | "blue" | "amber" | "emerald" | "red") {
+    if (tone === "emerald") return "border-emerald-500/40 bg-emerald-500/10 text-emerald-200";
+    if (tone === "blue") return "border-sky-500/40 bg-sky-500/10 text-sky-200";
+    if (tone === "amber") return "border-amber-500/40 bg-amber-500/10 text-amber-200";
+    if (tone === "red") return "border-rose-500/40 bg-rose-500/10 text-rose-200";
+    return "border-slate-600 bg-slate-800/70 text-slate-200";
+  }
+
+  function downloadTerms(contract: (typeof contracts)[number]) {
+    const terms = contract.latestVersion?.terms ?? "No terms available.";
+    const blob = new Blob([terms], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${(contract.subject || "contract").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="space-y-4">
       <header className="storytime-plan-card p-5 md:p-6">
@@ -4514,70 +7369,28 @@ function LegalContractsWorkspace({
             </p>
             <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
             <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
-            Central place to create and track contracts for cast, crew, locations, and paid vendors
-            like catering and equipment houses.
-          </p>
-        </div>
-        <div className="flex gap-2">
+              Generate dynamic, template-driven agreements with production data pulled from casting, crew,
+              locations, equipment, and project schedules.
+            </p>
+          </div>
+          <div className="flex gap-2">
           <Button
             size="sm"
             variant="outline"
             className="border-slate-600 text-slate-200"
             onClick={() => {
-              setNewType("ACTOR");
+              setNewType("ACTOR_AGREEMENT");
+              setResourceType("ACTOR");
+              setResourceId("");
               setNewSubject("");
-              setNewVendorName("");
-              setNewTerms("");
+              setNewPaymentTerms("");
+              setNewCustomClauses("");
               setShowCreate(true);
             }}
             disabled={!hasProject}
             title={!hasProject ? "Link a project above to create contracts" : undefined}
           >
-            Actor
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="border-slate-600 text-slate-200"
-            onClick={() => {
-              setNewType("CREW");
-              setNewSubject("");
-              setNewVendorName("");
-              setNewTerms("");
-              setShowCreate(true);
-            }}
-            disabled={!hasProject}
-          >
-            Crew
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="border-slate-600 text-slate-200"
-            onClick={() => {
-              setNewType("LOCATION");
-              setNewSubject("");
-              setNewVendorName("");
-              setNewTerms("");
-              setShowCreate(true);
-            }}
-            disabled={!hasProject}
-          >
-            Location
-          </Button>
-          <Button
-            size="sm"
-            className="bg-orange-500 hover:bg-orange-600"
-            onClick={() => {
-              setNewType("VENDOR");
-              setNewSubject("Catering services agreement");
-              setNewVendorName("");
-              setNewTerms("");
-              setShowCreate(true);
-            }}
-            disabled={!hasProject}
-          >
-            Catering & Vendors
+            Generate Contract
           </Button>
           {modoc && (
             <Button
@@ -4588,67 +7401,126 @@ function LegalContractsWorkspace({
               onClick={() => setModocReportOpen(true)}
             >
               <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
-              Get MODOC contract review
+              Get AI contract review
             </Button>
           )}
-        </div>
+          </div>
         </div>
       </header>
       {modoc && modocReportOpen && (
         <ModocReportModal
           task="legal_contracts"
-          reportTitle="MODOC contract analysis"
+          reportTitle="Contract analysis"
           prompt="Analyze our project contracts for compliance with industry standards. Highlight important terms (rights, payment, termination, indemnity, credits) and flag potential issues we should review with legal counsel. Use the contract data provided in your context."
           onClose={() => setModocReportOpen(false)}
           projectId={projectId ?? undefined}
         />
       )}
-      <p className="text-xs text-slate-500">
-        Use <span className="text-slate-200 font-medium">Actor</span>,{" "}
-        <span className="text-slate-200 font-medium">Crew</span>, and{" "}
-        <span className="text-slate-200 font-medium">Location</span> for people and places on your
-        film. Use the{" "}
-        <span className="text-orange-400 font-medium">Catering & Vendors</span> button for paid
-        companies like catering, equipment rentals, or transport that also tie into your bookings
-        and spend.
-      </p>
+      {portalMessage && (
+        <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+          {portalMessage}
+        </p>
+      )}
+      <div className="grid gap-2 md:grid-cols-4">
+        <div className="creator-glass-panel p-3 text-xs">
+          <p className="text-slate-400">Total contracts</p>
+          <p className="mt-1 text-xl font-semibold text-white">{metrics.total}</p>
+        </div>
+        <div className="creator-glass-panel p-3 text-xs">
+          <p className="text-slate-400">Signed</p>
+          <p className="mt-1 text-xl font-semibold text-emerald-300">{metrics.signed}</p>
+        </div>
+        <div className="creator-glass-panel p-3 text-xs">
+          <p className="text-slate-400">Sent / Viewed</p>
+          <p className="mt-1 text-xl font-semibold text-sky-300">{metrics.sent}</p>
+        </div>
+        <div className="creator-glass-panel p-3 text-xs">
+          <p className="text-slate-400">Unconfirmed resources</p>
+          <p className="mt-1 text-xl font-semibold text-amber-300">{metrics.unconfirmed}</p>
+        </div>
+      </div>
       {showCreate && (
         <Card className="creator-glass-panel border-0 bg-transparent shadow-none">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">New contract</CardTitle>
+            <CardTitle className="text-sm">Generate contract</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
-            <select
-              value={newType}
-              onChange={(e) => setNewType(e.target.value)}
-              className="rounded-md bg-slate-900 border border-slate-700 px-2 py-1 text-sm text-white"
-            >
-              <option value="ACTOR">Actor</option>
-              <option value="CREW">Crew</option>
-              <option value="LOCATION">Location</option>
-              <option value="VENDOR">Vendor</option>
-            </select>
+          <CardContent className="space-y-3">
+            <div className="grid gap-2 md:grid-cols-3">
+              <select
+                value={newType}
+                onChange={(e) => setNewType(e.target.value)}
+                className="h-10 rounded-md bg-slate-900 border border-slate-700 px-2 py-1 text-sm text-white"
+              >
+                {templates.map((template) => (
+                  <option key={template.type} value={template.type}>
+                    {template.label}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={resourceType}
+                onChange={(e) =>
+                  setResourceType(e.target.value as "ACTOR" | "CREW" | "LOCATION" | "EQUIPMENT" | "GENERAL")
+                }
+                className="h-10 rounded-md bg-slate-900 border border-slate-700 px-2 py-1 text-sm text-white"
+              >
+                <option value="ACTOR">Actor</option>
+                <option value="CREW">Crew</option>
+                <option value="LOCATION">Location</option>
+                <option value="EQUIPMENT">Equipment</option>
+                <option value="GENERAL">General Service</option>
+              </select>
+              <select
+                value={resourceId}
+                onChange={(e) => setResourceId(e.target.value)}
+                disabled={resourceType === "GENERAL" || selectedResources.length === 0}
+                className="h-10 rounded-md bg-slate-900 border border-slate-700 px-2 py-1 text-sm text-white disabled:opacity-50"
+              >
+                {resourceType === "GENERAL" ? (
+                  <option value="">No linked resource (general agreement)</option>
+                ) : selectedResources.length === 0 ? (
+                  <option value="">No resources available</option>
+                ) : (
+                  selectedResources.map((resource) => (
+                    <option key={resource.id} value={resource.id}>
+                      {resource.label}
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
             <input
               value={newSubject}
               onChange={(e) => setNewSubject(e.target.value)}
               placeholder="Short description (optional)"
               className="w-full rounded-md bg-slate-900 border border-slate-700 px-3 py-1.5 text-sm text-white"
             />
-            {newType === "VENDOR" && (
-              <input
-                value={newVendorName}
-                onChange={(e) => setNewVendorName(e.target.value)}
-                placeholder="Vendor / catering company name"
-                className="w-full rounded-md bg-slate-900 border border-slate-700 px-3 py-1.5 text-sm text-white"
+            <div className="grid gap-2 md:grid-cols-2">
+              <Input
+                value={newPaymentTerms}
+                onChange={(e) => setNewPaymentTerms(e.target.value)}
+                placeholder="Payment terms override (optional)"
+                className="bg-slate-900 border-slate-700 text-xs"
               />
-            )}
+              <Input
+                value={newCustomClauses}
+                onChange={(e) => setNewCustomClauses(e.target.value)}
+                placeholder="Custom clauses"
+                className="bg-slate-900 border-slate-700 text-xs"
+              />
+            </div>
             <textarea
-              value={newTerms}
-              onChange={(e) => setNewTerms(e.target.value)}
-              rows={4}
-              placeholder="Contract terms..."
+              value={newTemplateBody}
+              onChange={(e) => setNewTemplateBody(e.target.value)}
+              rows={8}
+              placeholder="Template body with placeholders..."
               className="w-full rounded-md bg-slate-900 border border-slate-700 px-3 py-2 text-sm text-white"
             />
+            {selectedTemplate && (
+              <p className="text-[11px] text-slate-400">
+                Placeholders: {selectedTemplate.placeholders.join(", ")}
+              </p>
+            )}
             <div className="flex gap-2">
               <Button size="sm" variant="outline" onClick={() => setShowCreate(false)}>
                 Cancel
@@ -4656,10 +7528,18 @@ function LegalContractsWorkspace({
               <Button
                 size="sm"
                 className="bg-orange-500 hover:bg-orange-600"
-                onClick={() => hasProject && createMutation.mutate()}
+                onClick={() => hasProject && createMutation.mutate(false)}
                 disabled={createMutation.isPending || !hasProject}
               >
-                Create
+                Generate draft
+              </Button>
+              <Button
+                size="sm"
+                className="bg-emerald-600 hover:bg-emerald-700"
+                onClick={() => hasProject && createMutation.mutate(true)}
+                disabled={createMutation.isPending || !hasProject}
+              >
+                Generate + send
               </Button>
             </div>
           </CardContent>
@@ -4679,27 +7559,96 @@ function LegalContractsWorkspace({
             contracts.map((c) => (
               <div
                 key={c.id}
-                className="flex items-center justify-between rounded-xl bg-slate-900/80 border border-slate-800 px-3 py-2 text-xs md:text-sm"
+                className="rounded-xl bg-slate-900/80 border border-slate-800 px-3 py-3 text-xs md:text-sm space-y-2"
               >
-                <div className="space-y-0.5">
-                  <p className="text-white font-medium">
-                    {c.type} {c.subject ? <span className="text-slate-300">· {c.subject}</span> : null}
-                  </p>
-                  <p className="text-[11px] text-slate-400">
-                    {c.actor && <span>Actor: {c.actor.name}</span>}
-                    {c.crewTeam && <span>{c.actor ? " · " : ""}Crew: {c.crewTeam.name}</span>}
-                    {c.location && <span>{(c.actor || c.crewTeam) ? " · " : ""}Location: {c.location.name}</span>}
-                    {c.vendorName && <span>{(c.actor || c.crewTeam || c.location) ? " · " : ""}Vendor: {c.vendorName}</span>}
-                    {!c.actor && !c.crewTeam && !c.location && !c.vendorName && <span>No linked party yet</span>}
-                  </p>
+                <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                  <div className="space-y-0.5">
+                    <p className="text-white font-medium">
+                      {c.normalizedType.replaceAll("_", " ")}{" "}
+                      {c.subject ? <span className="text-slate-300">· {c.subject}</span> : null}
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                      {c.actor && <span>Actor: {c.actor.name}</span>}
+                      {c.crewTeam && <span>{c.actor ? " · " : ""}Crew: {c.crewTeam.name}</span>}
+                      {c.location && <span>{(c.actor || c.crewTeam) ? " · " : ""}Location: {c.location.name}</span>}
+                      {c.vendorName && <span>{(c.actor || c.crewTeam || c.location) ? " · " : ""}Vendor: {c.vendorName}</span>}
+                      {!c.actor && !c.crewTeam && !c.location && !c.vendorName && <span>No linked party yet</span>}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`rounded-full border px-2 py-1 text-[10px] ${toneClasses(c.statusTone)}`}>
+                      {c.status}
+                    </span>
+                    <span className="text-[11px] text-slate-500">
+                      v{c.latestVersion?.version ?? 0} · {c.signaturesCount} signature{c.signaturesCount === 1 ? "" : "s"}
+                    </span>
+                  </div>
                 </div>
-                <div className="text-right space-y-0.5">
-                  <p className="text-[11px] text-slate-400">
-                    {c.status} · v{c.latestVersion?.version ?? 0}
-                  </p>
-                  <p className="text-[11px] text-slate-500">
-                    {c.signaturesCount} signature{c.signaturesCount === 1 ? "" : "s"}
-                  </p>
+                <p className="rounded-md border border-slate-800 bg-slate-950/40 px-2 py-1.5 text-[11px] text-slate-300 whitespace-pre-wrap">
+                  {(c.latestVersion?.terms || "No terms preview yet.").slice(0, 420)}
+                  {(c.latestVersion?.terms?.length ?? 0) > 420 ? "..." : ""}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {c.status === "DRAFT" && (
+                    <Button
+                      size="sm"
+                      className="h-7 bg-orange-500 hover:bg-orange-600 text-[10px]"
+                      onClick={() => contractActionMutation.mutate({ contractId: c.id, kind: "status", action: "SENT" })}
+                      disabled={contractActionMutation.isPending}
+                    >
+                      Send
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 border-slate-700 px-2 text-[10px]"
+                    onClick={() => contractActionMutation.mutate({ contractId: c.id, kind: "respond", action: "VIEW" })}
+                    disabled={contractActionMutation.isPending}
+                  >
+                    Mark viewed
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 border-emerald-600/60 px-2 text-[10px] text-emerald-200"
+                    onClick={() => contractActionMutation.mutate({ contractId: c.id, kind: "respond", action: "ACCEPT" })}
+                    disabled={contractActionMutation.isPending}
+                  >
+                    Accept / sign
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 border-amber-600/60 px-2 text-[10px] text-amber-200"
+                    onClick={() =>
+                      contractActionMutation.mutate({
+                        contractId: c.id,
+                        kind: "respond",
+                        action: "REQUEST_CHANGES",
+                      })
+                    }
+                    disabled={contractActionMutation.isPending}
+                  >
+                    Request changes
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 border-rose-600/60 px-2 text-[10px] text-rose-200"
+                    onClick={() => contractActionMutation.mutate({ contractId: c.id, kind: "respond", action: "REJECT" })}
+                    disabled={contractActionMutation.isPending}
+                  >
+                    Reject
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 border-slate-700 px-2 text-[10px]"
+                    onClick={() => downloadTerms(c)}
+                  >
+                    Download
+                  </Button>
                 </div>
               </div>
             ))
@@ -4719,6 +7668,7 @@ function FundingHubWorkspace({
   const hasProject = !!projectId;
   const modoc = useModocOptional();
   const [modocReportOpen, setModocReportOpen] = useState(false);
+  const [hubMessage, setHubMessage] = useState("");
   const { data, isLoading } = useQuery({
     queryKey: ["project-funding", projectId],
     queryFn: () => fetch(`/api/creator/projects/${projectId}/funding`).then((r) => r.json()),
@@ -4729,11 +7679,6 @@ function FundingHubWorkspace({
     queryFn: () => fetch(`/api/creator/projects/${projectId}/budget`).then((r) => r.json()),
     enabled: hasProject,
   });
-  const { data: pitchDeckData } = useQuery({
-    queryKey: ["project-pitch-deck", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/pitch-deck`).then((r) => r.json()),
-    enabled: hasProject,
-  });
   const funding = data?.funding as {
     id: string;
     option: string;
@@ -4742,26 +7687,143 @@ function FundingHubWorkspace({
     details: string | null;
     status: string;
   } | null;
+  const profile = data?.projectFundingProfile as
+    | {
+        budgetTotal: number;
+        fundingRequired: number;
+        fundingSecured: number;
+        fundingReceived: number;
+        fundingGap: number;
+        percentFunded: number;
+        allocationTotal: number;
+        overspendRisk: boolean;
+        status: string;
+        minimumStartThresholdPercent: number;
+        productionStartAllowed: boolean;
+        scheduleGateReason: string | null;
+      }
+    | undefined;
+  const readiness = data?.readiness as
+    | {
+        score: number;
+        breakdown: {
+          scriptReadiness: number;
+          budgetReadiness: number;
+          teamReadiness: number;
+          scheduleReadiness: number;
+        };
+      }
+    | undefined;
+  const opportunities = (data?.opportunities ?? []) as Array<{
+    id: string;
+    name: string;
+    type: "INSTITUTIONAL" | "PRIVATE" | "INTERNAL_STORYTIME";
+    description: string;
+    categories: string[];
+    minAmount: number;
+    maxAmount: number;
+    requirements: string[];
+    applicationDeadline: string | null;
+    contact: string;
+    region: string | null;
+    matchScore: number;
+  }>;
+  const applications = (data?.applications ?? []) as Array<{
+    id: string;
+    opportunityId: string;
+    funderName: string;
+    funderType: string;
+    requestedAmount: number;
+    status: "DRAFT" | "SUBMITTED" | "UNDER_REVIEW" | "APPROVED" | "REJECTED" | "CHANGES_REQUESTED";
+    submittedAt: string;
+    documents: {
+      pitchDeck: boolean;
+      script: boolean;
+      budget: boolean;
+      productionPlan: boolean;
+      teamDetails: boolean;
+    };
+    notes?: string | null;
+  }>;
+  const sources = (data?.sources ?? []) as Array<{
+    id: string;
+    name: string;
+    type: "INSTITUTIONAL" | "PRIVATE" | "INTERNAL_STORYTIME";
+    instrument: "GRANT" | "EQUITY" | "LOAN" | "SPONSORSHIP" | "SELF_FUNDED";
+    amountCommitted: number;
+    amountReceived: number;
+    paymentSchedule?: string | null;
+    conditions?: string | null;
+    linkedContractId?: string | null;
+    status: "COMMITTED" | "PARTIALLY_RECEIVED" | "RECEIVED" | "ON_HOLD";
+    notes?: string | null;
+    milestones: Array<{
+      id: string;
+      phase: "PRE_PRODUCTION" | "PRODUCTION" | "POST_PRODUCTION" | "DELIVERY";
+      dueDate?: string | null;
+      amount: number;
+      paid: boolean;
+      paidAt?: string | null;
+      note?: string | null;
+    }>;
+  }>;
+  const allocations = (data?.allocations ?? []) as Array<{
+    id: string;
+    department: string;
+    amount: number;
+    note?: string | null;
+  }>;
+  const milestoneAlerts = (data?.milestoneAlerts ?? []) as Array<{
+    sourceId: string;
+    sourceName: string;
+    milestoneId: string;
+    phase: string;
+    amount: number;
+    dueDate: string;
+    alert: "MISSED" | "UPCOMING";
+    deltaDays: number;
+  }>;
+
   const [option, setOption] = useState<"HAS_FUNDING" | "REQUEST_FUNDING">("HAS_FUNDING");
   const [amount, setAmount] = useState("");
   const [details, setDetails] = useState("");
+  const [selectedOpportunityId, setSelectedOpportunityId] = useState("");
+  const [requestedAmount, setRequestedAmount] = useState("");
+  const [applicationNotes, setApplicationNotes] = useState("");
+  const [sourceName, setSourceName] = useState("");
+  const [sourceType, setSourceType] = useState<"INSTITUTIONAL" | "PRIVATE" | "INTERNAL_STORYTIME">(
+    "PRIVATE",
+  );
+  const [sourceInstrument, setSourceInstrument] = useState<"GRANT" | "EQUITY" | "LOAN" | "SPONSORSHIP" | "SELF_FUNDED">(
+    "GRANT",
+  );
+  const [sourceCommitted, setSourceCommitted] = useState("");
+  const [sourceReceived, setSourceReceived] = useState("");
+  const [sourcePaymentSchedule, setSourcePaymentSchedule] = useState("");
+  const [sourceConditions, setSourceConditions] = useState("");
+  const [allocationDepartment, setAllocationDepartment] = useState("");
+  const [allocationAmount, setAllocationAmount] = useState("");
+  const [allocationNote, setAllocationNote] = useState("");
+  const [thresholdPercent, setThresholdPercent] = useState("35");
+  const [selectedSourceId, setSelectedSourceId] = useState("");
+  const [milestonePhase, setMilestonePhase] = useState<"PRE_PRODUCTION" | "PRODUCTION" | "POST_PRODUCTION" | "DELIVERY">("PRE_PRODUCTION");
+  const [milestoneAmount, setMilestoneAmount] = useState("");
+  const [milestoneDueDate, setMilestoneDueDate] = useState("");
+
   const budgetTotal =
     typeof budgetData?.total === "number"
       ? budgetData.total
       : Array.isArray(budgetData?.lines)
       ? (budgetData.lines as { total: number }[]).reduce((sum, l) => sum + (l.total || 0), 0)
-      : null;
-  const committedAmount = funding?.amount ?? null;
-  const coveragePercent =
-    budgetTotal && committedAmount != null && budgetTotal > 0
-      ? Math.min(100, Math.round((committedAmount / budgetTotal) * 100))
-      : null;
+      : profile?.budgetTotal ?? null;
+
   const saveMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch(`/api/creator/projects/${projectId}/funding`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          action: "SAVE_SNAPSHOT",
           option,
           amount: amount ? Number(amount) : null,
           currency: "ZAR",
@@ -4771,15 +7833,213 @@ function FundingHubWorkspace({
       if (!res.ok) throw new Error("Failed to save");
       return res.json();
     },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project-funding", projectId] });
+      setHubMessage("Funding snapshot saved.");
+    },
+  });
+  const applyMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedOpportunityId) throw new Error("Select a funding opportunity");
+      const opportunity = opportunities.find((o) => o.id === selectedOpportunityId);
+      const res = await fetch(`/api/creator/projects/${projectId}/funding`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "ADD_APPLICATION",
+          application: {
+            opportunityId: selectedOpportunityId,
+            funderName: opportunity?.name ?? "Funding source",
+            funderType: opportunity?.type ?? "INSTITUTIONAL",
+            requestedAmount: Number(requestedAmount || "0"),
+            notes: applicationNotes || null,
+            documents: {
+              pitchDeck: false,
+              script: true,
+              budget: budgetTotal != null,
+              productionPlan: true,
+              teamDetails: true,
+            },
+          },
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to submit application");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project-funding", projectId] });
+      setApplicationNotes("");
+      setRequestedAmount("");
+      setHubMessage("Funding application submitted.");
+    },
+  });
+  const addSourceMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/creator/projects/${projectId}/funding`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "ADD_SOURCE",
+          source: {
+            name: sourceName,
+            type: sourceType,
+            instrument: sourceInstrument,
+            amountCommitted: Number(sourceCommitted || "0"),
+            amountReceived: Number(sourceReceived || "0"),
+            paymentSchedule: sourcePaymentSchedule || null,
+            conditions: sourceConditions || null,
+          },
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to add funding source");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project-funding", projectId] });
+      setSourceName("");
+      setSourceCommitted("");
+      setSourceReceived("");
+      setSourcePaymentSchedule("");
+      setSourceConditions("");
+      setHubMessage("Funding source recorded.");
+    },
+  });
+  const addAllocationMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/creator/projects/${projectId}/funding`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "ADD_ALLOCATION",
+          allocation: {
+            department: allocationDepartment,
+            amount: Number(allocationAmount || "0"),
+            note: allocationNote || null,
+          },
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to add allocation");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project-funding", projectId] });
+      setAllocationDepartment("");
+      setAllocationAmount("");
+      setAllocationNote("");
+      setHubMessage("Department allocation added.");
+    },
+  });
+  const appStatusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      const res = await fetch(`/api/creator/projects/${projectId}/funding`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "UPDATE_APPLICATION",
+          application: { id, status },
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to update application status");
+      return res.json();
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project-funding", projectId] }),
   });
+  const sourceMutation = useMutation({
+    mutationFn: async ({
+      id,
+      amountReceived,
+      milestones,
+      makeContract,
+    }: {
+      id: string;
+      amountReceived?: number;
+      milestones?: Array<{
+        id: string;
+        phase: "PRE_PRODUCTION" | "PRODUCTION" | "POST_PRODUCTION" | "DELIVERY";
+        dueDate?: string | null;
+        amount: number;
+        paid: boolean;
+        paidAt?: string | null;
+        note?: string | null;
+      }>;
+      makeContract?: boolean;
+    }) => {
+      if (makeContract) {
+        const res = await fetch(`/api/creator/projects/${projectId}/funding`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "LINK_SOURCE_CONTRACT",
+            contractForSourceId: id,
+          }),
+        });
+        if (!res.ok) throw new Error("Failed to create funding contract");
+        return res.json();
+      }
+      const res = await fetch(`/api/creator/projects/${projectId}/funding`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "UPDATE_SOURCE",
+          source: {
+            id,
+            amountReceived,
+            milestones,
+          },
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to update funding source");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project-funding", projectId] });
+      setHubMessage("Funding source updated.");
+    },
+  });
+  const settingsMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/creator/projects/${projectId}/funding`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "UPDATE_SETTINGS",
+          settings: {
+            minimumStartThresholdPercent: Number(thresholdPercent || "35"),
+          },
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to update funding settings");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project-funding", projectId] });
+      setHubMessage("Funding settings saved.");
+    },
+  });
+
   useEffect(() => {
     if (funding) {
       setOption(funding.option as "HAS_FUNDING" | "REQUEST_FUNDING");
       setAmount(funding.amount != null ? String(funding.amount) : "");
       setDetails(funding.details ?? "");
+      if (profile?.minimumStartThresholdPercent != null) {
+        setThresholdPercent(String(profile.minimumStartThresholdPercent));
+      }
     }
-  }, [funding?.id]);
+  }, [funding?.id, profile?.minimumStartThresholdPercent]);
+  useEffect(() => {
+    if (!selectedOpportunityId && opportunities.length > 0) {
+      setSelectedOpportunityId(opportunities[0].id);
+    }
+  }, [selectedOpportunityId, opportunities]);
+  useEffect(() => {
+    if (!selectedSourceId && sources.length > 0) {
+      setSelectedSourceId(sources[0].id);
+    }
+  }, [selectedSourceId, sources]);
+
+  const selectedSource = sources.find((s) => s.id === selectedSourceId) ?? null;
+
   return (
     <div className="space-y-4">
       <header className="storytime-plan-card p-5 md:p-6">
@@ -4790,7 +8050,8 @@ function FundingHubWorkspace({
             </p>
             <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
             <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
-              Capture whether this project is already funded or actively seeking funding, and keep the headline numbers in one place.
+              Marketplace-style funding command center for institutional, private, and Story Time funding with
+              application tracking, milestone payouts, contract links, and execution gating.
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -4803,7 +8064,7 @@ function FundingHubWorkspace({
                 onClick={() => setModocReportOpen(true)}
               >
                 <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
-                Get MODOC funding suggestions
+                Get AI funding suggestions
               </Button>
             )}
           </div>
@@ -4812,151 +8073,390 @@ function FundingHubWorkspace({
       {modoc && modocReportOpen && (
         <ModocReportModal
           task="funding_hub"
-          reportTitle="MODOC funding and proposals"
+          reportTitle="Funding and proposals"
           prompt="Identify potential funding sources and investor types for our project, and suggest how to structure a funding proposal. Use the project details (logline, budget, funding status) in your context. Suggest categories (grants, broadcasters, equity, brands, crowdfunding) and key points to include in proposals—do not invent specific fund names unless provided."
           onClose={() => setModocReportOpen(false)}
           projectId={projectId ?? undefined}
         />
       )}
+      {hubMessage ? (
+        <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+          {hubMessage}
+        </p>
+      ) : null}
 
-      {hasProject && (budgetTotal || committedAmount != null) && (
-        <div className="creator-glass-panel p-4 space-y-2">
-          <div className="flex flex-wrap items-center justify-between gap-2 text-xs md:text-sm text-slate-200">
-            <span className="font-medium text-slate-100">Funding vs Budget</span>
-            <div className="flex flex-wrap gap-3">
-              {budgetTotal != null && (
-                <span className="text-slate-300">
-                  Budget: <span className="font-semibold">ZAR {budgetTotal.toLocaleString()}</span>
-                </span>
-              )}
-              {committedAmount != null && (
-                <span className="text-slate-300">
-                  {option === "HAS_FUNDING" ? "Committed" : "Target"}:{" "}
-                  <span className="font-semibold">ZAR {committedAmount.toLocaleString()}</span>
-                </span>
-              )}
-              {budgetTotal != null && committedAmount != null && (
-                <span className="text-slate-300">
-                  Gap:{" "}
-                  <span className="font-semibold">
-                    ZAR {(budgetTotal - committedAmount).toLocaleString()}
-                  </span>
-                </span>
-              )}
-            </div>
+      {hasProject && profile && (
+        <div className="grid gap-2 md:grid-cols-4">
+          <div className="creator-glass-panel p-3">
+            <p className="text-xs text-slate-400">Funding secured</p>
+            <p className="mt-1 text-xl font-semibold text-emerald-300">R{profile.fundingSecured.toLocaleString()}</p>
           </div>
-          {coveragePercent != null && (
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-[11px] text-slate-400">
-                <span>Coverage</span>
-                <span className="font-medium text-emerald-400">{coveragePercent}%</span>
-              </div>
-              <div className="h-1.5 rounded-full bg-slate-800 overflow-hidden">
-                <div
-                  className="h-full bg-emerald-500 transition-all"
-                  style={{ width: `${coveragePercent}%` }}
-                />
-              </div>
-            </div>
-          )}
-          <div className="flex flex-wrap gap-2 text-xs mt-1">
-            {budgetTotal == null && (
-              <Link
-                href={
-                  projectId
-                    ? `/creator/projects/${projectId}/pre-production/budget-builder`
-                    : "/creator/pre/budget-builder"
-                }
-                className="inline-flex items-center rounded-full border border-slate-700 px-3 py-1 hover:border-orange-500/70 hover:text-orange-300 text-slate-300"
-              >
-                Set up budget in Budget Builder
-              </Link>
-            )}
-            {pitchDeckData?.deck && (
-              <Link
-                href={
-                  projectId
-                    ? `/creator/projects/${projectId}/pre-production/pitch-deck-builder`
-                    : "/creator/pre/pitch-deck-builder"
-                }
-                className="inline-flex items-center rounded-full border border-slate-700 px-3 py-1 hover:border-orange-500/70 hover:text-orange-300 text-slate-300"
-              >
-                Open Pitch Deck for this project
-              </Link>
-            )}
+          <div className="creator-glass-panel p-3">
+            <p className="text-xs text-slate-400">Funding gap</p>
+            <p className="mt-1 text-xl font-semibold text-amber-300">R{profile.fundingGap.toLocaleString()}</p>
+          </div>
+          <div className="creator-glass-panel p-3">
+            <p className="text-xs text-slate-400">Coverage</p>
+            <p className="mt-1 text-xl font-semibold text-white">{profile.percentFunded}%</p>
+          </div>
+          <div className="creator-glass-panel p-3">
+            <p className="text-xs text-slate-400">Readiness score</p>
+            <p className="mt-1 text-xl font-semibold text-cyan-300">{readiness?.score ?? 0}/100</p>
           </div>
         </div>
       )}
 
       {isLoading ? (
-        <Skeleton className="h-32 bg-slate-800/60" />
+        <Skeleton className="h-64 bg-slate-800/60" />
       ) : (
-        <Card className="creator-glass-panel border-0 bg-transparent shadow-none">
-          <CardContent className="pt-6 space-y-4">
-            <div className="flex gap-4 flex-wrap">
-              <label className="flex items-center gap-2 text-sm text-slate-300">
-                <input
-                  type="radio"
-                  checked={option === "HAS_FUNDING"}
-                  onChange={() => setOption("HAS_FUNDING")}
-                  className="rounded"
-                />
-                Already funded
-              </label>
-              <label className="flex items-center gap-2 text-sm text-slate-300">
-                <input
-                  type="radio"
-                  checked={option === "REQUEST_FUNDING"}
-                  onChange={() => setOption("REQUEST_FUNDING")}
-                  className="rounded"
-                />
-                Seeking funding
-              </label>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs text-slate-400">Headline amount (ZAR)</label>
-              <Input
-                type="number"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="Total committed or target amount"
-                className="bg-slate-900 border-slate-700"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs text-slate-400">Funding details</label>
+        <div className="space-y-4">
+          <Card className="creator-glass-panel border-0 bg-transparent shadow-none">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Project funding profile</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid gap-2 md:grid-cols-3">
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-400">Funding mode</label>
+                  <select
+                    value={option}
+                    onChange={(e) => setOption(e.target.value as "HAS_FUNDING" | "REQUEST_FUNDING")}
+                    className="h-10 w-full rounded-md bg-slate-900 border border-slate-700 px-3 text-sm text-white"
+                  >
+                    <option value="HAS_FUNDING">Already funded / mixed</option>
+                    <option value="REQUEST_FUNDING">Seeking funding</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-400">Headline amount (ZAR)</label>
+                  <Input
+                    type="number"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    className="bg-slate-900 border-slate-700"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-slate-400">Minimum start threshold (%)</label>
+                  <Input
+                    type="number"
+                    value={thresholdPercent}
+                    onChange={(e) => setThresholdPercent(e.target.value)}
+                    className="bg-slate-900 border-slate-700"
+                  />
+                </div>
+              </div>
               <textarea
                 value={details}
                 onChange={(e) => setDetails(e.target.value)}
                 rows={3}
                 className="w-full rounded-md bg-slate-900 border border-slate-700 px-3 py-2 text-sm text-white"
-                placeholder={
-                  option === "HAS_FUNDING"
-                    ? "Who is funding this (grants, investors, broadcasters), and on what terms?"
-                    : "Where do you plan to raise from (funds, brands, broadcasters) and what are you asking for?"
-                }
+                placeholder="Funding strategy, conditions, investor context..."
               />
-            </div>
-            <Button
-              size="sm"
-              className="bg-orange-500 hover:bg-orange-600"
-              onClick={() => hasProject && saveMutation.mutate()}
-              disabled={saveMutation.isPending || !hasProject}
-              title={!hasProject ? "Link a project above to save" : undefined}
-            >
-              Save funding snapshot
-            </Button>
-            {funding?.status && (
-              <p className="text-xs text-slate-400">Status: {funding.status}</p>
-            )}
-          </CardContent>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" className="bg-orange-500 hover:bg-orange-600" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending || !hasProject}>
+                  Save profile
+                </Button>
+                <Button size="sm" variant="outline" className="border-slate-700 text-xs" onClick={() => settingsMutation.mutate()} disabled={settingsMutation.isPending || !hasProject}>
+                  Save threshold
+                </Button>
+                {profile?.scheduleGateReason ? (
+                  <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-[11px] text-amber-200">
+                    {profile.scheduleGateReason}
+                  </span>
+                ) : (
+                  <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-[11px] text-emerald-200">
+                    Production threshold met
+                  </span>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="creator-glass-panel border-0 bg-transparent shadow-none">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Funder marketplace & applications</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                  {opportunities.map((opp) => (
+                    <div key={opp.id} className="rounded-xl border border-slate-800 bg-slate-900/70 p-3 text-xs space-y-1">
+                      <div className="flex items-center justify-between">
+                        <p className="text-slate-100 font-medium">{opp.name}</p>
+                        <span className="rounded-full border border-cyan-500/40 bg-cyan-500/10 px-2 py-0.5 text-[10px] text-cyan-200">
+                          Match {opp.matchScore}%
+                        </span>
+                      </div>
+                      <p className="text-slate-400">{opp.description}</p>
+                      <p className="text-slate-500">
+                        {opp.type.replaceAll("_", " ")} · R{opp.minAmount.toLocaleString()} - R{opp.maxAmount.toLocaleString()}
+                        {opp.applicationDeadline ? ` · Deadline ${new Date(opp.applicationDeadline).toLocaleDateString()}` : ""}
+                      </p>
+                      <Button
+                        size="sm"
+                        variant={selectedOpportunityId === opp.id ? "default" : "outline"}
+                        className={selectedOpportunityId === opp.id ? "h-6 bg-orange-500 hover:bg-orange-600 text-[10px]" : "h-6 border-slate-700 text-[10px]"}
+                        onClick={() => setSelectedOpportunityId(opp.id)}
+                      >
+                        {selectedOpportunityId === opp.id ? "Selected" : "Select"}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+                <div className="space-y-2">
+                  <Input
+                    type="number"
+                    value={requestedAmount}
+                    onChange={(e) => setRequestedAmount(e.target.value)}
+                    placeholder="Requested amount (ZAR)"
+                    className="bg-slate-900 border-slate-700 text-xs"
+                  />
+                  <textarea
+                    value={applicationNotes}
+                    onChange={(e) => setApplicationNotes(e.target.value)}
+                    rows={4}
+                    className="w-full rounded-md bg-slate-900 border border-slate-700 px-3 py-2 text-xs text-white"
+                    placeholder="Application notes and positioning..."
+                  />
+                  <p className="text-[11px] text-slate-500">
+                    Package checks: Pitch deck {applications.some((app) => app.documents.pitchDeck) ? "Yes" : "No"} · Budget {budgetTotal != null ? "Yes" : "No"} · Script Yes · Plan Yes · Team Yes
+                  </p>
+                  <Button
+                    size="sm"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-xs"
+                    onClick={() => applyMutation.mutate()}
+                    disabled={applyMutation.isPending || !selectedOpportunityId}
+                  >
+                    Submit application
+                  </Button>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-white">Application tracker</p>
+                {applications.length === 0 ? (
+                  <p className="text-xs text-slate-500">No applications yet.</p>
+                ) : (
+                  applications.map((app) => (
+                    <div key={app.id} className="rounded-lg border border-slate-800 bg-slate-900/70 p-2 text-xs flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-slate-100">{app.funderName}</p>
+                        <p className="text-slate-500">
+                          R{app.requestedAmount.toLocaleString()} · {app.status} · {new Date(app.submittedAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <select
+                        value={app.status}
+                        onChange={(e) => appStatusMutation.mutate({ id: app.id, status: e.target.value })}
+                        className="h-8 rounded-md bg-slate-900 border border-slate-700 px-2 text-[11px] text-white"
+                      >
+                        <option value="SUBMITTED">Submitted</option>
+                        <option value="UNDER_REVIEW">Under review</option>
+                        <option value="CHANGES_REQUESTED">Changes requested</option>
+                        <option value="APPROVED">Approved</option>
+                        <option value="REJECTED">Rejected</option>
+                      </select>
+                    </div>
+                  ))
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="creator-glass-panel border-0 bg-transparent shadow-none">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Funding sources, milestones, and contracts</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid gap-2 md:grid-cols-3">
+                <Input value={sourceName} onChange={(e) => setSourceName(e.target.value)} placeholder="Investor / funder name" className="bg-slate-900 border-slate-700 text-xs" />
+                <select value={sourceType} onChange={(e) => setSourceType(e.target.value as any)} className="h-10 rounded-md bg-slate-900 border border-slate-700 px-3 text-xs text-white">
+                  <option value="INSTITUTIONAL">Institutional</option>
+                  <option value="PRIVATE">Private / External</option>
+                  <option value="INTERNAL_STORYTIME">Story Time Internal</option>
+                </select>
+                <select value={sourceInstrument} onChange={(e) => setSourceInstrument(e.target.value as any)} className="h-10 rounded-md bg-slate-900 border border-slate-700 px-3 text-xs text-white">
+                  <option value="GRANT">Grant</option>
+                  <option value="EQUITY">Equity</option>
+                  <option value="LOAN">Loan</option>
+                  <option value="SPONSORSHIP">Sponsorship</option>
+                  <option value="SELF_FUNDED">Self-funded</option>
+                </select>
+                <Input type="number" value={sourceCommitted} onChange={(e) => setSourceCommitted(e.target.value)} placeholder="Committed amount" className="bg-slate-900 border-slate-700 text-xs" />
+                <Input type="number" value={sourceReceived} onChange={(e) => setSourceReceived(e.target.value)} placeholder="Received amount" className="bg-slate-900 border-slate-700 text-xs" />
+                <Input value={sourcePaymentSchedule} onChange={(e) => setSourcePaymentSchedule(e.target.value)} placeholder="Payment schedule / milestones" className="bg-slate-900 border-slate-700 text-xs" />
+              </div>
+              <textarea value={sourceConditions} onChange={(e) => setSourceConditions(e.target.value)} rows={2} className="w-full rounded-md bg-slate-900 border border-slate-700 px-3 py-2 text-xs text-white" placeholder="Conditions, obligations, recoupment terms..." />
+              <Button size="sm" className="bg-orange-500 hover:bg-orange-600 text-xs" onClick={() => addSourceMutation.mutate()} disabled={addSourceMutation.isPending || !sourceName.trim()}>
+                Record funding source
+              </Button>
+
+              <div className="space-y-2">
+                {sources.length === 0 ? (
+                  <p className="text-xs text-slate-500">No funding sources recorded yet.</p>
+                ) : (
+                  sources.map((src) => (
+                    <div key={src.id} className="rounded-xl border border-slate-800 bg-slate-900/70 p-3 space-y-2 text-xs">
+                      <div className="flex items-center justify-between">
+                        <p className="text-slate-100 font-medium">{src.name}</p>
+                        <p className="text-slate-400">{src.status}</p>
+                      </div>
+                      <p className="text-slate-500">
+                        {src.type.replaceAll("_", " ")} · {src.instrument} · Committed R{src.amountCommitted.toLocaleString()} · Received R{src.amountReceived.toLocaleString()}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6 border-slate-700 px-2 text-[10px]"
+                          onClick={() => {
+                            const nextReceived = Number(window.prompt("Update received amount", String(src.amountReceived)) || src.amountReceived);
+                            sourceMutation.mutate({ id: src.id, amountReceived: nextReceived });
+                          }}
+                        >
+                          Update received
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6 border-emerald-600/60 px-2 text-[10px] text-emerald-200"
+                          onClick={() => sourceMutation.mutate({ id: src.id, makeContract: true })}
+                          disabled={sourceMutation.isPending || !!src.linkedContractId}
+                        >
+                          {src.linkedContractId ? "Contract linked" : "Generate funding contract"}
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="grid gap-2 md:grid-cols-[1fr_1fr_1fr_auto]">
+                <select value={selectedSourceId} onChange={(e) => setSelectedSourceId(e.target.value)} className="h-10 rounded-md bg-slate-900 border border-slate-700 px-3 text-xs text-white">
+                  {sources.length === 0 ? <option value="">No source selected</option> : sources.map((src) => <option key={src.id} value={src.id}>{src.name}</option>)}
+                </select>
+                <select value={milestonePhase} onChange={(e) => setMilestonePhase(e.target.value as any)} className="h-10 rounded-md bg-slate-900 border border-slate-700 px-3 text-xs text-white">
+                  <option value="PRE_PRODUCTION">Pre-production</option>
+                  <option value="PRODUCTION">Production</option>
+                  <option value="POST_PRODUCTION">Post-production</option>
+                  <option value="DELIVERY">Delivery</option>
+                </select>
+                <Input type="number" value={milestoneAmount} onChange={(e) => setMilestoneAmount(e.target.value)} placeholder="Milestone amount" className="bg-slate-900 border-slate-700 text-xs" />
+                <Input type="date" value={milestoneDueDate} onChange={(e) => setMilestoneDueDate(e.target.value)} className="bg-slate-900 border-slate-700 text-xs" />
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-slate-700 text-xs"
+                disabled={!selectedSource || !milestoneAmount}
+                onClick={() => {
+                  if (!selectedSource) return;
+                  const nextMilestones = [
+                    ...(selectedSource.milestones ?? []),
+                    {
+                      id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                      phase: milestonePhase,
+                      dueDate: milestoneDueDate || null,
+                      amount: Number(milestoneAmount || "0"),
+                      paid: false,
+                      paidAt: null,
+                      note: null,
+                    },
+                  ];
+                  sourceMutation.mutate({ id: selectedSource.id, milestones: nextMilestones });
+                  setMilestoneAmount("");
+                  setMilestoneDueDate("");
+                }}
+              >
+                Add payout milestone
+              </Button>
+
+              {milestoneAlerts.length > 0 && (
+                <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
+                  {milestoneAlerts.slice(0, 6).map((alert) => (
+                    <p key={alert.milestoneId}>
+                      {alert.alert === "MISSED" ? "Missed" : "Upcoming"} payout · {alert.sourceName} · {alert.phase} · R{alert.amount.toLocaleString()} · {new Date(alert.dueDate).toLocaleDateString()}
+                    </p>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="creator-glass-panel border-0 bg-transparent shadow-none">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Budget allocations & execution links</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid gap-2 md:grid-cols-[1fr_1fr_1fr_auto]">
+                <Input value={allocationDepartment} onChange={(e) => setAllocationDepartment(e.target.value)} placeholder="Department (Camera, Cast, etc.)" className="bg-slate-900 border-slate-700 text-xs" />
+                <Input type="number" value={allocationAmount} onChange={(e) => setAllocationAmount(e.target.value)} placeholder="Allocation amount" className="bg-slate-900 border-slate-700 text-xs" />
+                <Input value={allocationNote} onChange={(e) => setAllocationNote(e.target.value)} placeholder="Allocation note" className="bg-slate-900 border-slate-700 text-xs" />
+                <Button size="sm" className="bg-orange-500 hover:bg-orange-600 text-xs" onClick={() => addAllocationMutation.mutate()} disabled={addAllocationMutation.isPending || !allocationDepartment || !allocationAmount}>
+                  Allocate
+                </Button>
+              </div>
+              {profile?.overspendRisk ? (
+                <p className="rounded-md border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] text-rose-200">
+                  Allocations exceed secured funding. Adjust allocations or secure additional funding.
+                </p>
+              ) : null}
+              {allocations.length === 0 ? (
+                <p className="text-xs text-slate-500">No allocations yet.</p>
+              ) : (
+                <div className="space-y-1">
+                  {allocations.map((alloc) => (
+                    <div key={alloc.id} className="rounded-md border border-slate-800 bg-slate-900/70 px-3 py-2 text-xs flex items-center justify-between">
+                      <span className="text-slate-200">{alloc.department}</span>
+                      <span className="text-slate-400">R{alloc.amount.toLocaleString()} {alloc.note ? `· ${alloc.note}` : ""}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex flex-wrap gap-2 text-xs">
+                <Link href={projectId ? `/creator/projects/${projectId}/pre-production/budget-builder` : "/creator/pre/budget-builder"} className="inline-flex items-center rounded-full border border-slate-700 px-3 py-1 hover:border-orange-500/70 hover:text-orange-300 text-slate-300">
+                  Open Budget Builder
+                </Link>
+                <Link href={projectId ? `/creator/projects/${projectId}/pre-production/legal-contracts` : "/creator/pre/legal-contracts"} className="inline-flex items-center rounded-full border border-slate-700 px-3 py-1 hover:border-orange-500/70 hover:text-orange-300 text-slate-300">
+                  Open Legal & Contracts
+                </Link>
+                <Link href={projectId ? `/creator/projects/${projectId}/pre-production/production-scheduling` : "/creator/pre/production-scheduling"} className="inline-flex items-center rounded-full border border-slate-700 px-3 py-1 hover:border-orange-500/70 hover:text-orange-300 text-slate-300">
+                  Open Production Scheduling
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {hasProject && profile && (
+        <div className="creator-glass-panel p-4 text-xs space-y-1">
+          <p className="text-slate-200 font-medium">Project funding status: {profile.status.replaceAll("_", " ")}</p>
+          <p className="text-slate-400">
+            Budget: R{profile.budgetTotal.toLocaleString()} · Secured: R{profile.fundingSecured.toLocaleString()} · Received: R{profile.fundingReceived.toLocaleString()} · Gap: R{profile.fundingGap.toLocaleString()}
+          </p>
+          <p className="text-slate-500">
+            Investor view: {sources.length} source(s), {applications.length} application(s), {milestoneAlerts.length} payout alert(s).
+          </p>
+        </div>
+      )}
+
+      {hasProject && !budgetTotal ? (
+        <div className="creator-glass-panel p-3 text-xs text-amber-200 border border-amber-500/30">
+          Budget is not set. Funding gap and eligibility will be more accurate after Budget Builder is completed.
+        </div>
+      ) : null}
+
+      {false && (
+        <Card className="creator-glass-panel border-0 bg-transparent shadow-none">
+          <CardContent />
         </Card>
       )}
     </div>
   );
 }
 
-// --- Pitch Deck Builder ---
+/* Pitch Deck Builder removed.
 function PitchDeckWorkspace({
   projectId,
   title,
@@ -5117,7 +8617,7 @@ function PitchDeckWorkspace({
                 onClick={() => setModocReportOpen(true)}
               >
                 <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
-                Get MODOC pitch deck help
+                Get AI pitch deck help
               </Button>
             )}
             <span className="text-xs leading-relaxed text-slate-400">
@@ -5129,7 +8629,7 @@ function PitchDeckWorkspace({
       {modoc && modocReportOpen && (
         <ModocReportModal
           task="pitch_deck"
-          reportTitle="MODOC pitch deck builder"
+          reportTitle="Pitch deck builder"
           prompt="Help us create or refine our pitch deck. Use the project (title, logline) and current slides in your context. Suggest compelling slide-by-slide content that highlights our project's unique aspects and market potential. Output copy we can paste into our deck."
           onClose={() => setModocReportOpen(false)}
           projectId={projectId ?? undefined}
@@ -5149,16 +8649,25 @@ function PitchDeckWorkspace({
               .map((s, i) => {
                 const isActive = s.id === activeSlide?.id;
                 return (
-                  <button
+                  <div
                     key={s.id}
-                    type="button"
+                    role="button"
+                    tabIndex={0}
                     onClick={() => {
                       setSelectedSlideId(s.id);
                       setEditingTitle(s.title ?? "");
                       setEditingBody(s.body ?? "");
                     }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setSelectedSlideId(s.id);
+                        setEditingTitle(s.title ?? "");
+                        setEditingBody(s.body ?? "");
+                      }
+                    }}
                     className={[
-                      "w-full text-left rounded-xl px-3 py-2 text-xs border transition",
+                      "w-full cursor-pointer text-left rounded-xl px-3 py-2 text-xs border transition focus:outline-none focus:ring-2 focus:ring-orange-500/60",
                       isActive
                         ? "bg-orange-500/20 border-orange-500/70 text-white"
                         : "bg-slate-900/70 border-slate-800 text-slate-200 hover:border-orange-500/50",
@@ -5194,7 +8703,7 @@ function PitchDeckWorkspace({
                     <div className="mt-0.5 text-xs font-medium truncate">
                       {s.title || "Untitled slide"}
                     </div>
-                  </button>
+                  </div>
                 );
               })
           )}
@@ -5246,8 +8755,365 @@ function PitchDeckWorkspace({
     </div>
   );
 }
+*/
 
 // --- Table Reads ---
+function tableReadDatetimeLocalValue(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function tableReadDatetimeLocalToIso(local: string): string | null {
+  if (!local.trim()) return null;
+  const d = new Date(local);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString();
+}
+
+type TableReadSessionRow = {
+  id: string;
+  name: string | null;
+  scheduledAt: string | null;
+  notesLog: string | null;
+  createdAt: string;
+  participants: {
+    id: string;
+    userId: string | null;
+    guestName: string | null;
+    user: { id: string; name: string | null; email: string | null } | null;
+    characterName: string | null;
+  }[];
+  notes: {
+    id: string;
+    body: string;
+    createdAt: string;
+    user: { id: string; name: string | null; email: string | null } | null;
+  }[];
+};
+
+function tableReadParticipantLabel(p: TableReadSessionRow["participants"][0]): string {
+  return p.guestName?.trim() || p.user?.name || p.user?.email || "Attendee";
+}
+
+function TableReadSessionEditor({
+  session,
+  projectId,
+}: {
+  session: TableReadSessionRow;
+  projectId: string;
+}) {
+  const queryClient = useQueryClient();
+  const lastSavedLogRef = useRef(session.notesLog ?? "");
+  const [name, setName] = useState(session.name ?? "");
+  const [scheduledLocal, setScheduledLocal] = useState(tableReadDatetimeLocalValue(session.scheduledAt));
+  const [notesLog, setNotesLog] = useState(session.notesLog ?? "");
+  const [addNoteBody, setAddNoteBody] = useState("");
+  const [newAttendeeName, setNewAttendeeName] = useState("");
+  const [newAttendeeChar, setNewAttendeeChar] = useState("");
+  const [saveHint, setSaveHint] = useState("");
+
+  useEffect(() => {
+    setName(session.name ?? "");
+    setScheduledLocal(tableReadDatetimeLocalValue(session.scheduledAt));
+    setNotesLog(session.notesLog ?? "");
+    lastSavedLogRef.current = session.notesLog ?? "";
+  }, [session.id]);
+
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: ["project-table-reads", projectId] });
+  };
+
+  const patchSession = useMutation({
+    mutationFn: async (payload: { name?: string | null; scheduledAt?: string | null; notesLog?: string | null }) => {
+      const res = await fetch(`/api/creator/projects/${projectId}/table-reads`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: session.id, ...payload }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((j as { error?: string }).error || "Save failed");
+      return j;
+    },
+    onSuccess: () => {
+      invalidate();
+      setSaveHint("Saved");
+      window.setTimeout(() => setSaveHint(""), 2000);
+    },
+    onError: () => setSaveHint("Could not save"),
+  });
+
+  const patchSessionMutateRef = useRef(patchSession.mutate);
+  patchSessionMutateRef.current = patchSession.mutate;
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      if (notesLog === lastSavedLogRef.current) return;
+      patchSessionMutateRef.current(
+        { notesLog: notesLog.trim() ? notesLog : null },
+        {
+          onSuccess: () => {
+            lastSavedLogRef.current = notesLog;
+          },
+        },
+      );
+    }, 900);
+    return () => window.clearTimeout(t);
+  }, [notesLog, session.id]);
+
+  const addParticipantMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/creator/projects/${projectId}/table-reads/${session.id}/participants`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          guestName: newAttendeeName.trim(),
+          characterName: newAttendeeChar.trim() || null,
+        }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((j as { error?: string }).error || "Could not add attendee");
+      return j;
+    },
+    onSuccess: () => {
+      setNewAttendeeName("");
+      setNewAttendeeChar("");
+      invalidate();
+    },
+  });
+
+  const patchParticipantMutation = useMutation({
+    mutationFn: async (payload: { participantId: string; characterName?: string | null; guestName?: string | null }) => {
+      const res = await fetch(
+        `/api/creator/projects/${projectId}/table-reads/${session.id}/participants/${payload.participantId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            characterName: payload.characterName,
+            guestName: payload.guestName,
+          }),
+        },
+      );
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((j as { error?: string }).error || "Update failed");
+      return j;
+    },
+    onSuccess: invalidate,
+  });
+
+  const removeParticipantMutation = useMutation({
+    mutationFn: async (participantId: string) => {
+      const res = await fetch(
+        `/api/creator/projects/${projectId}/table-reads/${session.id}/participants/${participantId}`,
+        { method: "DELETE" },
+      );
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((j as { error?: string }).error || "Remove failed");
+      return j;
+    },
+    onSuccess: invalidate,
+  });
+
+  const appendNoteMutation = useMutation({
+    mutationFn: async (body: string) => {
+      const res = await fetch(`/api/creator/projects/${projectId}/table-reads/${session.id}/notes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((j as { error?: string }).error || "Could not add note");
+      return j;
+    },
+    onSuccess: () => {
+      setAddNoteBody("");
+      invalidate();
+    },
+  });
+
+  return (
+    <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4 space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="space-y-2 flex-1 min-w-[200px]">
+          <label className="text-[10px] uppercase tracking-wide text-slate-500">Session title</label>
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={() => {
+              const next = name.trim() || null;
+              if (next === (session.name ?? null)) return;
+              patchSession.mutate({ name: next });
+            }}
+            placeholder="e.g. Table read — draft 3"
+            className="bg-slate-900 border-slate-700 text-sm"
+          />
+        </div>
+        <div className="space-y-2 min-w-[200px]">
+          <label className="text-[10px] uppercase tracking-wide text-slate-500">Date & time</label>
+          <Input
+            type="datetime-local"
+            value={scheduledLocal}
+            onChange={(e) => setScheduledLocal(e.target.value)}
+            onBlur={() => {
+              const iso = tableReadDatetimeLocalToIso(scheduledLocal);
+              const prev = session.scheduledAt;
+              if (iso === prev || (!iso && !prev)) return;
+              patchSession.mutate({ scheduledAt: iso });
+            }}
+            className="bg-slate-900 border-slate-700 text-sm"
+          />
+        </div>
+        {saveHint ? <span className="text-[11px] text-slate-500 self-end pb-1">{saveHint}</span> : null}
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="space-y-2">
+          <h4 className="text-xs font-semibold text-white">Attendees & character assignments</h4>
+          <p className="text-[11px] text-slate-500">
+            Add everyone at the read. List the part they played (character or role) so you remember who read what.
+          </p>
+          <div className="rounded-lg border border-slate-800 bg-slate-900/50 p-2 space-y-2">
+            {session.participants.length === 0 ? (
+              <p className="text-[11px] text-slate-500 px-1 py-2">No attendees yet — add names below.</p>
+            ) : (
+              <ul className="space-y-2">
+                {session.participants.map((p) => (
+                  <li
+                    key={p.id}
+                    className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-lg border border-slate-800/80 bg-slate-950/60 px-2 py-2"
+                  >
+                    <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {p.userId != null && p.userId !== "" ? (
+                        <span className="text-[11px] text-slate-300 self-center">{tableReadParticipantLabel(p)}</span>
+                      ) : (
+                        <Input
+                          key={`g-${p.id}`}
+                          defaultValue={p.guestName ?? ""}
+                          placeholder="Name"
+                          className="h-8 bg-slate-900 border-slate-700 text-[11px]"
+                          onBlur={(e) => {
+                            const v = e.target.value.trim();
+                            if (!v || v === (p.guestName ?? "")) return;
+                            patchParticipantMutation.mutate({ participantId: p.id, guestName: v });
+                          }}
+                        />
+                      )}
+                      <Input
+                        key={`c-${p.id}`}
+                        defaultValue={p.characterName ?? ""}
+                        placeholder="Character / part"
+                        className="h-8 bg-slate-900 border-slate-700 text-[11px]"
+                        onBlur={(e) => {
+                          const v = e.target.value.trim() || null;
+                          if (v === (p.characterName ?? null)) return;
+                          patchParticipantMutation.mutate({ participantId: p.id, characterName: v });
+                        }}
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 text-[11px] text-red-300/90 hover:bg-red-500/10 shrink-0"
+                      disabled={removeParticipantMutation.isPending}
+                      onClick={() => {
+                        if (!window.confirm("Remove this attendee from the session?")) return;
+                        removeParticipantMutation.mutate(p.id);
+                      }}
+                    >
+                      Remove
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="flex flex-col sm:flex-row gap-2 pt-1 border-t border-slate-800">
+              <Input
+                value={newAttendeeName}
+                onChange={(e) => setNewAttendeeName(e.target.value)}
+                placeholder="Attendee name"
+                className="h-8 bg-slate-900 border-slate-700 text-[11px] flex-1"
+              />
+              <Input
+                value={newAttendeeChar}
+                onChange={(e) => setNewAttendeeChar(e.target.value)}
+                placeholder="Character (optional)"
+                className="h-8 bg-slate-900 border-slate-700 text-[11px] flex-1"
+              />
+              <Button
+                type="button"
+                size="sm"
+                className="h-8 bg-orange-500 hover:bg-orange-600 text-white text-[11px] shrink-0"
+                disabled={addParticipantMutation.isPending || !newAttendeeName.trim()}
+                onClick={() => addParticipantMutation.mutate()}
+              >
+                Add attendee
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <h4 className="text-xs font-semibold text-white">Session notes — what was said</h4>
+          <p className="text-[11px] text-slate-500">
+            Capture reactions, line tweaks, pacing, and performance notes. Saves automatically while you type.
+          </p>
+          <textarea
+            value={notesLog}
+            onChange={(e) => setNotesLog(e.target.value)}
+            placeholder="e.g. Act 2 dragged — trim kitchen scene. Lisa nailed the reversal. Consider softer read on Kai’s last line…"
+            rows={14}
+            className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2.5 text-sm text-slate-100 placeholder:text-slate-600 outline-none focus:border-orange-500 resize-y min-h-[220px] leading-relaxed"
+          />
+          <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-2 space-y-2">
+            <p className="text-[10px] font-medium uppercase tracking-wide text-slate-500">Timestamped highlights</p>
+            <p className="text-[10px] text-slate-600">Optional short entries with time stamp (saved as separate notes).</p>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Input
+                value={addNoteBody}
+                onChange={(e) => setAddNoteBody(e.target.value)}
+                placeholder="Quick note…"
+                className="h-8 bg-slate-950 border-slate-700 text-[11px] flex-1"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    if (addNoteBody.trim()) appendNoteMutation.mutate(addNoteBody.trim());
+                  }
+                }}
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 border-slate-600 text-[11px] shrink-0"
+                disabled={appendNoteMutation.isPending || !addNoteBody.trim()}
+                onClick={() => appendNoteMutation.mutate(addNoteBody.trim())}
+              >
+                Add note
+              </Button>
+            </div>
+            {session.notes.length > 0 ? (
+              <ul className="space-y-1.5 max-h-36 overflow-y-auto text-[11px] text-slate-300 pr-1">
+                {session.notes.map((n) => (
+                  <li key={n.id} className="rounded-md bg-slate-950/80 border border-slate-800/80 px-2 py-1.5">
+                    <p className="whitespace-pre-wrap">{n.body}</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">
+                      {n.user?.name || "You"} · {new Date(n.createdAt).toLocaleString()}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TableReadsWorkspace({
   projectId,
   title,
@@ -5256,40 +9122,42 @@ function TableReadsWorkspace({
   const hasProject = !!projectId;
   const modoc = useModocOptional();
   const [modocReportOpen, setModocReportOpen] = useState(false);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+
   const { data, isLoading } = useQuery({
     queryKey: ["project-table-reads", projectId],
     queryFn: () => fetch(`/api/creator/projects/${projectId}/table-reads`).then((r) => r.json()),
     enabled: hasProject,
   });
-  const sessions = (data?.sessions ?? []) as {
-    id: string;
-    name: string | null;
-    scheduledAt: string | null;
-    createdAt: string;
-    participants: {
-      id: string;
-      user: { id: string; name: string | null; email: string | null } | null;
-      characterName: string | null;
-    }[];
-    notes: {
-      id: string;
-      body: string;
-      createdAt: string;
-      user: { id: string; name: string | null } | null;
-    }[];
-  }[];
+  const sessions = (data?.sessions ?? []) as TableReadSessionRow[];
+
+  useEffect(() => {
+    if (!activeSessionId && sessions.length > 0) {
+      setActiveSessionId(sessions[0].id);
+    }
+    if (activeSessionId && !sessions.some((s) => s.id === activeSessionId)) {
+      setActiveSessionId(sessions[0]?.id ?? null);
+    }
+  }, [sessions, activeSessionId]);
+
   const createMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch(`/api/creator/projects/${projectId}/table-reads`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: "New table read" }),
+        body: JSON.stringify({ name: "New table read session" }),
       });
       if (!res.ok) throw new Error("Failed to create session");
-      return res.json();
+      return res.json() as Promise<{ session: TableReadSessionRow }>;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project-table-reads", projectId] }),
+    onSuccess: (out) => {
+      void queryClient.invalidateQueries({ queryKey: ["project-table-reads", projectId] });
+      if (out.session?.id) setActiveSessionId(out.session.id);
+    },
   });
+
+  const activeSession = sessions.find((s) => s.id === activeSessionId) ?? null;
+
   return (
     <div className="space-y-4">
       <header className="storytime-plan-card p-5 md:p-6">
@@ -5300,162 +9168,8 @@ function TableReadsWorkspace({
             </p>
             <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
             <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
-            Schedule table reads, see who&apos;s reading which characters, and capture notes per session.
-          </p>
-        </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
-          {modoc && (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="border-cyan-500/50 text-cyan-200 hover:bg-cyan-500/10 text-xs"
-              onClick={() => setModocReportOpen(true)}
-            >
-              <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
-              Get MODOC table read insights
-            </Button>
-          )}
-          <Button
-            size="sm"
-            className="bg-orange-500 hover:bg-orange-600"
-            onClick={() => hasProject && createMutation.mutate()}
-            disabled={createMutation.isPending || !hasProject}
-            title={!hasProject ? "Link a project above to create sessions" : undefined}
-          >
-            New session
-          </Button>
-        </div>
-        </div>
-      </header>
-      {modoc && modocReportOpen && (
-        <ModocReportModal
-          task="table_reads"
-          reportTitle="MODOC table read facilitation"
-          prompt="Help us run better table reads. Use the script and table read sessions in your context. Analyze dialogue and character interactions, suggest pacing improvements, and advise on scheduling participants and capturing notes so the team stays aligned."
-          onClose={() => setModocReportOpen(false)}
-          projectId={projectId ?? undefined}
-        />
-      )}
-      {isLoading ? (
-        <Skeleton className="h-48 bg-slate-800/60" />
-      ) : (
-        <div className="creator-glass-panel p-3 space-y-2">
-          {sessions.length === 0 ? (
-            <p className="text-xs text-slate-500 p-4">
-              {!hasProject
-                ? "Link a project above to manage table reads."
-                : "No table read sessions yet. Create one to start capturing reactions to the script."}
-            </p>
-          ) : (
-            sessions.map((s) => (
-              <details
-                key={s.id}
-                className="rounded-xl bg-slate-900/80 border border-slate-800 px-3 py-2 text-sm group"
-              >
-                <summary className="flex items-center justify-between gap-2 cursor-pointer list-none">
-                  <div className="flex flex-col">
-                    <span className="text-white">{s.name || "Unnamed session"}</span>
-                    <span className="text-[11px] text-slate-500">
-                      {s.scheduledAt ? new Date(s.scheduledAt).toLocaleString() : "No date set"}
-                    </span>
-                  </div>
-                  <div className="text-right text-[11px] text-slate-400 space-y-0.5">
-                    <p>{s.participants?.length ?? 0} participants</p>
-                    <p>{s.notes?.length ?? 0} note{s.notes?.length === 1 ? "" : "s"}</p>
-                  </div>
-                </summary>
-                <div className="mt-2 border-t border-slate-800 pt-2 space-y-3">
-                  <div className="space-y-1">
-                    <p className="text-[11px] font-semibold text-slate-300 uppercase tracking-wide">
-                      Participants
-                    </p>
-                    {s.participants.length === 0 ? (
-                      <p className="text-[11px] text-slate-500">
-                        No participants captured yet. You can still take notes for this session.
-                      </p>
-                    ) : (
-                      <ul className="space-y-1 text-[11px] text-slate-300">
-                        {s.participants.map((p) => (
-                          <li key={p.id} className="flex items-center justify-between gap-2">
-                            <span>
-                              {p.user?.name || p.user?.email || "Unknown"}
-                              {p.characterName && (
-                                <span className="text-slate-500"> · as {p.characterName}</span>
-                              )}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-[11px] font-semibold text-slate-300 uppercase tracking-wide">
-                      Notes
-                    </p>
-                    {s.notes.length === 0 ? (
-                      <p className="text-[11px] text-slate-500">
-                        No notes have been captured yet. Use the notes API from set or your own tools to push
-                        reactions, line changes, and performance comments here.
-                      </p>
-                    ) : (
-                      <ul className="space-y-1.5 max-h-40 overflow-y-auto pr-1 text-[11px] text-slate-200">
-                        {s.notes
-                          .slice()
-                          .sort(
-                            (a, b) =>
-                              new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-                          )
-                          .map((n) => (
-                            <li
-                              key={n.id}
-                              className="rounded-lg bg-slate-900/80 border border-slate-800 px-2 py-1.5"
-                            >
-                              <p className="whitespace-pre-wrap">{n.body}</p>
-                              <p className="mt-0.5 text-[10px] text-slate-500">
-                                {n.user?.name || "Someone"} ·{" "}
-                                {new Date(n.createdAt).toLocaleTimeString()}
-                              </p>
-                            </li>
-                          ))}
-                      </ul>
-                    )}
-                  </div>
-                </div>
-              </details>
-            ))
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// --- Production Workspace (tasks + activity) ---
-function ProductionWorkspace({
-  projectId,
-  title,
-}: { projectId?: string; title: string }) {
-  const hasProject = !!projectId;
-  const modoc = useModocOptional();
-  const [modocReportOpen, setModocReportOpen] = useState(false);
-  const { data: tasksData, isLoading: tasksLoading } = useQuery({
-    queryKey: ["project-tasks", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/tasks`).then((r) => r.json()),
-    enabled: hasProject,
-  });
-  const tasks = (tasksData?.tasks ?? []) as { id: string; title: string; status: string; department: string | null }[];
-  return (
-    <div className="space-y-4">
-      <header className="storytime-plan-card p-5 md:p-6">
-        <div className="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-start md:justify-between">
-          <div className="min-w-0 flex-1">
-            <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">
-              Pre-production workspace
-            </p>
-            <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
-              Central hub: tasks and coordination for this film.
+              Schedule table reads, list who attended and which characters they read, and keep a full running log of what was said —
+              all editable here.
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -5468,7 +9182,372 @@ function ProductionWorkspace({
                 onClick={() => setModocReportOpen(true)}
               >
                 <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
-                Get MODOC production alignment
+                Get AI table read insights
+              </Button>
+            )}
+            <Button
+              size="sm"
+              className="bg-orange-500 hover:bg-orange-600"
+              onClick={() => hasProject && createMutation.mutate()}
+              disabled={createMutation.isPending || !hasProject}
+              title={!hasProject ? "Link a project above to create sessions" : undefined}
+            >
+              New session
+            </Button>
+          </div>
+        </div>
+      </header>
+      {modoc && modocReportOpen && (
+        <ModocReportModal
+          task="table_reads"
+          reportTitle="Table read facilitation"
+          prompt="Help us run better table reads. Use the script and table read sessions in your context. Analyze dialogue and character interactions, suggest pacing improvements, and advise on scheduling participants and capturing notes so the team stays aligned."
+          onClose={() => setModocReportOpen(false)}
+          projectId={projectId ?? undefined}
+        />
+      )}
+      {isLoading ? (
+        <Skeleton className="h-48 bg-slate-800/60" />
+      ) : !hasProject ? (
+        <div className="creator-glass-panel p-4">
+          <p className="text-xs text-slate-500">Link a project above to manage table reads.</p>
+        </div>
+      ) : sessions.length === 0 ? (
+        <div className="creator-glass-panel p-4">
+          <p className="text-xs text-slate-500">
+            No table read sessions yet. Press <strong className="text-slate-400">New session</strong> to open an editable workspace
+            for attendees and notes.
+          </p>
+        </div>
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-[minmax(200px,260px)_1fr]">
+          <div className="creator-glass-panel p-3 space-y-2 h-fit lg:sticky lg:top-4">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Sessions</p>
+            <ul className="space-y-1">
+              {sessions.map((s) => (
+                <li key={s.id}>
+                  <button
+                    type="button"
+                    onClick={() => setActiveSessionId(s.id)}
+                    className={`w-full text-left rounded-lg border px-3 py-2 text-xs transition ${
+                      s.id === activeSessionId
+                        ? "border-orange-500/60 bg-orange-500/10 text-white"
+                        : "border-slate-800 bg-slate-900/60 text-slate-300 hover:border-slate-600"
+                    }`}
+                  >
+                    <span className="block font-medium truncate">{s.name || "Untitled session"}</span>
+                    <span className="block text-[10px] text-slate-500 mt-0.5">
+                      {s.scheduledAt ? new Date(s.scheduledAt).toLocaleString() : "No date set"} · {s.participants.length} attendees
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="min-w-0">
+            {activeSession && projectId ? (
+              <TableReadSessionEditor key={activeSession.id} session={activeSession} projectId={projectId} />
+            ) : null}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- Production Workspace (tasks + activity) ---
+function ProductionWorkspace({
+  projectId,
+  title,
+}: { projectId?: string; title: string }) {
+  const queryClient = useQueryClient();
+  const hasProject = !!projectId;
+  const modoc = useModocOptional();
+  const [modocReportOpen, setModocReportOpen] = useState(false);
+  const [workspaceMessage, setWorkspaceMessage] = useState("");
+  const [viewMode, setViewMode] = useState<"board" | "list">("board");
+  const [filterDept, setFilterDept] = useState("");
+  const [filterAssignee, setFilterAssignee] = useState("");
+  const [filterStatus, setFilterStatus] = useState<"ALL" | "TODO" | "IN_PROGRESS" | "BLOCKED" | "DONE" | "COMPLETED">("ALL");
+  const [filterSceneId, setFilterSceneId] = useState("");
+  const [filterPriority, setFilterPriority] = useState<"ALL" | "LOW" | "MEDIUM" | "HIGH">("ALL");
+  const [activeShootDayId, setActiveShootDayId] = useState("");
+  const [newTitle, setNewTitle] = useState("");
+  const [newDescription, setNewDescription] = useState("");
+  const [newDepartment, setNewDepartment] = useState("Production");
+  const [newPriority, setNewPriority] = useState("MEDIUM");
+  const [newStatus, setNewStatus] = useState("TODO");
+  const [newDueDate, setNewDueDate] = useState("");
+  const [newAssigneeId, setNewAssigneeId] = useState("");
+  const [newShootDayId, setNewShootDayId] = useState("");
+  const [newSceneId, setNewSceneId] = useState("");
+  const [newLinkedType, setNewLinkedType] = useState<
+    "OTHER" | "SCENE" | "PRODUCTION_DAY" | "CAST" | "CREW" | "LOCATION" | "EQUIPMENT" | "CONTRACT" | "FUNDING"
+  >("OTHER");
+  const [newLinkedLabel, setNewLinkedLabel] = useState("");
+  const [selectedTaskIdForComment, setSelectedTaskIdForComment] = useState("");
+  const [commentBody, setCommentBody] = useState("");
+
+  const { data: workspaceData, isLoading: tasksLoading } = useQuery({
+    queryKey: ["project-production-workspace", projectId],
+    queryFn: () => fetch(`/api/creator/projects/${projectId}/production-workspace`).then((r) => r.json()),
+    enabled: hasProject,
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+  });
+  const { data: scheduleData } = useQuery({
+    queryKey: ["project-schedule", projectId],
+    queryFn: () => fetch(`/api/creator/projects/${projectId}/schedule`).then((r) => r.json()),
+    enabled: hasProject,
+  });
+  const { data: scenesData } = useQuery({
+    queryKey: ["project-scenes", projectId],
+    queryFn: () => fetch(`/api/creator/projects/${projectId}/scenes`).then((r) => r.json()),
+    enabled: hasProject,
+  });
+
+  const overview = workspaceData?.projectOverview as
+    | {
+        projectStatus: string;
+        fundingStatus: string;
+        budgetStatus: { estimated: number; actual: number; variance: number };
+        scheduleStatus: string;
+        contractStatus: { confirmed: number; pending: number };
+        keyAlerts: { type: string; severity: string; message: string; taskId?: string }[];
+      }
+    | undefined;
+  const tasks = (workspaceData?.tasks ?? []) as Array<{
+    id: string;
+    title: string;
+    description: string | null;
+    department: string | null;
+    status: "TODO" | "IN_PROGRESS" | "BLOCKED" | "DONE" | "COMPLETED";
+    priority: "LOW" | "MEDIUM" | "HIGH" | null;
+    dueDate: string | null;
+    assigneeId: string | null;
+    assignee?: { id: string; name: string | null; email: string | null; role: string } | null;
+    shootDay?: { id: string; date: string; status: string } | null;
+    scene?: { id: string; number: string; heading: string | null } | null;
+    linkedItem?: { type: string | null; id: string | null; label: string | null };
+    meta?: {
+      comments?: Array<{ id: string; body: string; createdAt: string; mentions?: string[] }>;
+      requireSignedContracts?: boolean;
+      blockedReason?: string | null;
+    };
+  }>;
+  const taskSummary = workspaceData?.taskSummary as
+    | {
+        total: number;
+        open: number;
+        done: number;
+        completionPercent: number;
+        byDepartment: Array<{
+          department: string;
+          total: number;
+          done: number;
+          inProgress: number;
+          blocked: number;
+          todo: number;
+          completionPercent: number;
+        }>;
+      }
+    | undefined;
+  const activityFeed = (workspaceData?.activityFeed ?? []) as Array<{
+    id: string;
+    type: string;
+    message: string;
+    user: { id: string; name: string | null; email: string | null } | null;
+    createdAt: string;
+  }>;
+  const resourceStatus = workspaceData?.resourceStatus as
+    | {
+        cast: { confirmed: number; pending: number };
+        crew: { assigned: number; available: number };
+        locations: { booked: number; pending: number };
+        equipment: { allocated: number; available: number };
+      }
+    | undefined;
+  const integrations = workspaceData?.integrations as
+    | {
+        budget: { synced: boolean; estimated: number; actual: number };
+        scheduling: { synced: boolean; dayCount: number; conflictCount: number };
+        contracts: { pending: number; signed: number };
+        funding: { secured: number; status: string };
+      }
+    | undefined;
+  const teamMembers = (workspaceData?.team?.members ?? []) as Array<{
+    id: string;
+    name: string | null;
+    email: string | null;
+    role: string;
+    viewRole: string;
+  }>;
+
+  const shootDays = (scheduleData?.shootDays ?? []) as Array<{ id: string; date: string }>;
+  const scenes = (scenesData?.scenes ?? []) as Array<{ id: string; number: string; heading: string | null }>;
+
+  useEffect(() => {
+    if (!activeShootDayId && shootDays.length > 0) {
+      setActiveShootDayId(shootDays[0].id);
+      setNewShootDayId(shootDays[0].id);
+    }
+  }, [activeShootDayId, shootDays]);
+
+  useEffect(() => {
+    if (!selectedTaskIdForComment && tasks.length > 0) {
+      setSelectedTaskIdForComment(tasks[0].id);
+    }
+  }, [selectedTaskIdForComment, tasks]);
+  useEffect(() => {
+    if (!newAssigneeId && teamMembers.length > 0) {
+      setNewAssigneeId(teamMembers[0].id);
+    }
+  }, [newAssigneeId, teamMembers]);
+
+  const actionMutation = useMutation({
+    mutationFn: async (payload: Record<string, unknown>) => {
+      const res = await fetch(`/api/creator/projects/${projectId}/production-workspace`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((json as { error?: string }).error || "Workspace action failed");
+      return json;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project-production-workspace", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["project-tasks", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["project-production-control-center", projectId] });
+      setWorkspaceMessage("Production workspace updated.");
+    },
+    onError: (e) => setWorkspaceMessage((e as Error).message),
+  });
+
+  const filteredTasks = useMemo(() => {
+    return tasks.filter((task) => {
+      if (filterDept && (task.department || "").toLowerCase() !== filterDept.toLowerCase()) return false;
+      if (filterAssignee && task.assigneeId !== filterAssignee) return false;
+      if (filterStatus !== "ALL" && task.status !== filterStatus) return false;
+      if (filterSceneId && task.scene?.id !== filterSceneId) return false;
+      if (filterPriority !== "ALL" && (task.priority || "MEDIUM") !== filterPriority) return false;
+      if (activeShootDayId && task.shootDay?.id && task.shootDay.id !== activeShootDayId) return false;
+      return true;
+    });
+  }, [tasks, filterAssignee, filterDept, filterStatus, filterSceneId, filterPriority, activeShootDayId]);
+
+  const board = {
+    todo: filteredTasks.filter((t) => t.status === "TODO"),
+    inProgress: filteredTasks.filter((t) => t.status === "IN_PROGRESS"),
+    blocked: filteredTasks.filter((t) => t.status === "BLOCKED"),
+    done: filteredTasks.filter((t) => t.status === "DONE" || t.status === "COMPLETED"),
+  };
+  const selectedTaskForComment = tasks.find((t) => t.id === selectedTaskIdForComment) ?? null;
+
+  const queueKey = useMemo(
+    () => `storytime-onset-task-queue:${projectId ?? "unknown"}`,
+    [projectId],
+  );
+  const enqueueOfflineUpdate = useCallback(
+    (payload: Record<string, unknown>) => {
+      try {
+        const existing = JSON.parse(localStorage.getItem(queueKey) ?? "[]") as Array<Record<string, unknown>>;
+        existing.push(payload);
+        localStorage.setItem(queueKey, JSON.stringify(existing));
+        setWorkspaceMessage("Offline: update queued and will sync when connection returns.");
+      } catch {
+        setWorkspaceMessage("Offline: could not queue update.");
+      }
+    },
+    [queueKey],
+  );
+
+  const applyTaskUpdate = useCallback(
+    (taskPayload: Record<string, unknown>) => {
+      if (!navigator.onLine) {
+        enqueueOfflineUpdate({ action: "UPDATE_TASK", task: taskPayload });
+        return;
+      }
+      actionMutation.mutate({ action: "UPDATE_TASK", task: taskPayload });
+    },
+    [actionMutation, enqueueOfflineUpdate],
+  );
+
+  useEffect(() => {
+    const flush = async () => {
+      if (!navigator.onLine) return;
+      let queue: Array<Record<string, unknown>> = [];
+      try {
+        queue = JSON.parse(localStorage.getItem(queueKey) ?? "[]");
+      } catch {
+        queue = [];
+      }
+      if (!Array.isArray(queue) || queue.length === 0) return;
+      localStorage.removeItem(queueKey);
+      for (const payload of queue) {
+        try {
+          await actionMutation.mutateAsync(payload);
+        } catch {
+          enqueueOfflineUpdate(payload);
+          break;
+        }
+      }
+      setWorkspaceMessage("Offline updates synced.");
+    };
+    window.addEventListener("online", flush);
+    void flush();
+    return () => window.removeEventListener("online", flush);
+  }, [actionMutation, enqueueOfflineUpdate, queueKey]);
+
+  const onDropToStatus = useCallback(
+    (status: "TODO" | "IN_PROGRESS" | "BLOCKED" | "COMPLETED", taskId: string) => {
+      const task = tasks.find((t) => t.id === taskId);
+      if (!task || task.status === status) return;
+      if (status === "BLOCKED") {
+        const reason = window.prompt("Why is this task blocked? (required)");
+        if (!reason || !reason.trim()) return;
+        applyTaskUpdate({ id: task.id, status, description: reason.trim() });
+        return;
+      }
+      applyTaskUpdate({ id: task.id, status });
+    },
+    [tasks, applyTaskUpdate],
+  );
+
+  return (
+    <div className="space-y-4">
+      <header className="storytime-plan-card p-5 md:p-6">
+        <div className="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-start md:justify-between">
+          <div className="min-w-0 flex-1">
+            <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">
+              On-set execution system
+            </p>
+            <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
+            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
+              Real-time Kanban for active production day execution. Tasks ingest from scheduling, script breakdown,
+              equipment, locations, risk, and contracts, then sync back into control-center alerts.
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-slate-600 text-slate-200 text-xs"
+              onClick={() => actionMutation.mutate({ action: "AUTO_GENERATE_TASKS" })}
+              disabled={actionMutation.isPending || !hasProject}
+            >
+              Sync tasks from all tools
+            </Button>
+            {modoc && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="border-cyan-500/50 text-cyan-200 hover:bg-cyan-500/10 text-xs"
+                onClick={() => setModocReportOpen(true)}
+              >
+                <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
+                Get AI production alignment
               </Button>
             )}
           </div>
@@ -5477,36 +9556,448 @@ function ProductionWorkspace({
       {modoc && modocReportOpen && (
         <ModocReportModal
           task="production_workspace"
-          reportTitle="MODOC production workspace"
+          reportTitle="Production workspace"
           prompt="Help us keep the production team aligned. Use our tasks and schedule in your context. Suggest how to manage documentation, share schedules and updates, and highlight any gaps (missing tasks, unclear ownership) so everyone stays informed before and during production."
           onClose={() => setModocReportOpen(false)}
           projectId={projectId ?? undefined}
         />
       )}
+      {workspaceMessage && (
+        <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+          {workspaceMessage}
+        </p>
+      )}
       {tasksLoading ? (
-        <Skeleton className="h-48 bg-slate-800/60" />
+        <Skeleton className="h-64 bg-slate-800/60" />
       ) : (
-        <div className="creator-glass-panel p-3 space-y-2">
-          {tasks.length === 0 ? (
-            <p className="text-xs text-slate-500 p-4">
-              {!hasProject ? "Link a project above to see tasks." : "No tasks yet. Add tasks from other tools or here."}
-            </p>
-          ) : (
-            tasks.slice(0, 10).map((t) => (
-              <div
-                key={t.id}
-                className="flex items-center justify-between rounded-xl bg-slate-900/80 border border-slate-800 px-3 py-2 text-sm"
-              >
-                <span className="text-white">{t.title}</span>
-                <span className="text-xs text-slate-400">{t.status}</span>
+        <div className="space-y-4">
+          {overview && (
+            <div className="grid gap-2 md:grid-cols-3 lg:grid-cols-6">
+              <div className="creator-glass-panel p-3 text-xs">
+                <p className="text-slate-400">Project status</p>
+                <p className="text-white font-semibold mt-1">{overview.projectStatus}</p>
               </div>
-            ))
+              <div className="creator-glass-panel p-3 text-xs">
+                <p className="text-slate-400">Funding</p>
+                <p className="text-white font-semibold mt-1">{overview.fundingStatus}</p>
+              </div>
+              <div className="creator-glass-panel p-3 text-xs">
+                <p className="text-slate-400">Budget</p>
+                <p className="text-white font-semibold mt-1">
+                  R{Math.round(overview.budgetStatus.actual).toLocaleString()} / R
+                  {Math.round(overview.budgetStatus.estimated).toLocaleString()}
+                </p>
+              </div>
+              <div className="creator-glass-panel p-3 text-xs">
+                <p className="text-slate-400">Schedule</p>
+                <p className="text-white font-semibold mt-1">{overview.scheduleStatus}</p>
+              </div>
+              <div className="creator-glass-panel p-3 text-xs">
+                <p className="text-slate-400">Contracts</p>
+                <p className="text-white font-semibold mt-1">
+                  {overview.contractStatus.confirmed} confirmed · {overview.contractStatus.pending} pending
+                </p>
+              </div>
+              <div className="creator-glass-panel p-3 text-xs">
+                <p className="text-slate-400">Task progress</p>
+                <p className="text-white font-semibold mt-1">{taskSummary?.completionPercent ?? 0}% complete</p>
+              </div>
+            </div>
           )}
+
+          <div className="grid gap-3 lg:grid-cols-[2fr_1fr]">
+            <div className="space-y-3">
+              <Card className="creator-glass-panel border-0 bg-transparent shadow-none">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Create production task</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <Input
+                    value={newTitle}
+                    onChange={(e) => setNewTitle(e.target.value)}
+                    placeholder="Task title"
+                    className="bg-slate-900 border-slate-700 text-xs"
+                  />
+                  <textarea
+                    value={newDescription}
+                    onChange={(e) => setNewDescription(e.target.value)}
+                    rows={2}
+                    placeholder="Description / context"
+                    className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-white"
+                  />
+                  <div className="grid gap-2 md:grid-cols-4">
+                    <select value={newDepartment} onChange={(e) => setNewDepartment(e.target.value)} className="h-9 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white">
+                      {["Production", "Camera", "Sound", "Art", "Wardrobe", "Post-production", "Logistics"].map((d) => (
+                        <option key={d} value={d}>{d}</option>
+                      ))}
+                    </select>
+                    <select value={newPriority} onChange={(e) => setNewPriority(e.target.value)} className="h-9 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white">
+                      {["LOW", "MEDIUM", "HIGH"].map((p) => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                    <select value={newStatus} onChange={(e) => setNewStatus(e.target.value)} className="h-9 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white">
+                      {["TODO", "IN_PROGRESS", "BLOCKED", "COMPLETED"].map((s) => <option key={s} value={s}>{s.replaceAll("_", " ")}</option>)}
+                    </select>
+                    <Input type="date" value={newDueDate} onChange={(e) => setNewDueDate(e.target.value)} className="bg-slate-900 border-slate-700 text-xs" />
+                    <select value={newAssigneeId} onChange={(e) => setNewAssigneeId(e.target.value)} className="h-9 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white">
+                      {teamMembers.length === 0 ? <option value="">No assignee</option> : teamMembers.map((m) => <option key={m.id} value={m.id}>{m.name || m.email || "Unnamed"}</option>)}
+                    </select>
+                    <select value={newShootDayId} onChange={(e) => setNewShootDayId(e.target.value)} className="h-9 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white">
+                      <option value="">No shoot day</option>
+                      {shootDays.map((d) => <option key={d.id} value={d.id}>{new Date(d.date).toLocaleDateString()}</option>)}
+                    </select>
+                    <select value={newSceneId} onChange={(e) => setNewSceneId(e.target.value)} className="h-9 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white">
+                      <option value="">No scene</option>
+                      {scenes.map((s) => <option key={s.id} value={s.id}>Sc. {s.number} {s.heading ? `- ${s.heading.slice(0, 20)}` : ""}</option>)}
+                    </select>
+                    <select value={newLinkedType} onChange={(e) => setNewLinkedType(e.target.value as any)} className="h-9 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white">
+                      {["OTHER", "SCENE", "PRODUCTION_DAY", "CAST", "CREW", "LOCATION", "EQUIPMENT", "CONTRACT", "FUNDING"].map((x) => (
+                        <option key={x} value={x}>{x.replaceAll("_", " ")}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <Input value={newLinkedLabel} onChange={(e) => setNewLinkedLabel(e.target.value)} placeholder="Linked item label (optional)" className="bg-slate-900 border-slate-700 text-xs" />
+                  <Button
+                    size="sm"
+                    className="bg-orange-500 hover:bg-orange-600 text-xs"
+                    disabled={actionMutation.isPending || !newTitle.trim() || !hasProject}
+                    onClick={() =>
+                      actionMutation.mutate({
+                        action: "CREATE_TASK",
+                        task: {
+                          title: newTitle.trim(),
+                          description: newDescription || null,
+                          assigneeId: newAssigneeId || null,
+                          department: newDepartment || null,
+                          priority: newPriority,
+                          status: newStatus,
+                          dueDate: newDueDate ? new Date(`${newDueDate}T00:00:00.000Z`).toISOString() : null,
+                          shootDayId: newShootDayId || null,
+                          sceneId: newSceneId || null,
+                          linkedItemType: newLinkedType,
+                          linkedItemLabel: newLinkedLabel || null,
+                          requireSignedContracts:
+                            newLinkedType === "CAST" ||
+                            newLinkedType === "CREW" ||
+                            newLinkedType === "LOCATION" ||
+                            newLinkedType === "EQUIPMENT",
+                        },
+                      })
+                    }
+                  >
+                    Add task
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card className="creator-glass-panel border-0 bg-transparent shadow-none">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Task controls</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                <div className="flex flex-wrap gap-2">
+                    <Button size="sm" variant={viewMode === "board" ? "default" : "outline"} className={viewMode === "board" ? "bg-orange-500 hover:bg-orange-600 text-xs" : "border-slate-700 text-xs"} onClick={() => setViewMode("board")}>
+                      Kanban
+                    </Button>
+                    <Button size="sm" variant={viewMode === "list" ? "default" : "outline"} className={viewMode === "list" ? "bg-orange-500 hover:bg-orange-600 text-xs" : "border-slate-700 text-xs"} onClick={() => setViewMode("list")}>
+                      List
+                    </Button>
+                    <select value={filterDept} onChange={(e) => setFilterDept(e.target.value)} className="h-8 rounded-md border border-slate-700 bg-slate-900 px-2 text-[11px] text-white">
+                      <option value="">All departments</option>
+                      {(taskSummary?.byDepartment ?? []).map((d) => (
+                        <option key={d.department} value={d.department}>{d.department} ({d.total})</option>
+                      ))}
+                    </select>
+                    <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as any)} className="h-8 rounded-md border border-slate-700 bg-slate-900 px-2 text-[11px] text-white">
+                      <option value="ALL">All statuses</option>
+                      <option value="TODO">Not started</option>
+                      <option value="IN_PROGRESS">In progress</option>
+                      <option value="BLOCKED">Blocked</option>
+                      <option value="COMPLETED">Completed</option>
+                    </select>
+                    <select value={filterSceneId} onChange={(e) => setFilterSceneId(e.target.value)} className="h-8 rounded-md border border-slate-700 bg-slate-900 px-2 text-[11px] text-white">
+                      <option value="">All scenes</option>
+                      {scenes.map((scene) => (
+                        <option key={scene.id} value={scene.id}>Scene {scene.number}</option>
+                      ))}
+                    </select>
+                    <select value={filterPriority} onChange={(e) => setFilterPriority(e.target.value as any)} className="h-8 rounded-md border border-slate-700 bg-slate-900 px-2 text-[11px] text-white">
+                      <option value="ALL">Any priority</option>
+                      <option value="HIGH">High</option>
+                      <option value="MEDIUM">Medium</option>
+                      <option value="LOW">Low</option>
+                    </select>
+                    <select value={activeShootDayId} onChange={(e) => setActiveShootDayId(e.target.value)} className="h-8 rounded-md border border-slate-700 bg-slate-900 px-2 text-[11px] text-white">
+                      <option value="">All shoot days</option>
+                      {shootDays.map((d) => <option key={d.id} value={d.id}>{new Date(d.date).toLocaleDateString()}</option>)}
+                    </select>
+                    <select value={filterAssignee} onChange={(e) => setFilterAssignee(e.target.value)} className="h-8 rounded-md border border-slate-700 bg-slate-900 px-2 text-[11px] text-white">
+                      <option value="">All assignees</option>
+                      {teamMembers.map((member) => (
+                        <option key={member.id} value={member.id}>{member.name || member.email || "Unnamed"}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {viewMode === "board" ? (
+                    <div className="grid gap-3 md:grid-cols-4">
+                      {[
+                        { key: "TODO", label: "To Do", tasks: board.todo, tone: "text-slate-300" },
+                        { key: "IN_PROGRESS", label: "In Progress", tasks: board.inProgress, tone: "text-yellow-200" },
+                        { key: "BLOCKED", label: "Blocked", tasks: board.blocked, tone: "text-red-300" },
+                        { key: "COMPLETED", label: "Completed", tasks: board.done, tone: "text-emerald-300" },
+                      ].map((col) => (
+                        <div
+                          key={col.key}
+                          className="rounded-xl border border-slate-800 bg-slate-900/60 p-2 space-y-2 min-h-[320px]"
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            const taskId = e.dataTransfer.getData("text/task-id");
+                            if (taskId) {
+                              onDropToStatus(col.key as "TODO" | "IN_PROGRESS" | "BLOCKED" | "COMPLETED", taskId);
+                            }
+                          }}
+                        >
+                          <p className={`text-[11px] uppercase tracking-wide ${col.tone}`}>{col.label} ({col.tasks.length})</p>
+                          {col.tasks.map((task) => (
+                            <div
+                              key={task.id}
+                              draggable
+                              onDragStart={(e) => e.dataTransfer.setData("text/task-id", task.id)}
+                              className={`rounded-lg border p-2 text-xs space-y-1 ${
+                                task.status === "BLOCKED"
+                                  ? "border-red-700/80 bg-red-950/30"
+                                  : task.status === "IN_PROGRESS"
+                                    ? "border-yellow-700/70 bg-yellow-950/20"
+                                    : task.status === "COMPLETED" || task.status === "DONE"
+                                      ? "border-emerald-700/70 bg-emerald-950/20"
+                                      : "border-slate-800 bg-slate-950/60"
+                              }`}
+                            >
+                              <p className="text-slate-100 font-medium">{task.title}</p>
+                              {task.description ? <p className="text-slate-400">{task.description}</p> : null}
+                              {task.meta?.blockedReason ? (
+                                <p className="text-[10px] text-red-200">Blocked reason: {task.meta.blockedReason}</p>
+                              ) : null}
+                              <p className="text-slate-500">
+                                {(task.department || "Production")} · {task.priority || "MEDIUM"}
+                                {task.assignee ? ` · ${task.assignee.name || task.assignee.email}` : ""}
+                              </p>
+                              <p className="text-slate-600">
+                                {task.scene ? `Sc. ${task.scene.number}` : ""}
+                                {task.shootDay ? `${task.scene ? " · " : ""}${new Date(task.shootDay.date).toLocaleDateString()}` : ""}
+                                {task.linkedItem?.label ? `${task.scene || task.shootDay ? " · " : ""}${task.linkedItem.label}` : ""}
+                              </p>
+                              <div className="flex flex-wrap gap-1">
+                                {task.status !== "COMPLETED" && task.status !== "DONE" ? (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-6 border-emerald-700/60 px-2 text-[10px] text-emerald-200"
+                                    onClick={() => applyTaskUpdate({ id: task.id, status: "COMPLETED" })}
+                                  >
+                                    One-tap complete
+                                  </Button>
+                                ) : null}
+                                {task.status !== "BLOCKED" ? (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-6 border-red-700/60 px-2 text-[10px] text-red-200"
+                                    onClick={() => {
+                                      const reason = window.prompt("Block reason (required)");
+                                      if (!reason?.trim()) return;
+                                      applyTaskUpdate({ id: task.id, status: "BLOCKED", description: reason.trim() });
+                                    }}
+                                  >
+                                    Mark blocked
+                                  </Button>
+                                ) : null}
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-6 border-cyan-600/60 px-2 text-[10px] text-cyan-200"
+                                  onClick={() => setSelectedTaskIdForComment(task.id)}
+                                >
+                                  Comment
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      {filteredTasks.map((task) => (
+                        <div key={task.id} className="rounded-lg border border-slate-800 bg-slate-900/70 px-3 py-2 text-xs flex items-center justify-between gap-2">
+                          <div>
+                            <p className="text-slate-100">{task.title}</p>
+                            <p className="text-slate-500">
+                              {task.status.replaceAll("_", " ")} · {(task.department || "Production")}
+                              {task.assignee ? ` · ${task.assignee.name || task.assignee.email}` : ""}
+                              {task.dueDate ? ` · Due ${new Date(task.dueDate).toLocaleDateString()}` : ""}
+                            </p>
+                          </div>
+                          <select
+                            value={task.status}
+                            onChange={(e) =>
+                              e.target.value === "BLOCKED"
+                                ? (() => {
+                                    const reason = window.prompt("Blocked reason (required)");
+                                    if (!reason?.trim()) return;
+                                    applyTaskUpdate({ id: task.id, status: "BLOCKED", description: reason.trim() });
+                                  })()
+                                : applyTaskUpdate({ id: task.id, status: e.target.value })
+                            }
+                            className="h-8 rounded-md border border-slate-700 bg-slate-900 px-2 text-[11px] text-white"
+                          >
+                            <option value="TODO">Not started</option>
+                            <option value="IN_PROGRESS">In progress</option>
+                            <option value="BLOCKED">Blocked</option>
+                            <option value="COMPLETED">Completed</option>
+                          </select>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="space-y-3">
+              <Card className="creator-glass-panel border-0 bg-transparent shadow-none">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Alerts & integrations</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2 text-xs">
+                  {(overview?.keyAlerts ?? []).length === 0 ? (
+                    <p className="text-slate-500">No active alerts.</p>
+                  ) : (
+                    (overview?.keyAlerts ?? []).map((alert, idx) => (
+                      <p key={`${alert.type}-${idx}`} className={alert.severity === "HIGH" ? "text-rose-200" : "text-amber-200"}>
+                        [{alert.severity}] {alert.message}
+                      </p>
+                    ))
+                  )}
+                  {integrations && (
+                    <div className="rounded-md border border-slate-800 bg-slate-900/50 p-2 space-y-1">
+                      <p className="text-slate-300">
+                        Budget: R{Math.round(integrations.budget.actual).toLocaleString()} spent / R
+                        {Math.round(integrations.budget.estimated).toLocaleString()} estimated
+                      </p>
+                      <p className="text-slate-300">
+                        Schedule: {integrations.scheduling.dayCount} day(s) · {integrations.scheduling.conflictCount} conflict(s)
+                      </p>
+                      <p className="text-slate-300">
+                        Contracts: {integrations.contracts.signed} signed · {integrations.contracts.pending} pending
+                      </p>
+                      <p className="text-slate-300">
+                        Funding: {integrations.funding.status} · R{Math.round(integrations.funding.secured).toLocaleString()} secured
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="creator-glass-panel border-0 bg-transparent shadow-none">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Resource status</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-1 text-xs">
+                  <p className="text-slate-300">Cast: {resourceStatus?.cast.confirmed ?? 0} confirmed · {resourceStatus?.cast.pending ?? 0} pending</p>
+                  <p className="text-slate-300">Crew: {resourceStatus?.crew.assigned ?? 0} assigned · {resourceStatus?.crew.available ?? 0} open</p>
+                  <p className="text-slate-300">Locations: {resourceStatus?.locations.booked ?? 0} booked · {resourceStatus?.locations.pending ?? 0} pending</p>
+                  <p className="text-slate-300">Equipment: {resourceStatus?.equipment.allocated ?? 0} allocated · {resourceStatus?.equipment.available ?? 0} available</p>
+                </CardContent>
+              </Card>
+
+              <Card className="creator-glass-panel border-0 bg-transparent shadow-none">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">Task discussion</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <select
+                    value={selectedTaskIdForComment}
+                    onChange={(e) => setSelectedTaskIdForComment(e.target.value)}
+                    className="h-9 w-full rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white"
+                  >
+                    {tasks.length === 0 ? <option value="">No task selected</option> : tasks.map((task) => <option key={task.id} value={task.id}>{task.title}</option>)}
+                  </select>
+                  <textarea
+                    value={commentBody}
+                    onChange={(e) => setCommentBody(e.target.value)}
+                    rows={2}
+                    placeholder="Comment on task (use @name for mentions)"
+                    className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-white"
+                  />
+                  <Button
+                    size="sm"
+                    className="bg-orange-500 hover:bg-orange-600 text-xs"
+                    disabled={!selectedTaskForComment || !commentBody.trim() || actionMutation.isPending}
+                    onClick={() => {
+                      if (!selectedTaskForComment) return;
+                      actionMutation.mutate({
+                        action: "ADD_TASK_COMMENT",
+                        comment: { taskId: selectedTaskForComment.id, body: commentBody.trim() },
+                      });
+                      setCommentBody("");
+                    }}
+                  >
+                    Add comment
+                  </Button>
+                  <div className="space-y-1 max-h-44 overflow-y-auto pr-1">
+                    {(selectedTaskForComment?.meta?.comments ?? []).slice().reverse().slice(0, 10).map((comment) => (
+                      <div key={comment.id} className="rounded-md border border-slate-800 bg-slate-900/70 px-2 py-1.5 text-[11px] text-slate-300">
+                        <p>{comment.body}</p>
+                        <p className="text-slate-500 mt-0.5">{new Date(comment.createdAt).toLocaleString()}</p>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+
+          <Card className="creator-glass-panel border-0 bg-transparent shadow-none">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Real-time activity feed</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-1 max-h-56 overflow-y-auto pr-1">
+              {activityFeed.length === 0 ? (
+                <p className="text-xs text-slate-500">No activity yet.</p>
+              ) : (
+                activityFeed.slice(0, 30).map((item) => (
+                  <div key={item.id} className="rounded-md border border-slate-800 bg-slate-900/70 px-3 py-2 text-xs">
+                    <p className="text-slate-200">{item.message}</p>
+                    <p className="text-slate-500">
+                      {item.user?.name || item.user?.email || "System"} · {new Date(item.createdAt).toLocaleString()}
+                    </p>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
         </div>
       )}
-      <p className="text-xs text-slate-500">
-        Use On-Set Task Management in Production for day-of tasks. Create tasks via the tasks API.
-      </p>
+
+      {taskSummary?.byDepartment?.length ? (
+        <div className="creator-glass-panel p-3 space-y-2">
+          <p className="text-xs font-medium text-slate-400">Department workload</p>
+          <div className="grid gap-2 md:grid-cols-3">
+            {taskSummary.byDepartment.map((dept) => (
+              <div key={dept.department} className="rounded-lg border border-slate-800 bg-slate-900/70 p-2 text-xs">
+                <p className="text-slate-200">{dept.department}</p>
+                <p className="text-slate-500">
+                  {dept.done}/{dept.total} done · {dept.inProgress} in progress · {dept.blocked} blocked · {dept.todo} todo
+                </p>
+                <div className="mt-1 h-1.5 rounded-full bg-slate-800">
+                  <div className="h-full rounded-full bg-emerald-500" style={{ width: `${dept.completionPercent}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -5520,39 +10011,140 @@ function EquipmentPlanningWorkspace({
   const hasProject = !!projectId;
   const modoc = useModocOptional();
   const [modocReportOpen, setModocReportOpen] = useState(false);
+  const [portalMessage, setPortalMessage] = useState("");
+  const [newCategory, setNewCategory] = useState("");
+  const [newQuantity, setNewQuantity] = useState("1");
+  const [selectedItemId, setSelectedItemId] = useState("");
+  const [selectedListingId, setSelectedListingId] = useState("");
+  const [requestNote, setRequestNote] = useState("");
+  const [requestStart, setRequestStart] = useState("");
+  const [requestEnd, setRequestEnd] = useState("");
+  const [filterCategory, setFilterCategory] = useState("");
+  const [filterSpecs, setFilterSpecs] = useState("");
+
+  const queryUrl = useMemo(() => {
+    const params = new URLSearchParams();
+    if (filterCategory.trim()) params.set("category", filterCategory.trim());
+    if (filterSpecs.trim()) params.set("specifications", filterSpecs.trim());
+    const qs = params.toString();
+    return qs
+      ? `/api/creator/projects/${projectId}/equipment-plan?${qs}`
+      : `/api/creator/projects/${projectId}/equipment-plan`;
+  }, [projectId, filterCategory, filterSpecs]);
+
   const { data, isLoading } = useQuery({
-    queryKey: ["project-equipment-plan", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/equipment-plan`).then((r) => r.json()),
+    queryKey: ["project-equipment-plan", projectId, queryUrl],
+    queryFn: () => fetch(queryUrl).then((r) => r.json()),
     enabled: hasProject,
   });
-  const items = (data?.items ?? []) as {
+  const { data: scheduleData } = useQuery({
+    queryKey: ["project-schedule", projectId],
+    queryFn: () => fetch(`/api/creator/projects/${projectId}/schedule`).then((r) => r.json()),
+    enabled: hasProject,
+  });
+
+  const items = (data?.items ?? []) as Array<{
     id: string;
-    department: string | null;
     category: string;
-    description: string | null;
     quantity: number;
-    notes: string | null;
-  }[];
-  const [newCategory, setNewCategory] = useState("");
+    description: string | null;
+    equipmentListingId?: string | null;
+    equipmentListing?: { id: string; companyName: string } | null;
+  }>;
+  const marketplace = (data?.marketplace ?? []) as Array<{
+    id: string;
+    name: string;
+    category: string;
+    dailyRate: number | null;
+    quantityAvailable: number | null;
+    specifications: string | null;
+    availability: string | null;
+    location: string | null;
+  }>;
+  const conflicts = ((scheduleData?.conflicts ?? []) as Array<{ type: string; message: string }>).filter(
+    (c) => c.type === "EQUIPMENT_CONFLICT",
+  );
+  const equipmentContext =
+    items.length > 0
+      ? items.map((i) => `${i.category} (qty: ${i.quantity})`).join("\n")
+      : "No equipment plan items yet.";
+
   const createMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch(`/api/creator/projects/${projectId}/equipment-plan`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ category: newCategory || "Equipment" }),
+        body: JSON.stringify({
+          category: newCategory || "Equipment",
+          quantity: Number(newQuantity || "1"),
+        }),
       });
-      if (!res.ok) throw new Error("Failed to add item");
+      if (!res.ok) throw new Error("Failed to create item");
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["project-equipment-plan", projectId] });
       setNewCategory("");
+      setNewQuantity("1");
+      setPortalMessage("Equipment item created.");
     },
   });
-  const equipmentContext =
-    items.length > 0
-      ? items.map((i) => `${i.category} (qty: ${i.quantity})${i.department ? `, dept: ${i.department}` : ""}${i.notes ? ` — ${i.notes}` : ""}`).join("\n")
-      : "No equipment plan items yet.";
+  const linkListingMutation = useMutation({
+    mutationFn: async () => {
+      const item = items.find((i) => i.id === selectedItemId);
+      if (!item || !selectedListingId) throw new Error("Select both item and listing");
+      const res = await fetch(`/api/creator/projects/${projectId}/equipment-plan`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: item.id,
+          category: item.category,
+          quantity: item.quantity,
+          description: item.description,
+          equipmentListingId: selectedListingId,
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to link listing");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project-equipment-plan", projectId] });
+      setPortalMessage("Marketplace listing linked to equipment plan item.");
+    },
+  });
+  const requestMutation = useMutation({
+    mutationFn: async (equipmentId: string) => {
+      const res = await fetch("/api/equipment-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          equipmentId,
+          note: requestNote || null,
+          startDate: requestStart || null,
+          endDate: requestEnd || null,
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to send request");
+      return res.json();
+    },
+    onSuccess: () => setPortalMessage("Equipment request sent."),
+  });
+
+  useEffect(() => {
+    if (!selectedItemId && items.length > 0) {
+      setSelectedItemId(items[0].id);
+    }
+  }, [items, selectedItemId]);
+
+  useEffect(() => {
+    if (!selectedItemId) {
+      setSelectedListingId("");
+      return;
+    }
+    const selectedItem = items.find((item) => item.id === selectedItemId);
+    setSelectedListingId(selectedItem?.equipmentListingId ?? "");
+  }, [selectedItemId, items]);
+
   return (
     <div className="space-y-4">
       <header className="storytime-plan-card p-5 md:p-6">
@@ -5563,10 +10155,9 @@ function EquipmentPlanningWorkspace({
             </p>
             <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
             <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
-            Plan equipment needs and link to Story Time equipment providers.
-          </p>
-        </div>
-        <div className="flex gap-2">
+              Build robust equipment plans, match listings, and track conflicts in one serious workflow.
+            </p>
+          </div>
           {modoc && (
             <Button
               type="button"
@@ -5576,61 +10167,103 @@ function EquipmentPlanningWorkspace({
               onClick={() => setModocReportOpen(true)}
             >
               <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
-              Get MODOC equipment recommendations
+              Get AI equipment recommendations
             </Button>
           )}
-          <Input
-            value={newCategory}
-            onChange={(e) => setNewCategory(e.target.value)}
-            placeholder="e.g. Camera, Lighting"
-            className="bg-slate-900 border-slate-700 text-sm w-40"
-          />
-          <Button
-            size="sm"
-            className="bg-orange-500 hover:bg-orange-600"
-            onClick={() => hasProject && createMutation.mutate()}
-            disabled={createMutation.isPending || !hasProject}
-            title={!hasProject ? "Link a project above to add equipment" : undefined}
-          >
-            Add item
-          </Button>
-        </div>
         </div>
       </header>
       {modoc && modocReportOpen && (
         <ModocReportModal
           task="equipment_planning"
-          reportTitle="MODOC equipment recommendations"
-          prompt={`Recommend equipment and match our plan to available listings for optimal production quality.\n\nCurrent equipment plan:\n${equipmentContext}\n\nUse the equipment plan and listings provided in your context to suggest categories and specific listings.`}
+          reportTitle="Equipment recommendations"
+          prompt={`Recommend equipment and match our plan to available listings.\n\nCurrent equipment plan:\n${equipmentContext}`}
           onClose={() => setModocReportOpen(false)}
           projectId={projectId ?? undefined}
         />
       )}
+      {portalMessage && (
+        <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+          {portalMessage}
+        </p>
+      )}
       {isLoading ? (
         <Skeleton className="h-48 bg-slate-800/60" />
       ) : (
-        <div className="creator-glass-panel p-3 space-y-2">
+        <div className="creator-glass-panel p-4 space-y-4">
+          <div className="grid gap-2 md:grid-cols-3">
+            <Input value={newCategory} onChange={(e) => setNewCategory(e.target.value)} placeholder="Category" className="bg-slate-900 border-slate-700 text-xs" />
+            <Input value={newQuantity} onChange={(e) => setNewQuantity(e.target.value)} placeholder="Quantity" className="bg-slate-900 border-slate-700 text-xs" />
+            <Button size="sm" className="bg-orange-500 hover:bg-orange-600 text-xs" onClick={() => createMutation.mutate()} disabled={!hasProject || createMutation.isPending}>
+              Add equipment plan item
+            </Button>
+          </div>
           {items.length === 0 ? (
-            <p className="text-xs text-slate-500 p-4">
-              {!hasProject ? "Link a project above to plan equipment." : "No equipment planned yet."}
-            </p>
+            <p className="text-xs text-slate-500 p-3 rounded-xl bg-slate-900/60">No equipment planned yet.</p>
           ) : (
-            items.map((i) => (
-              <div
-                key={i.id}
-                className="flex items-center justify-between rounded-xl bg-slate-900/80 border border-slate-800 px-3 py-2 text-sm"
-              >
-                <span className="text-white">{i.category}</span>
-                <span className="text-xs text-slate-400">Qty: {i.quantity}</span>
-              </div>
-            ))
+            <div className="space-y-2">
+              {items.map((item) => (
+                <div key={item.id} className="rounded-xl border border-slate-800 bg-slate-900/80 px-3 py-2 text-xs">
+                  <p className="text-slate-200 font-medium">{item.category} · Qty {item.quantity}</p>
+                  <p className="text-slate-500">
+                    Linked listing: {item.equipmentListing ? item.equipmentListing.companyName : "Not linked"}
+                  </p>
+                </div>
+              ))}
+            </div>
           )}
+          {conflicts.length > 0 && (
+            <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+              {conflicts.map((c, idx) => (
+                <p key={`${c.message}-${idx}`}>- {c.message}</p>
+              ))}
+            </div>
+          )}
+          <div className="border-t border-slate-800 pt-3 space-y-2">
+            <div className="grid gap-2 md:grid-cols-2">
+              <Input value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} placeholder="Filter category" className="bg-slate-900 border-slate-700 text-xs" />
+              <Input value={filterSpecs} onChange={(e) => setFilterSpecs(e.target.value)} placeholder="Filter specifications" className="bg-slate-900 border-slate-700 text-xs" />
+            </div>
+            <div className="grid gap-2 md:grid-cols-[1fr_1fr_auto] items-end">
+              <select value={selectedItemId} onChange={(e) => setSelectedItemId(e.target.value)} className="h-10 min-w-[220px] rounded-lg border border-slate-600 bg-slate-900 px-3 text-sm text-white">
+                {items.map((item) => (
+                  <option key={item.id} value={item.id}>{item.category}</option>
+                ))}
+              </select>
+              <select value={selectedListingId} onChange={(e) => setSelectedListingId(e.target.value)} className="h-10 min-w-[260px] rounded-lg border border-slate-600 bg-slate-900 px-3 text-sm text-white" disabled={marketplace.length === 0}>
+                <option value="">Select marketplace listing</option>
+                {marketplace.map((listing) => (
+                  <option key={listing.id} value={listing.id}>{listing.name} · {listing.category}</option>
+                ))}
+              </select>
+              <Button size="sm" className="bg-orange-500 hover:bg-orange-600 text-xs" disabled={!selectedItemId || !selectedListingId || linkListingMutation.isPending} onClick={() => linkListingMutation.mutate()}>
+                Link listing
+              </Button>
+            </div>
+            <div className="grid gap-2 md:grid-cols-3">
+              <Input value={requestStart} onChange={(e) => setRequestStart(e.target.value)} placeholder="Request start date" className="bg-slate-900 border-slate-700 text-xs" />
+              <Input value={requestEnd} onChange={(e) => setRequestEnd(e.target.value)} placeholder="Request end date" className="bg-slate-900 border-slate-700 text-xs" />
+              <Input value={requestNote} onChange={(e) => setRequestNote(e.target.value)} placeholder="Request note" className="bg-slate-900 border-slate-700 text-xs" />
+            </div>
+            <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+              {marketplace.map((listing) => (
+                <div key={listing.id} className="rounded-xl border border-slate-800 bg-slate-900/70 p-3 text-xs space-y-1">
+                  <div className="flex items-center justify-between">
+                    <p className="text-slate-200 font-medium">{listing.name}</p>
+                    <Button size="sm" variant="outline" className="h-6 border-slate-700 px-2 text-[10px]" onClick={() => requestMutation.mutate(listing.id)}>
+                      Request
+                    </Button>
+                  </div>
+                  <p className="text-slate-500">
+                    {listing.category} · {listing.location ?? "Unknown location"} · R{Number(listing.dailyRate ?? 0).toLocaleString()}/day
+                  </p>
+                  <p className="text-slate-400">{listing.specifications || "No specifications listed."}</p>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
-      <Link
-        href="/creator/equipment"
-        className="creator-glass-panel p-4 transition hover:border-orange-400/35 block"
-      >
+      <Link href="/creator/equipment" className="creator-glass-panel p-4 transition hover:border-orange-400/35 block">
         <h3 className="text-sm font-semibold text-white mb-1">Open Equipment marketplace</h3>
         <p className="text-xs text-slate-400">Find cameras, lighting, audio, and more.</p>
       </Link>
@@ -5647,46 +10280,196 @@ function RiskInsuranceWorkspace({
   const hasProject = !!projectId;
   const modoc = useModocOptional();
   const [modocReportOpen, setModocReportOpen] = useState(false);
+  const [workspaceMessage, setWorkspaceMessage] = useState("");
   const { data, isLoading } = useQuery({
     queryKey: ["project-risk", projectId],
     queryFn: () => fetch(`/api/creator/projects/${projectId}/risk`).then((r) => r.json()),
     enabled: hasProject,
   });
-  const plan = data?.plan as {
+  const plan = data?.plan as
+    | {
+        id: string;
+        summary: string | null;
+        items: Array<{
+          id: string;
+          category: string;
+          title: string;
+          description: string;
+          severity: "LOW" | "MEDIUM" | "HIGH";
+          likelihood: "LOW" | "MEDIUM" | "HIGH";
+          ownerId: string | null;
+          owner?: { id: string; name: string | null; email: string | null } | null;
+          mitigationPlan: string | null;
+          assignedRole: string | null;
+          dueDate: string | null;
+          linkedPolicyIds: string[];
+          status: "OPEN" | "IN_PROGRESS" | "DONE";
+          autoDetected: boolean;
+        }>;
+      }
+    | null;
+  const insurance = data?.insurance as { policies: Array<{
     id: string;
-    summary: string | null;
-    items: { id: string; category: string; description: string; status: string }[];
-  } | null;
+    providerName: string;
+    coverageType: string;
+    coverageAmount: number;
+    validFrom: string | null;
+    validTo: string | null;
+    linkedRiskIds: string[];
+    notes?: string | null;
+  }> } | undefined;
+  const checklists = (data?.checklists ?? []) as Array<{
+    id: string;
+    name: string;
+    category: string;
+    checked: boolean;
+    note?: string | null;
+  }>;
+  const dashboard = data?.dashboard as
+    | {
+        counts: { total: number; unresolved: number; resolved: number; highUnresolved: number };
+        byCategory: Array<{ category: string; total: number; unresolved: number; high: number }>;
+        riskyDays: Array<{ id: string; date: string; sceneCount: number; callTime: string | null; wrapTime: string | null }>;
+        readyToShoot: boolean;
+        blockedReasons: string[];
+        alerts: Array<{ type: string; severity: string; message: string; riskId: string }>;
+      }
+    | undefined;
+
   const [newCategory, setNewCategory] = useState("SAFETY");
+  const [newTitle, setNewTitle] = useState("");
   const [newDesc, setNewDesc] = useState("");
-  const saveMutation = useMutation({
-    mutationFn: async (newItem: { category: string; description: string }) => {
-      const existing = (plan?.items ?? []).map((i) => ({
-        id: i.id,
-        category: i.category,
-        description: i.description,
-        status: i.status,
-      }));
+  const [newSeverity, setNewSeverity] = useState<"LOW" | "MEDIUM" | "HIGH">("MEDIUM");
+  const [newLikelihood, setNewLikelihood] = useState<"LOW" | "MEDIUM" | "HIGH">("MEDIUM");
+  const [newMitigation, setNewMitigation] = useState("");
+  const [newAssignedRole, setNewAssignedRole] = useState("Safety Officer");
+  const [editRiskId, setEditRiskId] = useState("");
+  const [editMitigation, setEditMitigation] = useState("");
+  const [editStatus, setEditStatus] = useState<"OPEN" | "IN_PROGRESS" | "DONE">("OPEN");
+  const [editPolicyIds, setEditPolicyIds] = useState<string[]>([]);
+  const [policyProvider, setPolicyProvider] = useState("");
+  const [policyCoverageType, setPolicyCoverageType] = useState("General Liability");
+  const [policyAmount, setPolicyAmount] = useState("");
+  const [policyValidFrom, setPolicyValidFrom] = useState("");
+  const [policyValidTo, setPolicyValidTo] = useState("");
+  const [policyNotes, setPolicyNotes] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | "OPEN" | "IN_PROGRESS" | "DONE">("ALL");
+  const [severityFilter, setSeverityFilter] = useState<"ALL" | "LOW" | "MEDIUM" | "HIGH">("ALL");
+
+  const selectedRisk = useMemo(
+    () => plan?.items.find((item) => item.id === editRiskId) ?? null,
+    [plan?.items, editRiskId],
+  );
+
+  useEffect(() => {
+    if (!editRiskId && (plan?.items.length ?? 0) > 0) {
+      setEditRiskId(plan!.items[0]!.id);
+    }
+  }, [editRiskId, plan]);
+
+  useEffect(() => {
+    if (!selectedRisk) return;
+    setEditMitigation(selectedRisk.mitigationPlan ?? "");
+    setEditStatus(selectedRisk.status);
+    setEditPolicyIds(selectedRisk.linkedPolicyIds ?? []);
+  }, [selectedRisk?.id]);
+
+  const filteredItems = useMemo(() => {
+    return (plan?.items ?? []).filter((item) => {
+      if (statusFilter !== "ALL" && item.status !== statusFilter) return false;
+      if (severityFilter !== "ALL" && item.severity !== severityFilter) return false;
+      return true;
+    });
+  }, [plan?.items, statusFilter, severityFilter]);
+
+  const actionMutation = useMutation({
+    mutationFn: async (payload: Record<string, unknown>) => {
       const res = await fetch(`/api/creator/projects/${projectId}/risk`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          items: [...existing, { category: newItem.category, description: newItem.description }],
-        }),
+        body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error("Failed to save");
-      return res.json();
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((json as { error?: string }).error || "Failed to update risk workspace");
+      return json;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["project-risk", projectId] });
-      setNewDesc("");
+    },
+    onError: (error) => {
+      setWorkspaceMessage(error instanceof Error ? error.message : "Failed to update risk workspace.");
     },
   });
-  const addItem = () => {
-    if (hasProject && newDesc.trim()) {
-      saveMutation.mutate({ category: newCategory, description: newDesc.trim() });
-    }
+
+  const createRiskItem = () => {
+    if (!newTitle.trim() || !newDesc.trim()) return;
+    actionMutation.mutate({
+      action: "UPSERT_ITEM",
+      item: {
+        category: newCategory,
+        title: newTitle.trim(),
+        description: newDesc.trim(),
+        severity: newSeverity,
+        likelihood: newLikelihood,
+        mitigationPlan: newMitigation.trim() || null,
+        assignedRole: newAssignedRole.trim() || null,
+        linkedPolicyIds: [],
+        status: "OPEN",
+      },
+    });
+    setNewTitle("");
+    setNewDesc("");
+    setNewMitigation("");
+    setWorkspaceMessage("Risk item added.");
   };
+
+  const saveSelectedRisk = () => {
+    if (!selectedRisk) return;
+    actionMutation.mutate({
+      action: "UPSERT_ITEM",
+      item: {
+        id: selectedRisk.id,
+        category: selectedRisk.category,
+        title: selectedRisk.title,
+        description: selectedRisk.description,
+        severity: selectedRisk.severity,
+        likelihood: selectedRisk.likelihood,
+        mitigationPlan: editMitigation.trim() || null,
+        assignedRole: selectedRisk.assignedRole,
+        linkedPolicyIds: editPolicyIds,
+        status: editStatus,
+      },
+    });
+    setWorkspaceMessage("Risk item updated.");
+  };
+
+  const createPolicy = () => {
+    if (!policyProvider.trim() || !policyCoverageType.trim()) return;
+    actionMutation.mutate({
+      action: "ADD_POLICY",
+      policy: {
+        providerName: policyProvider.trim(),
+        coverageType: policyCoverageType.trim(),
+        coverageAmount: Number(policyAmount || "0"),
+        validFrom: policyValidFrom || null,
+        validTo: policyValidTo || null,
+        notes: policyNotes.trim() || null,
+        linkedRiskIds: [],
+      },
+    });
+    setPolicyProvider("");
+    setPolicyAmount("");
+    setPolicyNotes("");
+    setWorkspaceMessage("Insurance policy added.");
+  };
+
+  const toggleChecklist = (id: string, checked: boolean) => {
+    actionMutation.mutate({
+      action: "TOGGLE_CHECKLIST",
+      checklist: { id, checked },
+    });
+  };
+
   if (!hasProject) {
     return (
       <div className="space-y-4">
@@ -5707,7 +10490,7 @@ function RiskInsuranceWorkspace({
   }
   if (isLoading || !plan) return <Skeleton className="h-64 bg-slate-800/60" />;
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <header className="storytime-plan-card p-5 md:p-6">
         <div className="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-start md:justify-between">
           <div className="min-w-0 flex-1">
@@ -5716,7 +10499,7 @@ function RiskInsuranceWorkspace({
             </p>
             <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
             <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
-              Risk checklist: safety, stunts, vehicles, legal, etc.
+              Safety and compliance control layer across script, schedule, locations, equipment, contracts, and insurance.
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -5729,7 +10512,7 @@ function RiskInsuranceWorkspace({
                 onClick={() => setModocReportOpen(true)}
               >
                 <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
-                Get MODOC risk assessment
+                Get AI risk assessment
               </Button>
             )}
           </div>
@@ -5738,47 +10521,275 @@ function RiskInsuranceWorkspace({
       {modoc && modocReportOpen && (
         <ModocReportModal
           task="risk_insurance"
-          reportTitle="MODOC risk and insurance"
+          reportTitle="Risk and insurance"
           prompt="Assess our production risks and suggest insurance and contingency plans. Use our risk checklist and breakdown (stunts, vehicles) in your context. Recommend types of coverage to consider and mitigation steps; frame as points to discuss with our broker or legal counsel."
           onClose={() => setModocReportOpen(false)}
           projectId={projectId ?? undefined}
         />
       )}
-      <div className="flex gap-2 flex-wrap">
-        <select
-          value={newCategory}
-          onChange={(e) => setNewCategory(e.target.value)}
-          className="rounded-md bg-slate-900 border border-slate-700 px-2 py-1 text-sm text-white"
-        >
-          <option value="SAFETY">Safety</option>
-          <option value="STUNTS">Stunts</option>
-          <option value="VEHICLES">Vehicles</option>
-          <option value="LEGAL">Legal</option>
-        </select>
-        <Input
-          value={newDesc}
-          onChange={(e) => setNewDesc(e.target.value)}
-          placeholder="Description"
-          className="bg-slate-900 border-slate-700 text-sm flex-1 min-w-[120px]"
-        />
-        <Button size="sm" className="bg-orange-500 hover:bg-orange-600" onClick={addItem} disabled={saveMutation.isPending || !hasProject}>
-          Add
-        </Button>
+      {workspaceMessage ? (
+        <div className="rounded-lg border border-slate-700 bg-slate-900/70 px-3 py-2 text-xs text-slate-300">{workspaceMessage}</div>
+      ) : null}
+
+      <div className="grid gap-3 md:grid-cols-4">
+        <Card className="creator-glass-panel border-0 bg-transparent shadow-none">
+          <CardContent className="p-3 text-xs">
+            <p className="text-slate-500">Total risks</p>
+            <p className="text-xl font-semibold text-white">{dashboard?.counts.total ?? 0}</p>
+          </CardContent>
+        </Card>
+        <Card className="creator-glass-panel border-0 bg-transparent shadow-none">
+          <CardContent className="p-3 text-xs">
+            <p className="text-slate-500">Unresolved</p>
+            <p className="text-xl font-semibold text-amber-300">{dashboard?.counts.unresolved ?? 0}</p>
+          </CardContent>
+        </Card>
+        <Card className="creator-glass-panel border-0 bg-transparent shadow-none">
+          <CardContent className="p-3 text-xs">
+            <p className="text-slate-500">High unresolved</p>
+            <p className="text-xl font-semibold text-rose-300">{dashboard?.counts.highUnresolved ?? 0}</p>
+          </CardContent>
+        </Card>
+        <Card className="creator-glass-panel border-0 bg-transparent shadow-none">
+          <CardContent className="p-3 text-xs">
+            <p className="text-slate-500">Ready to shoot</p>
+            <p className={dashboard?.readyToShoot ? "text-xl font-semibold text-emerald-300" : "text-xl font-semibold text-rose-300"}>
+              {dashboard?.readyToShoot ? "READY" : "BLOCKED"}
+            </p>
+          </CardContent>
+        </Card>
       </div>
-      <div className="creator-glass-panel p-3 space-y-2">
-        {plan.items.length === 0 ? (
-          <p className="text-xs text-slate-500 p-4">No risk items yet.</p>
-        ) : (
-          plan.items.map((i) => (
-            <div
-              key={i.id}
-              className="flex items-center justify-between rounded-xl bg-slate-900/80 border border-slate-800 px-3 py-2 text-sm"
-            >
-              <span className="text-white">{i.category}: {i.description}</span>
-              <span className="text-xs text-slate-400">{i.status}</span>
-            </div>
-          ))
-        )}
+
+      {dashboard?.blockedReasons?.length ? (
+        <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-100">
+          <p className="font-medium">Production readiness blocked</p>
+          <ul className="mt-1 space-y-1 text-rose-200">
+            {dashboard.blockedReasons.map((reason) => (
+              <li key={reason}>- {reason}</li>
+            ))}
+          </ul>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Link href={`/creator/projects/${projectId}/pre-production/production-scheduling`} className="text-rose-200 underline">Scheduling</Link>
+            <Link href={`/creator/projects/${projectId}/pre-production/legal-contracts`} className="text-rose-200 underline">Legal & Contracts</Link>
+            <Link href={`/creator/projects/${projectId}/pre-production/production-workspace`} className="text-rose-200 underline">Production Workspace</Link>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+        <div className="space-y-4">
+          <Card className="creator-glass-panel border-0 bg-transparent shadow-none">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Create risk item</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div className="grid gap-2 md:grid-cols-2">
+                <select value={newCategory} onChange={(e) => setNewCategory(e.target.value)} className="h-9 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white">
+                  <option value="SAFETY">Safety</option>
+                  <option value="STUNTS">Stunts</option>
+                  <option value="VEHICLES">Vehicles</option>
+                  <option value="EQUIPMENT">Equipment</option>
+                  <option value="LOCATIONS">Locations</option>
+                  <option value="LEGAL">Legal</option>
+                  <option value="WEATHER">Weather</option>
+                  <option value="CROWD_CONTROL">Crowd control</option>
+                </select>
+                <Input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Risk title" className="h-9 bg-slate-900 border-slate-700 text-xs" />
+              </div>
+              <Input value={newDesc} onChange={(e) => setNewDesc(e.target.value)} placeholder="Risk description" className="h-9 bg-slate-900 border-slate-700 text-xs" />
+              <div className="grid gap-2 md:grid-cols-3">
+                <select value={newSeverity} onChange={(e) => setNewSeverity(e.target.value as "LOW" | "MEDIUM" | "HIGH")} className="h-9 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white">
+                  <option value="LOW">Severity: Low</option>
+                  <option value="MEDIUM">Severity: Medium</option>
+                  <option value="HIGH">Severity: High</option>
+                </select>
+                <select value={newLikelihood} onChange={(e) => setNewLikelihood(e.target.value as "LOW" | "MEDIUM" | "HIGH")} className="h-9 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white">
+                  <option value="LOW">Likelihood: Low</option>
+                  <option value="MEDIUM">Likelihood: Medium</option>
+                  <option value="HIGH">Likelihood: High</option>
+                </select>
+                <Input value={newAssignedRole} onChange={(e) => setNewAssignedRole(e.target.value)} placeholder="Responsible role" className="h-9 bg-slate-900 border-slate-700 text-xs" />
+              </div>
+              <textarea value={newMitigation} onChange={(e) => setNewMitigation(e.target.value)} rows={2} placeholder="Mitigation plan (required before resolved)" className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-white" />
+              <Button size="sm" className="bg-orange-500 hover:bg-orange-600 text-xs" disabled={actionMutation.isPending || !newTitle.trim() || !newDesc.trim()} onClick={createRiskItem}>
+                Add risk
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="creator-glass-panel border-0 bg-transparent shadow-none">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Risk register</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div className="flex flex-wrap gap-2">
+                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as "ALL" | "OPEN" | "IN_PROGRESS" | "DONE")} className="h-8 rounded-md border border-slate-700 bg-slate-900 px-2 text-[11px] text-white">
+                  <option value="ALL">All statuses</option>
+                  <option value="OPEN">Unresolved</option>
+                  <option value="IN_PROGRESS">In progress</option>
+                  <option value="DONE">Resolved</option>
+                </select>
+                <select value={severityFilter} onChange={(e) => setSeverityFilter(e.target.value as "ALL" | "LOW" | "MEDIUM" | "HIGH")} className="h-8 rounded-md border border-slate-700 bg-slate-900 px-2 text-[11px] text-white">
+                  <option value="ALL">All severities</option>
+                  <option value="HIGH">High</option>
+                  <option value="MEDIUM">Medium</option>
+                  <option value="LOW">Low</option>
+                </select>
+              </div>
+              {filteredItems.length === 0 ? (
+                <p className="p-4 text-xs text-slate-500">No risk items match this filter.</p>
+              ) : (
+                filteredItems.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setEditRiskId(item.id)}
+                    className={`w-full rounded-lg border px-3 py-2 text-left text-xs ${
+                      editRiskId === item.id ? "border-orange-500/50 bg-orange-500/10" : "border-slate-800 bg-slate-900/70"
+                    }`}
+                  >
+                    <p className="text-slate-100">{item.title}</p>
+                    <p className="text-slate-400">
+                      {item.category} · {item.severity} severity · {item.likelihood} likelihood · {item.status.replaceAll("_", " ")}
+                      {item.autoDetected ? " · auto-detected" : ""}
+                    </p>
+                  </button>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="space-y-4">
+          <Card className="creator-glass-panel border-0 bg-transparent shadow-none">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Selected risk controls</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {!selectedRisk ? (
+                <p className="text-xs text-slate-500">Select a risk item to edit.</p>
+              ) : (
+                <>
+                  <p className="text-xs text-slate-200">{selectedRisk.title}</p>
+                  <p className="text-[11px] text-slate-500">{selectedRisk.description}</p>
+                  <textarea value={editMitigation} onChange={(e) => setEditMitigation(e.target.value)} rows={3} placeholder="Mitigation plan (required before resolved)" className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-white" />
+                  <select value={editStatus} onChange={(e) => setEditStatus(e.target.value as "OPEN" | "IN_PROGRESS" | "DONE")} className="h-8 w-full rounded-md border border-slate-700 bg-slate-900 px-2 text-[11px] text-white">
+                    <option value="OPEN">Unresolved</option>
+                    <option value="IN_PROGRESS">In progress</option>
+                    <option value="DONE">Resolved</option>
+                  </select>
+                  <div className="rounded-md border border-slate-800 bg-slate-900/60 p-2">
+                    <p className="text-[11px] text-slate-400 mb-1">Linked insurance policies</p>
+                    <div className="space-y-1">
+                      {(insurance?.policies ?? []).length === 0 ? (
+                        <p className="text-[11px] text-slate-500">No policies yet.</p>
+                      ) : (
+                        (insurance?.policies ?? []).map((policy) => (
+                          <label key={policy.id} className="flex items-center gap-2 text-[11px] text-slate-300">
+                            <input
+                              type="checkbox"
+                              checked={editPolicyIds.includes(policy.id)}
+                              onChange={(e) => {
+                                setEditPolicyIds((prev) =>
+                                  e.target.checked ? [...new Set([...prev, policy.id])] : prev.filter((id) => id !== policy.id),
+                                );
+                              }}
+                            />
+                            <span>{policy.providerName} · {policy.coverageType}</span>
+                          </label>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                  <Button size="sm" className="bg-orange-500 hover:bg-orange-600 text-xs" disabled={actionMutation.isPending} onClick={saveSelectedRisk}>
+                    Save risk controls
+                  </Button>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="creator-glass-panel border-0 bg-transparent shadow-none">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Insurance policies</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <Input value={policyProvider} onChange={(e) => setPolicyProvider(e.target.value)} placeholder="Provider name" className="h-9 bg-slate-900 border-slate-700 text-xs" />
+              <div className="grid gap-2 grid-cols-2">
+                <Input value={policyCoverageType} onChange={(e) => setPolicyCoverageType(e.target.value)} placeholder="Coverage type" className="h-9 bg-slate-900 border-slate-700 text-xs" />
+                <Input value={policyAmount} onChange={(e) => setPolicyAmount(e.target.value)} placeholder="Coverage amount" className="h-9 bg-slate-900 border-slate-700 text-xs" />
+              </div>
+              <div className="grid gap-2 grid-cols-2">
+                <Input type="date" value={policyValidFrom} onChange={(e) => setPolicyValidFrom(e.target.value)} className="h-9 bg-slate-900 border-slate-700 text-xs" />
+                <Input type="date" value={policyValidTo} onChange={(e) => setPolicyValidTo(e.target.value)} className="h-9 bg-slate-900 border-slate-700 text-xs" />
+              </div>
+              <textarea value={policyNotes} onChange={(e) => setPolicyNotes(e.target.value)} rows={2} placeholder="Policy notes / conditions" className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-white" />
+              <Button size="sm" variant="outline" className="border-cyan-600/60 text-cyan-200 text-xs" disabled={actionMutation.isPending || !policyProvider.trim() || !policyCoverageType.trim()} onClick={createPolicy}>
+                Add policy
+              </Button>
+              <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
+                {(insurance?.policies ?? []).map((policy) => (
+                  <div key={policy.id} className="rounded-md border border-slate-800 bg-slate-900/70 px-2 py-1 text-[11px] text-slate-300">
+                    <p>{policy.providerName} · {policy.coverageType} · R{Math.round(policy.coverageAmount).toLocaleString()}</p>
+                    <p className="text-slate-500">
+                      {policy.validFrom ? new Date(policy.validFrom).toLocaleDateString() : "No start"} - {policy.validTo ? new Date(policy.validTo).toLocaleDateString() : "No end"}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="creator-glass-panel border-0 bg-transparent shadow-none">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Safety and compliance checklists</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-1 text-xs">
+              {checklists.map((item) => (
+                <label key={item.id} className="flex items-center gap-2 rounded-md border border-slate-800 bg-slate-900/70 px-2 py-1.5 text-slate-300">
+                  <input type="checkbox" checked={item.checked} onChange={(e) => toggleChecklist(item.id, e.target.checked)} />
+                  <span>{item.name}</span>
+                </label>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-2">
+        <Card className="creator-glass-panel border-0 bg-transparent shadow-none">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Risk alerts</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1 text-xs">
+            {(dashboard?.alerts ?? []).length === 0 ? (
+              <p className="text-slate-500">No active risk alerts.</p>
+            ) : (
+              (dashboard?.alerts ?? []).map((alert, idx) => (
+                <p key={`${alert.riskId}-${idx}`} className={alert.severity === "HIGH" ? "text-rose-200" : "text-amber-200"}>
+                  [{alert.severity}] {alert.message}
+                </p>
+              ))
+            )}
+          </CardContent>
+        </Card>
+        <Card className="creator-glass-panel border-0 bg-transparent shadow-none">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Risky production days</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1 text-xs">
+            {(dashboard?.riskyDays ?? []).length === 0 ? (
+              <p className="text-slate-500">No high-load days detected.</p>
+            ) : (
+              (dashboard?.riskyDays ?? []).map((day) => (
+                <p key={day.id} className="text-slate-300">
+                  {new Date(day.date).toLocaleDateString()} · {day.sceneCount} scenes
+                  {day.callTime && day.wrapTime ? ` · ${day.callTime} to ${day.wrapTime}` : ""}
+                </p>
+              ))
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
@@ -5834,7 +10845,7 @@ function ProductionReadinessWorkspace({
                 onClick={() => setModocReportOpen(true)}
               >
                 <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
-                Get MODOC readiness assessment
+                Get AI readiness assessment
               </Button>
             )}
           </div>
@@ -5843,7 +10854,7 @@ function ProductionReadinessWorkspace({
       {modoc && modocReportOpen && hasProject && (
         <ModocReportModal
           task="production_readiness"
-          reportTitle="MODOC production readiness"
+          reportTitle="Production readiness"
           prompt="Assess our production readiness from the checklist in your context. Summarize what's in place and what's missing, highlight areas that need attention before we shoot, and suggest priorities (e.g. lock cast and crew first, then locations, then equipment) so we can move to production with confidence."
           onClose={() => setModocReportOpen(false)}
           projectId={projectId ?? undefined}
@@ -5929,26 +10940,6 @@ function VisualPlanningWorkspace({
   const hasProject = !!projectId;
   const modoc = useModocOptional();
   const [modocReportOpen, setModocReportOpen] = useState(false);
-  const { data: ideasData } = useQuery({
-    queryKey: ["project-ideas", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/ideas`).then((r) => r.json()),
-    enabled: hasProject,
-  });
-  const { data: breakdown } = useQuery({
-    queryKey: ["project-breakdown", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/breakdown`).then((r) => r.json()),
-    enabled: hasProject,
-  });
-  const { data: schedule } = useQuery({
-    queryKey: ["project-schedule", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/schedule`).then((r) => r.json()),
-    enabled: hasProject,
-  });
-
-  const ideas = (ideasData?.ideas ?? []) as { id: string; title: string; moodboardUrls?: string | null }[];
-  const characters = (breakdown?.characters ?? []) as { id?: string; name: string; description?: string | null; importance?: string | null }[];
-  const locations = (breakdown?.locations ?? []) as { id?: string; name: string; description?: string | null }[];
-  const scenes = (schedule?.scenes ?? []) as { id: string; number: string; heading: string | null }[];
 
   return (
     <div className="space-y-6">
@@ -5960,7 +10951,8 @@ function VisualPlanningWorkspace({
             </p>
             <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
             <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
-              Bring together moodboards, characters, locations, and scenes so the team can see the film at a glance.
+              Upload reference images into the catalogue below — organized by world, mood, tone, direction, characters, locations, and
+              scenes — so the team shares one visual language for the film.
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -5973,114 +10965,22 @@ function VisualPlanningWorkspace({
                 onClick={() => setModocReportOpen(true)}
               >
                 <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
-                Get MODOC visual planning
+                Get AI visual planning
               </Button>
             )}
           </div>
         </div>
       </header>
+      {hasProject && projectId ? <VisualPlanningCatalogue projectId={projectId} /> : null}
       {modoc && modocReportOpen && (
         <ModocReportModal
           task="visual_planning"
-          reportTitle="MODOC visual planning and storyboards"
+          reportTitle="Visual planning and storyboards"
           prompt="Help us plan visuals for our film. Use the script, scenes, characters, and locations in your context. Suggest: (1) visual storyboard beats for key moments, (2) shot compositions (framing, angles, lens), and (3) camera movements (dolly, pan, handheld, static) that support the story. Be specific to our scenes where possible."
           onClose={() => setModocReportOpen(false)}
           projectId={projectId ?? undefined}
         />
       )}
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="creator-glass-panel p-3 space-y-2">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-white">Moodboard ideas</h3>
-            <span className="text-[11px] text-slate-500">{ideas.length} idea{ideas.length === 1 ? "" : "s"}</span>
-          </div>
-          {ideas.length === 0 ? (
-            <p className="text-xs text-slate-500 p-3 rounded-xl bg-slate-900/60">
-              No ideas yet. Use Idea Development to add concepts and attach moodboard URLs (Pinterest boards, lookbooks, etc.).
-            </p>
-          ) : (
-            <div className="space-y-1.5">
-              {ideas.map((i) => (
-                <div key={i.id} className="rounded-xl bg-slate-900/80 border border-slate-800 px-3 py-2 text-sm">
-                  <span className="text-white">{i.title}</span>
-                  {i.moodboardUrls && (
-                    <p className="text-xs text-slate-400 mt-1 truncate">{i.moodboardUrls}</p>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="creator-glass-panel p-3 space-y-2">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-white">Key characters</h3>
-            <span className="text-[11px] text-slate-500">{characters.length} character{characters.length === 1 ? "" : "s"}</span>
-          </div>
-          {characters.length === 0 ? (
-            <p className="text-xs text-slate-500 p-3 rounded-xl bg-slate-900/60">
-              Add characters in Script Breakdown to see them here with notes for hair, makeup, wardrobe, and casting.
-            </p>
-          ) : (
-            <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
-              {characters.map((ch) => (
-                <div key={ch.id ?? ch.name} className="rounded-xl bg-slate-900/80 border border-slate-800 px-3 py-2 text-xs">
-                  <p className="text-white font-medium text-sm">{ch.name}</p>
-                  {ch.importance && <p className="text-[11px] text-violet-300 mt-0.5">{ch.importance}</p>}
-                  {ch.description && <p className="text-[11px] text-slate-400 mt-0.5 line-clamp-2">{ch.description}</p>}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="creator-glass-panel p-3 space-y-2">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-white">Key locations</h3>
-            <span className="text-[11px] text-slate-500">{locations.length} location{locations.length === 1 ? "" : "s"}</span>
-          </div>
-          {locations.length === 0 ? (
-            <p className="text-xs text-slate-500 p-3 rounded-xl bg-slate-900/60">
-              Add locations in Script Breakdown first. They will flow into Location Marketplace and bookings, and appear here as your visual location list.
-            </p>
-          ) : (
-            <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
-              {locations.map((loc) => (
-                <div key={loc.id ?? loc.name} className="rounded-xl bg-slate-900/80 border border-slate-800 px-3 py-2 text-xs">
-                  <p className="text-white font-medium text-sm">{loc.name}</p>
-                  {loc.description && <p className="text-[11px] text-slate-400 mt-0.5 line-clamp-2">{loc.description}</p>}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="creator-glass-panel p-3 space-y-2">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-white">Scenes & shot planning</h3>
-            <span className="text[11px] text-slate-500">{scenes.length} scene{scenes.length === 1 ? "" : "s"}</span>
-          </div>
-          {scenes.length === 0 ? (
-            <p className="text-xs text-slate-500 p-3 rounded-xl bg-slate-900/60">
-              Once you save a script and build a schedule, INT/EXT scene headings will appear here to guide storyboards and shot lists.
-            </p>
-          ) : (
-            <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
-              {scenes.map((s) => (
-                <div key={s.id} className="rounded-xl bg-slate-900/80 border border-slate-800 px-3 py-2 text-xs">
-                  <p className="text-white font-medium text-sm">
-                    Scene {s.number}{" "}
-                    {s.heading && <span className="text-slate-400 ml-1">{s.heading}</span>}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
     </div>
   );
 }

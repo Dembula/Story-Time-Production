@@ -168,6 +168,63 @@ exports.Prisma.UserScalarFieldEnum = {
   headline: 'headline',
   location: 'location',
   website: 'website',
+  professionalName: 'professionalName',
+  bannerImageUrl: 'bannerImageUrl',
+  primaryRole: 'primaryRole',
+  skills: 'skills',
+  expertiseAreas: 'expertiseAreas',
+  yearsExperience: 'yearsExperience',
+  availabilityStatus: 'availabilityStatus',
+  reputationScore: 'reputationScore',
+  networkProfilePublic: 'networkProfilePublic',
+  creatorAccountStructure: 'creatorAccountStructure',
+  creatorTeamSeatCap: 'creatorTeamSeatCap',
+  activeCreatorStudioProfileId: 'activeCreatorStudioProfileId',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.StudioCompanyScalarFieldEnum = {
+  id: 'id',
+  ownerUserId: 'ownerUserId',
+  displayName: 'displayName',
+  seatCap: 'seatCap',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.CreatorStudioProfileScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  companyId: 'companyId',
+  displayName: 'displayName',
+  kind: 'kind',
+  pipelineDisabledByAdmin: 'pipelineDisabledByAdmin',
+  pipelineSectionMask: 'pipelineSectionMask',
+  teamRole: 'teamRole',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.CreatorStudioTeamInviteScalarFieldEnum = {
+  id: 'id',
+  companyId: 'companyId',
+  invitedByUserId: 'invitedByUserId',
+  emailNorm: 'emailNorm',
+  invitedUserId: 'invitedUserId',
+  status: 'status',
+  suiteAccess: 'suiteAccess',
+  personalMessage: 'personalMessage',
+  token: 'token',
+  expiresAt: 'expiresAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.CreatorAccountProfileVaultScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  data: 'data',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 };
@@ -766,6 +823,7 @@ exports.Prisma.CompanySubscriptionScalarFieldEnum = {
 exports.Prisma.CreatorDistributionLicenseScalarFieldEnum = {
   id: 'id',
   userId: 'userId',
+  creatorStudioProfileId: 'creatorStudioProfileId',
   type: 'type',
   yearlyExpiresAt: 'yearlyExpiresAt',
   externalPaymentId: 'externalPaymentId',
@@ -917,8 +975,59 @@ exports.Prisma.NetworkPostScalarFieldEnum = {
   imageUrls: 'imageUrls',
   contentId: 'contentId',
   projectId: 'projectId',
+  postType: 'postType',
+  videoUrls: 'videoUrls',
+  metadata: 'metadata',
+  sceneId: 'sceneId',
+  productionPhase: 'productionPhase',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
+};
+
+exports.Prisma.NetworkPortfolioItemScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  kind: 'kind',
+  title: 'title',
+  mediaUrl: 'mediaUrl',
+  description: 'description',
+  projectId: 'projectId',
+  sceneId: 'sceneId',
+  sortOrder: 'sortOrder',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.NetworkPostCommentScalarFieldEnum = {
+  id: 'id',
+  postId: 'postId',
+  authorId: 'authorId',
+  body: 'body',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.NetworkPostLikeScalarFieldEnum = {
+  id: 'id',
+  postId: 'postId',
+  userId: 'userId',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.NetworkPostSaveScalarFieldEnum = {
+  id: 'id',
+  postId: 'postId',
+  userId: 'userId',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.NetworkCollaborationApplicationScalarFieldEnum = {
+  id: 'id',
+  postId: 'postId',
+  applicantId: 'applicantId',
+  message: 'message',
+  status: 'status',
+  createdAt: 'createdAt',
+  respondedAt: 'respondedAt'
 };
 
 exports.Prisma.NetworkConversationScalarFieldEnum = {
@@ -940,6 +1049,18 @@ exports.Prisma.NetworkMessageScalarFieldEnum = {
   senderId: 'senderId',
   body: 'body',
   createdAt: 'createdAt'
+};
+
+exports.Prisma.ProjectVisualAssetScalarFieldEnum = {
+  id: 'id',
+  projectId: 'projectId',
+  category: 'category',
+  imageUrl: 'imageUrl',
+  title: 'title',
+  caption: 'caption',
+  sortOrder: 'sortOrder',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
 };
 
 exports.Prisma.ProjectIdeaScalarFieldEnum = {
@@ -981,6 +1102,9 @@ exports.Prisma.ProjectSceneScalarFieldEnum = {
   scriptId: 'scriptId',
   number: 'number',
   heading: 'heading',
+  storyDay: 'storyDay',
+  intExt: 'intExt',
+  timeOfDay: 'timeOfDay',
   summary: 'summary',
   pageCount: 'pageCount',
   status: 'status',
@@ -1098,6 +1222,16 @@ exports.Prisma.BreakdownSfxScalarFieldEnum = {
   updatedAt: 'updatedAt'
 };
 
+exports.Prisma.BreakdownMakeupScalarFieldEnum = {
+  id: 'id',
+  projectId: 'projectId',
+  sceneId: 'sceneId',
+  notes: 'notes',
+  character: 'character',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
 exports.Prisma.ProjectBudgetScalarFieldEnum = {
   id: 'id',
   projectId: 'projectId',
@@ -1143,6 +1277,20 @@ exports.Prisma.ShootDayScalarFieldEnum = {
   locationSummary: 'locationSummary',
   scenesBeingShot: 'scenesBeingShot',
   dayNotes: 'dayNotes',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.ShootDayControlBoardScalarFieldEnum = {
+  id: 'id',
+  shootDayId: 'shootDayId',
+  projectId: 'projectId',
+  sceneProgress: 'sceneProgress',
+  castStatus: 'castStatus',
+  crewStatus: 'crewStatus',
+  equipmentStatus: 'equipmentStatus',
+  locationStatus: 'locationStatus',
+  acknowledgedAlerts: 'acknowledgedAlerts',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 };
@@ -1329,14 +1477,17 @@ exports.Prisma.TableReadSessionScalarFieldEnum = {
   scriptVersionId: 'scriptVersionId',
   name: 'name',
   scheduledAt: 'scheduledAt',
+  notesLog: 'notesLog',
   createdById: 'createdById',
-  createdAt: 'createdAt'
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
 };
 
 exports.Prisma.TableReadParticipantScalarFieldEnum = {
   id: 'id',
   sessionId: 'sessionId',
   userId: 'userId',
+  guestName: 'guestName',
   characterName: 'characterName'
 };
 
@@ -1417,9 +1568,11 @@ exports.Prisma.IncidentReportScalarFieldEnum = {
   title: 'title',
   description: 'description',
   severity: 'severity',
+  category: 'category',
   location: 'location',
   resolved: 'resolved',
   createdById: 'createdById',
+  resolutionOwnerId: 'resolutionOwnerId',
   createdAt: 'createdAt',
   resolvedAt: 'resolvedAt'
 };
@@ -1565,6 +1718,10 @@ exports.Prisma.NullableJsonNullValueInput = {
   JsonNull: Prisma.JsonNull
 };
 
+exports.Prisma.JsonNullValueInput = {
+  JsonNull: Prisma.JsonNull
+};
+
 exports.Prisma.QueryMode = {
   default: 'default',
   insensitive: 'insensitive'
@@ -1587,6 +1744,10 @@ exports.Prisma.ModelName = {
   Session: 'Session',
   VerificationToken: 'VerificationToken',
   User: 'User',
+  StudioCompany: 'StudioCompany',
+  CreatorStudioProfile: 'CreatorStudioProfile',
+  CreatorStudioTeamInvite: 'CreatorStudioTeamInvite',
+  CreatorAccountProfileVault: 'CreatorAccountProfileVault',
   AdminRequest: 'AdminRequest',
   Content: 'Content',
   BtsVideo: 'BtsVideo',
@@ -1641,9 +1802,15 @@ exports.Prisma.ModelName = {
   CreatorFollow: 'CreatorFollow',
   ConnectionRequest: 'ConnectionRequest',
   NetworkPost: 'NetworkPost',
+  NetworkPortfolioItem: 'NetworkPortfolioItem',
+  NetworkPostComment: 'NetworkPostComment',
+  NetworkPostLike: 'NetworkPostLike',
+  NetworkPostSave: 'NetworkPostSave',
+  NetworkCollaborationApplication: 'NetworkCollaborationApplication',
   NetworkConversation: 'NetworkConversation',
   NetworkConversationParticipant: 'NetworkConversationParticipant',
   NetworkMessage: 'NetworkMessage',
+  ProjectVisualAsset: 'ProjectVisualAsset',
   ProjectIdea: 'ProjectIdea',
   ProjectScript: 'ProjectScript',
   ProjectScriptVersion: 'ProjectScriptVersion',
@@ -1658,10 +1825,12 @@ exports.Prisma.ModelName = {
   BreakdownVehicle: 'BreakdownVehicle',
   BreakdownStunt: 'BreakdownStunt',
   BreakdownSfx: 'BreakdownSfx',
+  BreakdownMakeup: 'BreakdownMakeup',
   ProjectBudget: 'ProjectBudget',
   ProjectBudgetLine: 'ProjectBudgetLine',
   ProductionExpense: 'ProductionExpense',
   ShootDay: 'ShootDay',
+  ShootDayControlBoard: 'ShootDayControlBoard',
   ShootDayScene: 'ShootDayScene',
   CallSheet: 'CallSheet',
   CastingRole: 'CastingRole',

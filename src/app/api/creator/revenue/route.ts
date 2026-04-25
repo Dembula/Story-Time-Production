@@ -2,17 +2,26 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { ensureCreatorStudioProfilesForUser, loadStudioPipelineContext } from "@/lib/creator-studio";
 import { getCreatorRevenue, getViewerSubscriptionRevenue } from "@/lib/revenue";
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
   const role = (session?.user as { role?: string })?.role;
-  if (role !== "CONTENT_CREATOR" && role !== "ADMIN") {
+  if (role !== "CONTENT_CREATOR" && role !== "MUSIC_CREATOR" && role !== "ADMIN") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const creatorId = role === "ADMIN" ? request.nextUrl.searchParams.get("creatorId") || undefined : session?.user?.id;
   if (!creatorId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  if (role !== "ADMIN") {
+    await ensureCreatorStudioProfilesForUser(creatorId);
+    const ctx = await loadStudioPipelineContext(creatorId);
+    if (!ctx?.suiteAccess.analytics) {
+      return NextResponse.json({ error: "Analytics suite not enabled for this workspace." }, { status: 403 });
+    }
+  }
 
   const period = request.nextUrl.searchParams.get("period") || "month";
   const now = new Date();

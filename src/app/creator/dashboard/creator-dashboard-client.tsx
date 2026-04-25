@@ -6,7 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import Link from "next/link";
-import { getCreatorLicenseConfig, normalizeCreatorLicenseType } from "@/lib/pricing";
+import {
+  CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY,
+  getCreatorLicenseConfig,
+  normalizeCreatorLicenseType,
+} from "@/lib/pricing";
 
 export function CreatorDashboardClient() {
   const { data: stats, isLoading } = useQuery({
@@ -26,7 +30,7 @@ export function CreatorDashboardClient() {
   });
 
   const { data: licenseData } = useQuery({
-    queryKey: ["creator-distribution-license"],
+    queryKey: [...CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY],
     queryFn: () => fetch("/api/creator/distribution-license").then((r) => r.json()),
   });
   const license = licenseData?.license;

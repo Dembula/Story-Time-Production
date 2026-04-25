@@ -16,9 +16,9 @@ interface ModocFieldPopoverProps {
   onClose: () => void;
   /** Which field/section: logline, idea_notes, script */
   task: "logline" | "idea_notes" | "script";
-  /** Current field values so MODOC can read and respond */
+  /** Current field values so the model can read and respond */
   context: ModocFieldContext;
-  /** Callback to paste MODOC's suggestion into the field */
+  /** Callback to paste the AI suggestion into the field */
   onIncorporate: (text: string) => void;
   /** Label for this section in the header (e.g. "logline", "idea notes", "script") */
   sectionLabel: string;
@@ -39,7 +39,7 @@ function buildPrompt(task: string, ctx: ModocFieldContext): string {
   }
 }
 
-/** Extract incorporate-ready text from MODOC reply. For logline, prefer "Suggested logline:" line. */
+/** Extract incorporate-ready text from the assistant reply. For logline, prefer "Suggested logline:" line. */
 function extractIncorporateText(task: string, fullMessage: string): string {
   if (task === "logline") {
     const match = fullMessage.match(/Suggested logline:\s*([\s\S]+?)(?:\n|$)/);
@@ -123,7 +123,7 @@ export function ModocFieldPopover({
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700/50 bg-slate-800/50 rounded-t-2xl">
           <div className="flex items-center gap-2">
             <Bot className="w-5 h-5 text-cyan-400" />
-            <span className="font-semibold text-white">MODOC — {sectionLabel}</span>
+            <span className="font-semibold text-white">AI — {sectionLabel}</span>
           </div>
           <button
             type="button"
@@ -142,14 +142,14 @@ export function ModocFieldPopover({
                 <Sparkles className="w-7 h-7 text-cyan-400/80" />
               </div>
               <p className="text-sm text-slate-400 mb-6">
-                MODOC will read what you&apos;ve put in this section and give feedback on the spot.
+                AI will read what you&apos;ve put in this section and give feedback on the spot.
               </p>
               <button
                 type="button"
                 onClick={handleGetInsights}
                 className="px-4 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-white font-medium text-sm transition"
               >
-                Get MODOC insights
+                Get AI insights
               </button>
             </div>
           )}
@@ -162,7 +162,7 @@ export function ModocFieldPopover({
                     <span className="w-2 h-2 rounded-full bg-cyan-400 animate-bounce [animation-delay:150ms]" />
                     <span className="w-2 h-2 rounded-full bg-cyan-400 animate-bounce [animation-delay:300ms]" />
                   </div>
-                  MODOC is thinking…
+                  Generating…
                 </div>
               )}
               {assistantContent && (

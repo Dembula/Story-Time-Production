@@ -2,8 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { Check, ChevronDown, ChevronUp, Loader2, Music2, ShieldCheck, Wallet } from "lucide-react";
-import { CREATOR_LICENSE_CONFIG } from "@/lib/pricing";
+import {
+  CREATOR_LICENSE_CONFIG,
+  CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY,
+  CREATOR_STUDIO_PROFILES_QUERY_KEY,
+} from "@/lib/pricing";
+import { defaultSuiteAccessOpen } from "@/lib/creator-suite-access";
 
 const OPTIONS = [
   {
@@ -42,6 +48,7 @@ const OPTIONS = [
 
 export function LicenseClient() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [type, setType] = useState<"YEARLY" | "PER_UPLOAD">("YEARLY");
   const [expanded, setExpanded] = useState<string | null>("YEARLY");
   const [loading, setLoading] = useState(false);
@@ -65,6 +72,15 @@ export function LicenseClient() {
       if (data?.requiresPayment && data?.payment) {
         throw new Error("Payments are currently disabled on this platform.");
       }
+      queryClient.setQueryData([...CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY], {
+        license: data.license ?? null,
+        pipelineAccess: Boolean(data.pipelineAccess),
+        suiteAccess: (data as { suiteAccess?: unknown }).suiteAccess ?? defaultSuiteAccessOpen(),
+        planSummary: typeof data.planSummary === "string" ? data.planSummary : null,
+        licensePeriodActive: data.licensePeriodActive !== false,
+      });
+      void queryClient.invalidateQueries({ queryKey: [...CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY] });
+      void queryClient.invalidateQueries({ queryKey: [...CREATOR_STUDIO_PROFILES_QUERY_KEY] });
       router.push("/music-creator/dashboard");
       router.refresh();
     } catch (err) {

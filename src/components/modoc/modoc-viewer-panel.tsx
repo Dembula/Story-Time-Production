@@ -61,7 +61,7 @@ export function ModocViewerPanel({
             </div>
             <div>
               <h2 className="text-xl font-bold text-white tracking-tight">
-                MODOC
+                AI assistant
               </h2>
               <p className="text-sm text-slate-400 mt-0.5">
                 Find a movie by scene · Get suggestions from your watch history
@@ -147,7 +147,7 @@ export function ModocViewerPanel({
                   <span className="w-2 h-2 rounded-full bg-cyan-400 animate-bounce [animation-delay:150ms]" />
                   <span className="w-2 h-2 rounded-full bg-cyan-400 animate-bounce [animation-delay:300ms]" />
                 </div>
-                <span className="text-sm text-slate-400">MODOC is thinking…</span>
+                <span className="text-sm text-slate-400">Generating…</span>
               </div>
             </div>
           )}

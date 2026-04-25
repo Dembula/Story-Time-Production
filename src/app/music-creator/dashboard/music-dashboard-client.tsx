@@ -7,7 +7,11 @@ import {
   Music, DollarSign, Disc, Film, TrendingUp, Headphones, BarChart3,
   Clock, Users, MessageSquare, ArrowRight, Sparkles, Bell, Play,
 } from "lucide-react";
-import { getCreatorLicenseConfig, normalizeCreatorLicenseType } from "@/lib/pricing";
+import {
+  CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY,
+  getCreatorLicenseConfig,
+  normalizeCreatorLicenseType,
+} from "@/lib/pricing";
 
 interface SyncDeal { status: string; amount: number; content: { title: string } }
 interface SyncReq { status: string; requester: { name: string | null } }
@@ -33,7 +37,7 @@ export function MusicDashboardClient() {
   const [loading, setLoading] = useState(true);
 
   const { data: licenseData } = useQuery({
-    queryKey: ["creator-distribution-license"],
+    queryKey: [...CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY],
     queryFn: () => fetch("/api/creator/distribution-license").then((r) => r.json()),
   });
   const license = licenseData?.license;

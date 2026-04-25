@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { findBreakdownMakeupsForProject, patchBreakdownMakeups } from "@/lib/breakdown-makeup-db";
 
 async function ensureAccess(projectId: string) {
   const session = await getServerSession(authOptions);
@@ -49,6 +50,7 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ projec
     prisma.breakdownStunt.findMany({ where: { projectId } }),
     prisma.breakdownSfx.findMany({ where: { projectId } }),
   ]);
+  const makeups = await findBreakdownMakeupsForProject(prisma, projectId);
 
   return NextResponse.json({
     projectId,
@@ -60,6 +62,7 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ projec
     vehicles,
     stunts,
     sfx,
+    makeups,
   });
 }
 
@@ -108,6 +111,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ proje
         }[];
         stunts?: { id?: string; description: string; safetyNotes?: string | null; sceneId?: string | null }[];
         sfx?: { id?: string; description: string; practical?: boolean; sceneId?: string | null }[];
+        makeups?: { id?: string; notes: string; character?: string | null; sceneId?: string | null }[];
       }
     | null;
 
@@ -270,7 +274,11 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ proje
         }
       }
     }
-  });
+
+    if (body.makeups) {
+      await patchBreakdownMakeups(tx, projectId, body.makeups);
+    }
+  }, { timeout: 60000, maxWait: 10000 });
 
   const [characters, props, locations, wardrobe, extras, vehicles, stunts, sfx] = await Promise.all([
     prisma.breakdownCharacter.findMany({ where: { projectId } }),
@@ -282,6 +290,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ proje
     prisma.breakdownStunt.findMany({ where: { projectId } }),
     prisma.breakdownSfx.findMany({ where: { projectId } }),
   ]);
+  const makeups = await findBreakdownMakeupsForProject(prisma, projectId);
 
   return NextResponse.json({
     projectId,
@@ -293,6 +302,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ proje
     vehicles,
     stunts,
     sfx,
+    makeups,
   });
 }
 

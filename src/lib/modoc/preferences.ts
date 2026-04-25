@@ -1,6 +1,6 @@
 /**
- * MODOC per-section preferences (e.g. "decline MODOC for logline").
- * Stored in localStorage so the creator can turn off MODOC for specific fields.
+ * Per-section AI assistant preferences (e.g. decline for logline).
+ * Stored in localStorage so the creator can turn off the assistant for specific fields.
  */
 
 const STORAGE_KEY = "modoc_preferences";
@@ -8,7 +8,7 @@ const STORAGE_KEY = "modoc_preferences";
 export type ModocSection = "logline" | "idea_notes" | "script";
 
 export interface ModocPreferences {
-  /** true = user declined MODOC for this section (we still show "Get MODOC help" but don't auto-prompt) */
+  /** true = user declined AI help for this section (we still show "Get AI help" but don't auto-prompt) */
   declined?: Partial<Record<ModocSection, boolean>>;
 }
 

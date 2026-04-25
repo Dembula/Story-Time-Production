@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Briefcase, Save, ArrowLeft } from "lucide-react";
+import { Briefcase, Save, ArrowLeft, Upload, Loader2 } from "lucide-react";
 
 type Team = {
   id: string;
@@ -41,6 +41,7 @@ export default function CrewTeamProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState("");
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
   useEffect(() => {
     fetch("/api/crew-team")
@@ -152,8 +153,35 @@ export default function CrewTeamProfilePage() {
           </div>
         </div>
         <div>
-          <label className="block text-sm font-medium text-slate-300 mb-1">Logo URL</label>
-          <input value={form.logoUrl} onChange={(e) => setForm((f) => ({ ...f, logoUrl: e.target.value }))} className="w-full px-4 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white" placeholder="https://..." />
+          <label className="block text-sm font-medium text-slate-300 mb-1">Company logo</label>
+          <div className="flex flex-wrap items-center gap-2 mb-2">
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-xs text-slate-200 hover:bg-slate-800">
+              {uploadingLogo ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+              {uploadingLogo ? "Uploading…" : "Upload PNG / JPEG / WebP"}
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+                className="hidden"
+                disabled={uploadingLogo}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = "";
+                  if (!file) return;
+                  setUploadingLogo(true);
+                  try {
+                    const fd = new FormData();
+                    fd.append("file", file);
+                    const res = await fetch("/api/upload/content-media", { method: "POST", body: fd });
+                    const data = await res.json();
+                    if (data.publicUrl) setForm((f) => ({ ...f, logoUrl: data.publicUrl }));
+                  } finally {
+                    setUploadingLogo(false);
+                  }
+                }}
+              />
+            </label>
+          </div>
+          <input value={form.logoUrl} onChange={(e) => setForm((f) => ({ ...f, logoUrl: e.target.value }))} className="w-full px-4 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm" placeholder="Or paste logo image URL" />
         </div>
         <div className="pt-4">
           <button onClick={save} disabled={saving || !form.companyName.trim()} className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-emerald-500 text-white font-medium hover:bg-emerald-600 disabled:opacity-50">

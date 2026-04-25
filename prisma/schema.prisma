@@ -66,6 +66,31 @@ model User {
   headline      String?   // network profile tagline
   location      String?   // city/region for network
   website       String?   // personal or studio site
+  /// Public-facing professional name (falls back to name in UI)
+  professionalName String?
+  bannerImageUrl   String?
+  /// Primary discipline: Actor, Director, Writer, Producer, Crew, etc.
+  primaryRole      String?
+  /// JSON string[] — skills tags
+  skills           String?
+  /// JSON string[] — areas of expertise
+  expertiseAreas   String?
+  yearsExperience  Int?
+  /// AVAILABLE | BUSY | LIMITED
+  availabilityStatus String? @default("AVAILABLE")
+  /// Cached reputation (also recomputed in APIs)
+  reputationScore    Float   @default(0)
+  networkProfilePublic Boolean @default(true)
+  /// INDIVIDUAL | COMPANY — chosen at signup for film/music creators (CONTENT_CREATOR / MUSIC_CREATOR).
+  creatorAccountStructure String?
+  /// Max additional team seats (1–5) when creatorAccountStructure is COMPANY; main user counts as admin. Null when individual.
+  creatorTeamSeatCap      Int?
+  /// Selected film/music studio workspace (multi-profile). Null = use primary profile (see creatorStudioProfiles).
+  activeCreatorStudioProfileId String?
+  activeCreatorStudioProfile   CreatorStudioProfile? @relation("ActiveStudioProfile", fields: [activeCreatorStudioProfileId], references: [id], onDelete: SetNull)
+  studioCompaniesOwned         StudioCompany[] @relation("StudioCompanyOwner")
+  creatorStudioProfiles        CreatorStudioProfile[] @relation("StudioProfileMembership")
+
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -128,6 +153,10 @@ model User {
   notifications         Notification[]
   modocConversations   ModocConversation[]
 
+  creatorStudioInvitesSent     CreatorStudioTeamInvite[] @relation("CreatorStudioInviteSender")
+  creatorStudioInvitesReceived CreatorStudioTeamInvite[] @relation("CreatorStudioInviteRecipientUser")
+  creatorAccountProfileVault   CreatorAccountProfileVault?
+
   // Project & production tooling ownership/participation
   projectTasksCreated   ProjectTask[]        @relation("ProjectTaskCreator")
   projectTasksAssigned  ProjectTask[]
@@ -157,9 +186,15 @@ model User {
   connectionRequestsSent     ConnectionRequest[] @relation("ConnectionRequestFrom")
   connectionRequestsReceived ConnectionRequest[] @relation("ConnectionRequestTo")
   networkPosts          NetworkPost[]
+  networkPortfolioItems NetworkPortfolioItem[]
+  networkPostComments   NetworkPostComment[] @relation("NetworkPostCommentAuthor")
+  networkPostLikes      NetworkPostLike[]    @relation("NetworkPostLikeUser")
+  networkPostSaves      NetworkPostSave[]    @relation("NetworkPostSaveUser")
+  collaborationApplications NetworkCollaborationApplication[] @relation("CollaborationApplicant")
   conversationParticipants NetworkConversationParticipant[]
   networkMessagesSent   NetworkMessage[]
-  incidentReports       IncidentReport[]
+  incidentReportsCreated IncidentReport[] @relation("IncidentReportCreator")
+  incidentResolutionAssigned IncidentReport[] @relation("IncidentResolutionAssignee")
   dailiesNotes          DailiesNote[]
   reviewNotes           ReviewNote[]
 
@@ -169,6 +204,80 @@ model User {
 
   // Admin audit logs for privileged actions
   adminAuditLogs        AdminAuditLog[]
+}
+
+/// Film / music studio company (multi-seat). Owner is the registering admin.
+model StudioCompany {
+  id          String   @id @default(cuid())
+  ownerUserId String
+  owner       User     @relation("StudioCompanyOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  displayName String
+  seatCap     Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  profiles   CreatorStudioProfile[]
+  teamInvites CreatorStudioTeamInvite[]
+
+  @@index([ownerUserId])
+}
+
+/// Individual or company-linked workspace profile for film/music creators.
+model CreatorStudioProfile {
+  id                       String   @id @default(cuid())
+  userId                   String
+  user                     User     @relation("StudioProfileMembership", fields: [userId], references: [id], onDelete: Cascade)
+  companyId                String?
+  company                  StudioCompany? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  displayName              String
+  kind                     String // INDIVIDUAL | COMPANY
+  pipelineDisabledByAdmin  Boolean  @default(false)
+  /// Optional fine-grained allow map (future). When null, package + pipelineDisabledByAdmin apply.
+  pipelineSectionMask      Json?
+  /// Team role label when profile belongs to a company (Director, Producer, Admin, Editor, …).
+  teamRole                 String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  distributionLicense CreatorDistributionLicense?
+  activeForUsers      User[] @relation("ActiveStudioProfile")
+
+  @@index([userId])
+  @@index([companyId])
+}
+
+/// Invite by company owner to join a studio company workspace (same email may hold multiple profiles).
+model CreatorStudioTeamInvite {
+  id                String   @id @default(cuid())
+  companyId         String
+  company           StudioCompany @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invitedByUserId   String
+  invitedBy         User     @relation("CreatorStudioInviteSender", fields: [invitedByUserId], references: [id], onDelete: Cascade)
+  emailNorm         String
+  invitedUserId     String?
+  invitedUser       User?    @relation("CreatorStudioInviteRecipientUser", fields: [invitedUserId], references: [id], onDelete: SetNull)
+  status            String   @default("PENDING")
+  suiteAccess       Json?
+  personalMessage   String?
+  token             String   @unique
+  expiresAt         DateTime
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([emailNorm])
+  @@index([invitedUserId])
+  @@index([token])
+}
+
+/// Structured compliance / business profile fields (JSON) — UI maps into layered sections.
+model CreatorAccountProfileVault {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  data      Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model AdminRequest {
@@ -574,6 +683,7 @@ model OriginalProject {
   pitches       OriginalPitch[]
   members       OriginalMember[]
   networkPosts  NetworkPost[]
+  networkPortfolioItems NetworkPortfolioItem[]
   ideas         ProjectIdea[]
   workspaceLinks ProjectWorkspaceLink[]
   toolProgress  ProjectToolProgress[]
@@ -597,6 +707,7 @@ model OriginalProject {
   breakdownVehicles BreakdownVehicle[]
   breakdownStunts BreakdownStunt[]
   breakdownSfxs BreakdownSfx[]
+  breakdownMakeups BreakdownMakeup[]
   projectBudget ProjectBudget?
   productionExpenses ProductionExpense[]
   shootDays     ShootDay[]
@@ -613,12 +724,14 @@ model OriginalProject {
   projectTasks   ProjectTask[]
   tableReadSessions TableReadSession[]
   equipmentPlanItems EquipmentPlanItem[]
+  visualAssets  ProjectVisualAsset[]
   riskPlan      RiskPlan?
   continuityNotes ContinuityNote[]
   dailiesBatches DailiesBatch[]
   scriptReviewNotes ScriptReviewNote[]
   creatorScripts    CreatorScript[]
   linkedCatalogueContent Content[]
+  shootDayControlBoards ShootDayControlBoard[]
 
   @@index([status])
 }
@@ -1110,16 +1223,19 @@ model CompanySubscription {
 }
 
 model CreatorDistributionLicense {
-  id                  String    @id @default(cuid())
-  userId              String    @unique
-  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type                String    // YEARLY_R89, PER_UPLOAD_R10
-  yearlyExpiresAt     DateTime?
-  externalPaymentId   String?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  id                     String               @id @default(cuid())
+  userId                 String               @unique
+  user                   User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  creatorStudioProfileId String?              @unique
+  creatorStudioProfile   CreatorStudioProfile? @relation(fields: [creatorStudioProfileId], references: [id], onDelete: SetNull)
+  type                   String // CREATOR_PIPELINE_*, CREATOR_UPLOAD_*, legacy YEARLY_R89, etc.
+  yearlyExpiresAt        DateTime?
+  externalPaymentId      String?
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
 
   @@index([userId])
+  @@index([creatorStudioProfileId])
 }
 
 model UploadPayment {
@@ -1327,17 +1443,106 @@ model NetworkPost {
   imageUrls  String?  // JSON array of image URLs
   contentId  String?  // optional link to a movie/content
   projectId  String?  // optional link to a project
+  /// TEXT_UPDATE | VIDEO | IMAGE | COLLABORATION_REQUEST | CASTING_CALL | CREW_REQUEST | FUNDING_UPDATE | PROJECT_UPDATE
+  postType          String   @default("TEXT_UPDATE")
+  /// JSON string[] — video URLs (reels, scenes, trailers)
+  videoUrls         String?
+  /// JSON — tags, collaboration payload, funding refs
+  metadata          String?
+  sceneId           String?
+  scene             ProjectScene? @relation(fields: [sceneId], references: [id], onDelete: SetNull)
+  /// PRE_PRODUCTION | PRODUCTION | POST_PRODUCTION (optional)
+  productionPhase   String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
   author  User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
   content Content? @relation(fields: [contentId], references: [id], onDelete: SetNull)
   project OriginalProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  comments NetworkPostComment[]
+  likes    NetworkPostLike[]
+  saves    NetworkPostSave[]
+  collaborationApplications NetworkCollaborationApplication[]
 
   @@index([authorId])
   @@index([createdAt])
   @@index([contentId])
   @@index([projectId])
+  @@index([postType])
+  @@index([sceneId])
+}
+
+model NetworkPortfolioItem {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind        String   // VIDEO | IMAGE | SCRIPT_SAMPLE
+  title       String
+  mediaUrl    String
+  description String?
+  projectId   String?
+  project     OriginalProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  sceneId     String?
+  scene       ProjectScene? @relation(fields: [sceneId], references: [id], onDelete: SetNull)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([projectId])
+}
+
+model NetworkPostComment {
+  id        String   @id @default(cuid())
+  postId    String
+  post      NetworkPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User        @relation("NetworkPostCommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([postId])
+  @@index([authorId])
+}
+
+model NetworkPostLike {
+  id        String   @id @default(cuid())
+  postId    String
+  post      NetworkPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User        @relation("NetworkPostLikeUser", fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([postId, userId])
+  @@index([postId])
+}
+
+model NetworkPostSave {
+  id        String   @id @default(cuid())
+  postId    String
+  post      NetworkPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User        @relation("NetworkPostSaveUser", fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([postId, userId])
+  @@index([userId])
+}
+
+model NetworkCollaborationApplication {
+  id          String   @id @default(cuid())
+  postId      String
+  post        NetworkPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  applicantId String
+  applicant   User        @relation("CollaborationApplicant", fields: [applicantId], references: [id], onDelete: Cascade)
+  message     String?
+  status      String   @default("PENDING") // PENDING, ACCEPTED, DECLINED
+  createdAt   DateTime @default(now())
+  respondedAt DateTime?
+
+  @@unique([postId, applicantId])
+  @@index([postId])
+  @@index([applicantId])
 }
 
 model NetworkConversation {
@@ -1379,6 +1584,25 @@ model NetworkMessage {
 }
 
 // --- Project pipeline extensions (Creator Dashboard) ---
+
+/// Reference images for Visual Planning (moodboards, world, tone, etc.)
+model ProjectVisualAsset {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  /// world_of_story | moodboard | tone_palette | direction | character | location | scene
+  category    String
+  imageUrl    String
+  title       String?
+  /// Tone, direction, feel — freeform notes for the team
+  caption     String?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([projectId, category])
+}
 
 model ProjectIdea {
   id          String   @id @default(cuid())
@@ -1441,6 +1665,12 @@ model ProjectScene {
   script      ProjectScript? @relation(fields: [scriptId], references: [id], onDelete: SetNull)
   number      String   // e.g. "1", "2A"
   heading     String?  // e.g. INT. HOUSE - DAY
+  /// Narrative story day (1 = first day in the story timeline, etc.)
+  storyDay    Int?
+  /// Parsed or overridden: INT, EXT, INT_EXT, UNKNOWN
+  intExt      String?
+  /// Parsed or overridden: DAY, NIGHT, DAWN, DUSK, CONTINUOUS, LATER, SAME, UNKNOWN
+  timeOfDay   String?
   summary     String?
   pageCount   Float?
   status      String   @default("PLANNED") // PLANNED, SCHEDULED, SHOOTING, WRAPPED
@@ -1457,11 +1687,14 @@ model ProjectScene {
   breakdownVehicles   BreakdownVehicle[]
   breakdownStunts     BreakdownStunt[]
   breakdownSfxs       BreakdownSfx[]
+  breakdownMakeups    BreakdownMakeup[]
   shootDayLinks ShootDayScene[]
   continuityNotes ContinuityNote[]
   dailies      DailiesBatch[]
   footageAssets FootageAsset[]
   projectTasks  ProjectTask[]
+  networkPosts  NetworkPost[]
+  networkPortfolioItems NetworkPortfolioItem[]
 
   @@index([projectId])
   @@index([scriptId])
@@ -1640,6 +1873,22 @@ model BreakdownSfx {
   @@index([sceneId])
 }
 
+model BreakdownMakeup {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sceneId     String?
+  scene       ProjectScene? @relation(fields: [sceneId], references: [id], onDelete: SetNull)
+  /// What hair / makeup / prosthetics need for this scene or character
+  notes       String
+  character   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([sceneId])
+}
+
 // --- Budget & expenses ---
 
 model ProjectBudget {
@@ -1719,9 +1968,28 @@ model ShootDay {
   continuityNotes ContinuityNote[]
   dailiesBatches  DailiesBatch[]
   projectTasks  ProjectTask[]
+  controlBoard    ShootDayControlBoard?
 
   @@index([projectId])
   @@index([date])
+}
+
+model ShootDayControlBoard {
+  id                  String   @id @default(cuid())
+  shootDayId          String   @unique
+  shootDay            ShootDay @relation(fields: [shootDayId], references: [id], onDelete: Cascade)
+  projectId           String
+  project             OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sceneProgress       Json?
+  castStatus          Json?
+  crewStatus          Json?
+  equipmentStatus     Json?
+  locationStatus      Json?
+  acknowledgedAlerts  Json?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([projectId])
 }
 
 model ShootDayScene {
@@ -2018,9 +2286,12 @@ model TableReadSession {
   scriptVersion   ProjectScriptVersion? @relation(fields: [scriptVersionId], references: [id], onDelete: SetNull)
   name        String?
   scheduledAt DateTime?
+  /// Running notes: what was said, reactions, line changes, performance feedback
+  notesLog    String?  @db.Text
   createdById String?
   createdBy   User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
   createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
 
   participants TableReadParticipant[]
   notes       TableReadNote[]
@@ -2032,8 +2303,11 @@ model TableReadParticipant {
   id          String   @id @default(cuid())
   sessionId   String
   session     TableReadSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Set when the reader is a Story Time user; omit for guests
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Display name for attendees who are not linked users
+  guestName   String?
   characterName String?
 
   @@index([sessionId])
@@ -2163,10 +2437,13 @@ model IncidentReport {
   title       String
   description String
   severity    String   @default("LOW") // LOW, MEDIUM, HIGH
+  category    String?  // SAFETY, EQUIPMENT, DELAY, CAST_CREW, LOCATION, WEATHER, OTHER
   location    String?
   resolved    Boolean  @default(false)
   createdById String?
-  createdBy   User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdBy   User?    @relation("IncidentReportCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  resolutionOwnerId String?
+  resolutionOwner User? @relation("IncidentResolutionAssignee", fields: [resolutionOwnerId], references: [id], onDelete: SetNull)
   createdAt   DateTime @default(now())
   resolvedAt  DateTime?
 

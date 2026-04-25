@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { buildCallSheetPayload, snapshotToJsonStrings } from "@/lib/call-sheet-builder";
+import { buildProductionDataEngine } from "@/lib/production-day-engine";
+import { SIGNED_CONTRACT_STATUSES } from "@/lib/contract-template-engine";
 
 async function ensureAccess(projectId: string) {
   const session = await getServerSession(authOptions);
@@ -44,21 +46,62 @@ async function ensureAccess(projectId: string) {
 }
 
 export async function GET(
-  _req: NextRequest,
-  context: { params: Promise<{ projectId: string }> }
+  req: NextRequest,
+  context: { params: Promise<{ projectId: string }> },
 ) {
   const { projectId } = await context.params;
 
   const access = await ensureAccess(projectId);
   if (access.error) return access.error;
 
+  const sheetId = req.nextUrl.searchParams.get("sheetId");
+  if (sheetId) {
+    const sheet = await prisma.callSheet.findFirst({
+      where: { id: sheetId, projectId },
+      include: { shootDay: true },
+    });
+    if (!sheet) {
+      return NextResponse.json({ error: "Call sheet not found" }, { status: 404 });
+    }
+    return NextResponse.json({
+      callSheet: {
+        ...sheet,
+        parsed: {
+          cast: safeParseJson(sheet.castJson),
+          crew: safeParseJson(sheet.crewJson),
+          locations: safeParseJson(sheet.locationsJson),
+          schedule: safeParseJson(sheet.scheduleJson),
+        },
+        formats: {
+          pdfExportReady: true,
+          shareablePath: `/creator/projects/${projectId}/production/call-sheet-generator?dayId=${sheet.shootDayId}&sheetId=${sheet.id}&view=share`,
+          mobilePath: `/creator/projects/${projectId}/production/call-sheet-generator?dayId=${sheet.shootDayId}&sheetId=${sheet.id}&view=mobile`,
+        },
+      },
+    });
+  }
+
   const callSheets = await prisma.callSheet.findMany({
     where: { projectId },
     orderBy: { createdAt: "desc" },
     include: { shootDay: true },
   });
+  const enriched = callSheets.map((sheet) => ({
+    ...sheet,
+    parsed: {
+      cast: safeParseJson(sheet.castJson),
+      crew: safeParseJson(sheet.crewJson),
+      locations: safeParseJson(sheet.locationsJson),
+      schedule: safeParseJson(sheet.scheduleJson),
+    },
+    formats: {
+      pdfExportReady: true,
+      shareablePath: `/creator/projects/${projectId}/production/call-sheet-generator?dayId=${sheet.shootDayId}&sheetId=${sheet.id}&view=share`,
+      mobilePath: `/creator/projects/${projectId}/production/call-sheet-generator?dayId=${sheet.shootDayId}&sheetId=${sheet.id}&view=mobile`,
+    },
+  }));
 
-  return NextResponse.json({ callSheets });
+  return NextResponse.json({ callSheets: enriched });
 }
 
 export async function POST(
@@ -86,16 +129,30 @@ export async function POST(
     return NextResponse.json({ error: "Missing shootDayId" }, { status: 400 });
   }
 
+  const unsignedContracts = await prisma.projectContract.count({
+    where: {
+      projectId,
+      NOT: { status: { in: [...SIGNED_CONTRACT_STATUSES] } },
+    },
+  });
+
   const built = await buildCallSheetPayload(projectId, body.shootDayId);
   if (!built) {
     return NextResponse.json({ error: "Shoot day not found" }, { status: 404 });
   }
   const snap = snapshotToJsonStrings(built);
 
+  const versionAgg = await prisma.callSheet.aggregate({
+    where: { projectId, shootDayId: body.shootDayId },
+    _max: { version: true },
+  });
+  const nextVersion = (versionAgg._max.version ?? 0) + 1;
+
   const callSheet = await prisma.callSheet.create({
     data: {
       projectId,
       shootDayId: body.shootDayId,
+      version: nextVersion,
       title: body.title ?? null,
       notes: body.notes ?? null,
       castJson: body.castJson ?? snap.castJson,
@@ -105,5 +162,33 @@ export async function POST(
     },
   });
 
-  return NextResponse.json({ callSheet }, { status: 201 });
+  const engine = await buildProductionDataEngine(prisma, projectId, access.userId);
+  const productionDay = engine?.productionDays.find((d) => d.id === body.shootDayId) ?? null;
+  return NextResponse.json(
+    {
+      callSheet,
+      output: productionDay?.callSheetOutput ?? null,
+      formats: {
+        pdfExportReady: true,
+        shareablePath: `/creator/projects/${projectId}/production/call-sheet-generator?dayId=${body.shootDayId}&sheetId=${callSheet.id}&view=share`,
+        mobilePath: `/creator/projects/${projectId}/production/call-sheet-generator?dayId=${body.shootDayId}&sheetId=${callSheet.id}&view=mobile`,
+      },
+      warnings:
+        unsignedContracts > 0
+          ? [
+              `${unsignedContracts} project contract(s) are not fully signed. Cast and locations are still filtered to signed deals when applicable.`,
+            ]
+          : [],
+    },
+    { status: 201 },
+  );
+}
+
+function safeParseJson(v: string | null) {
+  if (!v) return null;
+  try {
+    return JSON.parse(v);
+  } catch {
+    return null;
+  }
 }

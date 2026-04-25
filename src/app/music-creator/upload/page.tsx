@@ -2,7 +2,17 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Music, ChevronRight, ChevronLeft, Check, Upload, Info } from "lucide-react";
+import { Music, ChevronRight, ChevronLeft, Check, Upload, Info, Loader2 } from "lucide-react";
+
+async function uploadContentMediaFile(file: File): Promise<string> {
+  const fd = new FormData();
+  fd.append("file", file);
+  const res = await fetch("/api/upload/content-media", { method: "POST", body: fd });
+  const data = (await res.json().catch(() => ({}))) as { error?: string; publicUrl?: string };
+  if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : "Upload failed");
+  if (!data.publicUrl) throw new Error("Upload did not return a file URL");
+  return data.publicUrl;
+}
 
 const GENRES = ["Indie", "Electronic", "Synthwave", "Ambient", "Hip-Hop", "Afro-Electronic", "World Fusion", "Jazz", "Classical", "Rock", "Pop", "R&B", "Soul", "Folk", "Afrobeat", "Amapiano", "Gqom", "Kwaito", "Other"];
 const MOODS = ["Dreamy", "Energetic", "Moody", "Peaceful", "Confident", "Nostalgic", "Spiritual", "Melancholic", "Festive", "Dark", "Uplifting", "Romantic", "Tense", "Playful"];
@@ -14,6 +24,8 @@ export default function MusicUploadPage() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [uploadingAudio, setUploadingAudio] = useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
   const [form, setForm] = useState({
     title: "", artistName: "", audioUrl: "", coverUrl: "",
     genre: "", mood: "", bpm: "", key: "", duration: "",
@@ -123,13 +135,68 @@ export default function MusicUploadPage() {
 
         {step === 3 && (<>
           <div>
-            <label className="block text-sm text-slate-300 mb-1.5">Audio URL *</label>
-            <input value={form.audioUrl} onChange={(e) => updateField("audioUrl", e.target.value)} className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" placeholder="https://..." />
-            <p className="text-xs text-slate-500 mt-1">Direct link to your audio file (MP3, WAV, FLAC)</p>
+            <label className="block text-sm text-slate-300 mb-1.5">Audio file *</label>
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-600 bg-slate-900/70 px-3 py-2 text-xs text-slate-200 hover:bg-slate-800">
+                {uploadingAudio ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                {uploadingAudio ? "Uploading…" : "Upload MP3 / WAV / FLAC"}
+                <input
+                  type="file"
+                  accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/flac,audio/aac,audio/mp4,audio/ogg,.mp3,.wav,.flac,.aac,.m4a,.ogg"
+                  className="hidden"
+                  disabled={uploadingAudio}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = "";
+                    if (!file) return;
+                    setUploadingAudio(true);
+                    setError("");
+                    try {
+                      const url = await uploadContentMediaFile(file);
+                      updateField("audioUrl", url);
+                    } catch (err) {
+                      setError((err as Error).message);
+                    } finally {
+                      setUploadingAudio(false);
+                    }
+                  }}
+                />
+              </label>
+            </div>
+            <label className="block text-xs text-slate-500 mb-1">Optional: paste a direct link instead</label>
+            <input value={form.audioUrl} onChange={(e) => updateField("audioUrl", e.target.value)} className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" placeholder="https://… (only if not uploading)" />
           </div>
           <div>
-            <label className="block text-sm text-slate-300 mb-1.5">Cover Art URL</label>
-            <input value={form.coverUrl} onChange={(e) => updateField("coverUrl", e.target.value)} className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" placeholder="https://..." />
+            <label className="block text-sm text-slate-300 mb-1.5">Cover art</label>
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-600 bg-slate-900/70 px-3 py-2 text-xs text-slate-200 hover:bg-slate-800">
+                {uploadingCover ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                {uploadingCover ? "Uploading…" : "Upload image"}
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+                  className="hidden"
+                  disabled={uploadingCover}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = "";
+                    if (!file) return;
+                    setUploadingCover(true);
+                    setError("");
+                    try {
+                      const url = await uploadContentMediaFile(file);
+                      updateField("coverUrl", url);
+                    } catch (err) {
+                      setError((err as Error).message);
+                    } finally {
+                      setUploadingCover(false);
+                    }
+                  }}
+                />
+              </label>
+            </div>
+            <label className="block text-xs text-slate-500 mb-1">Optional: cover image URL</label>
+            <input value={form.coverUrl} onChange={(e) => updateField("coverUrl", e.target.value)} className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" placeholder="https://…" />
           </div>
           {form.coverUrl && <img src={form.coverUrl} alt="" className="w-24 h-24 rounded-lg object-cover border border-slate-700/50" />}
           <div>
@@ -168,6 +235,8 @@ export default function MusicUploadPage() {
                 { label: "Key", value: form.key },
                 { label: "Duration", value: form.duration ? `${Math.floor(Number(form.duration) / 60)}:${String(Number(form.duration) % 60).padStart(2, "0")}` : "" },
                 { label: "License", value: form.licenseType?.replace(/_/g, " ") },
+                { label: "Audio", value: form.audioUrl ? "File attached" : "" },
+                { label: "Cover", value: form.coverUrl ? "Image set" : "" },
               ].map((f) => f.value ? (
                 <div key={f.label}><span className="text-slate-500">{f.label}:</span> <span className="text-slate-300">{f.value}</span></div>
               ) : null)}
@@ -181,11 +250,18 @@ export default function MusicUploadPage() {
           <ChevronLeft className="w-4 h-4" /> Back
         </button>
         {step < totalSteps ? (
-          <button onClick={() => setStep(step + 1)} disabled={step === 1 && (!form.title || !form.artistName)} className="flex items-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-medium bg-pink-500 text-white hover:bg-pink-600 transition disabled:opacity-50">
+          <button
+            onClick={() => setStep(step + 1)}
+            disabled={
+              (step === 1 && (!form.title || !form.artistName)) ||
+              (step === 3 && !form.audioUrl.trim())
+            }
+            className="flex items-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-medium bg-pink-500 text-white hover:bg-pink-600 transition disabled:opacity-50"
+          >
             Next <ChevronRight className="w-4 h-4" />
           </button>
         ) : (
-          <button onClick={handleSubmit} disabled={loading || !form.title || !form.artistName} className="flex items-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-medium bg-pink-500 text-white hover:bg-pink-600 transition disabled:opacity-50">
+          <button onClick={handleSubmit} disabled={loading || !form.title || !form.artistName || !form.audioUrl.trim()} className="flex items-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-medium bg-pink-500 text-white hover:bg-pink-600 transition disabled:opacity-50">
             <Upload className="w-4 h-4" /> {loading ? "Publishing..." : "Publish Track"}
           </button>
         )}

@@ -20,11 +20,11 @@ export default function CreatorSignInPage() {
       email,
       password,
       redirect: false,
-      callbackUrl: "/creator/dashboard",
+      callbackUrl: "/creator/command-center",
     });
     setLoading(false);
     if (res?.ok) {
-      window.location.href = "/creator/dashboard";
+      window.location.href = "/creator/command-center";
     } else {
       setError("Invalid email or password.");
     }
@@ -109,14 +109,14 @@ export default function CreatorSignInPage() {
           <div className="grid grid-cols-2 gap-3">
             <button
               type="button"
-              onClick={() => signIn("google", { callbackUrl: "/creator/dashboard" })}
+              onClick={() => signIn("google", { callbackUrl: "/creator/command-center" })}
               className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white/90 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-white"
             >
               Google
             </button>
             <button
               type="button"
-              onClick={() => signIn("github", { callbackUrl: "/creator/dashboard" })}
+              onClick={() => signIn("github", { callbackUrl: "/creator/command-center" })}
               className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white/90 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-white"
             >
               GitHub

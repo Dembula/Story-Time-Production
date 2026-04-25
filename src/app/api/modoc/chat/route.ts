@@ -19,7 +19,6 @@ import {
   MODOC_TASK_VISUAL_PLANNING,
   MODOC_TASK_LEGAL_CONTRACTS,
   MODOC_TASK_FUNDING_HUB,
-  MODOC_TASK_PITCH_DECK,
   MODOC_TASK_TABLE_READS,
   MODOC_TASK_PRODUCTION_WORKSPACE,
   MODOC_TASK_RISK_INSURANCE,
@@ -117,7 +116,7 @@ export async function POST(req: Request) {
     return new Response(
       JSON.stringify({
         error:
-          "MODOC is not configured. Set OPENROUTER_API_KEY in environment.",
+          "AI assistant is not configured. Set OPENROUTER_API_KEY in environment.",
       }),
       { status: 503, headers: { "Content-Type": "application/json" } }
     );
@@ -250,7 +249,6 @@ When suggesting a title, tell them they can open it at: /browse/content/[id] (re
   if (task === "visual_planning") systemPrompt += MODOC_TASK_VISUAL_PLANNING;
   if (task === "legal_contracts") systemPrompt += MODOC_TASK_LEGAL_CONTRACTS;
   if (task === "funding_hub") systemPrompt += MODOC_TASK_FUNDING_HUB;
-  if (task === "pitch_deck") systemPrompt += MODOC_TASK_PITCH_DECK;
   if (task === "table_reads") systemPrompt += MODOC_TASK_TABLE_READS;
   if (task === "production_workspace") systemPrompt += MODOC_TASK_PRODUCTION_WORKSPACE;
   if (task === "risk_insurance") systemPrompt += MODOC_TASK_RISK_INSURANCE;
@@ -279,7 +277,6 @@ When suggesting a title, tell them they can open it at: /browse/content/[id] (re
     task === "visual_planning" ||
     task === "legal_contracts" ||
     task === "funding_hub" ||
-    task === "pitch_deck" ||
     task === "table_reads" ||
     task === "production_workspace" ||
     task === "risk_insurance" ||
@@ -634,39 +631,6 @@ ${budgetBlob}
 Suggest potential funding sources (by type/category), proposal structure, and how to tailor the ask. Do not invent specific fund names unless provided.`;
       }
 
-      if (task === "pitch_deck" && project) {
-        const [deck, ideas] = await Promise.all([
-          prisma.pitchDeck.findUnique({
-            where: { projectId: project.id },
-            include: { slides: { orderBy: { sortOrder: "asc" } } },
-          }),
-          prisma.projectIdea.findMany({
-            where: { projectId: project.id },
-            take: 3,
-            select: { title: true, logline: true, notes: true },
-          }),
-        ]);
-        const ideaBlob =
-          ideas.length > 0
-            ? ideas.map((i) => `Title: ${i.title ?? "—"}\nLogline: ${(i.logline ?? "").slice(0, 400)}`).join("\n\n")
-            : "(No project idea yet)";
-        const slidesBlob =
-          deck?.slides && deck.slides.length > 0
-            ? deck.slides.map((s, i) => `Slide ${i + 1}: ${s.title ?? "Untitled"}\n${(s.body ?? "").slice(0, 300)}`).join("\n\n")
-            : "(No pitch deck or slides yet)";
-        systemPrompt += `
-
-## Pitch deck context — use this to answer
-
-**Project (title, logline):**
-${ideaBlob}
-
-**Current pitch deck slides:**
-${slidesBlob}
-
-Generate or refine slide content that highlights unique aspects and market potential. Output copy the creator can paste into their deck.`;
-      }
-
       if (task === "table_reads" && project) {
         const [scriptsWithVersions, tableReadSessions, characters] = await Promise.all([
           prisma.projectScript.findMany({
@@ -695,7 +659,7 @@ Generate or refine slide content that highlights unique aspects and market poten
             ? tableReadSessions
                 .map(
                   (s) =>
-                    `Session: ${s.name ?? "Unnamed"} | Scheduled: ${s.scheduledAt?.toISOString() ?? "—"}\nParticipants: ${s.participants.map((p) => `${p.user?.name ?? p.user?.email ?? "?"} (${p.characterName ?? "—"})`).join("; ")}\nNotes: ${s.notes.map((n) => `${n.body.slice(0, 150)} (${n.user?.name ?? "—"})`).join(" | ")}`
+                    `Session: ${s.name ?? "Unnamed"} | Scheduled: ${s.scheduledAt?.toISOString() ?? "—"}\nParticipants: ${s.participants.map((p) => `${(p as { guestName?: string | null }).guestName?.trim() || p.user?.name || p.user?.email || "?"} (${p.characterName ?? "—"})`).join("; ")}\nSession notes log: ${(s as { notesLog?: string | null }).notesLog?.slice(0, 2000) ?? "—"}\nShort notes: ${s.notes.map((n) => `${n.body.slice(0, 150)} (${n.user?.name ?? "—"})`).join(" | ")}`
                 )
                 .join("\n\n")
             : "(No table read sessions yet)";

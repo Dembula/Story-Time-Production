@@ -470,8 +470,8 @@ function DistributionUploadInner() {
         <div className="space-y-6">
           <h2 className="text-xl font-semibold text-white">Media & Assets</h2>
           <p className="text-sm text-slate-400">
-            Upload your master video, BTS material and script, or paste existing URLs. These files are used by Story Time
-            admins during vetting and for delivery to viewers.
+            Upload your master video, BTS clips, poster, backdrop, and script (PDF) using the file pickers below. Optional
+            fields let you paste a direct https link instead if the file already lives on your own storage or a CDN.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div className="space-y-4">
@@ -502,17 +502,20 @@ function DistributionUploadInner() {
                   <p className="text-xs text-slate-500">
                     Recommended: final delivery master in MP4 (H.264/H.265), 1080p or higher.
                   </p>
-                  <div className="flex items-center justify-between gap-2">
+                  {uploadingMainVideo && (
+                    <p className="text-xs text-slate-400">Uploading…</p>
+                  )}
+                  <details className="rounded-lg border border-slate-700/60 bg-slate-900/30 px-3 py-2">
+                    <summary className="cursor-pointer text-xs text-slate-500 hover:text-slate-300 list-none [&::-webkit-details-marker]:hidden">
+                      Optional: paste a direct video URL instead
+                    </summary>
                     <input
                       value={form.videoUrl}
                       onChange={(e) => updateField("videoUrl", e.target.value)}
-                      placeholder="Or paste an existing streaming/storage URL"
-                      className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-xl text-white placeholder-slate-500 text-xs focus:border-orange-500 focus:outline-none transition"
+                      placeholder="https://… (CDN or direct file)"
+                      className="mt-2 w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-xl text-white placeholder-slate-500 text-xs focus:border-orange-500 focus:outline-none transition"
                     />
-                    {uploadingMainVideo && (
-                      <span className="ml-2 text-xs text-slate-400 whitespace-nowrap">Uploading…</span>
-                    )}
-                  </div>
+                  </details>
                 </div>
               </div>
               <div>
@@ -537,17 +540,18 @@ function DistributionUploadInner() {
                     }}
                     className="block w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-slate-700 file:text-white hover:file:bg-slate-600 cursor-pointer"
                   />
-                  <div className="flex items-center justify-between gap-2">
+                  {uploadingTrailer && <p className="text-xs text-slate-400">Uploading…</p>}
+                  <details className="rounded-lg border border-slate-700/60 bg-slate-900/30 px-3 py-2">
+                    <summary className="cursor-pointer text-xs text-slate-500 hover:text-slate-300 list-none [&::-webkit-details-marker]:hidden">
+                      Optional: paste trailer URL instead
+                    </summary>
                     <input
                       value={form.trailerUrl}
                       onChange={(e) => updateField("trailerUrl", e.target.value)}
-                      placeholder="Or paste trailer URL"
-                      className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-xl text-white placeholder-slate-500 text-xs focus:border-orange-500 focus:outline-none transition"
+                      placeholder="https://…"
+                      className="mt-2 w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-xl text-white placeholder-slate-500 text-xs focus:border-orange-500 focus:outline-none transition"
                     />
-                    {uploadingTrailer && (
-                      <span className="ml-2 text-xs text-slate-400 whitespace-nowrap">Uploading…</span>
-                    )}
-                  </div>
+                  </details>
                 </div>
               </div>
             </div>
@@ -576,17 +580,18 @@ function DistributionUploadInner() {
                     }}
                     className="block w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-slate-700 file:text-white hover:file:bg-slate-600 cursor-pointer"
                   />
-                  <div className="flex items-center justify-between gap-2">
+                  {uploadingPoster && <p className="text-xs text-slate-400">Uploading…</p>}
+                  <details className="rounded-lg border border-slate-700/60 bg-slate-900/30 px-3 py-2">
+                    <summary className="cursor-pointer text-xs text-slate-500 hover:text-slate-300 list-none [&::-webkit-details-marker]:hidden">
+                      Optional: paste poster image URL instead
+                    </summary>
                     <input
                       value={form.posterUrl}
                       onChange={(e) => updateField("posterUrl", e.target.value)}
-                      placeholder="Or paste poster image URL"
-                      className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-xl text-white placeholder-slate-500 text-xs focus:border-orange-500 focus:outline-none transition"
+                      placeholder="https://…"
+                      className="mt-2 w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-xl text-white placeholder-slate-500 text-xs focus:border-orange-500 focus:outline-none transition"
                     />
-                    {uploadingPoster && (
-                      <span className="ml-2 text-xs text-slate-400 whitespace-nowrap">Uploading…</span>
-                    )}
-                  </div>
+                  </details>
                   <p className="text-xs text-slate-500">
                     Recommended: 2:3 ratio, at least 500×750px, no key art cropping.
                   </p>
@@ -614,17 +619,18 @@ function DistributionUploadInner() {
                     }}
                     className="block w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-slate-700 file:text-white hover:file:bg-slate-600 cursor-pointer"
                   />
-                  <div className="flex items-center justify-between gap-2">
+                  {uploadingBackdrop && <p className="text-xs text-slate-400">Uploading…</p>}
+                  <details className="rounded-lg border border-slate-700/60 bg-slate-900/30 px-3 py-2">
+                    <summary className="cursor-pointer text-xs text-slate-500 hover:text-slate-300 list-none [&::-webkit-details-marker]:hidden">
+                      Optional: paste backdrop image URL instead
+                    </summary>
                     <input
                       value={form.backdropUrl}
                       onChange={(e) => updateField("backdropUrl", e.target.value)}
-                      placeholder="Or paste backdrop image URL"
-                      className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-xl text-white placeholder-slate-500 text-xs focus:border-orange-500 focus:outline-none transition"
+                      placeholder="https://…"
+                      className="mt-2 w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-xl text-white placeholder-slate-500 text-xs focus:border-orange-500 focus:outline-none transition"
                     />
-                    {uploadingBackdrop && (
-                      <span className="ml-2 text-xs text-slate-400 whitespace-nowrap">Uploading…</span>
-                    )}
-                  </div>
+                  </details>
                   <p className="text-xs text-slate-500">
                     Recommended: 16:9 ratio, at least 1920×1080px.
                   </p>
@@ -662,17 +668,20 @@ function DistributionUploadInner() {
                   }}
                   className="block w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-slate-700 file:text-white hover:file:bg-slate-600 cursor-pointer"
                 />
-                {uploadingScript && (
-                  <span className="text-xs text-slate-400 whitespace-nowrap">Uploading script…</span>
-                )}
+                {uploadingScript && <p className="text-xs text-slate-400">Uploading script…</p>}
               </div>
               <div className="space-y-1">
-                <input
-                  value={form.scriptUrl}
-                  onChange={(e) => updateField("scriptUrl", e.target.value)}
-                  placeholder="Or paste existing script URL"
-                  className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-xl text-white placeholder-slate-500 text-xs focus:border-orange-500 focus:outline-none transition"
-                />
+                <details className="rounded-lg border border-slate-700/60 bg-slate-900/30 px-3 py-2">
+                  <summary className="cursor-pointer text-xs text-slate-500 hover:text-slate-300 list-none [&::-webkit-details-marker]:hidden">
+                    Optional: paste script PDF URL instead
+                  </summary>
+                  <input
+                    value={form.scriptUrl}
+                    onChange={(e) => updateField("scriptUrl", e.target.value)}
+                    placeholder="https://…"
+                    className="mt-2 w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-xl text-white placeholder-slate-500 text-xs focus:border-orange-500 focus:outline-none transition"
+                  />
+                </details>
                 <p className="text-xs text-slate-500">
                   Accepted format: PDF only.
                 </p>
@@ -717,19 +726,7 @@ function DistributionUploadInner() {
                     placeholder="BTS title (e.g. On set: Day 1)"
                     className="w-full md:flex-1 px-3 py-2 bg-slate-900/70 border border-slate-700 rounded-md text-xs text-white placeholder-slate-500 focus:border-orange-500 focus:outline-none transition"
                   />
-                  <div className="flex-1 w-full flex items-center gap-2">
-                    <input
-                      value={b.videoUrl}
-                      onChange={(e) =>
-                        setBtsVideos((prev) =>
-                          prev.map((item, i) =>
-                            i === idx ? { ...item, videoUrl: e.target.value } : item,
-                          ),
-                        )
-                      }
-                      placeholder="Paste BTS video URL or upload below"
-                      className="flex-1 px-3 py-2 bg-slate-900/70 border border-slate-700 rounded-md text-xs text-white placeholder-slate-500 focus:border-orange-500 focus:outline-none transition"
-                    />
+                  <div className="flex-1 w-full flex flex-col gap-2 min-w-0">
                     <input
                       type="file"
                       accept="video/*"
@@ -751,13 +748,30 @@ function DistributionUploadInner() {
                           setUploadingBtsIndex(null);
                         }
                       }}
-                      className="block w-40 text-xs text-slate-300 file:mr-2 file:py-1.5 file:px-2.5 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-slate-700 file:text-white hover:file:bg-slate-600 cursor-pointer"
+                      className="block w-full max-w-xs text-xs text-slate-300 file:mr-2 file:py-1.5 file:px-2.5 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-slate-700 file:text-white hover:file:bg-slate-600 cursor-pointer"
                     />
-                  </div>
-                  <div className="flex items-center gap-2">
                     {uploadingBtsIndex === idx && (
                       <span className="text-xs text-slate-400">Uploading…</span>
                     )}
+                    <details className="rounded-md border border-slate-700/60 bg-slate-900/40 px-2 py-1.5">
+                      <summary className="cursor-pointer text-[11px] text-slate-500 hover:text-slate-300 list-none [&::-webkit-details-marker]:hidden">
+                        Optional: paste BTS video URL
+                      </summary>
+                      <input
+                        value={b.videoUrl}
+                        onChange={(e) =>
+                          setBtsVideos((prev) =>
+                            prev.map((item, i) =>
+                              i === idx ? { ...item, videoUrl: e.target.value } : item,
+                            ),
+                          )
+                        }
+                        placeholder="https://…"
+                        className="mt-1.5 w-full px-3 py-2 bg-slate-900/70 border border-slate-700 rounded-md text-xs text-white placeholder-slate-500 focus:border-orange-500 focus:outline-none transition"
+                      />
+                    </details>
+                  </div>
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() =>

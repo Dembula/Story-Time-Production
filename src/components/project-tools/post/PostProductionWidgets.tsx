@@ -3,12 +3,23 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Upload } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProjectStageControls } from "@/app/creator/projects/[projectId]/project-stage-controls";
+
+async function uploadContentMediaFile(file: File): Promise<string> {
+  const fd = new FormData();
+  fd.append("file", file);
+  const res = await fetch("/api/upload/content-media", { method: "POST", body: fd });
+  const data = (await res.json().catch(() => ({}))) as { error?: string; publicUrl?: string };
+  if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : "Upload failed");
+  if (!data.publicUrl) throw new Error("Upload did not return a file URL");
+  return data.publicUrl;
+}
 
 export function FootageIngestion({
   projectId,
@@ -19,9 +30,20 @@ export function FootageIngestion({
 }) {
   const queryClient = useQueryClient();
   const hasProject = !!projectId;
+  const [listTypeFilter, setListTypeFilter] = useState("");
+  const { data: scenesData } = useQuery({
+    queryKey: ["project-scenes", projectId],
+    queryFn: () => fetch(`/api/creator/projects/${projectId}/scenes`).then((r) => r.json()),
+    enabled: hasProject,
+  });
+  const scenes = (scenesData?.scenes ?? []) as { id: string; number: string; heading: string | null }[];
+
   const { data, isLoading } = useQuery({
-    queryKey: ["project-footage", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/footage`).then((r) => r.json()),
+    queryKey: ["project-footage", projectId, listTypeFilter],
+    queryFn: () =>
+      fetch(
+        `/api/creator/projects/${projectId}/footage${listTypeFilter ? `?type=${encodeURIComponent(listTypeFilter)}` : ""}`,
+      ).then((r) => r.json()),
     enabled: hasProject,
   });
   const assets = (data?.assets ?? []) as {
@@ -35,13 +57,25 @@ export function FootageIngestion({
   const [fileUrl, setFileUrl] = useState("");
   const [type, setType] = useState("RAW_FOOTAGE");
   const [label, setLabel] = useState("");
+  const [newSceneId, setNewSceneId] = useState("");
+  const [uploadingFile, setUploadingFile] = useState(false);
+
+  const fileAccept =
+    type === "POSTER"
+      ? "image/jpeg,image/png,image/webp,image/gif,image/avif,application/pdf"
+      : "video/*,image/jpeg,image/png,image/webp,image/gif,image/avif,application/pdf";
 
   const createMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch(`/api/creator/projects/${projectId}/footage`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type, fileUrl, label: label || null }),
+        body: JSON.stringify({
+          type,
+          fileUrl: fileUrl.trim(),
+          label: label || null,
+          sceneId: newSceneId || undefined,
+        }),
       });
       if (!res.ok) throw new Error("Failed");
       return res.json();
@@ -50,7 +84,21 @@ export function FootageIngestion({
       queryClient.invalidateQueries({ queryKey: ["project-footage", projectId] });
       setFileUrl("");
       setLabel("");
+      setNewSceneId("");
     },
+  });
+
+  const patchSceneMutation = useMutation({
+    mutationFn: async ({ id, sceneId }: { id: string; sceneId: string | null }) => {
+      const res = await fetch(`/api/creator/projects/${projectId}/footage`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, sceneId }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project-footage", projectId] }),
   });
 
   const rawCount = assets.filter((a) => a.type === "RAW_FOOTAGE").length;
@@ -58,13 +106,13 @@ export function FootageIngestion({
   return (
     <div className="space-y-4">
       <header>
-        <h2 className="text-xl font-semibold text-white">{title}</h2>
+        <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
         <p className="text-sm text-slate-400 mt-1">
-          Add footage assets (URLs). Associate with scene when available.
+          Upload files (video, PDF, or images) to storage, or paste a direct link. Tag scenes when available.
         </p>
       </header>
 
-      <Card className="border-slate-800 bg-slate-950/70">
+      <Card className="creator-glass-panel border-0 bg-transparent shadow-none">
         <CardContent className="pt-6 space-y-2">
           <select
             value={type}
@@ -75,11 +123,41 @@ export function FootageIngestion({
             <option value="EDIT">Edit</option>
             <option value="TRAILER">Trailer</option>
             <option value="MASTER">Master</option>
+            <option value="POSTER">Poster</option>
           </select>
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-slate-200 hover:bg-slate-800">
+              <Upload className="h-3.5 w-3.5 shrink-0" />
+              {uploadingFile ? "Uploading…" : "Choose file"}
+              <input
+                type="file"
+                accept={fileAccept}
+                className="hidden"
+                disabled={uploadingFile || !hasProject}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = "";
+                  if (!file) return;
+                  setUploadingFile(true);
+                  try {
+                    const url = await uploadContentMediaFile(file);
+                    setFileUrl(url);
+                  } catch (err) {
+                    console.error(err);
+                  } finally {
+                    setUploadingFile(false);
+                  }
+                }}
+              />
+            </label>
+            <span className="text-[11px] text-slate-500">
+              {type === "POSTER" ? "JPG/PNG/WebP/GIF/AVIF or PDF" : "Video, image, or PDF"}
+            </span>
+          </div>
           <Input
             value={fileUrl}
             onChange={(e) => setFileUrl(e.target.value)}
-            placeholder="File URL"
+            placeholder="Storage URL (filled after upload) or paste a direct https link"
             className="bg-slate-900 border-slate-700"
           />
           <Input
@@ -88,6 +166,21 @@ export function FootageIngestion({
             placeholder="Label (optional)"
             className="bg-slate-900 border-slate-700"
           />
+          {scenes.length > 0 && (
+            <select
+              value={newSceneId}
+              onChange={(e) => setNewSceneId(e.target.value)}
+              className="w-full rounded-md bg-slate-900 border border-slate-700 px-2 py-1 text-sm text-white"
+            >
+              <option value="">Scene (optional)</option>
+              {scenes.map((s) => (
+                <option key={s.id} value={s.id}>
+                  Sc. {s.number}
+                  {s.heading ? ` — ${s.heading.slice(0, 40)}` : ""}
+                </option>
+              ))}
+            </select>
+          )}
           <Button
             size="sm"
             className="bg-orange-500 hover:bg-orange-600"
@@ -102,20 +195,57 @@ export function FootageIngestion({
       {isLoading ? (
         <Skeleton className="h-32 bg-slate-800/60" />
       ) : (
-        <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-3">
+        <div className="creator-glass-panel p-3 space-y-2">
           {assets.length === 0 && !hasProject ? (
             <p className="text-sm text-slate-500">
               Link a project above to add and track footage assets.
             </p>
           ) : (
             <>
-              <p className="text-xs text-slate-400 mb-2">
-                Assets: {assets.length} (raw: {rawCount})
-              </p>
-              <ul className="space-y-1 text-sm text-slate-300">
-                {assets.slice(0, 10).map((a) => (
-                  <li key={a.id}>
-                    {a.type} · {a.label || a.fileUrl.slice(0, 40)}
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-slate-400">
+                  Assets: {assets.length} (raw: {rawCount})
+                </p>
+                <select
+                  value={listTypeFilter}
+                  onChange={(e) => setListTypeFilter(e.target.value)}
+                  className="rounded-md bg-slate-900 border border-slate-700 px-2 py-1 text-xs text-white"
+                >
+                  <option value="">All types</option>
+                  <option value="RAW_FOOTAGE">Raw</option>
+                  <option value="EDIT">Edit</option>
+                  <option value="MASTER">Master</option>
+                  <option value="TRAILER">Trailer</option>
+                  <option value="POSTER">Poster</option>
+                </select>
+              </div>
+              <ul className="space-y-2 text-sm text-slate-300">
+                {assets.slice(0, 20).map((a) => (
+                  <li key={a.id} className="rounded-lg bg-slate-900/80 border border-slate-800 px-2 py-2 space-y-1">
+                    <div className="flex justify-between gap-2">
+                      <span className="truncate">
+                        {a.type} · {a.label || a.fileUrl.slice(0, 48)}
+                      </span>
+                    </div>
+                    {hasProject && scenes.length > 0 && (
+                      <select
+                        value={a.sceneId ?? ""}
+                        onChange={(e) =>
+                          patchSceneMutation.mutate({
+                            id: a.id,
+                            sceneId: e.target.value || null,
+                          })
+                        }
+                        className="w-full rounded-md bg-slate-950 border border-slate-700 px-2 py-1 text-[11px] text-white"
+                      >
+                        <option value="">No scene tag</option>
+                        {scenes.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            Sc. {s.number}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </li>
                 ))}
               </ul>

@@ -13,10 +13,10 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
   const sessions = await prisma.tableReadSession.findMany({
     where: { projectId },
-    orderBy: { scheduledAt: "desc" },
+    orderBy: { createdAt: "desc" },
     include: {
       participants: { include: { user: { select: { id: true, name: true, email: true } } } },
-      notes: true,
+      notes: { include: { user: { select: { id: true, name: true, email: true } } }, orderBy: { createdAt: "asc" } },
       scriptVersion: { select: { id: true, versionLabel: true, createdAt: true } },
     },
   });
@@ -66,6 +66,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     where: { id: session.id },
     include: {
       participants: { include: { user: { select: { id: true, name: true, email: true } } } },
+      notes: { include: { user: { select: { id: true, name: true, email: true } } }, orderBy: { createdAt: "asc" } },
       scriptVersion: true,
     },
   });
@@ -84,6 +85,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         name?: string | null;
         scheduledAt?: string | null;
         scriptVersionId?: string | null;
+        notesLog?: string | null;
       }
     | null;
 
@@ -107,10 +109,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         ? { scheduledAt: body.scheduledAt ? new Date(body.scheduledAt) : null }
         : {}),
       ...(body.scriptVersionId !== undefined ? { scriptVersionId: body.scriptVersionId } : {}),
+      ...(body.notesLog !== undefined ? { notesLog: body.notesLog } : {}),
     },
     include: {
       participants: { include: { user: { select: { id: true, name: true, email: true } } } },
-      notes: true,
+      notes: { include: { user: { select: { id: true, name: true, email: true } } }, orderBy: { createdAt: "asc" } },
       scriptVersion: true,
     },
   });

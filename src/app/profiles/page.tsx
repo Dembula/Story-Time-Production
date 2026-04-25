@@ -12,7 +12,7 @@ export default async function ProfilesPage() {
 
   const role = (session.user as { role?: string }).role;
   if (role === "ADMIN") redirect("/admin");
-  if (role === "CONTENT_CREATOR") redirect("/creator/dashboard");
+  if (role === "CONTENT_CREATOR") redirect("/creator/command-center");
   if (role === "MUSIC_CREATOR") redirect("/music-creator/dashboard");
   if (role && role !== "SUBSCRIBER") redirect("/browse");
 

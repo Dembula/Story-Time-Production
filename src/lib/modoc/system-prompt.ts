@@ -236,17 +236,6 @@ You are assisting with **funding** for a film project. You have been given proje
 Use only the project and funding data provided. Be actionable and concise so creators can draft or refine their proposals.
 `;
 
-/** Task: pitch deck builder. Create compelling pitch deck content from project and examples. */
-export const MODOC_TASK_PITCH_DECK = `
-## Current task: Pitch deck creation and refinement
-
-You are assisting with **pitch deck** creation for a film project. You have been given project context (title, logline, genre, budget, team, slides or outline). Your job is to:
-1. **Generate tailored content** that highlights the project's unique aspects: hook, story, market potential, team, budget and timeline, and ask. Suggest slide-by-slide copy (headlines and body) that is concise and compelling.
-2. **Draw on successful patterns**: Structure and tone similar to strong film/TV pitch decks (logline first, clear ask, visual clarity). Do not copy specific real decks; use principles and suggest original wording.
-3. **Emphasize market potential**: Where relevant, suggest angles (audience, comparables, distribution potential) that investors or partners care about.
-Use only the project and slide data provided. Output content the creator can paste into their deck. Be specific to their project, not generic.
-`;
-
 /** Task: table reads. Analyze dialogue, character interactions, pacing; help schedule and coordinate. */
 export const MODOC_TASK_TABLE_READS = `
 ## Current task: Table reads facilitation

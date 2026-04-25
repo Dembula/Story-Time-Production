@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isFeaturedCompanyPlan } from "@/lib/pricing";
+import { parseEmbeddedMeta, embedMeta, type LocationMarketMeta } from "@/lib/marketplace-profile-meta";
 
 function hasLocationModels(): boolean {
   return typeof (prisma as { locationListing?: unknown }).locationListing !== "undefined";
@@ -20,12 +21,15 @@ export async function GET(req: NextRequest) {
   const city = req.nextUrl.searchParams.get("city");
   const minCapacity = req.nextUrl.searchParams.get("minCapacity");
   const maxDailyRate = req.nextUrl.searchParams.get("maxDailyRate");
+  const region = req.nextUrl.searchParams.get("region");
+  const availability = req.nextUrl.searchParams.get("availability");
   const now = new Date();
 
   const where: { companyId?: string | null; type?: string; city?: string; capacity?: { gte?: number }; dailyRate?: { lte?: number } } = {};
   if (ownerId) where.companyId = ownerId;
   if (type) where.type = type;
   if (city) where.city = city;
+  if (!city && region) where.city = region;
   if (minCapacity) where.capacity = { gte: parseInt(minCapacity, 10) };
   if (maxDailyRate) where.dailyRate = { lte: parseFloat(maxDailyRate) };
 
@@ -53,7 +57,26 @@ export async function GET(req: NextRequest) {
     const promotedB = isFeaturedCompanyPlan((b.company as { companySubscriptions?: { plan: string }[] })?.companySubscriptions?.[0]?.plan) ? 0 : 1;
     return promotedA - promotedB || (a.name || "").localeCompare(b.name || "");
   });
-  return NextResponse.json(sorted);
+  const shaped = sorted
+    .map((location) => {
+      const parsed = parseEmbeddedMeta<LocationMarketMeta>(location.rules);
+      if (availability && !(location.availability ?? parsed.meta?.availability ?? "").toLowerCase().includes(availability.toLowerCase())) {
+        return null;
+      }
+      return {
+        ...location,
+        profile: {
+          permitRequirements: parsed.meta?.permitNotes ?? null,
+          restrictions: parsed.meta?.restrictions ?? parsed.plain,
+          hourlyRate: parsed.meta?.hourlyRate ?? null,
+          dailyRate: parsed.meta?.dailyRate ?? location.dailyRate ?? null,
+          availability: location.availability ?? parsed.meta?.availability ?? null,
+          logistics: parsed.meta?.logistics ?? null,
+        },
+      };
+    })
+    .filter((row): row is NonNullable<typeof row> => Boolean(row));
+  return NextResponse.json(shaped);
 }
 
 export async function POST(req: NextRequest) {
@@ -68,6 +91,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
+  const profile = body.profile ?? {};
   const listing = await prisma.locationListing.create({
     data: {
       name: body.name,
@@ -81,7 +105,15 @@ export async function POST(req: NextRequest) {
       dailyRate: body.dailyRate != null ? parseFloat(String(body.dailyRate)) : null,
       amenities: body.amenities || null,
       photoUrls: body.photoUrls || null,
-      rules: body.rules || null,
+      rules: embedMeta(body.rules || null, {
+        hourlyRate: profile.hourlyRate ?? null,
+        dailyRate: body.dailyRate != null ? parseFloat(String(body.dailyRate)) : null,
+        permitRequired: !!profile.permitRequirements,
+        permitNotes: profile.permitRequirements ?? null,
+        restrictions: profile.restrictions ?? body.rules ?? null,
+        logistics: profile.logistics ?? null,
+        availability: body.availability || null,
+      }),
       availability: body.availability || null,
       contactUrl: body.contactUrl || null,
       companyId: userId,

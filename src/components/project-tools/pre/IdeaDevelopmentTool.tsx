@@ -256,7 +256,7 @@ export function IdeaDevelopmentTool({
                         className="text-xs font-medium text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
                       >
                         <Bot className="w-3.5 h-3.5" />
-                        Get MODOC insights
+                        Get AI insights
                       </button>
                     )}
                   </div>
@@ -281,7 +281,7 @@ export function IdeaDevelopmentTool({
                         className="text-xs font-medium text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
                       >
                         <Bot className="w-3.5 h-3.5" />
-                        Get MODOC pointers
+                        Get AI pointers
                       </button>
                     )}
                   </div>

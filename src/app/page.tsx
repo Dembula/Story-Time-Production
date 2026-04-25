@@ -14,7 +14,7 @@ export default async function HomePage() {
   const session = await getServerSession(authOptions);
 
   if (session?.user?.role === "ADMIN") redirect("/admin");
-  if (session?.user?.role === "CONTENT_CREATOR") redirect("/creator/dashboard");
+  if (session?.user?.role === "CONTENT_CREATOR") redirect("/creator/command-center");
   if (session?.user?.role === "MUSIC_CREATOR") redirect("/music-creator/dashboard");
   if (session?.user?.role === "EQUIPMENT_COMPANY") redirect("/company/onboarding/subscription");
   if (session?.user?.role === "LOCATION_OWNER") redirect("/company/onboarding/subscription");

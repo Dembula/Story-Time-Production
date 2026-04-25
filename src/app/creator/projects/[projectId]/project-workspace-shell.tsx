@@ -2,7 +2,11 @@
 
 import Link from "next/link";
 import { ReactNode } from "react";
+import type { CreatorSuiteAccessMap } from "@/lib/creator-suite-access";
+import { defaultSuiteAccessOpen } from "@/lib/creator-suite-access";
 import { LayoutDashboard } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
 
 type OriginalMember = {
   id: string;
@@ -24,20 +28,48 @@ type OriginalProject = {
 
 interface ProjectWorkspaceShellProps {
   project: OriginalProject;
+  switchableProjects: { id: string; title: string }[];
+  /** Full pipeline plan: show pre/production shortcuts; upload-only sees distribution only. */
+  pipelineAccess?: boolean;
+  /** Per-suite entitlements (license ∩ team invite mask). */
+  suiteAccess?: CreatorSuiteAccessMap;
   children: ReactNode;
 }
 
-export function ProjectWorkspaceShell({ project, children }: ProjectWorkspaceShellProps) {
+export function ProjectWorkspaceShell({
+  project,
+  switchableProjects,
+  pipelineAccess = true,
+  suiteAccess: suiteAccessProp,
+  children,
+}: ProjectWorkspaceShellProps) {
+  const { deviceClass } = useAdaptiveUi();
+  const suiteAccess = suiteAccessProp ?? defaultSuiteAccessOpen();
+  const showPreShortcuts = pipelineAccess && suiteAccess.pipeline_pre;
+  const showDistributionShortcut = suiteAccess.catalogue_upload || suiteAccess.pipeline_post;
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const stage = project.status || "DEVELOPMENT";
   const phase = project.phase || "CONCEPT";
 
   const progress = stage === "DEVELOPMENT" ? 25 : stage === "PRODUCTION" ? 65 : 90;
 
   const basePath = `/creator/projects/${project.id}`;
+  const currentProjectPrefix = `/creator/projects/${project.id}`;
+  const handleProjectSwitch = (nextProjectId: string) => {
+    if (!nextProjectId || nextProjectId === project.id) return;
+    const nextProjectPrefix = `/creator/projects/${nextProjectId}`;
+    const nextPath = pathname.startsWith(currentProjectPrefix)
+      ? pathname.replace(currentProjectPrefix, nextProjectPrefix)
+      : `${nextProjectPrefix}/overview`;
+    const qs = searchParams.toString();
+    router.push(qs ? `${nextPath}?${qs}` : nextPath);
+  };
 
   return (
-    <div className="min-h-[calc(100vh-120px)] space-y-5">
-      <header className="storytime-plan-card p-5 md:p-6">
+    <div className={`min-h-[calc(100vh-120px)] space-y-5 adaptive-content-density ${deviceClass === "tv" ? "adaptive-tv-surface" : ""}`}>
+      <header className={`storytime-plan-card ${deviceClass === "mobile" ? "p-4" : "p-5 md:p-6"}`}>
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex min-w-0 items-start gap-3">
             <div className="min-w-0 flex-1">
@@ -45,7 +77,7 @@ export function ProjectWorkspaceShell({ project, children }: ProjectWorkspaceShe
                 Project workspace
               </p>
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="font-display text-2xl font-semibold tracking-tight text-white md:text-3xl">
+                <h1 className={`font-display font-semibold tracking-tight text-white ${deviceClass === "tv" ? "text-4xl" : "text-2xl md:text-3xl"}`}>
                   {project.title}
                 </h1>
                 {project.isOriginal && (
@@ -53,6 +85,26 @@ export function ProjectWorkspaceShell({ project, children }: ProjectWorkspaceShe
                     Story Time Original
                   </span>
                 )}
+              </div>
+              <div className="mt-3 inline-flex max-w-xs flex-col gap-1">
+                <label
+                  htmlFor="project-switcher"
+                  className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-500"
+                >
+                  Active project
+                </label>
+                <select
+                  id="project-switcher"
+                  value={project.id}
+                  onChange={(e) => handleProjectSwitch(e.target.value)}
+                  className="rounded-lg border border-white/15 bg-slate-950/70 px-3 py-2 text-xs text-slate-100 outline-none transition focus:border-orange-400/60"
+                >
+                  {switchableProjects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.title}
+                    </option>
+                  ))}
+                </select>
               </div>
               <p className="mt-2 text-xs text-slate-400">
                 Stage: <span className="font-medium text-slate-200">{stage}</span> · Phase:{" "}
@@ -78,7 +130,7 @@ export function ProjectWorkspaceShell({ project, children }: ProjectWorkspaceShe
               )}
             </div>
           </div>
-          <div className="flex flex-col items-stretch gap-3 text-xs text-slate-400 sm:items-end">
+          <div className={`flex flex-col items-stretch gap-3 text-xs text-slate-400 ${deviceClass === "mobile" ? "w-full" : "sm:items-end"}`}>
             <Link
               href={`/creator/dashboard?openProject=${project.id}`}
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-orange-400/35 bg-orange-500/10 px-4 py-2.5 text-xs font-medium text-orange-100 transition hover:border-orange-400/50 hover:bg-orange-500/15"
@@ -102,22 +154,26 @@ export function ProjectWorkspaceShell({ project, children }: ProjectWorkspaceShe
               )}
             </div>
             <p className="hidden text-[11px] uppercase tracking-wide text-slate-500 sm:block">Shortcuts</p>
-            <div className="flex flex-col gap-2 sm:max-w-[14rem] sm:items-stretch">
-              <QuickAction href={`${basePath}/pre-production/production-workspace`}>
-                Production workspace
-              </QuickAction>
-              <QuickAction href={`${basePath}/pre-production/legal-contracts`}>
-                Legal &amp; contracts
-              </QuickAction>
-              <QuickAction href={`${basePath}/post-production/distribution`}>
-                Distribution
-              </QuickAction>
+            <div className={`flex gap-2 ${deviceClass === "mobile" ? "flex-row flex-wrap" : "flex-col sm:max-w-[14rem] sm:items-stretch"}`}>
+              {showPreShortcuts ? (
+                <>
+                  <QuickAction href={`${basePath}/pre-production/production-workspace`}>
+                    Production workspace
+                  </QuickAction>
+                  <QuickAction href={`${basePath}/pre-production/legal-contracts`}>
+                    Legal &amp; contracts
+                  </QuickAction>
+                </>
+              ) : null}
+              {showDistributionShortcut ? (
+                <QuickAction href={`${basePath}/post-production/distribution`}>Distribution</QuickAction>
+              ) : null}
             </div>
           </div>
         </div>
       </header>
 
-      <div className="storytime-section p-5 md:p-6">{children}</div>
+      <div className={`storytime-section ${deviceClass === "mobile" ? "p-4" : "p-5 md:p-6"}`}>{children}</div>
     </div>
   );
 }

@@ -41,12 +41,12 @@ export function BrowseSearchWithModoc({ defaultSearch = "", type, filter }: Prop
             type="button"
             onClick={() => setModocOpen(true)}
             className="flex h-12 w-12 items-center justify-center rounded-full border border-white/10 bg-gradient-to-br from-cyan-500/90 to-orange-500/90 shadow-glow hover:scale-105 active:scale-95"
-            aria-label="Ask MODOC"
+            aria-label="Ask AI"
           >
             <Bot className="w-6 h-6 text-white" />
           </button>
           <span className="pointer-events-none absolute left-full z-10 ml-3 whitespace-nowrap rounded-xl border border-white/10 bg-[#0a0f18]/95 px-3 py-1.5 text-sm font-medium text-white opacity-0 shadow-panel transition-opacity duration-200 group-hover:opacity-100">
-            Ask MODOC
+            Ask AI
           </span>
         </div>
       )}

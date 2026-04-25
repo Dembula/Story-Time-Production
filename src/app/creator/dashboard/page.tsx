@@ -12,7 +12,10 @@ export default async function CreatorDashboardPage() {
   if (role === "CONTENT_CREATOR" && session?.user?.email) {
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
-      include: { creatorDistributionLicense: true },
+      select: {
+        id: true,
+        creatorDistributionLicense: { select: { id: true } },
+      },
     });
     if (!user?.creatorDistributionLicense) redirect("/creator/onboarding/license");
   }

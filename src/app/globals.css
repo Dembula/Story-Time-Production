@@ -212,3 +212,79 @@ img {
     0 20px 60px -30px rgba(0, 0, 0, 0.78);
   backdrop-filter: blur(18px);
 }
+
+/* Universal adaptive UI system */
+html[data-input-mode="touch"] button,
+html[data-input-mode="touch"] a[role="button"],
+html[data-input-mode="touch"] input,
+html[data-input-mode="touch"] select,
+html[data-input-mode="touch"] textarea {
+  min-height: 44px;
+}
+
+html[data-device-class="mobile"] .adaptive-content-density {
+  --adaptive-gap: 0.65rem;
+}
+
+html[data-device-class="tablet"] .adaptive-content-density {
+  --adaptive-gap: 0.9rem;
+}
+
+html[data-device-class="desktop"] .adaptive-content-density {
+  --adaptive-gap: 1rem;
+}
+
+html[data-device-class="tv"] body {
+  font-size: 1.08rem;
+  line-height: 1.65;
+}
+
+html[data-device-class="tv"] .adaptive-tv-surface {
+  max-width: 1680px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 2rem;
+  padding-right: 2rem;
+}
+
+html[data-device-class="tv"] .adaptive-focus-target:focus-visible,
+html[data-device-class="tv"] a:focus-visible,
+html[data-device-class="tv"] button:focus-visible {
+  box-shadow:
+    0 0 0 2px rgba(255, 210, 140, 0.9),
+    0 0 0 8px rgba(255, 140, 0, 0.3);
+}
+
+html[data-device-class="tv"] .adaptive-interactive {
+  min-height: 52px;
+  min-width: 52px;
+}
+
+html[data-input-mode="remote"] a,
+html[data-input-mode="remote"] button,
+html[data-input-mode="remote"] input,
+html[data-input-mode="remote"] select,
+html[data-input-mode="remote"] textarea,
+html[data-input-mode="remote"] [tabindex] {
+  scroll-margin-top: 120px;
+  scroll-margin-bottom: 120px;
+}
+
+html[data-input-mode="remote"] button,
+html[data-input-mode="remote"] a[role="button"] {
+  min-height: 48px;
+}
+
+html[data-device-class="mobile"][data-orientation="portrait"] .adaptive-scroll-x {
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+}
+
+html[data-device-class="mobile"] .adaptive-table-mobile {
+  display: block;
+}
+
+html[data-device-class="desktop"] .adaptive-table-mobile,
+html[data-device-class="tv"] .adaptive-table-mobile {
+  display: table;
+}

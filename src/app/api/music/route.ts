@@ -53,7 +53,12 @@ export async function POST(request: NextRequest) {
   const creatorId = session!.user!.id as string;
   const user = await prisma.user.findUnique({
     where: { id: creatorId },
-    include: { creatorDistributionLicense: true },
+    select: {
+      id: true,
+      creatorDistributionLicense: {
+        select: { type: true, yearlyExpiresAt: true },
+      },
+    },
   });
   if (!user?.creatorDistributionLicense) {
     return NextResponse.json({ error: "Distribution license required. Complete onboarding first." }, { status: 403 });

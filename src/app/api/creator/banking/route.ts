@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { ensureCreatorStudioProfilesForUser, loadStudioPipelineContext } from "@/lib/creator-studio";
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -12,6 +13,14 @@ export async function POST(req: Request) {
 
   const creatorId = session?.user?.id;
   if (!creatorId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  if (role === "CONTENT_CREATOR") {
+    await ensureCreatorStudioProfilesForUser(creatorId);
+    const ctx = await loadStudioPipelineContext(creatorId);
+    if (!ctx?.suiteAccess.analytics) {
+      return NextResponse.json({ error: "Banking is not available for this workspace role." }, { status: 403 });
+    }
+  }
 
   const body = await req.json();
   const { bankName, accountNumber, accountType, branchCode } = body as { bankName?: string; accountNumber?: string; accountType?: string; branchCode?: string };

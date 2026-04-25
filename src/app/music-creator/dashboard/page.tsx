@@ -12,7 +12,10 @@ export default async function MusicCreatorDashboardPage() {
   if (role === "MUSIC_CREATOR" && session?.user?.email) {
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
-      include: { creatorDistributionLicense: true },
+      select: {
+        id: true,
+        creatorDistributionLicense: { select: { id: true } },
+      },
     });
     if (!user?.creatorDistributionLicense) redirect("/music-creator/onboarding/license");
   }

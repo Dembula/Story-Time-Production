@@ -250,12 +250,7 @@ CREATE TABLE "Message" (
     "cateringBookingId" TEXT,
     CONSTRAINT "Message_senderId_fkey" FOREIGN KEY ("senderId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "Message_receiverId_fkey" FOREIGN KEY ("receiverId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT "Message_requestId_fkey" FOREIGN KEY ("requestId") REFERENCES "EquipmentRequest" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT "Message_syncRequestId_fkey" FOREIGN KEY ("syncRequestId") REFERENCES "SyncRequest" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT "Message_locationBookingId_fkey" FOREIGN KEY ("locationBookingId") REFERENCES "LocationBooking" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT "Message_crewTeamRequestId_fkey" FOREIGN KEY ("crewTeamRequestId") REFERENCES "CrewTeamRequest" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT "Message_castingInquiryId_fkey" FOREIGN KEY ("castingInquiryId") REFERENCES "CastingInquiry" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT "Message_cateringBookingId_fkey" FOREIGN KEY ("cateringBookingId") REFERENCES "CateringBooking" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    CONSTRAINT "Message_requestId_fkey" FOREIGN KEY ("requestId") REFERENCES "EquipmentRequest" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- CreateTable
@@ -276,6 +271,7 @@ CREATE TABLE "SyncRequest" (
     CONSTRAINT "SyncRequest_requesterId_fkey" FOREIGN KEY ("requesterId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "SyncRequest_musicCreatorId_fkey" FOREIGN KEY ("musicCreatorId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
+
 
 -- CreateTable
 CREATE TABLE "CrewMember" (
@@ -733,6 +729,13 @@ CREATE TABLE "UserPreference" (
     "updatedAt" TIMESTAMP NOT NULL,
     CONSTRAINT "UserPreference_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
+
+-- AddForeignKey
+ALTER TABLE "Message" ADD CONSTRAINT "Message_syncRequestId_fkey" FOREIGN KEY ("syncRequestId") REFERENCES "SyncRequest"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "Message" ADD CONSTRAINT "Message_locationBookingId_fkey" FOREIGN KEY ("locationBookingId") REFERENCES "LocationBooking"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "Message" ADD CONSTRAINT "Message_crewTeamRequestId_fkey" FOREIGN KEY ("crewTeamRequestId") REFERENCES "CrewTeamRequest"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "Message" ADD CONSTRAINT "Message_castingInquiryId_fkey" FOREIGN KEY ("castingInquiryId") REFERENCES "CastingInquiry"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "Message" ADD CONSTRAINT "Message_cateringBookingId_fkey" FOREIGN KEY ("cateringBookingId") REFERENCES "CateringBooking"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Account_provider_providerAccountId_key" ON "Account"("provider", "providerAccountId");

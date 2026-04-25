@@ -13,9 +13,9 @@ import {
   Check,
   Loader2,
   Film,
-  FolderKanban,
   Send,
   MessageSquare,
+  Upload,
 } from "lucide-react";
 
 type Tab = "feed" | "discover" | "chats";
@@ -33,11 +33,9 @@ interface FeedPost {
   body: string | null;
   imageUrls: string | null;
   contentId: string | null;
-  projectId: string | null;
   createdAt: string;
   author: PostAuthor;
   content?: { id: string; title: string; type: string; posterUrl: string | null } | null;
-  project?: { id: string; title: string; type: string; posterUrl: string | null } | null;
 }
 
 interface CreatorCard {
@@ -54,14 +52,31 @@ interface CreatorCard {
   followerCount?: number;
 }
 
+interface ProjectOption {
+  id: string;
+  title: string;
+}
+
 export function NetworkClient() {
   const [tab, setTab] = useState<Tab>("feed");
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [creators, setCreators] = useState<CreatorCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [postBody, setPostBody] = useState("");
+  const [postImageUrl, setPostImageUrl] = useState("");
+  const [postImageUploading, setPostImageUploading] = useState(false);
   const [posting, setPosting] = useState(false);
   const [myId, setMyId] = useState<string | null>(null);
+  const [myRole, setMyRole] = useState<string | null>(null);
+  const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [inviteTargetId, setInviteTargetId] = useState<string | null>(null);
+  const [inviteProjectId, setInviteProjectId] = useState("");
+  const [inviteRole, setInviteRole] = useState("Collaborator");
+  const [inviteSending, setInviteSending] = useState(false);
+  const [inviteMessage, setInviteMessage] = useState("");
+
+  const searchParams = useSearchParams();
+
   const [connectionRequests, setConnectionRequests] = useState<{
     received: { id: string; fromId: string; from: { id: string; name: string | null; image: string | null } }[];
   }>({ received: [] });
@@ -84,8 +99,6 @@ export function NetworkClient() {
   const [chatLoading, setChatLoading] = useState(false);
   const [chatInput, setChatInput] = useState("");
 
-  const searchParams = useSearchParams();
-
   useEffect(() => {
     fetch("/api/network/connections")
       .then((r) => r.json())
@@ -96,9 +109,23 @@ export function NetworkClient() {
   useEffect(() => {
     fetch("/api/me")
       .then((r) => r.json())
-      .then((u) => u?.id && setMyId(u.id))
+      .then((u) => {
+        if (u?.id) setMyId(u.id);
+        if (u?.role) setMyRole(u.role);
+      })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (myRole === "CONTENT_CREATOR" || myRole === "ADMIN") {
+      fetch("/api/creator/projects")
+        .then((r) => (r.ok ? r.json() : { projects: [] }))
+        .then((d) =>
+          setProjects((d.projects ?? []).map((p: { id: string; title: string }) => ({ id: p.id, title: p.title }))),
+        )
+        .catch(() => setProjects([]));
+    }
+  }, [myRole]);
 
   useEffect(() => {
     const chatWith = searchParams.get("chatWith");
@@ -113,7 +140,26 @@ export function NetworkClient() {
     if (tab === "feed") {
       fetch(`/api/network/posts?mode=feed&limit=30`)
         .then((r) => r.json())
-        .then((d) => setPosts(d.posts ?? []))
+        .then((d) => {
+          const raw = d.posts ?? [];
+          setPosts(
+            raw.map((p: Record<string, unknown>) => ({
+              id: p.id as string,
+              authorId: p.authorId as string,
+              body: (p.body as string) ?? null,
+              imageUrls: (p.imageUrls as string) ?? null,
+              contentId: (p.contentId as string) ?? null,
+              createdAt: typeof p.createdAt === "string" ? p.createdAt : new Date(p.createdAt as Date).toISOString(),
+              author: (p.author as PostAuthor) ?? {
+                id: p.authorId as string,
+                name: null,
+                image: null,
+                headline: null,
+              },
+              content: p.content as FeedPost["content"],
+            })),
+          );
+        })
         .catch(() => setPosts([]))
         .finally(() => setLoading(false));
     } else if (tab === "discover") {
@@ -163,16 +209,12 @@ export function NetworkClient() {
   async function handleFollow(creatorId: string) {
     if (!myId) return;
     await fetch(`/api/network/follow/${creatorId}`, { method: "POST" });
-    setCreators((prev) =>
-      prev.map((c) => (c.id === creatorId ? { ...c, following: true } : c))
-    );
+    setCreators((prev) => prev.map((c) => (c.id === creatorId ? { ...c, following: true } : c)));
   }
 
   async function handleUnfollow(creatorId: string) {
     await fetch(`/api/network/follow/${creatorId}`, { method: "DELETE" });
-    setCreators((prev) =>
-      prev.map((c) => (c.id === creatorId ? { ...c, following: false } : c))
-    );
+    setCreators((prev) => prev.map((c) => (c.id === creatorId ? { ...c, following: false } : c)));
   }
 
   async function handleConnect(creatorId: string) {
@@ -182,11 +224,34 @@ export function NetworkClient() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message: "" }),
     });
-    setCreators((prev) =>
-      prev.map((c) =>
-        c.id === creatorId ? { ...c, connectionStatus: "PENDING_SENT" } : c
-      )
-    );
+    setCreators((prev) => prev.map((c) => (c.id === creatorId ? { ...c, connectionStatus: "PENDING_SENT" } : c)));
+  }
+
+  async function sendProjectInvite() {
+    if (!inviteTargetId || !inviteProjectId || inviteSending) return;
+    setInviteSending(true);
+    setInviteMessage("");
+    try {
+      const res = await fetch("/api/network/invite-to-project", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: inviteProjectId,
+          inviteeUserId: inviteTargetId,
+          role: inviteRole.trim() || "Collaborator",
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setInviteMessage("Invite sent. They’ll see it under My Projects → collaboration invites.");
+        setInviteTargetId(null);
+        setInviteProjectId("");
+      } else {
+        setInviteMessage(data.error || "Could not send invite.");
+      }
+    } finally {
+      setInviteSending(false);
+    }
   }
 
   async function submitPost(e: React.FormEvent) {
@@ -194,14 +259,34 @@ export function NetworkClient() {
     if (!postBody.trim() || posting) return;
     setPosting(true);
     try {
+      const imageUrls = postImageUrl.trim() ? [postImageUrl.trim()] : undefined;
       const res = await fetch("/api/network/posts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body: postBody.trim() }),
+        body: JSON.stringify({
+          body: postBody.trim(),
+          ...(imageUrls ? { imageUrls } : {}),
+        }),
       });
       if (res.ok) {
+        const row = await res.json();
+        const post: FeedPost = {
+          id: row.id,
+          authorId: row.authorId,
+          body: row.body ?? null,
+          imageUrls: row.imageUrls ?? null,
+          contentId: row.contentId ?? null,
+          createdAt: typeof row.createdAt === "string" ? row.createdAt : new Date(row.createdAt).toISOString(),
+          author: row.author ?? {
+            id: row.authorId,
+            name: null,
+            image: null,
+            headline: null,
+          },
+          content: row.content ?? null,
+        };
         setPostBody("");
-        const post = await res.json();
+        setPostImageUrl("");
         setPosts((prev) => [post, ...prev]);
       }
     } finally {
@@ -235,12 +320,9 @@ export function NetworkClient() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 rounded-2xl border border-slate-800 bg-gradient-to-r from-slate-900 via-slate-900 to-slate-950 p-4 md:p-5">
         <div>
-          <h1 className="text-2xl md:text-3xl font-semibold text-white tracking-tight">
-            Network
-          </h1>
+          <h1 className="text-2xl md:text-3xl font-semibold text-white tracking-tight">Network</h1>
           <p className="text-sm text-slate-300 mt-1 max-w-xl">
-            A creative feed just for filmmakers and storytellers. Share scenes, thoughts, frames, and
-            find collaborators you actually want to work with.
+            Follow people you like, connect to start chats, and share what you are working on.
           </p>
         </div>
         <div className="flex rounded-xl bg-slate-900/80 p-1 border border-slate-700/60 shadow-[0_0_40px_rgba(248,113,113,0.08)]">
@@ -248,9 +330,7 @@ export function NetworkClient() {
             type="button"
             onClick={() => setTab("feed")}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition ${
-              tab === "feed"
-                ? "bg-orange-500 text-white"
-                : "text-slate-400 hover:text-white"
+              tab === "feed" ? "bg-orange-500 text-white" : "text-slate-400 hover:text-white"
             }`}
           >
             <Users className="w-4 h-4" /> Feed
@@ -259,9 +339,7 @@ export function NetworkClient() {
             type="button"
             onClick={() => setTab("discover")}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition ${
-              tab === "discover"
-                ? "bg-orange-500 text-white"
-                : "text-slate-400 hover:text-white"
+              tab === "discover" ? "bg-orange-500 text-white" : "text-slate-400 hover:text-white"
             }`}
           >
             <Compass className="w-4 h-4" /> Discover
@@ -270,15 +348,17 @@ export function NetworkClient() {
             type="button"
             onClick={() => setTab("chats")}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition ${
-              tab === "chats"
-                ? "bg-orange-500 text-white"
-                : "text-slate-400 hover:text-white"
+              tab === "chats" ? "bg-orange-500 text-white" : "text-slate-400 hover:text-white"
             }`}
           >
-            <MessageSquare className="w-4 h-4" /> Creator Chats
+            <MessageSquare className="w-4 h-4" /> Chats
           </button>
         </div>
       </div>
+
+      {inviteMessage && (
+        <div className="rounded-xl border border-slate-700 bg-slate-900/80 px-4 py-3 text-sm text-slate-200">{inviteMessage}</div>
+      )}
 
       {connectionRequests.received.length > 0 && (
         <div className="rounded-2xl border border-violet-500/30 bg-violet-500/10 p-4">
@@ -292,17 +372,12 @@ export function NetworkClient() {
                 key={r.id}
                 className="flex items-center justify-between gap-3 py-2 border-b border-slate-800/50 last:border-0"
               >
-                <Link
-                  href={`/creator/profile/${r.fromId}`}
-                  className="flex items-center gap-2 min-w-0"
-                >
+                <Link href={`/creator/profile/${r.fromId}`} className="flex items-center gap-2 min-w-0">
                   <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center shrink-0 overflow-hidden">
                     {r.from?.image ? (
                       <Image src={r.from.image} alt="" width={32} height={32} className="object-cover" />
                     ) : (
-                      <span className="text-xs font-medium text-slate-300">
-                        {r.from?.name?.[0] ?? "?"}
-                      </span>
+                      <span className="text-xs font-medium text-slate-300">{r.from?.name?.[0] ?? "?"}</span>
                     )}
                   </div>
                   <span className="text-sm text-white truncate">{r.from?.name ?? "Someone"}</span>
@@ -339,14 +414,53 @@ export function NetworkClient() {
               <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-slate-300 shrink-0">
                 <PenLine className="w-5 h-5" />
               </div>
-              <textarea
-                value={postBody}
-                onChange={(e) => setPostBody(e.target.value)}
-                placeholder="Share an update, behind-the-scenes moment, or link to a project..."
-                rows={3}
-                className="flex-1 px-4 py-3 rounded-xl bg-slate-800/80 border border-slate-700 text-white placeholder:text-slate-500 resize-none focus:outline-none focus:ring-2 focus:ring-orange-500/50"
-                maxLength={2000}
-              />
+              <div className="flex-1 space-y-2">
+                <textarea
+                  value={postBody}
+                  onChange={(e) => setPostBody(e.target.value)}
+                  placeholder="Share an update, behind-the-scenes moment, or thought…"
+                  rows={3}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-800/80 border border-slate-700 text-white placeholder:text-slate-500 resize-none focus:outline-none focus:ring-2 focus:ring-orange-500/50"
+                  maxLength={2000}
+                />
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-600 bg-slate-900/80 px-3 py-2 text-xs text-slate-200 hover:bg-slate-800 shrink-0">
+                    {postImageUploading ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Upload className="h-3.5 w-3.5" />
+                    )}
+                    {postImageUploading ? "Uploading…" : "Attach image"}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+                      className="hidden"
+                      disabled={postImageUploading}
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = "";
+                        if (!file) return;
+                        setPostImageUploading(true);
+                        try {
+                          const fd = new FormData();
+                          fd.append("file", file);
+                          const res = await fetch("/api/upload/content-media", { method: "POST", body: fd });
+                          const data = (await res.json().catch(() => ({}))) as { publicUrl?: string };
+                          if (res.ok && data.publicUrl) setPostImageUrl(data.publicUrl);
+                        } finally {
+                          setPostImageUploading(false);
+                        }
+                      }}
+                    />
+                  </label>
+                  <input
+                    value={postImageUrl}
+                    onChange={(e) => setPostImageUrl(e.target.value)}
+                    placeholder="Image fills here after upload, or paste a direct image URL"
+                    className="w-full min-w-0 px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm text-white placeholder:text-slate-500"
+                  />
+                </div>
+              </div>
             </div>
             <div className="flex justify-end">
               <button
@@ -369,9 +483,7 @@ export function NetworkClient() {
               <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-12 text-center text-slate-400">
                 <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
                 <p className="font-medium text-white">No posts in your feed yet</p>
-                <p className="text-sm mt-1">
-                  Follow creators from Discover to see their posts here, or be the first to post.
-                </p>
+                <p className="text-sm mt-1">Follow creators from Discover to see their posts here, or post first.</p>
                 <button
                   type="button"
                   onClick={() => setTab("discover")}
@@ -392,13 +504,7 @@ export function NetworkClient() {
                       className="shrink-0 w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center overflow-hidden"
                     >
                       {post.author?.image ? (
-                        <Image
-                          src={post.author.image}
-                          alt=""
-                          width={40}
-                          height={40}
-                          className="object-cover"
-                        />
+                        <Image src={post.author.image} alt="" width={40} height={40} className="object-cover" />
                       ) : (
                         <span className="text-sm font-semibold text-slate-300">
                           {post.author?.name?.[0]?.toUpperCase() ?? "?"}
@@ -418,53 +524,37 @@ export function NetworkClient() {
                         </p>
                       )}
                     </div>
-                    <span className="text-xs text-slate-500 shrink-0">
-                      {formatDate(post.createdAt)}
-                    </span>
+                    <span className="text-xs text-slate-500 shrink-0">{formatDate(post.createdAt)}</span>
                   </div>
-                  {post.body && (
-                    <p className="text-slate-200 whitespace-pre-wrap break-words mb-3">
-                      {post.body}
-                    </p>
-                  )}
-                  {post.imageUrls && (() => {
-                    try {
-                      const urls = JSON.parse(post.imageUrls) as string[];
-                      if (Array.isArray(urls) && urls.length > 0) {
-                        return (
-                          <div className="flex flex-wrap gap-2 mb-3">
-                            {urls.slice(0, 4).map((url, i) => (
-                              <div
-                                key={i}
-                                className="relative w-24 h-24 rounded-lg overflow-hidden bg-slate-800"
-                              >
-                                <Image src={url} alt="" fill className="object-cover" />
-                              </div>
-                            ))}
-                          </div>
-                        );
+                  {post.body && <p className="text-slate-200 whitespace-pre-wrap break-words mb-3">{post.body}</p>}
+                  {post.imageUrls &&
+                    (() => {
+                      try {
+                        const urls = JSON.parse(post.imageUrls) as string[];
+                        if (Array.isArray(urls) && urls.length > 0) {
+                          return (
+                            <div className="flex flex-wrap gap-2 mb-3">
+                              {urls.slice(0, 4).map((url, i) => (
+                                <div key={i} className="relative w-24 h-24 rounded-lg overflow-hidden bg-slate-800">
+                                  <Image src={url} alt="" fill className="object-cover" />
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        }
+                      } catch {
+                        return null;
                       }
-                    } catch {}
-                    return null;
-                  })()}
-                  {(post.content || post.project) && (
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {post.content && (
-                        <Link
-                          href={`/browse/content/${post.content.id}`}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 text-sm"
-                        >
-                          <Film className="w-3.5 h-3.5" />
-                          {post.content.title}
-                        </Link>
-                      )}
-                      {post.project && (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800 text-slate-400 text-sm">
-                          <FolderKanban className="w-3.5 h-3.5" />
-                          {post.project.title}
-                        </span>
-                      )}
-                    </div>
+                      return null;
+                    })()}
+                  {post.content && (
+                    <Link
+                      href={`/browse/content/${post.content.id}`}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 text-sm"
+                    >
+                      <Film className="w-3.5 h-3.5" />
+                      {post.content.title}
+                    </Link>
                   )}
                 </article>
               ))
@@ -474,109 +564,155 @@ export function NetworkClient() {
       )}
 
       {tab === "discover" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {loading ? (
-            <div className="col-span-full flex justify-center py-12">
-              <Loader2 className="w-8 h-8 text-orange-500 animate-spin" />
+        <div className="space-y-4">
+          {inviteTargetId && projects.length > 0 && (
+            <div className="rounded-2xl border border-orange-500/30 bg-orange-500/10 p-4 text-sm">
+              <p className="text-white font-medium mb-2">Invite to project</p>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <select
+                  value={inviteProjectId}
+                  onChange={(e) => setInviteProjectId(e.target.value)}
+                  className="flex-1 rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-white text-xs"
+                >
+                  <option value="">Select project</option>
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.title}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  value={inviteRole}
+                  onChange={(e) => setInviteRole(e.target.value)}
+                  placeholder="Role on project"
+                  className="rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-white text-xs min-w-[140px]"
+                />
+                <button
+                  type="button"
+                  disabled={inviteSending || !inviteProjectId}
+                  onClick={sendProjectInvite}
+                  className="px-4 py-2 rounded-lg bg-orange-500 text-white text-xs font-medium disabled:opacity-50"
+                >
+                  {inviteSending ? "Sending…" : "Send invite"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInviteTargetId(null);
+                    setInviteProjectId("");
+                  }}
+                  className="px-3 py-2 text-slate-400 text-xs"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
-          ) : (
-            creators.map((creator) => (
-              <div
-                key={creator.id}
-                className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 hover:border-orange-500/40 transition flex flex-col"
-              >
-                <div className="flex items-center gap-3 mb-3">
-                  <Link
-                    href={`/creator/profile/${creator.id}`}
-                    className="w-12 h-12 rounded-full bg-slate-700 flex items-center justify-center overflow-hidden shrink-0"
-                  >
-                    {creator.image ? (
-                      <Image
-                        src={creator.image}
-                        alt=""
-                        width={48}
-                        height={48}
-                        className="object-cover"
-                      />
-                    ) : (
-                      <span className="text-lg font-semibold text-slate-300">
-                        {creator.name?.[0]?.toUpperCase() ?? "C"}
-                      </span>
-                    )}
-                  </Link>
-                  <div className="min-w-0 flex-1">
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {loading ? (
+              <div className="col-span-full flex justify-center py-12">
+                <Loader2 className="w-8 h-8 text-orange-500 animate-spin" />
+              </div>
+            ) : (
+              creators.map((creator) => (
+                <div
+                  key={creator.id}
+                  className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 hover:border-orange-500/40 transition flex flex-col"
+                >
+                  <div className="flex items-center gap-3 mb-3">
                     <Link
                       href={`/creator/profile/${creator.id}`}
-                      className="font-semibold text-white hover:text-orange-400 block truncate"
+                      className="w-12 h-12 rounded-full bg-slate-700 flex items-center justify-center overflow-hidden shrink-0"
                     >
-                      {creator.name ?? "Creator"}
+                      {creator.image ? (
+                        <Image src={creator.image} alt="" width={48} height={48} className="object-cover" />
+                      ) : (
+                        <span className="text-lg font-semibold text-slate-300">
+                          {creator.name?.[0]?.toUpperCase() ?? "C"}
+                        </span>
+                      )}
                     </Link>
-                    {(creator.headline || creator.location) && (
-                      <p className="text-xs text-slate-500 truncate">
-                        {[creator.headline, creator.location].filter(Boolean).join(" · ")}
-                      </p>
+                    <div className="min-w-0 flex-1">
+                      <Link
+                        href={`/creator/profile/${creator.id}`}
+                        className="font-semibold text-white hover:text-orange-400 block truncate"
+                      >
+                        {creator.name ?? "Creator"}
+                      </Link>
+                      {(creator.headline || creator.location) && (
+                        <p className="text-xs text-slate-500 truncate">
+                          {[creator.headline, creator.location].filter(Boolean).join(" · ")}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  {creator.bio && <p className="text-sm text-slate-400 line-clamp-3 mb-2">{creator.bio}</p>}
+                  {creator.previousWork && (
+                    <p className="text-xs text-slate-500 line-clamp-2 mb-3">Recent: {creator.previousWork}</p>
+                  )}
+                  <div className="flex flex-wrap items-center gap-2 mt-auto pt-3 border-t border-slate-800">
+                    <Link
+                      href={`/creator/profile/${creator.id}`}
+                      className="flex-1 text-center py-2 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 text-sm font-medium"
+                    >
+                      Profile
+                    </Link>
+                    {creator.id !== myId && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            creator.following ? handleUnfollow(creator.id) : handleFollow(creator.id)
+                          }
+                          className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition ${
+                            creator.following
+                              ? "bg-slate-700 text-slate-300"
+                              : "bg-orange-500 text-white hover:bg-orange-600"
+                          }`}
+                        >
+                          {creator.following ? <Check className="w-3.5 h-3.5" /> : <UserPlus className="w-3.5 h-3.5" />}
+                          {creator.following ? "Following" : "Follow"}
+                        </button>
+                        {(creator.connectionStatus === "NONE" || !creator.connectionStatus) && (
+                          <button
+                            type="button"
+                            onClick={() => handleConnect(creator.id)}
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-violet-500/80 text-white hover:bg-violet-500 text-sm font-medium"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" /> Connect
+                          </button>
+                        )}
+                        {creator.connectionStatus === "PENDING_SENT" && (
+                          <span className="px-3 py-2 rounded-lg bg-slate-700/50 text-slate-500 text-sm">Pending</span>
+                        )}
+                        {creator.connectionStatus === "ACCEPTED" && (
+                          <Link
+                            href={`/creator/network?chatWith=${creator.id}`}
+                            className="px-3 py-2 rounded-lg bg-violet-500/20 text-violet-400 text-sm font-medium"
+                          >
+                            Chat
+                          </Link>
+                        )}
+                        {(myRole === "CONTENT_CREATOR" || myRole === "ADMIN") && projects.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setInviteTargetId(creator.id);
+                              setInviteProjectId("");
+                            }}
+                            className="px-3 py-2 rounded-lg border border-orange-500/40 text-orange-200 text-xs font-medium hover:bg-orange-500/10"
+                          >
+                            Invite to project
+                          </button>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
-                {creator.bio && (
-                  <p className="text-sm text-slate-400 line-clamp-3 mb-2">{creator.bio}</p>
-                )}
-                {creator.previousWork && (
-                  <p className="text-xs text-slate-500 line-clamp-2 mb-3">
-                    Recent: {creator.previousWork}
-                  </p>
-                )}
-                <div className="flex items-center gap-2 mt-auto pt-3 border-t border-slate-800">
-                  <Link
-                    href={`/creator/profile/${creator.id}`}
-                    className="flex-1 text-center py-2 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 text-sm font-medium"
-                  >
-                    View profile
-                  </Link>
-                  {creator.id !== myId && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          creator.following ? handleUnfollow(creator.id) : handleFollow(creator.id)
-                        }
-                        className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition ${
-                          creator.following
-                            ? "bg-slate-700 text-slate-300"
-                            : "bg-orange-500 text-white hover:bg-orange-600"
-                        }`}
-                      >
-                        {creator.following ? <Check className="w-3.5 h-3.5" /> : <UserPlus className="w-3.5 h-3.5" />}
-                        {creator.following ? "Following" : "Follow"}
-                      </button>
-                      {(creator.connectionStatus === "NONE" || !creator.connectionStatus) && (
-                        <button
-                          type="button"
-                          onClick={() => handleConnect(creator.id)}
-                          className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-violet-500/80 text-white hover:bg-violet-500 text-sm font-medium"
-                        >
-                          <MessageCircle className="w-3.5 h-3.5" /> Connect
-                        </button>
-                      )}
-                                      {creator.connectionStatus === "PENDING_SENT" && (
-                        <span className="px-3 py-2 rounded-lg bg-slate-700/50 text-slate-500 text-sm">
-                          Pending
-                        </span>
-                      )}
-                      {creator.connectionStatus === "ACCEPTED" && (
-                        <Link
-                          href={`/creator/profile/${creator.id}`}
-                          className="px-3 py-2 rounded-lg bg-violet-500/20 text-violet-400 text-sm font-medium"
-                        >
-                          Connected
-                        </Link>
-                      )}
-                    </>
-                  )}
-                </div>
-              </div>
-            ))
-          )}
+              ))
+            )}
+          </div>
           {!loading && creators.length === 0 && (
             <div className="col-span-full text-center py-12 text-slate-400">
               No other creators found yet. As more join Story Time, they’ll appear here.
@@ -594,7 +730,7 @@ export function NetworkClient() {
                 Creator chats
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                1:1 chats unlock when both creators accept a connection request.
+                Chats unlock when both creators accept a connection request.
               </p>
             </div>
           </div>
@@ -604,8 +740,7 @@ export function NetworkClient() {
             </div>
           ) : chats.length === 0 ? (
             <div className="text-sm text-slate-400 py-8 text-center">
-              No creator chats yet. Connect with other creators from the Discover tab – once a
-              connection is accepted you&apos;ll be able to chat here.
+              No chats yet. Connect from Discover — once accepted you can chat here.
             </div>
           ) : (
             <div className="grid grid-cols-12 gap-4">
@@ -615,9 +750,7 @@ export function NetworkClient() {
                     const first = c.participants[0];
                     const othersLabel =
                       c.participants.length > 1
-                        ? `${c.participants[0]?.name ?? "Creator"} +${
-                            c.participants.length - 1
-                          }`
+                        ? `${c.participants[0]?.name ?? "Creator"} +${c.participants.length - 1}`
                         : first?.name ?? "Creator";
                     const isActive = activeChatUserId && first && activeChatUserId === first.id;
                     return (
@@ -627,20 +760,14 @@ export function NetworkClient() {
                           onClick={() => first && setActiveChatUserId(first.id)}
                           className={[
                             "w-full flex items-center justify-between gap-3 py-3 px-2 rounded-xl text-left transition",
-                            isActive
-                              ? "bg-slate-800"
-                              : "hover:bg-slate-800/60",
+                            isActive ? "bg-slate-800" : "hover:bg-slate-800/60",
                           ].join(" ")}
                         >
                           <div className="flex items-center gap-3 min-w-0">
                             <div className="w-9 h-9 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden shrink-0">
                               {first?.image ? (
                                 // eslint-disable-next-line @next/next/no-img-element
-                                <img
-                                  src={first.image}
-                                  alt=""
-                                  className="w-full h-full object-cover"
-                                />
+                                <img src={first.image} alt="" className="w-full h-full object-cover" />
                               ) : (
                                 <span className="text-sm font-semibold text-slate-300">
                                   {first?.name?.[0]?.toUpperCase() ?? "C"}
@@ -648,24 +775,15 @@ export function NetworkClient() {
                               )}
                             </div>
                             <div className="min-w-0">
-                              <p className="text-sm font-medium text-white truncate">
-                                {othersLabel}
-                              </p>
+                              <p className="text-sm font-medium text-white truncate">{othersLabel}</p>
                               {c.lastMessage && (
                                 <p className="text-xs text-slate-400 truncate">
-                                  {c.lastMessage.sender.name
-                                    ? `${c.lastMessage.sender.name}: `
-                                    : ""}
+                                  {c.lastMessage.sender.name ? `${c.lastMessage.sender.name}: ` : ""}
                                   {c.lastMessage.body}
                                 </p>
                               )}
                             </div>
                           </div>
-                          {c.lastMessage && (
-                            <span className="text-[11px] text-slate-500 shrink-0">
-                              {new Date(c.lastMessage.createdAt).toLocaleTimeString()}
-                            </span>
-                          )}
                         </button>
                       </li>
                     );
@@ -675,7 +793,7 @@ export function NetworkClient() {
               <div className="col-span-12 md:col-span-8 flex flex-col border-t md:border-t-0 md:pl-1">
                 {!activeChatUserId ? (
                   <div className="flex items-center justify-center flex-1 text-sm text-slate-400 py-8">
-                    Select a creator on the left to open the conversation.
+                    Select a conversation.
                   </div>
                 ) : chatLoading ? (
                   <div className="flex items-center justify-center flex-1">
@@ -683,19 +801,14 @@ export function NetworkClient() {
                   </div>
                 ) : (
                   <>
-                    <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+                    <div className="flex-1 overflow-y-auto space-y-3 pr-1 max-h-[360px]">
                       {chatMessages.length === 0 ? (
                         <div className="flex items-center justify-center flex-1 text-xs text-slate-500 py-8">
-                          No messages yet. Say hi and start the collaboration.
+                          No messages yet. Say hi.
                         </div>
                       ) : (
                         chatMessages.map((m) => (
-                          <div
-                            key={m.id}
-                            className={`flex ${
-                              m.sender.id === myId ? "justify-end" : "justify-start"
-                            }`}
-                          >
+                          <div key={m.id} className={`flex ${m.sender.id === myId ? "justify-end" : "justify-start"}`}>
                             <div
                               className={[
                                 "max-w-[70%] rounded-2xl px-3 py-2 text-xs",
@@ -704,22 +817,15 @@ export function NetworkClient() {
                                   : "bg-slate-800 text-slate-100",
                               ].join(" ")}
                             >
-                              <p className="font-medium mb-0.5 opacity-80">
-                                {m.sender.name ?? "You"}
-                              </p>
+                              <p className="font-medium mb-0.5 opacity-80">{m.sender.name ?? "You"}</p>
                               <p className="text-[13px]">{m.body}</p>
-                              <p className="mt-1 opacity-50 text-[10px]">
-                                {new Date(m.createdAt).toLocaleTimeString()}
-                              </p>
+                              <p className="mt-1 opacity-50 text-[10px]">{new Date(m.createdAt).toLocaleTimeString()}</p>
                             </div>
                           </div>
                         ))
                       )}
                     </div>
-                    <form
-                      onSubmit={sendChatMessage}
-                      className="mt-3 flex gap-2 border-t border-slate-800 pt-3"
-                    >
+                    <form onSubmit={sendChatMessage} className="mt-3 flex gap-2 border-t border-slate-800 pt-3">
                       <input
                         value={chatInput}
                         onChange={(e) => setChatInput(e.target.value)}

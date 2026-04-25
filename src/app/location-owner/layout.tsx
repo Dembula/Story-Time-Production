@@ -4,6 +4,7 @@ import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { LogOut } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
+import { NotificationBell } from "@/components/layout/notification-bell";
 
 const navItems = [
   { href: "/location-owner/dashboard", label: "Dashboard" },
@@ -35,12 +36,15 @@ export default function LocationOwnerLayout({
           <Link href="/location-owner/dashboard" className="text-xl font-semibold text-white">
             <span className="storytime-brand-text">STORY TIME</span> Locations
           </Link>
-          <button
-            onClick={handleSignOut}
-            className="hidden md:inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-red-400 transition"
-          >
-            <LogOut className="w-4 h-4" /> Logout
-          </button>
+          <div className="flex items-center gap-3">
+            <NotificationBell />
+            <button
+              onClick={handleSignOut}
+              className="hidden md:inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-red-400 transition"
+            >
+              <LogOut className="w-4 h-4" /> Logout
+            </button>
+          </div>
         </div>
       </header>
 

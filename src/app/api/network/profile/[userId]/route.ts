@@ -9,11 +9,9 @@ import {
   getPostsByAuthorId,
 } from "@/lib/network-db";
 import { prisma } from "@/lib/prisma";
+import { enrichNetworkPostsForFeed } from "@/lib/network-post-enrich";
 
-export async function GET(
-  _req: Request,
-  { params }: { params: Promise<{ userId: string }> }
-) {
+export async function GET(_req: Request, { params }: { params: Promise<{ userId: string }> }) {
   const session = await getServerSession(authOptions);
   const { userId } = await params;
 
@@ -25,21 +23,20 @@ export async function GET(
       image: true,
       bio: true,
       socialLinks: true,
-      education: true,
-      goals: true,
       previousWork: true,
-      isAfdaStudent: true,
       role: true,
+      headline: true,
+      location: true,
+      website: true,
+      networkProfilePublic: true,
+      createdAt: true,
     },
   });
   if (!user) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const [headlineLocationWebsite] = await prisma
-    .$queryRawUnsafe<{ headline: string | null; location: string | null; website: string | null }[]>(
-      `SELECT "headline", "location", "website" FROM "User" WHERE "id" = $1`,
-      userId
-    )
-    .catch(() => [{} as { headline: null; location: null; website: null }]);
+  if (user.networkProfilePublic === false && session?.user?.id !== userId && session?.user?.role !== "ADMIN") {
+    return NextResponse.json({ error: "Profile is private" }, { status: 403 });
+  }
 
   const [following, connectionStatus, followerCount, followingCount] = session?.user?.id
     ? await Promise.all([
@@ -57,35 +54,16 @@ export async function GET(
     take: 12,
   });
 
-  const pitches = await prisma.originalPitch.findMany({
-    where: { creatorId: userId },
-    select: { id: true, title: true, type: true, status: true, createdAt: true },
-    orderBy: { createdAt: "desc" },
-    take: 8,
-  });
-
-  const memberships = await prisma.originalMember.findMany({
-    where: { userId },
-    include: { project: { select: { id: true, title: true, type: true, status: true } } },
-    take: 8,
-  });
-
-  const networkPosts = await getPostsByAuthorId(userId, 20);
+  const networkPostRows = await getPostsByAuthorId(userId, 30);
+  const posts = await enrichNetworkPostsForFeed(networkPostRows, session?.user?.id ?? null);
 
   return NextResponse.json({
-    user: {
-      ...user,
-      headline: headlineLocationWebsite?.headline ?? null,
-      location: headlineLocationWebsite?.location ?? null,
-      website: headlineLocationWebsite?.website ?? null,
-    },
+    user,
     following,
     connectionStatus,
     followerCount,
     followingCount,
     contents,
-    pitches,
-    memberships: memberships.map((m) => ({ ...m, project: m.project })),
-    posts: networkPosts,
+    posts,
   });
 }

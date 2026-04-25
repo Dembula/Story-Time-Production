@@ -14,7 +14,6 @@ export type ProjectToolId =
   | "visual-planning"
   | "legal-contracts"
   | "funding-hub"
-  | "pitch-deck-builder"
   | "table-reads"
   | "production-workspace"
   | "equipment-planning"
@@ -174,14 +173,6 @@ export const PRE_PRODUCTION_TOOLS: ProjectToolMeta[] = [
     label: "Funding Hub",
     description: "Capture funding status, requests, and amounts.",
     toolSlug: "funding-hub",
-    pipelineStep: "FUNDING",
-  },
-  {
-    id: "pitch-deck-builder",
-    phase: "PRE_PRODUCTION",
-    label: "Pitch Deck Builder",
-    description: "Generate a slide deck template for your film.",
-    toolSlug: "pitch-deck-builder",
     pipelineStep: "FUNDING",
   },
   {

@@ -26,29 +26,29 @@ export async function GET() {
       bio: true,
       previousWork: true,
       role: true,
+      headline: true,
+      location: true,
     },
     orderBy: { createdAt: "desc" },
+    take: 48,
   });
 
   const withExtra = await Promise.all(
     users.map(async (u) => {
-      const [headlineLocation, following, connectionStatus, followerCount] = await Promise.all([
-        prisma.$queryRawUnsafe<
-          { headline: string | null; location: string | null }[]
-        >(`SELECT "headline", "location" FROM "User" WHERE "id" = $1`, u.id).then((r) => r[0] ?? {}),
+      const [following, connectionStatus, followerCount] = await Promise.all([
         session?.user?.id ? isFollowing(session.user.id, u.id) : false,
-        session?.user?.id ? getConnectionStatus(session.user.id, u.id) : "NONE",
+        session?.user?.id ? getConnectionStatus(session.user.id, u.id) : ("NONE" as const),
         getFollowerCount(u.id),
       ]);
       return {
         ...u,
-        headline: headlineLocation?.headline ?? null,
-        location: headlineLocation?.location ?? null,
+        headline: u.headline ?? null,
+        location: u.location ?? null,
         following,
         connectionStatus,
         followerCount,
       };
-    })
+    }),
   );
 
   return NextResponse.json({ creators: withExtra });

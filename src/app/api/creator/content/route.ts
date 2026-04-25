@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { normalizeCreatorLicenseType } from "@/lib/pricing";
+import { isCreatorLicensePeriodActive, normalizeCreatorLicenseType } from "@/lib/pricing";
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -65,7 +65,12 @@ export async function POST(request: NextRequest) {
   const creatorId = session!.user!.id as string;
   const user = await prisma.user.findUnique({
     where: { id: creatorId },
-    include: { creatorDistributionLicense: true },
+    select: {
+      id: true,
+      creatorDistributionLicense: {
+        select: { type: true, yearlyExpiresAt: true },
+      },
+    },
   });
   if (!user?.creatorDistributionLicense) {
     return NextResponse.json({ error: "Distribution license required. Complete onboarding first." }, { status: 403 });
@@ -73,8 +78,8 @@ export async function POST(request: NextRequest) {
   const license = user.creatorDistributionLicense;
   const isDraft = (body.reviewStatus || "DRAFT") === "DRAFT";
   if (normalizeCreatorLicenseType(license.type) === "YEARLY") {
-    if (license.yearlyExpiresAt && license.yearlyExpiresAt < new Date()) {
-      return NextResponse.json({ error: "Yearly license expired. Renew to upload." }, { status: 402 });
+    if (!isCreatorLicensePeriodActive(license)) {
+      return NextResponse.json({ error: "Your plan period has ended. Renew to upload." }, { status: 402 });
     }
   } else if (!isDraft) {
     // Payment gateway has been removed; continue with direct submission.

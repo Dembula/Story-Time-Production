@@ -1,25 +1,11 @@
 /**
- * Network (social) DB layer using raw SQL so it works even if Prisma schema
- * has validation issues. Tables: CreatorFollow, ConnectionRequest, NetworkPost,
- * NetworkConversation, NetworkConversationParticipant, NetworkMessage.
+ * Creator Network DB layer: follows, connections, posts (Prisma), DMs (raw SQL legacy for conversations).
  */
 
 import { prisma } from "@/lib/prisma";
+import type { NetworkPost as NetworkPostModel } from "../../generated/prisma";
 
-function id() {
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 11)}`;
-}
-
-export interface NetworkPostRow {
-  id: string;
-  authorId: string;
-  body: string | null;
-  imageUrls: string | null;
-  contentId: string | null;
-  projectId: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-}
+export type NetworkPostRow = NetworkPostModel;
 
 export interface CreatorFollowRow {
   id: string;
@@ -39,210 +25,194 @@ export interface ConnectionRequestRow {
 }
 
 export async function isFollowing(followerId: string, followingId: string): Promise<boolean> {
-  const r = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
-    `SELECT 1 as n FROM "CreatorFollow" WHERE "followerId" = $1 AND "followingId" = $2 LIMIT 1`,
-    followerId,
-    followingId
-  );
-  return r.length > 0;
+  const r = await prisma.creatorFollow.findFirst({
+    where: { followerId, followingId },
+    select: { id: true },
+  });
+  return !!r;
 }
 
 export async function follow(followerId: string, followingId: string): Promise<void> {
   if (followerId === followingId) return;
-  await prisma.$executeRawUnsafe(
-    `INSERT INTO "CreatorFollow" ("id", "followerId", "followingId", "createdAt")
-     VALUES ($1, $2, $3, NOW())
-     ON CONFLICT ("followerId", "followingId") DO NOTHING`,
-    id(),
-    followerId,
-    followingId
-  );
+  await prisma.creatorFollow.upsert({
+    where: { followerId_followingId: { followerId, followingId } },
+    create: { followerId, followingId },
+    update: {},
+  });
 }
 
 export async function unfollow(followerId: string, followingId: string): Promise<void> {
-  await prisma.$executeRawUnsafe(
-    `DELETE FROM "CreatorFollow" WHERE "followerId" = $1 AND "followingId" = $2`,
-    followerId,
-    followingId
-  );
+  await prisma.creatorFollow.deleteMany({ where: { followerId, followingId } });
 }
 
 export async function getConnectionStatus(
   fromId: string,
-  toId: string
+  toId: string,
 ): Promise<"NONE" | "PENDING_SENT" | "PENDING_RECEIVED" | "ACCEPTED" | "DECLINED"> {
-  const sent = await prisma.$queryRawUnsafe<ConnectionRequestRow[]>(
-    `SELECT * FROM "ConnectionRequest" WHERE "fromId" = $1 AND "toId" = $2 LIMIT 1`,
-    fromId,
-    toId
-  );
-  if (sent.length) {
-    const s = sent[0].status;
-    if (s === "ACCEPTED") return "ACCEPTED";
-    if (s === "DECLINED") return "DECLINED";
+  const sent = await prisma.connectionRequest.findFirst({
+    where: { fromId, toId },
+  });
+  if (sent) {
+    if (sent.status === "ACCEPTED") return "ACCEPTED";
+    if (sent.status === "DECLINED") return "DECLINED";
     return "PENDING_SENT";
   }
-  const recv = await prisma.$queryRawUnsafe<ConnectionRequestRow[]>(
-    `SELECT * FROM "ConnectionRequest" WHERE "fromId" = $1 AND "toId" = $2 LIMIT 1`,
-    toId,
-    fromId
-  );
-  if (recv.length) {
-    const s = recv[0].status;
-    if (s === "ACCEPTED") return "ACCEPTED";
-    if (s === "DECLINED") return "DECLINED";
+  const recv = await prisma.connectionRequest.findFirst({
+    where: { fromId: toId, toId: fromId },
+  });
+  if (recv) {
+    if (recv.status === "ACCEPTED") return "ACCEPTED";
+    if (recv.status === "DECLINED") return "DECLINED";
     return "PENDING_RECEIVED";
   }
   return "NONE";
 }
 
-export async function sendConnectionRequest(
-  fromId: string,
-  toId: string,
-  message?: string
-): Promise<void> {
+export async function sendConnectionRequest(fromId: string, toId: string, message?: string): Promise<void> {
   if (fromId === toId) return;
-  await prisma.$executeRawUnsafe(
-    `INSERT INTO "ConnectionRequest" ("id", "fromId", "toId", "status", "message", "createdAt")
-     VALUES ($1, $2, $3, 'PENDING', $4, NOW())
-     ON CONFLICT ("fromId", "toId") DO NOTHING`,
-    id(),
-    fromId,
-    toId,
-    message ?? null
-  );
+  await prisma.connectionRequest.upsert({
+    where: { fromId_toId: { fromId, toId } },
+    create: { fromId, toId, message: message ?? null, status: "PENDING" },
+    update: { message: message ?? undefined },
+  });
 }
 
 export async function acceptConnectionRequest(requestId: string, respondentId: string): Promise<void> {
-  await prisma.$executeRawUnsafe(
-    `UPDATE "ConnectionRequest" SET "status" = 'ACCEPTED', "respondedAt" = NOW()
-     WHERE "id" = $1 AND "toId" = $2 AND "status" = 'PENDING'`,
-    requestId,
-    respondentId
-  );
+  await prisma.connectionRequest.updateMany({
+    where: { id: requestId, toId: respondentId, status: "PENDING" },
+    data: { status: "ACCEPTED", respondedAt: new Date() },
+  });
 }
 
 export async function declineConnectionRequest(requestId: string, respondentId: string): Promise<void> {
-  await prisma.$executeRawUnsafe(
-    `UPDATE "ConnectionRequest" SET "status" = 'DECLINED', "respondedAt" = NOW()
-     WHERE "id" = $1 AND "toId" = $2 AND "status" = 'PENDING'`,
-    requestId,
-    respondentId
-  );
+  await prisma.connectionRequest.updateMany({
+    where: { id: requestId, toId: respondentId, status: "PENDING" },
+    data: { status: "DECLINED", respondedAt: new Date() },
+  });
 }
 
 export async function areConnected(userId1: string, userId2: string): Promise<boolean> {
-  const r = await prisma.$queryRawUnsafe<{ n: number }[]>(
-    `SELECT 1 as n FROM "ConnectionRequest" c
-     WHERE ((c."fromId" = $1 AND c."toId" = $2) OR (c."fromId" = $2 AND c."toId" = $1))
-       AND c."status" = 'ACCEPTED' LIMIT 1`,
-    userId1,
-    userId2
-  );
-  return r.length > 0;
+  const r = await prisma.connectionRequest.findFirst({
+    where: {
+      status: "ACCEPTED",
+      OR: [
+        { fromId: userId1, toId: userId2 },
+        { fromId: userId2, toId: userId1 },
+      ],
+    },
+    select: { id: true },
+  });
+  return !!r;
 }
 
+export type CreateNetworkPostInput = {
+  body?: string | null;
+  imageUrls?: string | null;
+  videoUrls?: string | null;
+  contentId?: string | null;
+  projectId?: string | null;
+  sceneId?: string | null;
+  productionPhase?: string | null;
+  postType?: string;
+  metadata?: string | null;
+};
+
+export async function createNetworkPost(authorId: string, input: CreateNetworkPostInput): Promise<NetworkPostRow> {
+  return prisma.networkPost.create({
+    data: {
+      authorId,
+      body: input.body ?? null,
+      imageUrls: input.imageUrls ?? null,
+      videoUrls: input.videoUrls ?? null,
+      contentId: input.contentId ?? null,
+      projectId: input.projectId ?? null,
+      sceneId: input.sceneId ?? null,
+      productionPhase: input.productionPhase ?? null,
+      postType: input.postType ?? "TEXT_UPDATE",
+      metadata: input.metadata ?? null,
+    },
+  });
+}
+
+/** @deprecated use createNetworkPost */
 export async function createPost(
   authorId: string,
   body: string | null,
   imageUrls: string | null,
   contentId: string | null,
-  projectId: string | null
+  projectId: string | null,
 ): Promise<NetworkPostRow> {
-  const postId = id();
-  await prisma.$executeRawUnsafe(
-    `INSERT INTO "NetworkPost" ("id", "authorId", "body", "imageUrls", "contentId", "projectId", "createdAt", "updatedAt")
-     VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())`,
-    postId,
-    authorId,
-    body ?? null,
-    imageUrls ?? null,
-    contentId ?? null,
-    projectId ?? null
-  );
-  const rows = await prisma.$queryRawUnsafe<NetworkPostRow[]>(
-    `SELECT * FROM "NetworkPost" WHERE "id" = $1`,
-    postId
-  );
-  if (!rows[0]) throw new Error("Failed to create post");
-  return rows[0];
+  return createNetworkPost(authorId, { body, imageUrls, contentId, projectId, postType: "TEXT_UPDATE" });
 }
 
 export async function getFeedPostIdsForUser(userId: string, limit: number): Promise<string[]> {
-  const rows = await prisma.$queryRawUnsafe<{ id: string }[]>(
-    `SELECT p."id" FROM "NetworkPost" p
-     INNER JOIN "CreatorFollow" f ON f."followingId" = p."authorId" AND f."followerId" = $1
-     ORDER BY p."createdAt" DESC LIMIT $2`,
-    userId,
-    limit
-  );
-  return rows.map((r) => r.id);
+  const following = await prisma.creatorFollow.findMany({
+    where: { followerId: userId },
+    select: { followingId: true },
+  });
+  const ids = following.map((f) => f.followingId);
+  if (ids.length === 0) return [];
+  const posts = await prisma.networkPost.findMany({
+    where: { authorId: { in: ids } },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+    select: { id: true },
+  });
+  return posts.map((p) => p.id);
 }
 
 export async function getPublicFeedPostIds(limit: number): Promise<string[]> {
-  const rows = await prisma.$queryRawUnsafe<{ id: string }[]>(
-    `SELECT "id" FROM "NetworkPost" ORDER BY "createdAt" DESC LIMIT $1`,
-    limit
-  );
-  return rows.map((r) => r.id);
+  const posts = await prisma.networkPost.findMany({
+    orderBy: { createdAt: "desc" },
+    take: limit,
+    select: { id: true },
+  });
+  return posts.map((p) => p.id);
 }
 
 export async function getPostsByIds(ids: string[]): Promise<NetworkPostRow[]> {
   if (ids.length === 0) return [];
-  const placeholders = ids.map((_, i) => `$${i + 1}`).join(", ");
-  const rows = await prisma.$queryRawUnsafe<NetworkPostRow[]>(
-    `SELECT * FROM "NetworkPost" WHERE "id" IN (${placeholders}) ORDER BY "createdAt" DESC`,
-    ...ids
-  );
+  const rows = await prisma.networkPost.findMany({
+    where: { id: { in: ids } },
+  });
   const order = new Map(ids.map((id, i) => [id, i]));
   return rows.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
 }
 
 export async function getPostsByAuthorId(authorId: string, limit: number): Promise<NetworkPostRow[]> {
-  const rows = await prisma.$queryRawUnsafe<NetworkPostRow[]>(
-    `SELECT * FROM "NetworkPost" WHERE "authorId" = $1 ORDER BY "createdAt" DESC LIMIT $2`,
-    authorId,
-    limit
-  );
-  return rows;
+  return prisma.networkPost.findMany({
+    where: { authorId },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+  });
 }
 
 export async function getConnectionRequestsReceived(userId: string): Promise<ConnectionRequestRow[]> {
-  const rows = await prisma.$queryRawUnsafe<ConnectionRequestRow[]>(
-    `SELECT * FROM "ConnectionRequest" WHERE "toId" = $1 AND "status" = 'PENDING' ORDER BY "createdAt" DESC`,
-    userId
-  );
-  return rows;
+  return prisma.connectionRequest.findMany({
+    where: { toId: userId, status: "PENDING" },
+    orderBy: { createdAt: "desc" },
+  });
 }
 
 export async function getConnectionRequestsSent(userId: string): Promise<ConnectionRequestRow[]> {
-  const rows = await prisma.$queryRawUnsafe<ConnectionRequestRow[]>(
-    `SELECT * FROM "ConnectionRequest" WHERE "fromId" = $1 ORDER BY "createdAt" DESC`,
-    userId
-  );
-  return rows;
+  return prisma.connectionRequest.findMany({
+    where: { fromId: userId },
+    orderBy: { createdAt: "desc" },
+  });
 }
 
 export async function getFollowingIds(userId: string): Promise<string[]> {
-  const rows = await prisma.$queryRawUnsafe<{ followingId: string }[]>(
-    `SELECT "followingId" FROM "CreatorFollow" WHERE "followerId" = $1`,
-    userId
-  );
+  const rows = await prisma.creatorFollow.findMany({
+    where: { followerId: userId },
+    select: { followingId: true },
+  });
   return rows.map((r) => r.followingId);
 }
 
 export async function getFollowerCount(userId: string): Promise<number> {
-  const rows = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
-    `SELECT COUNT(*) as n FROM "CreatorFollow" WHERE "followingId" = $1`,
-    userId
-  );
-  return Number(rows[0]?.n ?? 0);
+  return prisma.creatorFollow.count({ where: { followingId: userId } });
 }
 
 export async function getFollowingCount(userId: string): Promise<number> {
-  const rows = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
-    `SELECT COUNT(*) as n FROM "CreatorFollow" WHERE "followerId" = $1`,
-    userId
-  );
-  return Number(rows[0]?.n ?? 0);
+  return prisma.creatorFollow.count({ where: { followerId: userId } });
 }

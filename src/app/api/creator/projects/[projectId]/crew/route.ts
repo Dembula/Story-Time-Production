@@ -3,6 +3,12 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
+const NEED_LINK_MARKER_PREFIX = "crewNeedId:";
+
+function needMarker(needId: string) {
+  return `${NEED_LINK_MARKER_PREFIX}${needId}`;
+}
+
 async function ensureCrewAccess(projectId: string) {
   const session = await getServerSession(authOptions);
   const role = (session?.user as { role?: string })?.role;
@@ -59,6 +65,14 @@ export async function GET(
       invitations: true,
     },
   });
+  const budget = await prisma.projectBudget.findUnique({
+    where: { projectId },
+    include: { lines: true },
+  });
+  const roster = await prisma.creatorCrewRoster.findMany({
+    where: { creatorId: access.userId! },
+    orderBy: { updatedAt: "desc" },
+  });
 
   return NextResponse.json({
     needs: needs.map((n) => ({
@@ -68,6 +82,10 @@ export async function GET(
       seniority: n.seniority,
       notes: n.notes,
       invitationsCount: n.invitations.length,
+      linkedRate:
+        budget?.lines.find((line) => (line.notes ?? "").includes(needMarker(n.id)))?.unitCost ?? null,
+      assignedCrew:
+        roster.find((entry) => (entry.notes ?? "").includes(needMarker(n.id)))?.name ?? null,
     })),
   });
 }
@@ -88,6 +106,10 @@ export async function POST(
         role: string;
         seniority?: string | null;
         notes?: string | null;
+        hireName?: string | null;
+        hireEmail?: string | null;
+        hirePhone?: string | null;
+        dailyRate?: number | null;
       }
     | null;
 
@@ -125,6 +147,10 @@ export async function PATCH(
         role?: string;
         seniority?: string | null;
         notes?: string | null;
+        hireName?: string | null;
+        hireEmail?: string | null;
+        hirePhone?: string | null;
+        dailyRate?: number | null;
       }
     | null;
 
@@ -132,14 +158,96 @@ export async function PATCH(
     return NextResponse.json({ error: "Missing id" }, { status: 400 });
   }
 
-  const need = await prisma.crewRoleNeed.update({
-    where: { id: body.id },
-    data: {
-      ...(body.department !== undefined ? { department: body.department } : {}),
-      ...(body.role !== undefined ? { role: body.role } : {}),
-      ...(body.seniority !== undefined ? { seniority: body.seniority } : {}),
-      ...(body.notes !== undefined ? { notes: body.notes } : {}),
-    },
+  const marker = needMarker(body.id);
+  const need = await prisma.$transaction(async (tx) => {
+    const nextNeed = await tx.crewRoleNeed.update({
+      where: { id: body.id },
+      data: {
+        ...(body.department !== undefined ? { department: body.department } : {}),
+        ...(body.role !== undefined ? { role: body.role } : {}),
+        ...(body.seniority !== undefined ? { seniority: body.seniority } : {}),
+        ...(body.notes !== undefined ? { notes: body.notes } : {}),
+      },
+    });
+
+    if (body.dailyRate !== undefined && body.dailyRate !== null) {
+      const budget = await tx.projectBudget.upsert({
+        where: { projectId },
+        create: {
+          projectId,
+          template: "SHORT_FILM",
+          currency: "ZAR",
+          totalPlanned: 0,
+        },
+        update: {},
+      });
+      const existingLine = await tx.projectBudgetLine.findFirst({
+        where: { budgetId: budget.id, notes: { contains: marker } },
+      });
+      const amount = Math.max(0, Number(body.dailyRate) || 0);
+      const lineNotes = `${body.notes ?? ""}\n[${marker}]`.trim();
+      if (existingLine) {
+        await tx.projectBudgetLine.update({
+          where: { id: existingLine.id },
+          data: {
+            department: "CREW",
+            name: `Crew · ${nextNeed.role}`,
+            quantity: 1,
+            unitCost: amount,
+            total: amount,
+            notes: lineNotes,
+          },
+        });
+      } else {
+        await tx.projectBudgetLine.create({
+          data: {
+            budgetId: budget.id,
+            department: "CREW",
+            name: `Crew · ${nextNeed.role}`,
+            quantity: 1,
+            unitCost: amount,
+            total: amount,
+            notes: lineNotes,
+          },
+        });
+      }
+    }
+
+    if (body.hireName !== undefined) {
+      const existingCrew = await tx.creatorCrewRoster.findFirst({
+        where: { creatorId: access.userId!, notes: { contains: marker } },
+      });
+      const cleanName = body.hireName?.trim() ?? "";
+      if (!cleanName) {
+        if (existingCrew) await tx.creatorCrewRoster.delete({ where: { id: existingCrew.id } });
+      } else if (existingCrew) {
+        await tx.creatorCrewRoster.update({
+          where: { id: existingCrew.id },
+          data: {
+            name: cleanName,
+            role: nextNeed.role,
+            department: nextNeed.department,
+            contactEmail: body.hireEmail ?? existingCrew.contactEmail,
+            phone: body.hirePhone ?? existingCrew.phone,
+            notes: `${body.notes ?? ""}\n[${marker}]`.trim(),
+          },
+        });
+      } else {
+        await tx.creatorCrewRoster.create({
+          data: {
+            creatorId: access.userId!,
+            name: cleanName,
+            role: nextNeed.role,
+            department: nextNeed.department,
+            contactEmail: body.hireEmail ?? null,
+            phone: body.hirePhone ?? null,
+            notes: `${body.notes ?? ""}\n[${marker}]`.trim(),
+          },
+        });
+      }
+    }
+
+    return nextNeed;
   });
 
   return NextResponse.json({ need });

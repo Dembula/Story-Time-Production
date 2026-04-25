@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  Sparkles, FileText, Send, Clapperboard, DollarSign, Users, AlertCircle,
+  Sparkles, FileText, Send, Clapperboard, DollarSign, Users, AlertCircle, Upload, Loader2,
 } from "lucide-react";
 
 type ScriptSource = "scripts" | "upload" | "url";
@@ -24,6 +24,8 @@ export default function OriginalsSubmitPage() {
   const [error, setError] = useState<string | null>(null);
   const [scriptSource, setScriptSource] = useState<ScriptSource>("url");
   const [scriptFile, setScriptFile] = useState<File | null>(null);
+  const [uploadingTreatment, setUploadingTreatment] = useState(false);
+  const [uploadingLookbook, setUploadingLookbook] = useState(false);
   const [form, setForm] = useState({
     title: "",
     logline: "",
@@ -204,14 +206,15 @@ export default function OriginalsSubmitPage() {
           )}
           {scriptSource === "url" && (
             <div>
-              <label className="block text-xs text-slate-500 mb-1">Script URL (e.g. link to PDF or Google Doc)</label>
+              <label className="block text-xs text-slate-500 mb-1">External script link (PDF or doc hosted elsewhere)</label>
               <input
                 type="url"
                 value={form.scriptUrl}
                 onChange={(e) => setForm({ ...form, scriptUrl: e.target.value })}
-                placeholder="https://..."
+                placeholder="Direct https link to your script file or shared doc"
                 className="w-full px-3 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-500"
               />
+              <p className="text-[11px] text-slate-500 mt-1">Prefer Upload PDF or From my scripts when the file is on your device or already in Story Time.</p>
             </div>
           )}
         </section>
@@ -258,12 +261,62 @@ export default function OriginalsSubmitPage() {
           <h2 className="text-lg font-semibold text-white flex items-center gap-2"><FileText className="w-5 h-5 text-orange-400" /> Supporting materials</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs text-slate-400 mb-1">Treatment URL</label>
-              <input type="url" value={form.treatmentUrl} onChange={(e) => setForm({ ...form, treatmentUrl: e.target.value })} className="w-full px-3 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" placeholder="https://..." />
+              <label className="block text-xs text-slate-400 mb-1">Treatment (PDF)</label>
+              <label className="mb-2 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-600 bg-slate-900/60 px-3 py-2 text-xs text-slate-200 hover:bg-slate-800">
+                {uploadingTreatment ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                {uploadingTreatment ? "Uploading…" : "Upload PDF"}
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  className="hidden"
+                  disabled={uploadingTreatment}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = "";
+                    if (!file) return;
+                    setUploadingTreatment(true);
+                    try {
+                      const fd = new FormData();
+                      fd.append("file", file);
+                      const res = await fetch("/api/upload/content-media", { method: "POST", body: fd });
+                      const data = await res.json();
+                      if (data.publicUrl) setForm((f) => ({ ...f, treatmentUrl: data.publicUrl }));
+                    } finally {
+                      setUploadingTreatment(false);
+                    }
+                  }}
+                />
+              </label>
+              <input type="url" value={form.treatmentUrl} onChange={(e) => setForm({ ...form, treatmentUrl: e.target.value })} className="w-full px-3 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" placeholder="Or paste a direct link to your treatment PDF" />
             </div>
             <div>
-              <label className="block text-xs text-slate-400 mb-1">Lookbook / visual reference URL</label>
-              <input type="url" value={form.lookbookUrl} onChange={(e) => setForm({ ...form, lookbookUrl: e.target.value })} className="w-full px-3 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" placeholder="https://..." />
+              <label className="block text-xs text-slate-400 mb-1">Lookbook / visual deck (PDF or images)</label>
+              <label className="mb-2 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-600 bg-slate-900/60 px-3 py-2 text-xs text-slate-200 hover:bg-slate-800">
+                {uploadingLookbook ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                {uploadingLookbook ? "Uploading…" : "Upload file"}
+                <input
+                  type="file"
+                  accept="application/pdf,image/jpeg,image/png,image/webp,image/gif,image/avif"
+                  className="hidden"
+                  disabled={uploadingLookbook}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = "";
+                    if (!file) return;
+                    setUploadingLookbook(true);
+                    try {
+                      const fd = new FormData();
+                      fd.append("file", file);
+                      const res = await fetch("/api/upload/content-media", { method: "POST", body: fd });
+                      const data = await res.json();
+                      if (data.publicUrl) setForm((f) => ({ ...f, lookbookUrl: data.publicUrl }));
+                    } finally {
+                      setUploadingLookbook(false);
+                    }
+                  }}
+                />
+              </label>
+              <input type="url" value={form.lookbookUrl} onChange={(e) => setForm({ ...form, lookbookUrl: e.target.value })} className="w-full px-3 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" placeholder="Or paste a direct link" />
             </div>
           </div>
         </section>
