@@ -2,6 +2,7 @@
 
 import { useCallback, useRef } from "react";
 import { FullscreenPlayer } from "@/components/player/fullscreen-player";
+import { WatchPlayerErrorBoundary } from "@/components/player/watch-player-error-boundary";
 
 type WatchClientProps = {
   content: {
@@ -47,14 +48,21 @@ export function WatchClient({
   );
 
   return (
-    <FullscreenPlayer
+    <WatchPlayerErrorBoundary
       src={content.videoUrl}
       poster={content.posterUrl || content.backdropUrl}
       title={content.title}
       contentDetailUrl={contentDetailUrl}
-      nextEpisode={nextEpisode}
-      language={content.language}
-      onTimeUpdate={reportWatchTime}
-    />
+    >
+      <FullscreenPlayer
+        src={content.videoUrl}
+        poster={content.posterUrl || content.backdropUrl}
+        title={content.title}
+        contentDetailUrl={contentDetailUrl}
+        nextEpisode={nextEpisode}
+        language={content.language}
+        onTimeUpdate={reportWatchTime}
+      />
+    </WatchPlayerErrorBoundary>
   );
 }

@@ -29,9 +29,16 @@ const CONTROLS_HIDE_MS = 3000;
 
 function computeIsMobileLikeClient(): boolean {
   if (typeof window === "undefined") return false;
+  const ua = window.navigator.userAgent || "";
+  const platform = window.navigator.platform || "";
+  const isIOS =
+    /iPad|iPhone|iPod/i.test(ua) ||
+    (platform === "MacIntel" &&
+      typeof window.navigator.maxTouchPoints === "number" &&
+      window.navigator.maxTouchPoints > 1);
   const coarse =
     typeof window.matchMedia === "function" ? window.matchMedia("(pointer: coarse)").matches : false;
-  return coarse || window.innerWidth < 900;
+  return isIOS || coarse || window.innerWidth < 900;
 }
 
 type FullscreenPlayerProps = {
