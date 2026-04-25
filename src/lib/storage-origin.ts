@@ -1,3 +1,5 @@
+import { getStorageConfig } from "./storage-config";
+
 const URL_PROTOCOL = /^https?:\/\//i;
 
 function trimTrailingSlash(value: string): string {
@@ -31,17 +33,18 @@ function getCloudflareAllowedBases(): string[] {
 
 export function getAllowedStorageBaseUrls(): string[] {
   const values = new Set<string>();
+  const storage = getStorageConfig();
 
-  const publicBase = parseBaseUrl(process.env.STORAGE_PUBLIC_BASE_URL);
+  const publicBase = parseBaseUrl(storage.publicBaseUrl);
   if (publicBase) values.add(publicBase);
 
-  const bucket = process.env.STORAGE_BUCKET_NAME?.trim();
-  const region = process.env.STORAGE_REGION?.trim();
+  const bucket = storage.bucket;
+  const region = storage.region;
   if (bucket && region) {
     values.add(`https://${bucket}.s3.${region}.amazonaws.com`);
   }
 
-  const endpoint = parseBaseUrl(process.env.STORAGE_ENDPOINT);
+  const endpoint = parseBaseUrl(storage.endpoint);
   if (endpoint && bucket) {
     values.add(`${endpoint}/${encodeURIComponent(bucket)}`);
   }

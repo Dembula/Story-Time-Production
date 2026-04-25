@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { parseEmbeddedMeta, embedMeta } from "@/lib/marketplace-profile-meta";
+import { validateStorageUrlList } from "@/lib/storage-origin";
 
 async function ensureExpenseAccess(projectId: string) {
   const session = await getServerSession(authOptions);
@@ -433,6 +434,10 @@ export async function POST(
     linkedTaskId: body.linkedTaskId ?? null,
     history: [{ at: new Date().toISOString(), byUserId: userId, action: "CREATE" }],
   };
+  const receiptErr = validateStorageUrlList(meta.receiptUrls ?? [], "receiptUrls");
+  if (receiptErr) return NextResponse.json({ error: receiptErr }, { status: 400 });
+  const proofErr = validateStorageUrlList(meta.paymentProofUrls ?? [], "paymentProofUrls");
+  if (proofErr) return NextResponse.json({ error: proofErr }, { status: 400 });
 
   const expense = await prisma.productionExpense.create({
     data: {
@@ -485,6 +490,10 @@ export async function PATCH(
     patch: (body.meta ?? {}) as Record<string, unknown>,
   });
   const nextMeta: ExpenseMeta = { ...prevMeta, ...(body.meta ?? {}), history: history.slice(-50) };
+  const receiptErr = validateStorageUrlList(nextMeta.receiptUrls ?? [], "receiptUrls");
+  if (receiptErr) return NextResponse.json({ error: receiptErr }, { status: 400 });
+  const proofErr = validateStorageUrlList(nextMeta.paymentProofUrls ?? [], "paymentProofUrls");
+  if (proofErr) return NextResponse.json({ error: proofErr }, { status: 400 });
 
   const expense = await prisma.productionExpense.update({
     where: { id: body.id },

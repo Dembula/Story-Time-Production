@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hash } from "bcryptjs";
 import { embedMeta } from "@/lib/marketplace-profile-meta";
+import { validateStorageUrlField, validateStorageUrlList } from "@/lib/storage-origin";
+import { ensureCloudflareStreamPlaybackUrl } from "@/lib/cloudflare-stream";
 import {
   isMissingCreatorStudioInfrastructure,
   isMissingUserCreatorRegistrationColumns,
@@ -129,6 +131,25 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    const normalizedActorProfile = actorProfile
+      ? {
+          ...actorProfile,
+          profilePhoto: actorProfile.profilePhoto?.trim() || undefined,
+          showreel: actorProfile.showreel?.trim() || undefined,
+        }
+      : undefined;
+    const normalizedLocationPhotos = (locationProfile?.photos ?? []).map((p) => p?.trim()).filter(Boolean) as string[];
+    const actorPhotoErr = validateStorageUrlField(normalizedActorProfile?.profilePhoto, "actorProfile.profilePhoto");
+    if (actorPhotoErr) return NextResponse.json({ error: actorPhotoErr }, { status: 400 });
+    const locationPhotosErr = validateStorageUrlList(normalizedLocationPhotos, "locationProfile.photos");
+    if (locationPhotosErr) return NextResponse.json({ error: locationPhotosErr }, { status: 400 });
+    const normalizedActorShowreel = await ensureCloudflareStreamPlaybackUrl(normalizedActorProfile?.showreel ?? null, {
+      area: "creator-register-showreel",
+      creatorType: type,
+    });
+    const actorShowreelErr = validateStorageUrlField(normalizedActorShowreel, "actorProfile.showreel");
+    if (actorShowreelErr) return NextResponse.json({ error: actorShowreelErr }, { status: 400 });
 
     const existing = await prisma.user.findUnique({
       where: { email: normalizedEmail },
@@ -300,12 +321,12 @@ export async function POST(request: NextRequest) {
                 availability: actorProfile.availability ?? null,
                 contactVisibility: "PRIVATE",
               }),
-              headshotUrl: actorProfile.profilePhoto?.trim() || null,
+              headshotUrl: normalizedActorProfile?.profilePhoto || null,
               ageRange: actorProfile.ageRange?.trim() || null,
               gender: actorProfile.gender?.trim() || null,
               skills: (actorProfile.skills ?? []).join(", ") || null,
               pastWork: actorProfile.pastWork?.trim() || null,
-              reelUrl: actorProfile.showreel?.trim() || null,
+              reelUrl: normalizedActorShowreel || null,
               contactEmail: actorProfile.contactInfo?.trim() || normalizedContactEmail || null,
               cvUrl: null,
               sortOrder: 0,
@@ -373,7 +394,7 @@ export async function POST(request: NextRequest) {
             city: city?.trim() || locationProfile?.region?.trim() || null,
             country: country?.trim() || null,
             dailyRate: locationProfile?.rentalCostPerDay ?? null,
-            photoUrls: (locationProfile?.photos ?? []).join(", ") || null,
+            photoUrls: normalizedLocationPhotos.join(", ") || null,
             availability: locationProfile?.availability?.trim() || null,
             rules: embedMeta(locationProfile?.restrictions ?? null, {
               hourlyRate: locationProfile?.rentalCostPerHour ?? null,

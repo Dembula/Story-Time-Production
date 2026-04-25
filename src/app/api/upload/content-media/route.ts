@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { ingestToCloudflareStreamFromUrl } from "@/lib/cloudflare-stream";
 import { upsertStreamAsset } from "@/lib/stream-asset-store";
+import { getStorageConfig } from "@/lib/storage-config";
 
 export const runtime = "nodejs";
 
@@ -46,16 +47,18 @@ const ALLOWED_MIME_TYPES = new Set([
   "audio/webm",
 ]);
 
+const storage = getStorageConfig();
+
 const s3Client = new S3Client({
-  region: process.env.STORAGE_REGION,
-  endpoint: process.env.STORAGE_ENDPOINT || undefined,
-  credentials: process.env.STORAGE_ACCESS_KEY_ID && process.env.STORAGE_SECRET_ACCESS_KEY
+  region: storage.region || undefined,
+  endpoint: storage.endpoint || undefined,
+  credentials: storage.accessKeyId && storage.secretAccessKey
     ? {
-        accessKeyId: process.env.STORAGE_ACCESS_KEY_ID,
-        secretAccessKey: process.env.STORAGE_SECRET_ACCESS_KEY,
+        accessKeyId: storage.accessKeyId,
+        secretAccessKey: storage.secretAccessKey,
       }
     : undefined,
-  forcePathStyle: Boolean(process.env.STORAGE_ENDPOINT),
+  forcePathStyle: Boolean(storage.endpoint),
 });
 
 function maxUploadBytes(): number {
@@ -65,8 +68,8 @@ function maxUploadBytes(): number {
 }
 
 function normalizePublicBaseUrl(bucket: string): string {
-  const raw = process.env.STORAGE_PUBLIC_BASE_URL?.trim();
-  const fallback = `https://${bucket}.s3.${process.env.STORAGE_REGION}.amazonaws.com`;
+  const raw = storage.publicBaseUrl;
+  const fallback = `https://${bucket}.s3.${storage.region}.amazonaws.com`;
   if (!raw) return fallback;
   if (/^https?:\/\//i.test(raw)) return raw.replace(/\/$/, "");
   return `https://${raw.replace(/\/$/, "")}`;
@@ -85,11 +88,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const bucket = process.env.STORAGE_BUCKET_NAME;
+    const bucket = storage.bucket;
 
-    if (!bucket || !process.env.STORAGE_REGION) {
+    if (!bucket || !storage.region) {
       return NextResponse.json(
-        { error: "Storage is not configured. Please set STORAGE_BUCKET_NAME and STORAGE_REGION env vars." },
+        { error: "Storage is not configured. Set STORAGE_BUCKET_NAME/STORAGE_REGION (or S3_BUCKET_NAME/S3_REGION)." },
         { status: 500 },
       );
     }
