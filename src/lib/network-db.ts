@@ -150,10 +150,10 @@ export async function getFeedPostIdsForUser(userId: string, limit: number): Prom
     where: { followerId: userId },
     select: { followingId: true },
   });
-  const ids = following.map((f) => f.followingId);
-  if (ids.length === 0) return [];
+  const followingIds = following.map((f) => f.followingId);
+  const authorIds = Array.from(new Set([userId, ...followingIds]));
   const posts = await prisma.networkPost.findMany({
-    where: { authorId: { in: ids } },
+    where: { authorId: { in: authorIds } },
     orderBy: { createdAt: "desc" },
     take: limit,
     select: { id: true },
