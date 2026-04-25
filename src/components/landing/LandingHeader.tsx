@@ -23,23 +23,23 @@ export function LandingHeader() {
           : "border-b border-white/6 bg-[#080c16]/58 backdrop-blur-xl",
       ].join(" ")}
     >
-      <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+      <div className="max-w-7xl mx-auto px-4 py-2.5 sm:px-6 sm:py-3 flex items-center justify-between gap-3">
         <Link href="/" className="flex items-center gap-3">
           <Image src="/logo.png" alt="Story Time" width={40} height={40} className="rounded-xl shadow-glow" />
-          <span className="text-lg font-semibold tracking-[0.14em] text-white">STORY <span className="storytime-brand-text">TIME</span></span>
+          <span className="text-sm sm:text-lg font-semibold tracking-[0.12em] sm:tracking-[0.14em] text-white">STORY <span className="storytime-brand-text">TIME</span></span>
         </Link>
-        <nav className="flex items-center gap-2">
-          <Link href="/auth/signin" className="rounded-xl px-4 py-2.5 text-sm font-medium text-slate-300 hover:bg-white/[0.05] hover:text-white">
+        <nav className="flex items-center gap-1 sm:gap-2">
+          <Link href="/auth/signin" className="rounded-xl px-2.5 py-2 sm:px-4 sm:py-2.5 text-xs sm:text-sm font-medium text-slate-300 hover:bg-white/[0.05] hover:text-white">
             Sign In
           </Link>
-          <Link href="/auth/signup" className="rounded-xl px-4 py-2.5 text-sm font-medium text-slate-300 hover:bg-white/[0.05] hover:text-white">
+          <Link href="/auth/signup" className="rounded-xl px-2.5 py-2 sm:px-4 sm:py-2.5 text-xs sm:text-sm font-medium text-slate-300 hover:bg-white/[0.05] hover:text-white">
             Sign Up
           </Link>
-          <span className="mx-1 h-5 w-px bg-white/10" />
-          <Link href="/auth/creator/signin" className="rounded-xl px-4 py-2.5 text-sm font-medium text-orange-300 hover:bg-orange-500/10 hover:text-orange-200">
+          <span className="mx-1 hidden md:block h-5 w-px bg-white/10" />
+          <Link href="/auth/creator/signin" className="hidden md:inline-flex rounded-xl px-4 py-2.5 text-sm font-medium text-orange-300 hover:bg-orange-500/10 hover:text-orange-200">
             Creator Sign In
           </Link>
-          <Link href="/auth/creator/signup" className="rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white shadow-glow hover:-translate-y-0.5 hover:bg-orange-400">
+          <Link href="/auth/creator/signup" className="hidden md:inline-flex rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white shadow-glow hover:-translate-y-0.5 hover:bg-orange-400">
             Creator Sign Up
           </Link>
         </nav>

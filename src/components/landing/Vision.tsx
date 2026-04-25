@@ -17,19 +17,19 @@ const flowSteps = [
 
 export function Vision() {
   return (
-    <section className="border-t border-white/8 px-6 py-20">
+    <section className="border-t border-white/8 px-4 py-14 sm:px-6 sm:py-20">
       <div className="mx-auto max-w-6xl">
         <LandingReveal className="mx-auto max-w-4xl text-center">
-          <h2 className="mb-3 font-display text-3xl font-bold tracking-tight text-white md:text-4xl">
+          <h2 className="mb-3 font-display text-2xl sm:text-3xl font-bold tracking-tight text-white md:text-4xl">
             A Network That Expands Creative Possibility.
           </h2>
-          <p className="mb-14 text-center text-lg leading-8 text-slate-300/80">
+          <p className="mb-10 sm:mb-14 text-center text-base sm:text-lg leading-7 sm:leading-8 text-slate-300/80">
             Story Time connects creators to audiences, collaborators, and shared momentum in one system where visibility, relationships, and contribution reinforce one another over time.
           </p>
         </LandingReveal>
         <div className="grid gap-8 lg:grid-cols-[1.06fr_0.94fr]">
           <LandingReveal>
-            <div className="storytime-section relative overflow-hidden p-8">
+            <div className="storytime-section relative overflow-hidden p-5 sm:p-8">
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_35%_22%,rgba(255,171,63,0.18),transparent_28%)]" />
               <div className="relative">
                 <p className="mb-3 text-xs uppercase tracking-[0.24em] text-slate-500">Creator network</p>
@@ -39,7 +39,7 @@ export function Vision() {
                 <p className="mb-8 max-w-2xl text-sm leading-7 text-slate-300/78">
                   On Story Time, discovery, collaboration, and production infrastructure are connected. Writers, filmmakers, music creators, talent, crews, and service providers become part of a living creative field where more visibility leads to more connection, and more connection leads to more possibility.
                 </p>
-                <div className="relative h-[320px] overflow-hidden rounded-[1.75rem] border border-white/8 bg-black/18">
+                <div className="relative h-[250px] sm:h-[320px] overflow-hidden rounded-[1.75rem] border border-white/8 bg-black/18">
                   {[
                     { from: [16, 22], to: [60, 16] },
                     { from: [16, 22], to: [24, 60] },
@@ -79,7 +79,7 @@ export function Vision() {
           </LandingReveal>
 
           <LandingReveal delay={0.08}>
-            <div className="storytime-section p-8">
+            <div className="storytime-section p-5 sm:p-8">
               <p className="mb-3 text-xs uppercase tracking-[0.24em] text-slate-500">Value in motion</p>
               <h3 className="mb-3 font-display text-2xl font-semibold text-white">
                 How value flows through Story Time

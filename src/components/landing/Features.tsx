@@ -31,20 +31,20 @@ const items = [
 
 export function Features() {
   return (
-    <section id="features" className="border-t border-white/8 bg-white/[0.02] px-6 py-20">
+    <section id="features" className="border-t border-white/8 bg-white/[0.02] px-4 py-14 sm:px-6 sm:py-20">
       <div className="max-w-6xl mx-auto">
         <LandingReveal className="mx-auto max-w-4xl text-center">
-          <h2 className="mb-3 font-display text-3xl font-bold tracking-tight text-white md:text-4xl">
+          <h2 className="mb-3 font-display text-2xl sm:text-3xl font-bold tracking-tight text-white md:text-4xl">
             Built for Every Stage of the Creator Journey
           </h2>
-          <p className="mx-auto mb-16 max-w-3xl text-center text-lg leading-8 text-slate-300/80">
+          <p className="mx-auto mb-10 sm:mb-16 max-w-3xl text-center text-base sm:text-lg leading-7 sm:leading-8 text-slate-300/80">
             Story Time brings the full creative lifecycle into one environment so creators can stay close to the work, close to their audience, and close to their own direction.
           </p>
         </LandingReveal>
-        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-4 sm:gap-6 md:grid-cols-2 xl:grid-cols-3">
           {items.map((item, i) => (
             <LandingReveal key={item.title} delay={i * 0.04}>
-              <div className="storytime-panel group h-full rounded-[1.6rem] p-8 hover:-translate-y-1 hover:bg-white/[0.04]">
+              <div className="storytime-panel group h-full rounded-[1.6rem] p-5 sm:p-8 hover:-translate-y-1 hover:bg-white/[0.04]">
                 <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl border border-orange-400/16 bg-orange-500/10 group-hover:border-orange-300/28 group-hover:bg-orange-500/18">
                   <item.icon className="h-6 w-6 text-orange-300" />
                 </div>

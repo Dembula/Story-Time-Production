@@ -8,7 +8,7 @@ import { LandingReveal } from "@/components/landing/LandingReveal";
 
 export function Hero() {
   return (
-    <section className="relative flex min-h-screen items-center overflow-hidden px-6 pb-12 pt-24">
+    <section className="relative flex min-h-[92svh] items-center overflow-hidden px-4 pb-10 pt-20 sm:min-h-screen sm:px-6 sm:pb-12 sm:pt-24">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(255,170,51,0.12),transparent_26%),linear-gradient(180deg,rgba(5,8,14,0.24),rgba(5,8,14,0.72))]" />
       <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(5,8,14,0.96),rgba(5,8,14,0.72)_40%,rgba(5,8,14,0.78))]" />
       <div className="absolute inset-y-0 left-1/2 hidden w-[44rem] -translate-x-1/2 lg:block">
@@ -57,39 +57,39 @@ export function Hero() {
         />
       </div>
 
-      <div className="relative z-10 mx-auto grid w-full max-w-7xl items-center gap-14 lg:grid-cols-[minmax(0,1.08fr)_minmax(320px,0.92fr)]">
+      <div className="relative z-10 mx-auto grid w-full max-w-7xl items-center gap-8 sm:gap-10 lg:gap-14 lg:grid-cols-[minmax(0,1.08fr)_minmax(320px,0.92fr)]">
         <LandingReveal className="max-w-3xl">
-          <div className="storytime-panel mb-8 inline-flex items-center gap-3 rounded-full px-5 py-2.5 text-[0.78rem] font-medium uppercase tracking-[0.22em] text-slate-200/92">
+          <div className="storytime-panel mb-6 inline-flex items-center gap-3 rounded-full px-4 py-2 text-[0.68rem] sm:mb-8 sm:px-5 sm:py-2.5 sm:text-[0.78rem] font-medium uppercase tracking-[0.18em] sm:tracking-[0.22em] text-slate-200/92">
             <span className="h-2 w-2 rounded-full bg-orange-300 shadow-[0_0_14px_rgba(255,179,71,0.75)]" />
             Creator-owned streaming infrastructure
           </div>
-          <div className="mb-6 flex items-center gap-4">
-            <Image src="/logo.png" alt="Story Time" width={88} height={88} className="rounded-[1.4rem] shadow-glow" />
+          <div className="mb-5 flex items-center gap-3 sm:mb-6 sm:gap-4">
+            <Image src="/logo.png" alt="Story Time" width={72} height={72} className="rounded-[1.2rem] shadow-glow sm:h-[88px] sm:w-[88px] sm:rounded-[1.4rem]" />
             <div>
-              <p className="text-sm uppercase tracking-[0.28em] text-slate-400">Story Time</p>
-              <p className="text-base text-orange-200/85">Built for stories that deserve to endure</p>
+              <p className="text-xs sm:text-sm uppercase tracking-[0.2em] sm:tracking-[0.28em] text-slate-400">Story Time</p>
+              <p className="text-sm sm:text-base text-orange-200/85">Built for stories that deserve to endure</p>
             </div>
           </div>
-          <h1 className="mb-5 font-display text-5xl font-bold tracking-tight text-white md:text-7xl">
+          <h1 className="mb-4 font-display text-4xl font-bold tracking-tight text-white sm:mb-5 sm:text-5xl md:text-7xl">
             Where Stories Become Legacy.
           </h1>
-          <p className="mb-3 text-xl font-light tracking-wide text-orange-200/90 md:text-2xl">
+          <p className="mb-3 text-lg sm:text-xl font-light tracking-wide text-orange-200/90 md:text-2xl">
             Create, release, and shape your work on your own terms.
           </p>
-          <p className="mb-10 max-w-2xl text-lg leading-8 text-slate-300/88">
+          <p className="mb-8 max-w-2xl text-base leading-7 text-slate-300/88 sm:mb-10 sm:text-lg sm:leading-8">
             Story Time is a creator-powered ecosystem for filmmakers, writers, musicians, and production teams to develop work, share it with the world, and build a body of work that remains in their hands.
           </p>
-          <div className="mb-8 flex flex-wrap gap-4">
-            <Link href="/auth/signup" className="group flex items-center gap-2 rounded-2xl bg-orange-500 px-8 py-3.5 font-semibold text-white shadow-glow hover:-translate-y-0.5 hover:bg-orange-400">
+          <div className="mb-7 flex flex-wrap gap-3 sm:mb-8 sm:gap-4">
+            <Link href="/auth/signup" className="group flex items-center gap-2 rounded-2xl bg-orange-500 px-6 py-3 text-sm font-semibold text-white shadow-glow hover:-translate-y-0.5 hover:bg-orange-400 sm:px-8 sm:py-3.5 sm:text-base">
               <Play className="w-5 h-5" />
               Enter Platform
             </Link>
-            <Link href="#features" className="storytime-panel flex items-center gap-2 rounded-2xl px-8 py-3.5 font-semibold text-white hover:-translate-y-0.5 hover:bg-white/[0.04]">
+            <Link href="#features" className="storytime-panel flex items-center gap-2 rounded-2xl px-6 py-3 text-sm font-semibold text-white hover:-translate-y-0.5 hover:bg-white/[0.04] sm:px-8 sm:py-3.5 sm:text-base">
               <ArrowRight className="w-5 h-5" />
               Explore Features
             </Link>
           </div>
-          <div className="inline-flex items-center gap-4 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 text-sm text-slate-300/88 shadow-panel">
+          <div className="inline-flex items-center gap-3 sm:gap-4 rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-2.5 sm:px-4 sm:py-3 text-xs sm:text-sm text-slate-300/88 shadow-panel">
             <div className="flex items-center gap-3">
               <div className="flex items-end gap-1">
                 <span className="w-1.5 rounded-full bg-orange-300/80 animate-[pulse_1.2s_ease-in-out_infinite]" style={{ height: "14px" }} />
@@ -102,7 +102,7 @@ export function Hero() {
         </LandingReveal>
 
         <LandingReveal delay={0.12} className="lg:justify-self-end">
-          <div className="storytime-section relative overflow-hidden p-6 md:p-7">
+          <div className="storytime-section relative overflow-hidden p-4 sm:p-6 md:p-7">
             <div className="absolute inset-x-0 top-0 h-24 bg-[linear-gradient(180deg,rgba(255,186,93,0.16),transparent)]" />
             <div className="relative">
               <div className="mb-6 flex items-center justify-between">

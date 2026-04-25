@@ -106,7 +106,7 @@ export default function CreatorLayout({
         </div>
       </div>
 
-      <div className={`max-w-7xl mx-auto ${deviceClass === "mobile" ? "px-3 py-4 pb-20" : "px-4 md:px-8 py-6"} flex gap-4 md:gap-6`}>
+      <div className={`max-w-7xl mx-auto ${deviceClass === "mobile" ? "px-3 py-4" : "px-4 md:px-8 py-6"} flex gap-4 md:gap-6`}>
         {sidebarOpen && (
           <aside className={`${deviceClass === "tablet" ? "w-64" : "w-56"} shrink-0`}>
             <nav className="space-y-1">
@@ -232,29 +232,9 @@ export default function CreatorLayout({
         )}
 
         <main className={`flex-1 min-w-0 ${deviceClass === "tv" ? "text-lg" : ""}`}>
-          {!sidebarOpen && (
-            <button
-              type="button"
-              onClick={() => setSidebarOpen(true)}
-              className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs text-slate-300 hover:bg-white/[0.08] hover:text-white"
-            >
-              <PanelLeftOpen className="w-3 h-3" />
-              Show menu
-            </button>
-          )}
           <CreatorPipelineRouteGate>{children}</CreatorPipelineRouteGate>
         </main>
       </div>
-      {deviceClass === "mobile" && (
-        <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-white/10 bg-[#080c16]/95 px-2 py-2 backdrop-blur-xl">
-          <div className="mx-auto grid max-w-2xl grid-cols-4 gap-1">
-            <Link href="/creator/command-center" className="adaptive-interactive rounded-lg px-2 py-2 text-center text-xs text-slate-200 hover:bg-white/[0.06]">Command</Link>
-            <Link href="/creator/dashboard" className="adaptive-interactive rounded-lg px-2 py-2 text-center text-xs text-slate-200 hover:bg-white/[0.06]">Projects</Link>
-            <Link href="/creator/network" className="adaptive-interactive rounded-lg px-2 py-2 text-center text-xs text-slate-200 hover:bg-white/[0.06]">Network</Link>
-            <Link href="/creator/account" className="adaptive-interactive rounded-lg px-2 py-2 text-center text-xs text-slate-200 hover:bg-white/[0.06]">Account</Link>
-          </div>
-        </nav>
-      )}
     </div>
   );
 }
