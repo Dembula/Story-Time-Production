@@ -27,6 +27,13 @@ const PLACEHOLDER_VIDEO =
 const SEEK_SECONDS = 10;
 const CONTROLS_HIDE_MS = 3000;
 
+function computeIsMobileLikeClient(): boolean {
+  if (typeof window === "undefined") return false;
+  const coarse =
+    typeof window.matchMedia === "function" ? window.matchMedia("(pointer: coarse)").matches : false;
+  return coarse || window.innerWidth < 900;
+}
+
 type FullscreenPlayerProps = {
   src: string;
   poster?: string | null;
@@ -64,7 +71,8 @@ export function FullscreenPlayer({
   const [audioOpen, setAudioOpen] = useState(false);
   const [subtitleTrack, setSubtitleTrack] = useState<string>("off");
   const [audioTrack, setAudioTrack] = useState<string>(language || "en");
-  const [isMobileLike, setIsMobileLike] = useState(false);
+  /** Must be correct on first client render so we never call requestFullscreen on phones before state updates. */
+  const [isMobileLike, setIsMobileLike] = useState(computeIsMobileLikeClient);
 
   const videoSrc = src || PLACEHOLDER_VIDEO;
 
@@ -104,8 +112,12 @@ export function FullscreenPlayer({
 
   const goBack = useCallback(() => {
     navigatingBackRef.current = true;
-    if (containerRef.current && document.fullscreenElement === containerRef.current) {
-      document.exitFullscreen().catch(() => {});
+    if (
+      containerRef.current &&
+      document.fullscreenElement === containerRef.current &&
+      typeof document.exitFullscreen === "function"
+    ) {
+      void document.exitFullscreen().catch(() => {});
     }
     router.replace(contentDetailUrl);
   }, [contentDetailUrl, router]);
@@ -151,10 +163,7 @@ export function FullscreenPlayer({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const computeMobileLike = () => {
-      const coarse = typeof window.matchMedia === "function" ? window.matchMedia("(pointer: coarse)").matches : false;
-      setIsMobileLike(coarse || window.innerWidth < 900);
-    };
+    const computeMobileLike = () => setIsMobileLike(computeIsMobileLikeClient());
     computeMobileLike();
     window.addEventListener("resize", computeMobileLike);
     return () => window.removeEventListener("resize", computeMobileLike);
@@ -165,16 +174,27 @@ export function FullscreenPlayer({
     if (!container) return;
 
     const enterFullscreen = () => {
-      if (isMobileLike) return;
-      if (!document.fullscreenElement) {
-        container
-          .requestFullscreen()
-          .then(() => {
-            const v = videoRef.current;
-            if (v) v.play().catch(() => {});
-          })
-          .catch(() => {});
+      // State can lag SSR/hydration; never call Fullscreen API on phones/tablets.
+      if (isMobileLike || computeIsMobileLikeClient()) return;
+      if (document.fullscreenElement) return;
+      const requestFs =
+        container.requestFullscreen?.bind(container) ??
+        (container as unknown as { webkitRequestFullscreen?: () => Promise<void> | void })
+          .webkitRequestFullscreen?.bind(container);
+      if (!requestFs) {
+        const v = videoRef.current;
+        if (v) void v.play().catch(() => {});
+        return;
       }
+      void Promise.resolve(requestFs())
+        .then(() => {
+          const v = videoRef.current;
+          if (v) void v.play().catch(() => {});
+        })
+        .catch(() => {
+          const v = videoRef.current;
+          if (v) void v.play().catch(() => {});
+        });
     };
 
     enterFullscreen();
@@ -200,10 +220,12 @@ export function FullscreenPlayer({
     const v = videoRef.current;
     if (!v) return;
     const lockLandscape = async () => {
-      if (!isMobileLike) return;
-      const orientationApi = screen.orientation as ScreenOrientation & {
-        lock?: (orientation: "landscape" | "landscape-primary" | "landscape-secondary") => Promise<void>;
-      };
+      if (!isMobileLike || typeof window === "undefined") return;
+      const orientationApi = window.screen?.orientation as
+        | (ScreenOrientation & {
+            lock?: (orientation: "landscape" | "landscape-primary" | "landscape-secondary") => Promise<void>;
+          })
+        | undefined;
       if (!orientationApi?.lock) return;
       try {
         await orientationApi.lock("landscape");
@@ -223,7 +245,8 @@ export function FullscreenPlayer({
 
   useEffect(() => {
     return () => {
-      const orientationApi = screen.orientation as ScreenOrientation & { unlock?: () => void };
+      if (typeof window === "undefined") return;
+      const orientationApi = window.screen?.orientation as (ScreenOrientation & { unlock?: () => void }) | undefined;
       if (orientationLockedRef.current && orientationApi?.unlock) {
         try {
           orientationApi.unlock();
