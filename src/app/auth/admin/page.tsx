@@ -1,6 +1,6 @@
 "use client";
 
-import { signIn, useSession } from "next-auth/react";
+import { signIn, signOut, useSession } from "next-auth/react";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
@@ -27,7 +27,7 @@ export default function AdminLoginPage() {
     e.preventDefault();
     setError("");
     setLoading(true);
-    const res = await signIn("credentials", {
+    const res = await signIn("credentials-admin", {
       email,
       password,
       redirect: false,
@@ -96,6 +96,13 @@ export default function AdminLoginPage() {
               <p className="text-sm text-slate-300 mb-3">
                 You are signed in as <span className="text-white font-medium">{session.user?.email}</span>. Request admin access for an administrator to review.
               </p>
+              <button
+                type="button"
+                onClick={() => void signOut({ redirect: false })}
+                className="mb-3 w-full py-2.5 rounded-lg bg-slate-700/40 text-slate-200 font-medium hover:bg-slate-700/60 transition"
+              >
+                Sign out this account first
+              </button>
               {requestSent ? (
                 <p className="text-sm text-emerald-400">Request submitted. An administrator will review it.</p>
               ) : (

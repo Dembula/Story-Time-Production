@@ -99,9 +99,44 @@ export const authOptions: NextAuthOptions = {
           "CREW_TEAM",
           "CASTING_AGENCY",
           "CATERING_COMPANY",
-          "ADMIN",
         ]);
         if (!creatorRoles.has(role)) return null;
+        return {
+          id: user.id,
+          email: user.email!,
+          name: user.name,
+          role,
+          image: user.image,
+          activeCreatorStudioProfileId: user.activeCreatorStudioProfileId,
+        } as {
+          id: string;
+          email: string;
+          name: string | null;
+          role: string;
+          image: string | null;
+          activeCreatorStudioProfileId: string | null;
+        };
+      },
+    }),
+    CredentialsProvider({
+      id: "credentials-admin",
+      name: "Admin Login",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || credentials.password == null) return null;
+        const user = await findUserForCredentialsLogin(credentials.email.toLowerCase());
+        if (!user) return null;
+        if (user.passwordHash) {
+          const ok = await compare(credentials.password, user.passwordHash);
+          if (!ok) return null;
+        } else {
+          if (credentials.password !== DEMO_PASSWORD) return null;
+        }
+        const role = user.role ?? "SUBSCRIBER";
+        if (role !== "ADMIN") return null;
         return {
           id: user.id,
           email: user.email!,
