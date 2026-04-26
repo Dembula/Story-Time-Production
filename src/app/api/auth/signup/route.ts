@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hash } from "bcryptjs";
+import { sendWelcomeEmail } from "@/lib/sendgrid";
 
 /**
  * POST /api/auth/signup — Create a new viewer (subscriber) account.
@@ -39,14 +40,23 @@ export async function POST(request: NextRequest) {
 
     const passwordHash = await hash(password, 10);
 
-    await prisma.user.create({
+    const user = await prisma.user.create({
       data: {
         email: normalizedEmail,
         name: name?.trim() || null,
         role: "SUBSCRIBER",
         passwordHash,
       },
+      select: { id: true, email: true, name: true },
     });
+
+    try {
+      if (user.email) {
+        await sendWelcomeEmail(user.email, user.name);
+      }
+    } catch (emailError) {
+      console.error("Welcome email send failed:", emailError);
+    }
 
     return NextResponse.json({ ok: true }, { status: 201 });
   } catch (e) {
