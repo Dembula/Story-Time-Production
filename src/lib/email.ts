@@ -4,6 +4,7 @@ export type SendEmailInput = {
   to: string;
   subject: string;
   text: string;
+  html?: string;
 };
 
 /**
@@ -12,6 +13,31 @@ export type SendEmailInput = {
  */
 export async function sendTransactionalEmail(input: SendEmailInput): Promise<boolean> {
   const from = process.env.EMAIL_FROM || "noreply@storytime.com";
+
+  if (process.env.SENDGRID_API_KEY) {
+    const res = await fetch("https://api.sendgrid.com/v3/mail/send", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.SENDGRID_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: { email: from },
+        personalizations: [{ to: [{ email: input.to }] }],
+        subject: input.subject,
+        content: [
+          { type: "text/plain", value: input.text },
+          ...(input.html ? [{ type: "text/html", value: input.html }] : []),
+        ],
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.text().catch(() => "");
+      console.error("SendGrid email failed:", res.status, err);
+      return false;
+    }
+    return true;
+  }
 
   if (process.env.RESEND_API_KEY) {
     const res = await fetch("https://api.resend.com/emails", {
@@ -25,6 +51,7 @@ export async function sendTransactionalEmail(input: SendEmailInput): Promise<boo
         to: [input.to],
         subject: input.subject,
         text: input.text,
+        ...(input.html ? { html: input.html } : {}),
       }),
     });
     if (!res.ok) {
@@ -53,6 +80,7 @@ export async function sendTransactionalEmail(input: SendEmailInput): Promise<boo
       to: input.to,
       subject: input.subject,
       text: input.text,
+      ...(input.html ? { html: input.html } : {}),
     });
     return true;
   } catch (e) {

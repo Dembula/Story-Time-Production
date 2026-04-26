@@ -77,6 +77,11 @@ export default function SignInPage() {
                 required
                 className="storytime-input px-4 py-3"
               />
+              <div className="mt-2 text-right">
+                <Link href="/auth/forgot-password" className="text-xs text-orange-300 hover:text-orange-200">
+                  Forgot password?
+                </Link>
+              </div>
             </div>
             {error && (
               <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3">

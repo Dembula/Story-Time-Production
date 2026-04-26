@@ -1588,6 +1588,22 @@ exports.Prisma.FootageAssetScalarFieldEnum = {
   createdAt: 'createdAt'
 };
 
+exports.Prisma.StreamAssetScalarFieldEnum = {
+  id: 'id',
+  uid: 'uid',
+  sourceUrl: 'sourceUrl',
+  playbackUrl: 'playbackUrl',
+  hlsUrl: 'hlsUrl',
+  iframeUrl: 'iframeUrl',
+  status: 'status',
+  entityType: 'entityType',
+  entityId: 'entityId',
+  lastError: 'lastError',
+  lastWebhookAt: 'lastWebhookAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
 exports.Prisma.MusicSelectionScalarFieldEnum = {
   id: 'id',
   projectId: 'projectId',
@@ -1705,6 +1721,15 @@ exports.Prisma.AdminAuditLogScalarFieldEnum = {
   entityId: 'entityId',
   oldValue: 'oldValue',
   newValue: 'newValue',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.PasswordResetTokenScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  token: 'token',
+  expiresAt: 'expiresAt',
+  used: 'used',
   createdAt: 'createdAt'
 };
 
@@ -1857,6 +1882,7 @@ exports.Prisma.ModelName = {
   DailiesNote: 'DailiesNote',
   IncidentReport: 'IncidentReport',
   FootageAsset: 'FootageAsset',
+  StreamAsset: 'StreamAsset',
   MusicSelection: 'MusicSelection',
   PostProductionReview: 'PostProductionReview',
   ReviewNote: 'ReviewNote',
@@ -1868,7 +1894,8 @@ exports.Prisma.ModelName = {
   ModocMessage: 'ModocMessage',
   ScriptReviewNote: 'ScriptReviewNote',
   CreatorScript: 'CreatorScript',
-  AdminAuditLog: 'AdminAuditLog'
+  AdminAuditLog: 'AdminAuditLog',
+  PasswordResetToken: 'PasswordResetToken'
 };
 
 /**

@@ -204,6 +204,7 @@ model User {
 
   // Admin audit logs for privileged actions
   adminAuditLogs        AdminAuditLog[]
+  passwordResetTokens   PasswordResetToken[]
 }
 
 /// Film / music studio company (multi-seat). Owner is the registering admin.
@@ -2680,6 +2681,20 @@ model AdminAuditLog {
   @@index([adminUserId])
   @@index([entityType, entityId])
   @@index([createdAt])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("password_reset_tokens")
 }
 
 

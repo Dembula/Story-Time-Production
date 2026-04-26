@@ -86,6 +86,11 @@ export default function CreatorSignInPage() {
                 required
                 className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-950 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-amber-400 focus:ring-2 focus:ring-amber-200/80"
               />
+              <div className="mt-2 text-right">
+                <Link href="/auth/forgot-password" className="text-xs text-slate-600 hover:text-slate-900">
+                  Forgot password?
+                </Link>
+              </div>
             </div>
             {error && (
               <div className="rounded-xl border border-red-200 bg-red-50 p-3">

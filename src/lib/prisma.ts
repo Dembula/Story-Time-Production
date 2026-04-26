@@ -17,7 +17,7 @@ let prisma: PrismaClientType = globalForPrisma.prisma ?? createPrismaClient();
 // After `prisma generate`, new models exist on the generated client class but the dev-server
 // global singleton may still be an older PrismaClient instance (missing delegates) → 500s.
 // List delegates that must exist for the current schema; extend when new models ship.
-const REQUIRED_PRISMA_DELEGATES = ["shootDayControlBoard", "creatorAccountProfileVault"] as const;
+const REQUIRED_PRISMA_DELEGATES = ["shootDayControlBoard", "creatorAccountProfileVault", "passwordResetToken"] as const;
 function prismaSingletonIsStale(client: unknown): boolean {
   const c = client as Record<string, unknown>;
   return REQUIRED_PRISMA_DELEGATES.some((name) => typeof c[name] === "undefined");
