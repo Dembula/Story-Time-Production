@@ -57,7 +57,18 @@ export async function POST(request: NextRequest) {
       ]);
 
       const resetLink = `${getBaseUrl().replace(/\/$/, "")}/reset-password?token=${encodeURIComponent(rawToken)}`;
-      await sendPasswordResetEmail(user.email, resetLink);
+      try {
+        await sendPasswordResetEmail(user.email, resetLink);
+      } catch (emailError) {
+        console.error("Password reset email send failed:", emailError);
+        return NextResponse.json(
+          {
+            error:
+              "Password reset email service is not configured correctly. Please contact support.",
+          },
+          { status: 502 }
+        );
+      }
     }
 
     return NextResponse.json({
@@ -66,6 +77,13 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Password reset request failed:", error);
+    const message = error instanceof Error ? error.message : "";
+    if (/password_reset_tokens|passwordResetToken|relation .* does not exist/i.test(message)) {
+      return NextResponse.json(
+        { error: "Password reset storage is not ready. Please contact support." },
+        { status: 500 }
+      );
+    }
     return NextResponse.json({ error: "Unable to process password reset request." }, { status: 500 });
   }
 }
