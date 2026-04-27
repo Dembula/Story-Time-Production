@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ensureCreatorStudioProfilesForUser, loadStudioPipelineContext } from "@/lib/creator-studio";
-import { getCreatorRevenue, getViewerSubscriptionRevenue } from "@/lib/revenue";
+import { getCreatorRevenue, getViewerSubscriptionRevenue } from "@/lib/financial-ledger";
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);

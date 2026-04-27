@@ -65,8 +65,9 @@ export function FullscreenPlayer({
   const videoRef = useRef<HTMLVideoElement>(null);
   const hideControlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onTimeUpdateRef = useRef(onTimeUpdate);
-  const navigatingBackRef = useRef(false);
   const orientationLockedRef = useRef(false);
+  const leaveWatchFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const leaveWatchPopStateRef = useRef<(() => void) | null>(null);
   onTimeUpdateRef.current = onTimeUpdate;
 
   const [controlsVisible, setControlsVisible] = useState(true);
@@ -117,17 +118,73 @@ export function FullscreenPlayer({
     setCurrentTime(0);
   }, []);
 
-  const goBack = useCallback(() => {
-    navigatingBackRef.current = true;
-    if (
-      containerRef.current &&
-      document.fullscreenElement === containerRef.current &&
-      typeof document.exitFullscreen === "function"
-    ) {
+  const exitContainerFullscreen = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    if (document.fullscreenElement === container && typeof document.exitFullscreen === "function") {
       void document.exitFullscreen().catch(() => {});
     }
-    router.replace(contentDetailUrl);
-  }, [contentDetailUrl, router]);
+    const doc = document as Document & {
+      webkitFullscreenElement?: Element | null;
+      webkitExitFullscreen?: () => void;
+    };
+    if (doc.webkitFullscreenElement === container && typeof doc.webkitExitFullscreen === "function") {
+      try {
+        doc.webkitExitFullscreen();
+      } catch {
+        // no-op
+      }
+    }
+  }, []);
+
+  /** Prefer real history so browser / device back stays predictable; fall back to title URL. */
+  const leaveWatch = useCallback(() => {
+    exitContainerFullscreen();
+
+    if (typeof window === "undefined") {
+      router.replace(contentDetailUrl);
+      return;
+    }
+
+    if (leaveWatchFallbackTimerRef.current) {
+      clearTimeout(leaveWatchFallbackTimerRef.current);
+      leaveWatchFallbackTimerRef.current = null;
+    }
+    if (leaveWatchPopStateRef.current) {
+      window.removeEventListener("popstate", leaveWatchPopStateRef.current);
+      leaveWatchPopStateRef.current = null;
+    }
+
+    const pathBefore = window.location.pathname;
+    const onWatchRoute = pathBefore.includes("/watch");
+
+    if (!onWatchRoute) {
+      router.replace(contentDetailUrl);
+      return;
+    }
+
+    const onPopState = () => {
+      if (leaveWatchFallbackTimerRef.current) {
+        clearTimeout(leaveWatchFallbackTimerRef.current);
+        leaveWatchFallbackTimerRef.current = null;
+      }
+      window.removeEventListener("popstate", onPopState);
+      leaveWatchPopStateRef.current = null;
+    };
+    leaveWatchPopStateRef.current = onPopState;
+    window.addEventListener("popstate", onPopState);
+
+    router.back();
+
+    leaveWatchFallbackTimerRef.current = setTimeout(() => {
+      leaveWatchFallbackTimerRef.current = null;
+      window.removeEventListener("popstate", onPopState);
+      leaveWatchPopStateRef.current = null;
+      if (window.location.pathname === pathBefore) {
+        router.replace(contentDetailUrl);
+      }
+    }, 700);
+  }, [contentDetailUrl, exitContainerFullscreen, router]);
 
   const showControls = useCallback(() => {
     setControlsVisible(true);
@@ -206,22 +263,12 @@ export function FullscreenPlayer({
 
     enterFullscreen();
 
-    const onFullscreenChange = () => {
-      if (!document.fullscreenElement) {
-        if (!navigatingBackRef.current) {
-          navigatingBackRef.current = true;
-          router.replace(contentDetailUrl);
-        }
-      }
-    };
-    document.addEventListener("fullscreenchange", onFullscreenChange);
     return () => {
-      document.removeEventListener("fullscreenchange", onFullscreenChange);
       if (hideControlsTimerRef.current) {
         clearTimeout(hideControlsTimerRef.current);
       }
     };
-  }, [contentDetailUrl, isMobileLike, router]);
+  }, [isMobileLike]);
 
   useEffect(() => {
     const v = videoRef.current;
@@ -252,6 +299,14 @@ export function FullscreenPlayer({
 
   useEffect(() => {
     return () => {
+      if (leaveWatchFallbackTimerRef.current) {
+        clearTimeout(leaveWatchFallbackTimerRef.current);
+        leaveWatchFallbackTimerRef.current = null;
+      }
+      if (typeof window !== "undefined" && leaveWatchPopStateRef.current) {
+        window.removeEventListener("popstate", leaveWatchPopStateRef.current);
+        leaveWatchPopStateRef.current = null;
+      }
       if (typeof window === "undefined") return;
       const orientationApi = window.screen?.orientation as (ScreenOrientation & { unlock?: () => void }) | undefined;
       if (orientationLockedRef.current && orientationApi?.unlock) {
@@ -300,7 +355,7 @@ export function FullscreenPlayer({
         <div className="flex items-center justify-between">
           <button
             type="button"
-            onClick={goBack}
+            onClick={leaveWatch}
             className="flex items-center gap-2 px-3 py-2 rounded-lg text-white/90 hover:bg-white/10 transition-colors touch-manipulation"
             aria-label="Back to title"
           >
@@ -383,13 +438,14 @@ export function FullscreenPlayer({
                 Next: {nextEpisode.title}
               </Link>
             )}
-            <Link
-              href={contentDetailUrl}
-              className="flex items-center gap-2 px-5 py-3 rounded-lg bg-white/20 hover:bg-white/30 text-white font-medium transition-colors"
+            <button
+              type="button"
+              onClick={leaveWatch}
+              className="flex items-center gap-2 px-5 py-3 rounded-lg bg-white/20 hover:bg-white/30 text-white font-medium transition-colors touch-manipulation"
             >
               <ArrowLeft className="w-5 h-5" />
               Back to title
-            </Link>
+            </button>
           </div>
         </div>
       )}

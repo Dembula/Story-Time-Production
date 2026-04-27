@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { FileText, CheckCircle2, Clock, AlertTriangle, ArrowRight, Upload, Loader2 } from "lucide-react";
+import { formatZar } from "@/lib/format-currency-zar";
+import { EXECUTIVE_SCRIPT_REVIEW_FEE_ZAR } from "@/lib/pricing";
 
 type Request = {
   id: string;
@@ -116,7 +118,7 @@ export function AdminScriptReviewsClient() {
           <FileText className="w-8 h-8 text-orange-500" /> Executive Script Reviews
         </h1>
         <p className="text-slate-400">
-          Manage R599 Story Time Executive Script Reviews – track payments, assign reviewers, and
+          Manage {formatZar(EXECUTIVE_SCRIPT_REVIEW_FEE_ZAR)} Story Time Executive Script Reviews – track payments, assign reviewers, and
           send feedback back to creators.
         </p>
       </div>
@@ -127,9 +129,9 @@ export function AdminScriptReviewsClient() {
           <p className="text-2xl font-bold text-white">{summary.totalRequests}</p>
         </div>
         <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
-          <p className="text-xs text-slate-400 mb-1">Total revenue (R599)</p>
+          <p className="text-xs text-slate-400 mb-1">Total revenue ({formatZar(EXECUTIVE_SCRIPT_REVIEW_FEE_ZAR)} per paid request)</p>
           <p className="text-2xl font-bold text-orange-400">
-            R{summary.totalRevenue.toFixed(2)}
+            {formatZar(summary.totalRevenue)}
           </p>
         </div>
         <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
@@ -192,7 +194,7 @@ export function AdminScriptReviewsClient() {
                         </span>
                       </td>
                       <td className="py-3 px-4 text-slate-300">
-                        R{(r.feeAmount ?? 0).toFixed(2)}
+                        {formatZar(r.feeAmount ?? 0)}
                       </td>
                       <td className="py-3 px-4 text-slate-400">
                         {new Date(r.submittedAt).toLocaleDateString()}

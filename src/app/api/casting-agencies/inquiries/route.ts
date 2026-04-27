@@ -3,6 +3,23 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
+/** Creator: casting inquiries sent to agencies (for status + pay). */
+export async function GET() {
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const role = (session.user as { role?: string })?.role;
+  if (role !== "CONTENT_CREATOR" && role !== "ADMIN") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const userId = (session.user as { id?: string })?.id!;
+  const rows = await prisma.castingInquiry.findMany({
+    where: { creatorId: userId },
+    orderBy: { createdAt: "desc" },
+    include: {
+      agency: { select: { id: true, agencyName: true, userId: true } },
+    },
+  });
+  return NextResponse.json(rows);
+}
+
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

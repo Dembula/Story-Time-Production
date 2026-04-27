@@ -1,3 +1,5 @@
+import { formatZar } from "./format-currency-zar";
+
 export const VIEWER_PLAN_CONFIG = {
   BASE_1: {
     label: "Basic",
@@ -144,22 +146,31 @@ export function formatCreatorLicenseSummary(rawType: string | null | undefined):
   if (!rawType) return "No plan";
   switch (rawType) {
     case CREATOR_LICENSE_TYPE.UPLOAD_ONLY_YEARLY:
-      return `Upload & originals · R${CREATOR_ONBOARDING_PLANS.UPLOAD_ONLY.price.toFixed(2)}/year`;
+      return `Upload & originals · ${formatZar(CREATOR_ONBOARDING_PLANS.UPLOAD_ONLY.price)}/year`;
     case CREATOR_LICENSE_TYPE.PIPELINE_YEARLY:
-      return `Full pipeline · R${CREATOR_ONBOARDING_PLANS.PIPELINE_YEARLY.price.toFixed(2)}/year`;
+      return `Full pipeline · ${formatZar(CREATOR_ONBOARDING_PLANS.PIPELINE_YEARLY.price)}/year`;
     case CREATOR_LICENSE_TYPE.PIPELINE_MONTHLY:
-      return `Full pipeline · R${CREATOR_ONBOARDING_PLANS.PIPELINE_MONTHLY.price.toFixed(2)}/month`;
+      return `Full pipeline · ${formatZar(CREATOR_ONBOARDING_PLANS.PIPELINE_MONTHLY.price)}/month`;
     default:
       break;
   }
   if (isCreatorPerUploadLicense(rawType)) {
-    return `Legacy · Pay per upload (R${CREATOR_LICENSE_CONFIG.PER_UPLOAD.price.toFixed(2)})`;
+    return `Legacy · Pay per upload (${formatZar(CREATOR_LICENSE_CONFIG.PER_UPLOAD.price)})`;
   }
   if (rawType === "YEARLY" || rawType === "YEARLY_R89") {
-    return `Legacy · Yearly (R${CREATOR_LICENSE_CONFIG.YEARLY.price.toFixed(2)})`;
+    return `Legacy · Yearly (${formatZar(CREATOR_LICENSE_CONFIG.YEARLY.price)})`;
   }
   return rawType;
 }
+
+/** One-off Story Time executive script review submission (pre-production). */
+export const EXECUTIVE_SCRIPT_REVIEW_FEE_ZAR = 599.99;
+
+/** Casting portal: confirm hire / contract acquisition (simulated payment). */
+export const CASTING_ACQUISITION_FEE_ZAR = 19.99;
+
+/** Casting portal: publish audition listing to agencies (simulated payment). */
+export const AUDITION_LISTING_FEE_ZAR = 99.99;
 
 export const COMPANY_PLAN_CONFIG = {
   STANDARD: {

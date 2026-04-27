@@ -5,6 +5,7 @@ import {
   Sparkles, Package, Film, Users, DollarSign, Target,
   ChevronDown, ChevronUp, Star, CheckCircle,
 } from "lucide-react";
+import { formatZar } from "@/lib/format-currency-zar";
 
 interface Membership { id: string; role: string; department: string | null; status: string; project: { id: string; title: string; logline: string | null; type: string; genre: string | null; status: string; phase: string; budget: number | null; targetDate: string | null; posterUrl: string | null; members: { id: string; role: string; department: string | null; status: string; user: { id: string; name: string | null; role: string } }[]; _count: { members: number } } }
 
@@ -49,7 +50,7 @@ export default function EquipmentOriginalsPage() {
               <div>
                 <p className="text-white font-medium">{m.project.title}</p>
                 <p className="text-xs text-slate-500">Equipment needed: <span className="text-orange-400">{m.role}</span> · {m.project.type} · {m.project.genre}</p>
-                {m.project.budget && <p className="text-xs text-slate-500">Project budget: ${m.project.budget.toLocaleString()}</p>}
+                {m.project.budget && <p className="text-xs text-slate-500">Project budget: {formatZar(m.project.budget, { maximumFractionDigits: 0 })}</p>}
               </div>
               <div className="flex gap-2">
                 <button onClick={() => respondInvite(m.id, true)} className="px-4 py-2 bg-green-500/10 text-green-400 border border-green-500/30 rounded-lg text-sm font-medium">Accept</button>
@@ -84,7 +85,7 @@ export default function EquipmentOriginalsPage() {
                 <div className="flex flex-wrap gap-3 text-xs text-slate-500">
                   <span>{m.project.type} · {m.project.genre}</span>
                   <span>Phase: {m.project.phase.replace(/_/g, " ")}</span>
-                  {m.project.budget && <span>Budget: ${m.project.budget.toLocaleString()}</span>}
+                  {m.project.budget && <span>Budget: {formatZar(m.project.budget, { maximumFractionDigits: 0 })}</span>}
                   {m.project.targetDate && <span>Target: {m.project.targetDate}</span>}
                 </div>
                 <h4 className="text-sm font-medium text-white">Full Team</h4>

@@ -15,6 +15,7 @@ import { ProductionModocReportModal } from "../production-modoc-modal";
 import { ProductionControlCenterClient } from "../production-control-center-client";
 import { CallSheetGenerator } from "../call-sheet-generator-client";
 import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
+import { formatZar } from "@/lib/format-currency-zar";
 
 interface ProductionToolPageProps {
   params: Promise<{ projectId?: string; tool: string }>;
@@ -217,17 +218,24 @@ function OnSetTasks({ projectId, title }: { projectId?: string; title: string })
     queryFn: () => fetch(`/api/creator/projects/${projectId}/scenes`).then((r) => r.json()),
     enabled: hasProject,
   });
-  const tasks = (data?.tasks ?? []) as {
-    id: string;
-    title: string;
-    description: string | null;
-    status: string;
-    department: string | null;
-    priority: string | null;
-    shootDay?: { id: string; date: string } | null;
-    scene?: { id: string; number: string; heading: string | null } | null;
-  }[];
-  const shootDays = (scheduleData?.shootDays ?? []) as { id: string; date: string }[];
+  const tasks = useMemo(
+    () =>
+      ((data?.tasks ?? []) as {
+        id: string;
+        title: string;
+        description: string | null;
+        status: string;
+        department: string | null;
+        priority: string | null;
+        shootDay?: { id: string; date: string } | null;
+        scene?: { id: string; number: string; heading: string | null } | null;
+      }[]),
+    [data?.tasks],
+  );
+  const shootDays = useMemo(
+    () => ((scheduleData?.shootDays ?? []) as { id: string; date: string }[]),
+    [scheduleData?.shootDays],
+  );
   const scenesList = (scenesData?.scenes ?? []) as { id: string; number: string; heading: string | null }[];
   const [newTitle, setNewTitle] = useState("");
   const [newDepartment, setNewDepartment] = useState("");
@@ -682,38 +690,59 @@ function EquipmentTracking({ projectId, title }: { projectId?: string; title: st
     queryFn: () => fetch(`/api/creator/projects/${projectId}/schedule`).then((r) => r.json()),
     enabled: hasProject,
   });
-  const items = (data?.items ?? []) as {
-    id: string;
-    equipmentListing?: { id: string; companyName: string; category: string } | null;
-    category: string;
-    quantity: number;
-    department: string | null;
-    description: string | null;
-    notes: string | null;
-    tracking: {
-      uniqueTag: string | null;
-      ownerProviderName: string | null;
-      assignedCrewName: string | null;
-      assignedSceneIds: string[];
-      assignedShootDayIds: string[];
-      currentStatus: string;
-      movementLogs: Array<{ id: string; event: string; at: string; note?: string | null; condition?: string | null }>;
-      issues: Array<{ id: string; type: string; description: string; severity: string; status: string; createdAt: string }>;
-      openIssueCount: number;
-      checklistEntries: Array<{
+  const items = useMemo(
+    () =>
+      ((data?.items ?? []) as {
         id: string;
-        label: string;
-        physicallyPresent: boolean;
-        photoUrl: string | null;
-        note?: string | null;
-        checkedAt: string;
-      }>;
-    };
-    market: { dailyRate: number | null; quantityAvailable: number | null };
-  }[];
-  const shootDays = (scheduleData?.shootDays ?? []) as Array<{ id: string; date: string; status: string }>;
+        equipmentListing?: { id: string; companyName: string; category: string } | null;
+        category: string;
+        quantity: number;
+        department: string | null;
+        description: string | null;
+        notes: string | null;
+        tracking: {
+          uniqueTag: string | null;
+          ownerProviderName: string | null;
+          assignedCrewName: string | null;
+          assignedSceneIds: string[];
+          assignedShootDayIds: string[];
+          currentStatus: string;
+          movementLogs: Array<{ id: string; event: string; at: string; note?: string | null; condition?: string | null }>;
+          issues: Array<{ id: string; type: string; description: string; severity: string; status: string; createdAt: string }>;
+          openIssueCount: number;
+          checklistEntries: Array<{
+            id: string;
+            label: string;
+            physicallyPresent: boolean;
+            photoUrl: string | null;
+            note?: string | null;
+            checkedAt: string;
+          }>;
+        };
+        market: { dailyRate: number | null; quantityAvailable: number | null };
+      }[]),
+    [data?.items],
+  );
+  const shootDays = useMemo(
+    () => ((scheduleData?.shootDays ?? []) as Array<{ id: string; date: string; status: string }>),
+    [scheduleData?.shootDays],
+  );
   const summary = (data?.summary ?? {}) as { byStatus?: Record<string, number> };
-  const byDay = (data?.byDay ?? {}) as Record<string, Array<{ id: string; category: string; quantity: number; status: string; assignedScenes: string[]; assignedCrewName: string | null }>>;
+  const byDay = useMemo(
+    () =>
+      ((data?.byDay ?? {}) as Record<
+        string,
+        Array<{
+          id: string;
+          category: string;
+          quantity: number;
+          status: string;
+          assignedScenes: string[];
+          assignedCrewName: string | null;
+        }>
+      >),
+    [data?.byDay],
+  );
 
   const updateMutation = useMutation({
     mutationFn: async (payload: Record<string, unknown>) => {
@@ -961,7 +990,7 @@ function EquipmentTracking({ projectId, title }: { projectId?: string; title: st
                         <span className="text-white">{i.category}</span>
                         {i.description && <p className="text-[11px] text-slate-500 mt-0.5">{i.description}</p>}
                         <p className="text-[11px] text-slate-400 mt-0.5">
-                          Tag {i.tracking.uniqueTag || "—"} · Provider {i.tracking.ownerProviderName || i.equipmentListing?.companyName || "—"} · Daily rate R{Math.round(i.market?.dailyRate ?? 0).toLocaleString()}
+                          Tag {i.tracking.uniqueTag || "—"} · Provider {i.tracking.ownerProviderName || i.equipmentListing?.companyName || "—"} · Daily rate {formatZar(Math.round(i.market?.dailyRate ?? 0), { maximumFractionDigits: 0 })}
                         </p>
                         <p className="text-[11px] text-slate-400">
                           Assigned crew {i.tracking.assignedCrewName || "Unassigned"} · Open issues {i.tracking.openIssueCount}
@@ -1296,27 +1325,31 @@ function ShootProgress({ projectId, title }: { projectId?: string; title: string
     incidentCount: number;
     behindSchedule: boolean;
   }>;
-  const scenes = (data?.scenes ?? []) as Array<{
-    shootDayId: string;
-    shootDayDate: string;
-    shootDayStatus: string;
-    shootDaySceneId: string;
-    sceneId: string;
-    sceneNumber: string;
-    heading: string | null;
-    status: string;
-    estimatedDurationMinutes: number;
-    actualDurationMinutes: number | null;
-    completionPercent: number;
-    notes: string | null;
-    actualStartAt: string | null;
-    actualEndAt: string | null;
-    auditHistory: Array<{ at: string; byUserId: string | null }>;
-    taskProgressPercent: number | null;
-    equipmentReadyPercent: number | null;
-    relatedIncidentCount: number;
-    hasBlockers: boolean;
-  }>;
+  const scenes = useMemo(
+    () =>
+      ((data?.scenes ?? []) as Array<{
+        shootDayId: string;
+        shootDayDate: string;
+        shootDayStatus: string;
+        shootDaySceneId: string;
+        sceneId: string;
+        sceneNumber: string;
+        heading: string | null;
+        status: string;
+        estimatedDurationMinutes: number;
+        actualDurationMinutes: number | null;
+        completionPercent: number;
+        notes: string | null;
+        actualStartAt: string | null;
+        actualEndAt: string | null;
+        auditHistory: Array<{ at: string; byUserId: string | null }>;
+        taskProgressPercent: number | null;
+        equipmentReadyPercent: number | null;
+        relatedIncidentCount: number;
+        hasBlockers: boolean;
+      }>),
+    [data?.scenes],
+  );
   const alerts = (data?.alerts ?? []) as Array<{ type: string; severity: string; message: string }>;
 
   const filteredScenes = useMemo(
@@ -1684,23 +1717,38 @@ function ContinuityManager({ projectId, title }: { projectId?: string; title: st
     refetchInterval: 5000,
     refetchOnWindowFocus: true,
   });
-  const notes = (data?.notes ?? []) as Array<{
-    id: string;
-    body: string;
-    sceneId: string | null;
-    shootDayId: string | null;
-    createdAt: string;
-    scene?: { id: string; number: string; heading: string | null; intExt: string | null; dayNight: string | null; characters: Array<{ id: string; name: string }> } | null;
-    meta: {
-      category: string;
-      takeNumber: number | null;
-      takeStatus: string | null;
-      linkedImageUrls: string[];
-      linkedVideoUrls: string[];
-    };
-    createdBy?: { id: string; name: string | null; email: string | null } | null;
-  }>;
-  const scenes = (data?.scenes ?? []) as Array<{ id: string; number: string; heading: string | null; intExt: string | null; dayNight: string | null; characters: Array<{ id: string; name: string }> }>;
+  const notes = useMemo(
+    () =>
+      ((data?.notes ?? []) as Array<{
+        id: string;
+        body: string;
+        sceneId: string | null;
+        shootDayId: string | null;
+        createdAt: string;
+        scene?: { id: string; number: string; heading: string | null; intExt: string | null; dayNight: string | null; characters: Array<{ id: string; name: string }> } | null;
+        meta: {
+          category: string;
+          takeNumber: number | null;
+          takeStatus: string | null;
+          linkedImageUrls: string[];
+          linkedVideoUrls: string[];
+        };
+        createdBy?: { id: string; name: string | null; email: string | null } | null;
+      }>),
+    [data?.notes],
+  );
+  const scenes = useMemo(
+    () =>
+      ((data?.scenes ?? []) as Array<{
+        id: string;
+        number: string;
+        heading: string | null;
+        intExt: string | null;
+        dayNight: string | null;
+        characters: Array<{ id: string; name: string }>;
+      }>),
+    [data?.scenes],
+  );
   const shootDays = (data?.shootDays ?? []) as Array<{ id: string; date: string; status: string }>;
   const flags = (data?.flags ?? { inconsistentCount: 0, missingReferenceCount: 0 }) as { inconsistentCount: number; missingReferenceCount: number; inconsistentNoteIds?: string[] };
   const compare = (data?.compare ?? null) as { left: (typeof notes)[number] | null; right: (typeof notes)[number] | null } | null;
@@ -2164,27 +2212,31 @@ function ExpenseTracker({ projectId, title }: { projectId?: string; title: strin
   const scenes = (scheduleData?.scenes ?? []) as Array<{ id: string; number: string; heading: string | null }>;
   const shootDays = (scheduleData?.shootDays ?? []) as Array<{ id: string; date: string; status: string }>;
 
-  const expenses = (expensesData?.expenses ?? []) as Array<{
-    id: string;
-    amount: number;
-    vendor: string | null;
-    department: string | null;
-    spentAt: string;
-    meta: {
-      title: string;
-      category: string;
-      sceneId: string | null;
-      shootDayId: string | null;
-      paymentMethod: string | null;
-      notes: string | null;
-      receiptUrls: string[];
-      paymentProofUrls: string[];
-      fundingSource: string | null;
-      approvalStatus: string;
-      paymentStatus: string;
-      paymentDueAt: string | null;
-    };
-  }>;
+  const expenses = useMemo(
+    () =>
+      ((expensesData?.expenses ?? []) as Array<{
+        id: string;
+        amount: number;
+        vendor: string | null;
+        department: string | null;
+        spentAt: string;
+        meta: {
+          title: string;
+          category: string;
+          sceneId: string | null;
+          shootDayId: string | null;
+          paymentMethod: string | null;
+          notes: string | null;
+          receiptUrls: string[];
+          paymentProofUrls: string[];
+          fundingSource: string | null;
+          approvalStatus: string;
+          paymentStatus: string;
+          paymentDueAt: string | null;
+        };
+      }>),
+    [expensesData?.expenses],
+  );
   const dashboard = (expensesData?.dashboard ?? {}) as {
     totalBudget: number;
     totalSpend: number;
@@ -2380,10 +2432,10 @@ function ExpenseTracker({ projectId, title }: { projectId?: string; title: strin
         </div>
       )}
       <div className={`grid gap-3 ${compactMode ? "" : "md:grid-cols-5"}`}>
-        <div className="creator-glass-panel p-3"><p className="text-[11px] text-slate-400">Budget</p><p className="text-lg font-semibold text-white">R{planned.toFixed(0)}</p></div>
-        <div className="creator-glass-panel p-3"><p className="text-[11px] text-slate-400">Actual spend</p><p className="text-lg font-semibold text-white">R{totalSpent.toFixed(0)}</p></div>
-        <div className="creator-glass-panel p-3"><p className="text-[11px] text-slate-400">Remaining</p><p className={`text-lg font-semibold ${(dashboard.remainingFunds ?? planned - totalSpent) < planned * 0.15 ? "text-amber-300" : "text-emerald-300"}`}>R{(dashboard.remainingFunds ?? planned - totalSpent).toFixed(0)}</p></div>
-        <div className="creator-glass-panel p-3"><p className="text-[11px] text-slate-400">Daily burn rate</p><p className="text-lg font-semibold text-white">R{(dashboard.burnRateDaily ?? 0).toFixed(0)}</p></div>
+        <div className="creator-glass-panel p-3"><p className="text-[11px] text-slate-400">Budget</p><p className="text-lg font-semibold text-white">{formatZar(planned, { maximumFractionDigits: 0 })}</p></div>
+        <div className="creator-glass-panel p-3"><p className="text-[11px] text-slate-400">Actual spend</p><p className="text-lg font-semibold text-white">{formatZar(totalSpent, { maximumFractionDigits: 0 })}</p></div>
+        <div className="creator-glass-panel p-3"><p className="text-[11px] text-slate-400">Remaining</p><p className={`text-lg font-semibold ${(dashboard.remainingFunds ?? planned - totalSpent) < planned * 0.15 ? "text-amber-300" : "text-emerald-300"}`}>{formatZar(dashboard.remainingFunds ?? planned - totalSpent, { maximumFractionDigits: 0 })}</p></div>
+        <div className="creator-glass-panel p-3"><p className="text-[11px] text-slate-400">Daily burn rate</p><p className="text-lg font-semibold text-white">{formatZar(dashboard.burnRateDaily ?? 0, { maximumFractionDigits: 0 })}</p></div>
         <div className="creator-glass-panel p-3"><p className="text-[11px] text-slate-400">Pending approval / unpaid</p><p className="text-lg font-semibold text-white">{dashboard.pendingApproval ?? 0} / {dashboard.unpaidCount ?? 0}</p></div>
       </div>
 
@@ -2499,7 +2551,7 @@ function ExpenseTracker({ projectId, title }: { projectId?: string; title: strin
             <div key={e.id} className="rounded-lg bg-slate-900/80 border border-slate-800 px-3 py-2 text-sm">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-slate-200 font-medium">{e.meta.title || e.department || "Expense"}</span>
-                <span className="text-white">R{e.amount.toFixed(2)}</span>
+                <span className="text-white">{formatZar(e.amount)}</span>
               </div>
               <p className="text-[11px] text-slate-500 mt-1">
                 {e.meta.category} · {e.vendor ?? "—"} · {new Date(e.spentAt).toLocaleString()} · approval {e.meta.approvalStatus} · payment {e.meta.paymentStatus}
@@ -2538,7 +2590,7 @@ function ExpenseTracker({ projectId, title }: { projectId?: string; title: strin
             >
               <span className="text-slate-300">{dept.key.replaceAll("_", " ")}</span>
               <span className={dept.variance < 0 ? "text-red-300" : dept.remaining < dept.budgeted * 0.15 ? "text-amber-300" : "text-emerald-300"}>
-                Est R{dept.budgeted.toFixed(0)} · Act R{dept.actual.toFixed(0)} · Var R{dept.variance.toFixed(0)}
+                Est {formatZar(dept.budgeted, { maximumFractionDigits: 0 })} · Act {formatZar(dept.actual, { maximumFractionDigits: 0 })} · Var {formatZar(dept.variance, { maximumFractionDigits: 0 })}
               </span>
             </div>
           ))}
@@ -2550,7 +2602,7 @@ function ExpenseTracker({ projectId, title }: { projectId?: string; title: strin
           {burnRate.slice(-10).map((d) => (
             <div key={d.date} className="flex items-center justify-between rounded bg-slate-900/70 px-2 py-1 text-xs">
               <span className="text-slate-400">{d.date}</span>
-              <span className="text-slate-200">R{d.amount.toFixed(0)}</span>
+              <span className="text-slate-200">{formatZar(d.amount, { maximumFractionDigits: 0 })}</span>
             </div>
           ))}
         </div>
@@ -2599,28 +2651,32 @@ function IncidentReporting({ projectId, title }: { projectId?: string; title: st
     refetchInterval: 5000,
     refetchOnWindowFocus: true,
   });
-  const incidents = (data?.incidents ?? []) as Array<{
-    id: string;
-    title: string;
-    description: string;
-    severity: string;
-    category: string;
-    location: string | null;
-    createdAt: string;
-    resolutionOwner: { name: string | null; email: string | null } | null;
-    meta: {
-      status: string;
-      priority: string;
-      occurredAt: string;
-      linkedSceneId: string | null;
-      mediaUrls: string[];
-      videoUrls: string[];
-      actionSteps: string[];
-      resolutionNotes: string | null;
-      timeline: Array<{ at: string; action: string; note?: string | null }>;
-      timeToResolveMinutes: number | null;
-    };
-  }>;
+  const incidents = useMemo(
+    () =>
+      ((data?.incidents ?? []) as Array<{
+        id: string;
+        title: string;
+        description: string;
+        severity: string;
+        category: string;
+        location: string | null;
+        createdAt: string;
+        resolutionOwner: { name: string | null; email: string | null } | null;
+        meta: {
+          status: string;
+          priority: string;
+          occurredAt: string;
+          linkedSceneId: string | null;
+          mediaUrls: string[];
+          videoUrls: string[];
+          actionSteps: string[];
+          resolutionNotes: string | null;
+          timeline: Array<{ at: string; action: string; note?: string | null }>;
+          timeToResolveMinutes: number | null;
+        };
+      }>),
+    [data?.incidents],
+  );
   const dashboard = (data?.dashboard ?? {}) as {
     total: number;
     open: number;
@@ -3047,7 +3103,7 @@ function ProductionWrap({ projectId, title }: { projectId?: string; title: strin
           <div className="grid gap-3 md:grid-cols-6">
             <div className="creator-glass-panel p-3"><p className="text-[11px] text-slate-400">Shoot days</p><p className="text-lg font-semibold text-white">{summary.totalShootDays ?? 0}</p></div>
             <div className="creator-glass-panel p-3"><p className="text-[11px] text-slate-400">Scenes completed</p><p className="text-lg font-semibold text-white">{summary.scenesCompleted ?? 0} / {summary.totalSceneEntries ?? 0}</p></div>
-            <div className="creator-glass-panel p-3"><p className="text-[11px] text-slate-400">Budget vs actual</p><p className="text-lg font-semibold text-white">R{(summary.budgetActual ?? 0).toFixed(0)} / R{(summary.budgetPlanned ?? 0).toFixed(0)}</p></div>
+            <div className="creator-glass-panel p-3"><p className="text-[11px] text-slate-400">Budget vs actual</p><p className="text-lg font-semibold text-white">{formatZar(summary.budgetActual ?? 0, { maximumFractionDigits: 0 })} / {formatZar(summary.budgetPlanned ?? 0, { maximumFractionDigits: 0 })}</p></div>
             <div className="creator-glass-panel p-3"><p className="text-[11px] text-slate-400">Incidents</p><p className="text-lg font-semibold text-white">{summary.incidentCount ?? 0} total</p></div>
             <div className="creator-glass-panel p-3"><p className="text-[11px] text-slate-400">Equipment returned</p><p className="text-lg font-semibold text-white">{summary.equipmentUnitsReturned ?? 0} / {summary.equipmentUnitsTotal ?? 0}</p></div>
             <div className="creator-glass-panel p-3"><p className="text-[11px] text-slate-400">Tasks complete</p><p className="text-lg font-semibold text-white">{summary.tasksCompleted ?? 0} / {summary.tasksTotal ?? 0}</p></div>

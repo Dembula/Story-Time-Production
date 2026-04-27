@@ -15,6 +15,12 @@ import { useModoc, useModocOptional } from "@/components/modoc/use-modoc";
 import { parseScenesFromScreenplay } from "@/lib/scene-parser";
 import { parseSluglineMeta } from "@/lib/slugline-meta";
 import { VisualPlanningCatalogue } from "@/components/creator/visual-planning-catalogue";
+import { formatZar } from "@/lib/format-currency-zar";
+import {
+  AUDITION_LISTING_FEE_ZAR,
+  CASTING_ACQUISITION_FEE_ZAR,
+  EXECUTIVE_SCRIPT_REVIEW_FEE_ZAR,
+} from "@/lib/pricing";
 
 interface PreProductionToolPageProps {
   params: Promise<{ projectId?: string; tool: string }>;
@@ -248,15 +254,19 @@ function IdeaDevelopmentWorkspace({ projectId, title }: IdeaDevelopmentWorkspace
     enabled: hasProject,
   });
 
-  const ideas = (data?.ideas ?? []) as {
-    id: string;
-    title: string;
-    logline: string | null;
-    notes: string | null;
-    genres: string | null;
-    convertedToProject: boolean;
-    updatedAt: string;
-  }[];
+  const ideas = useMemo(
+    () =>
+      ((data?.ideas ?? []) as {
+        id: string;
+        title: string;
+        logline: string | null;
+        notes: string | null;
+        genres: string | null;
+        convertedToProject: boolean;
+        updatedAt: string;
+      }[]),
+    [data?.ideas],
+  );
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = useMemo(
@@ -296,7 +306,7 @@ function IdeaDevelopmentWorkspace({ projectId, title }: IdeaDevelopmentWorkspace
       setDraft(null);
       setSavedSnapshot(null);
     }
-  }, [selected?.id]);
+  }, [selected]);
 
   const ideaDirty =
     !!draft &&
@@ -643,11 +653,17 @@ function ScriptWritingWorkspace({ projectId, title }: ScriptWritingWorkspaceProp
     queryFn: () => fetch(listEndpoint).then((r) => r.json()),
   });
 
-  const scripts =
-    ((data?.scripts as { id: string; title: string; type: string; content: string }[]) ?? []) || [];
+  const scripts = useMemo(
+    () =>
+      (((data?.scripts as { id: string; title: string; type: string; content: string }[]) ?? []) || []),
+    [data?.scripts],
+  );
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const selected = scripts.find((s) => s.id === selectedId) ?? scripts[0];
+  const selected = useMemo(
+    () => scripts.find((s) => s.id === selectedId) ?? scripts[0],
+    [scripts, selectedId],
+  );
 
   const [draft, setDraft] = useState<{
     id?: string;
@@ -677,7 +693,7 @@ function ScriptWritingWorkspace({ projectId, title }: ScriptWritingWorkspaceProp
       setDraft(null);
       setDirty(false);
     }
-  }, [selected?.id]);
+  }, [selected]);
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -1336,7 +1352,10 @@ function ScriptReviewWorkspace({ projectId, title }: ScriptReviewWorkspaceProps)
     queryKey: ["creator-scripts", projectId],
     queryFn: () => fetch(`/api/creator/scripts?projectId=${projectId}`).then((r) => r.json()),
   });
-  const projectScripts = (scriptsData?.scripts ?? []) as Array<{ id: string; title: string; content?: string; type?: string }>;
+  const projectScripts = useMemo(
+    () => ((scriptsData?.scripts ?? []) as Array<{ id: string; title: string; content?: string; type?: string }>),
+    [scriptsData?.scripts],
+  );
 
   const modoc = useModocOptional();
 
@@ -1507,7 +1526,7 @@ function ScriptReviewWorkspace({ projectId, title }: ScriptReviewWorkspaceProps)
                       >
                         <div>
                           <p className="font-medium text-slate-100">
-                            R{r.feeAmount.toFixed(2)} · {r.status.replace(/_/g, " ")}
+                            {formatZar(r.feeAmount)} · {r.status.replace(/_/g, " ")}
                           </p>
                           <p className="text-[11px] text-slate-500">
                             Requested{" "}
@@ -1577,7 +1596,7 @@ function ScriptReviewWorkspace({ projectId, title }: ScriptReviewWorkspaceProps)
                 Submit your latest draft for an Executive Script Review by Story Time for detailed
                 feedback on story, structure, character, and market positioning.
               </p>
-              <p className="text-orange-300 font-medium">Cost: R599.99 (once-off per request)</p>
+              <p className="text-orange-300 font-medium">Cost: {formatZar(EXECUTIVE_SCRIPT_REVIEW_FEE_ZAR)} (once-off per request)</p>
               <ul className="list-disc list-inside space-y-1">
                 <li>Script is submitted to the Story Time admin review dashboard.</li>
                 <li>Admins attach feedback directly to this project.</li>
@@ -1728,7 +1747,10 @@ function ScriptReviewWorkspaceV2({ projectId, title }: ScriptReviewWorkspaceProp
     queryKey: ["creator-projects", "script-review-selector-v2"],
     queryFn: () => fetch("/api/creator/projects").then((r) => r.json()),
   });
-  const creatorProjects = (projectsData?.projects ?? []) as Array<{ id: string; title: string }>;
+  const creatorProjects = useMemo(
+    () => ((projectsData?.projects ?? []) as Array<{ id: string; title: string }>),
+    [projectsData?.projects],
+  );
 
   useEffect(() => {
     if (!workingProjectId && creatorProjects.length > 0) {
@@ -1748,44 +1770,55 @@ function ScriptReviewWorkspaceV2({ projectId, title }: ScriptReviewWorkspaceProp
   });
 
   const scriptTitle = (scriptData?.script?.title as string | undefined) ?? "Project script";
-  const scriptVersions = ((scriptData?.script?.versions as Array<{
-    id: string;
-    versionLabel: string | null;
-    content: string;
-    createdAt: string;
-  }> | undefined) ?? []);
+  const scriptVersions = useMemo(
+    () =>
+      ((scriptData?.script?.versions as Array<{
+        id: string;
+        versionLabel: string | null;
+        content: string;
+        createdAt: string;
+      }> | undefined) ?? []),
+    [scriptData?.script?.versions],
+  );
   const { data: creatorScriptsData } = useQuery({
     enabled: hasProject,
     queryKey: ["creator-scripts", "script-review-v2", workingProjectId],
     queryFn: () => fetch(`/api/creator/scripts?projectId=${workingProjectId}`).then((r) => r.json()),
   });
-  const creatorScripts = ((creatorScriptsData?.scripts as Array<{
-    id: string;
-    title: string;
-    content: string;
-    updatedAt: string;
-  }> | undefined) ?? []);
+  const creatorScripts = useMemo(
+    () =>
+      ((creatorScriptsData?.scripts as Array<{
+        id: string;
+        title: string;
+        content: string;
+        updatedAt: string;
+      }> | undefined) ?? []),
+    [creatorScriptsData?.scripts],
+  );
 
-  const draftOptions = [
-    ...scriptVersions.map((v) => ({
-      id: `project-version:${v.id}`,
-      origin: "project-version" as const,
-      title: scriptTitle,
-      label: `${scriptTitle} · ${v.versionLabel || "Project draft"} · ${new Date(v.createdAt).toLocaleDateString()}`,
-      content: v.content ?? "",
-      scriptVersionId: v.id,
-      creatorScriptId: null as string | null,
-    })),
-    ...creatorScripts.map((s) => ({
-      id: `creator-script:${s.id}`,
-      origin: "creator-script" as const,
-      title: s.title,
-      label: `${s.title} · Library script · ${new Date(s.updatedAt).toLocaleDateString()}`,
-      content: s.content ?? "",
-      scriptVersionId: null as string | null,
-      creatorScriptId: s.id,
-    })),
-  ];
+  const draftOptions = useMemo(
+    () => [
+      ...scriptVersions.map((v) => ({
+        id: `project-version:${v.id}`,
+        origin: "project-version" as const,
+        title: scriptTitle,
+        label: `${scriptTitle} · ${v.versionLabel || "Project draft"} · ${new Date(v.createdAt).toLocaleDateString()}`,
+        content: v.content ?? "",
+        scriptVersionId: v.id,
+        creatorScriptId: null as string | null,
+      })),
+      ...creatorScripts.map((s) => ({
+        id: `creator-script:${s.id}`,
+        origin: "creator-script" as const,
+        title: s.title,
+        label: `${s.title} · Library script · ${new Date(s.updatedAt).toLocaleDateString()}`,
+        content: s.content ?? "",
+        scriptVersionId: null as string | null,
+        creatorScriptId: s.id,
+      })),
+    ],
+    [scriptVersions, scriptTitle, creatorScripts],
+  );
 
   useEffect(() => {
     if (draftOptions.length === 0) {
@@ -1821,7 +1854,7 @@ function ScriptReviewWorkspaceV2({ projectId, title }: ScriptReviewWorkspaceProp
     () => parseScriptReviewNoteBodyV2((data?.notes?.body as string) ?? ""),
     [data?.notes?.body],
   );
-  const internalReviews = parsedBody.internalReviews ?? [];
+  const internalReviews = useMemo(() => parsedBody.internalReviews ?? [], [parsedBody.internalReviews]);
 
   useEffect(() => {
     if (!selectedVersionId) return;
@@ -1884,7 +1917,7 @@ function ScriptReviewWorkspaceV2({ projectId, title }: ScriptReviewWorkspaceProp
     router.push(`${pathname}?${params.toString()}`);
   };
 
-  const saveDraft = () => {
+  const saveDraft = useCallback(() => {
     if (!selectedVersionId) return;
     const nextBody: ScriptReviewNoteBodyV2 = {
       draftByScript: {
@@ -1899,7 +1932,7 @@ function ScriptReviewWorkspaceV2({ projectId, title }: ScriptReviewWorkspaceProp
         setNotesSaveMessage("Draft notes saved");
       },
     });
-  };
+  }, [internalDraft, internalReviews, parsedBody.draftByScript, saveNotesMutation, selectedVersionId]);
 
   const addInternalReview = () => {
     if (!selectedDraft || !internalDraft.trim()) return;
@@ -1937,7 +1970,7 @@ function ScriptReviewWorkspaceV2({ projectId, title }: ScriptReviewWorkspaceProp
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [internalDraftDirty, notesSaving, selectedVersionId, internalDraft, parsedBody, internalReviews]);
+  }, [internalDraftDirty, notesSaving, saveDraft, selectedVersionId]);
 
   async function handleProcessPayment() {
     if (!reviewDraft) return;
@@ -2098,7 +2131,7 @@ function ScriptReviewWorkspaceV2({ projectId, title }: ScriptReviewWorkspaceProp
           </CardHeader>
           <CardContent className="space-y-3 text-xs text-slate-300">
             <p>Choose the script version to send, then pay to submit it to the executive review queue.</p>
-            <p className="font-medium text-orange-300">Price: R599.99 per submission</p>
+            <p className="font-medium text-orange-300">Price: {formatZar(EXECUTIVE_SCRIPT_REVIEW_FEE_ZAR)} per submission</p>
             <select
               value={payScriptVersionId}
               onChange={(e) => setPayScriptVersionId(e.target.value)}
@@ -2169,7 +2202,7 @@ function ScriptReviewWorkspaceV2({ projectId, title }: ScriptReviewWorkspaceProp
                     <p className="text-xs font-medium text-slate-200">
                       {(r.scriptVersion?.script?.title ?? scriptTitle) + " · " + (r.scriptVersion?.versionLabel || "Submitted draft")}
                     </p>
-                    <p className="mt-1 text-xs text-slate-400">R{r.feeAmount.toFixed(2)} · {r.status.replace(/_/g, " ")}</p>
+                    <p className="mt-1 text-xs text-slate-400">{formatZar(r.feeAmount)} · {r.status.replace(/_/g, " ")}</p>
                     {r.feedbackNotes && <p className="mt-1 whitespace-pre-wrap text-xs text-slate-300">{r.feedbackNotes}</p>}
                     {r.feedbackUrl && (
                       <a href={r.feedbackUrl} target="_blank" rel="noreferrer" className="mt-1 inline-block text-xs text-orange-300 underline hover:text-orange-200">
@@ -2293,28 +2326,38 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
     if (!aIsNum && bIsNum) return 1;
     return a.number.localeCompare(b.number, undefined, { numeric: true, sensitivity: "base" });
   });
-  const projectScripts = (scriptsData?.scripts ?? []) as Array<{ id: string; title: string; content?: string; updatedAt?: string }>;
+  const projectScripts = useMemo(
+    () => ((scriptsData?.scripts ?? []) as Array<{ id: string; title: string; content?: string; updatedAt?: string }>),
+    [scriptsData?.scripts],
+  );
   const projectScriptTitle = (projectScriptData?.script?.title as string | undefined) ?? "Project script";
-  const projectScriptVersions = ((projectScriptData?.script?.versions as Array<{
-    id: string;
-    versionLabel: string | null;
-    content: string;
-    createdAt: string;
-  }> | undefined) ?? []);
-  const breakdownScriptOptions = [
-    ...projectScriptVersions.map((v) => ({
-      id: `project-version:${v.id}`,
-      title: projectScriptTitle,
-      label: `${projectScriptTitle} · ${v.versionLabel || "Project draft"} · ${new Date(v.createdAt).toLocaleDateString()}`,
-      content: v.content ?? "",
-    })),
-    ...projectScripts.map((s) => ({
-      id: `creator-script:${s.id}`,
-      title: s.title,
-      label: `${s.title} · Library script${s.updatedAt ? ` · ${new Date(s.updatedAt).toLocaleDateString()}` : ""}`,
-      content: s.content ?? "",
-    })),
-  ];
+  const projectScriptVersions = useMemo(
+    () =>
+      ((projectScriptData?.script?.versions as Array<{
+        id: string;
+        versionLabel: string | null;
+        content: string;
+        createdAt: string;
+      }> | undefined) ?? []),
+    [projectScriptData?.script?.versions],
+  );
+  const breakdownScriptOptions = useMemo(
+    () => [
+      ...projectScriptVersions.map((v) => ({
+        id: `project-version:${v.id}`,
+        title: projectScriptTitle,
+        label: `${projectScriptTitle} · ${v.versionLabel || "Project draft"} · ${new Date(v.createdAt).toLocaleDateString()}`,
+        content: v.content ?? "",
+      })),
+      ...projectScripts.map((s) => ({
+        id: `creator-script:${s.id}`,
+        title: s.title,
+        label: `${s.title} · Library script${s.updatedAt ? ` · ${new Date(s.updatedAt).toLocaleDateString()}` : ""}`,
+        content: s.content ?? "",
+      })),
+    ],
+    [projectScriptVersions, projectScriptTitle, projectScripts],
+  );
   const [breakdownScriptId, setBreakdownScriptId] = useState<string>("");
   /** Scene used for category tabs: new rows and filtered list (from screenplay sync). */
   const [activeSceneId, setActiveSceneId] = useState<string>("");
@@ -3437,7 +3480,7 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
   const projectScenes = ((scenesData?.scenes as BudgetScene[] | undefined) ?? []).sort((a, b) =>
     a.number.localeCompare(b.number, undefined, { numeric: true, sensitivity: "base" }),
   );
-  const sceneById = new Map(projectScenes.map((s) => [s.id, s]));
+  const sceneById = useMemo(() => new Map(projectScenes.map((s) => [s.id, s])), [projectScenes]);
 
   const [templateChoice, setTemplateChoice] = useState<
     | "SHORT_FILM"
@@ -3457,7 +3500,7 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
     return Math.max(0, quantity) * Math.max(0, unitCost);
   }
 
-  function normalizeRows(rows: BudgetRow[]): BudgetRow[] {
+  const normalizeRows = useCallback((rows: BudgetRow[]): BudgetRow[] => {
     return rows.map((r) => ({
       ...r,
       quantity: Number.isFinite(r.quantity) ? r.quantity : 1,
@@ -3465,9 +3508,9 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
       total: calcTotal(r.quantity, r.unitCost),
       notes: r.notes ?? "",
     }));
-  }
+  }, []);
 
-  function buildTemplateRowsFromBreakdown(): BudgetRow[] {
+  const buildTemplateRowsFromBreakdown = useCallback((): BudgetRow[] => {
     if (!breakdownData) return [];
     const next: BudgetRow[] = [];
     const pushRow = (
@@ -3548,9 +3591,9 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
     );
 
     return normalizeRows(next);
-  }
+  }, [breakdownData, normalizeRows, sceneById]);
 
-  function buildTemplateRowsFromEngine(): BudgetRow[] {
+  const buildTemplateRowsFromEngine = useCallback((): BudgetRow[] => {
     const items = engine?.sceneLineItems ?? [];
     if (!items.length) return [];
     return normalizeRows(
@@ -3569,7 +3612,7 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
         category: item.category ?? "ENGINE",
       })),
     );
-  }
+  }, [engine?.sceneLineItems, normalizeRows]);
 
   useEffect(() => {
     if (!budget) return;
@@ -3620,7 +3663,7 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
     const finalRows = normalizeRows([...merged, ...manualRows]);
     setDraftRows(finalRows);
     setSavedRows(JSON.parse(JSON.stringify(finalRows)));
-  }, [budget?.id, breakdownData, scenesData]);
+  }, [budget, breakdownData, scenesData, buildTemplateRowsFromBreakdown, buildTemplateRowsFromEngine, normalizeRows]);
 
   const budgetDirty =
     draftRows.length > 0 || savedRows.length > 0
@@ -3826,7 +3869,7 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
         <ModocReportModal
           task="budget"
           reportTitle="Budget insights"
-          prompt={`Analyze this project's script breakdown and current budget, then suggest department-level estimates and cost-saving measures.\n\nBreakdown summary: ${JSON.stringify(breakdownData ?? {}).slice(0, 2000)}\n\nCurrent budget (template: ${budget.template}, total planned: R${total.toFixed(2)}):\n${JSON.stringify(draftRows).slice(0, 2500)}\n\nProvide: suggested departments/line items, rough estimate ranges or ratios, and 2–4 concrete cost-saving tips.`}
+          prompt={`Analyze this project's script breakdown and current budget, then suggest department-level estimates and cost-saving measures.\n\nBreakdown summary: ${JSON.stringify(breakdownData ?? {}).slice(0, 2000)}\n\nCurrent budget (template: ${budget.template}, total planned: ${formatZar(total)}):\n${JSON.stringify(draftRows).slice(0, 2500)}\n\nProvide: suggested departments/line items, rough estimate ranges or ratios, and 2–4 concrete cost-saving tips.`}
           onClose={() => setModocReportOpen(false)}
         />
       )}
@@ -3844,13 +3887,13 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
               <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-3">
                 <p className="text-[11px] text-slate-400">Estimated budget</p>
                 <p className="text-sm font-semibold text-emerald-300">
-                  R{engine.dashboard.estimatedTotal.toFixed(2)}
+                  {formatZar(engine.dashboard.estimatedTotal)}
                 </p>
               </div>
               <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-3">
                 <p className="text-[11px] text-slate-400">Actual spend</p>
                 <p className="text-sm font-semibold text-white">
-                  R{engine.dashboard.actualSpend.toFixed(2)}
+                  {formatZar(engine.dashboard.actualSpend)}
                 </p>
               </div>
               <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-3">
@@ -3860,26 +3903,26 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
                     engine.dashboard.variance < 0 ? "text-red-300" : "text-emerald-300"
                   }`}
                 >
-                  R{engine.dashboard.variance.toFixed(2)}
+                  {formatZar(engine.dashboard.variance)}
                 </p>
               </div>
               <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-3">
                 <p className="text-[11px] text-slate-400">Contingency</p>
                 <p className="text-sm font-semibold text-slate-100">
-                  R{engine.dashboard.contingencyAllocation.toFixed(2)} (
+                  {formatZar(engine.dashboard.contingencyAllocation)} (
                   {(engine.dashboard.contingencyPercent * 100).toFixed(0)}%)
                 </p>
               </div>
               <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-3">
                 <p className="text-[11px] text-slate-400">Cost per minute</p>
                 <p className="text-sm font-semibold text-slate-100">
-                  R{engine.dashboard.costPerMinute.toFixed(2)}
+                  {formatZar(engine.dashboard.costPerMinute)}
                 </p>
               </div>
               <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-3">
                 <p className="text-[11px] text-slate-400">Daily burn rate</p>
                 <p className="text-sm font-semibold text-slate-100">
-                  R{engine.dashboard.dailyBurnRate.toFixed(2)}
+                  {formatZar(engine.dashboard.dailyBurnRate)}
                 </p>
               </div>
             </div>
@@ -3897,7 +3940,7 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
                   >
                     <span className="text-slate-300">{dept.department.replaceAll("_", " ")}</span>
                     <span className="text-slate-100">
-                      Est R{dept.estimated.toFixed(0)} · Act R{dept.actual.toFixed(0)}
+                      Est {formatZar(dept.estimated, { maximumFractionDigits: 0 })} · Act {formatZar(dept.actual, { maximumFractionDigits: 0 })}
                     </span>
                   </div>
                 ))}
@@ -3920,7 +3963,7 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
               <span className="font-medium text-slate-100">{budget.template}</span>
             </span>
             <span className="font-semibold text-emerald-400">
-              Total planned: R{total.toFixed(2)}
+              Total planned: {formatZar(total)}
             </span>
           </div>
           <div className="space-y-3">
@@ -3929,7 +3972,7 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
                 <div className="mb-2 flex items-center justify-between">
                   <p className="text-xs font-medium text-slate-200">{sceneLabel}</p>
                   <p className="text-[11px] text-slate-400">
-                    Subtotal: R{rows.reduce((sum, r) => sum + r.total, 0).toFixed(2)}
+                    Subtotal: {formatZar(rows.reduce((sum, r) => sum + r.total, 0))}
                   </p>
                 </div>
                 <div className="max-h-[320px] overflow-y-auto">
@@ -3988,7 +4031,7 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
                               />
                             </td>
                             <td className="px-2 py-1.5 text-right text-slate-100">
-                              R{line.total.toFixed(2)}
+                              {formatZar(line.total)}
                             </td>
                             <td className="px-2 py-1.5 text-right">
                               <button
@@ -4728,7 +4771,7 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
       .sort((a, b) => a.order - b.order)
       .map((s) => s.scene?.id ?? s.sceneId);
     setScenePickerIds(ids);
-  }, [selectedDay?.id]);
+  }, [selectedDay]);
 
   const applySceneSelectionForDay = () => {
     if (!selectedDay) return;
@@ -5676,16 +5719,20 @@ function CastingPortalWorkspace({
     queryFn: () => fetch("/api/casting-agencies").then((r) => r.json()),
     enabled: true,
   });
-  const roles = (rolesData?.roles ?? []) as {
-    id: string;
-    name: string;
-    description: string | null;
-    status: string;
-    invitationsCount: number;
-    castInvitations: number;
-    linkedSalary?: { amount: number } | null;
-    assignedCast?: { name: string; contactEmail: string | null; notes: string | null } | null;
-  }[];
+  const roles = useMemo(
+    () =>
+      ((rolesData?.roles ?? []) as {
+        id: string;
+        name: string;
+        description: string | null;
+        status: string;
+        invitationsCount: number;
+        castInvitations: number;
+        linkedSalary?: { amount: number } | null;
+        assignedCast?: { name: string; contactEmail: string | null; notes: string | null } | null;
+      }[]),
+    [rolesData?.roles],
+  );
   const invitations = (invitationsData ?? []) as {
     id: string;
     status: string;
@@ -5802,7 +5849,9 @@ function CastingPortalWorkspace({
       return res.json();
     },
     onSuccess: () => {
-      setPortalMessage("Hire confirmed. Contract draft created and acquisition fee paid (R19.99).");
+      setPortalMessage(
+        `Hire confirmed. Contract draft created and acquisition fee paid (${formatZar(CASTING_ACQUISITION_FEE_ZAR)}).`,
+      );
       queryClient.invalidateQueries({ queryKey: ["project-casting", projectId] });
       queryClient.invalidateQueries({ queryKey: ["project-casting-invitations", projectId] });
     },
@@ -5822,7 +5871,7 @@ function CastingPortalWorkspace({
     },
     onSuccess: (data) => {
       setPortalMessage(
-        `Audition listing published to ${data?.invitationsCreated ?? 0} agencies. Listing fee paid (R99.99).`,
+        `Audition listing published to ${data?.invitationsCreated ?? 0} agencies. Listing fee paid (${formatZar(AUDITION_LISTING_FEE_ZAR)}).`,
       );
       queryClient.invalidateQueries({ queryKey: ["project-casting-invitations", projectId] });
     },
@@ -6063,7 +6112,7 @@ function CastingPortalWorkspace({
                     })
                   }
                 >
-                  Publish audition (R99.99)
+                  Publish audition ({formatZar(AUDITION_LISTING_FEE_ZAR)})
                 </Button>
               </div>
             )}
@@ -6223,7 +6272,7 @@ function CastingPortalWorkspace({
                       });
                     }}
                   >
-                    Create contract + pay R19.99
+                    Create contract + pay {formatZar(CASTING_ACQUISITION_FEE_ZAR)}
                   </Button>
                 </div>
               </div>
@@ -6286,16 +6335,20 @@ function CrewMarketplaceWorkspace({
     queryFn: () => fetch("/api/creator/crew-roster").then((r) => r.json()),
     enabled: true,
   });
-  const needs = (data?.needs ?? []) as {
-    id: string;
-    department: string | null;
-    role: string;
-    seniority: string | null;
-    notes: string | null;
-    invitationsCount: number;
-    linkedRate?: number | null;
-    assignedCrew?: string | null;
-  }[];
+  const needs = useMemo(
+    () =>
+      ((data?.needs ?? []) as {
+        id: string;
+        department: string | null;
+        role: string;
+        seniority: string | null;
+        notes: string | null;
+        invitationsCount: number;
+        linkedRate?: number | null;
+        assignedCrew?: string | null;
+      }[]),
+    [data?.needs],
+  );
   const crewDirectory = (crewDirectoryData ?? []) as Array<{
     id: string;
     companyName: string;
@@ -6347,7 +6400,7 @@ function CrewMarketplaceWorkspace({
       ? needs
           .map(
             (n) =>
-              `${n.role}${n.department ? ` (${n.department})` : ""}${n.seniority ? `, ${n.seniority}` : ""}${n.notes ? ` — ${n.notes}` : ""}${n.assignedCrew ? ` | Assigned: ${n.assignedCrew}` : ""}${n.linkedRate != null ? ` | Rate: R${n.linkedRate}` : ""}`,
+              `${n.role}${n.department ? ` (${n.department})` : ""}${n.seniority ? `, ${n.seniority}` : ""}${n.notes ? ` — ${n.notes}` : ""}${n.assignedCrew ? ` | Assigned: ${n.assignedCrew}` : ""}${n.linkedRate != null ? ` | Rate: ${formatZar(n.linkedRate, { maximumFractionDigits: 0 })}` : ""}`,
           )
           .join("\n")
       : "No crew needs yet. Add a role to start.";
@@ -6763,7 +6816,7 @@ function CrewMarketplaceWorkspace({
                             <p className="text-slate-500">
                               {member.department ?? "No department"}
                               {member.experienceLevel ? ` · ${member.experienceLevel}` : ""}
-                              {member.dailyRate != null ? ` · R${member.dailyRate}/day` : ""}
+                              {member.dailyRate != null ? ` · ${formatZar(member.dailyRate, { maximumFractionDigits: 0 })}/day` : ""}
                             </p>
                           </div>
                           <Button
@@ -6913,13 +6966,17 @@ function LocationMarketplaceWorkspace({
     queryFn: () => fetch(`/api/creator/projects/${projectId}/schedule`).then((r) => r.json()),
     enabled: hasProject,
   });
-  const locations = (breakdown?.locations ?? []) as Array<{
-    id: string;
-    name: string;
-    description: string | null;
-    sceneId?: string | null;
-    locationListingId?: string | null;
-  }>;
+  const locations = useMemo(
+    () =>
+      ((breakdown?.locations ?? []) as Array<{
+        id: string;
+        name: string;
+        description: string | null;
+        sceneId?: string | null;
+        locationListingId?: string | null;
+      }>),
+    [breakdown?.locations],
+  );
   const listings = (listingsData ?? []) as Array<{
     id: string;
     name: string;
@@ -7155,8 +7212,8 @@ function LocationMarketplaceWorkspace({
                   </Button>
                 </div>
                 <p className="text-[11px] text-slate-400">
-                  Daily: R{Number(listing.profile?.dailyRate ?? listing.dailyRate ?? 0).toLocaleString()} · Hourly:{" "}
-                  {listing.profile?.hourlyRate != null ? `R${Number(listing.profile.hourlyRate).toLocaleString()}` : "N/A"} ·
+                  Daily: {formatZar(Number(listing.profile?.dailyRate ?? listing.dailyRate ?? 0), { maximumFractionDigits: 0 })} · Hourly:{" "}
+                  {listing.profile?.hourlyRate != null ? formatZar(Number(listing.profile.hourlyRate), { maximumFractionDigits: 0 }) : "N/A"} ·
                   Capacity: {listing.capacity ?? "N/A"} · Bookings: {listing._count?.bookings ?? 0}
                 </p>
                 {(listing.profile?.permitRequirements || listing.profile?.restrictions || listing.profile?.logistics) && (
@@ -7714,20 +7771,24 @@ function FundingHubWorkspace({
         };
       }
     | undefined;
-  const opportunities = (data?.opportunities ?? []) as Array<{
-    id: string;
-    name: string;
-    type: "INSTITUTIONAL" | "PRIVATE" | "INTERNAL_STORYTIME";
-    description: string;
-    categories: string[];
-    minAmount: number;
-    maxAmount: number;
-    requirements: string[];
-    applicationDeadline: string | null;
-    contact: string;
-    region: string | null;
-    matchScore: number;
-  }>;
+  const opportunities = useMemo(
+    () =>
+      ((data?.opportunities ?? []) as Array<{
+        id: string;
+        name: string;
+        type: "INSTITUTIONAL" | "PRIVATE" | "INTERNAL_STORYTIME";
+        description: string;
+        categories: string[];
+        minAmount: number;
+        maxAmount: number;
+        requirements: string[];
+        applicationDeadline: string | null;
+        contact: string;
+        region: string | null;
+        matchScore: number;
+      }>),
+    [data?.opportunities],
+  );
   const applications = (data?.applications ?? []) as Array<{
     id: string;
     opportunityId: string;
@@ -7745,28 +7806,32 @@ function FundingHubWorkspace({
     };
     notes?: string | null;
   }>;
-  const sources = (data?.sources ?? []) as Array<{
-    id: string;
-    name: string;
-    type: "INSTITUTIONAL" | "PRIVATE" | "INTERNAL_STORYTIME";
-    instrument: "GRANT" | "EQUITY" | "LOAN" | "SPONSORSHIP" | "SELF_FUNDED";
-    amountCommitted: number;
-    amountReceived: number;
-    paymentSchedule?: string | null;
-    conditions?: string | null;
-    linkedContractId?: string | null;
-    status: "COMMITTED" | "PARTIALLY_RECEIVED" | "RECEIVED" | "ON_HOLD";
-    notes?: string | null;
-    milestones: Array<{
-      id: string;
-      phase: "PRE_PRODUCTION" | "PRODUCTION" | "POST_PRODUCTION" | "DELIVERY";
-      dueDate?: string | null;
-      amount: number;
-      paid: boolean;
-      paidAt?: string | null;
-      note?: string | null;
-    }>;
-  }>;
+  const sources = useMemo(
+    () =>
+      ((data?.sources ?? []) as Array<{
+        id: string;
+        name: string;
+        type: "INSTITUTIONAL" | "PRIVATE" | "INTERNAL_STORYTIME";
+        instrument: "GRANT" | "EQUITY" | "LOAN" | "SPONSORSHIP" | "SELF_FUNDED";
+        amountCommitted: number;
+        amountReceived: number;
+        paymentSchedule?: string | null;
+        conditions?: string | null;
+        linkedContractId?: string | null;
+        status: "COMMITTED" | "PARTIALLY_RECEIVED" | "RECEIVED" | "ON_HOLD";
+        notes?: string | null;
+        milestones: Array<{
+          id: string;
+          phase: "PRE_PRODUCTION" | "PRODUCTION" | "POST_PRODUCTION" | "DELIVERY";
+          dueDate?: string | null;
+          amount: number;
+          paid: boolean;
+          paidAt?: string | null;
+          note?: string | null;
+        }>;
+      }>),
+    [data?.sources],
+  );
   const allocations = (data?.allocations ?? []) as Array<{
     id: string;
     department: string;
@@ -8026,7 +8091,7 @@ function FundingHubWorkspace({
         setThresholdPercent(String(profile.minimumStartThresholdPercent));
       }
     }
-  }, [funding?.id, profile?.minimumStartThresholdPercent]);
+  }, [funding, profile?.minimumStartThresholdPercent]);
   useEffect(() => {
     if (!selectedOpportunityId && opportunities.length > 0) {
       setSelectedOpportunityId(opportunities[0].id);
@@ -8089,11 +8154,11 @@ function FundingHubWorkspace({
         <div className="grid gap-2 md:grid-cols-4">
           <div className="creator-glass-panel p-3">
             <p className="text-xs text-slate-400">Funding secured</p>
-            <p className="mt-1 text-xl font-semibold text-emerald-300">R{profile.fundingSecured.toLocaleString()}</p>
+            <p className="mt-1 text-xl font-semibold text-emerald-300">{formatZar(profile.fundingSecured, { maximumFractionDigits: 0 })}</p>
           </div>
           <div className="creator-glass-panel p-3">
             <p className="text-xs text-slate-400">Funding gap</p>
-            <p className="mt-1 text-xl font-semibold text-amber-300">R{profile.fundingGap.toLocaleString()}</p>
+            <p className="mt-1 text-xl font-semibold text-amber-300">{formatZar(profile.fundingGap, { maximumFractionDigits: 0 })}</p>
           </div>
           <div className="creator-glass-panel p-3">
             <p className="text-xs text-slate-400">Coverage</p>
@@ -8190,7 +8255,7 @@ function FundingHubWorkspace({
                       </div>
                       <p className="text-slate-400">{opp.description}</p>
                       <p className="text-slate-500">
-                        {opp.type.replaceAll("_", " ")} · R{opp.minAmount.toLocaleString()} - R{opp.maxAmount.toLocaleString()}
+                        {opp.type.replaceAll("_", " ")} · {formatZar(opp.minAmount, { maximumFractionDigits: 0 })} - {formatZar(opp.maxAmount, { maximumFractionDigits: 0 })}
                         {opp.applicationDeadline ? ` · Deadline ${new Date(opp.applicationDeadline).toLocaleDateString()}` : ""}
                       </p>
                       <Button
@@ -8242,7 +8307,7 @@ function FundingHubWorkspace({
                       <div>
                         <p className="text-slate-100">{app.funderName}</p>
                         <p className="text-slate-500">
-                          R{app.requestedAmount.toLocaleString()} · {app.status} · {new Date(app.submittedAt).toLocaleDateString()}
+                          {formatZar(app.requestedAmount, { maximumFractionDigits: 0 })} · {app.status} · {new Date(app.submittedAt).toLocaleDateString()}
                         </p>
                       </div>
                       <select
@@ -8302,7 +8367,7 @@ function FundingHubWorkspace({
                         <p className="text-slate-400">{src.status}</p>
                       </div>
                       <p className="text-slate-500">
-                        {src.type.replaceAll("_", " ")} · {src.instrument} · Committed R{src.amountCommitted.toLocaleString()} · Received R{src.amountReceived.toLocaleString()}
+                        {src.type.replaceAll("_", " ")} · {src.instrument} · Committed {formatZar(src.amountCommitted, { maximumFractionDigits: 0 })} · Received {formatZar(src.amountReceived, { maximumFractionDigits: 0 })}
                       </p>
                       <div className="flex flex-wrap gap-2">
                         <Button
@@ -8375,7 +8440,7 @@ function FundingHubWorkspace({
                 <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
                   {milestoneAlerts.slice(0, 6).map((alert) => (
                     <p key={alert.milestoneId}>
-                      {alert.alert === "MISSED" ? "Missed" : "Upcoming"} payout · {alert.sourceName} · {alert.phase} · R{alert.amount.toLocaleString()} · {new Date(alert.dueDate).toLocaleDateString()}
+                      {alert.alert === "MISSED" ? "Missed" : "Upcoming"} payout · {alert.sourceName} · {alert.phase} · {formatZar(alert.amount, { maximumFractionDigits: 0 })} · {new Date(alert.dueDate).toLocaleDateString()}
                     </p>
                   ))}
                 </div>
@@ -8408,7 +8473,7 @@ function FundingHubWorkspace({
                   {allocations.map((alloc) => (
                     <div key={alloc.id} className="rounded-md border border-slate-800 bg-slate-900/70 px-3 py-2 text-xs flex items-center justify-between">
                       <span className="text-slate-200">{alloc.department}</span>
-                      <span className="text-slate-400">R{alloc.amount.toLocaleString()} {alloc.note ? `· ${alloc.note}` : ""}</span>
+                      <span className="text-slate-400">{formatZar(alloc.amount, { maximumFractionDigits: 0 })} {alloc.note ? `· ${alloc.note}` : ""}</span>
                     </div>
                   ))}
                 </div>
@@ -8433,7 +8498,7 @@ function FundingHubWorkspace({
         <div className="creator-glass-panel p-4 text-xs space-y-1">
           <p className="text-slate-200 font-medium">Project funding status: {profile.status.replaceAll("_", " ")}</p>
           <p className="text-slate-400">
-            Budget: R{profile.budgetTotal.toLocaleString()} · Secured: R{profile.fundingSecured.toLocaleString()} · Received: R{profile.fundingReceived.toLocaleString()} · Gap: R{profile.fundingGap.toLocaleString()}
+            Budget: {formatZar(profile.budgetTotal, { maximumFractionDigits: 0 })} · Secured: {formatZar(profile.fundingSecured, { maximumFractionDigits: 0 })} · Received: {formatZar(profile.fundingReceived, { maximumFractionDigits: 0 })} · Gap: {formatZar(profile.fundingGap, { maximumFractionDigits: 0 })}
           </p>
           <p className="text-slate-500">
             Investor view: {sources.length} source(s), {applications.length} application(s), {milestoneAlerts.length} payout alert(s).
@@ -8820,7 +8885,7 @@ function TableReadSessionEditor({
     setScheduledLocal(tableReadDatetimeLocalValue(session.scheduledAt));
     setNotesLog(session.notesLog ?? "");
     lastSavedLogRef.current = session.notesLog ?? "";
-  }, [session.id]);
+  }, [session.id, session.name, session.notesLog, session.scheduledAt]);
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["project-table-reads", projectId] });
@@ -9129,7 +9194,7 @@ function TableReadsWorkspace({
     queryFn: () => fetch(`/api/creator/projects/${projectId}/table-reads`).then((r) => r.json()),
     enabled: hasProject,
   });
-  const sessions = (data?.sessions ?? []) as TableReadSessionRow[];
+  const sessions = useMemo(() => ((data?.sessions ?? []) as TableReadSessionRow[]), [data?.sessions]);
 
   useEffect(() => {
     if (!activeSessionId && sessions.length > 0) {
@@ -9316,25 +9381,29 @@ function ProductionWorkspace({
         keyAlerts: { type: string; severity: string; message: string; taskId?: string }[];
       }
     | undefined;
-  const tasks = (workspaceData?.tasks ?? []) as Array<{
-    id: string;
-    title: string;
-    description: string | null;
-    department: string | null;
-    status: "TODO" | "IN_PROGRESS" | "BLOCKED" | "DONE" | "COMPLETED";
-    priority: "LOW" | "MEDIUM" | "HIGH" | null;
-    dueDate: string | null;
-    assigneeId: string | null;
-    assignee?: { id: string; name: string | null; email: string | null; role: string } | null;
-    shootDay?: { id: string; date: string; status: string } | null;
-    scene?: { id: string; number: string; heading: string | null } | null;
-    linkedItem?: { type: string | null; id: string | null; label: string | null };
-    meta?: {
-      comments?: Array<{ id: string; body: string; createdAt: string; mentions?: string[] }>;
-      requireSignedContracts?: boolean;
-      blockedReason?: string | null;
-    };
-  }>;
+  const tasks = useMemo(
+    () =>
+      ((workspaceData?.tasks ?? []) as Array<{
+        id: string;
+        title: string;
+        description: string | null;
+        department: string | null;
+        status: "TODO" | "IN_PROGRESS" | "BLOCKED" | "DONE" | "COMPLETED";
+        priority: "LOW" | "MEDIUM" | "HIGH" | null;
+        dueDate: string | null;
+        assigneeId: string | null;
+        assignee?: { id: string; name: string | null; email: string | null; role: string } | null;
+        shootDay?: { id: string; date: string; status: string } | null;
+        scene?: { id: string; number: string; heading: string | null } | null;
+        linkedItem?: { type: string | null; id: string | null; label: string | null };
+        meta?: {
+          comments?: Array<{ id: string; body: string; createdAt: string; mentions?: string[] }>;
+          requireSignedContracts?: boolean;
+          blockedReason?: string | null;
+        };
+      }>),
+    [workspaceData?.tasks],
+  );
   const taskSummary = workspaceData?.taskSummary as
     | {
         total: number;
@@ -9375,15 +9444,22 @@ function ProductionWorkspace({
         funding: { secured: number; status: string };
       }
     | undefined;
-  const teamMembers = (workspaceData?.team?.members ?? []) as Array<{
-    id: string;
-    name: string | null;
-    email: string | null;
-    role: string;
-    viewRole: string;
-  }>;
+  const teamMembers = useMemo(
+    () =>
+      ((workspaceData?.team?.members ?? []) as Array<{
+        id: string;
+        name: string | null;
+        email: string | null;
+        role: string;
+        viewRole: string;
+      }>),
+    [workspaceData?.team?.members],
+  );
 
-  const shootDays = (scheduleData?.shootDays ?? []) as Array<{ id: string; date: string }>;
+  const shootDays = useMemo(
+    () => ((scheduleData?.shootDays ?? []) as Array<{ id: string; date: string }>),
+    [scheduleData?.shootDays],
+  );
   const scenes = (scenesData?.scenes ?? []) as Array<{ id: string; number: string; heading: string | null }>;
 
   useEffect(() => {
@@ -9584,8 +9660,8 @@ function ProductionWorkspace({
               <div className="creator-glass-panel p-3 text-xs">
                 <p className="text-slate-400">Budget</p>
                 <p className="text-white font-semibold mt-1">
-                  R{Math.round(overview.budgetStatus.actual).toLocaleString()} / R
-                  {Math.round(overview.budgetStatus.estimated).toLocaleString()}
+                  {formatZar(Math.round(overview.budgetStatus.actual), { maximumFractionDigits: 0 })} /{" "}
+                  {formatZar(Math.round(overview.budgetStatus.estimated), { maximumFractionDigits: 0 })}
                 </p>
               </div>
               <div className="creator-glass-panel p-3 text-xs">
@@ -9882,8 +9958,8 @@ function ProductionWorkspace({
                   {integrations && (
                     <div className="rounded-md border border-slate-800 bg-slate-900/50 p-2 space-y-1">
                       <p className="text-slate-300">
-                        Budget: R{Math.round(integrations.budget.actual).toLocaleString()} spent / R
-                        {Math.round(integrations.budget.estimated).toLocaleString()} estimated
+                        Budget: {formatZar(Math.round(integrations.budget.actual), { maximumFractionDigits: 0 })} spent /{" "}
+                        {formatZar(Math.round(integrations.budget.estimated), { maximumFractionDigits: 0 })} estimated
                       </p>
                       <p className="text-slate-300">
                         Schedule: {integrations.scheduling.dayCount} day(s) · {integrations.scheduling.conflictCount} conflict(s)
@@ -9892,7 +9968,7 @@ function ProductionWorkspace({
                         Contracts: {integrations.contracts.signed} signed · {integrations.contracts.pending} pending
                       </p>
                       <p className="text-slate-300">
-                        Funding: {integrations.funding.status} · R{Math.round(integrations.funding.secured).toLocaleString()} secured
+                        Funding: {integrations.funding.status} · {formatZar(Math.round(integrations.funding.secured), { maximumFractionDigits: 0 })} secured
                       </p>
                     </div>
                   )}
@@ -10043,14 +10119,18 @@ function EquipmentPlanningWorkspace({
     enabled: hasProject,
   });
 
-  const items = (data?.items ?? []) as Array<{
-    id: string;
-    category: string;
-    quantity: number;
-    description: string | null;
-    equipmentListingId?: string | null;
-    equipmentListing?: { id: string; companyName: string } | null;
-  }>;
+  const items = useMemo(
+    () =>
+      ((data?.items ?? []) as Array<{
+        id: string;
+        category: string;
+        quantity: number;
+        description: string | null;
+        equipmentListingId?: string | null;
+        equipmentListing?: { id: string; companyName: string } | null;
+      }>),
+    [data?.items],
+  );
   const marketplace = (data?.marketplace ?? []) as Array<{
     id: string;
     name: string;
@@ -10254,7 +10334,7 @@ function EquipmentPlanningWorkspace({
                     </Button>
                   </div>
                   <p className="text-slate-500">
-                    {listing.category} · {listing.location ?? "Unknown location"} · R{Number(listing.dailyRate ?? 0).toLocaleString()}/day
+                    {listing.category} · {listing.location ?? "Unknown location"} · {formatZar(Number(listing.dailyRate ?? 0), { maximumFractionDigits: 0 })}/day
                   </p>
                   <p className="text-slate-400">{listing.specifications || "No specifications listed."}</p>
                 </div>
@@ -10372,7 +10452,7 @@ function RiskInsuranceWorkspace({
     setEditMitigation(selectedRisk.mitigationPlan ?? "");
     setEditStatus(selectedRisk.status);
     setEditPolicyIds(selectedRisk.linkedPolicyIds ?? []);
-  }, [selectedRisk?.id]);
+  }, [selectedRisk]);
 
   const filteredItems = useMemo(() => {
     return (plan?.items ?? []).filter((item) => {
@@ -10730,7 +10810,7 @@ function RiskInsuranceWorkspace({
               <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
                 {(insurance?.policies ?? []).map((policy) => (
                   <div key={policy.id} className="rounded-md border border-slate-800 bg-slate-900/70 px-2 py-1 text-[11px] text-slate-300">
-                    <p>{policy.providerName} · {policy.coverageType} · R{Math.round(policy.coverageAmount).toLocaleString()}</p>
+                    <p>{policy.providerName} · {policy.coverageType} · {formatZar(Math.round(policy.coverageAmount), { maximumFractionDigits: 0 })}</p>
                     <p className="text-slate-500">
                       {policy.validFrom ? new Date(policy.validFrom).toLocaleDateString() : "No start"} - {policy.validTo ? new Date(policy.validTo).toLocaleDateString() : "No end"}
                     </p>

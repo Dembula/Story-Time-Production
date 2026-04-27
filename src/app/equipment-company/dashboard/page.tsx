@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Package, MessageCircle, Clock, CheckCircle, XCircle, TrendingUp, Wrench } from "lucide-react";
+import { Package, MessageCircle, Clock, CheckCircle, XCircle, TrendingUp, Wrench, DollarSign } from "lucide-react";
+import { formatZar } from "@/lib/format-currency-zar";
 
 interface EquipmentRequest {
   id: string;
@@ -25,6 +26,7 @@ interface Listing {
 export default function EquipmentDashboard() {
   const [requests, setRequests] = useState<EquipmentRequest[]>([]);
   const [listings, setListings] = useState<Listing[]>([]);
+  const [revenue, setRevenue] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const [subChecked, setSubChecked] = useState(false);
@@ -42,9 +44,11 @@ export default function EquipmentDashboard() {
     Promise.all([
       fetch("/api/equipment-requests").then((r) => r.json()),
       fetch("/api/equipment").then((r) => r.json()),
-    ]).then(([reqs, equip]) => {
+      fetch("/api/equipment-company/stats").then((r) => r.json()),
+    ]).then(([reqs, equip, stats]) => {
       setRequests(reqs);
       setListings(equip);
+      setRevenue(typeof stats?.revenue === "number" ? stats.revenue : 0);
       setLoading(false);
     });
   }, [subChecked]);
@@ -79,20 +83,21 @@ export default function EquipmentDashboard() {
         <p className="text-slate-400 text-sm">Manage your equipment listings and creator requests</p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         {[
           { label: "Listings", value: listings.length, icon: Package, color: "text-blue-400" },
           { label: "Total Requests", value: requests.length, icon: TrendingUp, color: "text-orange-400" },
           { label: "Pending", value: pending, icon: Clock, color: "text-yellow-400" },
           { label: "Approved", value: approved, icon: CheckCircle, color: "text-green-400" },
           { label: "Messages", value: totalMessages, icon: MessageCircle, color: "text-purple-400" },
+          { label: "Settled revenue", value: formatZar(revenue, { maximumFractionDigits: 0 }), icon: DollarSign, color: "text-emerald-400" },
         ].map((s) => (
           <div key={s.label} className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
             <div className="flex items-center gap-2 mb-2">
               <s.icon className={`w-4 h-4 ${s.color}`} />
               <span className="text-xs text-slate-400 uppercase tracking-wider">{s.label}</span>
             </div>
-            <p className="text-2xl font-bold text-white">{s.value}</p>
+            <p className={`text-2xl font-bold ${s.label === "Settled revenue" ? "text-emerald-300" : "text-white"}`}>{s.value}</p>
           </div>
         ))}
       </div>

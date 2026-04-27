@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { formatZar } from "@/lib/format-currency-zar";
 import Link from "next/link";
 import {
   Film, DollarSign, Eye, Star, MessageSquare, Users, ChevronDown, ChevronUp,
@@ -44,7 +45,7 @@ export function AdminCreatorsClient() {
         <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4"><p className="text-xs text-slate-400">Total Creators</p><p className="text-2xl font-bold text-white">{creators.length}</p></div>
         <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4"><p className="text-xs text-slate-400">Total Content</p><p className="text-2xl font-bold text-white">{creators.reduce((s, c) => s + c._count.contents, 0)}</p></div>
         <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4"><p className="text-xs text-slate-400">Total Views</p><p className="text-2xl font-bold text-white">{creators.reduce((s, c) => s + c.totalViews, 0).toLocaleString()}</p></div>
-        <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4"><p className="text-xs text-slate-400">Total Revenue</p><p className="text-2xl font-bold text-orange-400">${creators.reduce((s, c) => s + c.revenue, 0).toFixed(2)}</p></div>
+        <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4"><p className="text-xs text-slate-400">Total Revenue</p><p className="text-2xl font-bold text-orange-400">{formatZar(creators.reduce((s, c) => s + c.revenue, 0))}</p></div>
       </div>
 
       <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search creators..." className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 text-sm" />
@@ -72,7 +73,7 @@ export function AdminCreatorsClient() {
                     <p className="text-sm text-slate-500">{c.email} · {c._count.contents} titles</p>
                   </div>
                   <div className="hidden md:flex items-center gap-6">
-                    <div className="text-right"><p className="text-xl font-bold text-orange-400">${c.revenue.toFixed(2)}</p><p className="text-xs text-slate-500">Revenue</p></div>
+                    <div className="text-right"><p className="text-xl font-bold text-orange-400">{formatZar(c.revenue)}</p><p className="text-xs text-slate-500">Revenue</p></div>
                     <div className="text-right"><p className="text-xl font-bold text-white">{c.totalViews.toLocaleString()}</p><p className="text-xs text-slate-500">Views</p></div>
                     <div className="text-right"><p className="text-xl font-bold text-yellow-400">★ {c.avgRating.toFixed(1)}</p><p className="text-xs text-slate-500">Rating</p></div>
                     <div className="text-right"><p className="text-xl font-bold text-cyan-400">{c.totalComments}</p><p className="text-xs text-slate-500">Comments</p></div>
@@ -105,7 +106,7 @@ export function AdminCreatorsClient() {
                           { label: "Avg Rating", value: `★ ${c.avgRating.toFixed(1)}`, icon: Star },
                           { label: "Comments", value: c.totalComments.toString(), icon: MessageSquare },
                           { label: "Content Count", value: c._count.contents.toString(), icon: Film },
-                          { label: "Revenue", value: `$${c.revenue.toFixed(2)}`, icon: TrendingUp },
+                          { label: "Revenue", value: formatZar(c.revenue), icon: TrendingUp },
                         ].map((s) => (
                           <div key={s.label} className="p-3 rounded-lg bg-slate-800/50 border border-slate-700/30">
                             <div className="flex items-center gap-1.5 mb-1"><s.icon className="w-3 h-3 text-orange-400" /><span className="text-xs text-slate-500">{s.label}</span></div>

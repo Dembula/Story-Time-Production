@@ -20,6 +20,7 @@ interface ActivityEntry {
 interface ActivityData {
   activity: ActivityEntry[];
   signInsByRole: { role: string; _count: { id: number } }[];
+  eventTypeCounts?: { eventType: string; _count: { id: number } }[];
   totalWatchTimeSeconds: number;
   totalComments: number;
   totalRatings: number;
@@ -43,6 +44,9 @@ export function AdminActivityClient() {
 
   const activity = data?.activity || [];
   const signIns = data?.signInsByRole || [];
+  const signInCount =
+    data?.eventTypeCounts?.find((e) => e.eventType === "SIGN_IN")?._count.id ?? signIns.reduce((s, r) => s + r._count.id, 0);
+  const telemetryCount = data?.eventTypeCounts?.find((e) => e.eventType === "ACCESS_TELEMETRY")?._count.id ?? 0;
   const totalWatchHours = Math.floor((data?.totalWatchTimeSeconds || 0) / 3600);
   const deviceEntries = Object.entries(data?.deviceBreakdown || {}).sort((a, b) => b[1] - a[1]);
   const ipEntries = Object.entries(data?.ipBreakdown || {}).sort((a, b) => b[1].count - a[1].count);
@@ -61,12 +65,15 @@ export function AdminActivityClient() {
     <div className="p-8 max-w-7xl mx-auto space-y-8">
       <div>
         <h1 className="text-3xl font-semibold text-white mb-2 flex items-center gap-3"><Activity className="w-8 h-8 text-orange-500" /> Platform Activity Intelligence</h1>
-        <p className="text-slate-400">Complete audit trail — every sign-in, device, IP address, engagement metric, and time-of-day pattern.</p>
+        <p className="text-slate-400">
+          Audit trail: sign-ins, session telemetry (IP and device when available), and engagement totals from the database.
+        </p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         {[
-          { label: "Total Sign-ins", value: activity.length, icon: LogIn, color: "text-cyan-400" },
+          { label: "Sign-ins (all-time)", value: signInCount, icon: LogIn, color: "text-cyan-400" },
+          { label: "Telemetry rows (all-time)", value: telemetryCount, icon: Shield, color: "text-slate-300" },
           { label: "Watch Hours", value: `${totalWatchHours}h`, icon: Clock, color: "text-violet-400" },
           { label: "Total Comments", value: data?.totalComments || 0, icon: MessageSquare, color: "text-blue-400" },
           { label: "Total Ratings", value: data?.totalRatings || 0, icon: Star, color: "text-yellow-400" },

@@ -3,6 +3,14 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getPlatformStats } from "@/lib/revenue";
+import { Prisma } from "../../../../../generated/prisma";
+
+const TELEMETRY_LOOKBACK_DAYS = 90;
+
+type IpAggRow = { ipAddress: string; count: bigint; lastSeen: Date; userSample: string | null };
+type DeviceAggRow = { deviceType: string; count: bigint };
+type SignInRoleRow = { role: string; count: bigint };
+type WatchAggRow = { distinctUsers: bigint; totalSeconds: bigint | null };
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -14,6 +22,7 @@ export async function GET() {
   const now = new Date();
   const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const periodEnd = new Date();
+  const telemetrySince = new Date(now.getTime() - TELEMETRY_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
 
   const stats = await getPlatformStats(periodStart, periodEnd);
 
@@ -31,12 +40,16 @@ export async function GET() {
     castTotalTalent,
     castInquiryCount,
     auditionCount,
+    ipRows,
+    deviceRows,
+    signInRoleRows,
+    watchAgg,
   ] = await Promise.all([
     prisma.content.groupBy({ by: ["type"], _count: { id: true } }),
     prisma.user.groupBy({ by: ["role"], _count: { id: true } }),
     prisma.activityLog.findMany({
       orderBy: { createdAt: "desc" },
-      take: 50,
+      take: 100,
       select: {
         id: true,
         userEmail: true,
@@ -58,46 +71,71 @@ export async function GET() {
     prisma.castingTalent.count(),
     prisma.castingInquiry.count(),
     prisma.auditionPost.count(),
+    prisma.$queryRaw<IpAggRow[]>(Prisma.sql`
+      SELECT
+        a."ipAddress" AS "ipAddress",
+        COUNT(*)::bigint AS count,
+        MAX(a."createdAt") AS "lastSeen",
+        MAX(COALESCE(a."userName", a."userEmail", 'Unknown')) AS "userSample"
+      FROM "ActivityLog" a
+      WHERE a."ipAddress" IS NOT NULL
+        AND a."createdAt" >= ${telemetrySince}
+      GROUP BY a."ipAddress"
+      ORDER BY count DESC
+      LIMIT 150
+    `),
+    prisma.$queryRaw<DeviceAggRow[]>(Prisma.sql`
+      SELECT a."deviceType" AS "deviceType", COUNT(*)::bigint AS count
+      FROM "ActivityLog" a
+      WHERE a."deviceType" IS NOT NULL
+        AND a."createdAt" >= ${telemetrySince}
+      GROUP BY a."deviceType"
+      ORDER BY count DESC
+    `),
+    prisma.$queryRaw<SignInRoleRow[]>(Prisma.sql`
+      SELECT a."role" AS "role", COUNT(*)::bigint AS count
+      FROM "ActivityLog" a
+      WHERE a."eventType" = 'SIGN_IN'
+        AND a."createdAt" >= ${telemetrySince}
+      GROUP BY a."role"
+    `),
+    prisma.$queryRaw<WatchAggRow[]>(Prisma.sql`
+      SELECT
+        COUNT(DISTINCT "userId")::bigint AS "distinctUsers",
+        COALESCE(SUM("durationSeconds"), 0)::bigint AS "totalSeconds"
+      FROM "WatchSession"
+      WHERE "startedAt" >= ${periodStart}
+        AND "startedAt" <= ${periodEnd}
+    `),
   ]);
 
-  const ipAddresses = recentActivity
-    .filter((a) => a.ipAddress)
-    .reduce<Record<string, { count: number; lastSeen: Date; users: string[] }>>((acc, a) => {
-      const ip = a.ipAddress!;
-      if (!acc[ip]) acc[ip] = { count: 0, lastSeen: a.createdAt, users: [] };
-      acc[ip].count++;
-      if (!acc[ip].users.includes(a.userName || a.userEmail || "Unknown")) {
-        acc[ip].users.push(a.userName || a.userEmail || "Unknown");
-      }
-      return acc;
-    }, {});
-
-  const deviceBreakdown = recentActivity
-    .filter((a) => a.deviceType)
-    .reduce<Record<string, number>>((acc, d) => {
-      const device = d.deviceType!;
-      acc[device] = (acc[device] || 0) + 1;
-      return acc;
-    }, {});
-
-  const signInsByRole = recentActivity
-    .filter((a) => a.eventType === "SIGN_IN")
-    .reduce<Record<string, number>>((acc, a) => {
-      acc[a.role] = (acc[a.role] || 0) + 1;
-      return acc;
-    }, {});
-
-  const allSessions = await prisma.watchSession.findMany({
-    select: { userId: true, durationSeconds: true },
-  });
-  const userWatchTotals: Record<string, number> = {};
-  for (const ws of allSessions) {
-    userWatchTotals[ws.userId] = (userWatchTotals[ws.userId] || 0) + ws.durationSeconds;
+  const ipAddresses: Record<string, { count: number; lastSeen: string; users: string[] }> = {};
+  for (const row of ipRows) {
+    const ip = row.ipAddress;
+    if (!ip) continue;
+    const sample = row.userSample?.trim() || "Unknown";
+    ipAddresses[ip] = {
+      count: Number(row.count),
+      lastSeen: row.lastSeen.toISOString(),
+      users: [sample],
+    };
   }
-  const watcherCount = Object.keys(userWatchTotals).length;
-  const avgWatchTime = watcherCount > 0
-    ? Math.round(Object.values(userWatchTotals).reduce((a, b) => a + b, 0) / watcherCount)
-    : 0;
+
+  const deviceBreakdown: Record<string, number> = {};
+  for (const row of deviceRows) {
+    if (row.deviceType) deviceBreakdown[row.deviceType] = Number(row.count);
+  }
+
+  const signInsByRole: Record<string, number> = {};
+  for (const row of signInRoleRows) {
+    signInsByRole[row.role] = Number(row.count);
+  }
+
+  const wa = watchAgg[0];
+  const watcherCount = wa ? Number(wa.distinctUsers) : 0;
+  const totalSecondsInPeriod = wa ? Number(wa.totalSeconds ?? 0) : 0;
+  const avgWatchTime =
+    watcherCount > 0 ? Math.round(totalSecondsInPeriod / watcherCount) : 0;
 
   return NextResponse.json({
     ...stats,
@@ -119,5 +157,6 @@ export async function GET() {
     signInsByRole,
     avgWatchTimePerUser: avgWatchTime,
     uniqueWatchers: watcherCount,
+    telemetrySince: telemetrySince.toISOString(),
   });
 }

@@ -2,7 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { BackButton } from "@/components/layout/back-button";
-import { Wrench, MapPin, ExternalLink, Send, Package, Clock, CheckCircle, MessageCircle, ArrowRight } from "lucide-react";
+import { Wrench, MapPin, ExternalLink, Send, Package, Clock, CheckCircle, MessageCircle, ArrowRight, CreditCard } from "lucide-react";
+import { formatZar } from "@/lib/format-currency-zar";
+import { computeEquipmentRequestBaseZar } from "@/lib/equipment-request-base-zar";
+import { computeMarketplaceFeeZar } from "@/lib/marketplace-zar-defaults";
 
 type Equipment = {
   id: string;
@@ -21,6 +24,7 @@ type Request = {
   startDate: string | null;
   endDate: string | null;
   createdAt: string;
+  paymentTransactionId?: string | null;
   equipment: { companyName: string; category: string; description: string | null };
   company: { id: string; name: string | null };
   _count: { messages: number };
@@ -34,6 +38,7 @@ export default function EquipmentPage() {
   const [requesting, setRequesting] = useState<string | null>(null);
   const [form, setForm] = useState({ note: "", startDate: "", endDate: "" });
   const [success, setSuccess] = useState("");
+  const [payingId, setPayingId] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -56,11 +61,46 @@ export default function EquipmentPage() {
     });
     if (res.ok) {
       const req = await res.json();
-      setRequests((prev) => [{ ...req, _count: { messages: 0 }, company: equipment.find((e) => e.id === equipmentId)?.company || { id: "", name: "" } }, ...prev]);
+      setRequests((prev) => [
+        {
+          ...req,
+          _count: { messages: 0 },
+          company: equipment.find((e) => e.id === equipmentId)?.company || { id: "", name: "" },
+          equipment: req.equipment ?? equipment.find((e) => e.id === equipmentId) ?? {
+            companyName: "",
+            category: "",
+            description: null,
+          },
+        },
+        ...prev,
+      ]);
       setRequesting(null);
       setForm({ note: "", startDate: "", endDate: "" });
       setSuccess("Request sent successfully!");
       setTimeout(() => setSuccess(""), 3000);
+    }
+  }
+
+  async function payRequest(requestId: string) {
+    setPayingId(requestId);
+    try {
+      const res = await fetch(`/api/equipment-requests/${requestId}/pay`, { method: "POST" });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setSuccess("");
+        alert(data?.error || "Payment failed");
+        return;
+      }
+      setRequests((prev) =>
+        prev.map((r) =>
+          r.id === requestId ? { ...r, paymentTransactionId: data.transactionId ?? "paid" } : r,
+        ),
+      );
+      const total = typeof data?.totalAmount === "number" ? formatZar(data.totalAmount) : "paid";
+      setSuccess(`Payment recorded (${total} charged incl. platform fee).`);
+      setTimeout(() => setSuccess(""), 5000);
+    } finally {
+      setPayingId(null);
     }
   }
 
@@ -162,29 +202,57 @@ export default function EquipmentPage() {
               <button onClick={() => setTab("browse")} className="mt-3 text-orange-400 text-sm hover:underline">Browse equipment</button>
             </div>
           ) : (
-            requests.map((r) => (
+            requests.map((r) => {
+              const base = computeEquipmentRequestBaseZar({
+                equipmentDescription: r.equipment.description,
+                startDate: r.startDate,
+                endDate: r.endDate,
+              });
+              const fee = computeMarketplaceFeeZar(base);
+              const estTotal = Math.round((base + fee) * 100) / 100;
+              const canPay = r.status === "APPROVED" && !r.paymentTransactionId;
+              const paid = Boolean(r.paymentTransactionId);
+              return (
               <div key={r.id} className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
-                <div className="flex items-start justify-between">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-1">
+                    <div className="flex items-center gap-3 mb-1 flex-wrap">
                       <span className="text-white font-medium">{r.equipment.companyName} — {r.equipment.category}</span>
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                         r.status === "PENDING" ? "bg-yellow-500/10 text-yellow-400" :
                         r.status === "APPROVED" ? "bg-green-500/10 text-green-400" :
                         "bg-red-500/10 text-red-400"
                       }`}>{r.status}</span>
+                      {paid && <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400">Paid</span>}
                     </div>
                     <p className="text-sm text-slate-400">To: <span className="text-orange-400">{r.company.name || "Company"}</span></p>
                     {r.note && <p className="text-sm text-slate-500 mt-1 italic">&quot;{r.note}&quot;</p>}
                     {r.startDate && <p className="text-xs text-slate-500 mt-1">Dates: {r.startDate} — {r.endDate || "TBD"}</p>}
                     <p className="text-xs text-slate-500 mt-1">{r._count.messages} messages &middot; {new Date(r.createdAt).toLocaleDateString()}</p>
+                    {canPay && (
+                      <p className="text-xs text-slate-400 mt-2">
+                        Estimated checkout: {formatZar(base)} + fee {formatZar(fee)} = <span className="text-orange-300 font-medium">{formatZar(estTotal)}</span> (simulated gateway)
+                      </p>
+                    )}
                   </div>
-                  <a href={`/creator/messages?requestId=${r.id}&companyId=${r.company.id}`} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 transition text-sm">
-                    <MessageCircle className="w-4 h-4" /> Chat <ArrowRight className="w-3 h-3" />
-                  </a>
+                  <div className="flex flex-col sm:items-end gap-2 shrink-0">
+                    <a href={`/creator/messages?requestId=${r.id}&companyId=${r.company.id}`} className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 transition text-sm">
+                      <MessageCircle className="w-4 h-4" /> Chat <ArrowRight className="w-3 h-3" />
+                    </a>
+                    {canPay && (
+                      <button
+                        type="button"
+                        disabled={payingId === r.id}
+                        onClick={() => payRequest(r.id)}
+                        className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 transition text-sm font-medium disabled:opacity-50"
+                      >
+                        <CreditCard className="w-4 h-4" /> {payingId === r.id ? "Processing…" : "Pay now"}
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
-            ))
+            );})
           )}
         </div>
       )}

@@ -36,6 +36,7 @@ const navSections: { title: string; items: { href: string; label: string; highli
   {
     title: "Platform",
     items: [
+      { href: "/admin/users", label: "Users" },
       { href: "/admin/creators", label: "Creators" },
       { href: "/admin/requests", label: "Requests" },
       { href: "/admin/revenue", label: "Revenue" },

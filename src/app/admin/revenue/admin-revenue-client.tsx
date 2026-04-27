@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { formatZar } from "@/lib/format-currency-zar";
+import { COMPANY_PLAN_CONFIG, CREATOR_LICENSE_CONFIG, CREATOR_ONBOARDING_PLANS } from "@/lib/pricing";
 import {
   DollarSign, TrendingUp, Users, Film, Music, PieChart, BarChart3,
   ArrowUpRight, ArrowDownRight, Percent, Wallet, Banknote, Building2,
@@ -13,6 +15,10 @@ interface Creator {
 }
 
 interface RevenueData {
+  reporting?: {
+    primaryWindow: { label: string; periodStartIso: string; periodEndIso: string };
+    lines: { monthToDate: string[]; allTime: string[]; cumulativeCounts: string[] };
+  };
   platform: { revenuePool: number; totalWatchTime: number; platformCut: number; creatorPool: number };
   creators: Creator[];
   syncDeals: { totalDeals: number; totalSyncRevenue: number };
@@ -45,15 +51,28 @@ export function AdminRevenueClient() {
     <div className="p-8 max-w-7xl mx-auto space-y-8">
       <div>
         <h1 className="text-3xl font-semibold text-white mb-2 flex items-center gap-3"><DollarSign className="w-8 h-8 text-orange-500" /> Revenue Intelligence</h1>
-        <p className="text-slate-400">Complete financial breakdown — platform revenue, creator payouts, sync licensing, and per-content earnings.</p>
+        <p className="text-slate-400">Complete financial breakdown in ZAR — platform revenue, creator payouts, sync licensing, and per-content earnings.</p>
+        {data?.reporting?.primaryWindow ? (
+          <p className="text-xs text-slate-500 mt-3 max-w-3xl leading-relaxed">
+            <span className="text-slate-400 font-medium">Reporting periods: </span>
+            Most lines use {data.reporting.primaryWindow.label.toLowerCase()} ({new Date(data.reporting.primaryWindow.periodStartIso).toLocaleDateString()}–
+            {new Date(data.reporting.primaryWindow.periodEndIso).toLocaleDateString()}). Sync licensing reflects PAID deals created in this same window. Platform user/content counts are cumulative, not month-filtered. See the Story Time Revenue tab for fee and subscription lines.
+          </p>
+        ) : null}
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: "Total Revenue Pool", value: `$${p.revenuePool.toLocaleString()}`, icon: Wallet, color: "text-orange-400", sub: "Monthly allocation" },
-          { label: "Creator Payouts", value: `$${totalCreatorPayout.toFixed(2)}`, icon: Users, color: "text-green-400", sub: `${creators.length} creators` },
-          { label: "Platform Retained", value: `$${platformRetained.toFixed(2)}`, icon: Building2, color: "text-blue-400", sub: `${((platformRetained / p.revenuePool) * 100).toFixed(1)}% margin` },
-          { label: "Sync Licensing", value: `$${sync.totalSyncRevenue.toFixed(2)}`, icon: Music, color: "text-pink-400", sub: `${sync.totalDeals} deals` },
+          { label: "Total Revenue Pool", value: formatZar(p.revenuePool, { maximumFractionDigits: 0 }), icon: Wallet, color: "text-orange-400", sub: "Monthly allocation" },
+          { label: "Creator Payouts", value: formatZar(totalCreatorPayout), icon: Users, color: "text-green-400", sub: `${creators.length} creators` },
+          {
+            label: "Platform Retained",
+            value: formatZar(platformRetained),
+            icon: Building2,
+            color: "text-blue-400",
+            sub: `${p.revenuePool > 0 ? ((platformRetained / p.revenuePool) * 100).toFixed(1) : "0.0"}% margin`,
+          },
+          { label: "Sync Licensing", value: formatZar(sync.totalSyncRevenue), icon: Music, color: "text-pink-400", sub: `${sync.totalDeals} deals` },
         ].map((s) => (
           <div key={s.label} className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
             <div className="flex items-center gap-2 mb-2"><s.icon className={`w-4 h-4 ${s.color}`} /><span className="text-xs text-slate-400">{s.label}</span></div>
@@ -73,21 +92,23 @@ export function AdminRevenueClient() {
         <div className="space-y-6">
           <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6">
             <h3 className="text-white font-semibold mb-4 flex items-center gap-2"><PieChart className="w-5 h-5 text-orange-400" /> Revenue Split Breakdown</h3>
-            <p className="text-sm text-slate-400 mb-4">How the monthly ${p.revenuePool.toLocaleString()} pool is distributed. Creators earn proportional to their share of total platform watch time.</p>
+            <p className="text-sm text-slate-400 mb-4">
+              How the monthly {formatZar(p.revenuePool, { maximumFractionDigits: 0 })} pool is distributed. Creators earn proportional to their share of total platform watch time.
+            </p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="p-4 rounded-xl bg-green-500/5 border border-green-500/20">
                 <p className="text-xs text-green-400 uppercase tracking-wider mb-1">Creator Share (70%)</p>
-                <p className="text-2xl font-bold text-green-400">${(p.revenuePool * 0.7).toFixed(2)}</p>
+                <p className="text-2xl font-bold text-green-400">{formatZar(p.revenuePool * 0.7)}</p>
                 <p className="text-xs text-slate-500 mt-1">Divided by watch-time proportion</p>
               </div>
               <div className="p-4 rounded-xl bg-blue-500/5 border border-blue-500/20">
                 <p className="text-xs text-blue-400 uppercase tracking-wider mb-1">Platform Operations (20%)</p>
-                <p className="text-2xl font-bold text-blue-400">${(p.revenuePool * 0.2).toFixed(2)}</p>
+                <p className="text-2xl font-bold text-blue-400">{formatZar(p.revenuePool * 0.2)}</p>
                 <p className="text-xs text-slate-500 mt-1">Infrastructure, CDN, support</p>
               </div>
               <div className="p-4 rounded-xl bg-purple-500/5 border border-purple-500/20">
                 <p className="text-xs text-purple-400 uppercase tracking-wider mb-1">Growth Fund (10%)</p>
-                <p className="text-2xl font-bold text-purple-400">${(p.revenuePool * 0.1).toFixed(2)}</p>
+                <p className="text-2xl font-bold text-purple-400">{formatZar(p.revenuePool * 0.1)}</p>
                 <p className="text-xs text-slate-500 mt-1">Marketing, student films partnerships, development</p>
               </div>
             </div>
@@ -97,7 +118,10 @@ export function AdminRevenueClient() {
             <h3 className="text-white font-semibold mb-4 flex items-center gap-2"><BarChart3 className="w-5 h-5 text-orange-400" /> Revenue Formula</h3>
             <div className="bg-slate-900/50 rounded-lg p-4 font-mono text-sm text-slate-300 space-y-1">
               <p>Creator Revenue = (Creator Watch Time / Total Watch Time) × Creator Pool</p>
-              <p className="text-xs text-slate-500">Creator Pool = Revenue Pool × 0.70 = ${p.revenuePool.toLocaleString()} × 0.70 = ${(p.revenuePool * 0.7).toFixed(2)}</p>
+              <p className="text-xs text-slate-500">
+                Creator Pool = Revenue Pool × 0.70 = {formatZar(p.revenuePool, { maximumFractionDigits: 0 })} × 0.70 ={" "}
+                {formatZar(p.revenuePool * 0.7)}
+              </p>
               <p className="text-xs text-slate-500">Total Watch Time This Period = {Math.floor(p.totalWatchTime / 3600)}h {Math.floor((p.totalWatchTime % 3600) / 60)}m</p>
             </div>
           </div>
@@ -106,9 +130,20 @@ export function AdminRevenueClient() {
             <h3 className="text-white font-semibold mb-4 flex items-center gap-2"><TrendingUp className="w-5 h-5 text-orange-400" /> Key Metrics</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
-                { label: "Revenue Per View", value: `$${p.totalWatchTime > 0 ? (totalCreatorPayout / Math.max(1, contentRevenue.length)).toFixed(4) : "0.00"}` },
-                { label: "Avg Creator Payout", value: `$${creators.length > 0 ? (totalCreatorPayout / creators.length).toFixed(2) : "0.00"}` },
-                { label: "Highest Earner", value: `$${creators.length > 0 ? Math.max(...creators.map((c) => c.revenue)).toFixed(2) : "0.00"}` },
+                {
+                  label: "Revenue / title (approx.)",
+                  value: formatZar(p.totalWatchTime > 0 ? totalCreatorPayout / Math.max(1, contentRevenue.length) : 0, {
+                    maximumFractionDigits: 4,
+                  }),
+                },
+                {
+                  label: "Avg Creator Payout",
+                  value: formatZar(creators.length > 0 ? totalCreatorPayout / creators.length : 0),
+                },
+                {
+                  label: "Highest Earner",
+                  value: formatZar(creators.length > 0 ? Math.max(...creators.map((c) => c.revenue)) : 0),
+                },
                 { label: "Watch Hours (Total)", value: `${Math.floor(p.totalWatchTime / 3600)}h` },
               ].map((m) => (
                 <div key={m.label} className="p-3 rounded-lg bg-slate-800/40 border border-slate-700/30">
@@ -143,9 +178,9 @@ export function AdminRevenueClient() {
                     <td className="py-3 px-4 text-slate-400">{c.contentCount} titles / {c.trackCount} tracks</td>
                     <td className="py-3 px-4 text-slate-400">{Math.floor(c.watchTime / 60)}m</td>
                     <td className="py-3 px-4"><div className="flex items-center gap-2"><div className="w-16 h-1.5 bg-slate-700 rounded-full overflow-hidden"><div className="h-full bg-orange-500 rounded-full" style={{ width: `${c.share}%` }} /></div><span className="text-slate-400 text-xs">{c.share}%</span></div></td>
-                    <td className="py-3 px-4 text-green-400 font-medium">${c.revenue.toFixed(2)}</td>
-                    <td className="py-3 px-4 text-pink-400">${c.syncEarnings.toFixed(2)}</td>
-                    <td className="py-3 px-4 text-orange-400 font-bold">${(c.revenue + c.syncEarnings).toFixed(2)}</td>
+                    <td className="py-3 px-4 text-green-400 font-medium">{formatZar(c.revenue)}</td>
+                    <td className="py-3 px-4 text-pink-400">{formatZar(c.syncEarnings)}</td>
+                    <td className="py-3 px-4 text-orange-400 font-bold">{formatZar(c.revenue + c.syncEarnings)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -174,7 +209,7 @@ export function AdminRevenueClient() {
                     <td className="py-3 px-4 text-slate-400">{c.creatorName}</td>
                     <td className="py-3 px-4 text-slate-400">{Math.floor(c.watchTime / 60)}m</td>
                     <td className="py-3 px-4"><div className="flex items-center gap-2"><div className="w-16 h-1.5 bg-slate-700 rounded-full overflow-hidden"><div className="h-full bg-emerald-500 rounded-full" style={{ width: `${Math.min(c.share * 5, 100)}%` }} /></div><span className="text-slate-400 text-xs">{c.share.toFixed(1)}%</span></div></td>
-                    <td className="py-3 px-4 text-green-400 font-medium">${c.revenue.toFixed(2)}</td>
+                    <td className="py-3 px-4 text-green-400 font-medium">{formatZar(c.revenue)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -192,17 +227,20 @@ export function AdminRevenueClient() {
             </div>
             <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
               <p className="text-xs text-slate-400 mb-1">Total Sync Revenue</p>
-              <p className="text-3xl font-bold text-pink-400">${sync.totalSyncRevenue.toFixed(2)}</p>
+              <p className="text-3xl font-bold text-pink-400">{formatZar(sync.totalSyncRevenue)}</p>
             </div>
           </div>
           <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
             <h3 className="text-white font-semibold mb-3">How Sync Revenue Works</h3>
-            <p className="text-sm text-slate-400 leading-relaxed">Music creators earn sync licensing fees when their tracks are placed in films and shows on the platform. Each sync deal is negotiated per-placement. Revenue goes directly to the music creator in addition to their watch-time-based earnings.</p>
+            <p className="text-sm text-slate-400 leading-relaxed">
+              Music creators earn sync licensing fees when their tracks are placed in films and shows on the platform. Each sync deal is negotiated per-placement. Revenue goes directly to the music creator in addition to their watch-time-based earnings. Figures here are{" "}
+              <span className="text-slate-300">all-time deal amounts</span>, unlike watch-pool lines which follow the month-to-date window above.
+            </p>
             <div className="mt-4 grid grid-cols-3 gap-3">
               {creators.filter((c) => c.syncEarnings > 0).map((c) => (
                 <div key={c.id} className="p-3 rounded-lg bg-slate-800/40 border border-slate-700/30">
                   <p className="text-white font-medium text-sm">{c.name}</p>
-                  <p className="text-pink-400 font-bold">${c.syncEarnings.toFixed(2)}</p>
+                  <p className="text-pink-400 font-bold">{formatZar(c.syncEarnings)}</p>
                   <p className="text-xs text-slate-500">{c.trackCount} tracks</p>
                 </div>
               ))}
@@ -218,39 +256,50 @@ export function AdminRevenueClient() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="p-4 rounded-xl bg-slate-800/40 border border-slate-700/30">
                 <p className="text-xs text-slate-500 mb-1">Viewer sub revenue (ZAR)</p>
-                <p className="text-2xl font-bold text-white">R{(data?.viewerSub?.viewerSubRevenue ?? 0).toFixed(2)}</p>
+                <p className="text-2xl font-bold text-white">{formatZar(data?.viewerSub?.viewerSubRevenue ?? 0)}</p>
               </div>
               <div className="p-4 rounded-xl bg-green-500/5 border border-green-500/20">
                 <p className="text-xs text-green-400 mb-1">Creator pool (60%)</p>
-                <p className="text-2xl font-bold text-green-400">R{(data?.viewerSub?.creatorPoolFromSubs ?? 0).toFixed(2)}</p>
+                <p className="text-2xl font-bold text-green-400">{formatZar(data?.viewerSub?.creatorPoolFromSubs ?? 0)}</p>
               </div>
               <div className="p-4 rounded-xl bg-orange-500/5 border border-orange-500/20">
                 <p className="text-xs text-orange-400 mb-1">Story Time retained (40%)</p>
-                <p className="text-2xl font-bold text-orange-400">R{(data?.viewerSub?.storyTimeFromSubs ?? 0).toFixed(2)}</p>
+                <p className="text-2xl font-bold text-orange-400">{formatZar(data?.viewerSub?.storyTimeFromSubs ?? 0)}</p>
               </div>
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
               <p className="text-xs text-slate-400 mb-1">Transaction fees (3%)</p>
-              <p className="text-2xl font-bold text-white">R{(data?.transactionFees?.totalFees ?? 0).toFixed(2)}</p>
-              <p className="text-xs text-slate-500 mt-1">Volume: R{(data?.transactionFees?.totalVolume ?? 0).toFixed(2)}</p>
+              <p className="text-2xl font-bold text-white">{formatZar(data?.transactionFees?.totalFees ?? 0)}</p>
+              <p className="text-xs text-slate-500 mt-1">Volume: {formatZar(data?.transactionFees?.totalVolume ?? 0)}</p>
             </div>
             <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
-              <p className="text-xs text-slate-400 mb-1">Company subscriptions (R24.99 / R44.99)</p>
-              <p className="text-2xl font-bold text-white">R{(data?.companySubs?.revenue ?? 0).toFixed(2)}</p>
+              <p className="text-xs text-slate-400 mb-1">
+                Company subscriptions ({formatZar(COMPANY_PLAN_CONFIG.STANDARD.price)} / {formatZar(COMPANY_PLAN_CONFIG.FEATURED.price)})
+              </p>
+              <p className="text-2xl font-bold text-white">{formatZar(data?.companySubs?.revenue ?? 0)}</p>
               <p className="text-xs text-slate-500 mt-1">{data?.companySubs?.count ?? 0} active</p>
             </div>
             <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
-              <p className="text-xs text-slate-400 mb-1">Creator plans (upload R99.99/yr · pipeline R1999.99/yr or R209.99/mo)</p>
-              <p className="text-2xl font-bold text-white">R{(data?.distributionLicenses?.revenue ?? 0).toFixed(2)}</p>
+              <p className="text-xs text-slate-400 mb-1">
+                Creator plans (upload {formatZar(CREATOR_ONBOARDING_PLANS.UPLOAD_ONLY.price)}/yr · pipeline{" "}
+                {formatZar(CREATOR_ONBOARDING_PLANS.PIPELINE_YEARLY.price)}/yr or {formatZar(CREATOR_ONBOARDING_PLANS.PIPELINE_MONTHLY.price)}/mo; legacy per-upload{" "}
+                {formatZar(CREATOR_LICENSE_CONFIG.PER_UPLOAD.price)})
+              </p>
+              <p className="text-2xl font-bold text-white">{formatZar(data?.distributionLicenses?.revenue ?? 0)}</p>
               <p className="text-xs text-slate-500 mt-1">{data?.distributionLicenses?.yearlyCount ?? 0} yearly · {data?.distributionLicenses?.perUploadCount ?? 0} per-upload</p>
             </div>
           </div>
           <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
             <h3 className="text-white font-semibold mb-2">Story Time total (100% of fees, company subs, dist licenses + 40% viewer sub)</h3>
             <p className="text-2xl font-bold text-orange-500">
-              R{((data?.viewerSub?.storyTimeFromSubs ?? 0) + (data?.transactionFees?.totalFees ?? 0) + (data?.companySubs?.revenue ?? 0) + (data?.distributionLicenses?.revenue ?? 0)).toFixed(2)}
+              {formatZar(
+                (data?.viewerSub?.storyTimeFromSubs ?? 0) +
+                  (data?.transactionFees?.totalFees ?? 0) +
+                  (data?.companySubs?.revenue ?? 0) +
+                  (data?.distributionLicenses?.revenue ?? 0),
+              )}
             </p>
           </div>
         </div>

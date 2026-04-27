@@ -12,7 +12,10 @@ import {
   ChevronDown,
   ChevronUp,
   CheckCircle,
+  CreditCard,
 } from "lucide-react";
+import { formatZar } from "@/lib/format-currency-zar";
+import { computeMarketplaceFeeZar, DEFAULT_CREW_TEAM_REQUEST_BASE_ZAR } from "@/lib/marketplace-zar-defaults";
 
 type CrewRosterEntry = {
   id: string;
@@ -40,8 +43,18 @@ type CrewTeamDetail = CrewTeam & {
   members: { id: string; name: string; role: string; department: string | null; bio: string | null; skills: string | null; pastWork: string | null }[];
 };
 
+type SentCrewRequest = {
+  id: string;
+  status: string;
+  projectName: string | null;
+  message: string | null;
+  createdAt: string;
+  paymentTransactionId?: string | null;
+  crewTeam: { id: string; companyName: string; tagline: string | null };
+};
+
 export default function CreatorCrewPage() {
-  const [tab, setTab] = useState<"my-roster" | "find-crew">("my-roster");
+  const [tab, setTab] = useState<"my-roster" | "find-crew" | "my-requests">("my-roster");
   const [crewRoster, setCrewRoster] = useState<CrewRosterEntry[]>([]);
   const [crewTeams, setCrewTeams] = useState<CrewTeam[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,15 +65,19 @@ export default function CreatorCrewPage() {
   const [showCrewForm, setShowCrewForm] = useState(false);
   const [requestTeamId, setRequestTeamId] = useState<string | null>(null);
   const [requestForm, setRequestForm] = useState({ projectName: "", message: "" });
+  const [sentRequests, setSentRequests] = useState<SentCrewRequest[]>([]);
+  const [payingId, setPayingId] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
-      const [crew, teams] = await Promise.all([
+      const [crew, teams, mine] = await Promise.all([
         fetch("/api/creator/crew-roster").then((r) => r.json()),
         fetch("/api/crew-teams").then((r) => r.json()),
+        fetch("/api/crew-teams/requests").then((r) => (r.ok ? r.json() : [])),
       ]);
       setCrewRoster(Array.isArray(crew) ? crew : []);
       setCrewTeams(Array.isArray(teams) ? teams : []);
+      setSentRequests(Array.isArray(mine) ? mine : []);
       setLoading(false);
     };
     load();
@@ -98,10 +115,46 @@ export default function CreatorCrewPage() {
       body: JSON.stringify({ crewTeamId, projectName: requestForm.projectName, message: requestForm.message }),
     });
     if (res.ok) {
+      const row = await res.json();
+      const team = crewTeams.find((t) => t.id === crewTeamId);
       setRequestTeamId(null);
       setRequestForm({ projectName: "", message: "" });
+      setSentRequests((prev) => [
+        {
+          id: row.id,
+          status: row.status ?? "PENDING",
+          projectName: row.projectName ?? null,
+          message: row.message ?? null,
+          createdAt: row.createdAt ?? new Date().toISOString(),
+          paymentTransactionId: row.paymentTransactionId ?? null,
+          crewTeam: team
+            ? { id: team.id, companyName: team.companyName, tagline: team.tagline }
+            : { id: crewTeamId, companyName: "Crew team", tagline: null },
+        },
+        ...prev,
+      ]);
       setSuccess("Request sent to crew team.");
       setTimeout(() => setSuccess(""), 3000);
+    }
+  }
+
+  async function payCrewRequest(requestId: string) {
+    setPayingId(requestId);
+    try {
+      const res = await fetch(`/api/crew-team/requests/${requestId}/pay`, { method: "POST" });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        alert(data?.error || "Payment failed");
+        return;
+      }
+      setSentRequests((prev) =>
+        prev.map((r) => (r.id === requestId ? { ...r, paymentTransactionId: data.transactionId ?? "paid" } : r)),
+      );
+      const total = typeof data?.totalAmount === "number" ? formatZar(data.totalAmount) : "recorded";
+      setSuccess(`Payment ${total} (simulated).`);
+      setTimeout(() => setSuccess(""), 5000);
+    } finally {
+      setPayingId(null);
     }
   }
 
@@ -135,6 +188,12 @@ export default function CreatorCrewPage() {
             className={`px-4 py-2 rounded-lg text-sm font-medium transition ${tab === "find-crew" ? "bg-orange-500 text-white" : "bg-slate-800/50 text-slate-400 border border-slate-700/50 hover:text-white"}`}
           >
             Find Crew Teams
+          </button>
+          <button
+            onClick={() => setTab("my-requests")}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition ${tab === "my-requests" ? "bg-orange-500 text-white" : "bg-slate-800/50 text-slate-400 border border-slate-700/50 hover:text-white"}`}
+          >
+            My requests ({sentRequests.length})
           </button>
         </div>
       </div>
@@ -190,6 +249,51 @@ export default function CreatorCrewPage() {
                   </button>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === "my-requests" && (
+        <div className="space-y-4">
+          <p className="text-slate-400 text-sm">After a crew team accepts your request, pay the simulated engagement fee to record settlement on your account.</p>
+          {sentRequests.length === 0 ? (
+            <div className="rounded-2xl bg-slate-800/30 border border-slate-700/50 p-12 text-center text-slate-500">No outbound crew requests yet.</div>
+          ) : (
+            <div className="space-y-3">
+              {sentRequests.map((req) => {
+                const base = DEFAULT_CREW_TEAM_REQUEST_BASE_ZAR;
+                const fee = computeMarketplaceFeeZar(base);
+                const estTotal = Math.round((base + fee) * 100) / 100;
+                const canPay = req.status === "ACCEPTED" && !req.paymentTransactionId;
+                const paid = Boolean(req.paymentTransactionId);
+                return (
+                  <div key={req.id} className="rounded-2xl bg-slate-800/30 border border-slate-700/50 p-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="font-semibold text-white">{req.crewTeam.companyName}</p>
+                      {req.crewTeam.tagline && <p className="text-sm text-slate-400">{req.crewTeam.tagline}</p>}
+                      <p className="text-xs text-slate-500 mt-1">{req.projectName || "Project"} · {new Date(req.createdAt).toLocaleString()}</p>
+                      <span className={`inline-block mt-2 text-xs px-2 py-0.5 rounded-full ${req.status === "PENDING" ? "bg-amber-500/20 text-amber-400" : req.status === "ACCEPTED" ? "bg-emerald-500/20 text-emerald-400" : "bg-slate-700 text-slate-400"}`}>{req.status}</span>
+                      {paid && <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400">Paid</span>}
+                      {canPay && (
+                        <p className="text-xs text-slate-400 mt-2">
+                          Checkout: {formatZar(base)} + {formatZar(fee)} fee = <span className="text-orange-300 font-medium">{formatZar(estTotal)}</span>
+                        </p>
+                      )}
+                    </div>
+                    {canPay && (
+                      <button
+                        type="button"
+                        disabled={payingId === req.id}
+                        onClick={() => payCrewRequest(req.id)}
+                        className="shrink-0 flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-500 disabled:opacity-50"
+                      >
+                        <CreditCard className="w-4 h-4" /> {payingId === req.id ? "Processing…" : "Pay now"}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

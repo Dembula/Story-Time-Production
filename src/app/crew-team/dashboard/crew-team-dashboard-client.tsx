@@ -2,17 +2,24 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Users, Briefcase, Send, ArrowRight } from "lucide-react";
+import { Users, Briefcase, Send, ArrowRight, DollarSign } from "lucide-react";
+import { formatZar } from "@/lib/format-currency-zar";
 
 export function CrewTeamDashboardClient() {
   const [team, setTeam] = useState<{ id: string; companyName: string; _count: { members: number; requests: number } } | null>(null);
   const [requests, setRequests] = useState<{ id: string; projectName: string | null; status: string; creator: { name: string | null } }[]>([]);
+  const [revenue, setRevenue] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([fetch("/api/crew-team").then((r) => r.json()), fetch("/api/crew-team/requests").then((r) => r.json())]).then(([t, reqs]) => {
+    Promise.all([
+      fetch("/api/crew-team").then((r) => r.json()),
+      fetch("/api/crew-team/requests").then((r) => r.json()),
+      fetch("/api/crew-team/stats").then((r) => r.json()),
+    ]).then(([t, reqs, stats]) => {
       setTeam(t);
       setRequests(Array.isArray(reqs) ? reqs : []);
+      setRevenue(typeof stats?.revenue === "number" ? stats.revenue : 0);
       setLoading(false);
     });
   }, []);
@@ -32,7 +39,7 @@ export function CrewTeamDashboardClient() {
   return (
     <div className="p-8 max-w-6xl mx-auto">
       <h1 className="text-3xl font-semibold text-white mb-8">Dashboard</h1>
-      <div className="grid md:grid-cols-3 gap-6 mb-8">
+      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <div className="p-6 rounded-2xl bg-slate-800/30 border border-slate-700/50">
           <Users className="w-8 h-8 text-emerald-500 mb-3" />
           <p className="text-2xl font-bold text-white">{team._count.members}</p>
@@ -46,6 +53,11 @@ export function CrewTeamDashboardClient() {
         <div className="p-6 rounded-2xl bg-slate-800/30 border border-slate-700/50">
           <p className="text-2xl font-bold text-white">{pending}</p>
           <p className="text-sm text-slate-400">Pending</p>
+        </div>
+        <div className="p-6 rounded-2xl bg-slate-800/30 border border-slate-700/50">
+          <DollarSign className="w-8 h-8 text-emerald-400 mb-3" />
+          <p className="text-2xl font-bold text-emerald-300">{formatZar(revenue, { maximumFractionDigits: 0 })}</p>
+          <p className="text-sm text-slate-400">Settled marketplace revenue</p>
         </div>
       </div>
       <div className="rounded-2xl bg-slate-800/30 border border-slate-700/50 overflow-hidden">

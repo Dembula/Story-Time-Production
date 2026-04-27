@@ -23,7 +23,8 @@ const PLATFORM_SUMMARY = `
   - **Cast/Crew**: CreatorCastRoster, CreatorCrewRoster, CastingAgency, CastingInquiry, AuditionPost, CrewTeam, CrewTeamRequest, contracts and invitations.
   - **Locations & equipment**: LocationListing, LocationBooking, EquipmentListing, EquipmentRequest.
   - **Catering**: CateringCompany, CateringBooking, transactions.
-  - **Music**: MusicTrack, SyncDeal, SyncRequest, MusicSelection (per project).
+  - **Music**: MusicTrack, SyncDeal, SyncRequest, MusicSelection (per project). Creators browse published tracks via \`GET /api/music/catalogue\`; music creators manage their library via \`GET /api/music\` (with relations) and sync rollups via \`GET /api/music/stats\`.
+  - **Currency**: Amounts are South African Rand (ZAR). Do not invent prices; when discussing fees or plans, refer only to values the product exposes or the user has stated—avoid hard-coded "R…" literals in your answers.
   - **Admin**: AdminRequest, ActivityLog, content review (reviewStatus, reviewNote), script reviews, competition (CompetitionPeriod, CreatorVote), revenue, originals pipeline.
   - **Network**: CreatorFollow, ConnectionRequest, NetworkPost, NetworkMessage, NetworkConversationParticipant.
   - **Other**: Notifications, Notification, PendingCreatorSignup, CompanySubscription, ContentAdvisory (viewer safety).

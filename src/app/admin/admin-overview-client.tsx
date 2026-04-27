@@ -5,11 +5,20 @@ import Link from "next/link";
 import { Users, Film, Clock, DollarSign, Music, Handshake, GraduationCap, Globe, Monitor, Activity, TrendingUp, Wifi, Briefcase, Megaphone } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatZar } from "@/lib/format-currency-zar";
 
 export function AdminOverviewClient() {
   const { data: stats, isLoading } = useQuery({
     queryKey: ["admin-stats"],
     queryFn: () => fetch("/api/admin/stats").then((r) => r.json()),
+  });
+  const { data: analyticsSummary } = useQuery({
+    queryKey: ["admin-analytics-summary"],
+    queryFn: () => fetch("/api/admin/analytics/summary").then((r) => r.json()),
+  });
+  const { data: opsIncidents } = useQuery({
+    queryKey: ["admin-ops-incidents"],
+    queryFn: () => fetch("/api/admin/ops/incidents").then((r) => r.json()),
   });
 
   if (isLoading) {
@@ -33,22 +42,26 @@ export function AdminOverviewClient() {
     <div className="p-8 max-w-7xl mx-auto relative">
       <div className="mb-10">
         <h1 className="mb-2 font-display text-3xl font-semibold tracking-tight text-white">Platform Overview</h1>
-        <p className="text-slate-300/78">Comprehensive analytics, user intelligence, and content distribution</p>
+        <p className="text-slate-300/78">
+          Comprehensive analytics, user intelligence, and content distribution. Amounts are in South African Rand (ZAR).
+        </p>
       </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
         {[
-          { label: "Total Users", value: stats?.totalUsers ?? 0, sub: "Registered accounts", icon: Users, color: "cyan" },
-          { label: "Total Content", value: stats?.totalContent ?? 0, sub: "Published titles", icon: Film, color: "emerald" },
-          { label: "Watch Time", value: stats?.totalWatchTime ? `${Math.floor(stats.totalWatchTime / 3600)}h` : "0h", sub: "Total hours watched", icon: Clock, color: "violet" },
-          { label: "Revenue Pool", value: `$${(stats?.revenuePool ?? 0).toLocaleString()}`, sub: "This period allocation", icon: DollarSign, color: "orange" },
-          { label: "Music Tracks", value: stats?.totalTracks ?? 0, sub: "Published tracks", icon: Music, color: "pink" },
-          { label: "Sync Deals", value: stats?.totalSyncDeals ?? 0, sub: "Active placements", icon: Handshake, color: "amber" },
-          { label: "Student Films", value: stats?.afdaStudents ?? 0, sub: "Student creators", icon: GraduationCap, color: "teal" },
-          { label: "Unique Watchers", value: stats?.uniqueWatchers ?? 0, sub: `Avg ${Math.round((stats?.avgWatchTimePerUser ?? 0) / 60)}min/user`, icon: TrendingUp, color: "blue" },
+          { label: "Total Users", value: stats?.totalUsers ?? 0, sub: "Registered accounts", icon: Users, color: "cyan", href: "/admin/users" },
+          { label: "Total Content", value: stats?.totalContent ?? 0, sub: "Published titles", icon: Film, color: "emerald", href: "/admin/content" },
+          { label: "Watch Time", value: stats?.totalWatchTime ? `${Math.floor(stats.totalWatchTime / 3600)}h` : "0h", sub: "This month (hours)", icon: Clock, color: "violet", href: "/admin/activity" },
+          { label: "Revenue Pool", value: formatZar(stats?.revenuePool ?? 0, { maximumFractionDigits: 0 }), sub: "This period allocation", icon: DollarSign, color: "orange", href: "/admin/revenue" },
+          { label: "Music Tracks", value: stats?.totalTracks ?? 0, sub: "Published tracks", icon: Music, color: "pink", href: "/admin/music" },
+          { label: "Sync Deals", value: stats?.totalSyncDeals ?? 0, sub: "Placements on platform", icon: Handshake, color: "amber", href: "/admin/revenue" },
+          { label: "Student Films", value: stats?.afdaStudents ?? 0, sub: "Student creators", icon: GraduationCap, color: "teal", href: "/admin/creators" },
+          { label: "Unique Watchers", value: stats?.uniqueWatchers ?? 0, sub: `Avg ${Math.round((stats?.avgWatchTimePerUser ?? 0) / 60)} min/user (this month)`, icon: TrendingUp, color: "blue", href: "/admin/users" },
           { label: "Crew Teams", value: stats?.crewTeamCount ?? 0, sub: `${stats?.crewTotalMembers ?? 0} members · ${stats?.crewRequestCount ?? 0} requests`, icon: Briefcase, color: "emerald", href: "/admin/crew" },
           { label: "Casting Agencies", value: stats?.castingAgencyCount ?? 0, sub: `${stats?.castTotalTalent ?? 0} talent · ${stats?.castInquiryCount ?? 0} inquiries · ${stats?.auditionCount ?? 0} auditions`, icon: Megaphone, color: "violet", href: "/admin/cast" },
+          { label: "Events (30d)", value: analyticsSummary?.eventsCount ?? 0, sub: `${analyticsSummary?.topEvents?.[0]?.name ?? "No events"} top signal`, icon: Activity, color: "blue", href: "/admin/activity" },
+          { label: "Open Ops Incidents", value: opsIncidents?.incidents?.length ?? 0, sub: "Automated ledger health checks", icon: Wifi, color: "amber", href: "/admin/activity" },
         ].map((card, i) => {
           const colorMap: Record<string, string> = {
             cyan: "border-l-cyan-500/50", emerald: "border-l-emerald-500/50", violet: "border-l-violet-500/50",
@@ -82,7 +95,10 @@ export function AdminOverviewClient() {
         {stats?.contentByType?.length > 0 && (
           <Card className="storytime-section">
             <CardHeader>
-              <CardTitle className="text-white flex items-center gap-2"><Film className="w-5 h-5 text-emerald-400" /> Content by Type</CardTitle>
+              <CardTitle className="text-white flex items-center justify-between gap-2">
+                <span className="flex items-center gap-2"><Film className="w-5 h-5 text-emerald-400" /> Content by Type</span>
+                <Link href="/admin/content" className="text-xs font-medium text-orange-300 hover:text-orange-200">Open catalogue →</Link>
+              </CardTitle>
               <p className="text-sm text-slate-400">Distribution across content categories</p>
             </CardHeader>
             <CardContent>
@@ -111,7 +127,10 @@ export function AdminOverviewClient() {
         {stats?.usersByRole?.length > 0 && (
           <Card className="storytime-section">
             <CardHeader>
-              <CardTitle className="text-white flex items-center gap-2"><Users className="w-5 h-5 text-cyan-400" /> Users by Role</CardTitle>
+              <CardTitle className="text-white flex items-center justify-between gap-2">
+                <span className="flex items-center gap-2"><Users className="w-5 h-5 text-cyan-400" /> Users by Role</span>
+                <Link href="/admin/users" className="text-xs font-medium text-orange-300 hover:text-orange-200">User directory →</Link>
+              </CardTitle>
               <p className="text-sm text-slate-400">Platform audience breakdown</p>
             </CardHeader>
             <CardContent>
@@ -145,8 +164,11 @@ export function AdminOverviewClient() {
       {signInEntries.length > 0 && (
         <Card className="storytime-section mb-10">
           <CardHeader>
-            <CardTitle className="text-white flex items-center gap-2"><Activity className="w-5 h-5 text-violet-400" /> Sign-ins by Role</CardTitle>
-            <p className="text-sm text-slate-400">Login distribution across user types</p>
+            <CardTitle className="text-white flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2"><Activity className="w-5 h-5 text-violet-400" /> Sign-ins by Role</span>
+              <Link href="/admin/activity" className="text-xs font-medium text-orange-300 hover:text-orange-200">Full activity log →</Link>
+            </CardTitle>
+            <p className="text-sm text-slate-400">Sign-in events in the last 90 days (from database)</p>
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-4">
@@ -167,7 +189,9 @@ export function AdminOverviewClient() {
           <Card className="storytime-section">
             <CardHeader>
               <CardTitle className="text-white flex items-center gap-2"><Monitor className="w-5 h-5 text-blue-400" /> Devices</CardTitle>
-              <p className="text-sm text-slate-400">What devices are users accessing the platform from</p>
+              <p className="text-sm text-slate-400">
+                Inferred from User-Agent on sign-in and session telemetry (last 90 days).
+              </p>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
@@ -196,7 +220,7 @@ export function AdminOverviewClient() {
           <Card className="storytime-section">
             <CardHeader>
               <CardTitle className="text-white flex items-center gap-2"><Globe className="w-5 h-5 text-emerald-400" /> IP Addresses</CardTitle>
-              <p className="text-sm text-slate-400">Login locations and frequency</p>
+              <p className="text-sm text-slate-400">From request headers on sign-in and session telemetry (last 90 days)</p>
             </CardHeader>
             <CardContent>
               <div className="max-h-72 overflow-y-auto space-y-2 pr-2">
@@ -245,7 +269,7 @@ export function AdminOverviewClient() {
             <div className="storytime-panel rounded-xl p-4">
               <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Revenue / User</p>
               <p className="text-xl font-bold text-orange-500">
-                ${stats?.totalUsers ? ((stats?.revenuePool ?? 0) / stats.totalUsers).toFixed(2) : "0.00"}
+                {formatZar(stats?.totalUsers ? (stats?.revenuePool ?? 0) / stats.totalUsers : 0)}
               </p>
             </div>
           </div>
@@ -256,8 +280,11 @@ export function AdminOverviewClient() {
       {stats?.recentActivity?.length > 0 && (
         <Card className="storytime-section">
           <CardHeader>
-            <CardTitle className="text-white flex items-center gap-2"><Activity className="w-5 h-5 text-violet-400" /> Recent Activity</CardTitle>
-            <p className="text-sm text-slate-400">Latest sign-in events across the platform</p>
+            <CardTitle className="text-white flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2"><Activity className="w-5 h-5 text-violet-400" /> Recent Activity</span>
+              <Link href="/admin/activity" className="text-xs font-medium text-orange-300 hover:text-orange-200">View all →</Link>
+            </CardTitle>
+            <p className="text-sm text-slate-400">Latest sign-ins and session telemetry (IP and device when available)</p>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { CreditCard, Smartphone, Calendar, RefreshCw, Film, Loader2 } from "lucide-react";
 import { VIEWER_PLAN_CONFIG } from "@/lib/pricing";
+import { formatZar } from "@/lib/format-currency-zar";
 
 type Subscription = {
   id: string;
@@ -24,10 +25,10 @@ type Subscription = {
 } | null;
 
 const PLAN_LABELS: Record<string, string> = {
-  BASE_1: `${VIEWER_PLAN_CONFIG.BASE_1.label} (1 device/profile) - R${VIEWER_PLAN_CONFIG.BASE_1.price.toFixed(2)}/mo`,
-  STANDARD_3: `${VIEWER_PLAN_CONFIG.STANDARD_3.label} (3 devices/profiles) - R${VIEWER_PLAN_CONFIG.STANDARD_3.price.toFixed(2)}/mo`,
-  FAMILY_5: `${VIEWER_PLAN_CONFIG.FAMILY_5.label} (5+ devices/profiles) - R${VIEWER_PLAN_CONFIG.FAMILY_5.price.toFixed(2)}/mo`,
-  PPV_FILM: `Pay Per View - R${VIEWER_PLAN_CONFIG.PPV_FILM.price.toFixed(2)} per title`,
+  BASE_1: `${VIEWER_PLAN_CONFIG.BASE_1.label} (1 device/profile) - ${formatZar(VIEWER_PLAN_CONFIG.BASE_1.price)}/mo`,
+  STANDARD_3: `${VIEWER_PLAN_CONFIG.STANDARD_3.label} (3 devices/profiles) - ${formatZar(VIEWER_PLAN_CONFIG.STANDARD_3.price)}/mo`,
+  FAMILY_5: `${VIEWER_PLAN_CONFIG.FAMILY_5.label} (5+ devices/profiles) - ${formatZar(VIEWER_PLAN_CONFIG.FAMILY_5.price)}/mo`,
+  PPV_FILM: `Pay Per View - ${formatZar(VIEWER_PLAN_CONFIG.PPV_FILM.price)} per title`,
 };
 
 export function AccountClient({ subscription }: { subscription: Subscription }) {
@@ -154,7 +155,7 @@ export function AccountClient({ subscription }: { subscription: Subscription }) 
           <ul className="space-y-2">
             {subscription.payments.map((p, i) => (
               <li key={i} className="flex justify-between rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3 text-sm">
-                <span className="text-slate-300">R{p.amount.toFixed(2)}</span>
+                <span className="text-slate-300">{formatZar(p.amount)}</span>
                 <span className={p.status === "COMPLETED" ? "text-emerald-400" : "text-slate-500"}>{p.status}</span>
                 {p.paidAt && <span className="text-slate-500">{new Date(p.paidAt).toLocaleDateString()}</span>}
               </li>

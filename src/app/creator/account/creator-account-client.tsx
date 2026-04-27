@@ -26,6 +26,7 @@ import {
 import { CreatorAccountVaultHub } from "@/components/creator/creator-account-vault-hub";
 import { CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY } from "@/lib/pricing";
 import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
+import { formatZar } from "@/lib/format-currency-zar";
 
 type CreatorRevenuePayload = {
   revenue: number;
@@ -778,7 +779,7 @@ export function CreatorAccountClient({ backHref = "/creator/command-center" }: {
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-xl border border-white/8 bg-white/[0.03] p-4">
                 <p className="text-xs text-slate-500">Payout period earnings</p>
-                <p className="text-xl font-bold text-white">R{revenueData.revenue.toFixed(2)}</p>
+                <p className="text-xl font-bold text-white">{formatZar(revenueData.revenue)}</p>
               </div>
               <div className="rounded-xl border border-white/8 bg-white/[0.03] p-4">
                 <p className="text-xs text-slate-500">Period views</p>
@@ -864,7 +865,7 @@ export function CreatorAccountClient({ backHref = "/creator/command-center" }: {
                       key={p.id}
                       className="flex flex-wrap justify-between gap-2 rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-sm"
                     >
-                      <span className="text-white">R{p.amount.toFixed(2)}</span>
+                      <span className="text-white">{formatZar(p.amount)}</span>
                       <span className={p.status === "COMPLETED" ? "text-emerald-400" : "text-slate-500"}>{p.status}</span>
                       <span className="text-slate-500">{p.period}</span>
                     </li>

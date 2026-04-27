@@ -22,6 +22,7 @@ import {
   CREATOR_STUDIO_PROFILES_QUERY_KEY,
 } from "@/lib/pricing";
 import { defaultSuiteAccessOpen } from "@/lib/creator-suite-access";
+import { formatZar } from "@/lib/format-currency-zar";
 
 type CreatorPackage = "UPLOAD_ONLY" | "PIPELINE";
 type PipelineBilling = "YEARLY" | "MONTHLY";
@@ -153,7 +154,7 @@ export function LicenseClient() {
               For creators who only release on Story Time. Sidebar hides the production pipeline; you keep uploads, Originals, network, messages, and analytics.
             </p>
             <p className="mt-6 text-4xl font-bold text-white">
-              R{CREATOR_ONBOARDING_PLANS.UPLOAD_ONLY.price.toFixed(2)}
+              {formatZar(CREATOR_ONBOARDING_PLANS.UPLOAD_ONLY.price)}
               <span className="ml-1 text-sm font-normal text-slate-400">/year</span>
             </p>
             <ul className="mt-5 space-y-2 text-sm text-slate-300">
@@ -232,16 +233,16 @@ export function LicenseClient() {
               </div>
               <div className="mt-2">
                 <p className="text-xs font-semibold uppercase tracking-wide text-emerald-400/95">
-                  Save R{CREATOR_PIPELINE_YEARLY_SAVINGS_VS_12_MONTHLY.toFixed(2)}
+                  Save {formatZar(CREATOR_PIPELINE_YEARLY_SAVINGS_VS_12_MONTHLY)}
                 </p>
                 <p className="mt-1 text-sm text-slate-500">
                   <span className="line-through decoration-slate-600">
-                    R{CREATOR_PIPELINE_MONTHLY_ANNUAL_TOTAL.toFixed(2)}
+                    {formatZar(CREATOR_PIPELINE_MONTHLY_ANNUAL_TOTAL)}
                   </span>
                   <span className="ml-1.5 text-[11px] text-slate-600">(12 × monthly)</span>
                 </p>
                 <p className="mt-1 text-2xl font-bold text-white">
-                  R{CREATOR_ONBOARDING_PLANS.PIPELINE_YEARLY.price.toFixed(2)}
+                  {formatZar(CREATOR_ONBOARDING_PLANS.PIPELINE_YEARLY.price)}
                   <span className="text-xs font-normal text-slate-400">/year</span>
                 </p>
               </div>
@@ -267,7 +268,7 @@ export function LicenseClient() {
                 )}
               </div>
               <p className="mt-1 text-2xl font-bold text-white">
-                R{CREATOR_ONBOARDING_PLANS.PIPELINE_MONTHLY.price.toFixed(2)}
+                {formatZar(CREATOR_ONBOARDING_PLANS.PIPELINE_MONTHLY.price)}
                 <span className="text-xs font-normal text-slate-400">/month</span>
               </p>
             </button>
@@ -388,7 +389,7 @@ export function LicenseClient() {
           <div className="rounded-2xl border border-orange-400/20 bg-orange-500/10 px-4 py-3 text-right">
             <p className="text-xs uppercase tracking-wide text-orange-200/80">Due now (simulated)</p>
             <p className="mt-1 text-3xl font-bold text-white">
-              R{selectedPrice.toFixed(2)}
+              {formatZar(selectedPrice)}
               <span className="text-sm font-normal text-slate-400">
                 {selectedInterval === "year" ? "/year" : "/month"}
               </span>

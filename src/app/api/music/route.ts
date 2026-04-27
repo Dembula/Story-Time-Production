@@ -12,12 +12,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  let creatorId = role === "ADMIN"
-    ? request.nextUrl.searchParams.get("creatorId") || undefined
-    : session?.user?.id;
+  let creatorId: string | undefined =
+    role === "ADMIN" ? request.nextUrl.searchParams.get("creatorId") || undefined : session?.user?.id;
   if (role === "ADMIN" && !creatorId) {
-    const first = await prisma.user.findFirst({ where: { role: "MUSIC_CREATOR" }, select: { id: true } });
-    creatorId = first?.id ?? session?.user?.id;
+    return NextResponse.json({ error: "creatorId query parameter is required for admin" }, { status: 400 });
   }
 
   if (!creatorId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -25,12 +23,24 @@ export async function GET(request: NextRequest) {
   const tracks = await prisma.musicTrack.findMany({
     where: { creatorId },
     include: {
-      _count: { select: { syncDeals: true, syncRequests: true } },
-      syncDeals: { include: { content: { select: { title: true } } } },
+      _count: { select: { syncDeals: true, syncRequests: true, musicSelections: true } },
+      syncDeals: { include: { content: { select: { id: true, title: true, type: true } } } },
       syncRequests: {
-        where: { status: "PENDING" },
-        include: { requester: { select: { name: true } } },
-        take: 3,
+        orderBy: { createdAt: "desc" },
+        take: 8,
+        include: {
+          requester: { select: { id: true, name: true, email: true } },
+          _count: { select: { messages: true } },
+        },
+      },
+      musicSelections: {
+        select: {
+          id: true,
+          usage: true,
+          notes: true,
+          createdAt: true,
+          project: { select: { id: true, title: true, status: true, phase: true } },
+        },
       },
     },
     orderBy: { createdAt: "desc" },

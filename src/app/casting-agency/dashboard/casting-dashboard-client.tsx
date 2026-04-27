@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Users, Briefcase, Mail, ArrowRight, Megaphone } from "lucide-react";
+import { Users, Briefcase, Mail, ArrowRight, Megaphone, DollarSign } from "lucide-react";
+import { formatZar } from "@/lib/format-currency-zar";
 
 type Inquiry = {
   id: string;
@@ -26,6 +27,7 @@ export function CastingDashboardClient() {
   const [agency, setAgency] = useState<{ id: string; agencyName: string; _count: { talent: number; inquiries: number } } | null>(null);
   const [inquiries, setInquiries] = useState<Inquiry[]>([]);
   const [auditionFeed, setAuditionFeed] = useState<AuditionFeedItem[]>([]);
+  const [revenue, setRevenue] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -33,10 +35,12 @@ export function CastingDashboardClient() {
       fetch("/api/casting-agency").then((r) => r.json()),
       fetch("/api/casting-agency/inquiries").then((r) => r.json()),
       fetch("/api/auditions?scope=feed").then((r) => r.json()),
-    ]).then(([a, inq, auds]) => {
+      fetch("/api/casting-agency/stats").then((r) => r.json()),
+    ]).then(([a, inq, auds, stats]) => {
       setAgency(a);
       setInquiries(Array.isArray(inq) ? inq : []);
       setAuditionFeed(Array.isArray(auds) ? auds : []);
+      setRevenue(typeof stats?.revenue === "number" ? stats.revenue : 0);
       setLoading(false);
     });
   }, []);
@@ -57,7 +61,7 @@ export function CastingDashboardClient() {
     <div className="p-8 max-w-6xl mx-auto space-y-8">
       <h1 className="text-3xl font-semibold text-white">Dashboard</h1>
 
-      <div className="grid md:grid-cols-3 gap-6">
+      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="p-6 rounded-2xl bg-slate-800/30 border border-slate-700/50">
           <Users className="w-8 h-8 text-violet-500 mb-3" />
           <p className="text-2xl font-bold text-white">{agency._count.talent}</p>
@@ -71,6 +75,11 @@ export function CastingDashboardClient() {
         <div className="p-6 rounded-2xl bg-slate-800/30 border border-slate-700/50">
           <p className="text-2xl font-bold text-white">{pending}</p>
           <p className="text-sm text-slate-400">Pending</p>
+        </div>
+        <div className="p-6 rounded-2xl bg-slate-800/30 border border-slate-700/50">
+          <DollarSign className="w-8 h-8 text-emerald-400 mb-3" />
+          <p className="text-2xl font-bold text-emerald-300">{formatZar(revenue, { maximumFractionDigits: 0 })}</p>
+          <p className="text-sm text-slate-400">Settled inquiry payments</p>
         </div>
       </div>
 

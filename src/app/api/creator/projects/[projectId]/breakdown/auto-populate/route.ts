@@ -17,7 +17,6 @@ export const maxDuration = 120;
 const openRouter = createOpenAI({
   apiKey: process.env.OPENROUTER_API_KEY ?? "",
   baseURL: "https://openrouter.ai/api/v1",
-  compatibility: "compatible",
 });
 
 const MODOC_MODEL = process.env.OPENROUTER_MODOC_MODEL ?? "openai/gpt-4o-mini";
@@ -78,7 +77,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ projec
     const model = openRouter(MODOC_MODEL);
     const { text } = await generateText({
       model,
-      maxTokens: 16_000,
+      maxOutputTokens: 16_000,
       temperature: 0.2,
       messages: [
         { role: "system", content: AI_SCRIPT_BREAKDOWN_SYSTEM },

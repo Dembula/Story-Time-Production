@@ -2,13 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-
-function hasLocationModels(): boolean {
-  return typeof (prisma as { locationBooking?: unknown }).locationBooking !== "undefined";
-}
+import { hasLocationBookingModels } from "@/lib/prisma-location-booking";
 
 export async function GET(req: NextRequest) {
-  if (!hasLocationModels()) {
+  if (!hasLocationBookingModels()) {
     return NextResponse.json(
       { error: "Location models not loaded. Run: npm run refresh, then restart the dev server." },
       { status: 503 }

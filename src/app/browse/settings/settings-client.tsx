@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Bell, CreditCard, Gauge, Lock, Mail, Plus, Smartphone, Star, Trash2, User, Users } from "lucide-react";
 import { VIEWER_PLAN_CONFIG } from "@/lib/pricing";
+import { formatZar } from "@/lib/format-currency-zar";
 import { getBirthDateOptionSets } from "@/lib/viewer-profiles";
 
 type PaymentMethod = { id: string; label: string; lastFour: string; isDefault: boolean };
@@ -554,7 +555,7 @@ export function SettingsClient() {
                     className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-left hover:border-orange-400/30 hover:bg-orange-500/10"
                   >
                     <p className="font-semibold text-white">{cfg.label}</p>
-                    <p className="text-sm text-slate-400 mt-1">R{cfg.price.toFixed(2)} {plan === "PPV_FILM" ? "per title" : "/ month"}</p>
+                    <p className="text-sm text-slate-400 mt-1">{formatZar(cfg.price)} {plan === "PPV_FILM" ? "per title" : "/ month"}</p>
                     <p className="text-xs text-slate-500 mt-2">{cfg.deviceCount} devices · {cfg.profileLimit} profiles</p>
                   </button>
                 );

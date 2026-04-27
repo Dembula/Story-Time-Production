@@ -15,7 +15,10 @@ import {
   FileText,
   Film,
   CheckCircle,
+  CreditCard,
 } from "lucide-react";
+import { formatZar } from "@/lib/format-currency-zar";
+import { computeMarketplaceFeeZar, DEFAULT_CASTING_INQUIRY_BASE_ZAR } from "@/lib/marketplace-zar-defaults";
 
 type CastRosterEntry = {
   id: string;
@@ -51,12 +54,23 @@ type CastingAgencyDetail = CastingAgency & {
 type Audition = { id: string; roleName: string; description: string | null; status: string; createdAt: string; content: { title: string } };
 type ContentOption = { id: string; title: string };
 
+type MyCastingInquiry = {
+  id: string;
+  status: string;
+  projectName: string | null;
+  roleName: string | null;
+  message: string | null;
+  createdAt: string;
+  paymentTransactionId?: string | null;
+  agency: { id: string; agencyName: string };
+};
+
 function CreatorCastPageContent() {
   const searchParams = useSearchParams();
   const projectId = searchParams.get("projectId") || undefined;
   const roleIdFromUrl = searchParams.get("roleId") || "";
 
-  const [tab, setTab] = useState<"my-roster" | "find-cast" | "auditions">("my-roster");
+  const [tab, setTab] = useState<"my-roster" | "find-cast" | "auditions" | "my-inquiries">("my-roster");
   const [castRoster, setCastRoster] = useState<CastRosterEntry[]>([]);
   const [agencies, setAgencies] = useState<CastingAgency[]>([]);
   const [auditions, setAuditions] = useState<Audition[]>([]);
@@ -72,19 +86,23 @@ function CreatorCastPageContent() {
   const [inquiryForm, setInquiryForm] = useState({ projectName: "", roleName: "", message: "", talentId: "" });
   const [auditionForm, setAuditionForm] = useState({ contentId: "", roleName: "", description: "" });
   const [showAuditionForm, setShowAuditionForm] = useState(false);
+  const [myInquiries, setMyInquiries] = useState<MyCastingInquiry[]>([]);
+  const [payingInquiryId, setPayingInquiryId] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
-      const [cast, agys, auds, cont] = await Promise.all([
+      const [cast, agys, auds, cont, inq] = await Promise.all([
         fetch("/api/creator/cast-roster").then((r) => r.json()),
         fetch("/api/casting-agencies").then((r) => r.json()),
         fetch("/api/auditions").then((r) => r.json()),
         fetch("/api/creator/content").then((r) => r.json()).then((arr: { id: string; title: string }[]) => (Array.isArray(arr) ? arr : [])),
+        fetch("/api/casting-agencies/inquiries").then((r) => (r.ok ? r.json() : [])),
       ]);
       setCastRoster(Array.isArray(cast) ? cast : []);
       setAgencies(Array.isArray(agys) ? agys : []);
       setAuditions(Array.isArray(auds) ? auds : []);
       setContents(Array.isArray(cont) ? cont : []);
+      setMyInquiries(Array.isArray(inq) ? inq : []);
       setLoading(false);
     };
     load();
@@ -130,10 +148,45 @@ function CreatorCastPageContent() {
       }),
     });
     if (res.ok) {
+      const row = await res.json();
+      const agencyMeta = agencies.find((a) => a.id === agencyId);
+      setMyInquiries((prev) => [
+        {
+          id: row.id,
+          status: row.status ?? "PENDING",
+          projectName: row.projectName ?? null,
+          roleName: row.roleName ?? null,
+          message: row.message ?? null,
+          createdAt: row.createdAt ?? new Date().toISOString(),
+          paymentTransactionId: row.paymentTransactionId ?? null,
+          agency: { id: agencyId, agencyName: agencyMeta?.agencyName ?? "Agency" },
+        },
+        ...prev,
+      ]);
       setInquiryAgencyId(null);
       setInquiryForm({ projectName: "", roleName: "", message: "", talentId: "" });
       setSuccess("Inquiry sent to agency.");
       setTimeout(() => setSuccess(""), 3000);
+    }
+  }
+
+  async function payInquiry(inquiryId: string) {
+    setPayingInquiryId(inquiryId);
+    try {
+      const res = await fetch(`/api/casting-agency/inquiries/${inquiryId}/pay`, { method: "POST" });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        alert(data?.error || "Payment failed");
+        return;
+      }
+      setMyInquiries((prev) =>
+        prev.map((q) => (q.id === inquiryId ? { ...q, paymentTransactionId: data.transactionId ?? "paid" } : q)),
+      );
+      const total = typeof data?.totalAmount === "number" ? formatZar(data.totalAmount) : "recorded";
+      setSuccess(`Inquiry payment ${total} (simulated).`);
+      setTimeout(() => setSuccess(""), 5000);
+    } finally {
+      setPayingInquiryId(null);
     }
   }
 
@@ -232,6 +285,12 @@ function CreatorCastPageContent() {
           >
             Auditions ({auditions.length})
           </button>
+          <button
+            onClick={() => setTab("my-inquiries")}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition ${tab === "my-inquiries" ? "bg-orange-500 text-white" : "bg-slate-800/50 text-slate-400 border border-slate-700/50 hover:text-white"}`}
+          >
+            My inquiries ({myInquiries.length})
+          </button>
         </div>
       </div>
 
@@ -280,6 +339,53 @@ function CreatorCastPageContent() {
                   </button>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === "my-inquiries" && (
+        <div className="space-y-4">
+          <p className="text-slate-400 text-sm">
+            After you contact an agency, you can record a simulated inquiry payment (fixed platform fee + 3%) so payouts show on the agency dashboard.
+          </p>
+          {myInquiries.length === 0 ? (
+            <div className="rounded-2xl bg-slate-800/30 border border-slate-700/50 p-12 text-center text-slate-500">No inquiries yet. Use Find Cast to message an agency.</div>
+          ) : (
+            <div className="space-y-3">
+              {myInquiries.map((q) => {
+                const base = DEFAULT_CASTING_INQUIRY_BASE_ZAR;
+                const fee = computeMarketplaceFeeZar(base);
+                const estTotal = Math.round((base + fee) * 100) / 100;
+                const canPay = !q.paymentTransactionId;
+                const paid = Boolean(q.paymentTransactionId);
+                return (
+                  <div key={q.id} className="rounded-2xl bg-slate-800/30 border border-slate-700/50 p-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="font-semibold text-white">{q.agency.agencyName}</p>
+                      <p className="text-sm text-slate-400">{q.projectName || "Project"}{q.roleName ? ` · ${q.roleName}` : ""}</p>
+                      <p className="text-xs text-slate-500 mt-1">{new Date(q.createdAt).toLocaleString()}</p>
+                      <span className={`inline-block mt-2 text-xs px-2 py-0.5 rounded-full ${q.status === "PENDING" ? "bg-amber-500/20 text-amber-400" : "bg-slate-700 text-slate-300"}`}>{q.status}</span>
+                      {paid && <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400">Paid</span>}
+                      {canPay && (
+                        <p className="text-xs text-slate-400 mt-2">
+                          Checkout: {formatZar(base)} + {formatZar(fee)} fee = <span className="text-orange-300 font-medium">{formatZar(estTotal)}</span>
+                        </p>
+                      )}
+                    </div>
+                    {canPay && (
+                      <button
+                        type="button"
+                        disabled={payingInquiryId === q.id}
+                        onClick={() => payInquiry(q.id)}
+                        className="shrink-0 flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-500 disabled:opacity-50"
+                      >
+                        <CreditCard className="w-4 h-4" /> {payingInquiryId === q.id ? "Processing…" : "Pay now"}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

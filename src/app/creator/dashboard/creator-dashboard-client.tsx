@@ -11,6 +11,7 @@ import {
   getCreatorLicenseConfig,
   normalizeCreatorLicenseType,
 } from "@/lib/pricing";
+import { formatZar } from "@/lib/format-currency-zar";
 
 export function CreatorDashboardClient() {
   const { data: stats, isLoading } = useQuery({
@@ -61,8 +62,8 @@ export function CreatorDashboardClient() {
           {license && (
             <span className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-xs font-medium text-slate-300">
               {normalizeCreatorLicenseType(license.type) === "YEARLY"
-                ? `Yearly license (R${getCreatorLicenseConfig("YEARLY").price.toFixed(2)})`
-                : `Pay per upload (R${getCreatorLicenseConfig("PER_UPLOAD").price.toFixed(2)})`}
+                ? `Yearly license (${formatZar(getCreatorLicenseConfig("YEARLY").price)})`
+                : `Pay per upload (${formatZar(getCreatorLicenseConfig("PER_UPLOAD").price)})`}
             </span>
           )}
         </div>
@@ -111,7 +112,7 @@ export function CreatorDashboardClient() {
             <DollarSign className="w-5 h-5 text-orange-400" />
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-orange-500">${(stats?.revenue ?? 0).toFixed(2)}</p>
+            <p className="text-3xl font-bold text-orange-500">{formatZar(stats?.revenue ?? 0)}</p>
             <p className="text-xs text-slate-500 mt-1">{stats?.revenueShare ?? 0}% of platform attention</p>
           </CardContent>
         </Card>

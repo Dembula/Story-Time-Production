@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { MARKETPLACE_PAYEE_SETTLED_REPORTING, MARKETPLACE_TRANSACTION_TYPE, sumPayeeCompletedAmount } from "@/lib/financial-ledger";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -10,11 +11,10 @@ export async function GET() {
   const user = await prisma.user.findUnique({ where: { email: session.user.email } });
   if (!user || (session.user as { role?: string }).role !== "CATERING_COMPANY") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const result = await prisma.transaction.aggregate({
-    where: { payeeId: user.id, status: "COMPLETED", type: "CATERING_BOOKING" },
-    _sum: { amount: true, feeAmount: true },
-  });
-  const revenue = result._sum.amount ?? 0;
+  const revenue = await sumPayeeCompletedAmount(user.id, MARKETPLACE_TRANSACTION_TYPE.CATERING_BOOKING);
 
-  return NextResponse.json({ revenue });
+  return NextResponse.json({
+    revenue,
+    reporting: MARKETPLACE_PAYEE_SETTLED_REPORTING,
+  });
 }

@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { formatZar } from "@/lib/format-currency-zar";
+import type { MusicCreatorSyncStatsPayload } from "@/lib/financial-ledger";
 import {
   Music, DollarSign, Disc, ChevronDown, ChevronUp, Globe, GraduationCap,
   BookOpen, Target, Briefcase, ExternalLink, BarChart3, TrendingUp, Film,
@@ -19,11 +21,29 @@ export function AdminMusicClient() {
   const [artists, setArtists] = useState<Artist[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [impersonationStats, setImpersonationStats] = useState<MusicCreatorSyncStatsPayload | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
   const [search, setSearch] = useState("");
 
   useEffect(() => {
     fetch("/api/admin/music").then((r) => r.json()).then(setArtists).finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (!expanded) {
+      setImpersonationStats(null);
+      return;
+    }
+    setStatsLoading(true);
+    fetch(`/api/music/stats?creatorId=${encodeURIComponent(expanded)}`)
+      .then((r) => r.json())
+      .then((body) => {
+        if (body && typeof body.totalTracks === "number") setImpersonationStats(body as MusicCreatorSyncStatsPayload);
+        else setImpersonationStats(null);
+      })
+      .catch(() => setImpersonationStats(null))
+      .finally(() => setStatsLoading(false));
+  }, [expanded]);
 
   const filtered = artists.filter((a) => !search || a.name?.toLowerCase().includes(search.toLowerCase()) || a.email?.toLowerCase().includes(search.toLowerCase()));
   const totalTracks = artists.reduce((s, a) => s + a.totalTracks, 0);
@@ -43,7 +63,7 @@ export function AdminMusicClient() {
         <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4"><p className="text-xs text-slate-400">Artists</p><p className="text-2xl font-bold text-white">{artists.length}</p></div>
         <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4"><p className="text-xs text-slate-400">Total Tracks</p><p className="text-2xl font-bold text-white">{totalTracks}</p></div>
         <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4"><p className="text-xs text-slate-400">Sync Placements</p><p className="text-2xl font-bold text-white">{totalPlacements}</p></div>
-        <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4"><p className="text-xs text-slate-400">Total Earnings</p><p className="text-2xl font-bold text-pink-400">${totalEarnings.toFixed(2)}</p></div>
+        <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4"><p className="text-xs text-slate-400">Total Earnings</p><p className="text-2xl font-bold text-pink-400">{formatZar(totalEarnings)}</p></div>
       </div>
 
       <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search artists..." className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 text-sm" />
@@ -66,7 +86,7 @@ export function AdminMusicClient() {
                     <p className="text-sm text-slate-500">{a.email} · {a.totalTracks} tracks · {a.genres.join(", ") || "No genre"}</p>
                   </div>
                   <div className="hidden md:flex items-center gap-6">
-                    <div className="text-right"><p className="text-xl font-bold text-pink-400">${a.totalEarnings.toFixed(2)}</p><p className="text-xs text-slate-500">Earnings</p></div>
+                    <div className="text-right"><p className="text-xl font-bold text-pink-400">{formatZar(a.totalEarnings)}</p><p className="text-xs text-slate-500">Earnings</p></div>
                     <div className="text-right"><p className="text-xl font-bold text-white">{a.totalPlacements}</p><p className="text-xs text-slate-500">Placements</p></div>
                     <div className="text-right"><p className="text-xl font-bold text-cyan-400">{a.totalTracks}</p><p className="text-xs text-slate-500">Tracks</p></div>
                   </div>
@@ -93,7 +113,7 @@ export function AdminMusicClient() {
                       <h4 className="text-sm font-medium text-white flex items-center gap-2"><BarChart3 className="w-4 h-4 text-pink-400" /> Performance</h4>
                       <div className="grid grid-cols-2 gap-3">
                         {[
-                          { label: "Total Earnings", value: `$${a.totalEarnings.toFixed(2)}`, icon: DollarSign },
+                          { label: "Total Earnings", value: formatZar(a.totalEarnings), icon: DollarSign },
                           { label: "Sync Placements", value: a.totalPlacements.toString(), icon: Film },
                           { label: "Tracks", value: a.totalTracks.toString(), icon: Disc },
                           { label: "Genres", value: a.genres.length.toString(), icon: Music },
@@ -104,6 +124,18 @@ export function AdminMusicClient() {
                           </div>
                         ))}
                       </div>
+                      {statsLoading && <p className="text-xs text-slate-500">Loading live sync stats…</p>}
+                      {impersonationStats && !statsLoading && (
+                        <div className="rounded-lg border border-pink-500/20 bg-pink-500/5 p-3 space-y-2">
+                          <p className="text-xs font-medium text-pink-300 flex items-center gap-1"><TrendingUp className="w-3 h-3" /> Live stats (GET /api/music/stats?creatorId=…)</p>
+                          <div className="grid grid-cols-2 gap-2 text-xs text-slate-300">
+                            <span>Paid deals: <span className="text-white font-medium">{impersonationStats.paidDeals}</span></span>
+                            <span>Pending requests: <span className="text-amber-300 font-medium">{impersonationStats.pendingRequests}</span></span>
+                            <span>Approved requests: <span className="text-emerald-300 font-medium">{impersonationStats.approvedRequests}</span></span>
+                            <span>Potential (pending budgets): <span className="text-orange-300 font-medium">{formatZar(impersonationStats.potentialRevenue, { maximumFractionDigits: 0 })}</span></span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -118,7 +150,7 @@ export function AdminMusicClient() {
                           </div>
                           <div className="text-right space-y-0.5">
                             {t.syncDeals.length > 0 ? t.syncDeals.map((d, i) => (
-                              <p key={i} className="text-xs"><span className="text-slate-400">{d.content.title}</span> <span className="text-pink-400 font-medium">${d.amount.toFixed(2)}</span></p>
+                              <p key={i} className="text-xs"><span className="text-slate-400">{d.content.title}</span> <span className="text-pink-400 font-medium">{formatZar(d.amount)}</span></p>
                             )) : <p className="text-xs text-slate-500">No placements</p>}
                           </div>
                         </div>

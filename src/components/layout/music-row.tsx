@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronLeft, ChevronRight, Music } from "lucide-react";
+import Image from "next/image";
 import { useRef } from "react";
 
 type MusicTrack = {
@@ -66,9 +67,11 @@ export function MusicRow({
           >
             <div className="relative aspect-square overflow-hidden rounded-t-2xl bg-slate-900">
               {track.coverUrl ? (
-                <img
+                <Image
                   src={track.coverUrl}
                   alt={track.title}
+                  fill
+                  sizes="(max-width: 768px) 35vw, 176px"
                   className="h-full w-full object-cover transition duration-300 group-hover/card:scale-[1.04] group-hover/card:brightness-110"
                 />
               ) : (

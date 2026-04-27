@@ -12,8 +12,8 @@ interface Track {
   id: string; title: string; artistName: string; audioUrl: string | null; coverUrl: string | null;
   genre: string | null; mood: string | null; bpm: number | null; key: string | null;
   duration: number | null; description: string | null; tags: string | null; language: string | null; licenseType: string;
-  creator: { id: string; name: string | null; email: string | null };
-  _count: { syncDeals: number };
+  creator: { id: string; name: string | null; email?: string | null };
+  _count: { syncDeals: number; syncRequests?: number; musicSelections?: number };
 }
 
 interface SyncRequest {
@@ -51,25 +51,6 @@ function MusicContent() {
   const [newMsg, setNewMsg] = useState("");
   const [sending, setSending] = useState(false);
   const chatEnd = useRef<HTMLDivElement>(null);
-
-  // #region agent log
-  fetch("http://127.0.0.1:7661/ingest/e765b01c-cec5-485d-8f2c-447ed6fafc98", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Debug-Session-Id": "d1fe7d",
-    },
-    body: JSON.stringify({
-      sessionId: "d1fe7d",
-      runId: "pre-fix",
-      hypothesisId: "H3",
-      location: "creator/music/page.tsx:line55",
-      message: "MusicContent mount",
-      data: { initialTab: tab },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
 
   useEffect(() => {
     Promise.all([

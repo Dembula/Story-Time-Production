@@ -46,7 +46,6 @@ import { getViewerProfileAge } from "@/lib/viewer-profiles";
 const openRouter = createOpenAI({
   apiKey: process.env.OPENROUTER_API_KEY ?? "",
   baseURL: "https://openrouter.ai/api/v1",
-  compatibility: "compatible",
 });
 
 /** Default MODOC model; override with OPENROUTER_MODOC_MODEL (e.g. anthropic/claude-3.5-sonnet, google/gemini-2.0-flash). */
@@ -1263,9 +1262,9 @@ Suggest performance summary, lessons learned categories, and a final deliverable
     model: openRouter(MODOC_MODEL),
     system: systemPrompt,
     messages,
-    maxTokens: 4096,
+    maxOutputTokens: 4096,
     temperature: 0.7,
   });
 
-  return result.toDataStreamResponse();
+  return result.toTextStreamResponse();
 }

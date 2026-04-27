@@ -1733,6 +1733,35 @@ exports.Prisma.PasswordResetTokenScalarFieldEnum = {
   createdAt: 'createdAt'
 };
 
+exports.Prisma.AnalyticsEventScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  role: 'role',
+  name: 'name',
+  path: 'path',
+  properties: 'properties',
+  clientTs: 'clientTs',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.AnalyticsDailyRollupScalarFieldEnum = {
+  id: 'id',
+  day: 'day',
+  name: 'name',
+  count: 'count',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.OpsIncidentScalarFieldEnum = {
+  id: 'id',
+  kind: 'kind',
+  severity: 'severity',
+  message: 'message',
+  detail: 'detail',
+  resolvedAt: 'resolvedAt',
+  createdAt: 'createdAt'
+};
+
 exports.Prisma.SortOrder = {
   asc: 'asc',
   desc: 'desc'
@@ -1895,7 +1924,10 @@ exports.Prisma.ModelName = {
   ScriptReviewNote: 'ScriptReviewNote',
   CreatorScript: 'CreatorScript',
   AdminAuditLog: 'AdminAuditLog',
-  PasswordResetToken: 'PasswordResetToken'
+  PasswordResetToken: 'PasswordResetToken',
+  AnalyticsEvent: 'AnalyticsEvent',
+  AnalyticsDailyRollup: 'AnalyticsDailyRollup',
+  OpsIncident: 'OpsIncident'
 };
 
 /**

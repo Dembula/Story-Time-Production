@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Play, Plus, Lock, GraduationCap, Globe, BookOpen, Target, Briefcase, Music, Users as UsersIcon, X, AlertTriangle, Film } from "lucide-react";
@@ -188,7 +189,14 @@ export function ContentDetailClient({
 
       <div className="relative -mx-6 h-[45vh] min-h-[320px]">
         {(content.backdropUrl || content.posterUrl) ? (
-          <img src={content.backdropUrl || content.posterUrl || ""} alt="" className="w-full h-full object-cover" />
+          <Image
+            src={content.backdropUrl || content.posterUrl || ""}
+            alt=""
+            fill
+            sizes="100vw"
+            priority
+            className="w-full h-full object-cover"
+          />
         ) : (
           <div className="w-full h-full bg-slate-800" />
         )}
@@ -199,7 +207,13 @@ export function ContentDetailClient({
         <div className="flex-shrink-0">
           <div className="w-48 md:w-64 aspect-[2/3] rounded-xl overflow-hidden bg-slate-800 shadow-2xl border border-slate-700/50">
             {content.posterUrl ? (
-              <img src={content.posterUrl} alt={content.title} className="w-full h-full object-cover" />
+              <Image
+                src={content.posterUrl}
+                alt={content.title}
+                fill
+                sizes="(max-width: 768px) 50vw, 256px"
+                className="w-full h-full object-cover"
+              />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-slate-500">No poster</div>
             )}
@@ -362,7 +376,13 @@ export function ContentDetailClient({
             <div className="flex-shrink-0">
               <div className="w-20 h-20 rounded-2xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center">
                 {content.creator.image ? (
-                  <img src={content.creator.image} alt="" className="w-full h-full rounded-2xl object-cover" />
+                  <Image
+                    src={content.creator.image}
+                    alt=""
+                    fill
+                    sizes="80px"
+                    className="w-full h-full rounded-2xl object-cover"
+                  />
                 ) : (
                   <span className="text-2xl font-bold text-orange-500">{(content.creator.name || "?")[0]}</span>
                 )}
@@ -427,7 +447,13 @@ export function ContentDetailClient({
                   <Link key={c.id} href={`/browse/content/${c.id}`} className="flex-shrink-0 group">
                     <div className="w-28 aspect-[2/3] rounded-lg overflow-hidden bg-slate-800 border border-slate-700/50 group-hover:border-orange-500/50 transition">
                       {c.posterUrl ? (
-                        <img src={c.posterUrl} alt={c.title} className="w-full h-full object-cover" />
+                        <Image
+                          src={c.posterUrl}
+                          alt={c.title}
+                          fill
+                          sizes="112px"
+                          className="w-full h-full object-cover"
+                        />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-xs text-slate-500">{c.title}</div>
                       )}
@@ -452,7 +478,7 @@ export function ContentDetailClient({
               <div key={track.id} className="flex items-center gap-4 p-3 rounded-xl bg-slate-800/40 border border-slate-700/30 hover:border-orange-500/30 transition">
                 <div className="w-12 h-12 rounded-lg overflow-hidden bg-slate-700 flex-shrink-0">
                   {track.coverUrl ? (
-                    <img src={track.coverUrl} alt="" className="w-full h-full object-cover" />
+                    <Image src={track.coverUrl} alt="" fill sizes="48px" className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
                       <Music className="w-5 h-5 text-slate-500" />
@@ -570,7 +596,13 @@ export function ContentDetailClient({
         <div className="mt-10 rounded-xl overflow-hidden border border-slate-700/50 bg-slate-900/50">
           <div className="aspect-video relative flex items-center justify-center">
             {(content.posterUrl || content.backdropUrl) && (
-              <img src={content.posterUrl || content.backdropUrl || ""} alt="" className="absolute inset-0 w-full h-full object-cover opacity-30" />
+              <Image
+                src={content.posterUrl || content.backdropUrl || ""}
+                alt=""
+                fill
+                sizes="100vw"
+                className="absolute inset-0 w-full h-full object-cover opacity-30"
+              />
             )}
             <div className="absolute inset-0 bg-gradient-to-t from-[#0c1222] to-transparent" />
             <div className="relative z-10 text-center p-12">

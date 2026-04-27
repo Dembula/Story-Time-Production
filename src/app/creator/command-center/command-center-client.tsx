@@ -30,6 +30,7 @@ import { useModocOptional, useModoc } from "@/components/modoc";
 import type { CreatorCommandCenterPayload } from "@/lib/creator-command-center";
 import { CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY } from "@/lib/pricing";
 import type { CreatorSuiteAccessMap } from "@/lib/creator-suite-access";
+import { formatZar } from "@/lib/format-currency-zar";
 
 type RevenueData = {
   revenue: number;
@@ -331,8 +332,8 @@ export function CommandCenterClient() {
           </div>
           <div className="storytime-kpi p-4">
             <p className="text-xs text-slate-400 mb-1">Attributed earnings (window)</p>
-            <p className="text-2xl font-bold text-emerald-300">R{win.amount.toFixed(2)}</p>
-            <p className="text-[11px] text-slate-500 mt-1">RPV R{win.perViewRand.toFixed(4)}</p>
+            <p className="text-2xl font-bold text-emerald-300">{formatZar(win.amount)}</p>
+            <p className="text-[11px] text-slate-500 mt-1">RPV {formatZar(win.perViewRand, { maximumFractionDigits: 4 })}</p>
           </div>
           <div className="storytime-kpi p-4">
             <p className="text-xs text-slate-400 mb-1">Active projects</p>
@@ -359,7 +360,7 @@ export function CommandCenterClient() {
             <p className="text-xs text-slate-500 uppercase">Top performer</p>
             <p className="text-white font-semibold">{cc.overview.topFilmTitle ?? "—"}</p>
             <p className="text-sm text-slate-400">
-              {cc.overview.topFilmViews.toLocaleString()} views · est. window share R{cc.overview.topFilmRevenueRand.toFixed(2)}
+              {cc.overview.topFilmViews.toLocaleString()} views · est. window share {formatZar(cc.overview.topFilmRevenueRand)}
             </p>
           </div>
           {cc.platform && (
@@ -428,7 +429,7 @@ export function CommandCenterClient() {
                       <td className="px-3 py-2">{c.views.toLocaleString()}</td>
                       <td className="px-3 py-2">{Math.floor(c.watchTimeSeconds / 60)}m</td>
                       <td className="px-3 py-2 text-cyan-200">{score.toLocaleString()}</td>
-                      <td className="px-3 py-2">R{rpv.toFixed(4)}</td>
+                      <td className="px-3 py-2">{formatZar(rpv, { maximumFractionDigits: 4 })}</td>
                     </tr>
                   );
                 })}
@@ -454,11 +455,11 @@ export function CommandCenterClient() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="storytime-kpi p-4">
             <p className="text-xs text-slate-400">Payout period earnings</p>
-            <p className="text-2xl font-bold text-white">R{revenueData.revenue.toFixed(2)}</p>
+            <p className="text-2xl font-bold text-white">{formatZar(revenueData.revenue)}</p>
           </div>
           <div className="storytime-kpi p-4">
             <p className="text-xs text-slate-400">Viewer sub pool (window)</p>
-            <p className="text-2xl font-bold text-white">R{win.viewerSubRevenue.toFixed(0)}</p>
+            <p className="text-2xl font-bold text-white">{formatZar(win.viewerSubRevenue, { maximumFractionDigits: 0 })}</p>
           </div>
           <div className="storytime-kpi p-4">
             <p className="text-xs text-slate-400">Your pool share</p>
@@ -467,7 +468,7 @@ export function CommandCenterClient() {
           <div className="storytime-kpi p-4">
             <p className="text-xs text-slate-400">RPU (rough)</p>
             <p className="text-2xl font-bold text-white">
-              R{eng.uniqueWatchers > 0 ? (revenueData.revenue / eng.uniqueWatchers).toFixed(2) : "0.00"}
+              {formatZar(eng.uniqueWatchers > 0 ? revenueData.revenue / eng.uniqueWatchers : 0)}
             </p>
             <p className="text-[11px] text-slate-500">Earnings / unique viewer (period)</p>
           </div>
@@ -505,7 +506,7 @@ export function CommandCenterClient() {
             <ul className="space-y-2">
               {revenueData.payouts.map((p) => (
                 <li key={p.id} className="flex flex-wrap justify-between gap-2 rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-sm">
-                  <span className="text-white">R{p.amount.toFixed(2)}</span>
+                  <span className="text-white">{formatZar(p.amount)}</span>
                   <span className={p.status === "COMPLETED" ? "text-emerald-400" : "text-slate-500"}>{p.status}</span>
                   <span className="text-slate-500">{p.period}</span>
                 </li>

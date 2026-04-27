@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { formatZar } from "@/lib/format-currency-zar";
 import Link from "next/link";
 import {
   Music, CheckCircle, XCircle, Clock, MessageSquare, Film, DollarSign,
@@ -57,7 +58,7 @@ export default function SyncRequestsPage() {
         <div className="bg-slate-800/30 border border-slate-700/50 rounded-xl p-4"><p className="text-xs text-slate-400">Total Requests</p><p className="text-2xl font-bold text-white">{requests.length}</p></div>
         <div className="bg-yellow-500/5 border border-yellow-500/20 rounded-xl p-4"><p className="text-xs text-yellow-400">Pending</p><p className="text-2xl font-bold text-yellow-400">{pending}</p></div>
         <div className="bg-green-500/5 border border-green-500/20 rounded-xl p-4"><p className="text-xs text-green-400">Approved</p><p className="text-2xl font-bold text-green-400">{approved}</p></div>
-        <div className="bg-orange-500/5 border border-orange-500/20 rounded-xl p-4"><p className="text-xs text-orange-400">Potential Revenue</p><p className="text-2xl font-bold text-orange-400">${totalBudget.toFixed(0)}</p></div>
+        <div className="bg-orange-500/5 border border-orange-500/20 rounded-xl p-4"><p className="text-xs text-orange-400">Potential Revenue</p><p className="text-2xl font-bold text-orange-400">{formatZar(totalBudget, { maximumFractionDigits: 0 })}</p></div>
       </div>
 
       <div className="flex gap-2">
@@ -82,7 +83,7 @@ export default function SyncRequestsPage() {
                   <div className="flex items-center gap-3 text-xs text-slate-500 mt-1">
                     {r.projectName && <span><Film className="w-3 h-3 inline" /> {r.projectName}</span>}
                     {r.projectType && <span>· {r.projectType}</span>}
-                    {r.budget && <span>· Budget: ${r.budget}</span>}
+                    {r.budget != null && <span>· Budget: {formatZar(r.budget)}</span>}
                     <span>· {new Date(r.createdAt).toLocaleDateString()}</span>
                     {r._count.messages > 0 && <span className="flex items-center gap-1"><MessageSquare className="w-3 h-3" /> {r._count.messages} messages</span>}
                   </div>
@@ -101,7 +102,7 @@ export default function SyncRequestsPage() {
                       <p><span className="text-slate-500">Project:</span> <span className="text-slate-300">{r.projectName || "—"}</span></p>
                       <p><span className="text-slate-500">Type:</span> <span className="text-slate-300">{r.projectType || "—"}</span></p>
                       <p><span className="text-slate-500">Usage:</span> <span className="text-slate-300">{r.usageType || "—"}</span></p>
-                      <p><span className="text-slate-500">Budget:</span> <span className="text-orange-400 font-medium">{r.budget ? `$${r.budget}` : "Not specified"}</span></p>
+                      <p><span className="text-slate-500">Budget:</span> <span className="text-orange-400 font-medium">{r.budget != null ? formatZar(r.budget) : "Not specified"}</span></p>
                     </div>
                     {r.note && <div className="p-3 rounded-lg bg-slate-800/40 border border-slate-700/30"><p className="text-xs text-slate-500 mb-1">Message from creator:</p><p className="text-sm text-slate-300">{r.note}</p></div>}
                   </div>

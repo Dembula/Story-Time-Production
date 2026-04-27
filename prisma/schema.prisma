@@ -2697,4 +2697,47 @@ model PasswordResetToken {
   @@map("password_reset_tokens")
 }
 
+/// Append-only product analytics (Q2 MVP). Prefer coarse names; avoid PII in `properties`.
+model AnalyticsEvent {
+  id         String   @id @default(cuid())
+  userId     String?
+  role       String?
+  name       String
+  path       String?
+  properties Json?
+  clientTs   DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([name, createdAt])
+  @@map("analytics_events")
+}
+
+/// Pre-aggregated counts per UTC calendar day (filled by cron from `AnalyticsEvent`).
+model AnalyticsDailyRollup {
+  id        String   @id @default(cuid())
+  day       String
+  name      String
+  count     Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@unique([day, name])
+  @@map("analytics_daily_rollups")
+}
+
+/// Automated health checks (ledger/orphan rows). Surfaced in admin; optional cron clears duplicates by kind+day.
+model OpsIncident {
+  id         String    @id @default(cuid())
+  kind       String
+  severity   String    @default("warning")
+  message    String
+  detail     Json?
+  resolvedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([createdAt])
+  @@index([kind])
+  @@map("ops_incidents")
+}
+
 

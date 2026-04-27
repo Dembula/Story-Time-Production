@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { MARKETPLACE_TRANSACTION_TYPE, SIMULATED_PAYMENT_PURPOSE } from "@/lib/financial-ledger";
+import { computeMarketplaceFeeZar } from "@/lib/marketplace-zar-defaults";
 
 export async function POST(
   _req: Request,
@@ -22,20 +24,20 @@ export async function POST(
   if (booking.paymentTransactionId) return NextResponse.json({ error: "Already paid" }, { status: 400 });
 
   const baseAmount = booking.cateringCompany.minOrder ?? 500;
-  const feeAmount = Math.round(baseAmount * 0.03 * 100) / 100;
+  const feeAmount = computeMarketplaceFeeZar(baseAmount);
   const totalAmount = baseAmount + feeAmount;
 
   const paymentRecord = await prisma.paymentRecord.create({
     data: {
       userId: user.id,
       provider: "DISABLED",
-      purpose: "CATERING_BOOKING",
+      purpose: SIMULATED_PAYMENT_PURPOSE.CATERING_BOOKING,
       status: "SUCCEEDED",
       amount: totalAmount,
       currency: "ZAR",
       email: user.email,
       paidAt: new Date(),
-      metadata: { type: "CATERING_BOOKING", referenceId: bookingId } as any,
+      metadata: { type: SIMULATED_PAYMENT_PURPOSE.CATERING_BOOKING, referenceId: bookingId } as object,
     },
   });
 
@@ -47,7 +49,7 @@ export async function POST(
       feeAmount,
       totalAmount,
       status: "COMPLETED",
-      type: "CATERING_BOOKING",
+      type: MARKETPLACE_TRANSACTION_TYPE.CATERING_BOOKING,
       referenceId: bookingId,
       externalPaymentId: paymentRecord.id,
     },

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { Play, Info } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -52,9 +53,12 @@ export function Hero({ content }: { content: Content[] }) {
     <div className="relative h-[70vh] min-h-[450px] flex items-end">
       <div className="absolute inset-0">
         {(current.backdropUrl || current.posterUrl) ? (
-          <img
+          <Image
             src={current.backdropUrl || current.posterUrl || ""}
             alt=""
+            fill
+            sizes="100vw"
+            priority
             className="h-full w-full object-cover brightness-[0.88] contrast-110"
           />
         ) : (

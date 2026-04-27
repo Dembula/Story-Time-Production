@@ -12,15 +12,21 @@ import {
   getCreatorLicenseConfig,
   normalizeCreatorLicenseType,
 } from "@/lib/pricing";
+import { formatZar } from "@/lib/format-currency-zar";
 
-interface SyncDeal { status: string; amount: number; content: { title: string } }
-interface SyncReq { status: string; requester: { name: string | null } }
+interface SyncDeal { status: string; amount: number; content: { title: string; type?: string } }
+interface SyncReq {
+  status: string;
+  requester: { name: string | null; email?: string | null };
+  _count?: { messages: number };
+}
 interface Track {
   id: string; title: string; artistName: string; genre: string | null; mood: string | null;
   bpm: number | null; duration: number | null; coverUrl: string | null;
   syncDeals: SyncDeal[];
   syncRequests: SyncReq[];
-  _count: { syncDeals: number; syncRequests: number };
+  musicSelections?: { id: string; project: { title: string; status: string } }[];
+  _count: { syncDeals: number; syncRequests: number; musicSelections?: number };
 }
 
 interface Stats {
@@ -62,12 +68,12 @@ export function MusicDashboardClient() {
             {license && (
               <span className="px-3 py-1 rounded-full text-xs font-medium bg-slate-700/80 text-slate-300 border border-slate-600">
                 {normalizeCreatorLicenseType(license.type) === "YEARLY"
-                  ? `Yearly license (R${getCreatorLicenseConfig("YEARLY").price.toFixed(2)})`
-                  : `Pay per upload (R${getCreatorLicenseConfig("PER_UPLOAD").price.toFixed(2)})`}
+                  ? `Yearly license (${formatZar(getCreatorLicenseConfig("YEARLY").price)})`
+                  : `Pay per upload (${formatZar(getCreatorLicenseConfig("PER_UPLOAD").price)})`}
               </span>
             )}
           </div>
-          <p className="text-slate-400">Your complete hub for music, sync licensing, revenue tracking, and creator collaboration.</p>
+          <p className="text-slate-400">Your complete hub for music, sync licensing, revenue tracking, and creator collaboration. Amounts are in ZAR.</p>
         </div>
         <Link href="/music-creator/upload" className="px-5 py-2.5 bg-pink-500 hover:bg-pink-600 text-white rounded-lg font-medium text-sm transition flex items-center gap-2">
           <Music className="w-4 h-4" /> Upload Track
@@ -78,9 +84,9 @@ export function MusicDashboardClient() {
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
         {[
           { label: "Total Tracks", value: s.totalTracks, icon: Disc, color: "pink", sub: "In catalogue" },
-          { label: "Sync Earnings", value: `$${s.totalSyncEarnings.toFixed(2)}`, icon: DollarSign, color: "orange", sub: `${s.paidDeals} paid deals` },
+          { label: "Sync Earnings", value: formatZar(s.totalSyncEarnings), icon: DollarSign, color: "orange", sub: `${s.paidDeals} paid deals` },
           { label: "Film Placements", value: s.totalPlacements, icon: Film, color: "emerald", sub: "Active syncs" },
-          { label: "Pending Requests", value: s.pendingRequests, icon: Bell, color: "yellow", sub: `$${s.potentialRevenue.toFixed(0)} potential` },
+          { label: "Pending Requests", value: s.pendingRequests, icon: Bell, color: "yellow", sub: `${formatZar(s.potentialRevenue, { maximumFractionDigits: 0 })} potential` },
           { label: "Genres", value: s.genres.length, icon: Headphones, color: "violet", sub: s.genres.slice(0, 3).join(", ") || "—" },
         ].map((card) => {
           const borderMap: Record<string, string> = { pink: "border-l-pink-500/50", orange: "border-l-orange-500/50", emerald: "border-l-emerald-500/50", yellow: "border-l-yellow-500/50", violet: "border-l-violet-500/50" };
@@ -102,7 +108,7 @@ export function MusicDashboardClient() {
             <Sparkles className="w-6 h-6 text-yellow-400" />
             <div>
               <p className="text-white font-medium">{s.pendingRequests} new sync {s.pendingRequests === 1 ? "request" : "requests"} waiting for your review</p>
-              <p className="text-xs text-slate-400">Film creators want to use your music — potential revenue: ${s.potentialRevenue.toFixed(2)}</p>
+              <p className="text-xs text-slate-400">Film creators want to use your music — potential revenue: {formatZar(s.potentialRevenue)}</p>
             </div>
           </div>
           <Link href="/music-creator/sync-requests" className="px-4 py-2 bg-yellow-500/10 text-yellow-400 rounded-lg text-sm font-medium hover:bg-yellow-500/20 transition flex items-center gap-1">
@@ -125,7 +131,7 @@ export function MusicDashboardClient() {
                 <div key={t.id}>
                   <div className="flex justify-between text-sm mb-1">
                     <span className="text-slate-300">{t.title} <span className="text-xs text-slate-500">({t.genre})</span></span>
-                    <span className="text-orange-400 font-medium">${t.earnings.toFixed(2)}</span>
+                    <span className="text-orange-400 font-medium">{formatZar(t.earnings)}</span>
                   </div>
                   <div className="h-1.5 bg-slate-700/50 rounded-full overflow-hidden"><div className="h-full bg-orange-500/70 rounded-full" style={{ width: `${pct}%` }} /></div>
                   <p className="text-xs text-slate-500 mt-0.5">{t.placements} placements · {t.requests} requests</p>
@@ -147,7 +153,7 @@ export function MusicDashboardClient() {
                     <p className="text-xs text-slate-500">in &quot;{d.film}&quot; ({d.filmType})</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-orange-400 font-medium text-sm">${d.amount.toFixed(2)}</p>
+                    <p className="text-orange-400 font-medium text-sm">{formatZar(d.amount)}</p>
                     <span className={`text-xs px-1.5 py-0.5 rounded ${d.status === "PAID" ? "bg-green-500/10 text-green-400" : "bg-yellow-500/10 text-yellow-400"}`}>{d.status}</span>
                   </div>
                 </div>
@@ -187,7 +193,7 @@ export function MusicDashboardClient() {
                 <div className="flex items-center gap-6 text-sm">
                   <div className="text-right">
                     <p className="text-slate-400">{t._count.syncDeals} placements</p>
-                    <p className="text-orange-400 font-medium">${earnings.toFixed(2)}</p>
+                    <p className="text-orange-400 font-medium">{formatZar(earnings)}</p>
                   </div>
                 </div>
               </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useRef } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -89,9 +90,11 @@ export function ContentRow({
           >
             <div className="relative aspect-[2/3] overflow-hidden rounded-2xl border border-white/8 bg-card shadow-media">
               {item.posterUrl || item.backdropUrl ? (
-                <img
+                <Image
                   src={item.posterUrl || item.backdropUrl || ""}
                   alt={item.title}
+                  fill
+                  sizes="(max-width: 768px) 40vw, 208px"
                   className="h-full w-full object-cover transition duration-300 group-hover/card:scale-[1.04] group-hover/card:brightness-110"
                 />
               ) : (

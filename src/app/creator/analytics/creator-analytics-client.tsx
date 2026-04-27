@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useModocOptional, useModoc } from "@/components/modoc";
+import { formatZar } from "@/lib/format-currency-zar";
 
 type RevenueData = {
   revenue: number;
@@ -309,7 +310,7 @@ export function CreatorAnalyticsClient() {
                 <DollarSign className="w-4 h-4 text-orange-400" />
                 <span className="text-xs text-slate-400">Attributed earnings</span>
               </div>
-              <p className="text-2xl font-bold text-white">R{win.amount.toFixed(2)}</p>
+              <p className="text-2xl font-bold text-white">{formatZar(win.amount)}</p>
               <p className="text-xs text-slate-500 mt-1">Share in this window</p>
             </div>
             <div className="storytime-kpi p-5">
@@ -318,7 +319,7 @@ export function CreatorAnalyticsClient() {
                 <span className="text-xs text-slate-400">Views</span>
               </div>
               <p className="text-2xl font-bold text-white">{win.totalViews.toLocaleString()}</p>
-              <p className="text-xs text-slate-500 mt-1">R{win.perViewRand.toFixed(4)} per view</p>
+              <p className="text-xs text-slate-500 mt-1">{formatZar(win.perViewRand, { maximumFractionDigits: 4 })} per view</p>
             </div>
             <div className="storytime-kpi p-5">
               <div className="flex items-center gap-2 mb-2">
@@ -326,7 +327,7 @@ export function CreatorAnalyticsClient() {
                 <span className="text-xs text-slate-400">Watch time</span>
               </div>
               <p className="text-2xl font-bold text-white">{Math.floor(win.watchTimeSeconds / 3600)}h</p>
-              <p className="text-xs text-slate-500 mt-1">R{win.perStreamRand.toFixed(2)} per stream</p>
+              <p className="text-xs text-slate-500 mt-1">{formatZar(win.perStreamRand)} per stream</p>
             </div>
             <div className="storytime-kpi p-5">
               <div className="flex items-center gap-2 mb-2">
@@ -334,7 +335,7 @@ export function CreatorAnalyticsClient() {
                 <span className="text-xs text-slate-400">Share of pool</span>
               </div>
               <p className="text-2xl font-bold text-white">{win.sharePercent.toFixed(2)}%</p>
-              <p className="text-xs text-slate-500 mt-1">Creator pool R{win.creatorPool.toFixed(2)}</p>
+              <p className="text-xs text-slate-500 mt-1">Creator pool {formatZar(win.creatorPool)}</p>
             </div>
           </div>
         </section>
@@ -352,7 +353,7 @@ export function CreatorAnalyticsClient() {
               <DollarSign className="w-4 h-4 text-orange-400" />
               <span className="text-xs text-slate-400">Earnings</span>
             </div>
-            <p className="text-2xl font-bold text-white">R{data.revenue.toFixed(2)}</p>
+            <p className="text-2xl font-bold text-white">{formatZar(data.revenue)}</p>
             <p className="text-xs text-slate-500 mt-1">
               {data.periodStart?.slice(0, 7)} – {data.periodEnd?.slice(0, 10)}
             </p>
@@ -363,7 +364,7 @@ export function CreatorAnalyticsClient() {
               <span className="text-xs text-slate-400">Views</span>
             </div>
             <p className="text-2xl font-bold text-white">{data.totalViews.toLocaleString()}</p>
-            <p className="text-xs text-slate-500 mt-1">R{data.perViewRand.toFixed(4)} per view</p>
+            <p className="text-xs text-slate-500 mt-1">{formatZar(data.perViewRand, { maximumFractionDigits: 4 })} per view</p>
           </div>
           <div className="storytime-kpi p-5">
             <div className="flex items-center gap-2 mb-2">
@@ -371,7 +372,7 @@ export function CreatorAnalyticsClient() {
               <span className="text-xs text-slate-400">Watch time</span>
             </div>
             <p className="text-2xl font-bold text-white">{Math.floor(data.watchTime / 3600)}h</p>
-            <p className="text-xs text-slate-500 mt-1">R{data.perStreamRand.toFixed(2)} per stream</p>
+            <p className="text-xs text-slate-500 mt-1">{formatZar(data.perStreamRand)} per stream</p>
           </div>
           <div className="storytime-kpi p-5">
             <div className="flex items-center gap-2 mb-2">
@@ -379,7 +380,7 @@ export function CreatorAnalyticsClient() {
               <span className="text-xs text-slate-400">Share of pool</span>
             </div>
             <p className="text-2xl font-bold text-white">{data.share.toFixed(2)}%</p>
-            <p className="text-xs text-slate-500 mt-1">Creator pool R{data.creatorPool.toFixed(2)}</p>
+            <p className="text-xs text-slate-500 mt-1">Creator pool {formatZar(data.creatorPool)}</p>
           </div>
         </div>
       </section>
@@ -628,7 +629,7 @@ export function CreatorAnalyticsClient() {
           <ul className="space-y-2">
             {data.payouts.map((p) => (
               <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3">
-                <span className="text-white">R{p.amount.toFixed(2)}</span>
+                <span className="text-white">{formatZar(p.amount)}</span>
                 <span className={`text-sm ${p.status === "COMPLETED" ? "text-emerald-400" : "text-slate-500"}`}>{p.status}</span>
                 <span className="text-slate-500 text-sm">
                   {p.period}

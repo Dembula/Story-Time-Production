@@ -10,6 +10,7 @@ import {
   CREATOR_STUDIO_PROFILES_QUERY_KEY,
 } from "@/lib/pricing";
 import { defaultSuiteAccessOpen } from "@/lib/creator-suite-access";
+import { formatZar } from "@/lib/format-currency-zar";
 
 const OPTIONS = [
   {
@@ -147,7 +148,7 @@ export function LicenseClient() {
                 </div>
 
                 <p className="mt-5 text-4xl font-bold text-white">
-                  R{option.price.toFixed(2)}
+                  {formatZar(option.price)}
                   <span className="ml-1 text-sm font-normal text-slate-400">
                     {option.id === "YEARLY" ? "/year" : "/upload"}
                   </span>
@@ -196,7 +197,7 @@ export function LicenseClient() {
               <p className="text-xs uppercase tracking-wide text-orange-200/80">
                 {selectedOption.id === "YEARLY" ? "Onboarding payment" : "Submission payment"}
               </p>
-              <p className="mt-1 text-3xl font-bold text-white">R{selectedOption.price.toFixed(2)}</p>
+              <p className="mt-1 text-3xl font-bold text-white">{formatZar(selectedOption.price)}</p>
             </div>
           </div>
           <div className="mt-6 grid gap-3 sm:grid-cols-2">

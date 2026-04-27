@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { formatZar } from "@/lib/format-currency-zar";
 import {
   Sparkles,
   Film,
@@ -314,7 +315,7 @@ export function AdminOriginalsClient() {
                     )}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                       {p.budgetEst != null && (
-                        <div><span className="text-slate-500">Est. budget:</span> <span className="text-orange-400">${Number(p.budgetEst).toLocaleString()}</span></div>
+                        <div><span className="text-slate-500">Est. budget:</span> <span className="text-orange-400">{formatZar(Number(p.budgetEst), { maximumFractionDigits: 0 })}</span></div>
                       )}
                       {p.targetAudience && <div><span className="text-slate-500">Target audience:</span> <span className="text-slate-300">{p.targetAudience}</span></div>}
                       {p.references && <div className="md:col-span-2"><span className="text-slate-500">References:</span> <span className="text-slate-300">{p.references}</span></div>}

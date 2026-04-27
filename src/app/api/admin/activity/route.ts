@@ -9,13 +9,14 @@ export async function GET() {
     const role = (session?.user as { role?: string })?.role;
     if (role !== "ADMIN") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-    const [activity, byRole, totalWatch, totalComments, totalRatings] = await Promise.all([
+    const [activity, byRole, eventTypeCounts, totalWatch, totalComments, totalRatings] = await Promise.all([
       prisma.activityLog.findMany({
         orderBy: { createdAt: "desc" },
-        take: 200,
+        take: 500,
         select: { id: true, userName: true, userEmail: true, role: true, eventType: true, ipAddress: true, deviceType: true, createdAt: true },
       }),
       prisma.activityLog.groupBy({ by: ["role"], where: { eventType: "SIGN_IN" }, _count: { id: true } }),
+      prisma.activityLog.groupBy({ by: ["eventType"], _count: { id: true } }),
       prisma.watchSession.aggregate({ _sum: { durationSeconds: true } }),
       prisma.comment.count(),
       prisma.rating.count(),
@@ -40,6 +41,7 @@ export async function GET() {
     return NextResponse.json({
       activity,
       signInsByRole: byRole,
+      eventTypeCounts,
       totalWatchTimeSeconds: totalWatch._sum.durationSeconds ?? 0,
       totalComments,
       totalRatings,

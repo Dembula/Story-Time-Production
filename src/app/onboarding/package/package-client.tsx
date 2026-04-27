@@ -18,6 +18,7 @@ import {
   Users,
 } from "lucide-react";
 import { VIEWER_PLAN_CONFIG } from "@/lib/pricing";
+import { formatZar } from "@/lib/format-currency-zar";
 
 const PLANS = [
   {
@@ -241,7 +242,7 @@ export function PackageClient() {
 
                   <div className="mt-5 flex items-end justify-between gap-4">
                     <p className="text-4xl font-bold text-white">
-                      R{plan.price}
+                      {formatZar(plan.price)}
                       <span className="ml-1 text-sm font-normal text-slate-400">/month</span>
                     </p>
                     {selected === plan.id ? (
@@ -306,7 +307,7 @@ export function PackageClient() {
 
               <div className="rounded-2xl border border-orange-400/20 bg-orange-500/10 px-5 py-4 text-right">
                 <p className="text-xs uppercase tracking-wide text-orange-200/80">Price per title</p>
-                <p className="mt-1 text-4xl font-bold text-white">R{PPV_PLAN.price.toFixed(2)}</p>
+                <p className="mt-1 text-4xl font-bold text-white">{formatZar(PPV_PLAN.price)}</p>
               </div>
             </div>
 
@@ -347,7 +348,7 @@ export function PackageClient() {
                 {viewerModel === "SUBSCRIPTION" ? "Monthly price" : "Price per title"}
               </p>
               <p className="mt-1 text-3xl font-bold text-white">
-                R{viewerModel === "SUBSCRIPTION" ? selectedPlan.price : PPV_PLAN.price.toFixed(2)}
+                {formatZar(viewerModel === "SUBSCRIPTION" ? selectedPlan.price : PPV_PLAN.price)}
               </p>
             </div>
           </div>

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { UtensilsCrossed, Calendar, DollarSign, AlertCircle } from "lucide-react";
+import { formatZar } from "@/lib/format-currency-zar";
 
 type Company = { id: string; companyName: string; tagline: string | null } | null;
 
@@ -10,17 +11,20 @@ export function CateringDashboardClient() {
   const [company, setCompany] = useState<Company>(null);
   const [bookingCount, setBookingCount] = useState(0);
   const [revenue, setRevenue] = useState(0);
+  const [revenueReportingNote, setRevenueReportingNote] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     Promise.all([
       fetch("/api/catering-company/profile").then((r) => r.json()),
       fetch("/api/catering-bookings").then((r) => r.json()).then((b) => Array.isArray(b) ? b.length : 0),
-      fetch("/api/catering-company/stats").then((r) => r.json()).then((s) => s.revenue ?? 0),
-    ]).then(([c, count, rev]) => {
+      fetch("/api/catering-company/stats").then((r) => r.json()),
+    ]).then(([c, count, stats]) => {
       setCompany(c);
       setBookingCount(count);
-      setRevenue(rev);
+      const s = stats as { revenue?: number; reporting?: { note?: string } };
+      setRevenue(s.revenue ?? 0);
+      setRevenueReportingNote(typeof s.reporting?.note === "string" ? s.reporting.note : null);
     }).finally(() => setLoading(false));
   }, []);
 
@@ -59,7 +63,8 @@ export function CateringDashboardClient() {
         </div>
         <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
           <div className="flex items-center gap-2 mb-2"><DollarSign className="w-4 h-4 text-emerald-400" /><span className="text-xs text-slate-400">Revenue (ZAR)</span></div>
-          <p className="text-2xl font-bold text-white">R{revenue.toFixed(2)}</p>
+          <p className="text-2xl font-bold text-white">{formatZar(revenue)}</p>
+          {revenueReportingNote ? <p className="text-[11px] text-slate-500 mt-2 leading-snug">{revenueReportingNote}</p> : null}
         </div>
       </div>
 

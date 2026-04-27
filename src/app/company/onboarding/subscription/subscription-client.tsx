@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ChevronDown, ChevronUp, Loader2, Megaphone, Shield, Sparkles } from "lucide-react";
 import { COMPANY_PLAN_CONFIG } from "@/lib/pricing";
+import { formatZar } from "@/lib/format-currency-zar";
 
 const PLANS = [
   {
@@ -135,7 +136,7 @@ export function CompanySubscriptionClient({ dashboardUrl }: { dashboardUrl: stri
               </div>
 
               <p className="mt-5 text-4xl font-bold text-white">
-                R{entry.price}
+                {formatZar(entry.price)}
                 <span className="ml-1 text-sm font-normal text-slate-400">/month</span>
               </p>
 
@@ -179,7 +180,7 @@ export function CompanySubscriptionClient({ dashboardUrl }: { dashboardUrl: stri
             </div>
             <div className="rounded-2xl border border-orange-400/20 bg-orange-500/10 px-4 py-3 text-right">
               <p className="text-xs uppercase tracking-wide text-orange-200/80">Monthly price</p>
-              <p className="mt-1 text-3xl font-bold text-white">R{selectedPlan.price}</p>
+              <p className="mt-1 text-3xl font-bold text-white">{formatZar(selectedPlan.price)}</p>
             </div>
           </div>
           <div className="mt-5 space-y-3 text-sm text-slate-300">

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { UtensilsCrossed, MapPin, ChevronDown, ChevronUp, MessageSquare, CreditCard } from "lucide-react";
+import { formatZar } from "@/lib/format-currency-zar";
 
 function PayButton({ bookingId, onPaid }: { bookingId: string; onPaid: () => void }) {
   const [loading, setLoading] = useState(false);
@@ -125,7 +126,7 @@ export function CreatorCateringClient() {
                     {(co.city || co.country) && (
                       <p className="text-xs text-slate-500 mt-2 flex items-center gap-1"><MapPin className="w-3 h-3" /> {[co.city, co.country].filter(Boolean).join(", ")}</p>
                     )}
-                    {co.minOrder != null && <p className="text-xs text-slate-500">Min order: R{co.minOrder}</p>}
+                    {co.minOrder != null && <p className="text-xs text-slate-500">Min order: {formatZar(co.minOrder, { maximumFractionDigits: 0 })}</p>}
                   </div>
                   <button onClick={() => setExpandedId(expandedId === co.id ? null : co.id)} className="p-2 text-slate-400">{expandedId === co.id ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}</button>
                 </div>

@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { BackButton } from "@/components/layout/back-button";
-import { MapPin, DollarSign, Users, ChevronDown, ChevronUp, Send, MessageCircle, CheckCircle, Calendar } from "lucide-react";
+import { MapPin, DollarSign, Users, ChevronDown, ChevronUp, MessageCircle, CheckCircle, Calendar, CreditCard } from "lucide-react";
+import { formatZar } from "@/lib/format-currency-zar";
 
 const LOCATION_TYPES = ["Studio", "House", "Warehouse", "Outdoor", "Office", "Historical", "Restaurant", "Other"];
 
@@ -35,10 +36,34 @@ type Booking = {
   endDate: string | null;
   crewSize: number | null;
   createdAt: string;
+  paymentTransactionId: string | null;
   location: { id: string; name: string; type: string; city: string | null; dailyRate: number | null; company: { id: string; name: string | null } };
   owner: { id: string; name: string | null; email: string | null };
   _count: { messages: number };
 };
+
+function LocationPayButton({ bookingId, onPaid }: { bookingId: string; onPaid: () => void }) {
+  const [loading, setLoading] = useState(false);
+  async function pay() {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/location-bookings/${bookingId}/pay`, { method: "POST" });
+      if (res.ok) onPaid();
+    } finally {
+      setLoading(false);
+    }
+  }
+  return (
+    <button
+      type="button"
+      onClick={pay}
+      disabled={loading}
+      className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-sm font-medium hover:bg-emerald-500/25 disabled:opacity-50"
+    >
+      <CreditCard className="w-4 h-4" /> {loading ? "Processing…" : "Pay to confirm"}
+    </button>
+  );
+}
 
 export default function CreatorLocationsPage() {
   const [locations, setLocations] = useState<Location[]>([]);
@@ -102,7 +127,7 @@ export default function CreatorLocationsPage() {
     setSubmitting(false);
     if (res.ok) {
       const newBooking = await res.json();
-      setBookings((prev) => [{ ...newBooking, _count: { messages: 0 } }, ...prev]);
+      setBookings((prev) => [{ ...newBooking, paymentTransactionId: newBooking.paymentTransactionId ?? null, _count: { messages: 0 } }, ...prev]);
       setBookingForId(null);
       setBookForm({ shootType: "", startDate: "", endDate: "", crewSize: "", note: "" });
       setSuccess("Booking request sent!");
@@ -184,7 +209,7 @@ export default function CreatorLocationsPage() {
                     {loc.description && <p className="text-sm text-slate-400 line-clamp-2">{loc.description}</p>}
                     <div className="flex flex-wrap gap-3 text-xs text-slate-500">
                       {loc.capacity != null && <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {loc.capacity} max</span>}
-                      {loc.dailyRate != null && <span className="flex items-center gap-1 text-orange-400"><DollarSign className="w-3 h-3" /> ${loc.dailyRate}/day</span>}
+                      {loc.dailyRate != null && <span className="flex items-center gap-1 text-orange-400"><DollarSign className="w-3 h-3" /> {formatZar(loc.dailyRate, { maximumFractionDigits: 0 })}/day</span>}
                     </div>
                     <button onClick={() => setExpandedId(isExpanded ? null : loc.id)} className="flex items-center gap-1 text-sm text-orange-400 hover:text-orange-300">
                       {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />} {isExpanded ? "Less" : "More details"}
@@ -243,14 +268,29 @@ export default function CreatorLocationsPage() {
                     b.status === "CANCELLED" ? "bg-slate-500/10 text-slate-400" :
                     "bg-red-500/10 text-red-400"
                   }`}>{b.status}</span>
+                  {b.paymentTransactionId ? (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300">Paid</span>
+                  ) : null}
                 </div>
                 <p className="text-sm text-slate-400">{b.location.company?.name && <span>{b.location.company.name} · </span>}{b.location.city}</p>
                 {b.startDate && <p className="text-xs text-slate-500 mt-1 flex items-center gap-1"><Calendar className="w-3 h-3" /> {b.startDate} — {b.endDate || "TBD"}</p>}
                 <p className="text-xs text-slate-500 mt-1">{b._count.messages} messages</p>
               </div>
-              <a href={`/creator/messages?tab=locations&bookingId=${b.id}`} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500/10 text-orange-400 border border-orange-500/30 text-sm hover:bg-orange-500/20 transition">
-                <MessageCircle className="w-4 h-4" /> Chat
-              </a>
+              <div className="flex flex-wrap items-center gap-2 justify-end">
+                {b.status === "APPROVED" && !b.paymentTransactionId && (
+                  <LocationPayButton
+                    bookingId={b.id}
+                    onPaid={() => {
+                      setBookings((prev) =>
+                        prev.map((x) => (x.id === b.id ? { ...x, paymentTransactionId: "paid" } : x)),
+                      );
+                    }}
+                  />
+                )}
+                <a href={`/creator/messages?tab=locations&bookingId=${b.id}`} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500/10 text-orange-400 border border-orange-500/30 text-sm hover:bg-orange-500/20 transition">
+                  <MessageCircle className="w-4 h-4" /> Chat
+                </a>
+              </div>
             </div>
           ))}
           {bookings.length === 0 && (
