@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { formatAppMailFromHeader, parseAppMailFrom } from "@/lib/mail-from";
 
 export type SendEmailInput = {
   to: string;
@@ -12,7 +13,10 @@ export type SendEmailInput = {
  * Returns false if nothing was sent (no config / skipped).
  */
 export async function sendTransactionalEmail(input: SendEmailInput): Promise<boolean> {
-  const from = process.env.EMAIL_FROM || "noreply@storytime.com";
+  const parsedFrom = parseAppMailFrom();
+  const sendGridFrom = parsedFrom.name
+    ? { email: parsedFrom.email, name: parsedFrom.name }
+    : { email: parsedFrom.email };
 
   if (process.env.SENDGRID_API_KEY) {
     const res = await fetch("https://api.sendgrid.com/v3/mail/send", {
@@ -22,7 +26,7 @@ export async function sendTransactionalEmail(input: SendEmailInput): Promise<boo
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: { email: from },
+        from: sendGridFrom,
         personalizations: [{ to: [{ email: input.to }] }],
         subject: input.subject,
         content: [
@@ -47,7 +51,7 @@ export async function sendTransactionalEmail(input: SendEmailInput): Promise<boo
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from,
+        from: formatAppMailFromHeader(parsedFrom),
         to: [input.to],
         subject: input.subject,
         text: input.text,
@@ -76,7 +80,7 @@ export async function sendTransactionalEmail(input: SendEmailInput): Promise<boo
     }
     const transporter = nodemailer.createTransport(transportOpts);
     await transporter.sendMail({
-      from,
+      from: formatAppMailFromHeader(parsedFrom),
       to: input.to,
       subject: input.subject,
       text: input.text,

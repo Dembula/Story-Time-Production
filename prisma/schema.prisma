@@ -97,6 +97,7 @@ model User {
   accounts      Account[]
   adminRequestsRequested AdminRequest[] @relation("AdminRequestRequester")
   adminRequestsReviewed  AdminRequest[] @relation("AdminRequestReviewer")
+  adminAccessApplicationsReviewed AdminAccessApplication[] @relation("AdminAccessApplicationReviewer")
   sessions      Session[]
 
   watchSessions WatchSession[]
@@ -295,6 +296,23 @@ model AdminRequest {
   reviewedBy     User?     @relation("AdminRequestReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
 
   @@index([requestedById])
+  @@index([status])
+}
+
+/// Public application for admin portal access (email + password chosen by applicant). Reviewed in admin dashboard.
+model AdminAccessApplication {
+  id             String    @id @default(cuid())
+  email          String
+  name           String?
+  passwordHash   String?
+  status         String    @default("PENDING")
+  note           String?
+  requestedAt    DateTime  @default(now())
+  reviewedAt     DateTime?
+  reviewedById   String?
+  reviewedBy     User?     @relation("AdminAccessApplicationReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([email])
   @@index([status])
 }
 

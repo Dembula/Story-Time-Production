@@ -31,7 +31,9 @@ export async function POST() {
       }),
     ]);
 
-    const emails = users.map((u) => u.email).filter((email): email is string => Boolean(email));
+    const emails = [
+      ...new Set(users.map((u) => u.email?.trim().toLowerCase()).filter((e): e is string => Boolean(e))),
+    ];
     const latestReleases = latestContent.map((item) => ({
       title: item.title,
       type: item.type,

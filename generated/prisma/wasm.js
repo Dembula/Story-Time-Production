@@ -240,6 +240,18 @@ exports.Prisma.AdminRequestScalarFieldEnum = {
   reviewedById: 'reviewedById'
 };
 
+exports.Prisma.AdminAccessApplicationScalarFieldEnum = {
+  id: 'id',
+  email: 'email',
+  name: 'name',
+  passwordHash: 'passwordHash',
+  status: 'status',
+  note: 'note',
+  requestedAt: 'requestedAt',
+  reviewedAt: 'reviewedAt',
+  reviewedById: 'reviewedById'
+};
+
 exports.Prisma.ContentScalarFieldEnum = {
   id: 'id',
   title: 'title',
@@ -1803,6 +1815,7 @@ exports.Prisma.ModelName = {
   CreatorStudioTeamInvite: 'CreatorStudioTeamInvite',
   CreatorAccountProfileVault: 'CreatorAccountProfileVault',
   AdminRequest: 'AdminRequest',
+  AdminAccessApplication: 'AdminAccessApplication',
   Content: 'Content',
   BtsVideo: 'BtsVideo',
   WatchSession: 'WatchSession',
