@@ -4,9 +4,9 @@ import { consumePasswordResetToken } from "@/lib/password-reset";
 
 export async function POST(request: NextRequest) {
   try {
-    const body = (await request.json()) as { token?: string; password?: string };
+    const body = (await request.json()) as { token?: string; password?: string; newPassword?: string };
     const token = body.token?.trim();
-    const password = body.password ?? "";
+    const password = body.password ?? body.newPassword ?? "";
 
     if (!token) {
       return NextResponse.json({ error: "Reset token is required." }, { status: 400 });

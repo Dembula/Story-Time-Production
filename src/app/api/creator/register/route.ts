@@ -4,6 +4,7 @@ import { hash } from "bcryptjs";
 import { embedMeta } from "@/lib/marketplace-profile-meta";
 import { validateStorageUrlField, validateStorageUrlList } from "@/lib/storage-origin";
 import { ensureCloudflareStreamPlaybackUrl } from "@/lib/cloudflare-stream";
+import { sendWelcomeEmail } from "@/lib/sendgrid";
 import {
   isMissingCreatorStudioInfrastructure,
   isMissingUserCreatorRegistrationColumns,
@@ -468,6 +469,15 @@ export async function POST(request: NextRequest) {
       } else {
         throw firstErr;
       }
+    }
+
+    try {
+      await sendWelcomeEmail(normalizedEmail, name?.trim() || null, {
+        role,
+        registrationType: "creator_signup",
+      });
+    } catch (emailError) {
+      console.error("Creator welcome email send failed:", emailError);
     }
 
     return NextResponse.json({ ok: true });

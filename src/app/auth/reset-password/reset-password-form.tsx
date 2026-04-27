@@ -5,12 +5,14 @@ import Image from "next/image";
 import { useState } from "react";
 import { ArrowLeft, Shield } from "lucide-react";
 
-export function ResetPasswordForm({ token }: { token: string }) {
+export function ResetPasswordForm({ token, portal = "viewer" }: { token: string; portal?: string }) {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
+  const normalizedPortal = portal === "admin" || portal === "creator" ? portal : "viewer";
+  const portalLabel = normalizedPortal === "admin" ? "admin" : normalizedPortal === "creator" ? "creator" : "viewer";
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -60,7 +62,9 @@ export function ResetPasswordForm({ token }: { token: string }) {
 
         <div className="storytime-section p-8">
           <h1 className="mb-2 font-display text-2xl font-semibold text-white">Create a new password</h1>
-          <p className="mb-6 text-sm leading-6 text-slate-300/78">This link is secure and can only be used once.</p>
+          <p className="mb-6 text-sm leading-6 text-slate-300/78">
+            This link is secure and can only be used once. Account portal: {portalLabel}.
+          </p>
 
           {done ? (
             <div className="space-y-4">

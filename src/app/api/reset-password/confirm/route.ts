@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { hashPassword, validatePassword } from "@/lib/auth-utils";
+import { hash } from "bcryptjs";
+import { consumePasswordResetToken } from "@/lib/password-reset";
+import { validatePassword } from "@/lib/auth-utils";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { hashToken } from "@/lib/utils";
 
 export async function POST(request: NextRequest) {
   const rate = checkRateLimit({
@@ -22,9 +22,9 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const body = (await request.json()) as { token?: string; newPassword?: string };
+    const body = (await request.json()) as { token?: string; newPassword?: string; password?: string };
     const rawToken = body.token?.trim() || "";
-    const newPassword = body.newPassword || "";
+    const newPassword = body.newPassword || body.password || "";
 
     if (!rawToken) {
       return NextResponse.json({ error: "Reset token is required." }, { status: 400 });
@@ -33,31 +33,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Password must be at least 8 characters." }, { status: 400 });
     }
 
-    const tokenDigest = hashToken(rawToken);
-    const tokenRecord = await db.passwordResetToken.findFirst({
-      where: {
-        token: tokenDigest,
-        used: false,
-        expiresAt: { gt: new Date() },
-      },
-      select: { id: true, userId: true },
-    });
-
-    if (!tokenRecord) {
+    const passwordHash = await hash(newPassword, 10);
+    const ok = await consumePasswordResetToken({ token: rawToken, newPasswordHash: passwordHash });
+    if (!ok) {
       return NextResponse.json({ error: "Token is invalid or expired." }, { status: 400 });
     }
-
-    const passwordHash = await hashPassword(newPassword);
-    await db.$transaction([
-      db.user.update({
-        where: { id: tokenRecord.userId },
-        data: { passwordHash },
-      }),
-      db.passwordResetToken.update({
-        where: { id: tokenRecord.id },
-        data: { used: true },
-      }),
-    ]);
 
     return NextResponse.json({ ok: true });
   } catch (error) {

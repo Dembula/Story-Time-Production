@@ -7,6 +7,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
 import { prisma } from "./prisma";
 import { findUserActiveStudioProfileId, findUserForCredentialsLogin } from "./prisma-user-studio-compat";
+import { sendWelcomeEmail } from "./sendgrid";
 
 const DEMO_PASSWORD = process.env.DEMO_PASSWORD || "storytime2025";
 const googleClientId = process.env.GOOGLE_CLIENT_ID?.trim() ?? "";
@@ -169,6 +170,31 @@ export const authOptions: NextAuthOptions = {
     maxAge: 30 * 24 * 60 * 60,
   },
   events: {
+    async createUser({ user }) {
+      const dbUser = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { role: true, email: true, name: true },
+      });
+      const role = dbUser?.role ?? "SUBSCRIBER";
+
+      await prisma.activityLog.create({
+        data: {
+          userId: user.id,
+          userEmail: dbUser?.email ?? user.email ?? undefined,
+          userName: dbUser?.name ?? user.name ?? undefined,
+          role,
+          eventType: "REGISTER",
+        },
+      });
+
+      if (dbUser?.email) {
+        try {
+          await sendWelcomeEmail(dbUser.email, dbUser.name, { role, registrationType: "new_registration" });
+        } catch (error) {
+          console.error("Welcome email send failed on user creation:", error);
+        }
+      }
+    },
     async signIn({ user }) {
       const dbUser = await prisma.user.findUnique({
         where: { id: user.id },
@@ -198,6 +224,13 @@ export const authOptions: NextAuthOptions = {
         });
         await prisma.pendingCreatorSignup.delete({ where: { id: pending.id } });
         (user as { role?: string }).role = role;
+        if (user.email) {
+          try {
+            await sendWelcomeEmail(user.email, user.name, { role, registrationType: "creator_upgrade" });
+          } catch (error) {
+            console.error("Welcome email send failed on creator upgrade:", error);
+          }
+        }
       }
 
       const role = (user as { role?: string }).role ?? dbUser?.role ?? "SUBSCRIBER";

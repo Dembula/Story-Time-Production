@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
 
     try {
       if (user.email) {
-        await sendWelcomeEmail(user.email, user.name);
+        await sendWelcomeEmail(user.email, user.name, { role: "SUBSCRIBER", registrationType: "viewer_signup" });
       }
     } catch (emailError) {
       console.error("Welcome email send failed:", emailError);

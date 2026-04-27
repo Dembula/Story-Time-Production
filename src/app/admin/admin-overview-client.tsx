@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { Users, Film, Clock, DollarSign, Music, Handshake, GraduationCap, Globe, Monitor, Activity, TrendingUp, Wifi, Briefcase, Megaphone } from "lucide-react";
@@ -8,6 +9,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatZar } from "@/lib/format-currency-zar";
 
 export function AdminOverviewClient() {
+  const [monthlySendState, setMonthlySendState] = useState<{
+    loading: boolean;
+    sent?: number;
+    error?: string;
+  }>({ loading: false });
   const { data: stats, isLoading } = useQuery({
     queryKey: ["admin-stats"],
     queryFn: () => fetch("/api/admin/stats").then((r) => r.json()),
@@ -38,6 +44,21 @@ export function AdminOverviewClient() {
   const deviceEntries = stats?.deviceBreakdown ? Object.entries(stats.deviceBreakdown) as [string, number][] : [];
   const signInEntries = stats?.signInsByRole ? Object.entries(stats.signInsByRole) as [string, number][] : [];
 
+  async function sendMonthlyUpdateNow() {
+    setMonthlySendState({ loading: true });
+    try {
+      const response = await fetch("/api/admin/monthly-update", { method: "POST" });
+      const body = (await response.json().catch(() => ({}))) as { sent?: number; error?: string };
+      if (!response.ok) {
+        setMonthlySendState({ loading: false, error: body.error || "Failed to send monthly update." });
+        return;
+      }
+      setMonthlySendState({ loading: false, sent: body.sent ?? 0 });
+    } catch {
+      setMonthlySendState({ loading: false, error: "Network error while sending monthly update." });
+    }
+  }
+
   return (
     <div className="p-8 max-w-7xl mx-auto relative">
       <div className="mb-10">
@@ -46,6 +67,32 @@ export function AdminOverviewClient() {
           Comprehensive analytics, user intelligence, and content distribution. Amounts are in South African Rand (ZAR).
         </p>
       </div>
+
+      <Card className="storytime-section mb-8 border-orange-500/25">
+        <CardHeader>
+          <CardTitle className="text-white flex items-center gap-2">
+            <Megaphone className="w-5 h-5 text-orange-400" /> Monthly update email control
+          </CardTitle>
+          <p className="text-sm text-slate-400">
+            Trigger the current monthly update campaign from the admin dashboard.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={sendMonthlyUpdateNow}
+              disabled={monthlySendState.loading}
+              className="px-4 py-2 rounded-lg text-sm font-medium transition bg-orange-500/20 text-orange-300 border border-orange-500/40 hover:bg-orange-500/30 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {monthlySendState.loading ? "Sending monthly update..." : "Send monthly update now"}
+            </button>
+            {typeof monthlySendState.sent === "number" && (
+              <span className="text-sm text-emerald-300">Monthly update sent to {monthlySendState.sent} recipients.</span>
+            )}
+            {monthlySendState.error && <span className="text-sm text-red-300">{monthlySendState.error}</span>}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
