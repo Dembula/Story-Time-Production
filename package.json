@@ -21,6 +21,7 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
+    "db:backfill:kyc-docs": "tsx scripts/backfill-kyc-private-refs.ts",
     "db:studio": "prisma studio",
     "refresh": "prisma generate && node scripts/clear-dev-cache.mjs"
   },

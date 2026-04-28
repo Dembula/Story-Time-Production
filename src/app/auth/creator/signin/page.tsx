@@ -13,6 +13,7 @@ export default function CreatorSignInPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [selectedRole, setSelectedRole] = useState("FUNDER");
 
   async function redirectToRoleHome(defaultPath: string) {
     try {
@@ -46,6 +47,7 @@ export default function CreatorSignInPage() {
     const res = await signIn("credentials-creator", {
       email,
       password,
+      selectedRole,
       redirect: false,
       callbackUrl: "/funders",
     });
@@ -88,6 +90,24 @@ export default function CreatorSignInPage() {
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label htmlFor="accountType" className="mb-2 block text-sm font-medium text-slate-700">Account type</label>
+              <select
+                id="accountType"
+                value={selectedRole}
+                onChange={(e) => setSelectedRole(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-950 shadow-sm outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-200/80"
+              >
+                <option value="CONTENT_CREATOR">Content Creator</option>
+                <option value="MUSIC_CREATOR">Music Creator</option>
+                <option value="EQUIPMENT_COMPANY">Equipment Company</option>
+                <option value="LOCATION_OWNER">Location Owner</option>
+                <option value="CREW_TEAM">Crew Team</option>
+                <option value="CASTING_AGENCY">Casting Agency</option>
+                <option value="CATERING_COMPANY">Catering Company</option>
+                <option value="FUNDER">Funder / Investor</option>
+              </select>
+            </div>
             <div>
               <label htmlFor="email" className="mb-2 block text-sm font-medium text-slate-700">Email</label>
               <input

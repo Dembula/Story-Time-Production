@@ -52,6 +52,7 @@ export const authOptions: NextAuthOptions = {
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
+        selectedRole: { label: "Account Type", type: "text" },
       },
       async authorize(credentials) {
         if (!credentials?.email || credentials.password == null) return null;
@@ -103,7 +104,11 @@ export const authOptions: NextAuthOptions = {
           if (credentials.password !== DEMO_PASSWORD) return null;
         }
         const roles = await getUserRoles(user.id, user.role);
-        const role = pickCreatorRole(roles, user.role);
+        const selectedRoleRaw = (credentials as Record<string, unknown> | undefined)?.selectedRole;
+        const selectedRole = typeof selectedRoleRaw === "string" ? selectedRoleRaw : null;
+        const role = selectedRole && CREATOR_ROLES.has(selectedRole) && roles.has(selectedRole)
+          ? selectedRole
+          : pickCreatorRole(roles, user.role);
         if (!role) return null;
         return {
           id: user.id,
@@ -272,6 +277,15 @@ export const authOptions: NextAuthOptions = {
         } else {
           token.activeCreatorStudioProfileId = await findUserActiveStudioProfileId(user.id);
         }
+        if ((user as { role?: string }).role === "FUNDER") {
+          const profile = await prisma.funderProfile.findUnique({
+            where: { userId: user.id },
+            select: { verificationStatus: true },
+          });
+          token.funderVerificationStatus = (profile?.verificationStatus as "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED" | undefined) ?? "PENDING";
+        } else {
+          token.funderVerificationStatus = undefined;
+        }
       }
       if (trigger === "update" && session && typeof session === "object") {
         const s = session as Record<string, unknown>;
@@ -286,6 +300,15 @@ export const authOptions: NextAuthOptions = {
           token.portalScope = (s.portalScope as PortalScope | undefined) ?? token.portalScope;
         }
       }
+      if (token.role === "FUNDER" && !token.funderVerificationStatus && token.id) {
+        const profile = await prisma.funderProfile.findUnique({
+          where: { userId: token.id as string },
+          select: { verificationStatus: true },
+        });
+        token.funderVerificationStatus =
+          (profile?.verificationStatus as "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED" | undefined) ??
+          "PENDING";
+      }
       return token;
     },
     async session({ session, token }) {
@@ -297,6 +320,8 @@ export const authOptions: NextAuthOptions = {
         if (token.picture !== undefined) session.user.image = token.picture;
         (session.user as { portalScope?: PortalScope }).portalScope =
           ((token as { portalScope?: PortalScope }).portalScope as PortalScope | undefined) ?? undefined;
+        (session.user as { funderVerificationStatus?: "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED" }).funderVerificationStatus =
+          (token as { funderVerificationStatus?: "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED" }).funderVerificationStatus;
         (session.user as { activeCreatorStudioProfileId?: string | null }).activeCreatorStudioProfileId =
           (token as { activeCreatorStudioProfileId?: string | null }).activeCreatorStudioProfileId ?? null;
       }

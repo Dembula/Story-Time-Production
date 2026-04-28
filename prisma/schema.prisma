@@ -2317,6 +2317,9 @@ model FunderProfile {
   preferredMarkets          String?  // JSON string[]
   preferredRegions          String?  // JSON string[]
   verificationStatus        String   @default("PENDING") // PENDING | UNDER_REVIEW | APPROVED | REJECTED
+  riskLevel                 String   @default("LOW") // LOW | MEDIUM | HIGH
+  submittedAt               DateTime?
+  kycData                   Json     @default("{}")
   limitedAccessEnabled      Boolean  @default(true)
   adminReviewRequired       Boolean  @default(true)
   reviewedAt                DateTime?

@@ -23,7 +23,23 @@ export async function GET() {
     },
     orderBy: { createdAt: "desc" },
   });
-  return NextResponse.json({ profiles });
+  const payload = profiles.map((p) => {
+    const docs = p.verifications;
+    const pendingCount = docs.filter((d) => d.status === "PENDING").length;
+    const approvedCount = docs.filter((d) => d.status === "APPROVED").length;
+    const rejectedCount = docs.filter((d) => d.status === "REJECTED").length;
+    return {
+      ...p,
+      reviewSummary: {
+        totalDocs: docs.length,
+        pendingCount,
+        approvedCount,
+        rejectedCount,
+        submittedAt: p.submittedAt,
+      },
+    };
+  });
+  return NextResponse.json({ profiles: payload });
 }
 
 export async function PATCH(req: NextRequest) {

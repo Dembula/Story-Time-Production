@@ -5,6 +5,12 @@ export default withAuth(
   function middleware(req) {
     const role = req.nextauth.token?.role as string | undefined;
     const portalScope = req.nextauth.token?.portalScope as "VIEWER" | "CREATOR" | "ADMIN" | undefined;
+    const funderVerificationStatus = req.nextauth.token?.funderVerificationStatus as
+      | "PENDING"
+      | "UNDER_REVIEW"
+      | "APPROVED"
+      | "REJECTED"
+      | undefined;
     const path = req.nextUrl.pathname;
 
     if (path.startsWith("/creator/join/")) {
@@ -52,6 +58,14 @@ export default withAuth(
     }
     if (path.startsWith("/funders") && role !== "FUNDER") {
       return NextResponse.redirect(new URL("/auth/creator/signin", req.url));
+    }
+    if (
+      path.startsWith("/funders") &&
+      !path.startsWith("/funders/verification") &&
+      role === "FUNDER" &&
+      funderVerificationStatus !== "APPROVED"
+    ) {
+      return NextResponse.redirect(new URL("/funders/verification", req.url));
     }
     if (path.startsWith("/company/onboarding") && !["CREW_TEAM", "CASTING_AGENCY", "LOCATION_OWNER", "EQUIPMENT_COMPANY", "CATERING_COMPANY"].includes(role ?? "")) {
       return NextResponse.redirect(new URL("/auth/creator/signin", req.url));

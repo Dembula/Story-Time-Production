@@ -3,6 +3,7 @@ import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getStorageConfig } from "@/lib/storage-config";
+import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 
@@ -87,7 +88,12 @@ export async function POST(request: NextRequest) {
     if (!session || !userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    if (role !== "CONTENT_CREATOR" && role !== "MUSIC_CREATOR" && role !== "ADMIN") {
+    if (
+      role !== "CONTENT_CREATOR" &&
+      role !== "MUSIC_CREATOR" &&
+      role !== "FUNDER" &&
+      role !== "ADMIN"
+    ) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -148,6 +154,21 @@ export async function POST(request: NextRequest) {
 
     const baseUrl = normalizePublicBaseUrl(bucket);
     const publicUrl = `${baseUrl}/${key.split("/").map(encodeURIComponent).join("/")}`;
+
+    try {
+      await prisma.adminAuditLog.create({
+        data: {
+          adminUserId: userId,
+          action: "ACCOUNT_DOCUMENT_UPLOAD",
+          entityType: "User",
+          entityId: userId,
+          oldValue: null as any,
+          newValue: { role, path: key, mimeType: file.type, size: file.size },
+        },
+      });
+    } catch {
+      // audit logging should not block upload success
+    }
 
     return NextResponse.json({ ok: true, bucket, path: key, publicUrl }, { status: 201 });
   } catch (err) {
