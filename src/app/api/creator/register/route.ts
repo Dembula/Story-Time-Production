@@ -310,8 +310,24 @@ export async function POST(request: NextRequest) {
         }
 
       if (role === "CASTING_AGENCY") {
-        const agency = await tx.castingAgency.create({
-          data: {
+        const agency = await tx.castingAgency.upsert({
+          where: { userId: user.id },
+          update: {
+            agencyName:
+              normalizedStructure === "INDIVIDUAL"
+                ? `${normalizedCompanyName || "Independent"} Casting`
+                : normalizedCompanyName || "Casting Agency",
+            description: bio?.trim() || null,
+            city: city?.trim() || null,
+            country: country?.trim() || null,
+            website: website?.trim() || null,
+            contactEmail: normalizedContactEmail || null,
+            tagline:
+              normalizedStructure === "INDIVIDUAL"
+                ? "Independent casting professional"
+                : "Casting agency profile",
+          },
+          create: {
             userId: user.id,
             agencyName:
               normalizedStructure === "INDIVIDUAL"
@@ -357,8 +373,26 @@ export async function POST(request: NextRequest) {
       }
 
       if (role === "CREW_TEAM") {
-        const team = await tx.crewTeam.create({
-          data: {
+        const team = await tx.crewTeam.upsert({
+          where: { userId: user.id },
+          update: {
+            companyName:
+              normalizedStructure === "INDIVIDUAL"
+                ? `${normalizedCompanyName || "Independent"} Crew`
+                : normalizedCompanyName || "Crew Team",
+            description: bio?.trim() || null,
+            city: city?.trim() || null,
+            country: country?.trim() || null,
+            website: website?.trim() || null,
+            contactEmail: normalizedContactEmail || null,
+            specializations: (crewProfile?.skills ?? []).join(", ") || null,
+            pastWorkSummary: crewProfile?.portfolio?.trim() || previousWork?.trim() || null,
+            tagline:
+              normalizedStructure === "INDIVIDUAL"
+                ? "Independent crew professional"
+                : "Production crew provider",
+          },
+          create: {
             userId: user.id,
             companyName:
               normalizedStructure === "INDIVIDUAL"

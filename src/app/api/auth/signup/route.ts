@@ -34,17 +34,13 @@ export async function POST(request: NextRequest) {
       select: { id: true, passwordHash: true, role: true },
     });
     if (existing) {
-      if (existing.passwordHash) {
-        return NextResponse.json(
-          { error: "An account with this email already exists" },
-          { status: 409 }
-        );
+      if (!existing.passwordHash) {
+        const passwordHash = await hash(password, 10);
+        await prisma.user.update({
+          where: { id: existing.id },
+          data: { passwordHash },
+        });
       }
-      const passwordHash = await hash(password, 10);
-      await prisma.user.update({
-        where: { id: existing.id },
-        data: { passwordHash },
-      });
       await ensureUserRole(existing.id, "SUBSCRIBER");
       return NextResponse.json({ ok: true }, { status: 200 });
     }

@@ -24,15 +24,19 @@ export async function POST(request: NextRequest) {
     });
     let user: { id: string; email: string | null; name: string | null };
     if (existing) {
-      if (existing.passwordHash) {
-        return NextResponse.json({ error: "Email already exists." }, { status: 409 });
+      if (!existing.passwordHash) {
+        const passwordHash = await hashPassword(password);
+        user = await db.user.update({
+          where: { id: existing.id },
+          data: { passwordHash },
+          select: { id: true, email: true, name: true },
+        });
+      } else {
+        user = await db.user.findUniqueOrThrow({
+          where: { id: existing.id },
+          select: { id: true, email: true, name: true },
+        });
       }
-      const passwordHash = await hashPassword(password);
-      user = await db.user.update({
-        where: { id: existing.id },
-        data: { passwordHash },
-        select: { id: true, email: true, name: true },
-      });
     } else {
       const passwordHash = await hashPassword(password);
       user = await db.user.create({
