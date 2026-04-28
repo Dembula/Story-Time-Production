@@ -11,18 +11,26 @@ export default function FunderPortfolioPage() {
   const payouts = data?.payouts ?? [];
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8 text-slate-100">
-      <h1 className="text-2xl font-semibold">Portfolio & Returns</h1>
-      <div className="mt-6 grid gap-4 md:grid-cols-4">
+    <main className="space-y-5 text-slate-100">
+      <section className="rounded-2xl border border-white/8 bg-gradient-to-br from-slate-900 to-slate-950 p-5 shadow-panel">
+        <h1 className="text-2xl font-semibold">Portfolio & Returns</h1>
+        <p className="mt-1 text-sm text-slate-400">Track performance, realized payouts, pending settlements, and ROI trends.</p>
+      </section>
+
+      <div className="grid gap-4 md:grid-cols-4">
         <Card label="Invested" value={`R${Number(metrics.invested ?? 0).toLocaleString()}`} />
         <Card label="Paid out" value={`R${Number(metrics.paidOut ?? 0).toLocaleString()}`} />
         <Card label="Pending" value={`R${Number(metrics.pendingPayout ?? 0).toLocaleString()}`} />
         <Card label="ROI" value={`${Number(metrics.roiPct ?? 0).toFixed(2)}%`} />
       </div>
-      <div className="mt-6 rounded-lg border border-slate-800 bg-slate-950/60 p-4">
+
+      <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4 shadow-panel">
         <h2 className="text-lg font-semibold">Payout tracker</h2>
         {isLoading && <p className="mt-2 text-sm text-slate-400">Loading payout history...</p>}
         <div className="mt-3 space-y-2">
+          {!isLoading && payouts.length === 0 ? (
+            <p className="text-sm text-slate-400">No payout events yet.</p>
+          ) : null}
           {payouts.map((p: any) => (
             <div key={p.id} className="flex items-center justify-between rounded border border-slate-800 px-3 py-2 text-sm">
               <span>{p.status}</span>

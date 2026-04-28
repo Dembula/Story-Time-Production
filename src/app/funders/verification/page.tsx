@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { validateIdOrPassportByCountry } from "@/lib/kyc-validation";
+import Link from "next/link";
 
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "application/pdf"];
 const MAX_FILE_SIZE = 12 * 1024 * 1024;
@@ -304,11 +305,22 @@ export default function FunderVerificationPage() {
   }
 
   return (
-    <main className="mx-auto max-w-4xl px-4 py-8 text-slate-100">
-      <h1 className="text-2xl font-semibold">Funder KYC Verification</h1>
-      <p className="mt-2 text-sm text-slate-400">Complete all steps to unlock investment actions after admin approval.</p>
+    <main className="space-y-4 text-slate-100">
+      <section className="rounded-2xl border border-white/8 bg-gradient-to-br from-slate-900 to-slate-950 p-5 shadow-panel">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-semibold">Funder KYC Verification</h1>
+            <p className="mt-1 text-sm text-slate-400">
+              Complete all steps to unlock investment actions after admin approval.
+            </p>
+          </div>
+          <Link href="/funders" className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-200 hover:bg-white/[0.04]">
+            Back to dashboard
+          </Link>
+        </div>
+      </section>
 
-      <div className="mt-5 rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+      <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
         <div className="mb-3 flex items-center justify-between text-xs text-slate-400">
           <span>
             Step {step + 1} of {STEPS.length}: {STEPS[step]}
@@ -427,7 +439,7 @@ export default function FunderVerificationPage() {
         </div>
       </div>
 
-      <div className="mt-4 rounded-lg border border-slate-800 bg-slate-950/60 p-4 text-sm space-y-1">
+      <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-4 text-sm space-y-1">
         <p className="text-slate-300">
           Current status:{" "}
           <span className="font-semibold text-white">
@@ -437,7 +449,9 @@ export default function FunderVerificationPage() {
         {(data as { profile?: { verificationStatus?: string } } | undefined)?.profile?.verificationStatus === "APPROVED" ? (
           <p className="text-emerald-300">Approved funders are routed to `/funders` on sign-in.</p>
         ) : (
-          <p className="text-slate-400">After submission, you will be returned home while your profile is under review.</p>
+          <p className="text-slate-400">
+            After submission, you are sent home while your profile is under review. You can return here anytime from the Funders menu.
+          </p>
         )}
       </div>
     </main>

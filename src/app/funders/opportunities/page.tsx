@@ -24,29 +24,37 @@ export default function FunderOpportunitiesPage() {
   const opportunities = useMemo(() => data?.opportunities ?? [], [data?.opportunities]);
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8 text-slate-100">
-      <h1 className="text-2xl font-semibold">Investment Opportunities</h1>
-      <div className="mt-4">
-        <select
-          value={market}
-          onChange={(e) => setMarket(e.target.value)}
-          className="rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-        >
-          <option value="">All markets</option>
-          {Object.entries(FUNDING_MARKET_LABELS).map(([key, label]) => (
-            <option key={key} value={key}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="mt-6 space-y-3">
+    <main className="space-y-5 text-slate-100">
+      <section className="rounded-2xl border border-white/8 bg-gradient-to-br from-slate-900 to-slate-950 p-5 shadow-panel">
+        <h1 className="text-2xl font-semibold">Investment Opportunities</h1>
+        <p className="mt-1 text-sm text-slate-400">
+          Filter by market category and express interest to open a deal room with the creator.
+        </p>
+        <div className="mt-4">
+          <select
+            value={market}
+            onChange={(e) => setMarket(e.target.value)}
+            className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+          >
+            <option value="">All markets</option>
+            {Object.entries(FUNDING_MARKET_LABELS).map(([key, label]) => (
+              <option key={key} value={key}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </section>
+
+      <div className="space-y-3">
         {isLoading && <p className="text-sm text-slate-400">Loading opportunities...</p>}
         {!isLoading && opportunities.length === 0 && (
-          <p className="text-sm text-slate-400">No opportunities are currently listed.</p>
+          <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-5 text-sm text-slate-400">
+            No opportunities are currently listed for this filter.
+          </div>
         )}
         {opportunities.map((opp: any) => (
-          <div key={opp.id} className="rounded-lg border border-slate-800 bg-slate-950/60 p-4">
+          <div key={opp.id} className="rounded-xl border border-slate-800 bg-slate-950/60 p-4 shadow-panel">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-sm text-orange-300">{FUNDING_MARKET_LABELS[opp.marketCategory as keyof typeof FUNDING_MARKET_LABELS] ?? opp.marketCategory}</p>
@@ -55,7 +63,7 @@ export default function FunderOpportunitiesPage() {
               </div>
               <button
                 onClick={() => investMutation.mutate(opp.id)}
-                className="rounded bg-orange-500 px-3 py-2 text-xs font-semibold text-black"
+                className="rounded-lg bg-orange-500 px-3 py-2 text-xs font-semibold text-black hover:bg-orange-400"
               >
                 Express interest
               </button>
