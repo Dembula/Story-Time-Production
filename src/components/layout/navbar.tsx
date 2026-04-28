@@ -7,6 +7,7 @@ import { User, LogOut, Film, Music, LayoutDashboard, Settings } from "lucide-rea
 import { useEffect, useState } from "react";
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
+import { createPortal } from "react-dom";
 
 const CONTENT_TYPES = [
   { label: "Movies", value: "MOVIE" },
@@ -24,12 +25,19 @@ export function Navbar() {
   const [navOpen, setNavOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [activeProfile, setActiveProfile] = useState<{ id: string; name: string; age: number } | null>(null);
+  const [mounted, setMounted] = useState(false);
+  const [menuPanelPos, setMenuPanelPos] = useState<{ top: number; right: number }>({ top: 72, right: 16 });
+  const [menuButtonEl, setMenuButtonEl] = useState<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    setMounted(true);
   }, []);
 
   useEffect(() => {
@@ -44,6 +52,24 @@ export function Navbar() {
       .then((data) => setActiveProfile(data?.profile ?? null))
       .catch(() => setActiveProfile(null));
   }, [session]);
+
+  useEffect(() => {
+    if (!menuOpen || !menuButtonEl) return;
+    const syncPos = () => {
+      const rect = menuButtonEl.getBoundingClientRect();
+      setMenuPanelPos({
+        top: Math.round(rect.bottom + 10),
+        right: Math.max(8, Math.round(window.innerWidth - rect.right)),
+      });
+    };
+    syncPos();
+    window.addEventListener("resize", syncPos);
+    window.addEventListener("scroll", syncPos, true);
+    return () => {
+      window.removeEventListener("resize", syncPos);
+      window.removeEventListener("scroll", syncPos, true);
+    };
+  }, [menuOpen, menuButtonEl]);
 
   const handleSignOut = async () => {
     setMenuOpen(false);
@@ -101,6 +127,7 @@ export function Navbar() {
         {session ? (
           <div className="relative">
             <button
+              ref={setMenuButtonEl}
               onClick={() => setMenuOpen(!menuOpen)}
               className="adaptive-interactive ml-2 flex items-center gap-2.5 rounded-xl border border-white/6 bg-white/[0.03] p-2 hover:border-white/12 hover:bg-white/[0.05]"
             >
@@ -124,10 +151,14 @@ export function Navbar() {
                 </span>
               ) : null}
             </button>
-            {menuOpen && (
+            {menuOpen && mounted
+              ? createPortal(
               <>
-                <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
-                <div className="storytime-panel absolute right-0 top-full z-50 mt-3 w-56 rounded-2xl py-2">
+                <div className="fixed inset-0 z-[1200]" onClick={() => setMenuOpen(false)} />
+                <div
+                  className="fixed z-[1210] w-64 rounded-2xl border border-slate-700/80 bg-slate-950/96 py-2 shadow-2xl backdrop-blur-sm"
+                  style={{ top: `${menuPanelPos.top}px`, right: `${menuPanelPos.right}px` }}
+                >
                   <div className="border-b border-white/8 px-4 py-3">
                     <p className="font-medium text-white truncate">
                       {(session.user as { role?: string })?.role === "SUBSCRIBER" && activeProfile
@@ -174,7 +205,10 @@ export function Navbar() {
                   </button>
                 </div>
               </>
-            )}
+              ,
+              document.body,
+            )
+              : null}
           </div>
         ) : (
           <div className="flex items-center gap-2 ml-2">
