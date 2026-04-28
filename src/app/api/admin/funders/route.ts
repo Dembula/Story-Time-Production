@@ -16,30 +16,59 @@ export async function GET() {
   const access = await requireAdmin();
   if (access.error) return access.error;
 
-  const profiles = await prisma.funderProfile.findMany({
-    include: {
-      user: { select: { id: true, name: true, email: true } },
-      verifications: { orderBy: { submittedAt: "desc" }, take: 20 },
-    },
-    orderBy: { createdAt: "desc" },
-  });
-  const payload = profiles.map((p) => {
-    const docs = p.verifications;
-    const pendingCount = docs.filter((d) => d.status === "PENDING").length;
-    const approvedCount = docs.filter((d) => d.status === "APPROVED").length;
-    const rejectedCount = docs.filter((d) => d.status === "REJECTED").length;
-    return {
-      ...p,
-      reviewSummary: {
-        totalDocs: docs.length,
-        pendingCount,
-        approvedCount,
-        rejectedCount,
-        submittedAt: p.submittedAt,
+  try {
+    const profiles = await prisma.funderProfile.findMany({
+      select: {
+        id: true,
+        userId: true,
+        entityType: true,
+        legalName: true,
+        investmentThesis: true,
+        typicalCheckMin: true,
+        typicalCheckMax: true,
+        preferredStages: true,
+        preferredMarkets: true,
+        preferredRegions: true,
+        verificationStatus: true,
+        limitedAccessEnabled: true,
+        adminReviewRequired: true,
+        reviewedAt: true,
+        approvedForInvestingAt: true,
+        createdAt: true,
+        updatedAt: true,
+        user: { select: { id: true, name: true, email: true } },
+        verifications: { orderBy: { submittedAt: "desc" }, take: 20 },
       },
-    };
-  });
-  return NextResponse.json({ profiles: payload });
+      orderBy: { createdAt: "desc" },
+    });
+    const payload = profiles.map((p) => {
+      const docs = p.verifications;
+      const pendingCount = docs.filter((d) => d.status === "PENDING").length;
+      const approvedCount = docs.filter((d) => d.status === "APPROVED").length;
+      const rejectedCount = docs.filter((d) => d.status === "REJECTED").length;
+      return {
+        ...p,
+        riskLevel: "LOW",
+        reviewSummary: {
+          totalDocs: docs.length,
+          pendingCount,
+          approvedCount,
+          rejectedCount,
+          submittedAt: null,
+        },
+      };
+    });
+    return NextResponse.json({ profiles: payload });
+  } catch (error) {
+    console.error("Admin funders GET failed:", error);
+    return NextResponse.json(
+      {
+        error: "Could not load funders review queue.",
+        details: "Database schema may be behind the latest migration. Apply Prisma migrations and retry.",
+      },
+      { status: 500 },
+    );
+  }
 }
 
 export async function PATCH(req: NextRequest) {
