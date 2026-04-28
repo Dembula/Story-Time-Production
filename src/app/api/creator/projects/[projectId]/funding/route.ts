@@ -126,6 +126,30 @@ export async function GET(_req: NextRequest, { params }: Params) {
   ]);
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  const [funderDirectory, marketplaceOpportunities] = await Promise.all([
+    prisma.funderProfile.findMany({
+      where: { verificationStatus: { in: ["PENDING", "UNDER_REVIEW", "APPROVED"] }, limitedAccessEnabled: true },
+      include: { user: { select: { id: true, name: true, professionalName: true, headline: true } } },
+      orderBy: [{ verificationStatus: "asc" }, { updatedAt: "desc" }],
+      take: 200,
+    }),
+    prisma.investmentOpportunity.findMany({
+      where: { OR: [{ projectId }, { marketCategory: { in: ["FILM_PROJECT", "SCRIPT_RIGHTS", "GAP_FINANCING", "DISTRIBUTION_ADVANCE"] } }], visible: true, status: "OPEN" },
+      select: {
+        id: true,
+        projectId: true,
+        title: true,
+        type: true,
+        marketCategory: true,
+        fundingTarget: true,
+        status: true,
+        termsSummary: true,
+      },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+    }),
+  ]);
+
   const parsed = parseFundingDetails(funding?.details);
   const structured = parsed.structured;
   const budgetTotal =
@@ -234,6 +258,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
       message: m.message,
       createdAt: m.createdAt,
     })),
+    funderDirectory,
+    marketplaceOpportunities,
   });
 }
 

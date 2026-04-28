@@ -191,6 +191,36 @@ exports.Prisma.UserRoleScalarFieldEnum = {
   createdAt: 'createdAt'
 };
 
+exports.Prisma.PromoCodeScalarFieldEnum = {
+  id: 'id',
+  code: 'code',
+  description: 'description',
+  kind: 'kind',
+  amount: 'amount',
+  target: 'target',
+  maxRedemptions: 'maxRedemptions',
+  redemptionsCount: 'redemptionsCount',
+  active: 'active',
+  startsAt: 'startsAt',
+  expiresAt: 'expiresAt',
+  metadata: 'metadata',
+  createdByAdminId: 'createdByAdminId',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.PromoCodeRedemptionScalarFieldEnum = {
+  id: 'id',
+  promoCodeId: 'promoCodeId',
+  userId: 'userId',
+  context: 'context',
+  referenceId: 'referenceId',
+  discountAmount: 'discountAmount',
+  resultingPlan: 'resultingPlan',
+  metadata: 'metadata',
+  redeemedAt: 'redeemedAt'
+};
+
 exports.Prisma.StudioCompanyScalarFieldEnum = {
   id: 'id',
   ownerUserId: 'ownerUserId',
@@ -1441,6 +1471,189 @@ exports.Prisma.FundingRequestScalarFieldEnum = {
   updatedAt: 'updatedAt'
 };
 
+exports.Prisma.FunderProfileScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  entityType: 'entityType',
+  legalName: 'legalName',
+  investmentThesis: 'investmentThesis',
+  typicalCheckMin: 'typicalCheckMin',
+  typicalCheckMax: 'typicalCheckMax',
+  preferredStages: 'preferredStages',
+  preferredMarkets: 'preferredMarkets',
+  preferredRegions: 'preferredRegions',
+  verificationStatus: 'verificationStatus',
+  limitedAccessEnabled: 'limitedAccessEnabled',
+  adminReviewRequired: 'adminReviewRequired',
+  reviewedAt: 'reviewedAt',
+  approvedForInvestingAt: 'approvedForInvestingAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.FunderVerificationScalarFieldEnum = {
+  id: 'id',
+  funderProfileId: 'funderProfileId',
+  submittedById: 'submittedById',
+  documentType: 'documentType',
+  documentUrl: 'documentUrl',
+  status: 'status',
+  note: 'note',
+  reviewedById: 'reviewedById',
+  submittedAt: 'submittedAt',
+  reviewedAt: 'reviewedAt'
+};
+
+exports.Prisma.InvestmentOpportunityScalarFieldEnum = {
+  id: 'id',
+  projectId: 'projectId',
+  createdByUserId: 'createdByUserId',
+  funderProfileId: 'funderProfileId',
+  type: 'type',
+  marketCategory: 'marketCategory',
+  title: 'title',
+  description: 'description',
+  fundingTarget: 'fundingTarget',
+  minTicketSize: 'minTicketSize',
+  maxTicketSize: 'maxTicketSize',
+  equityOfferedPct: 'equityOfferedPct',
+  revenueModel: 'revenueModel',
+  termsSummary: 'termsSummary',
+  status: 'status',
+  visible: 'visible',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.CompanyFundingListingScalarFieldEnum = {
+  id: 'id',
+  opportunityId: 'opportunityId',
+  ownerUserId: 'ownerUserId',
+  companyName: 'companyName',
+  sector: 'sector',
+  useOfFunds: 'useOfFunds',
+  expansionObjective: 'expansionObjective',
+  currentTraction: 'currentTraction',
+  capitalAssetPlan: 'capitalAssetPlan',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.InvestmentDealScalarFieldEnum = {
+  id: 'id',
+  opportunityId: 'opportunityId',
+  projectId: 'projectId',
+  creatorUserId: 'creatorUserId',
+  funderUserId: 'funderUserId',
+  pipelineStatus: 'pipelineStatus',
+  rejectionReason: 'rejectionReason',
+  submittedAt: 'submittedAt',
+  respondedAt: 'respondedAt',
+  closedAt: 'closedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.DealTermSheetScalarFieldEnum = {
+  id: 'id',
+  dealId: 'dealId',
+  version: 'version',
+  valuation: 'valuation',
+  investmentAmount: 'investmentAmount',
+  equityPercentage: 'equityPercentage',
+  revenueSharePct: 'revenueSharePct',
+  recoupmentTerms: 'recoupmentTerms',
+  milestones: 'milestones',
+  proposedByRole: 'proposedByRole',
+  status: 'status',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.DealNegotiationMessageScalarFieldEnum = {
+  id: 'id',
+  dealId: 'dealId',
+  senderId: 'senderId',
+  message: 'message',
+  messageType: 'messageType',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.DealContractScalarFieldEnum = {
+  id: 'id',
+  dealId: 'dealId',
+  templateType: 'templateType',
+  generatedContractUrl: 'generatedContractUrl',
+  body: 'body',
+  generatedById: 'generatedById',
+  signedByCreator: 'signedByCreator',
+  signedByInvestor: 'signedByInvestor',
+  status: 'status',
+  signedAt: 'signedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.DealContractSignatureScalarFieldEnum = {
+  id: 'id',
+  contractId: 'contractId',
+  signerUserId: 'signerUserId',
+  signerRole: 'signerRole',
+  signedAt: 'signedAt',
+  signatureHash: 'signatureHash',
+  ipAddress: 'ipAddress'
+};
+
+exports.Prisma.DealPaymentScalarFieldEnum = {
+  id: 'id',
+  dealId: 'dealId',
+  contractId: 'contractId',
+  initiatedById: 'initiatedById',
+  amount: 'amount',
+  currency: 'currency',
+  status: 'status',
+  gatewayProvider: 'gatewayProvider',
+  gatewayReference: 'gatewayReference',
+  metadata: 'metadata',
+  createdAt: 'createdAt',
+  settledAt: 'settledAt'
+};
+
+exports.Prisma.CapTableEntryScalarFieldEnum = {
+  id: 'id',
+  projectId: 'projectId',
+  dealId: 'dealId',
+  stakeholderId: 'stakeholderId',
+  role: 'role',
+  equityPercentage: 'equityPercentage',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.ProjectRevenueEventScalarFieldEnum = {
+  id: 'id',
+  projectId: 'projectId',
+  source: 'source',
+  amount: 'amount',
+  currency: 'currency',
+  receivedAt: 'receivedAt',
+  note: 'note',
+  recordedById: 'recordedById',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.StakeholderPayoutScalarFieldEnum = {
+  id: 'id',
+  projectId: 'projectId',
+  dealId: 'dealId',
+  revenueEventId: 'revenueEventId',
+  userId: 'userId',
+  amount: 'amount',
+  currency: 'currency',
+  status: 'status',
+  dueAt: 'dueAt',
+  paidAt: 'paidAt',
+  createdAt: 'createdAt'
+};
+
 exports.Prisma.PitchDeckScalarFieldEnum = {
   id: 'id',
   projectId: 'projectId',
@@ -1737,6 +1950,78 @@ exports.Prisma.CreatorScriptScalarFieldEnum = {
   updatedAt: 'updatedAt'
 };
 
+exports.Prisma.IPAssetScalarFieldEnum = {
+  id: 'id',
+  creatorScriptId: 'creatorScriptId',
+  title: 'title',
+  logline: 'logline',
+  synopsis: 'synopsis',
+  genre: 'genre',
+  language: 'language',
+  themes: 'themes',
+  status: 'status',
+  currentOwnerId: 'currentOwnerId',
+  originalCreatorId: 'originalCreatorId',
+  monetizationModel: 'monetizationModel',
+  listingPrice: 'listingPrice',
+  listingCurrency: 'listingCurrency',
+  listedAt: 'listedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.IPVersionScalarFieldEnum = {
+  id: 'id',
+  ipAssetId: 'ipAssetId',
+  versionNumber: 'versionNumber',
+  fileUrl: 'fileUrl',
+  content: 'content',
+  contentHash: 'contentHash',
+  wordCount: 'wordCount',
+  tokenEstimate: 'tokenEstimate',
+  notes: 'notes',
+  isLocked: 'isLocked',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.IPOwnershipStructureScalarFieldEnum = {
+  id: 'id',
+  ipAssetId: 'ipAssetId',
+  ownerId: 'ownerId',
+  ownershipPercentage: 'ownershipPercentage',
+  rightsType: 'rightsType',
+  startDate: 'startDate',
+  endDate: 'endDate',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.IPLicensingAgreementScalarFieldEnum = {
+  id: 'id',
+  ipAssetId: 'ipAssetId',
+  licensorId: 'licensorId',
+  licenseeId: 'licenseeId',
+  licenseType: 'licenseType',
+  territory: 'territory',
+  duration: 'duration',
+  revenueSharePercentage: 'revenueSharePercentage',
+  contractUrl: 'contractUrl',
+  status: 'status',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.IPTransactionScalarFieldEnum = {
+  id: 'id',
+  ipAssetId: 'ipAssetId',
+  buyerId: 'buyerId',
+  sellerId: 'sellerId',
+  type: 'type',
+  amount: 'amount',
+  currency: 'currency',
+  date: 'date',
+  metadata: 'metadata'
+};
+
 exports.Prisma.AdminAuditLogScalarFieldEnum = {
   id: 'id',
   adminUserId: 'adminUserId',
@@ -1823,6 +2108,8 @@ exports.Prisma.ModelName = {
   VerificationToken: 'VerificationToken',
   User: 'User',
   UserRole: 'UserRole',
+  PromoCode: 'PromoCode',
+  PromoCodeRedemption: 'PromoCodeRedemption',
   StudioCompany: 'StudioCompany',
   CreatorStudioProfile: 'CreatorStudioProfile',
   CreatorStudioTeamInvite: 'CreatorStudioTeamInvite',
@@ -1921,6 +2208,19 @@ exports.Prisma.ModelName = {
   ProjectContractVersion: 'ProjectContractVersion',
   ProjectSignature: 'ProjectSignature',
   FundingRequest: 'FundingRequest',
+  FunderProfile: 'FunderProfile',
+  FunderVerification: 'FunderVerification',
+  InvestmentOpportunity: 'InvestmentOpportunity',
+  CompanyFundingListing: 'CompanyFundingListing',
+  InvestmentDeal: 'InvestmentDeal',
+  DealTermSheet: 'DealTermSheet',
+  DealNegotiationMessage: 'DealNegotiationMessage',
+  DealContract: 'DealContract',
+  DealContractSignature: 'DealContractSignature',
+  DealPayment: 'DealPayment',
+  CapTableEntry: 'CapTableEntry',
+  ProjectRevenueEvent: 'ProjectRevenueEvent',
+  StakeholderPayout: 'StakeholderPayout',
   PitchDeck: 'PitchDeck',
   PitchDeckSlide: 'PitchDeckSlide',
   ProjectChatThread: 'ProjectChatThread',
@@ -1949,6 +2249,11 @@ exports.Prisma.ModelName = {
   ModocMessage: 'ModocMessage',
   ScriptReviewNote: 'ScriptReviewNote',
   CreatorScript: 'CreatorScript',
+  IPAsset: 'IPAsset',
+  IPVersion: 'IPVersion',
+  IPOwnershipStructure: 'IPOwnershipStructure',
+  IPLicensingAgreement: 'IPLicensingAgreement',
+  IPTransaction: 'IPTransaction',
   AdminAuditLog: 'AdminAuditLog',
   PasswordResetToken: 'PasswordResetToken',
   AnalyticsEvent: 'AnalyticsEvent',

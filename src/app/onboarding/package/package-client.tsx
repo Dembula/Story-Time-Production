@@ -89,6 +89,8 @@ export function PackageClient() {
   const [selected, setSelected] = useState<string>("BASE_1");
   const [expanded, setExpanded] = useState<string | null>("BASE_1");
   const [startTrial, setStartTrial] = useState(true);
+  const [promoCode, setPromoCode] = useState("");
+  const [promoMessage, setPromoMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -97,6 +99,7 @@ export function PackageClient() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    setPromoMessage("");
     setLoading(true);
     try {
       const res = await fetch("/api/viewer/subscription", {
@@ -106,10 +109,14 @@ export function PackageClient() {
           viewerModel,
           plan: viewerModel === "SUBSCRIPTION" ? selected : PPV_PLAN.id,
           startTrial: viewerModel === "SUBSCRIPTION" ? startTrial : false,
+          promoCode: viewerModel === "SUBSCRIPTION" ? promoCode : undefined,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed");
+      if (data?.pricing?.promoCode) {
+        setPromoMessage(`Promo ${data.pricing.promoCode} applied. Discount ${formatZar(data.pricing.discountAmount || 0)}.`);
+      }
 
       if (data?.requiresPayment && data?.payment) {
         throw new Error("Payments are currently disabled on this platform.");
@@ -463,6 +470,26 @@ export function PackageClient() {
               </div>
             </button>
           </div>
+        </div>
+      ) : null}
+
+      {viewerModel === "SUBSCRIPTION" ? (
+        <div className="storytime-section p-6">
+          <p className="text-sm font-medium text-slate-300">Promo code</p>
+          <p className="mt-2 text-sm text-slate-400">
+            If you received a Story Time promo code, enter it here for discounted or sponsored access.
+          </p>
+          <div className="mt-4">
+            <input
+              value={promoCode}
+              onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+              placeholder="e.g. STORYTIME50"
+              className="w-full px-3 py-2 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm"
+            />
+          </div>
+          {promoMessage ? (
+            <p className="mt-3 text-xs text-emerald-400">{promoMessage}</p>
+          ) : null}
         </div>
       ) : null}
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Film, Eye, Users, Clock, DollarSign, Star, MessageSquare, TrendingUp, Wrench, Megaphone, UsersRound, CheckCircle, XCircle, AlertTriangle, FileText, Send, Trophy } from "lucide-react";
+import { Film, Eye, Users, Clock, DollarSign, Star, MessageSquare, TrendingUp, Wrench, Megaphone, UsersRound, CheckCircle, XCircle, AlertTriangle, FileText, Send, Trophy, Store } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -153,7 +153,7 @@ export function CreatorDashboardClient() {
       </div>
 
       {/* Quick Links */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-10">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
         <Link href="/creator/equipment" className="storytime-section group p-5 hover:-translate-y-1 hover:border-orange-400/22">
           <Wrench className="w-8 h-8 text-orange-500 mb-3 group-hover:scale-110 transition" />
           <h3 className="font-semibold text-white mb-1">Equipment Repository</h3>
@@ -168,6 +168,11 @@ export function CreatorDashboardClient() {
           <Megaphone className="w-8 h-8 text-violet-500 mb-3 group-hover:scale-110 transition" />
           <h3 className="font-semibold text-white mb-1">Auditions</h3>
           <p className="text-sm text-slate-400">Post casting calls and manage shortlisted talent</p>
+        </Link>
+        <Link href="/creator/ip-marketplace" className="storytime-section group p-5 hover:-translate-y-1 hover:border-cyan-400/22">
+          <Store className="w-8 h-8 text-cyan-500 mb-3 group-hover:scale-110 transition" />
+          <h3 className="font-semibold text-white mb-1">Script IP Marketplace</h3>
+          <p className="text-sm text-slate-400">Buy or sell scripts as tradable IP with ownership transfer and deal history</p>
         </Link>
       </div>
 

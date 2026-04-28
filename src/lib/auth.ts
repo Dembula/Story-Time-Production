@@ -10,6 +10,14 @@ import { findUserActiveStudioProfileId, findUserForCredentialsLogin } from "./pr
 import { sendWelcomeEmail } from "./sendgrid";
 import { CREATOR_ROLES, VIEWER_ROLES, ensureUserRole, getUserRoles } from "./user-roles";
 
+type PortalScope = "VIEWER" | "CREATOR" | "ADMIN";
+
+function pickCreatorRole(roles: Set<string>, fallbackRole?: string | null): string | null {
+  if (fallbackRole && CREATOR_ROLES.has(fallbackRole)) return fallbackRole;
+  const ordered = [...roles].filter((r) => CREATOR_ROLES.has(r)).sort();
+  return ordered[0] ?? null;
+}
+
 const DEMO_PASSWORD = process.env.DEMO_PASSWORD || "storytime2025";
 const googleClientId = process.env.GOOGLE_CLIENT_ID?.trim() ?? "";
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim() ?? "";
@@ -56,13 +64,14 @@ export const authOptions: NextAuthOptions = {
           if (credentials.password !== DEMO_PASSWORD) return null;
         }
         const roles = await getUserRoles(user.id, user.role);
-        const role = user.role ?? "SUBSCRIBER";
         if (![...roles].some((userRole) => VIEWER_ROLES.has(userRole))) return null;
+        const role = "SUBSCRIBER";
         return {
           id: user.id,
           email: user.email!,
           name: user.name,
           role,
+          portalScope: "VIEWER" as PortalScope,
           image: user.image,
           activeCreatorStudioProfileId: user.activeCreatorStudioProfileId,
         } as {
@@ -70,6 +79,7 @@ export const authOptions: NextAuthOptions = {
           email: string;
           name: string | null;
           role: string;
+          portalScope: PortalScope;
           image: string | null;
           activeCreatorStudioProfileId: string | null;
         };
@@ -93,13 +103,14 @@ export const authOptions: NextAuthOptions = {
           if (credentials.password !== DEMO_PASSWORD) return null;
         }
         const roles = await getUserRoles(user.id, user.role);
-        const role = [...roles].find((userRole) => CREATOR_ROLES.has(userRole)) ?? user.role ?? "SUBSCRIBER";
-        if (!CREATOR_ROLES.has(role)) return null;
+        const role = pickCreatorRole(roles, user.role);
+        if (!role) return null;
         return {
           id: user.id,
           email: user.email!,
           name: user.name,
           role,
+          portalScope: "CREATOR" as PortalScope,
           image: user.image,
           activeCreatorStudioProfileId: user.activeCreatorStudioProfileId,
         } as {
@@ -107,6 +118,7 @@ export const authOptions: NextAuthOptions = {
           email: string;
           name: string | null;
           role: string;
+          portalScope: PortalScope;
           image: string | null;
           activeCreatorStudioProfileId: string | null;
         };
@@ -137,6 +149,7 @@ export const authOptions: NextAuthOptions = {
           email: user.email!,
           name: user.name,
           role,
+          portalScope: "ADMIN" as PortalScope,
           image: user.image,
           activeCreatorStudioProfileId: user.activeCreatorStudioProfileId,
         } as {
@@ -144,6 +157,7 @@ export const authOptions: NextAuthOptions = {
           email: string;
           name: string | null;
           role: string;
+          portalScope: PortalScope;
           image: string | null;
           activeCreatorStudioProfileId: string | null;
         };
@@ -195,7 +209,9 @@ export const authOptions: NextAuthOptions = {
         where: { id: user.id },
         select: { role: true },
       });
-      if (dbUser) (user as { role?: string }).role = dbUser.role;
+      if (dbUser && !(user as { role?: string }).role) {
+        (user as { role?: string }).role = dbUser.role;
+      }
 
       const pending = user.email
         ? await prisma.pendingCreatorSignup.findUnique({
@@ -203,7 +219,7 @@ export const authOptions: NextAuthOptions = {
           })
         : null;
       if (pending) {
-        const roleMap: Record<string, string> = { music: "MUSIC_CREATOR", equipment: "EQUIPMENT_COMPANY", location: "LOCATION_OWNER", content: "CONTENT_CREATOR", crew: "CREW_TEAM", casting: "CASTING_AGENCY", catering: "CATERING_COMPANY" };
+        const roleMap: Record<string, string> = { music: "MUSIC_CREATOR", equipment: "EQUIPMENT_COMPANY", location: "LOCATION_OWNER", content: "CONTENT_CREATOR", crew: "CREW_TEAM", casting: "CASTING_AGENCY", catering: "CATERING_COMPANY", funder: "FUNDER" };
         const role = roleMap[pending.type] || "CONTENT_CREATOR";
         await prisma.user.update({
           where: { id: user.id },
@@ -246,6 +262,7 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = user.id;
         token.role = (user as { role?: string }).role;
+        token.portalScope = (user as { portalScope?: PortalScope }).portalScope;
         token.name = user.name ?? null;
         token.email = user.email ?? null;
         token.picture = (user as { image?: string | null }).image ?? null;
@@ -265,6 +282,9 @@ export const authOptions: NextAuthOptions = {
           token.activeCreatorStudioProfileId =
             (s.activeCreatorStudioProfileId as string | null | undefined) ?? null;
         }
+        if ("portalScope" in s) {
+          token.portalScope = (s.portalScope as PortalScope | undefined) ?? token.portalScope;
+        }
       }
       return token;
     },
@@ -275,6 +295,8 @@ export const authOptions: NextAuthOptions = {
         if (token.name !== undefined) session.user.name = token.name;
         if (token.email !== undefined) session.user.email = token.email;
         if (token.picture !== undefined) session.user.image = token.picture;
+        (session.user as { portalScope?: PortalScope }).portalScope =
+          ((token as { portalScope?: PortalScope }).portalScope as PortalScope | undefined) ?? undefined;
         (session.user as { activeCreatorStudioProfileId?: string | null }).activeCreatorStudioProfileId =
           (token as { activeCreatorStudioProfileId?: string | null }).activeCreatorStudioProfileId ?? null;
       }

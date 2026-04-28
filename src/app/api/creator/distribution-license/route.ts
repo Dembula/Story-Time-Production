@@ -5,7 +5,25 @@ import { prisma } from "@/lib/prisma";
 import { ensureCreatorStudioProfilesForUser, loadStudioPipelineContext } from "@/lib/creator-studio";
 import { defaultSuiteAccessOpen } from "@/lib/creator-suite-access";
 import { isMissingCreatorStudioInfrastructure } from "@/lib/prisma-missing-table";
-import { CREATOR_LICENSE_TYPE, formatCreatorLicenseSummary } from "@/lib/pricing";
+import { CREATOR_LICENSE_CONFIG, CREATOR_LICENSE_TYPE, CREATOR_ONBOARDING_PLANS, formatCreatorLicenseSummary } from "@/lib/pricing";
+import { computeDiscountedAmount, redeemPromoCode, resolvePromoCode } from "@/lib/promo-codes";
+
+function promoFailureMessage(reason: string) {
+  switch (reason) {
+    case "expired":
+      return "Promo code has expired.";
+    case "not_started":
+      return "Promo code is not active yet.";
+    case "limit_reached":
+      return "Promo code redemption limit reached.";
+    case "already_used":
+      return "Promo code already used for this creator account.";
+    case "target_mismatch":
+      return "Promo code does not apply to this package.";
+    default:
+      return "Promo code could not be redeemed.";
+  }
+}
 
 function addMonths(from: Date, months: number): Date {
   const d = new Date(from);
@@ -88,6 +106,7 @@ export async function POST(req: Request) {
         billing?: "YEARLY" | "MONTHLY";
         /** Legacy music / old UI */
         type?: string;
+        promoCode?: string;
       }
     | null;
 
@@ -123,6 +142,44 @@ export async function POST(req: Request) {
     );
   }
 
+  let basePrice = 0;
+  if (storedType === CREATOR_LICENSE_TYPE.UPLOAD_ONLY_YEARLY) {
+    basePrice = CREATOR_ONBOARDING_PLANS.UPLOAD_ONLY.price;
+  } else if (storedType === CREATOR_LICENSE_TYPE.PIPELINE_YEARLY) {
+    basePrice = CREATOR_ONBOARDING_PLANS.PIPELINE_YEARLY.price;
+  } else if (storedType === CREATOR_LICENSE_TYPE.PIPELINE_MONTHLY) {
+    basePrice = CREATOR_ONBOARDING_PLANS.PIPELINE_MONTHLY.price;
+  } else if (storedType === "YEARLY_R89" || storedType === "YEARLY") {
+    basePrice = CREATOR_LICENSE_CONFIG.YEARLY.price;
+  } else if (storedType === "PER_UPLOAD_R24_99" || storedType === "PER_UPLOAD_R10" || storedType === "PER_UPLOAD") {
+    basePrice = CREATOR_LICENSE_CONFIG.PER_UPLOAD.price;
+  }
+
+  let finalPrice = basePrice;
+  let appliedPromo: { id: string; code: string } | null = null;
+  const promoCode = typeof body?.promoCode === "string" ? body.promoCode.trim() : "";
+  if (promoCode) {
+    const promoResult = await resolvePromoCode(promoCode, "CREATOR_LICENSE");
+    if ("error" in promoResult) {
+      return NextResponse.json({ error: promoResult.error }, { status: 400 });
+    }
+    const alreadyUsed = await prisma.promoCodeRedemption.findUnique({
+      where: {
+        promoCodeId_userId_context: {
+          promoCodeId: promoResult.promo.id,
+          userId: user.id,
+          context: "CREATOR_LICENSE",
+        },
+      },
+      select: { id: true },
+    });
+    if (alreadyUsed) {
+      return NextResponse.json({ error: "Promo code already used for this creator account." }, { status: 400 });
+    }
+    finalPrice = computeDiscountedAmount(basePrice, promoResult.promo);
+    appliedPromo = { id: promoResult.promo.id, code: promoResult.promo.code };
+  }
+
   await ensureCreatorStudioProfilesForUser(user.id);
   const preCtx = await loadStudioPipelineContext(user.id);
   const profileId = preCtx?.activeProfile?.id ?? null;
@@ -154,6 +211,22 @@ export async function POST(req: Request) {
   }
 
   const ctx = await loadStudioPipelineContext(user.id);
+  if (appliedPromo) {
+    const redemption = await redeemPromoCode({
+      promoCodeId: appliedPromo.id,
+      userId: user.id,
+      context: "CREATOR_LICENSE",
+      referenceId: license.id,
+      discountAmount: Math.max(0, basePrice - finalPrice),
+      resultingPlan: storedType,
+      metadata: { basePrice, finalPrice, role },
+    });
+    if (!redemption.ok) {
+      await prisma.creatorDistributionLicense.delete({ where: { id: license.id } });
+      return NextResponse.json({ error: promoFailureMessage(redemption.reason) }, { status: 400 });
+    }
+  }
+
   return NextResponse.json({
     license,
     requiresPayment: false,
@@ -162,6 +235,12 @@ export async function POST(req: Request) {
     planSummary: formatCreatorLicenseSummary(license.type),
     licensePeriodActive: ctx?.licensePeriodActive ?? false,
     activeStudioProfile: ctx?.activeProfile ?? null,
+    pricing: {
+      basePrice,
+      finalPrice,
+      promoCode: appliedPromo?.code ?? null,
+      discountAmount: Math.max(0, basePrice - finalPrice),
+    },
     redirectTo: role === "MUSIC_CREATOR" ? "/music-creator/dashboard" : "/creator/command-center",
   });
 }

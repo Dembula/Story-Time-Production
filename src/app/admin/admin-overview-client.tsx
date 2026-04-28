@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { Users, Film, Clock, DollarSign, Music, Handshake, GraduationCap, Globe, Monitor, Activity, TrendingUp, Wifi, Briefcase, Megaphone } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatZar } from "@/lib/format-currency-zar";
 
 export function AdminOverviewClient() {
+  const queryClient = useQueryClient();
   const [monthlySendState, setMonthlySendState] = useState<{
     loading: boolean;
     sent?: number;
@@ -25,6 +26,42 @@ export function AdminOverviewClient() {
   const { data: opsIncidents } = useQuery({
     queryKey: ["admin-ops-incidents"],
     queryFn: () => fetch("/api/admin/ops/incidents").then((r) => r.json()),
+  });
+  const { data: ipMarketplaceAudit } = useQuery({
+    queryKey: ["admin-ip-marketplace-audit"],
+    queryFn: () => fetch("/api/admin/ip-marketplace/audit").then((r) => r.json()),
+  });
+  const [fixMessage, setFixMessage] = useState<string>("");
+  const [fixDryRun, setFixDryRun] = useState(true);
+  const fixMutation = useMutation({
+    mutationFn: async ({ action, dryRun }: { action: string; dryRun: boolean }) => {
+      const res = await fetch("/api/admin/ip-marketplace/audit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, dryRun, limit: 100 }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((json as { error?: string }).error || "Auto-fix failed");
+      return json as { candidates?: number };
+    },
+    onSuccess: (result, vars) => {
+      if (vars.dryRun) {
+        setFixMessage(
+          `Dry run: ${result.candidates ?? 0} records would be fixed for ${vars.action
+            .replace(/_/g, " ")
+            .toLowerCase()}.`,
+        );
+      } else {
+        setFixMessage(
+          `Applied ${result.candidates ?? 0} fixes for ${vars.action.replace(/_/g, " ").toLowerCase()}.`,
+        );
+        void queryClient.invalidateQueries({ queryKey: ["admin-ip-marketplace-audit"] });
+        void queryClient.invalidateQueries({ queryKey: ["admin-ops-incidents"] });
+      }
+    },
+    onError: (err) => {
+      setFixMessage((err as Error).message);
+    },
   });
 
   if (isLoading) {
@@ -109,6 +146,7 @@ export function AdminOverviewClient() {
           { label: "Casting Agencies", value: stats?.castingAgencyCount ?? 0, sub: `${stats?.castTotalTalent ?? 0} talent · ${stats?.castInquiryCount ?? 0} inquiries · ${stats?.auditionCount ?? 0} auditions`, icon: Megaphone, color: "violet", href: "/admin/cast" },
           { label: "Events (30d)", value: analyticsSummary?.eventsCount ?? 0, sub: `${analyticsSummary?.topEvents?.[0]?.name ?? "No events"} top signal`, icon: Activity, color: "blue", href: "/admin/activity" },
           { label: "Open Ops Incidents", value: opsIncidents?.incidents?.length ?? 0, sub: "Automated ledger health checks", icon: Wifi, color: "amber", href: "/admin/activity" },
+          { label: "IP Audit Risk", value: ipMarketplaceAudit?.riskScore ?? 0, sub: `${ipMarketplaceAudit?.findings?.length ?? 0} marketplace findings`, icon: Globe, color: "orange", href: "/admin/activity" },
         ].map((card, i) => {
           const colorMap: Record<string, string> = {
             cyan: "border-l-cyan-500/50", emerald: "border-l-emerald-500/50", violet: "border-l-violet-500/50",
@@ -136,6 +174,73 @@ export function AdminOverviewClient() {
           return href ? <Link key={i} href={href} className="block">{cardEl}</Link> : cardEl;
         })}
       </div>
+
+      {Array.isArray(ipMarketplaceAudit?.findings) && ipMarketplaceAudit.findings.length > 0 && (
+        <Card className="storytime-section mb-10 border-orange-500/25">
+          <CardHeader>
+            <CardTitle className="text-white flex items-center gap-2">
+              <Globe className="w-5 h-5 text-orange-400" /> IP Marketplace Integrity Audit
+            </CardTitle>
+            <p className="text-sm text-slate-400">
+              Automated consistency checks for ownership, listing state, and transaction integrity.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2">
+              <div>
+                <p className="text-xs font-medium text-white">Fix mode</p>
+                <p className="text-[11px] text-slate-400">
+                  Preview with dry run before applying live changes.
+                </p>
+              </div>
+              <label className="flex items-center gap-2 text-xs text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={fixDryRun}
+                  onChange={(e) => setFixDryRun(e.target.checked)}
+                />
+                Dry run
+              </label>
+            </div>
+            <div className="space-y-2">
+              {ipMarketplaceAudit.findings.map((f: { code: string; severity: string; message: string; count: number }) => (
+                <div key={f.code} className="rounded-xl border border-white/8 bg-white/[0.03] p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-medium text-white">{f.code.replace(/_/g, " ")}</p>
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${f.severity === "critical" ? "bg-red-500/15 text-red-300" : "bg-amber-500/15 text-amber-300"}`}>
+                      {f.severity}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-400">{f.message}</p>
+                  <p className="mt-1 text-xs text-slate-500">Affected assets: {f.count}</p>
+                  {[
+                    "SOLD_ASSET_STILL_LISTED",
+                    "SALE_TRANSFER_MISMATCH",
+                    "CURRENT_OWNER_NOT_IN_ACTIVE_STRUCTURE",
+                    "LISTED_WITHOUT_VALID_PRICE",
+                  ].includes(f.code) && (
+                    <button
+                      type="button"
+                      onClick={() => fixMutation.mutate({ action: f.code, dryRun: fixDryRun })}
+                      disabled={fixMutation.isPending}
+                      className="mt-2 rounded-md border border-orange-500/40 bg-orange-500/15 px-2 py-1 text-[11px] font-medium text-orange-200 hover:bg-orange-500/25 disabled:opacity-60"
+                    >
+                      {fixMutation.isPending
+                        ? fixDryRun
+                          ? "Running dry run..."
+                          : "Applying fix..."
+                        : fixDryRun
+                        ? "Dry run this issue type"
+                        : "Auto-fix this issue type"}
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            {fixMessage ? <p className="mt-3 text-xs text-slate-300">{fixMessage}</p> : null}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10">
         {/* Content by Type */}

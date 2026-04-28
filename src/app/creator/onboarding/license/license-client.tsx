@@ -49,6 +49,8 @@ export function LicenseClient() {
   const [pkg, setPkg] = useState<CreatorPackage>("UPLOAD_ONLY");
   const [pipelineBilling, setPipelineBilling] = useState<PipelineBilling>("YEARLY");
   const [expanded, setExpanded] = useState<string | null>("UPLOAD_ONLY");
+  const [promoCode, setPromoCode] = useState("");
+  const [promoMessage, setPromoMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -67,6 +69,7 @@ export function LicenseClient() {
 
   async function submit() {
     setError("");
+    setPromoMessage("");
     setLoading(true);
     try {
       const res = await fetch("/api/creator/distribution-license", {
@@ -74,8 +77,8 @@ export function LicenseClient() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
           pkg === "UPLOAD_ONLY"
-            ? { package: "UPLOAD_ONLY" }
-            : { package: "PIPELINE", billing: pipelineBilling },
+            ? { package: "UPLOAD_ONLY", promoCode }
+            : { package: "PIPELINE", billing: pipelineBilling, promoCode },
         ),
       });
       const data = await res.json().catch(() => ({}));
@@ -84,6 +87,9 @@ export function LicenseClient() {
       }
       if (data?.requiresPayment && data?.payment) {
         throw new Error("Payments are currently disabled on this platform.");
+      }
+      if (data?.pricing?.promoCode) {
+        setPromoMessage(`Promo ${data.pricing.promoCode} applied. Discount ${formatZar(data.pricing.discountAmount || 0)}.`);
       }
       queryClient.setQueryData([...CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY], {
         license: data.license ?? null,
@@ -396,6 +402,22 @@ export function LicenseClient() {
             </p>
           </div>
         </div>
+      </div>
+
+      <div className="storytime-section p-6">
+        <p className="text-sm font-medium text-slate-300">Promo code</p>
+        <p className="mt-2 text-sm text-slate-400">
+          Add a creator promo code for discounted or sponsored onboarding access.
+        </p>
+        <div className="mt-4">
+          <input
+            value={promoCode}
+            onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+            placeholder="e.g. CREATOR100"
+            className="w-full px-3 py-2 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm"
+          />
+        </div>
+        {promoMessage ? <p className="mt-3 text-xs text-emerald-400">{promoMessage}</p> : null}
       </div>
 
       {error ? (

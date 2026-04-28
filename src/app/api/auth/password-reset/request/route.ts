@@ -9,7 +9,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Email is required." }, { status: 400 });
     }
 
-    await issuePasswordReset(email);
+    await issuePasswordReset(email, {
+      ip: request.headers.get("x-forwarded-for"),
+    });
     return NextResponse.json({
       ok: true,
       message: "If this account exists, a reset link has been sent to the email address.",

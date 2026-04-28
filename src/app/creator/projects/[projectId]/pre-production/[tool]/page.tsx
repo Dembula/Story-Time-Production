@@ -641,6 +641,7 @@ interface ScriptWritingWorkspaceProps {
 }
 
 function ScriptWritingWorkspace({ projectId, title }: ScriptWritingWorkspaceProps) {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const hasProject = !!projectId;
 
@@ -798,6 +799,61 @@ function ScriptWritingWorkspace({ projectId, title }: ScriptWritingWorkspaceProp
     notes: string | null;
   }>;
   const primaryIdea = projectIdeas[0];
+
+  const [listingPrice, setListingPrice] = useState<string>("15000");
+  const [listingSynopsis, setListingSynopsis] = useState<string>("");
+  const [listingThemes, setListingThemes] = useState<string>("");
+  const [listingGenre, setListingGenre] = useState<string>("");
+  const [listingModel, setListingModel] = useState<"SALE_FULL_RIGHTS" | "LICENSE" | "CO_PRODUCE">("SALE_FULL_RIGHTS");
+
+  const { data: marketplaceData } = useQuery({
+    queryKey: ["ip-marketplace", projectId ?? null],
+    queryFn: () =>
+      fetch(projectId ? `/api/creator/ip-marketplace?projectId=${projectId}` : "/api/creator/ip-marketplace").then((r) => r.json()),
+  });
+
+  const listToMarketplaceMutation = useMutation({
+    mutationFn: async (creatorScriptId: string) => {
+      const res = await fetch("/api/creator/ip-marketplace", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          creatorScriptId,
+          title: draft?.title || selected?.title || "Untitled script",
+          synopsis: listingSynopsis,
+          themes: listingThemes,
+          genre: listingGenre || draft?.type || "OTHER",
+          language: "EN",
+          monetizationModel: listingModel,
+          listingPrice: Number.parseFloat(listingPrice),
+          listingCurrency: "ZAR",
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((json as { error?: string }).error || "Could not list script");
+      return json;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["ip-marketplace", projectId ?? null] });
+    },
+  });
+
+  const purchaseMutation = useMutation({
+    mutationFn: async (ipAssetId: string) => {
+      const res = await fetch("/api/creator/ip-marketplace/purchase", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ipAssetId }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((json as { error?: string }).error || "Could not purchase script");
+      return json;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["ip-marketplace", projectId ?? null] });
+      void queryClient.invalidateQueries({ queryKey: ["creator-scripts", projectId ?? null] });
+    },
+  });
 
   return (
     <div className="space-y-4">
@@ -1053,6 +1109,172 @@ function ScriptWritingWorkspace({ projectId, title }: ScriptWritingWorkspaceProp
           )}
         </div>
       </div>
+
+      <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <Card className="creator-glass-panel border-0 bg-transparent text-slate-50 shadow-none xl:col-span-2">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm">List of script marketplace</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-xs text-slate-300">
+            <p className="text-slate-400">
+              Browse listed scripts from other creators. Each listing includes title, synopsis, themes, and price.
+            </p>
+            {((marketplaceData?.listedAssets as Array<{
+              id: string;
+              title: string;
+              synopsis: string | null;
+              themes: string | null;
+              listingPrice: number | null;
+              currentOwner: { name: string | null; professionalName: string | null };
+            }>) ?? []).length === 0 ? (
+              <p className="text-slate-500">No marketplace listings right now.</p>
+            ) : (
+              <div className="space-y-2">
+                {((marketplaceData?.listedAssets as Array<{
+                  id: string;
+                  title: string;
+                  synopsis: string | null;
+                  themes: string | null;
+                  listingPrice: number | null;
+                  currentOwner: { name: string | null; professionalName: string | null };
+                }>) ?? []).map((asset) => (
+                  <div key={asset.id} className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-medium text-slate-100">{asset.title}</p>
+                        <p className="text-[11px] text-slate-500">
+                          by {asset.currentOwner.professionalName || asset.currentOwner.name || "Creator"}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        className="bg-orange-500 hover:bg-orange-600 text-white text-xs"
+                        disabled={purchaseMutation.isPending}
+                        onClick={() => purchaseMutation.mutate(asset.id)}
+                      >
+                        {purchaseMutation.isPending ? "Processing…" : `Buy ${formatZar(asset.listingPrice ?? 0)}`}
+                      </Button>
+                    </div>
+                    <p className="mt-2 text-slate-300">{asset.synopsis || "No synopsis available."}</p>
+                    {asset.themes ? <p className="mt-1 text-[11px] text-slate-400">Themes: {asset.themes}</p> : null}
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="creator-glass-panel border-0 bg-transparent text-slate-50 shadow-none">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm">List selected script</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-xs text-slate-300">
+            <p className="text-slate-400">Price is part of listing setup and is used by your payment gateway flow.</p>
+            <Input value={listingPrice} onChange={(e) => setListingPrice(e.target.value)} placeholder="Price (ZAR)" />
+            <select
+              value={listingModel}
+              onChange={(e) => setListingModel(e.target.value as "SALE_FULL_RIGHTS" | "LICENSE" | "CO_PRODUCE")}
+              className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-white outline-none focus:border-orange-500"
+            >
+              <option value="SALE_FULL_RIGHTS">Sell full rights</option>
+              <option value="LICENSE">License rights</option>
+              <option value="CO_PRODUCE">Co-produce (retain ownership %)</option>
+            </select>
+            <Input value={listingGenre} onChange={(e) => setListingGenre(e.target.value)} placeholder="Genre / themes category" />
+            <textarea
+              rows={4}
+              value={listingSynopsis}
+              onChange={(e) => setListingSynopsis(e.target.value)}
+              className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-white outline-none focus:border-orange-500"
+              placeholder="Marketplace synopsis / description preview..."
+            />
+            <Input value={listingThemes} onChange={(e) => setListingThemes(e.target.value)} placeholder="Themes (comma separated)" />
+            <Button
+              className="w-full bg-cyan-700 hover:bg-cyan-600 text-white text-xs"
+              disabled={!selected?.id || listToMarketplaceMutation.isPending || dirty}
+              onClick={() => selected?.id && listToMarketplaceMutation.mutate(selected.id)}
+              title={dirty ? "Save this script first before listing it." : undefined}
+            >
+              {listToMarketplaceMutation.isPending ? "Listing…" : "List this script on marketplace"}
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full border-slate-600 text-slate-100 text-xs"
+              onClick={() => router.push("/creator/ip-marketplace")}
+            >
+              View the script marketplace
+            </Button>
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <Card className="creator-glass-panel border-0 bg-transparent text-slate-50 shadow-none">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm">Purchased scripts history</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-xs text-slate-300">
+            {((marketplaceData?.purchased as Array<{
+              id: string;
+              amount: number;
+              date: string;
+              ipAsset: { title: string };
+              seller: { name: string | null; professionalName: string | null };
+            }>) ?? []).length === 0 ? (
+              <p className="text-slate-500">No purchased scripts yet.</p>
+            ) : (
+              ((marketplaceData?.purchased as Array<{
+                id: string;
+                amount: number;
+                date: string;
+                ipAsset: { title: string };
+                seller: { name: string | null; professionalName: string | null };
+              }>) ?? []).map((row) => (
+                <div key={row.id} className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">
+                  <p className="font-medium text-slate-100">{row.ipAsset.title}</p>
+                  <p className="text-[11px] text-slate-500">
+                    {formatZar(row.amount)} · from {row.seller.professionalName || row.seller.name || "Creator"} ·{" "}
+                    {new Date(row.date).toLocaleDateString()}
+                  </p>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="creator-glass-panel border-0 bg-transparent text-slate-50 shadow-none">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm">Sold scripts history</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-xs text-slate-300">
+            {((marketplaceData?.sold as Array<{
+              id: string;
+              amount: number;
+              date: string;
+              ipAsset: { title: string };
+              buyer: { name: string | null; professionalName: string | null };
+            }>) ?? []).length === 0 ? (
+              <p className="text-slate-500">No sold scripts yet.</p>
+            ) : (
+              ((marketplaceData?.sold as Array<{
+                id: string;
+                amount: number;
+                date: string;
+                ipAsset: { title: string };
+                buyer: { name: string | null; professionalName: string | null };
+              }>) ?? []).map((row) => (
+                <div key={row.id} className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">
+                  <p className="font-medium text-slate-100">{row.ipAsset.title}</p>
+                  <p className="text-[11px] text-slate-500">
+                    {formatZar(row.amount)} · to {row.buyer.professionalName || row.buyer.name || "Creator"} ·{" "}
+                    {new Date(row.date).toLocaleDateString()}
+                  </p>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+      </section>
 
       {modoc && draft && modocScriptOpen && (
         <ModocFieldPopover
@@ -7789,6 +8011,18 @@ function FundingHubWorkspace({
       }>),
     [data?.opportunities],
   );
+  const funderDirectory = (data?.funderDirectory ?? []) as Array<{
+    id: string;
+    verificationStatus: "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
+    user: { id: string; name?: string | null; professionalName?: string | null; headline?: string | null };
+  }>;
+  const marketplaceOpportunities = (data?.marketplaceOpportunities ?? []) as Array<{
+    id: string;
+    title: string;
+    marketCategory: string;
+    fundingTarget: number;
+    status: string;
+  }>;
   const applications = (data?.applications ?? []) as Array<{
     id: string;
     opportunityId: string;
@@ -7855,6 +8089,8 @@ function FundingHubWorkspace({
   const [selectedOpportunityId, setSelectedOpportunityId] = useState("");
   const [requestedAmount, setRequestedAmount] = useState("");
   const [applicationNotes, setApplicationNotes] = useState("");
+  const [selectedFunderUserId, setSelectedFunderUserId] = useState("");
+  const [targetedFunderMessage, setTargetedFunderMessage] = useState("");
   const [sourceName, setSourceName] = useState("");
   const [sourceType, setSourceType] = useState<"INSTITUTIONAL" | "PRIVATE" | "INTERNAL_STORYTIME">(
     "PRIVATE",
@@ -7967,6 +8203,51 @@ function FundingHubWorkspace({
       setSourcePaymentSchedule("");
       setSourceConditions("");
       setHubMessage("Funding source recorded.");
+    },
+  });
+  const sendToFunderMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedFunderUserId) throw new Error("Select a funder");
+      const res = await fetch(`/api/creator/projects/${projectId}/funders`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          funderUserId: selectedFunderUserId,
+          message: targetedFunderMessage || "Creator submitted this project from Funding Hub.",
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to send project to funder");
+      return res.json();
+    },
+    onSuccess: () => {
+      setTargetedFunderMessage("");
+      setHubMessage("Project shared with selected funder.");
+      queryClient.invalidateQueries({ queryKey: ["project-funding", projectId] });
+    },
+  });
+  const publishOpportunityMutation = useMutation({
+    mutationFn: async () => {
+      const target = Number(requestedAmount || amount || "0");
+      const res = await fetch("/api/funders/opportunities", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId,
+          type: "FILM_PROJECT",
+          marketCategory: "FILM_PROJECT",
+          title: `${title} funding round`,
+          description: applicationNotes || details || "Funding opportunity published from Creator Funding Hub.",
+          fundingTarget: target > 0 ? target : 1,
+          equityOfferedPct: null,
+          revenueModel: null,
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to publish listing");
+      return res.json();
+    },
+    onSuccess: () => {
+      setHubMessage("Opportunity published to funder marketplace.");
+      queryClient.invalidateQueries({ queryKey: ["project-funding", projectId] });
     },
   });
   const addAllocationMutation = useMutation({
@@ -8324,6 +8605,54 @@ function FundingHubWorkspace({
                     </div>
                   ))
                 )}
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-slate-900/50 p-3 space-y-2">
+                <p className="text-xs font-semibold text-white">Direct funder targeting</p>
+                <p className="text-[11px] text-slate-400">
+                  Send this full project dossier (script, budget, cast/team, and production planning data) to a selected funder.
+                </p>
+                <div className="grid gap-2 md:grid-cols-[1fr_1fr_auto]">
+                  <select
+                    value={selectedFunderUserId}
+                    onChange={(e) => setSelectedFunderUserId(e.target.value)}
+                    className="h-10 rounded-md bg-slate-900 border border-slate-700 px-3 text-xs text-white"
+                  >
+                    <option value="">Select funder</option>
+                    {funderDirectory.map((f) => (
+                      <option key={f.user.id} value={f.user.id}>
+                        {(f.user.professionalName || f.user.name || "Funder").trim()} ({f.verificationStatus})
+                      </option>
+                    ))}
+                  </select>
+                  <Input
+                    value={targetedFunderMessage}
+                    onChange={(e) => setTargetedFunderMessage(e.target.value)}
+                    placeholder="Why this funder is a strong fit..."
+                    className="bg-slate-900 border-slate-700 text-xs"
+                  />
+                  <Button
+                    size="sm"
+                    className="bg-orange-500 hover:bg-orange-600 text-xs"
+                    disabled={sendToFunderMutation.isPending || !selectedFunderUserId}
+                    onClick={() => sendToFunderMutation.mutate()}
+                  >
+                    Send to funder
+                  </Button>
+                </div>
+                {marketplaceOpportunities.length > 0 ? (
+                  <p className="text-[11px] text-slate-500">
+                    Live marketplace listings: {marketplaceOpportunities.length} active across project/script/company funding markets.
+                  </p>
+                ) : null}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-slate-700 text-xs"
+                  onClick={() => publishOpportunityMutation.mutate()}
+                  disabled={publishOpportunityMutation.isPending}
+                >
+                  Publish this project to marketplace
+                </Button>
               </div>
             </CardContent>
           </Card>

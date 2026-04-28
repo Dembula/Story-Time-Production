@@ -52,6 +52,8 @@ export function LicenseClient() {
   const queryClient = useQueryClient();
   const [type, setType] = useState<"YEARLY" | "PER_UPLOAD">("YEARLY");
   const [expanded, setExpanded] = useState<string | null>("YEARLY");
+  const [promoCode, setPromoCode] = useState("");
+  const [promoMessage, setPromoMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -59,12 +61,13 @@ export function LicenseClient() {
 
   async function submit() {
     setError("");
+    setPromoMessage("");
     setLoading(true);
     try {
       const res = await fetch("/api/creator/distribution-license", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type }),
+        body: JSON.stringify({ type, promoCode }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -72,6 +75,9 @@ export function LicenseClient() {
       }
       if (data?.requiresPayment && data?.payment) {
         throw new Error("Payments are currently disabled on this platform.");
+      }
+      if (data?.pricing?.promoCode) {
+        setPromoMessage(`Promo ${data.pricing.promoCode} applied. Discount ${formatZar(data.pricing.discountAmount || 0)}.`);
       }
       queryClient.setQueryData([...CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY], {
         license: data.license ?? null,
@@ -240,6 +246,22 @@ export function LicenseClient() {
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="storytime-section p-6">
+        <p className="text-sm font-medium text-slate-300">Promo code</p>
+        <p className="mt-2 text-sm text-slate-400">
+          Enter a music creator promo code for discounted or sponsored access.
+        </p>
+        <div className="mt-4">
+          <input
+            value={promoCode}
+            onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+            placeholder="e.g. MUSICFREEYEAR"
+            className="w-full px-3 py-2 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm"
+          />
+        </div>
+        {promoMessage ? <p className="mt-3 text-xs text-emerald-400">{promoMessage}</p> : null}
       </div>
 
       {error && (

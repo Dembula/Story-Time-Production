@@ -1,8 +1,12 @@
 /** Best-effort absolute base for emails (no trailing slash). */
 export function getAppBaseUrl(): string {
-  const u = process.env.NEXTAUTH_URL?.replace(/\/$/, "");
-  if (u) return u;
+  const explicit =
+    process.env.NEXT_PUBLIC_BASE_URL?.replace(/\/$/, "") ||
+    process.env.APP_URL?.replace(/\/$/, "") ||
+    process.env.NEXTAUTH_URL?.replace(/\/$/, "");
+  if (explicit) return explicit;
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL.replace(/\/$/, "")}`;
+  if (process.env.NODE_ENV === "production") return "https://story-time.online";
   return "";
 }
 

@@ -12,7 +12,7 @@ import {
 } from "@/lib/prisma-missing-table";
 import { ensureUserRole } from "@/lib/user-roles";
 
-const CREATOR_TYPES = ["content", "music", "equipment", "location", "crew", "casting", "catering"] as const;
+const CREATOR_TYPES = ["content", "music", "equipment", "location", "crew", "casting", "catering", "funder"] as const;
 const ROLE_MAP: Record<string, string> = {
   music: "MUSIC_CREATOR",
   equipment: "EQUIPMENT_COMPANY",
@@ -21,6 +21,7 @@ const ROLE_MAP: Record<string, string> = {
   crew: "CREW_TEAM",
   casting: "CASTING_AGENCY",
   catering: "CATERING_COMPANY",
+  funder: "FUNDER",
 };
 
 export async function POST(request: NextRequest) {

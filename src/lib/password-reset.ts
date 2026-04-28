@@ -2,6 +2,7 @@ import { randomBytes, createHash } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { buildAppUrl } from "@/lib/app-url";
 import { sendPasswordResetEmail } from "@/lib/sendgrid";
+import { logPasswordResetAudit } from "@/lib/password-reset-audit";
 
 const RESET_TOKEN_TTL_MS = 1000 * 60 * 60;
 
@@ -15,18 +16,32 @@ function accountPortalFromRole(role?: string | null): "viewer" | "creator" | "ad
   return "creator";
 }
 
-export async function issuePasswordReset(email: string): Promise<void> {
+export async function issuePasswordReset(email: string, meta?: { ip?: string | null }): Promise<void> {
+  const normalizedEmail = email.toLowerCase();
+  await logPasswordResetAudit({
+    status: "REQUEST_RECEIVED",
+    email: normalizedEmail,
+    ip: meta?.ip ?? null,
+  });
+
   const user = await prisma.user.findUnique({
-    where: { email: email.toLowerCase() },
+    where: { email: normalizedEmail },
     select: { id: true, email: true, role: true },
   });
-  if (!user?.email) return;
+  if (!user?.email) {
+    await logPasswordResetAudit({
+      status: "REQUEST_IGNORED_NO_USER",
+      email: normalizedEmail,
+      ip: meta?.ip ?? null,
+    });
+    return;
+  }
 
   const rawToken = randomBytes(32).toString("hex");
   const token = hashToken(rawToken);
   const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MS);
 
-  await prisma.$transaction([
+  const [, createdToken] = await prisma.$transaction([
     prisma.passwordResetToken.updateMany({
       where: { userId: user.id, used: false },
       data: { used: true },
@@ -39,12 +54,39 @@ export async function issuePasswordReset(email: string): Promise<void> {
       },
     }),
   ]);
+  await logPasswordResetAudit({
+    status: "TOKEN_CREATED",
+    userId: user.id,
+    email: user.email,
+    tokenId: createdToken.id,
+    ip: meta?.ip ?? null,
+  });
 
   const portal = accountPortalFromRole(user.role);
   const resetLink = buildAppUrl(
     `/auth/reset-password?token=${encodeURIComponent(rawToken)}&portal=${encodeURIComponent(portal)}`
   );
-  await sendPasswordResetEmail(user.email, resetLink);
+  try {
+    const mail = await sendPasswordResetEmail(user.email, resetLink);
+    await logPasswordResetAudit({
+      status: "EMAIL_SENT",
+      userId: user.id,
+      email: user.email,
+      tokenId: createdToken.id,
+      messageId: mail.messageId ?? null,
+      ip: meta?.ip ?? null,
+    });
+  } catch (error) {
+    await logPasswordResetAudit({
+      status: "EMAIL_FAILED",
+      userId: user.id,
+      email: user.email,
+      tokenId: createdToken.id,
+      error: error instanceof Error ? error.message : "Unknown email error",
+      ip: meta?.ip ?? null,
+    });
+    throw error;
+  }
 }
 
 export async function consumePasswordResetToken(input: { token: string; newPasswordHash: string }): Promise<boolean> {
@@ -60,7 +102,13 @@ export async function consumePasswordResetToken(input: { token: string; newPassw
     select: { id: true, userId: true },
   });
 
-  if (!reset) return false;
+  if (!reset) {
+    await logPasswordResetAudit({
+      status: "CONFIRM_FAILED_INVALID_OR_EXPIRED",
+      tokenId: tokenHash,
+    });
+    return false;
+  }
 
   await prisma.$transaction([
     prisma.user.update({
@@ -73,5 +121,10 @@ export async function consumePasswordResetToken(input: { token: string; newPassw
     }),
   ]);
 
+  await logPasswordResetAudit({
+    status: "CONFIRM_SUCCESS",
+    userId: reset.userId,
+    tokenId: reset.id,
+  });
   return true;
 }

@@ -26,6 +26,8 @@ const REQUIRED_PRISMA_DELEGATES = [
   "opsIncident",
   "adminAccessApplication",
   "userRole",
+  "promoCode",
+  "promoCodeRedemption",
 ] as const;
 function prismaSingletonIsStale(client: unknown): boolean {
   const c = client as Record<string, unknown>;

@@ -74,7 +74,7 @@ export async function sendWelcomeEmail(
   }
 }
 
-export async function sendPasswordResetEmail(email: string, resetLink: string): Promise<void> {
+export async function sendPasswordResetEmail(email: string, resetLink: string): Promise<{ messageId?: string }> {
   const portalMatch = resetLink.match(/[?&]portal=([^&]+)/i);
   const portalRaw = portalMatch?.[1] ? decodeURIComponent(portalMatch[1]) : "";
   const portal =
@@ -82,18 +82,26 @@ export async function sendPasswordResetEmail(email: string, resetLink: string): 
   const portalLabel = portal === "admin" ? "Admin" : portal === "creator" ? "Creator" : "Viewer";
 
   if (hasSendGridTemplateConfig(PASSWORD_RESET_TEMPLATE_ID)) {
-    await sgMail.send({
-      to: email,
-      from: sgMailFrom(),
-      templateId: PASSWORD_RESET_TEMPLATE_ID,
-      dynamicTemplateData: {
-        email,
-        reset_link: resetLink,
-        portal,
-        portal_label: portalLabel,
-      },
-    });
-    return;
+    try {
+      const [response] = await sgMail.send({
+        to: email,
+        from: sgMailFrom(),
+        templateId: PASSWORD_RESET_TEMPLATE_ID,
+        dynamicTemplateData: {
+          email,
+          reset_link: resetLink,
+          portal,
+          portal_label: portalLabel,
+        },
+      });
+      const messageId =
+        (response?.headers?.["x-message-id"] as string | undefined) ||
+        (response?.headers?.["X-Message-Id"] as string | undefined);
+      return { messageId };
+    } catch (templateError) {
+      // Reset delivery is critical; fall back to transactional email if template send fails.
+      console.error("Password reset template send failed, retrying with transactional fallback:", templateError);
+    }
   }
 
   const sent = await sendTransactionalEmail({
@@ -117,6 +125,7 @@ export async function sendPasswordResetEmail(email: string, resetLink: string): 
   if (!sent) {
     throw new Error("Password reset email could not be sent (no working email transport or SendGrid rejected the request).");
   }
+  return {};
 }
 
 export async function sendMonthlyUpdateEmail(

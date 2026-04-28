@@ -9,6 +9,7 @@ export const CREATOR_ROLES = new Set([
   "CREW_TEAM",
   "CASTING_AGENCY",
   "CATERING_COMPANY",
+  "FUNDER",
 ]);
 
 export async function getUserRoles(userId: string, fallbackRole?: string | null): Promise<Set<string>> {

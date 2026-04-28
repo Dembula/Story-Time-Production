@@ -13,6 +13,8 @@ interface User {
   email: string | null;
   role: string;
   userRoles?: { role: string }[];
+  creatorAccountStructure?: "INDIVIDUAL" | "COMPANY" | null;
+  creatorTeamSeatCap?: number | null;
   bio: string | null;
   isAfdaStudent: boolean;
   createdAt: string;
@@ -50,6 +52,11 @@ export function AdminUsersClient() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editRole, setEditRole] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editPassword, setEditPassword] = useState("");
+  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
+  const [creatorAccountStructure, setCreatorAccountStructure] = useState<"INDIVIDUAL" | "COMPANY">("INDIVIDUAL");
+  const [creatorTeamSeatCap, setCreatorTeamSeatCap] = useState("1");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
@@ -57,7 +64,7 @@ export function AdminUsersClient() {
     fetch("/api/admin/users").then((r) => r.json()).then(setUsers).finally(() => setLoading(false));
   }, []);
 
-  async function handleAction(userId: string, action: string, data?: Record<string, string>) {
+  async function handleAction(userId: string, action: string, data?: Record<string, unknown>) {
     setActionLoading(userId);
     const res = await fetch("/api/admin/users", {
       method: "PATCH",
@@ -69,8 +76,11 @@ export function AdminUsersClient() {
         setUsers((prev) => prev.filter((u) => u.id !== userId));
         setConfirmDelete(null);
       } else {
-        const updated = await res.json();
-        setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, ...updated } : u)));
+        const updated = await res.json().catch(() => null);
+        if (updated && typeof updated === "object" && "id" in updated) {
+          setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, ...updated } : u)));
+        }
+        if (action === "UPDATE_PASSWORD") setEditPassword("");
       }
     }
     setActionLoading(null);
@@ -120,7 +130,7 @@ export function AdminUsersClient() {
       <div className="space-y-3">
         {filtered.map((u) => (
           <div key={u.id} className="bg-slate-800/50 border border-slate-700/50 rounded-xl overflow-hidden">
-            <div className="p-5 flex items-center gap-4 cursor-pointer hover:bg-slate-800/70 transition" onClick={() => { setExpanded(expanded === u.id ? null : u.id); setEditName(u.name || ""); setEditRole(u.role); }}>
+            <div className="p-5 flex items-center gap-4 cursor-pointer hover:bg-slate-800/70 transition" onClick={() => { setExpanded(expanded === u.id ? null : u.id); setEditName(u.name || ""); setEditRole(u.role); setEditEmail(u.email || ""); setSelectedRoles(getRoleList(u)); setCreatorAccountStructure(u.creatorAccountStructure === "COMPANY" ? "COMPANY" : "INDIVIDUAL"); setCreatorTeamSeatCap(String(u.creatorTeamSeatCap ?? 1)); }}>
               <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-white font-bold text-sm">
                 {(u.name || u.email || "?")[0].toUpperCase()}
               </div>
@@ -185,6 +195,57 @@ export function AdminUsersClient() {
                         <button onClick={() => handleAction(u.id, "CHANGE_ROLE", { newRole: editRole })} disabled={actionLoading === u.id || editRole === u.role} className="px-3 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition disabled:opacity-50">Update</button>
                       </div>
                     </div>
+                    <div>
+                      <label className="block text-xs text-slate-400 mb-1">Email</label>
+                      <div className="flex gap-2">
+                        <input value={editEmail} onChange={(e) => setEditEmail(e.target.value)} className="flex-1 px-3 py-2 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" />
+                        <button onClick={() => handleAction(u.id, "UPDATE_EMAIL", { newEmail: editEmail })} disabled={actionLoading === u.id || editEmail === (u.email || "")} className="px-3 py-2 bg-emerald-500 text-white rounded-lg text-sm hover:bg-emerald-600 transition disabled:opacity-50">Update</button>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-slate-400 mb-1">Reset Password</label>
+                      <div className="flex gap-2">
+                        <input type="password" value={editPassword} onChange={(e) => setEditPassword(e.target.value)} placeholder="New password (min 8 chars)" className="flex-1 px-3 py-2 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" />
+                        <button onClick={() => handleAction(u.id, "UPDATE_PASSWORD", { newPassword: editPassword })} disabled={actionLoading === u.id || editPassword.length < 8} className="px-3 py-2 bg-indigo-500 text-white rounded-lg text-sm hover:bg-indigo-600 transition disabled:opacity-50">Reset</button>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-slate-400 mb-2">Multi-role access</label>
+                      <div className="grid grid-cols-2 gap-2 rounded-lg border border-slate-700/40 p-3 bg-slate-900/40">
+                        {ROLES.map((r) => (
+                          <label key={r} className="flex items-center gap-2 text-xs text-slate-300">
+                            <input
+                              type="checkbox"
+                              checked={selectedRoles.includes(r)}
+                              onChange={(e) => {
+                                setSelectedRoles((prev) => {
+                                  if (e.target.checked) return Array.from(new Set([...prev, r]));
+                                  const next = prev.filter((roleName) => roleName !== r);
+                                  return next.length > 0 ? next : ["SUBSCRIBER"];
+                                });
+                              }}
+                            />
+                            {r.replace(/_/g, " ")}
+                          </label>
+                        ))}
+                      </div>
+                      <button onClick={() => handleAction(u.id, "SET_ROLES", { roles: selectedRoles, newRole: selectedRoles[0] ?? "SUBSCRIBER" })} disabled={actionLoading === u.id || selectedRoles.length === 0} className="mt-2 px-3 py-2 bg-cyan-500 text-white rounded-lg text-sm hover:bg-cyan-600 transition disabled:opacity-50">Save roles</button>
+                    </div>
+                    {(selectedRoles.includes("CONTENT_CREATOR") || selectedRoles.includes("MUSIC_CREATOR")) && (
+                      <div className="rounded-lg border border-slate-700/40 p-3 bg-slate-900/30 space-y-2">
+                        <p className="text-xs text-slate-400">Creator account type</p>
+                        <div className="flex gap-2">
+                          <select value={creatorAccountStructure} onChange={(e) => setCreatorAccountStructure(e.target.value === "COMPANY" ? "COMPANY" : "INDIVIDUAL")} className="flex-1 px-3 py-2 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm">
+                            <option value="INDIVIDUAL">Individual</option>
+                            <option value="COMPANY">Company / team</option>
+                          </select>
+                          {creatorAccountStructure === "COMPANY" ? (
+                            <input value={creatorTeamSeatCap} onChange={(e) => setCreatorTeamSeatCap(e.target.value)} className="w-24 px-3 py-2 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" />
+                          ) : null}
+                        </div>
+                        <button onClick={() => handleAction(u.id, "UPDATE_CREATOR_ACCOUNT_STRUCTURE", { accountStructure: creatorAccountStructure, teamSeatCap: creatorTeamSeatCap })} disabled={actionLoading === u.id} className="px-3 py-2 bg-violet-500 text-white rounded-lg text-sm hover:bg-violet-600 transition disabled:opacity-50">Save creator type</button>
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-3">

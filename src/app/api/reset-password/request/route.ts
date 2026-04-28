@@ -28,7 +28,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Valid email is required." }, { status: 400 });
     }
 
-    await issuePasswordReset(email);
+    await issuePasswordReset(email, {
+      ip: request.headers.get("x-forwarded-for"),
+    });
 
     return NextResponse.json({
       ok: true,
