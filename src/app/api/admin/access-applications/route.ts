@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { ensureUserRole } from "@/lib/user-roles";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -84,7 +85,13 @@ export async function PATCH(req: NextRequest) {
     where: { email: normalizedEmail },
     select: { id: true, role: true },
   });
-  if (existing?.role === "ADMIN") {
+  const existingAdminRole = existing
+    ? await prisma.userRole.findUnique({
+        where: { userId_role: { userId: existing.id, role: "ADMIN" } },
+        select: { userId: true },
+      })
+    : null;
+  if (existingAdminRole) {
     return NextResponse.json({ error: "User is already an admin." }, { status: 409 });
   }
 
@@ -122,6 +129,13 @@ export async function PATCH(req: NextRequest) {
       },
     }),
   ]);
+  const updatedUser = await prisma.user.findUnique({
+    where: { email: normalizedEmail },
+    select: { id: true },
+  });
+  if (updatedUser) {
+    await ensureUserRole(updatedUser.id, "ADMIN");
+  }
 
   const updated = await prisma.adminAccessApplication.findUnique({
     where: { id },

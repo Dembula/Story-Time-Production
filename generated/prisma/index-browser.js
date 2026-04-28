@@ -184,6 +184,13 @@ exports.Prisma.UserScalarFieldEnum = {
   updatedAt: 'updatedAt'
 };
 
+exports.Prisma.UserRoleScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  role: 'role',
+  createdAt: 'createdAt'
+};
+
 exports.Prisma.StudioCompanyScalarFieldEnum = {
   id: 'id',
   ownerUserId: 'ownerUserId',
@@ -516,6 +523,11 @@ exports.Prisma.OriginalPitchScalarFieldEnum = {
   intendedRelease: 'intendedRelease',
   keyCastCrew: 'keyCastCrew',
   financingStatus: 'financingStatus',
+  reviewRubric: 'reviewRubric',
+  reviewReasonCodes: 'reviewReasonCodes',
+  reviewWeightedScore: 'reviewWeightedScore',
+  submissionTimeline: 'submissionTimeline',
+  resubmissionCount: 'resubmissionCount',
   status: 'status',
   adminNote: 'adminNote',
   createdAt: 'createdAt',
@@ -1810,6 +1822,7 @@ exports.Prisma.ModelName = {
   Session: 'Session',
   VerificationToken: 'VerificationToken',
   User: 'User',
+  UserRole: 'UserRole',
   StudioCompany: 'StudioCompany',
   CreatorStudioProfile: 'CreatorStudioProfile',
   CreatorStudioTeamInvite: 'CreatorStudioTeamInvite',

@@ -206,6 +206,19 @@ model User {
   // Admin audit logs for privileged actions
   adminAuditLogs        AdminAuditLog[]
   passwordResetTokens   PasswordResetToken[]
+  userRoles             UserRole[]
+}
+
+model UserRole {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, role])
+  @@index([role])
+  @@index([userId])
 }
 
 /// Film / music studio company (multi-seat). Owner is the registering admin.
@@ -776,6 +789,14 @@ model OriginalPitch {
   intendedRelease   String?
   keyCastCrew       String?
   financingStatus  String?
+  /// Review rubric snapshot: { story, marketability, feasibility, teamReadiness, weightedScore }
+  reviewRubric     Json?
+  /// CSV of canonical reason codes used when status is DECLINED / CHANGES_REQUESTED.
+  reviewReasonCodes String?
+  reviewWeightedScore Float?
+  /// Chronological events: SUBMITTED, REVIEWED, RESUBMITTED
+  submissionTimeline Json?
+  resubmissionCount  Int      @default(0)
   status            String   @default("SUBMITTED")
   adminNote         String?
   createdAt         DateTime @default(now())

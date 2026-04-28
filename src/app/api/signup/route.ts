@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { hashPassword, validateEmail, validatePassword } from "@/lib/auth-utils";
 import { sendWelcomeEmail } from "@/lib/sendgrid";
+import { ensureUserRole } from "@/lib/user-roles";
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,16 +18,34 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Password must be at least 8 characters." }, { status: 400 });
     }
 
-    const passwordHash = await hashPassword(password);
-    const user = await db.user.create({
-      data: {
-        email,
-        name,
-        passwordHash,
-        role: "SUBSCRIBER",
-      },
-      select: { id: true, email: true, name: true },
+    const existing = await db.user.findUnique({
+      where: { email },
+      select: { id: true, passwordHash: true },
     });
+    let user: { id: string; email: string | null; name: string | null };
+    if (existing) {
+      if (existing.passwordHash) {
+        return NextResponse.json({ error: "Email already exists." }, { status: 409 });
+      }
+      const passwordHash = await hashPassword(password);
+      user = await db.user.update({
+        where: { id: existing.id },
+        data: { passwordHash },
+        select: { id: true, email: true, name: true },
+      });
+    } else {
+      const passwordHash = await hashPassword(password);
+      user = await db.user.create({
+        data: {
+          email,
+          name,
+          passwordHash,
+          role: "SUBSCRIBER",
+        },
+        select: { id: true, email: true, name: true },
+      });
+    }
+    await ensureUserRole(user.id, "SUBSCRIBER");
 
     try {
       await sendWelcomeEmail(user.email || email, user.name, { role: "SUBSCRIBER", registrationType: "viewer_signup" });

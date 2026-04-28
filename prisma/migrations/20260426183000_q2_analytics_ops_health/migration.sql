@@ -1,6 +1,6 @@
 -- Q2 roadmap: product analytics events + daily rollups + ops incidents (no PSP).
 
-CREATE TABLE "analytics_events" (
+CREATE TABLE IF NOT EXISTS "analytics_events" (
     "id" TEXT NOT NULL,
     "userId" TEXT,
     "role" TEXT,
@@ -13,10 +13,10 @@ CREATE TABLE "analytics_events" (
     CONSTRAINT "analytics_events_pkey" PRIMARY KEY ("id")
 );
 
-CREATE INDEX "analytics_events_createdAt_idx" ON "analytics_events"("createdAt");
-CREATE INDEX "analytics_events_name_createdAt_idx" ON "analytics_events"("name", "createdAt");
+CREATE INDEX IF NOT EXISTS "analytics_events_createdAt_idx" ON "analytics_events"("createdAt");
+CREATE INDEX IF NOT EXISTS "analytics_events_name_createdAt_idx" ON "analytics_events"("name", "createdAt");
 
-CREATE TABLE "analytics_daily_rollups" (
+CREATE TABLE IF NOT EXISTS "analytics_daily_rollups" (
     "id" TEXT NOT NULL,
     "day" TEXT NOT NULL,
     "name" TEXT NOT NULL,
@@ -26,9 +26,9 @@ CREATE TABLE "analytics_daily_rollups" (
     CONSTRAINT "analytics_daily_rollups_pkey" PRIMARY KEY ("id")
 );
 
-CREATE UNIQUE INDEX "analytics_daily_rollups_day_name_key" ON "analytics_daily_rollups"("day", "name");
+CREATE UNIQUE INDEX IF NOT EXISTS "analytics_daily_rollups_day_name_key" ON "analytics_daily_rollups"("day", "name");
 
-CREATE TABLE "ops_incidents" (
+CREATE TABLE IF NOT EXISTS "ops_incidents" (
     "id" TEXT NOT NULL,
     "kind" TEXT NOT NULL,
     "severity" TEXT NOT NULL DEFAULT 'warning',
@@ -40,5 +40,5 @@ CREATE TABLE "ops_incidents" (
     CONSTRAINT "ops_incidents_pkey" PRIMARY KEY ("id")
 );
 
-CREATE INDEX "ops_incidents_createdAt_idx" ON "ops_incidents"("createdAt");
-CREATE INDEX "ops_incidents_kind_idx" ON "ops_incidents"("kind");
+CREATE INDEX IF NOT EXISTS "ops_incidents_createdAt_idx" ON "ops_incidents"("createdAt");
+CREATE INDEX IF NOT EXISTS "ops_incidents_kind_idx" ON "ops_incidents"("kind");

@@ -1,5 +1,5 @@
 -- CreateTable
-CREATE TABLE "AdminAccessApplication" (
+CREATE TABLE IF NOT EXISTS "AdminAccessApplication" (
     "id" TEXT NOT NULL,
     "email" TEXT NOT NULL,
     "name" TEXT,
@@ -14,10 +14,17 @@ CREATE TABLE "AdminAccessApplication" (
 );
 
 -- CreateIndex
-CREATE INDEX "AdminAccessApplication_email_idx" ON "AdminAccessApplication"("email");
+CREATE INDEX IF NOT EXISTS "AdminAccessApplication_email_idx" ON "AdminAccessApplication"("email");
 
 -- CreateIndex
-CREATE INDEX "AdminAccessApplication_status_idx" ON "AdminAccessApplication"("status");
+CREATE INDEX IF NOT EXISTS "AdminAccessApplication_status_idx" ON "AdminAccessApplication"("status");
 
 -- AddForeignKey
-ALTER TABLE "AdminAccessApplication" ADD CONSTRAINT "AdminAccessApplication_reviewedById_fkey" FOREIGN KEY ("reviewedById") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'AdminAccessApplication_reviewedById_fkey'
+  ) THEN
+    ALTER TABLE "AdminAccessApplication" ADD CONSTRAINT "AdminAccessApplication_reviewedById_fkey" FOREIGN KEY ("reviewedById") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;

@@ -7,6 +7,49 @@ import { notifyUser } from "@/lib/notify-user";
 import { buildAppUrl } from "@/lib/app-url";
 import { validateStorageUrlField } from "@/lib/storage-origin";
 
+const REVIEW_REASON_CODES = [
+  "STORY_CLARITY",
+  "CHARACTER_DEPTH",
+  "MARKET_POSITIONING",
+  "AUDIENCE_FIT",
+  "BUDGET_REALISM",
+  "PRODUCTION_FEASIBILITY",
+  "TEAM_EXPERIENCE",
+  "PACKAGE_INCOMPLETE",
+  "LEGAL_RIGHTS_UNCLEAR",
+  "BRAND_SAFETY_CONCERNS",
+] as const;
+
+type ReviewRubricInput = {
+  story: number;
+  marketability: number;
+  feasibility: number;
+  teamReadiness: number;
+};
+
+function parseRubric(raw: unknown): ReviewRubricInput | null {
+  if (!raw || typeof raw !== "object") return null;
+  const obj = raw as Record<string, unknown>;
+  const rubric: ReviewRubricInput = {
+    story: Number(obj.story),
+    marketability: Number(obj.marketability),
+    feasibility: Number(obj.feasibility),
+    teamReadiness: Number(obj.teamReadiness),
+  };
+  const values = Object.values(rubric);
+  if (values.some((v) => !Number.isFinite(v) || v < 0 || v > 10)) return null;
+  return rubric;
+}
+
+function computeWeightedScore(rubric: ReviewRubricInput): number {
+  const score =
+    rubric.story * 0.4 +
+    rubric.marketability * 0.25 +
+    rubric.feasibility * 0.2 +
+    rubric.teamReadiness * 0.15;
+  return Math.round(score * 10 * 10) / 10;
+}
+
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -149,10 +192,32 @@ export async function POST(req: NextRequest) {
       scriptUrl, scriptProjectId, scriptId, treatmentUrl, lookbookUrl,
       budgetEst, targetAudience, references,
       directorStatement, productionCompany, previousWorkSummary,
-      intendedRelease, keyCastCrew, financingStatus,
+      intendedRelease, keyCastCrew, financingStatus, pitchId,
     } = body;
-    if (!title?.trim() || !logline?.trim()) {
-      return NextResponse.json({ error: "Title and logline are required" }, { status: 400 });
+    const requiredTextFields = [
+      { key: "title", value: title, label: "Title" },
+      { key: "logline", value: logline, label: "Logline" },
+      { key: "synopsis", value: synopsis, label: "Synopsis" },
+      { key: "genre", value: genre, label: "Genre" },
+      { key: "targetAudience", value: targetAudience, label: "Target audience" },
+      { key: "references", value: references, label: "References" },
+      { key: "directorStatement", value: directorStatement, label: "Director statement" },
+      { key: "productionCompany", value: productionCompany, label: "Production company" },
+      { key: "previousWorkSummary", value: previousWorkSummary, label: "Previous work summary" },
+      { key: "intendedRelease", value: intendedRelease, label: "Intended release" },
+      { key: "keyCastCrew", value: keyCastCrew, label: "Key cast / crew" },
+      { key: "financingStatus", value: financingStatus, label: "Financing status" },
+    ];
+    const missingRequired = requiredTextFields.filter((field) => !field.value?.trim());
+    if (missingRequired.length > 0) {
+      return NextResponse.json(
+        { error: `Missing required fields: ${missingRequired.map((f) => f.label).join(", ")}` },
+        { status: 400 },
+      );
+    }
+    const parsedBudget = Number(budgetEst);
+    if (!Number.isFinite(parsedBudget) || parsedBudget <= 0) {
+      return NextResponse.json({ error: "Estimated budget must be a number greater than 0." }, { status: 400 });
     }
     for (const [field, value] of [
       ["scriptUrl", scriptUrl],
@@ -174,36 +239,129 @@ export async function POST(req: NextRequest) {
       });
       if (script) resolvedScriptProjectId = script.projectId;
     }
-    const pitch = await prisma.originalPitch.create({
-      data: {
-        title: title.trim(),
-        logline: logline.trim(),
-        synopsis: synopsis?.trim() || null,
-        type: type || "Film",
-        genre: genre?.trim() || null,
-        scriptUrl: scriptUrl?.trim() || null,
-        scriptProjectId: resolvedScriptProjectId,
-        scriptId: scriptId?.trim() || null,
-        treatmentUrl: treatmentUrl?.trim() || null,
-        lookbookUrl: lookbookUrl?.trim() || null,
-        budgetEst: budgetEst ? Number(budgetEst) : null,
-        targetAudience: targetAudience?.trim() || null,
-        references: references?.trim() || null,
-        directorStatement: directorStatement?.trim() || null,
-        productionCompany: productionCompany?.trim() || null,
-        previousWorkSummary: previousWorkSummary?.trim() || null,
-        intendedRelease: intendedRelease?.trim() || null,
-        keyCastCrew: keyCastCrew?.trim() || null,
-        financingStatus: financingStatus?.trim() || null,
-        creatorId: session.user.id,
-      },
-    });
+    const timelineEntry = {
+      type: "SUBMITTED",
+      at: new Date().toISOString(),
+      note: "Submission created",
+    } satisfies Prisma.InputJsonValue;
+
+    const currentData = {
+      title: title.trim(),
+      logline: logline.trim(),
+      synopsis: synopsis?.trim() || null,
+      type: type || "Film",
+      genre: genre?.trim() || null,
+      scriptUrl: scriptUrl?.trim() || null,
+      scriptProjectId: resolvedScriptProjectId,
+      scriptId: scriptId?.trim() || null,
+      treatmentUrl: treatmentUrl?.trim() || null,
+      lookbookUrl: lookbookUrl?.trim() || null,
+      budgetEst: parsedBudget,
+      targetAudience: targetAudience?.trim() || null,
+      references: references?.trim() || null,
+      directorStatement: directorStatement?.trim() || null,
+      productionCompany: productionCompany?.trim() || null,
+      previousWorkSummary: previousWorkSummary?.trim() || null,
+      intendedRelease: intendedRelease?.trim() || null,
+      keyCastCrew: keyCastCrew?.trim() || null,
+      financingStatus: financingStatus?.trim() || null,
+    };
+
+    let pitch;
+    if (pitchId?.trim()) {
+      const existing = await prisma.originalPitch.findFirst({
+        where: { id: pitchId.trim(), creatorId: session.user.id },
+        select: { id: true, submissionTimeline: true, resubmissionCount: true },
+      });
+      if (!existing) {
+        return NextResponse.json({ error: "Pitch not found for resubmission." }, { status: 404 });
+      }
+      const previousTimeline = Array.isArray(existing.submissionTimeline)
+        ? (existing.submissionTimeline as Prisma.JsonArray)
+        : [];
+      pitch = await prisma.originalPitch.update({
+        where: { id: existing.id },
+        data: {
+          ...currentData,
+          status: "SUBMITTED",
+          adminNote: null,
+          reviewReasonCodes: null,
+          reviewWeightedScore: null,
+          resubmissionCount: (existing.resubmissionCount ?? 0) + 1,
+          submissionTimeline: [
+            ...previousTimeline,
+            { type: "RESUBMITTED", at: new Date().toISOString(), note: "Creator resubmitted updated materials." },
+          ] as Prisma.InputJsonValue,
+        },
+      });
+    } else {
+      const recentRequested = await prisma.originalPitch.findFirst({
+        where: {
+          creatorId: session.user.id,
+          title: title.trim(),
+          status: { in: ["CHANGES_REQUESTED"] },
+        },
+        orderBy: { updatedAt: "desc" },
+        select: { id: true, submissionTimeline: true, resubmissionCount: true },
+      });
+      if (recentRequested) {
+        const previousTimeline = Array.isArray(recentRequested.submissionTimeline)
+          ? (recentRequested.submissionTimeline as Prisma.JsonArray)
+          : [];
+        pitch = await prisma.originalPitch.update({
+          where: { id: recentRequested.id },
+          data: {
+            ...currentData,
+            status: "SUBMITTED",
+            adminNote: null,
+            reviewReasonCodes: null,
+            reviewWeightedScore: null,
+            resubmissionCount: (recentRequested.resubmissionCount ?? 0) + 1,
+            submissionTimeline: [
+              ...previousTimeline,
+              { type: "RESUBMITTED", at: new Date().toISOString(), note: "Auto-linked resubmission after changes requested." },
+            ] as Prisma.InputJsonValue,
+          },
+        });
+      } else {
+        pitch = await prisma.originalPitch.create({
+          data: {
+            ...currentData,
+            creatorId: session.user.id,
+            submissionTimeline: [timelineEntry] as Prisma.InputJsonValue,
+          },
+        });
+      }
+    }
     return NextResponse.json(pitch);
   }
 
   if (action === "REVIEW_PITCH" && role === "ADMIN") {
-    const { pitchId, status, adminNote, projectId } = body;
+    const { pitchId, status, adminNote, projectId, rubric, reasonCodes } = body;
     const adminId = session.user.id;
+    const parsedRubric = parseRubric(rubric);
+    if (!parsedRubric) {
+      return NextResponse.json(
+        { error: "Rubric is required. Provide story, marketability, feasibility, and teamReadiness scores (0-10)." },
+        { status: 400 },
+      );
+    }
+    const normalizedReasonCodes = Array.isArray(reasonCodes)
+      ? Array.from(
+          new Set(
+            reasonCodes
+              .map((code) => (typeof code === "string" ? code.trim().toUpperCase() : ""))
+              .filter((code): code is string => REVIEW_REASON_CODES.includes(code as (typeof REVIEW_REASON_CODES)[number])),
+          ),
+        )
+      : [];
+    if ((status === "DECLINED" || status === "CHANGES_REQUESTED") && normalizedReasonCodes.length === 0) {
+      return NextResponse.json(
+        { error: "At least one reason code is required for Declined or Changes Requested decisions." },
+        { status: 400 },
+      );
+    }
+    const weightedScore = computeWeightedScore(parsedRubric);
 
     try {
       const result = await prisma.$transaction(async (tx) => {
@@ -251,6 +409,29 @@ export async function POST(req: NextRequest) {
             status,
             adminNote: adminNote || null,
             projectId: resolvedProjectId,
+            reviewRubric: {
+              story: parsedRubric.story,
+              marketability: parsedRubric.marketability,
+              feasibility: parsedRubric.feasibility,
+              teamReadiness: parsedRubric.teamReadiness,
+              weightedScore,
+              updatedAt: new Date().toISOString(),
+            } as Prisma.InputJsonValue,
+            reviewWeightedScore: weightedScore,
+            reviewReasonCodes: normalizedReasonCodes.join(","),
+            submissionTimeline: [
+              ...(Array.isArray(existingPitch.submissionTimeline)
+                ? (existingPitch.submissionTimeline as Prisma.JsonArray)
+                : []),
+              {
+                type: "REVIEWED",
+                at: new Date().toISOString(),
+                status,
+                reasonCodes: normalizedReasonCodes,
+                weightedScore,
+                adminId,
+              },
+            ] as Prisma.InputJsonValue,
           },
           include: {
             creator: { select: { id: true, name: true, email: true } },
@@ -272,9 +453,9 @@ export async function POST(req: NextRequest) {
         CHANGES_REQUESTED: "Changes requested on your Originals pitch",
       };
       const bodies: Record<string, string> = {
-        APPROVED: `"${result.title}" is approved. Your project workspace is ready.`,
-        DECLINED: `"${result.title}" was not approved. See Originals for admin notes.`,
-        CHANGES_REQUESTED: `Please update "${result.title}" and resubmit. See Originals for details.`,
+        APPROVED: `"${result.title}" is approved (score: ${weightedScore}/100). Your project workspace is ready.`,
+        DECLINED: `"${result.title}" was not approved (score: ${weightedScore}/100). See Originals for admin notes and reason codes.`,
+        CHANGES_REQUESTED: `Please update "${result.title}" and resubmit (score: ${weightedScore}/100). See Originals for details and reason codes.`,
       };
       const t = titles[result.status] ?? "Originals pitch updated";
       const b = bodies[result.status] ?? `Your pitch "${result.title}" was updated.`;
@@ -301,6 +482,8 @@ export async function POST(req: NextRequest) {
             status: result.status,
             projectId: result.projectId,
             adminNote: result.adminNote,
+            weightedScore,
+            reasonCodes: normalizedReasonCodes,
           } as Prisma.InputJsonValue,
         },
       });

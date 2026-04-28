@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { ensureUserRole, replaceUserRoles } from "@/lib/user-roles";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -13,6 +14,7 @@ export async function GET() {
     select: {
       id: true, name: true, email: true, role: true, bio: true,
       isAfdaStudent: true, createdAt: true, updatedAt: true,
+      userRoles: { select: { role: true } },
       _count: { select: { contents: true, musicTracks: true, watchSessions: true, comments: true, ratings: true, activityLogs: true, equipmentListings: true, locationListings: true } },
     },
     orderBy: { createdAt: "desc" },
@@ -35,6 +37,11 @@ export async function PATCH(req: NextRequest) {
   if (action === "CHANGE_ROLE" && newRole) {
     const before = await prisma.user.findUnique({ where: { id: userId } });
     const updated = await prisma.user.update({ where: { id: userId }, data: { role: newRole } });
+    await ensureUserRole(userId, newRole);
+    const updatedRoles = await prisma.userRole.findMany({
+      where: { userId },
+      select: { role: true },
+    });
     await prisma.adminAuditLog.create({
       data: {
         adminUserId: adminId,
@@ -42,10 +49,29 @@ export async function PATCH(req: NextRequest) {
         entityType: "User",
         entityId: userId,
         oldValue: before ? { role: before.role } : (Prisma.JsonNull as any),
-        newValue: { role: updated.role },
+        newValue: { role: updated.role, roles: updatedRoles.map((r) => r.role) },
       },
     });
-    return NextResponse.json(updated);
+    return NextResponse.json({ ...updated, userRoles: updatedRoles });
+  }
+
+  if (action === "SET_ROLES" && Array.isArray(body.roles)) {
+    const before = await prisma.user.findUnique({ where: { id: userId } });
+    const finalRoles = await replaceUserRoles(userId, body.roles as string[]);
+    const primaryRole = newRole && finalRoles.includes(newRole) ? newRole : finalRoles[0];
+    const updated = await prisma.user.update({ where: { id: userId }, data: { role: primaryRole } });
+    const updatedRoles = finalRoles.map((roleName) => ({ role: roleName }));
+    await prisma.adminAuditLog.create({
+      data: {
+        adminUserId: adminId,
+        action: "USER_ROLE_SET",
+        entityType: "User",
+        entityId: userId,
+        oldValue: before ? { role: before.role } : (Prisma.JsonNull as any),
+        newValue: { role: updated.role, roles: finalRoles },
+      },
+    });
+    return NextResponse.json({ ...updated, userRoles: updatedRoles });
   }
 
   if (action === "UPDATE_NAME" && newName !== undefined) {

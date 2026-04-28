@@ -12,6 +12,7 @@ interface User {
   name: string | null;
   email: string | null;
   role: string;
+  userRoles?: { role: string }[];
   bio: string | null;
   isAfdaStudent: boolean;
   createdAt: string;
@@ -33,6 +34,12 @@ function roleBadge(role: string) {
     SUBSCRIBER: "bg-slate-700 text-slate-400",
   };
   return <span className={`px-2 py-0.5 rounded text-xs font-medium ${m[role] || m.SUBSCRIBER}`}>{role.replace(/_/g, " ")}</span>;
+}
+
+function getRoleList(user: User): string[] {
+  const roles = user.userRoles?.map((entry) => entry.role).filter(Boolean) ?? [];
+  if (roles.length > 0) return Array.from(new Set(roles));
+  return [user.role];
 }
 
 export function AdminUsersClient() {
@@ -72,11 +79,15 @@ export function AdminUsersClient() {
 
   const filtered = users.filter((u) => {
     const matchesSearch = !search || (u.name?.toLowerCase().includes(search.toLowerCase()) || u.email?.toLowerCase().includes(search.toLowerCase()));
-    const matchesRole = roleFilter === "ALL" || u.role === roleFilter;
+    const userRoles = getRoleList(u);
+    const matchesRole = roleFilter === "ALL" || userRoles.includes(roleFilter);
     return matchesSearch && matchesRole;
   });
 
-  const roleCounts = ROLES.reduce<Record<string, number>>((acc, r) => { acc[r] = users.filter((u) => u.role === r).length; return acc; }, {});
+  const roleCounts = ROLES.reduce<Record<string, number>>((acc, r) => {
+    acc[r] = users.filter((u) => getRoleList(u).includes(r)).length;
+    return acc;
+  }, {});
 
   if (loading) return <div className="flex items-center justify-center min-h-[60vh]"><div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" /></div>;
 
@@ -116,7 +127,9 @@ export function AdminUsersClient() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <p className="text-white font-medium">{u.name || "Unnamed"}</p>
-                  {roleBadge(u.role)}
+                  {getRoleList(u).map((roleName) => (
+                    <span key={roleName}>{roleBadge(roleName)}</span>
+                  ))}
                   {u.isAfdaStudent && <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400"><GraduationCap className="w-3 h-3 inline" /> Student</span>}
                 </div>
                 <p className="text-xs text-slate-500 truncate">{u.email}</p>

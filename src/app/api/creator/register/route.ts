@@ -10,6 +10,7 @@ import {
   isMissingUserCreatorRegistrationColumns,
   MISSING_PRISMA_STUDIO_DELEGATES,
 } from "@/lib/prisma-missing-table";
+import { ensureUserRole } from "@/lib/user-roles";
 
 const CREATOR_TYPES = ["content", "music", "equipment", "location", "crew", "casting", "catering"] as const;
 const ROLE_MAP: Record<string, string> = {
@@ -154,10 +155,8 @@ export async function POST(request: NextRequest) {
 
     const existing = await prisma.user.findUnique({
       where: { email: normalizedEmail },
+      select: { id: true, passwordHash: true, role: true },
     });
-    if (existing) {
-      return NextResponse.json({ error: "An account with this email already exists" }, { status: 409 });
-    }
 
     const passwordHash = await hash(password, 10);
     const role = ROLE_MAP[type] ?? "CONTENT_CREATOR";
@@ -213,26 +212,47 @@ export async function POST(request: NextRequest) {
       persistStudioProfiles: boolean,
     ) => {
       await prisma.$transaction(async (tx) => {
-        const user = await tx.user.create({
-          data: {
-            email: normalizedEmail,
-            name: name?.trim() || null,
-            role,
-            passwordHash,
-            bio: bio?.trim() || null,
-            socialLinks: socialLinks?.trim() || null,
-            education: education?.trim() || null,
-            goals: embedMeta(goals?.trim() || null, goalsMeta),
-            previousWork: previousWork?.trim() || null,
-            isAfdaStudent: Boolean(isAfda),
-            ...(persistStudioColumns
-              ? {
-                  creatorAccountStructure: studioAccountStructure,
-                  creatorTeamSeatCap: studioAccountStructure === "COMPANY" ? studioTeamSeatCap : null,
-                }
-              : {}),
-          },
-        });
+        const user = existing
+          ? await tx.user.update({
+              where: { id: existing.id },
+              data: {
+                name: name?.trim() || null,
+                role,
+                passwordHash: existing.passwordHash ? undefined : passwordHash,
+                bio: bio?.trim() || null,
+                socialLinks: socialLinks?.trim() || null,
+                education: education?.trim() || null,
+                goals: embedMeta(goals?.trim() || null, goalsMeta),
+                previousWork: previousWork?.trim() || null,
+                isAfdaStudent: Boolean(isAfda),
+                ...(persistStudioColumns
+                  ? {
+                      creatorAccountStructure: studioAccountStructure,
+                      creatorTeamSeatCap: studioAccountStructure === "COMPANY" ? studioTeamSeatCap : null,
+                    }
+                  : {}),
+              },
+            })
+          : await tx.user.create({
+              data: {
+                email: normalizedEmail,
+                name: name?.trim() || null,
+                role,
+                passwordHash,
+                bio: bio?.trim() || null,
+                socialLinks: socialLinks?.trim() || null,
+                education: education?.trim() || null,
+                goals: embedMeta(goals?.trim() || null, goalsMeta),
+                previousWork: previousWork?.trim() || null,
+                isAfdaStudent: Boolean(isAfda),
+                ...(persistStudioColumns
+                  ? {
+                      creatorAccountStructure: studioAccountStructure,
+                      creatorTeamSeatCap: studioAccountStructure === "COMPANY" ? studioTeamSeatCap : null,
+                    }
+                  : {}),
+              },
+            });
 
         if (
           persistStudioProfiles &&
@@ -470,6 +490,15 @@ export async function POST(request: NextRequest) {
         throw firstErr;
       }
     }
+
+    const userForRole = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      select: { id: true },
+    });
+    if (!userForRole) {
+      return NextResponse.json({ error: "Registration failed" }, { status: 500 });
+    }
+    await ensureUserRole(userForRole.id, role);
 
     try {
       await sendWelcomeEmail(normalizedEmail, name?.trim() || null, {

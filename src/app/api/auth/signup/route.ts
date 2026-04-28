@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hash } from "bcryptjs";
 import { sendWelcomeEmail } from "@/lib/sendgrid";
+import { ensureUserRole } from "@/lib/user-roles";
 
 /**
  * POST /api/auth/signup — Create a new viewer (subscriber) account.
@@ -30,12 +31,22 @@ export async function POST(request: NextRequest) {
 
     const existing = await prisma.user.findUnique({
       where: { email: normalizedEmail },
+      select: { id: true, passwordHash: true, role: true },
     });
     if (existing) {
-      return NextResponse.json(
-        { error: "An account with this email already exists" },
-        { status: 409 }
-      );
+      if (existing.passwordHash) {
+        return NextResponse.json(
+          { error: "An account with this email already exists" },
+          { status: 409 }
+        );
+      }
+      const passwordHash = await hash(password, 10);
+      await prisma.user.update({
+        where: { id: existing.id },
+        data: { passwordHash },
+      });
+      await ensureUserRole(existing.id, "SUBSCRIBER");
+      return NextResponse.json({ ok: true }, { status: 200 });
     }
 
     const passwordHash = await hash(password, 10);
@@ -49,6 +60,7 @@ export async function POST(request: NextRequest) {
       },
       select: { id: true, email: true, name: true },
     });
+    await ensureUserRole(user.id, "SUBSCRIBER");
 
     try {
       if (user.email) {

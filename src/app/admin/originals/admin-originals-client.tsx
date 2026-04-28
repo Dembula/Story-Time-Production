@@ -46,6 +46,24 @@ interface Pitch {
   financingStatus: string | null;
   status: string;
   adminNote: string | null;
+  reviewReasonCodes: string | null;
+  reviewWeightedScore: number | null;
+  reviewRubric: {
+    story?: number;
+    marketability?: number;
+    feasibility?: number;
+    teamReadiness?: number;
+    weightedScore?: number;
+  } | null;
+  submissionTimeline: Array<{
+    type: string;
+    at: string;
+    status?: string;
+    note?: string;
+    reasonCodes?: string[];
+    weightedScore?: number;
+  }> | null;
+  resubmissionCount: number;
   createdAt: string;
   creator: { id: string; name: string | null; email: string | null };
   project: { id: string; title: string } | null;
@@ -82,6 +100,19 @@ const PITCH_STATUS: Record<string, string> = {
   DECLINED: "Declined",
 };
 
+const REVIEW_REASON_CODES = [
+  { code: "STORY_CLARITY", label: "Story clarity issues" },
+  { code: "CHARACTER_DEPTH", label: "Character depth is weak" },
+  { code: "MARKET_POSITIONING", label: "Market positioning unclear" },
+  { code: "AUDIENCE_FIT", label: "Audience fit concerns" },
+  { code: "BUDGET_REALISM", label: "Budget realism concerns" },
+  { code: "PRODUCTION_FEASIBILITY", label: "Production feasibility risk" },
+  { code: "TEAM_EXPERIENCE", label: "Team readiness/experience gap" },
+  { code: "PACKAGE_INCOMPLETE", label: "Submission package incomplete" },
+  { code: "LEGAL_RIGHTS_UNCLEAR", label: "Rights/legal unclear" },
+  { code: "BRAND_SAFETY_CONCERNS", label: "Brand safety concerns" },
+] as const;
+
 const PITCH_STATUS_STYLE: Record<string, string> = {
   SUBMITTED: "bg-blue-500/10 text-blue-400 border-blue-500/30",
   UNDER_REVIEW: "bg-amber-500/10 text-amber-400 border-amber-500/30",
@@ -99,6 +130,10 @@ export function AdminOriginalsClient() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [reviewNote, setReviewNote] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [rubric, setRubric] = useState({ story: 7, marketability: 7, feasibility: 7, teamReadiness: 7 });
+  const [reasonCodes, setReasonCodes] = useState<string[]>([]);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
 
   useEffect(() => {
     Promise.all([
@@ -120,17 +155,22 @@ export function AdminOriginalsClient() {
   }, []);
 
   async function reviewPitch(pitchId: string, status: string) {
+    if ((status === "DECLINED" || status === "CHANGES_REQUESTED") && reasonCodes.length === 0) {
+      window.alert("Select at least one reason code for Decline or Changes Requested.");
+      return;
+    }
     setActionLoading(pitchId);
     try {
       const res = await fetch("/api/originals", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "REVIEW_PITCH", pitchId, status, adminNote: reviewNote }),
+        body: JSON.stringify({ action: "REVIEW_PITCH", pitchId, status, adminNote: reviewNote, rubric, reasonCodes }),
       });
       if (res.ok) {
         const updated = (await res.json()) as Pitch;
         setPitches((prev) => prev.map((p) => (p.id === pitchId ? { ...p, ...updated } : p)));
         setReviewNote("");
+        setReasonCodes([]);
         if (status === "APPROVED" && updated.project) {
           const approvedProject = updated.project;
           setProjects((prev) => {
@@ -181,6 +221,18 @@ export function AdminOriginalsClient() {
     ...pitches.map((p) => p.creator.id),
     ...ideas.map((i) => i.user?.id).filter(Boolean) as string[],
   ]);
+  const filteredPitches = pitches.filter((p) => {
+    const matchesStatus = statusFilter === "ALL" || p.status === statusFilter;
+    const q = search.trim().toLowerCase();
+    const matchesSearch =
+      !q ||
+      p.title.toLowerCase().includes(q) ||
+      (p.logline ?? "").toLowerCase().includes(q) ||
+      (p.creator.name ?? "").toLowerCase().includes(q) ||
+      (p.creator.email ?? "").toLowerCase().includes(q);
+    return matchesStatus && matchesSearch;
+  });
+  const weightedScorePreview = Math.round((rubric.story * 0.4 + rubric.marketability * 0.25 + rubric.feasibility * 0.2 + rubric.teamReadiness * 0.15) * 10 * 10) / 10;
 
   if (loading) {
     return (
@@ -207,7 +259,7 @@ export function AdminOriginalsClient() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-6">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-6">
           <div className="rounded-xl bg-slate-800/60 border border-slate-700/50 p-4">
             <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">Pending requests</p>
             <p className="text-2xl font-bold text-amber-400 mt-0.5">{pendingCount}</p>
@@ -219,6 +271,10 @@ export function AdminOriginalsClient() {
           <div className="rounded-xl bg-slate-800/60 border border-slate-700/50 p-4">
             <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">Approved / Active</p>
             <p className="text-2xl font-bold text-emerald-400 mt-0.5">{projects.length}</p>
+          </div>
+          <div className="rounded-xl bg-slate-800/60 border border-slate-700/50 p-4">
+            <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">Approved submissions</p>
+            <p className="text-2xl font-bold text-emerald-300 mt-0.5">{approvedCount}</p>
           </div>
           <div className="rounded-xl bg-slate-800/60 border border-slate-700/50 p-4">
             <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">Creators engaged</p>
@@ -268,14 +324,33 @@ export function AdminOriginalsClient() {
             <Clapperboard className="w-4 h-4 text-orange-400" />
             Full submissions from creators via <strong className="text-slate-400">Creator → Originals → Submit an Original</strong>. Each includes script (link or platform script), synopsis, and full package. Approve to create a shared Original and link the creator to the collaboration workspace.
           </p>
-          {pitches.length === 0 ? (
+          <div className="rounded-xl border border-slate-700/50 bg-slate-800/30 p-4 flex flex-wrap gap-3 items-center">
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search title, creator, email, or logline..."
+              className="min-w-[260px] flex-1 px-3 py-2 bg-slate-900/70 border border-slate-600 rounded-lg text-sm text-white placeholder-slate-500"
+            />
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-3 py-2 bg-slate-900/70 border border-slate-600 rounded-lg text-sm text-white"
+            >
+              <option value="ALL">All statuses</option>
+              {Object.keys(PITCH_STATUS).map((status) => (
+                <option key={status} value={status}>{PITCH_STATUS[status]}</option>
+              ))}
+            </select>
+            <span className="text-xs text-slate-500">{filteredPitches.length} result(s)</span>
+          </div>
+          {filteredPitches.length === 0 ? (
             <div className="rounded-2xl border border-slate-700/50 bg-slate-800/30 p-12 text-center">
               <Clapperboard className="w-12 h-12 text-slate-600 mx-auto mb-3" />
               <p className="text-slate-400">No Originals requests yet.</p>
               <p className="text-slate-500 text-sm mt-1">When creators submit an Original, they will appear here.</p>
             </div>
           ) : (
-            pitches.map((p) => (
+            filteredPitches.map((p) => (
               <div key={p.id} className="rounded-2xl border border-slate-700/50 bg-slate-800/40 overflow-hidden">
                 <button
                   type="button"
@@ -307,6 +382,29 @@ export function AdminOriginalsClient() {
 
                 {expanded === p.id && (
                   <div className="border-t border-slate-700/50 p-6 bg-slate-900/40 space-y-6">
+                    <div className="rounded-xl border border-slate-700/50 bg-slate-800/40 p-4">
+                      <h4 className="text-sm font-semibold text-white mb-3">Submission completeness checklist</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                        {([
+                          ["Script", !!(p.scriptUrl || p.scriptId || p.scriptProjectId)],
+                          ["Synopsis", !!p.synopsis],
+                          ["Genre", !!p.genre],
+                          ["Target audience", !!p.targetAudience],
+                          ["References", !!p.references],
+                          ["Director statement", !!p.directorStatement],
+                          ["Production company", !!p.productionCompany],
+                          ["Previous work", !!p.previousWorkSummary],
+                          ["Intended release", !!p.intendedRelease],
+                          ["Key cast/crew", !!p.keyCastCrew],
+                          ["Financing status", !!p.financingStatus],
+                          ["Budget estimate", p.budgetEst != null && Number(p.budgetEst) > 0],
+                        ] as Array<[string, boolean]>).map(([label, ok]) => (
+                          <div key={label} className={`rounded-md px-2 py-1 border ${ok ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-red-500/30 bg-red-500/10 text-red-300"}`}>
+                            {ok ? "Complete" : "Missing"} - {label}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                     {p.synopsis && (
                       <div>
                         <h4 className="text-sm font-semibold text-white mb-2">Synopsis</h4>
@@ -353,6 +451,86 @@ export function AdminOriginalsClient() {
                       <div className="p-3 rounded-xl bg-orange-500/5 border border-orange-500/20">
                         <p className="text-xs font-semibold text-orange-400">Admin note (visible to creator)</p>
                         <p className="text-sm text-slate-400 mt-0.5">{p.adminNote}</p>
+                      </div>
+                    )}
+
+                    <div className="rounded-xl border border-slate-700/50 bg-slate-800/40 p-4 space-y-3">
+                      <h4 className="text-sm font-semibold text-white">Admin scoring rubric</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {[
+                          ["story", "Story (40%)"],
+                          ["marketability", "Marketability (25%)"],
+                          ["feasibility", "Feasibility (20%)"],
+                          ["teamReadiness", "Team readiness (15%)"],
+                        ].map(([key, label]) => (
+                          <label key={key} className="text-xs text-slate-400">
+                            {label}
+                            <input
+                              type="number"
+                              min={0}
+                              max={10}
+                              step={0.5}
+                              value={rubric[key as keyof typeof rubric]}
+                              onChange={(e) =>
+                                setRubric((prev) => ({
+                                  ...prev,
+                                  [key]: Math.max(0, Math.min(10, Number(e.target.value || 0))),
+                                }))
+                              }
+                              className="mt-1 w-full px-3 py-2 bg-slate-900/70 border border-slate-600 rounded-lg text-sm text-white"
+                            />
+                          </label>
+                        ))}
+                      </div>
+                      <div className="text-sm text-slate-300">
+                        Weighted score preview: <span className="text-orange-400 font-medium">{weightedScorePreview}/100</span>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-slate-700/50 bg-slate-800/40 p-4 space-y-3">
+                      <h4 className="text-sm font-semibold text-white">Reason codes (required for Decline / Changes Requested)</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {REVIEW_REASON_CODES.map((reason) => (
+                          <label key={reason.code} className="text-xs text-slate-300 flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={reasonCodes.includes(reason.code)}
+                              onChange={(e) => {
+                                setReasonCodes((prev) =>
+                                  e.target.checked
+                                    ? [...prev, reason.code]
+                                    : prev.filter((c) => c !== reason.code),
+                                );
+                              }}
+                            />
+                            {reason.label}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    {(p.submissionTimeline?.length ?? 0) > 0 && (
+                      <div className="rounded-xl border border-slate-700/50 bg-slate-800/40 p-4 space-y-3">
+                        <h4 className="text-sm font-semibold text-white">Resubmission & review timeline</h4>
+                        <div className="space-y-2">
+                          {(p.submissionTimeline ?? []).map((event, idx) => (
+                            <div key={`${event.type}-${event.at}-${idx}`} className="text-xs border border-slate-700/60 rounded-md p-2 bg-slate-900/50">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-orange-400 font-medium">{event.type}</span>
+                                <span className="text-slate-500">{new Date(event.at).toLocaleString()}</span>
+                                {event.status && <span className="text-slate-300">status: {event.status}</span>}
+                                {typeof event.weightedScore === "number" && (
+                                  <span className="text-emerald-300">score: {event.weightedScore}/100</span>
+                                )}
+                              </div>
+                              {event.note && <p className="text-slate-400 mt-1">{event.note}</p>}
+                              {Array.isArray(event.reasonCodes) && event.reasonCodes.length > 0 && (
+                                <p className="text-slate-400 mt-1">codes: {event.reasonCodes.join(", ")}</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        <p className="text-xs text-slate-500">Total resubmissions: {p.resubmissionCount ?? 0}</p>
                       </div>
                     )}
 

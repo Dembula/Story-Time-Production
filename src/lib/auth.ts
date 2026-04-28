@@ -8,6 +8,7 @@ import { compare } from "bcryptjs";
 import { prisma } from "./prisma";
 import { findUserActiveStudioProfileId, findUserForCredentialsLogin } from "./prisma-user-studio-compat";
 import { sendWelcomeEmail } from "./sendgrid";
+import { CREATOR_ROLES, VIEWER_ROLES, ensureUserRole, getUserRoles } from "./user-roles";
 
 const DEMO_PASSWORD = process.env.DEMO_PASSWORD || "storytime2025";
 const googleClientId = process.env.GOOGLE_CLIENT_ID?.trim() ?? "";
@@ -54,9 +55,9 @@ export const authOptions: NextAuthOptions = {
         } else {
           if (credentials.password !== DEMO_PASSWORD) return null;
         }
+        const roles = await getUserRoles(user.id, user.role);
         const role = user.role ?? "SUBSCRIBER";
-        const viewerOnlyRoles = new Set(["SUBSCRIBER"]);
-        if (!viewerOnlyRoles.has(role)) return null;
+        if (![...roles].some((userRole) => VIEWER_ROLES.has(userRole))) return null;
         return {
           id: user.id,
           email: user.email!,
@@ -91,17 +92,9 @@ export const authOptions: NextAuthOptions = {
         } else {
           if (credentials.password !== DEMO_PASSWORD) return null;
         }
-        const role = user.role ?? "SUBSCRIBER";
-        const creatorRoles = new Set([
-          "CONTENT_CREATOR",
-          "MUSIC_CREATOR",
-          "EQUIPMENT_COMPANY",
-          "LOCATION_OWNER",
-          "CREW_TEAM",
-          "CASTING_AGENCY",
-          "CATERING_COMPANY",
-        ]);
-        if (!creatorRoles.has(role)) return null;
+        const roles = await getUserRoles(user.id, user.role);
+        const role = [...roles].find((userRole) => CREATOR_ROLES.has(userRole)) ?? user.role ?? "SUBSCRIBER";
+        if (!CREATOR_ROLES.has(role)) return null;
         return {
           id: user.id,
           email: user.email!,
@@ -136,8 +129,9 @@ export const authOptions: NextAuthOptions = {
         } else {
           if (credentials.password !== DEMO_PASSWORD) return null;
         }
-        const role = user.role ?? "SUBSCRIBER";
-        if (role !== "ADMIN") return null;
+        const roles = await getUserRoles(user.id, user.role);
+        if (!roles.has("ADMIN")) return null;
+        const role = "ADMIN";
         return {
           id: user.id,
           email: user.email!,
@@ -176,6 +170,7 @@ export const authOptions: NextAuthOptions = {
         select: { role: true, email: true, name: true },
       });
       const role = dbUser?.role ?? "SUBSCRIBER";
+      await ensureUserRole(user.id, role);
 
       await prisma.activityLog.create({
         data: {
@@ -222,6 +217,7 @@ export const authOptions: NextAuthOptions = {
             ...(pending.isAfdaStudent != null && { isAfdaStudent: pending.isAfdaStudent }),
           },
         });
+        await ensureUserRole(user.id, role);
         await prisma.pendingCreatorSignup.delete({ where: { id: pending.id } });
         (user as { role?: string }).role = role;
         if (user.email) {
