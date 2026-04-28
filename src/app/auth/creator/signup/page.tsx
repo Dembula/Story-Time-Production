@@ -10,7 +10,7 @@ import { useSearchParams } from "next/navigation";
 function CreatorSignUpPageInner() {
   const [consentReady, setConsentReady] = useState(false);
   const [email, setEmail] = useState("");
-  const [creatorType, setCreatorType] = useState<"content" | "music" | "equipment" | "location" | "crew" | "casting" | "catering" | "">("");
+  const [creatorType, setCreatorType] = useState<"content" | "music" | "equipment" | "location" | "crew" | "casting" | "catering" | "funder" | "">("");
   const [accountStructure, setAccountStructure] = useState<"INDIVIDUAL" | "COMPANY" | "">("COMPANY");
   /** Total seats including the registering admin (1–5). Only used for film/music company accounts. */
   const [teamSeatCap, setTeamSeatCap] = useState(2);
@@ -72,7 +72,7 @@ function CreatorSignUpPageInner() {
     if (next === "content" || next === "music") {
       setAccountStructure("");
       setTeamSeatCap(2);
-    } else if (["equipment", "location", "crew", "casting", "catering"].includes(next)) {
+    } else if (["equipment", "location", "crew", "casting", "catering", "funder"].includes(next)) {
       setAccountStructure("COMPANY");
       setTeamSeatCap(2);
     } else {
@@ -192,6 +192,7 @@ function CreatorSignUpPageInner() {
           crew: "/company/onboarding/subscription",
           casting: "/company/onboarding/subscription",
           catering: "/company/onboarding/subscription",
+          funder: "/funders/verification",
         };
         window.location.href = redirects[type] ?? "/creator/command-center";
       } else {
@@ -277,6 +278,7 @@ function CreatorSignUpPageInner() {
                   <option value="crew">Crew Team</option>
                   <option value="casting">Casting Agency</option>
                   <option value="catering">Catering</option>
+                  <option value="funder">Funder / Investor</option>
                 </select>
               </div>
               {(creatorType === "content" || creatorType === "music") && (
@@ -338,7 +340,7 @@ function CreatorSignUpPageInner() {
                   )}
                 </div>
               )}
-              {["equipment", "location", "crew", "casting", "catering"].includes(creatorType) ? (
+              {["equipment", "location", "crew", "casting", "catering", "funder"].includes(creatorType) ? (
                 <div>
                   <label className="mb-2 block text-sm font-medium text-slate-700">Account setup</label>
                   <div className="grid grid-cols-2 gap-2">
@@ -395,7 +397,7 @@ function CreatorSignUpPageInner() {
                 />
                 <p className="mt-1.5 text-xs text-slate-500">At least 8 characters.</p>
               </div>
-              {["equipment", "location", "crew", "casting", "catering"].includes(creatorType) ? (
+              {["equipment", "location", "crew", "casting", "catering", "funder"].includes(creatorType) ? (
                 <>
                   <div>
                     <label className="mb-2 block text-sm font-medium text-slate-700">
@@ -532,7 +534,7 @@ function CreatorSignUpPageInner() {
                   className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-950 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-amber-400 focus:ring-2 focus:ring-amber-200/80"
                 />
               </div>
-              {["equipment", "location", "crew", "casting", "catering"].includes(creatorType) ? (
+              {["equipment", "location", "crew", "casting", "catering", "funder"].includes(creatorType) ? (
                 <>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div>

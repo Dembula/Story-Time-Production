@@ -14,6 +14,31 @@ export default function CreatorSignInPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  async function redirectToRoleHome(defaultPath: string) {
+    try {
+      const sessionRes = await fetch("/api/auth/session", { cache: "no-store" });
+      if (!sessionRes.ok) {
+        window.location.href = defaultPath;
+        return;
+      }
+      const session = (await sessionRes.json()) as { user?: { role?: string } };
+      const role = session?.user?.role;
+      const roleRedirects: Record<string, string> = {
+        CONTENT_CREATOR: "/creator/command-center",
+        MUSIC_CREATOR: "/music-creator/dashboard",
+        EQUIPMENT_COMPANY: "/equipment-company/dashboard",
+        LOCATION_OWNER: "/location-owner/dashboard",
+        CREW_TEAM: "/crew-team/dashboard",
+        CASTING_AGENCY: "/casting-agency/dashboard",
+        CATERING_COMPANY: "/catering-company/dashboard",
+        FUNDER: "/funders",
+      };
+      window.location.href = roleRedirects[role ?? ""] ?? defaultPath;
+    } catch {
+      window.location.href = defaultPath;
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
@@ -22,11 +47,11 @@ export default function CreatorSignInPage() {
       email,
       password,
       redirect: false,
-      callbackUrl: "/creator/command-center",
+      callbackUrl: "/funders",
     });
     setLoading(false);
     if (res?.ok) {
-      window.location.href = "/creator/command-center";
+      await redirectToRoleHome("/funders");
     } else {
       setError("Invalid creator credentials or this account belongs to the viewer portal.");
     }
@@ -119,7 +144,7 @@ export default function CreatorSignInPage() {
               disabled={!hasGoogleProvider}
               onClick={async () => {
                 try {
-                  await signIn("google", { callbackUrl: "/creator/command-center" });
+                  await signIn("google", { callbackUrl: "/funders" });
                 } catch {
                   setError("Google sign-in is currently unavailable. Use creator email/password.");
                 }
@@ -133,7 +158,7 @@ export default function CreatorSignInPage() {
               disabled={!hasGitHubProvider}
               onClick={async () => {
                 try {
-                  await signIn("github", { callbackUrl: "/creator/command-center" });
+                  await signIn("github", { callbackUrl: "/funders" });
                 } catch {
                   setError("GitHub sign-in is currently unavailable. Use creator email/password.");
                 }
