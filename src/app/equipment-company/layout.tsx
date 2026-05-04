@@ -5,6 +5,7 @@ import { signOut } from "next-auth/react";
 import { LogOut } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { NotificationBell } from "@/components/layout/notification-bell";
+import { WalletBalanceChip } from "@/components/layout/wallet-balance-chip";
 
 const navItems = [
   { href: "/equipment-company/dashboard", label: "Dashboard" },
@@ -12,6 +13,7 @@ const navItems = [
   { href: "/equipment-company/listings", label: "My Listings" },
   { href: "/equipment-company/messages", label: "Messages" },
   { href: "/equipment-company/account", label: "Account" },
+  { href: "/equipment-company/wallet", label: "Wallet" },
 ];
 
 export default function EquipmentCompanyLayout({
@@ -36,6 +38,7 @@ export default function EquipmentCompanyLayout({
             <span className="storytime-brand-text">STORY TIME</span> Equipment
           </Link>
           <div className="flex items-center gap-3">
+            <WalletBalanceChip />
             <NotificationBell />
             <button
               onClick={handleSignOut}

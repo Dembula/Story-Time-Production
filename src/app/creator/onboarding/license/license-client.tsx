@@ -23,6 +23,7 @@ import {
 } from "@/lib/pricing";
 import { defaultSuiteAccessOpen } from "@/lib/creator-suite-access";
 import { formatZar } from "@/lib/format-currency-zar";
+import { CheckoutModal } from "@/components/payments/checkout-modal";
 
 type CreatorPackage = "UPLOAD_ONLY" | "PIPELINE";
 type PipelineBilling = "YEARLY" | "MONTHLY";
@@ -53,6 +54,9 @@ export function LicenseClient() {
   const [promoMessage, setPromoMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [checkoutUrl, setCheckoutUrl] = useState("");
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [redirectAfterCheckout, setRedirectAfterCheckout] = useState("/creator/command-center");
 
   const selectedPrice = useMemo(() => {
     if (pkg === "UPLOAD_ONLY") return CREATOR_ONBOARDING_PLANS.UPLOAD_ONLY.price;
@@ -85,8 +89,16 @@ export function LicenseClient() {
       if (!res.ok) {
         throw new Error(data.error || "Failed to save your plan");
       }
-      if (data?.requiresPayment && data?.payment) {
-        throw new Error("Payments are currently disabled on this platform.");
+      if (data?.requiresPayment) {
+        if (typeof data?.checkoutUrl === "string" && data.checkoutUrl) {
+          setCheckoutUrl(data.checkoutUrl);
+          setRedirectAfterCheckout(
+            typeof data?.redirectTo === "string" ? data.redirectTo : "/creator/command-center",
+          );
+          setCheckoutOpen(true);
+          return;
+        }
+        throw new Error("Unable to start checkout. Please try again.");
       }
       if (data?.pricing?.promoCode) {
         setPromoMessage(`Promo ${data.pricing.promoCode} applied. Discount ${formatZar(data.pricing.discountAmount || 0)}.`);
@@ -111,6 +123,13 @@ export function LicenseClient() {
 
   return (
     <div className="space-y-10">
+      <CheckoutModal
+        open={checkoutOpen}
+        checkoutUrl={checkoutUrl}
+        title="Complete creator license payment"
+        subtitle="Finish payment to unlock the selected creator package."
+        onClose={() => setCheckoutOpen(false)}
+      />
       <div className="grid gap-4 md:grid-cols-3">
         <div className="storytime-kpi p-4">
           <p className="flex items-center gap-2 text-xs uppercase tracking-wide text-slate-500">
@@ -133,7 +152,7 @@ export function LicenseClient() {
             <ShieldCheck className="h-4 w-4" /> Billing
           </p>
           <p className="mt-1 text-sm text-slate-300">
-            Pay yearly upfront for the best rate, or choose monthly pipeline billing. Checkout is simulated until payments are enabled.
+            Pay yearly upfront for the best rate, or choose monthly pipeline billing with secure checkout.
           </p>
         </div>
       </div>
@@ -393,7 +412,7 @@ export function LicenseClient() {
             </div>
           </div>
           <div className="rounded-2xl border border-orange-400/20 bg-orange-500/10 px-4 py-3 text-right">
-            <p className="text-xs uppercase tracking-wide text-orange-200/80">Due now (simulated)</p>
+            <p className="text-xs uppercase tracking-wide text-orange-200/80">Due now</p>
             <p className="mt-1 text-3xl font-bold text-white">
               {formatZar(selectedPrice)}
               <span className="text-sm font-normal text-slate-400">

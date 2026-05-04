@@ -3,8 +3,9 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasLocationBookingModels } from "@/lib/prisma-location-booking";
-import { computeLocationBookingBaseZar, MARKETPLACE_TRANSACTION_TYPE, SIMULATED_PAYMENT_PURPOSE } from "@/lib/financial-ledger";
+import { computeLocationBookingBaseZar, MARKETPLACE_TRANSACTION_TYPE } from "@/lib/financial-ledger";
 import { computeMarketplaceFeeZar } from "@/lib/marketplace-zar-defaults";
+import { settleMarketplaceWithWallet } from "@/lib/payments/marketplace-wallet";
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   if (!hasLocationBookingModels()) {
@@ -40,19 +41,22 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   const feeAmount = computeMarketplaceFeeZar(baseAmount);
   const totalAmount = baseAmount + feeAmount;
 
-  const paymentRecord = await prisma.paymentRecord.create({
-    data: {
-      userId: user.id,
-      provider: "DISABLED",
-      purpose: SIMULATED_PAYMENT_PURPOSE.LOCATION_BOOKING,
-      status: "SUCCEEDED",
-      amount: totalAmount,
-      currency: "ZAR",
-      email: user.email,
-      paidAt: new Date(),
-      metadata: { type: SIMULATED_PAYMENT_PURPOSE.LOCATION_BOOKING, referenceId: bookingId },
-    },
+  const walletSettle = await settleMarketplaceWithWallet({
+    buyerUserId: user.id,
+    sellerUserId: booking.ownerId,
+    baseAmount,
+    feeAmount,
+    totalAmount,
+    referenceType: "LocationBooking",
+    referenceId: bookingId,
+    escrowIdempotencyKey: `escrow_hold_location_${bookingId}`,
   });
+  if (!walletSettle.ok) {
+    return NextResponse.json(
+      { error: walletSettle.error },
+      { status: 402 },
+    );
+  }
 
   const tx = await prisma.transaction.create({
     data: {
@@ -64,7 +68,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       status: "COMPLETED",
       type: MARKETPLACE_TRANSACTION_TYPE.LOCATION_BOOKING,
       referenceId: bookingId,
-      externalPaymentId: paymentRecord.id,
+      externalPaymentId: null,
     },
   });
 
@@ -73,5 +77,5 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     data: { paymentTransactionId: tx.id },
   });
 
-  return NextResponse.json({ transactionId: tx.id, success: true });
+  return NextResponse.json({ transactionId: tx.id, success: true, requiresPayment: false, paymentMode: "wallet" });
 }

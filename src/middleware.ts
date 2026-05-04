@@ -27,7 +27,7 @@ export default withAuth(
     if (portalScope === "ADMIN" && !path.startsWith("/admin")) {
       return NextResponse.redirect(new URL("/admin", req.url));
     }
-    if (portalScope === "VIEWER" && (path.startsWith("/admin") || path.startsWith("/creator") || path.startsWith("/music-creator") || path.startsWith("/equipment-company") || path.startsWith("/location-owner") || path.startsWith("/crew-team") || path.startsWith("/casting-agency") || path.startsWith("/company") || path.startsWith("/funders"))) {
+    if (portalScope === "VIEWER" && (path.startsWith("/admin") || path.startsWith("/creator") || path.startsWith("/music-creator") || path.startsWith("/equipment-company") || path.startsWith("/location-owner") || path.startsWith("/crew-team") || path.startsWith("/casting-agency") || path.startsWith("/company") || path.startsWith("/funders") || path.startsWith("/wallet"))) {
       return NextResponse.redirect(new URL("/profiles", req.url));
     }
     if (portalScope === "CREATOR" && path.startsWith("/admin")) {
@@ -70,6 +70,9 @@ export default withAuth(
     if (path.startsWith("/company/onboarding") && !["CREW_TEAM", "CASTING_AGENCY", "LOCATION_OWNER", "EQUIPMENT_COMPANY", "CATERING_COMPANY"].includes(role ?? "")) {
       return NextResponse.redirect(new URL("/auth/creator/signin", req.url));
     }
+    if (path.startsWith("/wallet") && role === "SUBSCRIBER") {
+      return NextResponse.redirect(new URL("/profiles", req.url));
+    }
 
     return NextResponse.next();
   },
@@ -87,5 +90,5 @@ export default withAuth(
 );
 
 export const config = {
-  matcher: ["/creator/:path*", "/music-creator/:path*", "/admin/:path*", "/equipment-company/:path*", "/location-owner/:path*", "/crew-team/:path*", "/casting-agency/:path*", "/company/:path*", "/funders/:path*"],
+  matcher: ["/creator/:path*", "/music-creator/:path*", "/admin/:path*", "/equipment-company/:path*", "/location-owner/:path*", "/crew-team/:path*", "/casting-agency/:path*", "/company/:path*", "/funders/:path*", "/wallet/:path*"],
 };

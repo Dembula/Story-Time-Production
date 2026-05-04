@@ -11,6 +11,7 @@ import {
 } from "@/lib/pricing";
 import { defaultSuiteAccessOpen } from "@/lib/creator-suite-access";
 import { formatZar } from "@/lib/format-currency-zar";
+import { CheckoutModal } from "@/components/payments/checkout-modal";
 
 const OPTIONS = [
   {
@@ -56,6 +57,9 @@ export function LicenseClient() {
   const [promoMessage, setPromoMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [checkoutUrl, setCheckoutUrl] = useState("");
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [redirectAfterCheckout, setRedirectAfterCheckout] = useState("/music-creator/dashboard");
 
   const selectedOption = OPTIONS.find((option) => option.id === type) ?? OPTIONS[0];
 
@@ -73,8 +77,16 @@ export function LicenseClient() {
       if (!res.ok) {
         throw new Error(data.error || "Failed to save your distribution option");
       }
-      if (data?.requiresPayment && data?.payment) {
-        throw new Error("Payments are currently disabled on this platform.");
+      if (data?.requiresPayment) {
+        if (typeof data?.checkoutUrl === "string" && data.checkoutUrl) {
+          setCheckoutUrl(data.checkoutUrl);
+          setRedirectAfterCheckout(
+            typeof data?.redirectTo === "string" ? data.redirectTo : "/music-creator/dashboard",
+          );
+          setCheckoutOpen(true);
+          return;
+        }
+        throw new Error("Unable to start checkout. Please try again.");
       }
       if (data?.pricing?.promoCode) {
         setPromoMessage(`Promo ${data.pricing.promoCode} applied. Discount ${formatZar(data.pricing.discountAmount || 0)}.`);
@@ -99,6 +111,13 @@ export function LicenseClient() {
 
   return (
     <div className="space-y-8">
+      <CheckoutModal
+        open={checkoutOpen}
+        checkoutUrl={checkoutUrl}
+        title="Complete music creator payment"
+        subtitle="Secure checkout for your selected music distribution option."
+        onClose={() => setCheckoutOpen(false)}
+      />
       <div className="grid gap-4 md:grid-cols-3">
         <div className="storytime-kpi p-4">
           <p className="flex items-center gap-2 text-xs uppercase tracking-wide text-slate-500">

@@ -9,6 +9,7 @@ import {
   Clapperboard, Globe, Tag, Clock, Calendar, Star, Tv, Shield, FileText,
 } from "lucide-react";
 import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
+import { CheckoutModal } from "@/components/payments/checkout-modal";
 
 const TYPES = [
   { value: "MOVIE", label: "Movie", icon: Film, desc: "Feature or short film" },
@@ -86,6 +87,8 @@ function DistributionUploadInner() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
+  const [checkoutUrl, setCheckoutUrl] = useState("");
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
 
   const [form, setForm] = useState({
     title: "",
@@ -194,8 +197,13 @@ function DistributionUploadInner() {
       });
 
       const data = await res.json().catch(() => ({}));
-      if (res.ok && data?.requiresPayment && data?.payment) {
-        setError("Payments are currently disabled on this platform.");
+      if (res.ok && data?.requiresPayment) {
+        if (typeof data?.checkoutUrl === "string" && data.checkoutUrl) {
+          setCheckoutUrl(data.checkoutUrl);
+          setCheckoutOpen(true);
+          return;
+        }
+        setError("Unable to start checkout. Please try again.");
       } else if (res.ok) {
         setSuccess(true);
         setTimeout(() => router.push("/creator/dashboard"), 2000);
@@ -235,6 +243,13 @@ function DistributionUploadInner() {
 
   return (
     <div className="px-6 py-8 md:px-12 md:py-10">
+      <CheckoutModal
+        open={checkoutOpen}
+        checkoutUrl={checkoutUrl}
+        title="Complete submission payment"
+        subtitle="Secure payment is required before catalogue review continues."
+        onClose={() => setCheckoutOpen(false)}
+      />
       <div className="mx-auto max-w-6xl space-y-8">
         <header className="storytime-plan-card p-5 md:p-6 lg:p-8">
           <Link

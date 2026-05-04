@@ -150,6 +150,10 @@ model User {
   viewerPaymentMethods       ViewerPaymentMethod[]
   viewerContentAccesses      ViewerContentAccess[]
   paymentRecords             PaymentRecord[]
+  wallet                     Wallet?
+  payoutsRequested           PayoutRequest[]             @relation("PayoutRequestUser")
+  ledgerEntries              LedgerEntry[]
+  invoices                   Invoice[]
 
   notifications      Notification[]
   modocConversations ModocConversation[]
@@ -1452,6 +1456,185 @@ model PaymentWebhookEvent {
 
   @@unique([provider, eventType, eventId])
   @@index([reference])
+}
+
+model Wallet {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  availableBalance Float    @default(0)
+  pendingBalance   Float    @default(0)
+  lockedBalance    Float    @default(0)
+  totalEarnings    Float    @default(0)
+  totalWithdrawn   Float    @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  accounts       WalletAccount[]
+  ledgerEntries  LedgerEntry[]
+  escrowAsBuyer  EscrowAccount[] @relation("EscrowBuyerWallet")
+  escrowAsSeller EscrowAccount[] @relation("EscrowSellerWallet")
+  payoutRequests PayoutRequest[]
+}
+
+model WalletAccount {
+  id          String   @id @default(cuid())
+  walletId    String
+  wallet      Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  accountType String // AVAILABLE | PENDING | LOCKED | PLATFORM_REVENUE | CREATOR_REVENUE
+  currency    String   @default("ZAR")
+  balance     Float    @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([walletId, accountType, currency])
+  @@index([walletId])
+}
+
+model LedgerBatch {
+  id             String   @id @default(cuid())
+  idempotencyKey String   @unique
+  referenceType  String
+  referenceId    String
+  status         String   @default("COMPLETED") // PENDING | COMPLETED | FAILED
+  metadata       Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  entries LedgerEntry[]
+
+  @@index([referenceType, referenceId])
+}
+
+model LedgerEntry {
+  id                   String      @id @default(cuid())
+  batchId              String
+  batch                LedgerBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  walletId             String
+  wallet               Wallet      @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  userId               String
+  user                 User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  direction            String // DEBIT | CREDIT
+  accountType          String // AVAILABLE | PENDING | LOCKED | PLATFORM_REVENUE | CREATOR_REVENUE
+  transactionType      String // incoming_payment | platform_fee | creator_earnings | escrow_hold | escrow_release | withdrawal | refund | subscription_payment | service_purchase
+  amount               Float
+  currency             String      @default("ZAR")
+  status               String      @default("COMPLETED") // pending | completed | failed
+  counterpartyWalletId String?
+  description          String?
+  createdAt            DateTime    @default(now())
+
+  @@index([walletId])
+  @@index([userId])
+  @@index([transactionType])
+}
+
+model EscrowAccount {
+  id             String    @id @default(cuid())
+  referenceType  String
+  referenceId    String
+  buyerWalletId  String
+  buyerWallet    Wallet    @relation("EscrowBuyerWallet", fields: [buyerWalletId], references: [id], onDelete: Cascade)
+  sellerWalletId String
+  sellerWallet   Wallet    @relation("EscrowSellerWallet", fields: [sellerWalletId], references: [id], onDelete: Cascade)
+  amount         Float
+  currency       String    @default("ZAR")
+  status         String    @default("HELD") // HELD | RELEASED | DISPUTED | REFUNDED
+  releaseTrigger String? // MANUAL_CONFIRMATION | MILESTONE_COMPLETION
+  releasedAt     DateTime?
+  disputedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([referenceType, referenceId])
+  @@index([buyerWalletId])
+  @@index([sellerWalletId])
+  @@index([status])
+}
+
+model Invoice {
+  id                String    @id @default(cuid())
+  userId            String?
+  user              User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  invoiceNumber     String    @unique
+  status            String    @default("DRAFT") // DRAFT | PENDING | PAID | FAILED | REFUNDED
+  currency          String    @default("ZAR")
+  subtotalAmount    Float
+  platformFeeAmount Float     @default(0)
+  totalAmount       Float
+  dueAt             DateTime?
+  paidAt            DateTime?
+  metadata          Json?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  lines             InvoiceLine[]
+  gatewayReferences GatewayReference[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+model InvoiceLine {
+  id          String   @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Int      @default(1)
+  unitAmount  Float
+  totalAmount Float
+  metadata    Json?
+  createdAt   DateTime @default(now())
+}
+
+model PayoutRequest {
+  id                String    @id @default(cuid())
+  userId            String
+  user              User      @relation("PayoutRequestUser", fields: [userId], references: [id], onDelete: Cascade)
+  walletId          String
+  wallet            Wallet    @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  amount            Float
+  currency          String    @default("ZAR")
+  status            String    @default("PROCESSING") // PROCESSING | PAID | FAILED
+  provider          String    @default("STITCH")
+  providerReference String?   @unique
+  failureReason     String?
+  paidAt            DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([walletId])
+  @@index([status])
+}
+
+model GatewayEvent {
+  id                String    @id @default(cuid())
+  provider          String
+  eventType         String
+  eventId           String?
+  payload           Json?
+  signatureVerified Boolean   @default(false)
+  processed         Boolean   @default(false)
+  processedAt       DateTime?
+  createdAt         DateTime  @default(now())
+
+  @@unique([provider, eventType, eventId])
+}
+
+model GatewayReference {
+  id            String   @id @default(cuid())
+  provider      String
+  referenceType String
+  referenceId   String
+  externalRef   String
+  invoiceId     String?
+  invoice       Invoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  metadata      Json?
+  createdAt     DateTime @default(now())
+
+  @@unique([provider, externalRef])
+  @@index([referenceType, referenceId])
 }
 
 // --- User preferences (theme, etc.) ---

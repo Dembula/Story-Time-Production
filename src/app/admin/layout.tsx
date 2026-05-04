@@ -40,6 +40,7 @@ const navSections: { title: string; items: { href: string; label: string; highli
       { href: "/admin/creators", label: "Creators" },
       { href: "/admin/requests", label: "Requests" },
       { href: "/admin/revenue", label: "Revenue" },
+      { href: "/admin/payments", label: "Payments" },
       { href: "/admin/promo-codes", label: "Promo codes" },
       { href: "/admin/funders", label: "Funders" },
       { href: "/admin/activity", label: "Activity" },

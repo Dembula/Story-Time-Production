@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getCompanyPlanConfig, normalizeCompanyPlan } from "@/lib/pricing";
+import { initializeCheckout } from "@/lib/payments/billing";
+import { buildPaymentReturnUrl } from "@/lib/payments/return-url";
 
 const COMPANY_ROLES = ["CREW_TEAM", "CASTING_AGENCY", "LOCATION_OWNER", "EQUIPMENT_COMPANY", "CATERING_COMPANY"] as const;
 
@@ -51,7 +53,8 @@ export async function POST(req: NextRequest) {
   });
   if (existing) return NextResponse.json({ subscription: existing });
 
-  const body = await req.json();
+  const body = (await req.json().catch(() => null)) as { plan?: string } | null;
+  if (!body) return NextResponse.json({ error: "Invalid request payload." }, { status: 400 });
   const plan = normalizeCompanyPlan(body.plan);
   const amount = getCompanyPlanConfig(plan).price;
 
@@ -60,16 +63,42 @@ export async function POST(req: NextRequest) {
       userId: user.id,
       companyType: role,
       plan,
-      status: "ACTIVE",
+      status: "PAST_DUE",
       currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       billingEmail: user.email,
-      lastPaymentStatus: "DISABLED",
-      lastPaymentAt: new Date(),
+      lastPaymentStatus: "PENDING",
+      lastPaymentAt: null,
     },
   });
 
+  let checkoutUrl: string;
+  try {
+    const checkout = await initializeCheckout({
+      userId: user.id,
+      email: user.email,
+      customerName: user.name,
+      amount,
+      purpose: "company_subscription",
+      referenceType: "CompanySubscription",
+      referenceId: subscription.id,
+      returnUrl: buildPaymentReturnUrl("/company/onboarding/subscription", "company_subscription"),
+      metadata: { plan, companyType: role },
+    });
+    checkoutUrl = checkout.checkout.checkoutUrl;
+  } catch (error) {
+    await prisma.companySubscription.update({
+      where: { id: subscription.id },
+      data: { lastPaymentStatus: "FAILED", status: "PAST_DUE" },
+    });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Unable to initialize checkout." },
+      { status: 502 },
+    );
+  }
+
   return NextResponse.json({
-    requiresPayment: false,
+    requiresPayment: true,
+    checkoutUrl,
     subscription,
   });
 }

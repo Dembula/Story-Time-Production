@@ -9,10 +9,12 @@ import {
   hasActivePpvViewerModel,
   isPpvEligibleContent,
 } from "@/lib/viewer-access";
+import { initializeCheckout } from "@/lib/payments/billing";
+import { buildPaymentReturnUrl } from "@/lib/payments/return-url";
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
+  if (!session?.user?.email) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -25,6 +27,13 @@ export async function POST(req: NextRequest) {
   const contentId = body?.contentId?.trim();
   if (!contentId) {
     return NextResponse.json({ error: "contentId is required" }, { status: 400 });
+  }
+  const user =
+    (session.user.id
+      ? await prisma.user.findUnique({ where: { id: session.user.id }, select: { id: true } })
+      : await prisma.user.findUnique({ where: { email: session.user.email }, select: { id: true } })) ?? null;
+  if (!user?.id) {
+    return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
   const content = await prisma.content.findUnique({
@@ -40,7 +49,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "This title is not available for pay per view" }, { status: 400 });
   }
 
-  const playback = await getViewerPlaybackState(session.user.id, content.id);
+  const playback = await getViewerPlaybackState(user.id, content.id);
   if (!playback.subscription || playback.viewerModel !== VIEWER_MODELS.PPV || !hasActivePpvViewerModel(playback.subscription)) {
     return NextResponse.json({ error: "Switch this account to Pay Per View before purchasing titles" }, { status: 403 });
   }
@@ -49,22 +58,48 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ access: playback.contentAccess, alreadyOwned: true });
   }
 
-  await prisma.viewerContentAccess.create({
+  const access = await prisma.viewerContentAccess.create({
     data: {
-      userId: session.user.id,
+      userId: user.id,
       contentId: content.id,
       accessType: "PPV_FILM",
       amount: VIEWER_PLAN_CONFIG.PPV_FILM.price,
       currency: "ZAR",
-      status: "COMPLETED",
+      status: "PENDING",
       purchasedAt: new Date(),
       expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     },
   });
 
+  let checkoutUrl: string;
+  try {
+    const checkout = await initializeCheckout({
+      userId: user.id,
+      email: session.user.email ?? null,
+      customerName: session.user.name ?? null,
+      amount: VIEWER_PLAN_CONFIG.PPV_FILM.price,
+      purpose: "viewer_ppv",
+      referenceType: "ViewerContentAccess",
+      referenceId: access.id,
+      returnUrl: buildPaymentReturnUrl(`/browse/content/${content.id}/watch`, "viewer_ppv"),
+      metadata: { contentId: content.id },
+    });
+    checkoutUrl = checkout.checkout.checkoutUrl;
+  } catch (error) {
+    await prisma.viewerContentAccess.update({
+      where: { id: access.id },
+      data: { status: "FAILED" },
+    });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Unable to initialize checkout." },
+      { status: 502 },
+    );
+  }
+
   return NextResponse.json({
     success: true,
-    requiresPayment: false,
-    alreadyOwned: true,
+    requiresPayment: true,
+    alreadyOwned: false,
+    checkoutUrl,
   });
 }

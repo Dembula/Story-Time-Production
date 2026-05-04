@@ -5,6 +5,7 @@ import { signOut } from "next-auth/react";
 import { LogOut } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { NotificationBell } from "@/components/layout/notification-bell";
+import { WalletBalanceChip } from "@/components/layout/wallet-balance-chip";
 
 const navItems = [
   { href: "/location-owner/dashboard", label: "Dashboard" },
@@ -12,6 +13,7 @@ const navItems = [
   { href: "/location-owner/listings", label: "My Listings" },
   { href: "/location-owner/messages", label: "Messages" },
   { href: "/location-owner/account", label: "Account" },
+  { href: "/location-owner/wallet", label: "Wallet" },
   { href: "/browse", label: "View Platform" },
 ];
 
@@ -37,6 +39,7 @@ export default function LocationOwnerLayout({
             <span className="storytime-brand-text">STORY TIME</span> Locations
           </Link>
           <div className="flex items-center gap-3">
+            <WalletBalanceChip />
             <NotificationBell />
             <button
               onClick={handleSignOut}

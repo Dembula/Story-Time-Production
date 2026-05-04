@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { VIEWER_PLAN_CONFIG } from "@/lib/pricing";
 import { formatZar } from "@/lib/format-currency-zar";
+import { CheckoutModal } from "@/components/payments/checkout-modal";
 
 const PLANS = [
   {
@@ -93,6 +94,9 @@ export function PackageClient() {
   const [promoMessage, setPromoMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [checkoutUrl, setCheckoutUrl] = useState("");
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [redirectAfterCheckout, setRedirectAfterCheckout] = useState("/profiles");
 
   const selectedPlan = PLANS.find((plan) => plan.id === selected) ?? PLANS[0];
 
@@ -112,14 +116,20 @@ export function PackageClient() {
           promoCode: viewerModel === "SUBSCRIPTION" ? promoCode : undefined,
         }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Failed");
       if (data?.pricing?.promoCode) {
         setPromoMessage(`Promo ${data.pricing.promoCode} applied. Discount ${formatZar(data.pricing.discountAmount || 0)}.`);
       }
 
-      if (data?.requiresPayment && data?.payment) {
-        throw new Error("Payments are currently disabled on this platform.");
+      if (data?.requiresPayment) {
+        if (typeof data?.checkoutUrl === "string" && data.checkoutUrl) {
+          setCheckoutUrl(data.checkoutUrl);
+          setRedirectAfterCheckout(typeof data?.redirectTo === "string" ? data.redirectTo : "/profiles");
+          setCheckoutOpen(true);
+          return;
+        }
+        throw new Error("Unable to start checkout. Please try again.");
       }
 
       if (data?.profileId) {
@@ -144,7 +154,14 @@ export function PackageClient() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8">
+    <form onSubmit={handleSubmit} className="space-y-8" suppressHydrationWarning>
+      <CheckoutModal
+        open={checkoutOpen}
+        checkoutUrl={checkoutUrl}
+        title="Complete viewer subscription payment"
+        subtitle="Finish secure payment to activate your package."
+        onClose={() => setCheckoutOpen(false)}
+      />
       <div className="grid gap-4 md:grid-cols-3">
         <div className="storytime-kpi p-4">
           <p className="flex items-center gap-2 text-xs uppercase tracking-wide text-slate-500">

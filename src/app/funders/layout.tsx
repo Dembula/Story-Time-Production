@@ -6,12 +6,14 @@ import { signOut, useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 import { Bell, ChevronLeft, LayoutDashboard, LogOut, ShieldCheck, WalletCards, Handshake } from "lucide-react";
 import { NotificationBell } from "@/components/layout/notification-bell";
+import { WalletBalanceChip } from "@/components/layout/wallet-balance-chip";
 
 const NAV_ITEMS = [
   { href: "/funders", label: "Dashboard", icon: LayoutDashboard },
   { href: "/funders/opportunities", label: "Opportunities", icon: Bell },
   { href: "/funders/deals", label: "Deals", icon: Handshake },
   { href: "/funders/portfolio", label: "Portfolio", icon: WalletCards },
+  { href: "/funders/wallet", label: "Wallet", icon: WalletCards },
   { href: "/funders/verification", label: "Verification", icon: ShieldCheck },
 ];
 
@@ -57,6 +59,7 @@ export default function FundersLayout({ children }: { children: React.ReactNode 
               <ChevronLeft className="h-3.5 w-3.5" />
               Home
             </Link>
+            <WalletBalanceChip />
             <NotificationBell />
             <button
               onClick={handleSignOut}

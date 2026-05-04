@@ -7,6 +7,8 @@ import { defaultSuiteAccessOpen } from "@/lib/creator-suite-access";
 import { isMissingCreatorStudioInfrastructure } from "@/lib/prisma-missing-table";
 import { CREATOR_LICENSE_CONFIG, CREATOR_LICENSE_TYPE, CREATOR_ONBOARDING_PLANS, formatCreatorLicenseSummary } from "@/lib/pricing";
 import { computeDiscountedAmount, redeemPromoCode, resolvePromoCode } from "@/lib/promo-codes";
+import { initializeCheckout } from "@/lib/payments/billing";
+import { buildPaymentReturnUrl } from "@/lib/payments/return-url";
 
 function promoFailureMessage(reason: string) {
   switch (reason) {
@@ -226,10 +228,36 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: promoFailureMessage(redemption.reason) }, { status: 400 });
     }
   }
+  let checkoutUrl: string | null = null;
+  if (finalPrice > 0) {
+    try {
+      checkoutUrl = (
+        await initializeCheckout({
+          userId: user.id,
+          email: user.email,
+          customerName: user.name,
+          amount: finalPrice,
+          purpose: "creator_distribution_license",
+          referenceType: "CreatorDistributionLicense",
+          referenceId: license.id,
+          returnUrl: buildPaymentReturnUrl(
+            role === "MUSIC_CREATOR" ? "/music-creator/dashboard" : "/creator/command-center",
+            "creator_distribution_license",
+          ),
+          metadata: { storedType, role },
+        })
+      ).checkout.checkoutUrl;
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : "Unable to initialize checkout." },
+        { status: 502 },
+      );
+    }
+  }
 
   return NextResponse.json({
     license,
-    requiresPayment: false,
+    requiresPayment: finalPrice > 0,
     pipelineAccess: ctx?.pipelineAccess ?? false,
     suiteAccess: ctx?.suiteAccess ?? defaultSuiteAccessOpen(),
     planSummary: formatCreatorLicenseSummary(license.type),
@@ -241,6 +269,7 @@ export async function POST(req: Request) {
       promoCode: appliedPromo?.code ?? null,
       discountAmount: Math.max(0, basePrice - finalPrice),
     },
+    checkoutUrl,
     redirectTo: role === "MUSIC_CREATOR" ? "/music-creator/dashboard" : "/creator/command-center",
   });
 }

@@ -4,6 +4,9 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { VIEWER_MODELS, VIEWER_PLAN_CONFIG } from "@/lib/viewer-access";
 import { computeDiscountedAmount, redeemPromoCode, resolvePromoCode } from "@/lib/promo-codes";
+import { initializeCheckout } from "@/lib/payments/billing";
+import { getPaymentGateway } from "@/lib/payments/gateway";
+import { buildPaymentReturnUrl } from "@/lib/payments/return-url";
 
 function promoFailureMessage(reason: string) {
   switch (reason) {
@@ -49,7 +52,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await req.json();
+  const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
+  if (!body) {
+    return NextResponse.json({ error: "Invalid request payload." }, { status: 400 });
+  }
   const { plan, startTrial, viewerModel } = body as {
     plan?: string;
     startTrial?: boolean;
@@ -153,14 +159,14 @@ export async function POST(req: Request) {
       userId: user.id,
       viewerModel: selectedViewerModel,
       plan: planType,
-      status: useTrial ? "TRIAL_ACTIVE" : "ACTIVE",
+      status: useTrial ? "TRIAL_ACTIVE" : "PAST_DUE",
       trialEndsAt,
       currentPeriodEnd,
       deviceCount: planConfig.deviceCount,
       profileLimit: planConfig.profileLimit,
       billingEmail: user.email,
-      lastPaymentStatus: "DISABLED",
-      lastPaymentAt: now,
+      lastPaymentStatus: useTrial ? "PENDING" : "PENDING",
+      lastPaymentAt: null,
     },
   });
 
@@ -184,18 +190,71 @@ export async function POST(req: Request) {
     }
   }
 
+  let checkoutUrl: string | null = null;
+  if (useTrial) {
+    try {
+      const gateway = getPaymentGateway();
+      const consent = await gateway.createCardConsentSession({
+        reference: `trial-consent-${subscription.id}`,
+        returnUrl: buildPaymentReturnUrl("/profiles", "viewer_trial_card_capture"),
+        customer: { email: user.email, name: user.name, payerId: user.id },
+      });
+      checkoutUrl = consent.checkoutUrl;
+      await prisma.viewerSubscription.update({
+        where: { id: subscription.id },
+        data: { externalPaymentId: consent.externalRef, lastPaymentStatus: "PENDING" },
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to initialize card capture.";
+      await prisma.viewerSubscription.update({
+        where: { id: subscription.id },
+        data: { lastPaymentStatus: "FAILED", lastPaymentError: message },
+      });
+      return NextResponse.json({ error: message }, { status: 502 });
+    }
+  } else {
+    try {
+      const checkout = await initializeCheckout({
+        userId: user.id,
+        email: user.email,
+        customerName: user.name,
+        amount: finalPrice,
+        purpose: "viewer_subscription",
+        referenceType: "ViewerSubscription",
+        referenceId: subscription.id,
+        returnUrl: buildPaymentReturnUrl("/browse/settings", "viewer_subscription"),
+        metadata: { planType },
+      });
+      checkoutUrl = checkout.checkout.checkoutUrl;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to initialize checkout.";
+      await prisma.viewerSubscription.update({
+        where: { id: subscription.id },
+        data: {
+          status: "PAST_DUE",
+          lastPaymentStatus: "FAILED",
+          lastPaymentError: message,
+        },
+      });
+      return NextResponse.json({ error: message }, { status: 502 });
+    }
+  }
+
   return NextResponse.json({
     subscription,
     profileId: null,
     redirectTo: "/profiles",
-    requiresPayment: false,
+    requiresPayment: true,
+    checkoutUrl,
     pricing: {
       basePrice,
       finalPrice,
       promoCode: appliedPromo?.code ?? null,
       discountAmount: Math.max(0, basePrice - finalPrice),
     },
-    message: "Subscription activated without payment gateway checkout.",
+    message: useTrial
+      ? "Trial activated. Add your card now for automatic billing at trial end."
+      : "Subscription created. Complete payment to activate full access.",
   });
 }
 

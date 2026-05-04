@@ -11,6 +11,7 @@ import { CommentsSection } from "@/components/player/comments-section";
 import { RatingsSection } from "@/components/player/ratings-section";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BackButton } from "@/components/layout/back-button";
+import { CheckoutModal } from "@/components/payments/checkout-modal";
 
 type Content = {
   id: string;
@@ -68,6 +69,8 @@ export function ContentDetailClient({
   const [showPpvModal, setShowPpvModal] = useState(false);
   const [ppvLoading, setPpvLoading] = useState(false);
   const [ppvError, setPpvError] = useState("");
+  const [ppvCheckoutUrl, setPpvCheckoutUrl] = useState("");
+  const [ppvCheckoutOpen, setPpvCheckoutOpen] = useState(false);
   const isSubscriber = (session?.user as { role?: string } | undefined)?.role === "SUBSCRIBER";
   const canPlay = isSubscriber && hasPlaybackAccess && !ageRestricted;
   const canPurchasePpv = isSubscriber && viewerModel === "PPV" && ppvEligible && !hasActivePpvAccess && !ageRestricted;
@@ -100,8 +103,11 @@ export function ContentDetailClient({
         return;
       }
 
-      if (data?.requiresPayment && data?.payment) {
-        throw new Error("Payments are currently disabled on this platform.");
+      if (data?.requiresPayment && typeof data?.checkoutUrl === "string" && data.checkoutUrl) {
+        setShowPpvModal(false);
+        setPpvCheckoutUrl(data.checkoutUrl);
+        setPpvCheckoutOpen(true);
+        return;
       }
 
       throw new Error("Payment session could not be started.");
@@ -114,6 +120,13 @@ export function ContentDetailClient({
 
   return (
     <div className="max-w-6xl mx-auto px-6 pb-16">
+      <CheckoutModal
+        open={ppvCheckoutOpen}
+        checkoutUrl={ppvCheckoutUrl}
+        title="Complete PPV payment"
+        subtitle={`Unlock ${content.title} for 30 days after successful payment.`}
+        onClose={() => setPpvCheckoutOpen(false)}
+      />
       {showSubscriptionEndedModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
           <div className="bg-slate-800 border border-slate-700 rounded-2xl p-8 max-w-md w-full shadow-xl relative">

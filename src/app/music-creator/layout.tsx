@@ -7,6 +7,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { CreatorStudioActingLabel } from "@/components/creator/creator-studio-switcher";
 import { NotificationBell } from "@/components/layout/notification-bell";
+import { WalletBalanceChip } from "@/components/layout/wallet-balance-chip";
 import { CREATOR_STUDIO_PROFILES_QUERY_KEY } from "@/lib/pricing";
 
 export default function MusicCreatorLayout({ children }: { children: React.ReactNode }) {
@@ -36,6 +37,7 @@ export default function MusicCreatorLayout({ children }: { children: React.React
           </Link>
           <div className="flex flex-wrap items-center gap-4 md:gap-6">
             <CreatorStudioActingLabel />
+            <WalletBalanceChip />
             <NotificationBell />
             {role === "MUSIC_CREATOR" ? (
               <Link
@@ -67,6 +69,7 @@ export default function MusicCreatorLayout({ children }: { children: React.React
             <Link href="/music-creator/revenue" className="text-sm text-slate-400 hover:text-white transition">Revenue</Link>
             <Link href="/music-creator/messages" className="text-sm text-slate-400 hover:text-white transition">Messages</Link>
             <Link href="/music-creator/account" className="text-sm text-slate-400 hover:text-white transition">Account</Link>
+            <Link href="/music-creator/wallet" className="text-sm text-slate-400 hover:text-white transition">Wallet</Link>
             <Link href="/music-creator/originals" className="text-sm font-medium text-orange-300 hover:text-orange-200 transition">Originals</Link>
             <Link href="/browse" className="text-sm text-slate-400 hover:text-white transition">Browse</Link>
             <button onClick={handleSignOut} className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-red-400 transition">

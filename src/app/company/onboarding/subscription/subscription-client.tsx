@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Check, ChevronDown, ChevronUp, Loader2, Megaphone, Shield, Sparkles } from "lucide-react";
 import { COMPANY_PLAN_CONFIG } from "@/lib/pricing";
 import { formatZar } from "@/lib/format-currency-zar";
+import { CheckoutModal } from "@/components/payments/checkout-modal";
 
 const PLANS = [
   {
@@ -47,6 +48,8 @@ export function CompanySubscriptionClient({ dashboardUrl }: { dashboardUrl: stri
   const [expanded, setExpanded] = useState<string | null>("STANDARD");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [checkoutUrl, setCheckoutUrl] = useState("");
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
 
   const selectedPlan = PLANS.find((entry) => entry.id === plan) ?? PLANS[0];
 
@@ -61,8 +64,9 @@ export function CompanySubscriptionClient({ dashboardUrl }: { dashboardUrl: stri
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        if (data?.requiresPayment && data?.payment) {
-          setError("Payments are currently disabled on this platform.");
+        if (data?.requiresPayment && typeof data?.checkoutUrl === "string" && data.checkoutUrl) {
+          setCheckoutUrl(data.checkoutUrl);
+          setCheckoutOpen(true);
         } else {
           router.push(dashboardUrl);
           router.refresh();
@@ -77,6 +81,13 @@ export function CompanySubscriptionClient({ dashboardUrl }: { dashboardUrl: stri
 
   return (
     <div className="space-y-6">
+      <CheckoutModal
+        open={checkoutOpen}
+        checkoutUrl={checkoutUrl}
+        title="Complete company listing payment"
+        subtitle="Secure payment activates your company plan and listing visibility."
+        onClose={() => setCheckoutOpen(false)}
+      />
       <div className="grid gap-4 md:grid-cols-3">
         <div className="storytime-kpi p-4">
           <p className="flex items-center gap-2 text-xs uppercase tracking-wide text-slate-500">

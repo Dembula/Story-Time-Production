@@ -5,12 +5,14 @@ import { signOut } from "next-auth/react";
 import { LogOut } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { NotificationBell } from "@/components/layout/notification-bell";
+import { WalletBalanceChip } from "@/components/layout/wallet-balance-chip";
 
 const navItems = [
   { href: "/crew-team/dashboard", label: "Dashboard" },
   { href: "/crew-team/requests", label: "Requests / Offers" },
   { href: "/crew-team/team", label: "My Team" },
   { href: "/crew-team/profile", label: "Profile" },
+  { href: "/crew-team/wallet", label: "Wallet" },
   { href: "/browse", label: "View Platform" },
 ];
 
@@ -36,6 +38,7 @@ export default function CrewTeamLayout({
             <span className="storytime-brand-text">STORY TIME</span> Crew Team
           </Link>
           <div className="flex items-center gap-3">
+            <WalletBalanceChip />
             <NotificationBell />
             <button
               onClick={handleSignOut}

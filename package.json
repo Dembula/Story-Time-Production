@@ -5,7 +5,7 @@
   "scripts": {
     "postinstall": "prisma generate",
     "dev": "next dev",
-    "build": "node --max-old-space-size=4096 ./node_modules/next/dist/bin/next build",
+    "build": "node --max-old-space-size=8192 ./node_modules/next/dist/bin/next build",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
@@ -22,6 +22,10 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
     "db:backfill:kyc-docs": "tsx scripts/backfill-kyc-private-refs.ts",
+    "db:backfill:wallets": "tsx scripts/backfill-wallets.ts",
+    "payments:reconcile": "tsx scripts/reconcile-ledger.ts",
+    "payments:stitch:bootstrap": "node scripts/stitch-bootstrap.mjs",
+    "payments:stitch:smoke": "node scripts/stitch-smoke.mjs",
     "db:studio": "prisma studio",
     "refresh": "prisma generate && node scripts/clear-dev-cache.mjs"
   },

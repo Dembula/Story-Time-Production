@@ -963,6 +963,136 @@ exports.Prisma.PaymentWebhookEventScalarFieldEnum = {
   createdAt: 'createdAt'
 };
 
+exports.Prisma.WalletScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  availableBalance: 'availableBalance',
+  pendingBalance: 'pendingBalance',
+  lockedBalance: 'lockedBalance',
+  totalEarnings: 'totalEarnings',
+  totalWithdrawn: 'totalWithdrawn',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.WalletAccountScalarFieldEnum = {
+  id: 'id',
+  walletId: 'walletId',
+  accountType: 'accountType',
+  currency: 'currency',
+  balance: 'balance',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.LedgerBatchScalarFieldEnum = {
+  id: 'id',
+  idempotencyKey: 'idempotencyKey',
+  referenceType: 'referenceType',
+  referenceId: 'referenceId',
+  status: 'status',
+  metadata: 'metadata',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.LedgerEntryScalarFieldEnum = {
+  id: 'id',
+  batchId: 'batchId',
+  walletId: 'walletId',
+  userId: 'userId',
+  direction: 'direction',
+  accountType: 'accountType',
+  transactionType: 'transactionType',
+  amount: 'amount',
+  currency: 'currency',
+  status: 'status',
+  counterpartyWalletId: 'counterpartyWalletId',
+  description: 'description',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.EscrowAccountScalarFieldEnum = {
+  id: 'id',
+  referenceType: 'referenceType',
+  referenceId: 'referenceId',
+  buyerWalletId: 'buyerWalletId',
+  sellerWalletId: 'sellerWalletId',
+  amount: 'amount',
+  currency: 'currency',
+  status: 'status',
+  releaseTrigger: 'releaseTrigger',
+  releasedAt: 'releasedAt',
+  disputedAt: 'disputedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.InvoiceScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  invoiceNumber: 'invoiceNumber',
+  status: 'status',
+  currency: 'currency',
+  subtotalAmount: 'subtotalAmount',
+  platformFeeAmount: 'platformFeeAmount',
+  totalAmount: 'totalAmount',
+  dueAt: 'dueAt',
+  paidAt: 'paidAt',
+  metadata: 'metadata',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.InvoiceLineScalarFieldEnum = {
+  id: 'id',
+  invoiceId: 'invoiceId',
+  description: 'description',
+  quantity: 'quantity',
+  unitAmount: 'unitAmount',
+  totalAmount: 'totalAmount',
+  metadata: 'metadata',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.PayoutRequestScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  walletId: 'walletId',
+  amount: 'amount',
+  currency: 'currency',
+  status: 'status',
+  provider: 'provider',
+  providerReference: 'providerReference',
+  failureReason: 'failureReason',
+  paidAt: 'paidAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.GatewayEventScalarFieldEnum = {
+  id: 'id',
+  provider: 'provider',
+  eventType: 'eventType',
+  eventId: 'eventId',
+  payload: 'payload',
+  signatureVerified: 'signatureVerified',
+  processed: 'processed',
+  processedAt: 'processedAt',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.GatewayReferenceScalarFieldEnum = {
+  id: 'id',
+  provider: 'provider',
+  referenceType: 'referenceType',
+  referenceId: 'referenceId',
+  externalRef: 'externalRef',
+  invoiceId: 'invoiceId',
+  metadata: 'metadata',
+  createdAt: 'createdAt'
+};
+
 exports.Prisma.UserPreferenceScalarFieldEnum = {
   id: 'id',
   userId: 'userId',
@@ -2166,6 +2296,16 @@ exports.Prisma.ModelName = {
   TestPayment: 'TestPayment',
   PaymentRecord: 'PaymentRecord',
   PaymentWebhookEvent: 'PaymentWebhookEvent',
+  Wallet: 'Wallet',
+  WalletAccount: 'WalletAccount',
+  LedgerBatch: 'LedgerBatch',
+  LedgerEntry: 'LedgerEntry',
+  EscrowAccount: 'EscrowAccount',
+  Invoice: 'Invoice',
+  InvoiceLine: 'InvoiceLine',
+  PayoutRequest: 'PayoutRequest',
+  GatewayEvent: 'GatewayEvent',
+  GatewayReference: 'GatewayReference',
   UserPreference: 'UserPreference',
   ViewerPaymentMethod: 'ViewerPaymentMethod',
   Notification: 'Notification',

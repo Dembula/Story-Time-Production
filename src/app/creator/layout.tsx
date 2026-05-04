@@ -7,6 +7,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { NotificationBell } from "@/components/layout/notification-bell";
+import { WalletBalanceChip } from "@/components/layout/wallet-balance-chip";
 import { CreatorPipelineRouteGate } from "@/components/creator/creator-pipeline-route-gate";
 import { CreatorStudioActingLabel } from "@/components/creator/creator-studio-switcher";
 import { CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY, CREATOR_STUDIO_PROFILES_QUERY_KEY } from "@/lib/pricing";
@@ -16,6 +17,7 @@ const primaryNavItems = [
   { href: "/creator/command-center", label: "Command Center" },
   { href: "/creator/dashboard", label: "My Projects" },
   { href: "/creator/account", label: "My Account" },
+  { href: "/creator/wallet", label: "Wallet" },
   { href: "/creator/network", label: "Network" },
   { href: "/creator/messages", label: "Messages" },
   { href: "/creator/originals/submit", label: "Originals", highlight: true },
@@ -95,6 +97,7 @@ export default function CreatorLayout({
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
             <CreatorStudioActingLabel />
+            <WalletBalanceChip />
             <NotificationBell />
             <button
               onClick={handleSignOut}

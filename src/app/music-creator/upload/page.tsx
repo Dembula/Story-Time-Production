@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Music, ChevronRight, ChevronLeft, Check, Upload, Info, Loader2 } from "lucide-react";
 import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
+import { CheckoutModal } from "@/components/payments/checkout-modal";
 
 const GENRES = ["Indie", "Electronic", "Synthwave", "Ambient", "Hip-Hop", "Afro-Electronic", "World Fusion", "Jazz", "Classical", "Rock", "Pop", "R&B", "Soul", "Folk", "Afrobeat", "Amapiano", "Gqom", "Kwaito", "Other"];
 const MOODS = ["Dreamy", "Energetic", "Moody", "Peaceful", "Confident", "Nostalgic", "Spiritual", "Melancholic", "Festive", "Dark", "Uplifting", "Romantic", "Tense", "Playful"];
@@ -15,6 +16,8 @@ export default function MusicUploadPage() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [checkoutUrl, setCheckoutUrl] = useState("");
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [uploadingAudio, setUploadingAudio] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
   const [form, setForm] = useState({
@@ -39,8 +42,13 @@ export default function MusicUploadPage() {
         body: JSON.stringify(form),
       });
       const data = await res.json().catch(() => ({}));
-      if (res.ok && data?.requiresPayment && data?.payment) {
-        setError("Payments are currently disabled on this platform.");
+      if (res.ok && data?.requiresPayment) {
+        if (typeof data?.checkoutUrl === "string" && data.checkoutUrl) {
+          setCheckoutUrl(data.checkoutUrl);
+          setCheckoutOpen(true);
+          return;
+        }
+        setError("Unable to start checkout. Please try again.");
       } else if (res.ok) {
         router.push("/music-creator/dashboard");
       } else {
@@ -51,6 +59,13 @@ export default function MusicUploadPage() {
 
   return (
     <div className="p-8 max-w-3xl mx-auto space-y-8">
+      <CheckoutModal
+        open={checkoutOpen}
+        checkoutUrl={checkoutUrl}
+        title="Complete music upload payment"
+        subtitle="Finalize secure payment to continue with this submission."
+        onClose={() => setCheckoutOpen(false)}
+      />
       <div>
         <h1 className="text-3xl font-semibold text-white mb-2 flex items-center gap-3"><Upload className="w-8 h-8 text-pink-500" /> Upload Music</h1>
         <p className="text-slate-400">Add a new track to your catalogue for sync licensing opportunities.</p>
