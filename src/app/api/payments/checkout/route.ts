@@ -5,17 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { getPaymentGateway } from "@/lib/payments/gateway";
 import { calculatePlatformTransactionFee, splitViewerRevenue } from "@/lib/payments/fees";
 import { toGatewaySafeReference } from "@/lib/payments/reference";
+import { appendPaymentRecordToReturnUrl } from "@/lib/payments/return-url";
 const db = prisma as any;
-
-function appendPaymentRecordToReturnUrl(returnUrl: string, paymentRecordId: string) {
-  try {
-    const url = new URL(returnUrl);
-    url.searchParams.set("pr", paymentRecordId);
-    return url.toString();
-  } catch {
-    return returnUrl;
-  }
-}
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -72,7 +63,7 @@ export async function POST(req: NextRequest) {
       amount,
       currency: body.currency || "ZAR",
       reference: toGatewaySafeReference("st", record.id),
-      returnUrl: appendPaymentRecordToReturnUrl(body.returnUrl || "", record.id),
+      returnUrl: appendPaymentRecordToReturnUrl(body.returnUrl, record.id),
       customer: { email: user.email, name: user.name },
       metadata: {
         paymentRecordId: record.id,

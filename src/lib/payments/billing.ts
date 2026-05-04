@@ -2,20 +2,11 @@ import { prisma } from "@/lib/prisma";
 import { getPaymentGateway } from "@/lib/payments/gateway";
 import { calculatePlatformTransactionFee } from "@/lib/payments/fees";
 import { toGatewaySafeReference } from "@/lib/payments/reference";
+import { appendPaymentRecordToReturnUrl } from "@/lib/payments/return-url";
 const db = prisma as any;
 
 function generateInvoiceNumber(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
-}
-
-function appendPaymentRecordToReturnUrl(returnUrl: string, paymentRecordId: string) {
-  try {
-    const url = new URL(returnUrl);
-    url.searchParams.set("pr", paymentRecordId);
-    return url.toString();
-  } catch {
-    return returnUrl;
-  }
 }
 
 export async function initializeCheckout(args: {

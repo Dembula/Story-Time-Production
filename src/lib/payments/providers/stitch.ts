@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { Webhook } from "svix";
 import {
   PaymentGatewayAdapter,
   GatewayCheckoutRequest,
@@ -24,9 +25,8 @@ const STITCH_CARD_CONSENT_CHARGE_PATH_TEMPLATE =
   process.env.STITCH_CARD_CONSENT_CHARGE_PATH_TEMPLATE?.trim() || "/api/v1/card-consents/{consentRequestId}/initiate-payment";
 const STITCH_CARD_CONSENT_INITIAL_AMOUNT = Number(process.env.STITCH_CARD_CONSENT_INITIAL_AMOUNT || "0");
 const APP_BASE_URL = process.env.NEXTAUTH_URL?.trim() || "http://localhost:3000";
-const STITCH_MOCK_MODE =
-  process.env.STITCH_MOCK_MODE === "true" ||
-  (process.env.NODE_ENV !== "production" && process.env.STITCH_MOCK_MODE !== "false");
+/** Only explicit `STITCH_MOCK_MODE=true` forces mock checkout (real sandbox works in development). */
+const STITCH_MOCK_MODE = process.env.STITCH_MOCK_MODE === "true";
 const cachedAccessTokenByScope = new Map<string, { token: string; expiresAtMs: number }>();
 type StitchHttpMethod = "GET" | "POST" | "DELETE";
 
@@ -332,12 +332,31 @@ class StitchGatewayAdapter implements PaymentGatewayAdapter {
     };
   }
 
-  verifyWebhookSignature(rawBody: string, signature: string | null): boolean {
+  verifyWebhookSignature(rawBody: string, getHeader: (name: string) => string | null): boolean {
     if (STITCH_MOCK_MODE && !STITCH_WEBHOOK_SECRET) return true;
     if (!STITCH_WEBHOOK_SECRET) return false;
-    if (!signature) return false;
+
+    const svixId = getHeader("svix-id");
+    const svixTimestamp = getHeader("svix-timestamp");
+    const svixSignature = getHeader("svix-signature");
+    if (svixId && svixTimestamp && svixSignature) {
+      try {
+        const wh = new Webhook(STITCH_WEBHOOK_SECRET);
+        wh.verify(rawBody, {
+          "svix-id": svixId,
+          "svix-timestamp": svixTimestamp,
+          "svix-signature": svixSignature,
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    const legacySig = getHeader("x-stitch-signature");
+    if (!legacySig) return false;
     const digest = crypto.createHmac("sha256", STITCH_WEBHOOK_SECRET).update(rawBody).digest("hex");
-    const provided = signature.replace(/^sha256=/i, "").trim();
+    const provided = legacySig.replace(/^sha256=/i, "").trim();
     if (digest.length !== provided.length) return false;
     return crypto.timingSafeEqual(Buffer.from(digest, "utf8"), Buffer.from(provided, "utf8"));
   }

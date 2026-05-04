@@ -41,7 +41,8 @@ export interface PaymentGatewayAdapter {
     reference: string;
   }): Promise<{ provider: string; externalRef: string; status: "PENDING" | "COMPLETED" | "FAILED" }>;
   requestPayout(payload: GatewayPayoutRequest): Promise<{ provider: string; externalRef: string; status: string }>;
-  verifyWebhookSignature(rawBody: string, signature: string | null): boolean;
+  /** Pass header getter so Svix (`svix-*`) and legacy (`x-stitch-signature`) both work. */
+  verifyWebhookSignature(rawBody: string, getHeader: (name: string) => string | null): boolean;
 }
 
 export function getPaymentGateway(): PaymentGatewayAdapter {
