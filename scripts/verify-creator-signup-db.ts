@@ -3,8 +3,7 @@
  * Run with: npx tsx scripts/verify-creator-signup-db.ts
  * Optional: set VERIFY_CREATE=1 to create and then delete a test user.
  */
-import { PrismaClient } from "@prisma/client";
-import { Prisma } from "@prisma/client";
+import { PrismaClient, Prisma } from "../generated/prisma";
 
 const prisma = new PrismaClient();
 
