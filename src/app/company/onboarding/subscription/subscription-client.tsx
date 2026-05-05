@@ -67,6 +67,11 @@ export function CompanySubscriptionClient({ dashboardUrl }: { dashboardUrl: stri
         if (data?.requiresPayment && typeof data?.checkoutUrl === "string" && data.checkoutUrl) {
           setCheckoutUrl(data.checkoutUrl);
           setCheckoutOpen(true);
+        } else if (data?.requiresPayment && !data?.checkoutUrl) {
+          setError(
+            (typeof data?.checkoutWarning === "string" && data.checkoutWarning) ||
+              "Unable to start checkout. Please try again.",
+          );
         } else {
           router.push(dashboardUrl);
           router.refresh();

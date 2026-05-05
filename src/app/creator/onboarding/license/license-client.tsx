@@ -56,7 +56,7 @@ export function LicenseClient() {
   const [error, setError] = useState("");
   const [checkoutUrl, setCheckoutUrl] = useState("");
   const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [redirectAfterCheckout, setRedirectAfterCheckout] = useState("/creator/command-center");
+  const [redirectAfterCheckout, setRedirectAfterCheckout] = useState("/creator/dashboard");
 
   const selectedPrice = useMemo(() => {
     if (pkg === "UPLOAD_ONLY") return CREATOR_ONBOARDING_PLANS.UPLOAD_ONLY.price;
@@ -93,12 +93,15 @@ export function LicenseClient() {
         if (typeof data?.checkoutUrl === "string" && data.checkoutUrl) {
           setCheckoutUrl(data.checkoutUrl);
           setRedirectAfterCheckout(
-            typeof data?.redirectTo === "string" ? data.redirectTo : "/creator/command-center",
+            typeof data?.redirectTo === "string" ? data.redirectTo : "/creator/dashboard",
           );
           setCheckoutOpen(true);
           return;
         }
-        throw new Error("Unable to start checkout. Please try again.");
+        throw new Error(
+          (typeof data?.checkoutWarning === "string" && data.checkoutWarning) ||
+            "Unable to start checkout. Please try again.",
+        );
       }
       if (data?.pricing?.promoCode) {
         setPromoMessage(`Promo ${data.pricing.promoCode} applied. Discount ${formatZar(data.pricing.discountAmount || 0)}.`);
@@ -112,7 +115,7 @@ export function LicenseClient() {
       });
       void queryClient.invalidateQueries({ queryKey: [...CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY] });
       void queryClient.invalidateQueries({ queryKey: [...CREATOR_STUDIO_PROFILES_QUERY_KEY] });
-      router.push("/creator/command-center");
+      router.push("/creator/dashboard");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save your plan");

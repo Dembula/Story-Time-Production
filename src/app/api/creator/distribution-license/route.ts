@@ -46,6 +46,10 @@ function resolveCreatorLicensePrice(type: string) {
   return 0;
 }
 
+function creatorPostPaymentRedirect(role: string | undefined) {
+  return role === "MUSIC_CREATOR" ? "/music-creator/dashboard" : "/creator/dashboard";
+}
+
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email || !(session.user as { id?: string }).id) {
@@ -130,24 +134,27 @@ export async function POST(req: Request) {
               referenceType: "CreatorDistributionLicense",
               referenceId: existing.id,
               returnUrl: buildPaymentReturnUrl(
-                role === "MUSIC_CREATOR" ? "/music-creator/dashboard" : "/creator/command-center",
+                creatorPostPaymentRedirect(role),
                 "creator_distribution_license",
               ),
               metadata: { storedType: existing.type, role },
             })
           ).checkout.checkoutUrl;
         } catch (error) {
-          return NextResponse.json(
-            { error: error instanceof Error ? error.message : "Unable to initialize checkout." },
-            { status: 502 },
-          );
+          return NextResponse.json({
+            license: existing,
+            requiresPayment: true,
+            checkoutUrl: null,
+            checkoutWarning: error instanceof Error ? error.message : "Unable to initialize checkout.",
+            redirectTo: creatorPostPaymentRedirect(role),
+          });
         }
       }
       return NextResponse.json({
         license: existing,
         requiresPayment: Boolean(checkoutUrl),
         checkoutUrl,
-        redirectTo: role === "MUSIC_CREATOR" ? "/music-creator/dashboard" : "/creator/command-center",
+        redirectTo: creatorPostPaymentRedirect(role),
       });
     }
       await ensureCreatorStudioProfilesForUser(user.id);
@@ -298,17 +305,20 @@ export async function POST(req: Request) {
           referenceType: "CreatorDistributionLicense",
           referenceId: license.id,
           returnUrl: buildPaymentReturnUrl(
-            role === "MUSIC_CREATOR" ? "/music-creator/dashboard" : "/creator/command-center",
+            creatorPostPaymentRedirect(role),
             "creator_distribution_license",
           ),
           metadata: { storedType, role },
         })
       ).checkout.checkoutUrl;
     } catch (error) {
-      return NextResponse.json(
-        { error: error instanceof Error ? error.message : "Unable to initialize checkout." },
-        { status: 502 },
-      );
+      return NextResponse.json({
+        license,
+        requiresPayment: true,
+        checkoutUrl: null,
+        checkoutWarning: error instanceof Error ? error.message : "Unable to initialize checkout.",
+        redirectTo: creatorPostPaymentRedirect(role),
+      });
     }
   }
 
@@ -323,7 +333,7 @@ export async function POST(req: Request) {
           discountAmount: Math.max(0, basePrice - finalPrice),
         },
         checkoutUrl,
-        redirectTo: role === "MUSIC_CREATOR" ? "/music-creator/dashboard" : "/creator/command-center",
+        redirectTo: creatorPostPaymentRedirect(role),
       });
     }
 
@@ -349,7 +359,7 @@ export async function POST(req: Request) {
         discountAmount: Math.max(0, basePrice - finalPrice),
       },
       checkoutUrl,
-      redirectTo: role === "MUSIC_CREATOR" ? "/music-creator/dashboard" : "/creator/command-center",
+      redirectTo: creatorPostPaymentRedirect(role),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Creator onboarding failed.";

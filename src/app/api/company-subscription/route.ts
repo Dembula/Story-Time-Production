@@ -121,10 +121,13 @@ export async function POST(req: NextRequest) {
         where: { id: refreshed.id },
         data: { lastPaymentStatus: "FAILED", status: "PAST_DUE" },
       });
-        return NextResponse.json(
-          { error: error instanceof Error ? error.message : "Unable to initialize checkout." },
-          { status: 502 },
-        );
+        return NextResponse.json({
+          requiresPayment: true,
+          checkoutUrl: null,
+          checkoutWarning: error instanceof Error ? error.message : "Unable to initialize checkout.",
+          redirectTo,
+          subscription: refreshed,
+        });
       }
     }
     
@@ -161,10 +164,13 @@ export async function POST(req: NextRequest) {
       where: { id: subscription.id },
       data: { lastPaymentStatus: "FAILED", status: "PAST_DUE" },
     });
-      return NextResponse.json(
-        { error: error instanceof Error ? error.message : "Unable to initialize checkout." },
-        { status: 502 },
-      );
+      return NextResponse.json({
+        requiresPayment: true,
+        checkoutUrl: null,
+        checkoutWarning: error instanceof Error ? error.message : "Unable to initialize checkout.",
+        redirectTo,
+        subscription,
+      });
     }
 
     return NextResponse.json({
