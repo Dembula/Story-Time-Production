@@ -107,21 +107,31 @@ function parseStitchError(json: Record<string, unknown>, raw: string, status: nu
 async function fetchStitch(path: string, options: StitchRequestOptions = {}) {
   const method = options.method ?? "POST";
   const scope = options.scope ?? STITCH_TOKEN_SCOPE;
-  const token = await fetchStitchToken(scope);
-  const res = await fetch(buildStitchUrl(path, options.query), {
-    method,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: method === "GET" ? undefined : JSON.stringify(options.body ?? {}),
-  });
-  const raw = await res.text().catch(() => "");
-  const json = parseJsonSafe(raw) ?? {};
-  if (!res.ok) {
-    throw new Error(parseStitchError(json, raw, res.status));
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const token = await fetchStitchToken(scope);
+    const res = await fetch(buildStitchUrl(path, options.query), {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: method === "GET" ? undefined : JSON.stringify(options.body ?? {}),
+    });
+    const raw = await res.text().catch(() => "");
+    const json = parseJsonSafe(raw) ?? {};
+    if (res.ok) return json;
+
+    const parsed = parseStitchError(json, raw, res.status);
+    // Recover once from stale/invalid cached token by forcing a fresh token.
+    if (res.status === 401 && attempt === 0) {
+      cachedAccessTokenByScope.delete(scope);
+      lastError = new Error(`${parsed} (retrying with fresh token)`);
+      continue;
+    }
+    throw new Error(`${parsed} [${method} ${path}]`);
   }
-  return json;
+  throw lastError ?? new Error(`Stitch request failed [${method} ${path}]`);
 }
 
 function getString(value: unknown): string | null {

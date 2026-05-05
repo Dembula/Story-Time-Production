@@ -67,7 +67,7 @@ export async function initializeCheckout(args: {
   const gateway = getPaymentGateway();
   let checkout: Awaited<ReturnType<typeof gateway.createCheckoutSession>>;
   try {
-    checkout = await gateway.createCheckoutSession({
+    const checkoutPayload = {
       amount: args.amount,
       currency: "ZAR",
       reference: toGatewaySafeReference("st", paymentRecord.id),
@@ -79,7 +79,15 @@ export async function initializeCheckout(args: {
         referenceType: args.referenceType,
         referenceId: args.referenceId,
       },
-    });
+    };
+    try {
+      checkout = await gateway.createCheckoutSession(checkoutPayload);
+    } catch (firstError) {
+      // One immediate retry to absorb transient gateway/network failures.
+      checkout = await gateway.createCheckoutSession(checkoutPayload).catch(() => {
+        throw firstError;
+      });
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown payment gateway error.";
     await db.paymentRecord.update({
