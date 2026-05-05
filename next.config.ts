@@ -36,10 +36,6 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_GOOGLE_AUTH_ENABLED: process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET ? "true" : "false",
     NEXT_PUBLIC_GITHUB_AUTH_ENABLED: process.env.GITHUB_ID && process.env.GITHUB_SECRET ? "true" : "false",
   },
-  experimental: {
-    staticGenerationMaxConcurrency: 1,
-    staticGenerationRetryCount: 2,
-  },
   images: {
     remotePatterns: [
       ...(storagePublicPattern ? [storagePublicPattern] : []),
