@@ -138,6 +138,17 @@ function getString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+function resolvePayerName(customer: GatewayCheckoutRequest["customer"]): string {
+  const byName = getString(customer?.name);
+  if (byName) return byName;
+  const byEmail = getString(customer?.email);
+  if (byEmail) {
+    const local = byEmail.split("@")[0]?.trim();
+    if (local) return local.slice(0, 80);
+  }
+  return "Story Time Customer";
+}
+
 function resolveCheckoutUrl(response: Record<string, unknown>): string | null {
   const payment = (response.data as Record<string, unknown> | undefined)?.payment as
     | Record<string, unknown>
@@ -208,7 +219,7 @@ class StitchGatewayAdapter implements PaymentGatewayAdapter {
         body: {
           amount: Math.round(payload.amount * 100),
           merchantReference: payload.reference,
-          payerName: payload.customer?.name ?? undefined,
+          payerName: resolvePayerName(payload.customer),
           payerEmailAddress: payload.customer?.email ?? undefined,
         },
       });
