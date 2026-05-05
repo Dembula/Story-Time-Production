@@ -13,10 +13,26 @@ export default async function CreatorLicenseOnboardingPage() {
     where: { email: session.user.email },
     select: {
       id: true,
-      creatorDistributionLicense: { select: { id: true } },
+      creatorDistributionLicense: {
+        select: { id: true, type: true },
+      },
     },
   });
-  if (user?.creatorDistributionLicense) redirect("/creator/command-center");
+  const license = user?.creatorDistributionLicense;
+  const paidOrNoUpfrontCharge = !license
+    ? true
+    : license.type.includes("PER_UPLOAD") ||
+      Boolean(
+        await prisma.paymentRecord.findFirst({
+          where: {
+            relatedEntityType: "CreatorDistributionLicense",
+            relatedEntityId: license.id,
+            status: "SUCCEEDED",
+          },
+          select: { id: true },
+        }),
+      );
+  if (license && paidOrNoUpfrontCharge) redirect("/creator/command-center");
 
   return (
     <div className="min-h-screen bg-background px-6 py-16 text-slate-100">

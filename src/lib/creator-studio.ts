@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { isCreatorLicensePeriodActive } from "@/lib/pricing";
+import { isCreatorLicensePeriodActive, isCreatorPerUploadLicense } from "@/lib/pricing";
 import { computeStudioSuiteAccess, type CreatorSuiteAccessMap } from "@/lib/creator-suite-access";
 import {
   isMissingCreatorStudioInfrastructure,
@@ -165,9 +165,22 @@ export async function loadStudioPipelineContext(userId: string): Promise<StudioP
       }));
 
     const license = user.creatorDistributionLicense;
-    const licensePeriodActive = Boolean(license && isCreatorLicensePeriodActive(license));
+    const paidOrNoUpfrontCharge = license
+      ? isCreatorPerUploadLicense(license.type) ||
+        Boolean(
+          await prisma.paymentRecord.findFirst({
+            where: {
+              relatedEntityType: "CreatorDistributionLicense",
+              relatedEntityId: license.id,
+              status: "SUCCEEDED",
+            },
+            select: { id: true },
+          }),
+        )
+      : false;
+    const licensePeriodActive = Boolean(license && paidOrNoUpfrontCharge && isCreatorLicensePeriodActive(license));
     const { suiteAccess, pipelineAccess } = computeStudioSuiteAccess({
-      license,
+      license: paidOrNoUpfrontCharge ? license : null,
       profile: profile
         ? {
             pipelineDisabledByAdmin: profile.pipelineDisabledByAdmin,
@@ -204,8 +217,24 @@ export async function loadStudioPipelineContext(userId: string): Promise<StudioP
     });
     if (!user) return null;
     const license = user.creatorDistributionLicense;
-    const licensePeriodActive = Boolean(license && isCreatorLicensePeriodActive(license));
-    const { suiteAccess, pipelineAccess } = computeStudioSuiteAccess({ license, profile: null });
+    const paidOrNoUpfrontCharge = license
+      ? isCreatorPerUploadLicense(license.type) ||
+        Boolean(
+          await prisma.paymentRecord.findFirst({
+            where: {
+              relatedEntityType: "CreatorDistributionLicense",
+              relatedEntityId: license.id,
+              status: "SUCCEEDED",
+            },
+            select: { id: true },
+          }),
+        )
+      : false;
+    const licensePeriodActive = Boolean(license && paidOrNoUpfrontCharge && isCreatorLicensePeriodActive(license));
+    const { suiteAccess, pipelineAccess } = computeStudioSuiteAccess({
+      license: paidOrNoUpfrontCharge ? license : null,
+      profile: null,
+    });
     return {
       license: license ?? null,
       activeProfile: null,

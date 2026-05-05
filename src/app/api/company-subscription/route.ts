@@ -76,6 +76,57 @@ export async function POST(req: NextRequest) {
   const plan = normalizeCompanyPlan(body.plan);
   const amount = getCompanyPlanConfig(plan).price;
 
+  const existingUnpaid = await prisma.companySubscription.findFirst({
+    where: {
+      userId: user.id,
+      companyType: role,
+      status: { in: ["PAST_DUE", "CANCELED"] },
+      lastPaymentStatus: { in: ["PENDING", "FAILED"] },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (existingUnpaid) {
+    const refreshed = await prisma.companySubscription.update({
+      where: { id: existingUnpaid.id },
+      data: {
+        plan,
+        status: "PAST_DUE",
+        currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        lastPaymentStatus: "PENDING",
+      },
+    });
+
+    try {
+      const checkout = await initializeCheckout({
+        userId: user.id,
+        email: user.email,
+        customerName: user.name,
+        amount,
+        purpose: "company_subscription",
+        referenceType: "CompanySubscription",
+        referenceId: refreshed.id,
+        returnUrl: buildPaymentReturnUrl(redirectTo, "company_subscription"),
+        metadata: { plan, companyType: role },
+      });
+      return NextResponse.json({
+        requiresPayment: true,
+        checkoutUrl: checkout.checkout.checkoutUrl,
+        redirectTo,
+        subscription: refreshed,
+      });
+    } catch (error) {
+      await prisma.companySubscription.update({
+        where: { id: refreshed.id },
+        data: { lastPaymentStatus: "FAILED", status: "PAST_DUE" },
+      });
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : "Unable to initialize checkout." },
+        { status: 502 },
+      );
+    }
+  }
+
   const subscription = await prisma.companySubscription.create({
     data: {
       userId: user.id,

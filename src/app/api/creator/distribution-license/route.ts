@@ -33,6 +33,19 @@ function addMonths(from: Date, months: number): Date {
   return d;
 }
 
+function creatorLicenseNeedsUpfrontPayment(type: string) {
+  return !type.includes("PER_UPLOAD");
+}
+
+function resolveCreatorLicensePrice(type: string) {
+  if (type === CREATOR_LICENSE_TYPE.UPLOAD_ONLY_YEARLY) return CREATOR_ONBOARDING_PLANS.UPLOAD_ONLY.price;
+  if (type === CREATOR_LICENSE_TYPE.PIPELINE_YEARLY) return CREATOR_ONBOARDING_PLANS.PIPELINE_YEARLY.price;
+  if (type === CREATOR_LICENSE_TYPE.PIPELINE_MONTHLY) return CREATOR_ONBOARDING_PLANS.PIPELINE_MONTHLY.price;
+  if (type === "YEARLY_R89" || type === "YEARLY") return CREATOR_LICENSE_CONFIG.YEARLY.price;
+  if (type === "PER_UPLOAD_R24_99" || type === "PER_UPLOAD_R10" || type === "PER_UPLOAD") return 0;
+  return 0;
+}
+
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email || !(session.user as { id?: string }).id) {
@@ -88,6 +101,54 @@ export async function POST(req: Request) {
 
   const existing = await prisma.creatorDistributionLicense.findUnique({ where: { userId: user.id } });
   if (existing) {
+    const needsPayment = creatorLicenseNeedsUpfrontPayment(existing.type);
+    const isPaid =
+      !needsPayment ||
+      Boolean(
+        await prisma.paymentRecord.findFirst({
+          where: {
+            relatedEntityType: "CreatorDistributionLicense",
+            relatedEntityId: existing.id,
+            status: "SUCCEEDED",
+          },
+          select: { id: true },
+        }),
+      );
+    if (needsPayment && !isPaid) {
+      let checkoutUrl: string | null = null;
+      const amount = resolveCreatorLicensePrice(existing.type);
+      if (amount > 0) {
+        try {
+          checkoutUrl = (
+            await initializeCheckout({
+              userId: user.id,
+              email: user.email,
+              customerName: user.name,
+              amount,
+              purpose: "creator_distribution_license",
+              referenceType: "CreatorDistributionLicense",
+              referenceId: existing.id,
+              returnUrl: buildPaymentReturnUrl(
+                role === "MUSIC_CREATOR" ? "/music-creator/dashboard" : "/creator/command-center",
+                "creator_distribution_license",
+              ),
+              metadata: { storedType: existing.type, role },
+            })
+          ).checkout.checkoutUrl;
+        } catch (error) {
+          return NextResponse.json(
+            { error: error instanceof Error ? error.message : "Unable to initialize checkout." },
+            { status: 502 },
+          );
+        }
+      }
+      return NextResponse.json({
+        license: existing,
+        requiresPayment: Boolean(checkoutUrl),
+        checkoutUrl,
+        redirectTo: role === "MUSIC_CREATOR" ? "/music-creator/dashboard" : "/creator/command-center",
+      });
+    }
     await ensureCreatorStudioProfilesForUser(user.id);
     const ctx = await loadStudioPipelineContext(user.id);
     return NextResponse.json({
@@ -145,18 +206,7 @@ export async function POST(req: Request) {
   }
 
   let basePrice = 0;
-  if (storedType === CREATOR_LICENSE_TYPE.UPLOAD_ONLY_YEARLY) {
-    basePrice = CREATOR_ONBOARDING_PLANS.UPLOAD_ONLY.price;
-  } else if (storedType === CREATOR_LICENSE_TYPE.PIPELINE_YEARLY) {
-    basePrice = CREATOR_ONBOARDING_PLANS.PIPELINE_YEARLY.price;
-  } else if (storedType === CREATOR_LICENSE_TYPE.PIPELINE_MONTHLY) {
-    basePrice = CREATOR_ONBOARDING_PLANS.PIPELINE_MONTHLY.price;
-  } else if (storedType === "YEARLY_R89" || storedType === "YEARLY") {
-    basePrice = CREATOR_LICENSE_CONFIG.YEARLY.price;
-  } else if (storedType === "PER_UPLOAD_R24_99" || storedType === "PER_UPLOAD_R10" || storedType === "PER_UPLOAD") {
-    // Pay-per-upload charges at submission time, not during onboarding.
-    basePrice = 0;
-  }
+  basePrice = resolveCreatorLicensePrice(storedType);
 
   let finalPrice = basePrice;
   let appliedPromo: { id: string; code: string } | null = null;
