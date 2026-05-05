@@ -89,18 +89,19 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const userId = (session.user as { id?: string }).id;
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const userId = (session.user as { id?: string }).id;
+    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const user = await prisma.user.findUnique({ where: { id: userId } });
-  const role = (session.user as { role?: string })?.role;
-  if (!user || (role !== "CONTENT_CREATOR" && role !== "MUSIC_CREATOR")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    const role = (session.user as { role?: string })?.role;
+    if (!user || (role !== "CONTENT_CREATOR" && role !== "MUSIC_CREATOR")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const existing = await prisma.creatorDistributionLicense.findUnique({ where: { userId: user.id } });
-  if (existing) {
+    const existing = await prisma.creatorDistributionLicense.findUnique({ where: { userId: user.id } });
+    if (existing) {
     const needsPayment = creatorLicenseNeedsUpfrontPayment(existing.type);
     const isPaid =
       !needsPayment ||
@@ -149,18 +150,18 @@ export async function POST(req: Request) {
         redirectTo: role === "MUSIC_CREATOR" ? "/music-creator/dashboard" : "/creator/command-center",
       });
     }
-    await ensureCreatorStudioProfilesForUser(user.id);
-    const ctx = await loadStudioPipelineContext(user.id);
-    return NextResponse.json({
-      license: existing,
-      pipelineAccess: ctx?.pipelineAccess ?? false,
-      suiteAccess: ctx?.suiteAccess ?? defaultSuiteAccessOpen(),
-      planSummary: formatCreatorLicenseSummary(existing.type),
-      licensePeriodActive: ctx?.licensePeriodActive ?? false,
-      activeStudioProfile: ctx?.activeProfile ?? null,
-      requiresPayment: false,
-    });
-  }
+      await ensureCreatorStudioProfilesForUser(user.id);
+      const ctx = await loadStudioPipelineContext(user.id);
+      return NextResponse.json({
+        license: existing,
+        pipelineAccess: ctx?.pipelineAccess ?? false,
+        suiteAccess: ctx?.suiteAccess ?? defaultSuiteAccessOpen(),
+        planSummary: formatCreatorLicenseSummary(existing.type),
+        licensePeriodActive: ctx?.licensePeriodActive ?? false,
+        activeStudioProfile: ctx?.activeProfile ?? null,
+        requiresPayment: false,
+      });
+    }
 
   const body = (await req.json().catch(() => null)) as
     | {
@@ -233,9 +234,15 @@ export async function POST(req: Request) {
     appliedPromo = { id: promoResult.promo.id, code: promoResult.promo.code };
   }
 
-  await ensureCreatorStudioProfilesForUser(user.id);
-  const preCtx = await loadStudioPipelineContext(user.id);
-  const profileId = preCtx?.activeProfile?.id ?? null;
+    await ensureCreatorStudioProfilesForUser(user.id);
+    let profileId: string | null = null;
+    try {
+      const preCtx = await loadStudioPipelineContext(user.id);
+      profileId = preCtx?.activeProfile?.id ?? null;
+    } catch {
+      // Profile linkage should not block checkout initialization.
+      profileId = null;
+    }
 
   let license;
   try {
@@ -263,7 +270,6 @@ export async function POST(req: Request) {
     }
   }
 
-  const ctx = await loadStudioPipelineContext(user.id);
   if (appliedPromo) {
     const redemption = await redeemPromoCode({
       promoCodeId: appliedPromo.id,
@@ -306,21 +312,47 @@ export async function POST(req: Request) {
     }
   }
 
-  return NextResponse.json({
-    license,
-    requiresPayment: finalPrice > 0,
-    pipelineAccess: ctx?.pipelineAccess ?? false,
-    suiteAccess: ctx?.suiteAccess ?? defaultSuiteAccessOpen(),
-    planSummary: formatCreatorLicenseSummary(license.type),
-    licensePeriodActive: ctx?.licensePeriodActive ?? false,
-    activeStudioProfile: ctx?.activeProfile ?? null,
-    pricing: {
-      basePrice,
-      finalPrice,
-      promoCode: appliedPromo?.code ?? null,
-      discountAmount: Math.max(0, basePrice - finalPrice),
-    },
-    checkoutUrl,
-    redirectTo: role === "MUSIC_CREATOR" ? "/music-creator/dashboard" : "/creator/command-center",
-  });
+    if (finalPrice > 0) {
+      return NextResponse.json({
+        license,
+        requiresPayment: true,
+        pricing: {
+          basePrice,
+          finalPrice,
+          promoCode: appliedPromo?.code ?? null,
+          discountAmount: Math.max(0, basePrice - finalPrice),
+        },
+        checkoutUrl,
+        redirectTo: role === "MUSIC_CREATOR" ? "/music-creator/dashboard" : "/creator/command-center",
+      });
+    }
+
+    let ctx = null;
+    try {
+      ctx = await loadStudioPipelineContext(user.id);
+    } catch {
+      ctx = null;
+    }
+
+    return NextResponse.json({
+      license,
+      requiresPayment: false,
+      pipelineAccess: ctx?.pipelineAccess ?? false,
+      suiteAccess: ctx?.suiteAccess ?? defaultSuiteAccessOpen(),
+      planSummary: formatCreatorLicenseSummary(license.type),
+      licensePeriodActive: ctx?.licensePeriodActive ?? false,
+      activeStudioProfile: ctx?.activeProfile ?? null,
+      pricing: {
+        basePrice,
+        finalPrice,
+        promoCode: appliedPromo?.code ?? null,
+        discountAmount: Math.max(0, basePrice - finalPrice),
+      },
+      checkoutUrl,
+      redirectTo: role === "MUSIC_CREATOR" ? "/music-creator/dashboard" : "/creator/command-center",
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Creator onboarding failed.";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

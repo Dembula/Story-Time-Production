@@ -51,17 +51,18 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const role = (session.user as { role?: string })?.role;
-  if (!role || !COMPANY_ROLES.includes(role as any)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  const redirectTo = companyDashboardPathForRole(role);
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const role = (session.user as { role?: string })?.role;
+    if (!role || !COMPANY_ROLES.includes(role as any)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const redirectTo = companyDashboardPathForRole(role);
 
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-  if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
-  const now = new Date();
+    const user = await prisma.user.findUnique({ where: { email: session.user.email } });
+    if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+    const now = new Date();
 
-  const existing = await prisma.companySubscription.findFirst({
+    const existing = await prisma.companySubscription.findFirst({
     where: {
       userId: user.id,
       companyType: role,
@@ -69,14 +70,14 @@ export async function POST(req: NextRequest) {
       currentPeriodEnd: { gt: now },
     },
   });
-  if (existing) return NextResponse.json({ subscription: existing });
+    if (existing) return NextResponse.json({ subscription: existing });
 
-  const body = (await req.json().catch(() => null)) as { plan?: string } | null;
-  if (!body) return NextResponse.json({ error: "Invalid request payload." }, { status: 400 });
-  const plan = normalizeCompanyPlan(body.plan);
-  const amount = getCompanyPlanConfig(plan).price;
+    const body = (await req.json().catch(() => null)) as { plan?: string } | null;
+    if (!body) return NextResponse.json({ error: "Invalid request payload." }, { status: 400 });
+    const plan = normalizeCompanyPlan(body.plan);
+    const amount = getCompanyPlanConfig(plan).price;
 
-  const existingUnpaid = await prisma.companySubscription.findFirst({
+    const existingUnpaid = await prisma.companySubscription.findFirst({
     where: {
       userId: user.id,
       companyType: role,
@@ -86,8 +87,8 @@ export async function POST(req: NextRequest) {
     orderBy: { createdAt: "desc" },
   });
 
-  if (existingUnpaid) {
-    const refreshed = await prisma.companySubscription.update({
+    if (existingUnpaid) {
+      const refreshed = await prisma.companySubscription.update({
       where: { id: existingUnpaid.id },
       data: {
         plan,
@@ -97,8 +98,8 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    try {
-      const checkout = await initializeCheckout({
+      try {
+        const checkout = await initializeCheckout({
         userId: user.id,
         email: user.email,
         customerName: user.name,
@@ -109,25 +110,26 @@ export async function POST(req: NextRequest) {
         returnUrl: buildPaymentReturnUrl(redirectTo, "company_subscription"),
         metadata: { plan, companyType: role },
       });
-      return NextResponse.json({
-        requiresPayment: true,
-        checkoutUrl: checkout.checkout.checkoutUrl,
-        redirectTo,
-        subscription: refreshed,
-      });
-    } catch (error) {
-      await prisma.companySubscription.update({
+        return NextResponse.json({
+          requiresPayment: true,
+          checkoutUrl: checkout.checkout.checkoutUrl,
+          redirectTo,
+          subscription: refreshed,
+        });
+      } catch (error) {
+        await prisma.companySubscription.update({
         where: { id: refreshed.id },
         data: { lastPaymentStatus: "FAILED", status: "PAST_DUE" },
       });
-      return NextResponse.json(
-        { error: error instanceof Error ? error.message : "Unable to initialize checkout." },
-        { status: 502 },
-      );
+        return NextResponse.json(
+          { error: error instanceof Error ? error.message : "Unable to initialize checkout." },
+          { status: 502 },
+        );
+      }
     }
-  }
+    
 
-  const subscription = await prisma.companySubscription.create({
+    const subscription = await prisma.companySubscription.create({
     data: {
       userId: user.id,
       companyType: role,
@@ -140,9 +142,9 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  let checkoutUrl: string;
-  try {
-    const checkout = await initializeCheckout({
+    let checkoutUrl: string;
+    try {
+      const checkout = await initializeCheckout({
       userId: user.id,
       email: user.email,
       customerName: user.name,
@@ -153,22 +155,26 @@ export async function POST(req: NextRequest) {
       returnUrl: buildPaymentReturnUrl(redirectTo, "company_subscription"),
       metadata: { plan, companyType: role },
     });
-    checkoutUrl = checkout.checkout.checkoutUrl;
-  } catch (error) {
-    await prisma.companySubscription.update({
+      checkoutUrl = checkout.checkout.checkoutUrl;
+    } catch (error) {
+      await prisma.companySubscription.update({
       where: { id: subscription.id },
       data: { lastPaymentStatus: "FAILED", status: "PAST_DUE" },
     });
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unable to initialize checkout." },
-      { status: 502 },
-    );
-  }
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : "Unable to initialize checkout." },
+        { status: 502 },
+      );
+    }
 
-  return NextResponse.json({
-    requiresPayment: true,
-    checkoutUrl,
-    redirectTo,
-    subscription,
-  });
+    return NextResponse.json({
+      requiresPayment: true,
+      checkoutUrl,
+      redirectTo,
+      subscription,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Company onboarding failed.";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
