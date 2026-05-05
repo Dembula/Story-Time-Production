@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
       const paymentRecordId = (gatewayRef.metadata as { paymentRecordId?: string } | null)?.paymentRecordId;
       if (paymentRecordId) {
         const paymentRecord = await db.paymentRecord.findUnique({ where: { id: paymentRecordId } });
-        if (paymentRecord && paymentRecord.userId) {
+        if (paymentRecord && paymentRecord.userId && paymentRecord.status !== "SUCCEEDED") {
           await ensureWalletForUser(paymentRecord.userId);
           const treasury =
             (await db.user.findFirst({ where: { role: "ADMIN" }, select: { id: true } })) ??
@@ -135,6 +135,36 @@ export async function POST(req: NextRequest) {
                 currentPeriodEnd: nextPeriodEnd,
                 lastPaymentStatus: "SUCCEEDED",
                 lastPaymentAt: now,
+                lastPaymentError: null,
+              },
+            });
+          }
+          if (paymentRecord.relatedEntityType === "ViewerContentAccess" && paymentRecord.relatedEntityId) {
+            await db.viewerContentAccess.update({
+              where: { id: paymentRecord.relatedEntityId },
+              data: {
+                status: "COMPLETED",
+                purchasedAt: new Date(),
+              },
+            });
+          }
+          if (paymentRecord.relatedEntityType === "CreatorDistributionLicense" && paymentRecord.relatedEntityId) {
+            await db.creatorDistributionLicense.update({
+              where: { id: paymentRecord.relatedEntityId },
+              data: {
+                lastPaymentStatus: "SUCCEEDED",
+                lastPaymentAt: new Date(),
+                lastPaymentError: null,
+              },
+            });
+          }
+          if (paymentRecord.relatedEntityType === "CompanySubscription" && paymentRecord.relatedEntityId) {
+            await db.companySubscription.update({
+              where: { id: paymentRecord.relatedEntityId },
+              data: {
+                status: "ACTIVE",
+                lastPaymentStatus: "SUCCEEDED",
+                lastPaymentAt: new Date(),
                 lastPaymentError: null,
               },
             });

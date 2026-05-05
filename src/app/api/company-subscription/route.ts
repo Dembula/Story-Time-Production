@@ -8,6 +8,23 @@ import { buildPaymentReturnUrl } from "@/lib/payments/return-url";
 
 const COMPANY_ROLES = ["CREW_TEAM", "CASTING_AGENCY", "LOCATION_OWNER", "EQUIPMENT_COMPANY", "CATERING_COMPANY"] as const;
 
+function companyDashboardPathForRole(role: string) {
+  switch (role) {
+    case "CREW_TEAM":
+      return "/crew-team/dashboard";
+    case "CASTING_AGENCY":
+      return "/casting-agency/dashboard";
+    case "LOCATION_OWNER":
+      return "/location-owner/dashboard";
+    case "EQUIPMENT_COMPANY":
+      return "/equipment-company/dashboard";
+    case "CATERING_COMPANY":
+      return "/catering-company/dashboard";
+    default:
+      return "/company/onboarding/subscription";
+  }
+}
+
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -38,6 +55,7 @@ export async function POST(req: NextRequest) {
   if (!session?.user?.email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const role = (session.user as { role?: string })?.role;
   if (!role || !COMPANY_ROLES.includes(role as any)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const redirectTo = companyDashboardPathForRole(role);
 
   const user = await prisma.user.findUnique({ where: { email: session.user.email } });
   if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -81,7 +99,7 @@ export async function POST(req: NextRequest) {
       purpose: "company_subscription",
       referenceType: "CompanySubscription",
       referenceId: subscription.id,
-      returnUrl: buildPaymentReturnUrl("/company/onboarding/subscription", "company_subscription"),
+      returnUrl: buildPaymentReturnUrl(redirectTo, "company_subscription"),
       metadata: { plan, companyType: role },
     });
     checkoutUrl = checkout.checkout.checkoutUrl;
@@ -99,6 +117,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     requiresPayment: true,
     checkoutUrl,
+    redirectTo,
     subscription,
   });
 }

@@ -154,7 +154,8 @@ export async function POST(req: Request) {
   } else if (storedType === "YEARLY_R89" || storedType === "YEARLY") {
     basePrice = CREATOR_LICENSE_CONFIG.YEARLY.price;
   } else if (storedType === "PER_UPLOAD_R24_99" || storedType === "PER_UPLOAD_R10" || storedType === "PER_UPLOAD") {
-    basePrice = CREATOR_LICENSE_CONFIG.PER_UPLOAD.price;
+    // Pay-per-upload charges at submission time, not during onboarding.
+    basePrice = 0;
   }
 
   let finalPrice = basePrice;

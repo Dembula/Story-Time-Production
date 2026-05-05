@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Lock } from "lucide-react";
 import { useRef } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -21,11 +21,13 @@ export function ContentRow({
   subtitle,
   contents,
   loading,
+  ppvMode = false,
 }: {
   title: string;
   subtitle?: string;
   contents: ContentItem[];
   loading?: boolean;
+  ppvMode?: boolean;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -114,6 +116,11 @@ export function ContentRow({
               {item._count?.ratings ? (
                 <div className="absolute right-2 top-2 rounded-full border border-white/10 bg-black/55 px-2.5 py-1 text-xs text-slate-100 backdrop-blur-sm">
                   {item._count.ratings} ratings
+                </div>
+              ) : null}
+              {ppvMode && !/music/i.test(item.type) ? (
+                <div className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full border border-orange-300/30 bg-orange-500/20 px-2.5 py-1 text-xs text-orange-100 backdrop-blur-sm">
+                  <Lock className="h-3 w-3" /> Pay to unlock
                 </div>
               ) : null}
             </div>

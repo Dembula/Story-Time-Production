@@ -218,21 +218,13 @@ export async function POST(req: Request) {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to initialize card capture.";
-      // Trial should still start even if card-consent is not enabled for this Stitch client.
-      if (isRetryableConsentSetupError(message)) {
-        checkoutWarning =
-          "Trial started, but card capture is unavailable for this Stitch test client. Add card capture after Stitch enables consent scope.";
-        await prisma.viewerSubscription.update({
-          where: { id: subscription.id },
-          data: { lastPaymentStatus: "PENDING", lastPaymentError: checkoutWarning },
-        });
-      } else {
-        await prisma.viewerSubscription.update({
-          where: { id: subscription.id },
-          data: { lastPaymentStatus: "FAILED", lastPaymentError: message },
-        });
-        return NextResponse.json({ error: message }, { status: 502 });
-      }
+      checkoutWarning = isRetryableConsentSetupError(message)
+        ? "Trial started, but card capture is unavailable for this Stitch test client. Add card capture after Stitch enables consent scope."
+        : "Trial started, but card capture could not be initialized right now. You can add a payment method later in account settings.";
+      await prisma.viewerSubscription.update({
+        where: { id: subscription.id },
+        data: { lastPaymentStatus: "PENDING", lastPaymentError: checkoutWarning },
+      });
     }
   } else {
     try {

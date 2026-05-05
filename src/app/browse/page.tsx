@@ -9,6 +9,7 @@ import { authOptions } from "@/lib/auth";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { getViewerProfileAge } from "@/lib/viewer-profiles";
+import { VIEWER_MODELS } from "@/lib/viewer-access";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,15 @@ export default async function BrowsePage({
       });
       if (profile) profileAge = getViewerProfileAge(profile);
     }
+  }
+  let isPpvViewer = false;
+  if (session?.user?.id && role === "SUBSCRIBER") {
+    const latestSubscription = await prisma.viewerSubscription.findFirst({
+      where: { userId: session.user.id },
+      orderBy: { createdAt: "desc" },
+      select: { viewerModel: true },
+    });
+    isPpvViewer = latestSubscription?.viewerModel === VIEWER_MODELS.PPV;
   }
 
   const ageFilter = profileAge != null ? { minAge: { lte: profileAge } } : {};
@@ -237,6 +247,7 @@ export default async function BrowsePage({
                 title="Student Films & Series"
                 subtitle="Award-winning student productions"
                 contents={afdaContent}
+                ppvMode={isPpvViewer}
               />
             )}
             {afdaMusic.length > 0 && (
@@ -293,6 +304,7 @@ export default async function BrowsePage({
                   ...c,
                   _count: c._count,
                 }))}
+                ppvMode={isPpvViewer}
               />
             )}
             {trending.length > 0 && (
@@ -300,6 +312,7 @@ export default async function BrowsePage({
                 title="Trending Now"
                 subtitle="Popular titles this week"
                 contents={trending}
+                ppvMode={isPpvViewer}
               />
             )}
             {movies.length > 0 && (
@@ -307,6 +320,7 @@ export default async function BrowsePage({
                 title="Movies"
                 subtitle="Feature films and documentaries"
                 contents={movies}
+                ppvMode={isPpvViewer}
               />
             )}
             {series.length > 0 && (
@@ -314,6 +328,7 @@ export default async function BrowsePage({
                 title="Series"
                 subtitle="Binge-worthy shows"
                 contents={series}
+                ppvMode={isPpvViewer}
               />
             )}
             {animated.length > 0 && (
@@ -321,6 +336,7 @@ export default async function BrowsePage({
                 title="Animated Films"
                 subtitle="Family favorites and animated adventures"
                 contents={animated}
+                ppvMode={isPpvViewer}
               />
             )}
             {shows.length > 0 && (
@@ -328,6 +344,7 @@ export default async function BrowsePage({
                 title="Shows"
                 subtitle="Variety and entertainment"
                 contents={shows}
+                ppvMode={isPpvViewer}
               />
             )}
             {liveMusic.length > 0 && (
@@ -335,6 +352,7 @@ export default async function BrowsePage({
                 title="Live Music"
                 subtitle="Concert recordings and performances"
                 contents={liveMusic}
+                ppvMode={isPpvViewer}
               />
             )}
             {comedyShows.length > 0 && (
@@ -342,6 +360,7 @@ export default async function BrowsePage({
                 title="Comedy Shows"
                 subtitle="Stand-up and sketch comedy"
                 contents={comedyShows}
+                ppvMode={isPpvViewer}
               />
             )}
             {podcasts.length > 0 && (
@@ -349,6 +368,7 @@ export default async function BrowsePage({
                 title="Podcasts"
                 subtitle="Conversations and stories"
                 contents={podcasts}
+                ppvMode={isPpvViewer}
               />
             )}
             {afdaContent.length > 0 && (
@@ -356,6 +376,7 @@ export default async function BrowsePage({
                 title="Student Films"
                 subtitle="Student works from emerging filmmakers"
                 contents={afdaContent}
+                ppvMode={isPpvViewer}
               />
             )}
             {musicTracks.length > 0 && (
@@ -392,6 +413,7 @@ export default async function BrowsePage({
                           : `All ${type.toLowerCase()}`
                 }
                 contents={trending}
+                ppvMode={isPpvViewer}
               />
             )}
             {search && trending.length > 0 && (
@@ -399,6 +421,7 @@ export default async function BrowsePage({
                 title="Search results"
                 subtitle={`${allCount} title${allCount !== 1 ? "s" : ""} found`}
                 contents={trending}
+                ppvMode={isPpvViewer}
               />
             )}
           </>
