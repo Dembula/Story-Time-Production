@@ -31,6 +31,37 @@ export async function GET(req: NextRequest) {
     const transactionsTyped = transactions as any[];
     const payoutsTyped = payouts as any[];
     const escrowsTyped = escrows as any[];
+    const invoicesTyped = invoices as any[];
+
+    const grossInflow = paymentRecordsTyped
+      .filter((p: any) => p.status === "SUCCEEDED")
+      .reduce((sum: number, p: any) => sum + Number(p.amount ?? 0), 0);
+    const platformCharges = invoicesTyped.reduce(
+      (sum: number, inv: any) => sum + Number(inv.platformFeeAmount ?? 0),
+      0,
+    );
+    const payoutCompletedTotal = payoutsTyped
+      .filter((p: any) => p.status === "COMPLETED")
+      .reduce((sum: number, p: any) => sum + Number(p.amount ?? 0), 0);
+    const payoutProcessingTotal = payoutsTyped
+      .filter((p: any) => p.status === "PROCESSING")
+      .reduce((sum: number, p: any) => sum + Number(p.amount ?? 0), 0);
+    const netRetained = grossInflow - payoutCompletedTotal;
+
+    const adminUser = await db.user.findFirst({
+      where: { role: "ADMIN" },
+      select: { id: true },
+    });
+    const platformWallet =
+      adminUser?.id
+        ? await db.wallet.findUnique({
+            where: { userId: adminUser.id },
+            include: { accounts: true },
+          })
+        : null;
+    const accountByType = new Map<string, any>(
+      (platformWallet?.accounts ?? []).map((a: any) => [String(a.accountType), a]),
+    );
 
     const metrics = {
       paymentPending: paymentRecordsTyped.filter((p: any) => p.status === "PENDING").length,
@@ -41,6 +72,15 @@ export async function GET(req: NextRequest) {
       escrowDisputed: escrowsTyped.filter((e: any) => e.status === "DISPUTED").length,
       payoutProcessing: payoutsTyped.filter((p: any) => p.status === "PROCESSING").length,
       payoutFailed: payoutsTyped.filter((p: any) => p.status === "FAILED").length,
+      grossInflow,
+      platformCharges,
+      netRetained,
+      payoutCompletedTotal,
+      payoutProcessingTotal,
+      platformAvailableBalance: Number(platformWallet?.availableBalance ?? 0),
+      platformPendingBalance: Number(platformWallet?.pendingBalance ?? 0),
+      platformLockedBalance: Number(platformWallet?.lockedBalance ?? 0),
+      platformRevenueAccountBalance: Number(accountByType.get("PLATFORM_REVENUE")?.balance ?? 0),
     };
 
     return NextResponse.json({

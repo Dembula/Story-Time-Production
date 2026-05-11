@@ -31,6 +31,31 @@ export default function AdminPaymentsPage() {
       { label: "Escrow disputed", value: String(metrics.escrowDisputed ?? 0), tone: "text-red-300" },
       { label: "Payout processing", value: String(metrics.payoutProcessing ?? 0), tone: "text-orange-300" },
       { label: "Payout failed", value: String(metrics.payoutFailed ?? 0), tone: "text-rose-300" },
+      {
+        label: "Platform available balance",
+        value: `R${money.format(Number(metrics.platformAvailableBalance ?? 0))}`,
+        tone: "text-emerald-300",
+      },
+      {
+        label: "Gross inflow (succeeded)",
+        value: `R${money.format(Number(metrics.grossInflow ?? 0))}`,
+        tone: "text-cyan-300",
+      },
+      {
+        label: "Platform charges (fees)",
+        value: `R${money.format(Number(metrics.platformCharges ?? 0))}`,
+        tone: "text-orange-300",
+      },
+      {
+        label: "Payouts completed",
+        value: `R${money.format(Number(metrics.payoutCompletedTotal ?? 0))}`,
+        tone: "text-violet-300",
+      },
+      {
+        label: "Net retained",
+        value: `R${money.format(Number(metrics.netRetained ?? 0))}`,
+        tone: "text-lime-300",
+      },
     ],
     [metrics],
   );

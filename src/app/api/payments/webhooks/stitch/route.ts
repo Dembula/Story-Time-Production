@@ -100,7 +100,8 @@ export async function POST(req: NextRequest) {
             referenceId: paymentRecord.relatedEntityId || paymentRecord.id,
             entries: [
               {
-                userId: paymentRecord.userId,
+                // End-users pay Story Time first; do not credit the payer's wallet.
+                userId: treasury.id,
                 direction: "CREDIT",
                 accountType: "AVAILABLE",
                 transactionType: "incoming_payment",
@@ -149,14 +150,8 @@ export async function POST(req: NextRequest) {
             });
           }
           if (paymentRecord.relatedEntityType === "CreatorDistributionLicense" && paymentRecord.relatedEntityId) {
-            await db.creatorDistributionLicense.update({
-              where: { id: paymentRecord.relatedEntityId },
-              data: {
-                lastPaymentStatus: "SUCCEEDED",
-                lastPaymentAt: new Date(),
-                lastPaymentError: null,
-              },
-            });
+            // CreatorDistributionLicense currently has no lastPayment* columns.
+            // Settlement source of truth remains PaymentRecord + GatewayReference.
           }
           if (paymentRecord.relatedEntityType === "CompanySubscription" && paymentRecord.relatedEntityId) {
             await db.companySubscription.update({
