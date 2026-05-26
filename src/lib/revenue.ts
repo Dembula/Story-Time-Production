@@ -43,7 +43,9 @@ export async function getCreatorRevenue(
   const creatorSeconds = creatorWatchTime._sum.durationSeconds ?? 0;
   const totalSeconds = totalPlatformWatchTime._sum.durationSeconds ?? 1;
   const creatorShare = totalSeconds > 0 ? creatorSeconds / totalSeconds : 0;
-  const creatorPool = viewerSubRevenue > 0 ? viewerSubRevenue * 0.6 : (platformRevenue?.amount ?? 10000);
+  const poolBase =
+    viewerSubRevenue > 0 ? viewerSubRevenue : (platformRevenue?.amount ?? 0);
+  const creatorPool = poolBase * 0.6;
   const revenue = creatorShare * creatorPool;
 
   return {
@@ -54,7 +56,7 @@ export async function getCreatorRevenue(
 }
 
 export async function getPlatformStats(periodStart: Date, periodEnd: Date) {
-  const [totalUsers, totalContent, totalWatchTime, totalRevenue] = await Promise.all([
+  const [totalUsers, totalContent, totalWatchTime, totalRevenue, viewerSubRevenue] = await Promise.all([
     prisma.user.count(),
     prisma.content.count({ where: { published: true } }),
     prisma.watchSession.aggregate({
@@ -66,12 +68,13 @@ export async function getPlatformStats(periodStart: Date, periodEnd: Date) {
         period: `${periodStart.getFullYear()}-${String(periodStart.getMonth() + 1).padStart(2, "0")}`,
       },
     }),
+    getViewerSubscriptionRevenue(periodStart, periodEnd),
   ]);
 
   return {
     totalUsers,
     totalContent,
     totalWatchTime: totalWatchTime._sum.durationSeconds ?? 0,
-    revenuePool: totalRevenue?.amount ?? 10000,
+    revenuePool: viewerSubRevenue > 0 ? viewerSubRevenue : (totalRevenue?.amount ?? 0),
   };
 }

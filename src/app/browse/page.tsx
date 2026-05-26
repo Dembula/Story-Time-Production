@@ -2,6 +2,9 @@ import { Hero } from "@/components/layout/hero";
 import { ContentRow } from "@/components/layout/content-row";
 import { MusicRow } from "@/components/layout/music-row";
 import { RecommendationsRow } from "@/components/layout/recommendations-row";
+import { ContinueWatchingRow } from "@/components/layout/continue-watching-row";
+import { WatchlistRow } from "@/components/layout/watchlist-row";
+import { MoodBrowseRow } from "@/components/layout/mood-browse-row";
 import { BrowseSearchWithModoc } from "@/app/browse/browse-search-with-modoc";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
@@ -10,8 +13,11 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { getViewerProfileAge } from "@/lib/viewer-profiles";
 import { VIEWER_MODELS } from "@/lib/viewer-access";
+import { rankSearchResults } from "@/lib/browse-search";
+import { getDisplayPosterUrl } from "@/lib/content-media-urls";
 
-export const dynamic = "force-dynamic";
+/** Personalized rows still fetch client-side; catalogue can revalidate when not searching. */
+export const revalidate = 60;
 
 export default async function BrowsePage({
   searchParams,
@@ -190,11 +196,47 @@ export default async function BrowsePage({
     }
   }
 
+  if (search?.trim() && !loadError) {
+    try {
+      const searchPool = await prisma.content.findMany({
+        where,
+        take: 48,
+        include: {
+          _count: { select: { ratings: true } },
+          creator: { select: { name: true } },
+        },
+      });
+      trending = rankSearchResults(searchPool, search).slice(0, 16);
+    } catch {
+      // keep default trending from parallel fetch
+    }
+  }
+
+  const withPoster = <T extends { posterUrl: string | null; backdropUrl?: string | null; videoUrl?: string | null; trailerUrl?: string | null }>(
+    items: T[],
+  ) =>
+    items.map((c) => ({
+      ...c,
+      posterUrl: getDisplayPosterUrl(c) ?? c.posterUrl,
+    }));
+
+  featured = withPoster(featured);
+  trending = withPoster(trending);
+  movies = withPoster(movies);
+  series = withPoster(series);
+  animated = withPoster(animated);
+  shows = withPoster(shows);
+  liveMusic = withPoster(liveMusic);
+  comedyShows = withPoster(comedyShows);
+  podcasts = withPoster(podcasts);
+  afdaContent = withPoster(afdaContent);
+  const heroMapped = mostPopular.length > 0
+    ? withPoster(mostPopular.map(({ ratings: _r, _avgRating: _a, ...c }) => c))
+    : featured;
+
   // Hero: Most popular films (or featured if no popular)
   const heroContent =
-    mostPopular.length > 0
-      ? mostPopular.slice(0, 5).map(({ ratings: _r, _avgRating: _a, ...c }) => c)
-      : featured;
+    mostPopular.length > 0 ? heroMapped.slice(0, 5) : featured;
 
   return (
     <div className="pb-16">
@@ -295,7 +337,10 @@ export default async function BrowsePage({
 
         {!type && !search && !filter && (
           <>
+            <ContinueWatchingRow />
+            <WatchlistRow />
             <RecommendationsRow />
+            <MoodBrowseRow />
             {mostPopular.length > 0 && (
               <ContentRow
                 title="Most Popular on Story Time"

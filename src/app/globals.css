@@ -1,3 +1,5 @@
+@import "../styles/cinematic-tokens.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -287,4 +289,13 @@ html[data-device-class="mobile"] .adaptive-table-mobile {
 html[data-device-class="desktop"] .adaptive-table-mobile,
 html[data-device-class="tv"] .adaptive-table-mobile {
   display: table;
+}
+
+.capture-protected-player video {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.capture-protected-player {
+  -webkit-touch-callout: none;
 }

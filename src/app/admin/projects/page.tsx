@@ -1,14 +1,8 @@
-import { getServerSession } from "next-auth";
-import { redirect } from "next/navigation";
-import { authOptions } from "@/lib/auth";
+import { requireAdminSession } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
 
 export default async function AdminProjectsPage() {
-  const session = await getServerSession(authOptions);
-  const role = (session?.user as { role?: string })?.role;
-  if (!session || role !== "ADMIN") {
-    redirect("/auth/signin");
-  }
+  await requireAdminSession();
 
   const [projects, linkGroups] = await Promise.all([
     prisma.originalProject.findMany({
@@ -71,21 +65,21 @@ export default async function AdminProjectsPage() {
               className="flex scroll-mt-24 flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
             >
               <div className="min-w-0">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <p className="font-semibold text-white truncate">{project.title}</p>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300">
+                <div className="mb-0.5 flex items-center gap-2">
+                  <p className="truncate font-semibold text-white">{project.title}</p>
+                  <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] text-slate-300">
                     {stage}
                   </span>
                   {isOriginal && (
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-300 border border-orange-500/40">
+                    <span className="rounded-full border border-orange-500/40 bg-orange-500/10 px-2 py-0.5 text-[10px] text-orange-300">
                       Story Time Original
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-slate-400 line-clamp-1">
+                <p className="line-clamp-1 text-xs text-slate-400">
                   {project.logline || "No logline yet."}
                 </p>
-                <p className="text-[11px] text-slate-500 mt-1">
+                <p className="mt-1 text-[11px] text-slate-500">
                   Created {created.toLocaleDateString()} · Type {project.type}{" "}
                   {project.genre ? `· ${project.genre}` : ""}
                 </p>
@@ -98,8 +92,7 @@ export default async function AdminProjectsPage() {
                   </span>
                 </span>
                 <span>
-                  Linked catalogue:{" "}
-                  <span className="text-slate-200">{linkedN}</span>
+                  Linked catalogue: <span className="text-slate-200">{linkedN}</span>
                 </span>
                 <span>
                   Team:{" "}
@@ -126,4 +119,3 @@ export default async function AdminProjectsPage() {
     </div>
   );
 }
-

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { ProfilesClient } from "./profiles-client";
 import { getLatestViewerSubscription, getViewerDeviceCount, getViewerModel, getViewerProfileLimit } from "@/lib/viewer-access";
 import { getViewerProfileAge } from "@/lib/viewer-profiles";
+import { isViewerAccountOnboardingComplete } from "@/lib/viewer-account-onboarding";
 
 export default async function ProfilesPage() {
   const session = await getServerSession(authOptions);
@@ -15,6 +16,14 @@ export default async function ProfilesPage() {
   if (role === "CONTENT_CREATOR") redirect("/creator/command-center");
   if (role === "MUSIC_CREATOR") redirect("/music-creator/dashboard");
   if (role && role !== "SUBSCRIBER") redirect("/browse");
+
+  const userRecord = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { name: true, email: true, phoneNumber: true, accountOnboardingCompletedAt: true },
+  });
+  if (userRecord && !isViewerAccountOnboardingComplete(userRecord)) {
+    redirect("/onboarding/account");
+  }
 
   const subscription = await getLatestViewerSubscription(session.user.id);
   if (!subscription) redirect("/onboarding/package");

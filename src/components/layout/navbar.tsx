@@ -3,55 +3,55 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useSession, signOut } from "next-auth/react";
-import { User, LogOut, Film, Music, LayoutDashboard, Settings } from "lucide-react";
+import { User } from "lucide-react";
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { NotificationBell } from "@/components/layout/notification-bell";
+import { ViewerProfileMenu } from "@/components/layout/viewer-profile-menu";
 import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
-import { createPortal } from "react-dom";
 
 const CONTENT_TYPES = [
-  { label: "Movies", value: "MOVIE" },
-  { label: "Series", value: "SERIES" },
-  { label: "Shows", value: "SHOW" },
-  { label: "Podcasts", value: "PODCAST" },
-  { label: "Student Films", value: "AFDA" },
-  { label: "Music Library", value: "MUSIC" },
+  { label: "Movies", value: "MOVIE", href: "/browse?type=MOVIE" },
+  { label: "Series", value: "SERIES", href: "/browse?type=SERIES" },
+  { label: "Shows", value: "SHOW", href: "/browse?type=SHOW" },
+  { label: "Podcasts", value: "PODCAST", href: "/browse?type=PODCAST" },
+  { label: "Student Films", value: "AFDA", href: "/browse?filter=afda" },
+  { label: "Music Library", value: "MUSIC", href: "/browse?filter=music" },
 ];
 
 export function Navbar() {
   const { data: session } = useSession();
+  const pathname = usePathname();
   const { deviceClass } = useAdaptiveUi();
   const [menuOpen, setMenuOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [activeProfile, setActiveProfile] = useState<{ id: string; name: string; age: number } | null>(null);
   const [mounted, setMounted] = useState(false);
-  const [menuPanelPos, setMenuPanelPos] = useState<{ top: number; right: number }>({ top: 72, right: 16 });
+  const [menuPanelPos, setMenuPanelPos] = useState({ top: 72, right: 16 });
   const [menuButtonEl, setMenuButtonEl] = useState<HTMLButtonElement | null>(null);
 
+  const role = (session?.user as { role?: string } | undefined)?.role;
+
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 12);
+    const onScroll = () => setScrolled(window.scrollY > 8);
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
-    const role = (session?.user as { role?: string } | undefined)?.role;
     if (role !== "SUBSCRIBER") {
       setActiveProfile(null);
       return;
     }
-
     fetch("/api/viewer/profiles/active")
       .then((r) => r.json())
       .then((data) => setActiveProfile(data?.profile ?? null))
       .catch(() => setActiveProfile(null));
-  }, [session]);
+  }, [role]);
 
   useEffect(() => {
     if (!menuOpen || !menuButtonEl) return;
@@ -79,31 +79,46 @@ export function Navbar() {
   const compactNav = deviceClass === "mobile";
   const tvMode = deviceClass === "tv";
 
+  function navLinkClass(href: string) {
+    const active =
+      href === "/browse"
+        ? pathname === "/browse"
+        : pathname.includes(href.split("?")[1] ?? href);
+    return [
+      "relative text-sm font-medium transition",
+      active ? "text-white" : "text-slate-300 hover:text-white",
+    ].join(" ");
+  }
+
   return (
     <nav
       className={[
-        "fixed top-0 left-0 right-0 z-50 adaptive-tv-surface flex items-center justify-between transition-all duration-200",
-        compactNav ? "px-3 py-2" : "px-4 sm:px-6 py-3",
+        "fixed top-0 left-0 right-0 z-50 flex items-center justify-between transition-[background,box-shadow,border-color] duration-300",
+        compactNav ? "px-3 py-2.5" : "px-4 py-3 sm:px-6",
         scrolled
-          ? "border-b border-white/10 bg-[#080c16]/92 shadow-panel backdrop-blur-2xl"
-          : "border-b border-white/6 bg-[#080c16]/58 backdrop-blur-xl",
+          ? "border-b border-white/12 bg-[#060a14]/94 shadow-[0_8px_32px_rgba(0,0,0,0.35)] backdrop-blur-2xl"
+          : "border-b border-transparent bg-gradient-to-b from-[#060a14]/88 to-transparent backdrop-blur-md",
       ].join(" ")}
     >
       <div className="flex items-center gap-3 sm:gap-8">
         <Link href="/browse" className="flex items-center gap-3">
-          <Image src="/logo.png" alt="Story Time" width={compactNav ? 32 : 40} height={compactNav ? 32 : 40} className="rounded-xl shadow-glow" />
-          <span className={`${tvMode ? "text-2xl" : "text-lg"} font-semibold tracking-[0.14em] text-white`}>STORY <span className="storytime-brand-text">TIME</span></span>
+          <Image
+            src="/logo.png"
+            alt="Story Time"
+            width={compactNav ? 32 : 40}
+            height={compactNav ? 32 : 40}
+            className="rounded-xl shadow-glow"
+          />
+          <span className={`${tvMode ? "text-2xl" : "text-lg"} font-semibold tracking-[0.14em] text-white`}>
+            STORY <span className="storytime-brand-text">TIME</span>
+          </span>
         </Link>
-        <div className={`${compactNav ? "hidden" : "hidden md:flex"} gap-5 xl:gap-8`}>
-          <Link href="/browse" className="text-sm text-slate-300 hover:text-white transition font-medium">
+        <div className={`${compactNav ? "hidden" : "hidden md:flex"} gap-6 xl:gap-7`}>
+          <Link href="/browse" className={navLinkClass("/browse")}>
             Home
           </Link>
           {CONTENT_TYPES.map((t) => (
-            <Link
-              key={t.value}
-              href={t.value === "AFDA" ? "/browse?filter=afda" : t.value === "MUSIC" ? "/browse?filter=music" : `/browse?type=${t.value}`}
-              className="text-sm text-slate-300 hover:text-white transition font-medium"
-            >
+            <Link key={t.value} href={t.href} className={navLinkClass(t.href)}>
               {t.label}
             </Link>
           ))}
@@ -115,11 +130,10 @@ export function Navbar() {
           <button
             type="button"
             onClick={() => setNavOpen((v) => !v)}
-            className="adaptive-interactive rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1 text-xs text-slate-200"
-            aria-label="Toggle navigation"
+            className="rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs text-slate-200"
             aria-expanded={navOpen}
           >
-            Menu
+            Browse
           </button>
         )}
         {session && <NotificationBell />}
@@ -128,123 +142,71 @@ export function Navbar() {
           <div className="relative">
             <button
               ref={setMenuButtonEl}
-              onClick={() => setMenuOpen(!menuOpen)}
-              className="adaptive-interactive ml-2 flex items-center gap-2.5 rounded-xl border border-white/6 bg-white/[0.03] p-2 hover:border-white/12 hover:bg-white/[0.05]"
+              type="button"
+              onClick={() => setMenuOpen((v) => !v)}
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              className="ml-1 flex items-center gap-2.5 rounded-xl border border-white/8 bg-white/[0.04] p-1.5 pl-2.5 transition hover:border-white/14 hover:bg-white/[0.07]"
             >
-              <User className="w-5 h-5 text-slate-400" />
               {session.user?.image ? (
                 <Image
                   src={session.user.image}
-                  alt={session.user?.name ? `${session.user.name} avatar` : "User avatar"}
+                  alt=""
                   width={32}
                   height={32}
                   className="h-8 w-8 rounded-full ring-1 ring-white/15"
                 />
               ) : (
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-500/18 text-sm font-semibold text-orange-300 ring-1 ring-orange-400/20">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-500/18 text-sm font-semibold text-orange-300">
                   {(session.user?.name || "?")[0]}
                 </div>
               )}
-              {(session.user as { role?: string })?.role === "SUBSCRIBER" && activeProfile ? (
-                <span className="hidden max-w-[8rem] truncate text-sm font-medium text-white md:inline">
+              {role === "SUBSCRIBER" && activeProfile ? (
+                <span className="hidden max-w-[7rem] truncate text-sm font-medium text-white md:inline">
                   {activeProfile.name}
                 </span>
-              ) : null}
+              ) : (
+                <User className="hidden h-4 w-4 text-slate-400 md:block" />
+              )}
             </button>
-            {menuOpen && mounted
-              ? createPortal(
-              <>
-                <div className="fixed inset-0 z-[1200]" onClick={() => setMenuOpen(false)} />
-                <div
-                  className="fixed z-[1210] w-64 rounded-2xl border border-slate-700/80 bg-slate-950/96 py-2 shadow-2xl backdrop-blur-sm"
-                  style={{ top: `${menuPanelPos.top}px`, right: `${menuPanelPos.right}px` }}
-                >
-                  <div className="border-b border-white/8 px-4 py-3">
-                    <p className="font-medium text-white truncate">
-                      {(session.user as { role?: string })?.role === "SUBSCRIBER" && activeProfile
-                        ? activeProfile.name
-                        : session.user?.name}
-                    </p>
-                    <p className="text-sm text-slate-400 truncate">
-                      {(session.user as { role?: string })?.role === "SUBSCRIBER" && activeProfile
-                        ? `Profile age ${activeProfile.age}`
-                        : session.user?.email}
-                    </p>
-                    {(session.user as { role?: string })?.role === "SUBSCRIBER" && activeProfile ? (
-                      <p className="mt-1 truncate text-xs text-slate-500">Account: {session.user?.email}</p>
-                    ) : null}
-                  </div>
-                  <Link href="/browse" className="block px-4 py-2.5 text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white" onClick={() => setMenuOpen(false)}>
-                    Browse
-                  </Link>
-                  <Link href="/browse/settings" className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white" onClick={() => setMenuOpen(false)}>
-                    <Settings className="w-4 h-4" /> Settings
-                  </Link>
-                  {(session.user as { role?: string })?.role === "SUBSCRIBER" && (
-                    <Link href="/profiles" className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white" onClick={() => setMenuOpen(false)}>
-                      <User className="w-4 h-4" /> Who&apos;s watching?
-                    </Link>
-                  )}
-                  {(session.user as { role?: string })?.role === "CONTENT_CREATOR" && (
-                    <Link href="/creator/dashboard" className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white" onClick={() => setMenuOpen(false)}>
-                      <Film className="w-4 h-4" /> Creator Dashboard
-                    </Link>
-                  )}
-                  {(session.user as { role?: string })?.role === "MUSIC_CREATOR" && (
-                    <Link href="/music-creator/dashboard" className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white" onClick={() => setMenuOpen(false)}>
-                      <Music className="w-4 h-4" /> Music Dashboard
-                    </Link>
-                  )}
-                  {(session.user as { role?: string })?.role === "ADMIN" && (
-                    <Link href="/admin" className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white" onClick={() => setMenuOpen(false)}>
-                      <LayoutDashboard className="w-4 h-4" /> Admin
-                    </Link>
-                  )}
-                  <button onClick={handleSignOut} className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-slate-300 hover:bg-white/[0.06] hover:text-white">
-                    <LogOut className="w-4 h-4" /> Sign out
-                  </button>
-                </div>
-              </>
-              ,
-              document.body,
-            )
-              : null}
+            {mounted && (
+              <ViewerProfileMenu
+                open={menuOpen}
+                onClose={() => setMenuOpen(false)}
+                position={menuPanelPos}
+                session={session}
+                role={role}
+                activeProfile={activeProfile}
+                onSignOut={handleSignOut}
+              />
+            )}
           </div>
         ) : (
-          <div className="flex items-center gap-2 ml-2">
-            <Link href="/auth/signin" className="rounded-xl px-4 py-2.5 text-sm font-medium text-slate-300 hover:bg-white/[0.05] hover:text-white">
+          <div className="ml-2 flex items-center gap-2">
+            <Link href="/auth/signin" className="rounded-xl px-3 py-2 text-sm font-medium text-slate-300 hover:text-white">
               Sign In
             </Link>
-            <Link href="/auth/signup" className="rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white shadow-glow hover:-translate-y-0.5 hover:bg-orange-400">
+            <Link href="/auth/signup" className="rounded-xl bg-orange-500 px-4 py-2 text-sm font-semibold text-white shadow-glow hover:bg-orange-400">
               Sign Up
-            </Link>
-            <Link href="/auth/creator/signin" className="border-l border-white/8 pl-4 text-sm font-medium text-orange-300 hover:text-orange-200">
-              Creator
             </Link>
           </div>
         )}
       </div>
 
       {compactNav && navOpen && (
-        <div className="absolute left-0 right-0 top-full border-b border-white/10 bg-[#080c16]/95 px-3 py-2 backdrop-blur-xl">
-          <div className="grid grid-cols-2 gap-1">
-            <Link href="/browse" className="adaptive-interactive rounded-lg px-3 py-2 text-sm text-slate-200 hover:bg-white/[0.05]" onClick={() => setNavOpen(false)}>
+        <div className="absolute left-0 right-0 top-full border-b border-white/10 bg-[#080c16]/97 px-3 py-3 backdrop-blur-xl">
+          <div className="grid grid-cols-2 gap-1.5">
+            <Link href="/browse" className="rounded-lg px-3 py-2 text-sm text-slate-200 hover:bg-white/[0.06]" onClick={() => setNavOpen(false)}>
               Home
             </Link>
             {CONTENT_TYPES.map((t) => (
-              <Link
-                key={t.value}
-                href={t.value === "AFDA" ? "/browse?filter=afda" : t.value === "MUSIC" ? "/browse?filter=music" : `/browse?type=${t.value}`}
-                className="adaptive-interactive rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-white/[0.05] hover:text-white"
-                onClick={() => setNavOpen(false)}
-              >
+              <Link key={t.value} href={t.href} className="rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-white/[0.06]" onClick={() => setNavOpen(false)}>
                 {t.label}
               </Link>
             ))}
           </div>
         </div>
       )}
-
     </nav>
   );
 }

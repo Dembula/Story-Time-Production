@@ -96,7 +96,7 @@ export function PackageClient() {
   const [error, setError] = useState("");
   const [checkoutUrl, setCheckoutUrl] = useState("");
   const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [redirectAfterCheckout, setRedirectAfterCheckout] = useState("/profiles");
+  const [redirectAfterCheckout, setRedirectAfterCheckout] = useState("/onboarding/account");
 
   const selectedPlan = PLANS.find((plan) => plan.id === selected) ?? PLANS[0];
 
@@ -125,7 +125,7 @@ export function PackageClient() {
       if (data?.requiresPayment) {
         if (typeof data?.checkoutUrl === "string" && data.checkoutUrl) {
           setCheckoutUrl(data.checkoutUrl);
-          setRedirectAfterCheckout(typeof data?.redirectTo === "string" ? data.redirectTo : "/profiles");
+          setRedirectAfterCheckout(typeof data?.redirectTo === "string" ? data.redirectTo : "/onboarding/account");
           setCheckoutOpen(true);
           return;
         }
@@ -144,7 +144,7 @@ export function PackageClient() {
         }
       }
 
-      router.push(typeof data?.redirectTo === "string" ? data.redirectTo : "/profiles");
+      router.push(typeof data?.redirectTo === "string" ? data.redirectTo : "/onboarding/account");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");

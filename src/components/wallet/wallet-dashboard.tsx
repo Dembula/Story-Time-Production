@@ -2,6 +2,11 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import Link from "next/link";
+import { useSession } from "next-auth/react";
+import { PayoutKycBanner } from "@/components/payout-kyc/payout-kyc-banner";
+import { requiresPayoutKyc } from "@/lib/payout-kyc";
+import { FunderVerificationBanner } from "@/components/funders/funder-verification-banner";
 
 const money = new Intl.NumberFormat("en-ZA", {
   minimumFractionDigits: 2,
@@ -61,6 +66,16 @@ export function WalletDashboard({
   );
   const escrows = (data?.escrows as any[] | undefined) ?? [];
   const payouts = (wallet?.payoutRequests as any[] | undefined) ?? [];
+  const { data: session } = useSession();
+  const role = session?.user?.role;
+  const payoutKycStatus = (session?.user as { payoutKycVerificationStatus?: string })?.payoutKycVerificationStatus;
+  const funderStatus = (session?.user as { funderVerificationStatus?: string })?.funderVerificationStatus;
+  const isFunder = role === "FUNDER";
+  const payoutsUnlocked =
+    (!requiresPayoutKyc(role) || payoutKycStatus === "APPROVED") &&
+    (!isFunder || funderStatus === "APPROVED");
+  const verificationHref = isFunder ? "/funders/verification" : "/payout-verification";
+  const verificationLabel = isFunder ? "funder verification" : "payout verification";
 
   return (
     <main className="space-y-6 text-slate-100">
@@ -68,6 +83,9 @@ export function WalletDashboard({
         <h1 className="text-2xl font-semibold">{title}</h1>
         <p className="mt-1 text-sm text-slate-400">{subtitle}</p>
       </section>
+
+      {requiresPayoutKyc(role) ? <PayoutKycBanner /> : null}
+      {isFunder ? <FunderVerificationBanner /> : null}
 
       <section className="grid gap-4 md:grid-cols-4">
         <Card label="Available" value={`R${money.format(Number(wallet?.availableBalance ?? 0))}`} />
@@ -101,9 +119,26 @@ export function WalletDashboard({
       <section className="grid gap-4 lg:grid-cols-2">
         <div className="storytime-section p-6">
           <h2 className="text-lg font-semibold">Payouts</h2>
-          <button onClick={() => payoutMutation.mutate()} className="mt-3 rounded-xl bg-emerald-500 px-3 py-2 text-xs font-semibold text-black hover:bg-emerald-400">
-            Request payout (available balance)
-          </button>
+          <p className="mt-1 text-xs text-slate-400">
+            Withdrawals require approved verification. You can still view balances and use the platform while review is in progress.
+          </p>
+          {payoutsUnlocked ? (
+            <button
+              type="button"
+              onClick={() => payoutMutation.mutate()}
+              disabled={payoutMutation.isPending || Number(wallet?.availableBalance ?? 0) <= 0}
+              className="mt-3 rounded-xl bg-emerald-500 px-3 py-2 text-xs font-semibold text-black hover:bg-emerald-400 disabled:opacity-50"
+            >
+              Request payout (available balance)
+            </button>
+          ) : (
+            <div className="mt-3 rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-3 text-xs text-amber-100">
+              Payout requests are disabled until your {verificationLabel} is approved.{" "}
+              <Link href={verificationHref} className="font-semibold text-orange-300 underline hover:text-orange-200">
+                Complete or view verification
+              </Link>
+            </div>
+          )}
           {payoutMutation.error ? <p className="mt-2 text-sm text-red-400">{(payoutMutation.error as Error).message}</p> : null}
           <div className="mt-3 space-y-2">
             {payouts.map((p) => (

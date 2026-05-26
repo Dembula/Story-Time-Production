@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getStorageConfig } from "@/lib/storage-config";
 import { prisma } from "@/lib/prisma";
+import { requiresPayoutKyc } from "@/lib/payout-kyc";
 
 export const runtime = "nodejs";
 
@@ -33,7 +34,8 @@ export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     const user = session?.user as { id?: string; role?: string } | undefined;
-    if (!user?.id || user.role !== "FUNDER") {
+    const canUpload = user?.id && (user.role === "FUNDER" || user.role === "ADMIN" || requiresPayoutKyc(user.role));
+    if (!canUpload) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     const bucket = storage.bucket;
@@ -56,9 +58,10 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(await file.arrayBuffer());
     const ext = sanitizeExtension(file.name);
     const now = new Date();
+    const vaultSegment = user.role === "FUNDER" ? "funder" : "payout";
     const key = [
       "kyc",
-      "funder",
+      vaultSegment,
       user.id,
       now.getUTCFullYear(),
       String(now.getUTCMonth() + 1).padStart(2, "0"),
@@ -76,10 +79,10 @@ export async function POST(request: NextRequest) {
 
     await prisma.adminAuditLog.create({
       data: {
-        adminUserId: user.id,
-        action: "FUNDER_KYC_DOCUMENT_UPLOAD",
+        adminUserId: user.id!,
+        action: vaultSegment === "funder" ? "FUNDER_KYC_DOCUMENT_UPLOAD" : "PAYOUT_KYC_DOCUMENT_UPLOAD",
         entityType: "User",
-        entityId: user.id,
+        entityId: user.id!,
         oldValue: null as any,
         newValue: { storageRef: `s3://${bucket}/${key}`, mimeType: file.type, size: file.size },
       },

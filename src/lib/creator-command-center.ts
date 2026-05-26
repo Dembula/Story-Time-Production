@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getCreatorAnalytics, type CreatorAnalytics } from "@/lib/creator-analytics";
+import { getCreatorRetentionSnapshot, type CreatorRetentionSnapshot } from "@/lib/creator-retention-analytics";
 
 export type CreatorCommandCenterPayload = {
   analytics: CreatorAnalytics;
@@ -28,6 +29,7 @@ export type CreatorCommandCenterPayload = {
     /** Watch sessions platform-wide, last 7 days (admin only) */
     totalWatchSessions7d: number;
   };
+  retention: CreatorRetentionSnapshot;
 };
 
 function projectWhereForCreator(creatorId: string) {
@@ -55,7 +57,7 @@ export async function getCreatorCommandCenter(
   const d7 = new Date(now - 7 * 86400000);
   const d14 = new Date(now - 14 * 86400000);
 
-  const [viewsLast7d, viewsPrev7d, openIncidents, callSheetsSaved, taskGroups, shootDaysTotal, modocConvs, modocUserMsgs, platformSessions7d] =
+  const [viewsLast7d, viewsPrev7d, openIncidents, callSheetsSaved, taskGroups, shootDaysTotal, modocConvs, modocUserMsgs, platformSessions7d, retention] =
     await Promise.all([
       prisma.watchSession.count({
         where: { content: { creatorId }, startedAt: { gte: d7 } },
@@ -96,6 +98,7 @@ export async function getCreatorCommandCenter(
         },
       }),
       role === "ADMIN" ? prisma.watchSession.count({ where: { startedAt: { gte: d7 } } }) : 0,
+      getCreatorRetentionSnapshot(creatorId, start, end),
     ]);
 
   const tasksByStatus: Record<string, number> = {};
@@ -163,6 +166,7 @@ export async function getCreatorCommandCenter(
       modocUserMessagesInRange: modocUserMsgs,
       topTasks,
     },
+    retention,
   };
 
   if (role === "ADMIN") {

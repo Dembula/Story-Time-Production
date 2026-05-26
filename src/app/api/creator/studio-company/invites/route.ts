@@ -8,6 +8,12 @@ import {
   isValidSuiteList,
   normalizeInviteEmail,
 } from "@/lib/creator-team-invites";
+import {
+  ensureOwnedStudioCompanyForUser,
+  findUserByInviteEmail,
+} from "@/lib/creator-studio-company";
+import { countOccupiedStudioSeats } from "@/lib/creator-studio-invite-seats";
+import { isPrismaMissingTable } from "@/lib/prisma-missing-table";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -18,20 +24,30 @@ export async function GET() {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  await ensureOwnedStudioCompanyForUser(userId);
+
   const companies = await prisma.studioCompany.findMany({
     where: { ownerUserId: userId },
     select: { id: true, displayName: true },
   });
   if (companies.length === 0) return NextResponse.json({ invites: [] });
 
-  const invites = await prisma.creatorStudioTeamInvite.findMany({
-    where: { companyId: { in: companies.map((c) => c.id) } },
-    orderBy: { createdAt: "desc" },
-    include: {
-      company: { select: { id: true, displayName: true } },
-      invitedUser: { select: { id: true, email: true, name: true } },
-    },
-  });
+  let invites;
+  try {
+    invites = await prisma.creatorStudioTeamInvite.findMany({
+      where: { companyId: { in: companies.map((c) => c.id) } },
+      orderBy: { createdAt: "desc" },
+      include: {
+        company: { select: { id: true, displayName: true } },
+        invitedUser: { select: { id: true, email: true, name: true } },
+      },
+    });
+  } catch (e) {
+    if (isPrismaMissingTable(e, "CreatorStudioTeamInvite")) {
+      return NextResponse.json({ invites: [] });
+    }
+    throw e;
+  }
 
   return NextResponse.json({
     invites: invites.map((i: (typeof invites)[number]) => ({
@@ -70,8 +86,16 @@ export async function POST(req: NextRequest) {
   const companyId = typeof body?.companyId === "string" ? body.companyId.trim() : "";
   const emailRaw = typeof body?.email === "string" ? body.email : "";
   const emailNorm = normalizeInviteEmail(emailRaw);
-  if (!companyId || !emailNorm || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNorm)) {
-    return NextResponse.json({ error: "companyId and valid email are required" }, { status: 400 });
+  if (!emailNorm || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNorm)) {
+    return NextResponse.json({ error: "A valid email is required" }, { status: 400 });
+  }
+
+  const ownerRow = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { email: true },
+  });
+  if (ownerRow?.email && normalizeInviteEmail(ownerRow.email) === emailNorm) {
+    return NextResponse.json({ error: "You cannot invite your own email address." }, { status: 400 });
   }
 
   const suites = body?.suiteAccess ?? [];
@@ -79,42 +103,78 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid suiteAccess list" }, { status: 400 });
   }
 
-  const company = await prisma.studioCompany.findFirst({
-    where: { id: companyId, ownerUserId: userId },
-    include: {
-      profiles: { select: { id: true } },
-    },
-  });
+  await ensureOwnedStudioCompanyForUser(userId);
+
+  let resolvedCompanyId = companyId;
+  let company = resolvedCompanyId
+    ? await prisma.studioCompany.findFirst({
+        where: { id: resolvedCompanyId, ownerUserId: userId },
+        select: { id: true, displayName: true, seatCap: true },
+      })
+    : null;
+
   if (!company) {
-    return NextResponse.json({ error: "Company not found or you are not the owner." }, { status: 403 });
+    const owned = await prisma.studioCompany.findMany({
+      where: { ownerUserId: userId },
+      select: { id: true, displayName: true, seatCap: true },
+      orderBy: { createdAt: "asc" },
+    });
+    if (owned.length === 1) {
+      company = owned[0];
+      resolvedCompanyId = owned[0].id;
+    } else if (owned.length === 0) {
+      return NextResponse.json(
+        { error: "No studio company workspace found. Complete company registration or contact support." },
+        { status: 403 },
+      );
+    } else {
+      return NextResponse.json(
+        { error: "Company not found or you are not the owner. Select your company and try again." },
+        { status: 403 },
+      );
+    }
   }
 
-  if (company.profiles.length >= company.seatCap) {
+  const seats = await countOccupiedStudioSeats(company.id);
+  if (seats.occupied >= company.seatCap) {
     return NextResponse.json(
-      { error: `Seat cap reached (${company.seatCap}). Remove a member or raise seats before inviting.` },
+      {
+        error: `Seat cap reached (${company.seatCap}). ${seats.members} member(s) and ${seats.pendingInvites} pending invite(s). Cancel an invite or remove a member before inviting again.`,
+      },
       { status: 400 },
     );
   }
 
-  const existingUser = await prisma.user.findUnique({
-    where: { email: emailNorm },
-    select: { id: true, email: true },
-  });
+  const existingUser = await findUserByInviteEmail(emailNorm);
 
-  const dup = await prisma.creatorStudioTeamInvite.findFirst({
-    where: {
-      companyId,
-      emailNorm,
-      status: "PENDING",
-    },
-  });
+  let dup;
+  try {
+    dup = await prisma.creatorStudioTeamInvite.findFirst({
+      where: {
+        companyId: resolvedCompanyId,
+        emailNorm,
+        status: "PENDING",
+      },
+    });
+  } catch (e) {
+    if (isPrismaMissingTable(e, "CreatorStudioTeamInvite")) {
+      return NextResponse.json(
+        {
+          error:
+            "Team invites are not available yet. Apply the latest database migrations (CreatorStudioTeamInvite) and restart the app.",
+        },
+        { status: 503 },
+      );
+    }
+    throw e;
+  }
   if (dup) {
     return NextResponse.json({ error: "An open invite already exists for this email on this company." }, { status: 409 });
   }
 
   if (existingUser) {
     const alreadyMember = await prisma.creatorStudioProfile.findFirst({
-      where: { companyId, userId: existingUser.id },
+      where: { companyId: resolvedCompanyId, userId: existingUser.id },
     });
     if (alreadyMember) {
       return NextResponse.json({ error: "This user is already on your studio team." }, { status: 409 });
@@ -122,19 +182,33 @@ export async function POST(req: NextRequest) {
   }
 
   const token = generateInviteToken();
-  const invite = await prisma.creatorStudioTeamInvite.create({
-    data: {
-      companyId,
-      invitedByUserId: userId,
-      emailNorm,
-      invitedUserId: existingUser?.id ?? null,
-      status: "PENDING",
-      suiteAccess: suites,
-      personalMessage: typeof body?.personalMessage === "string" ? body.personalMessage.slice(0, 2000) : null,
-      token,
-      expiresAt: inviteExpiresAtDefault(),
-    },
-  });
+  let invite;
+  try {
+    invite = await prisma.creatorStudioTeamInvite.create({
+      data: {
+        companyId: resolvedCompanyId,
+        invitedByUserId: userId,
+        emailNorm,
+        invitedUserId: existingUser?.id ?? null,
+        status: "PENDING",
+        suiteAccess: suites,
+        personalMessage: typeof body?.personalMessage === "string" ? body.personalMessage.slice(0, 2000) : null,
+        token,
+        expiresAt: inviteExpiresAtDefault(),
+      },
+    });
+  } catch (e) {
+    if (isPrismaMissingTable(e, "CreatorStudioTeamInvite")) {
+      return NextResponse.json(
+        {
+          error:
+            "Team invites are not available yet. Apply the latest database migrations (CreatorStudioTeamInvite) and restart the app.",
+        },
+        { status: 503 },
+      );
+    }
+    throw e;
+  }
 
   const joinPath = `/creator/join/company/${token}`;
   const origin =

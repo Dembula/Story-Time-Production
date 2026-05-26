@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { Building2, Mail, Plus, Trash2, Users } from "lucide-react";
+import { Building2, Copy, Mail, Plus, Trash2, Users } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { STUDIO_SUITE_OPTIONS } from "@/lib/creator-team-invites";
 import { CREATOR_STUDIO_PROFILES_QUERY_KEY } from "@/lib/pricing";
@@ -27,6 +27,7 @@ export function CompanyAccountControlClient() {
   const [message, setMessage] = useState("");
   const [suites, setSuites] = useState<string[]>(["pipeline_pre", "pipeline_prod", "pipeline_post", "catalogue_upload"]);
   const [feedback, setFeedback] = useState<{ ok?: string; err?: string }>({});
+  const [copiedToken, setCopiedToken] = useState<string | null>(null);
 
   const { data: studio } = useQuery({
     queryKey: [...CREATOR_STUDIO_PROFILES_QUERY_KEY],
@@ -87,6 +88,17 @@ export function CompanyAccountControlClient() {
   useEffect(() => {
     setOrigin(typeof window !== "undefined" ? window.location.origin : "");
   }, []);
+
+  const copyJoinLink = useCallback(async (token: string) => {
+    const url = origin ? `${origin}/creator/join/company/${token}` : `/creator/join/company/${token}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedToken(token);
+      setTimeout(() => setCopiedToken(null), 2000);
+    } catch {
+      setFeedback({ err: "Could not copy link. Select and copy it manually." });
+    }
+  }, [origin]);
 
   const cancelInvite = useCallback(
     async (id: string) => {
@@ -223,13 +235,23 @@ export function CompanyAccountControlClient() {
                       Join link: {origin ? `${origin}/creator/join/company/${i.token}` : "—"}
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => void cancelInvite(i.id)}
-                    className="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-xs text-slate-400 hover:text-red-400"
-                  >
-                    <Trash2 className="h-3 w-3" /> Cancel
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void copyJoinLink(i.token)}
+                      className="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-xs text-slate-400 hover:text-white"
+                    >
+                      <Copy className="h-3 w-3" />
+                      {copiedToken === i.token ? "Copied" : "Copy link"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void cancelInvite(i.id)}
+                      className="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-1 text-xs text-slate-400 hover:text-red-400"
+                    >
+                      <Trash2 className="h-3 w-3" /> Cancel
+                    </button>
+                  </div>
                 </li>
               ))}
             {(invitesData?.invites ?? []).filter((i) => i.status === "PENDING").length === 0 ? (

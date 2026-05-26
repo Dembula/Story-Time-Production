@@ -81,6 +81,10 @@ model User {
   /// Cached reputation (also recomputed in APIs)
   reputationScore    Float   @default(0)
   networkProfilePublic Boolean @default(true)
+  /// Contact phone for account onboarding (viewers and marketplace accounts).
+  phoneNumber                  String?
+  /// Set when the subscriber completes the account details step (name, email, phone, address).
+  accountOnboardingCompletedAt DateTime?
   /// INDIVIDUAL | COMPANY — chosen at signup for film/music creators (CONTENT_CREATOR / MUSIC_CREATOR).
   creatorAccountStructure String?
   /// Max additional team seats (1–5) when creatorAccountStructure is COMPANY; main user counts as admin. Null when individual.
@@ -101,6 +105,7 @@ model User {
   sessions      Session[]
 
   watchSessions WatchSession[]
+  watchProgress WatchProgress[]
   comments      Comment[]
   ratings       Rating[]
   contents      Content[]
@@ -223,6 +228,9 @@ model User {
   funderProfile         FunderProfile?
   funderVerificationsSubmitted FunderVerification[] @relation("FunderVerificationSubmitter")
   funderVerificationsReviewed  FunderVerification[] @relation("FunderVerificationReviewer")
+  payoutKycProfile      PayoutKycProfile?
+  payoutKycVerificationsSubmitted PayoutKycVerification[] @relation("PayoutKycVerificationSubmitter")
+  payoutKycVerificationsReviewed  PayoutKycVerification[] @relation("PayoutKycVerificationReviewer")
   opportunitiesCreated  InvestmentOpportunity[] @relation("InvestmentOpportunityCreator")
   companyFundingListings CompanyFundingListing[]
   investmentDealsAsFunder  InvestmentDeal[] @relation("InvestmentDealFunder")
@@ -441,6 +449,7 @@ model Content {
 
   btsVideos     BtsVideo[]
   watchSessions WatchSession[]
+  watchProgress WatchProgress[]
   comments      Comment[]
   ratings       Rating[]
   watchlist     WatchlistItem[]
@@ -449,8 +458,68 @@ model Content {
   auditionPosts AuditionPost[]
   networkPosts  NetworkPost[]
   viewerContentAccesses ViewerContentAccess[]
+  enrichment        ContentEnrichment?
+  scenes            ContentScene[]
+  subtitles         ContentSubtitle[]
 
   @@index([linkedProjectId])
+}
+
+/// AI + semantic metadata for catalogue titles (embeddings, mood, scenes).
+model ContentEnrichment {
+  id              String    @id @default(cuid())
+  contentId       String    @unique
+  content         Content   @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  status          String    @default("PENDING") // PENDING | PROCESSING | READY | FAILED
+  moodTags        Json?
+  atmosphere      String?
+  pacing          String?
+  narrativeJson   Json?
+  dialogueIndex   Json?
+  /// OpenAI-compatible embedding vector (1536 dims) for semantic search.
+  embedding       Json?
+  enrichmentVersion Int     @default(1)
+  error           String?
+  processedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  scenes ContentScene[]
+
+  @@index([status])
+}
+
+model ContentScene {
+  id            String   @id @default(cuid())
+  contentId     String
+  content       Content  @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  enrichmentId  String?
+  enrichment    ContentEnrichment? @relation(fields: [enrichmentId], references: [id], onDelete: SetNull)
+  startSeconds  Float
+  endSeconds    Float
+  summary       String?
+  mood          String?
+  actors        Json?
+  tags          Json?
+  thumbnailUrl  String?
+  createdAt     DateTime @default(now())
+
+  @@index([contentId])
+  @@index([enrichmentId])
+}
+
+model ContentSubtitle {
+  id         String   @id @default(cuid())
+  contentId  String
+  content    Content  @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  language   String
+  label      String
+  vttUrl     String
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([contentId])
+  @@unique([contentId, language])
 }
 
 model BtsVideo {
@@ -500,8 +569,30 @@ model ViewerProfile {
   updatedAt DateTime @updatedAt
 
   watchSessions WatchSession[]
+  watchProgress WatchProgress[]
 
   @@index([userId])
+}
+
+/// Per-profile resume position for continue watching.
+model WatchProgress {
+  id               String   @id @default(cuid())
+  positionSeconds  Int      @default(0)
+  durationSeconds  Int?
+  updatedAt        DateTime @updatedAt
+  createdAt        DateTime @default(now())
+
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contentId       String
+  content         Content       @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  viewerProfileId String
+  viewerProfile   ViewerProfile @relation(fields: [viewerProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([viewerProfileId, contentId])
+  @@index([userId])
+  @@index([contentId])
+  @@index([updatedAt])
 }
 
 model Comment {
@@ -1644,6 +1735,8 @@ model UserPreference {
   accentColor     String?
   notifyEmail     Boolean  @default(true)
   playbackQuality String?  // e.g. auto, 1080p, 720p
+  /// Viewer account onboarding extras (billing address, etc.)
+  profileExtras   Json?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -2530,6 +2623,50 @@ model FunderVerification {
   reviewedAt      DateTime?
 
   @@index([funderProfileId])
+  @@index([status])
+}
+
+/// KYC / payout verification for marketplace creators and service providers (not funders).
+model PayoutKycProfile {
+  id                   String   @id @default(cuid())
+  userId               String   @unique
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountRole          String
+  entityType           String   @default("INDIVIDUAL") // INDIVIDUAL | COMPANY
+  legalName            String?
+  verificationStatus   String   @default("PENDING") // PENDING | UNDER_REVIEW | APPROVED | REJECTED
+  riskLevel            String   @default("LOW") // LOW | MEDIUM | HIGH
+  kycData              Json     @default("{}")
+  reviewNote           String?
+  submittedAt          DateTime?
+  reviewedAt           DateTime?
+  approvedForPayoutsAt DateTime?
+  adminReviewRequired  Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  verifications        PayoutKycVerification[]
+
+  @@index([verificationStatus])
+  @@index([accountRole])
+}
+
+model PayoutKycVerification {
+  id                 String   @id @default(cuid())
+  payoutKycProfileId String
+  payoutKycProfile   PayoutKycProfile @relation(fields: [payoutKycProfileId], references: [id], onDelete: Cascade)
+  submittedById      String
+  submittedBy        User     @relation("PayoutKycVerificationSubmitter", fields: [submittedById], references: [id], onDelete: Cascade)
+  documentType       String
+  documentUrl        String
+  status             String   @default("PENDING") // PENDING | UNDER_REVIEW | APPROVED | REJECTED
+  note               String?
+  reviewedById       String?
+  reviewedBy         User?    @relation("PayoutKycVerificationReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  submittedAt        DateTime @default(now())
+  reviewedAt         DateTime?
+
+  @@index([payoutKycProfileId])
   @@index([status])
 }
 

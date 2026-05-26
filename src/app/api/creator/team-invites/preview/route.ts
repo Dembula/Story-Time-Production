@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
     status: invite.status,
     expired,
     companyName: invite.company.displayName,
+    emailNorm: invite.emailNorm,
     expiresAt: invite.expiresAt.toISOString(),
   });
 }

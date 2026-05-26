@@ -7,6 +7,7 @@ import { useSession } from "next-auth/react";
 import { Bell } from "lucide-react";
 import { createPortal } from "react-dom";
 import { notificationActionLabel, resolveNotificationUrl } from "@/lib/notification-links";
+import { notificationTypeAccent, notificationTypeIcon } from "@/lib/ecosystem/notification-visuals";
 
 type Notification = {
   id: string;
@@ -83,6 +84,16 @@ export function NotificationBell() {
     setUnread((u) => Math.max(0, u - 1));
   };
 
+  const markAllRead = async () => {
+    await fetch("/api/notifications", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ markAllRead: true }),
+    }).catch(() => null);
+    setItems((prev) => prev.map((n) => ({ ...n, read: true })));
+    setUnread(0);
+  };
+
   return (
     <div className="relative">
       <button
@@ -107,52 +118,70 @@ export function NotificationBell() {
             onClick={() => setOpen(false)}
           />
           <div
-            className="fixed z-[1210] w-80 rounded-2xl border border-slate-700/80 bg-slate-950/96 shadow-2xl backdrop-blur-sm"
+            className="fixed z-[1210] w-80 rounded-2xl border border-white/10 bg-slate-950/95 shadow-2xl backdrop-blur-xl"
             style={{ top: `${panelPos.top}px`, right: `${panelPos.right}px` }}
           >
-            <div className="flex items-center justify-between border-b border-slate-700/80 px-4 py-3">
-              <p className="text-xs font-semibold text-white">Notifications</p>
-              <p className="text-[11px] text-slate-300">
-                {unread > 0 ? `${unread} unread` : "All caught up"}
-              </p>
+            <div className="flex items-center justify-between border-b border-white/8 px-4 py-3">
+              <p className="text-xs font-semibold text-white">Notification center</p>
+              <div className="flex items-center gap-2">
+                {unread > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => void markAllRead()}
+                    className="text-[10px] font-medium text-orange-300 hover:text-orange-200"
+                  >
+                    Mark all read
+                  </button>
+                ) : null}
+                <p className="text-[11px] text-slate-400">
+                  {unread > 0 ? `${unread} unread` : "All caught up"}
+                </p>
+              </div>
             </div>
             <div className="max-h-80 overflow-y-auto">
               {loading ? (
                 <p className="px-4 py-4 text-xs text-slate-200">Loading…</p>
               ) : items.length === 0 ? (
                 <p className="px-4 py-4 text-xs text-slate-200">
-                  You have no notifications yet. Collaboration updates and Story Time announcements will appear here.
+                  You have no notifications yet. Payout alerts, publishing updates, and collaboration events will appear here.
                 </p>
               ) : (
                 items.map((n) => {
                   const linkUrl = resolveNotificationUrl(n, role);
+                  const Icon = notificationTypeIcon(n.type);
+                  const accent = notificationTypeAccent(n.type);
                   const className = [
-                    "block border-b border-slate-700/70 px-4 py-3 last:border-b-0",
-                    n.read ? "bg-transparent" : "bg-slate-800/70",
-                    "transition hover:bg-slate-800/80",
+                    "block border-b border-white/6 px-4 py-3 last:border-b-0",
+                    n.read ? "bg-transparent" : "bg-white/[0.04]",
+                    "transition hover:bg-white/[0.06]",
                   ].join(" ");
 
                   return (
                     <div key={n.id} className={className}>
-                      <p className="text-xs font-semibold text-white">{n.title}</p>
-                      <p className="mt-0.5 text-[11px] text-slate-200">{n.body}</p>
-                      <div className="mt-1 flex items-center justify-between gap-2">
-                        <p className="text-[10px] text-slate-300">
-                          {new Date(n.createdAt).toLocaleString()}
-                        </p>
-                        {linkUrl ? (
-                          <button
-                            type="button"
-                            className="text-[11px] font-medium text-orange-300 hover:text-orange-200"
-                            onClick={() => {
-                              void markOneRead(n.id);
-                              setOpen(false);
-                              router.push(linkUrl);
-                            }}
-                          >
-                            {notificationActionLabel(n)}
-                          </button>
-                        ) : null}
+                      <div className="flex gap-2.5">
+                        <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${accent}`} />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-semibold text-white">{n.title}</p>
+                          <p className="mt-0.5 text-[11px] leading-relaxed text-slate-300">{n.body}</p>
+                          <div className="mt-1.5 flex items-center justify-between gap-2">
+                            <p className="text-[10px] text-slate-500">
+                              {new Date(n.createdAt).toLocaleString()}
+                            </p>
+                            {linkUrl ? (
+                              <button
+                                type="button"
+                                className="text-[11px] font-medium text-orange-300 hover:text-orange-200"
+                                onClick={() => {
+                                  void markOneRead(n.id);
+                                  setOpen(false);
+                                  router.push(linkUrl);
+                                }}
+                              >
+                                {notificationActionLabel(n)}
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   );

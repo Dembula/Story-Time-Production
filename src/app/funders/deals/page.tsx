@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
+import { useFunderVerificationState } from "@/components/funders/funder-verification-banner";
 
 export default function FunderDealsPage() {
   const qc = useQueryClient();
@@ -20,6 +22,7 @@ export default function FunderDealsPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["funder-deals"] }),
   });
   const deals = data?.deals ?? [];
+  const { investingUnlocked } = useFunderVerificationState();
 
   return (
     <main className="space-y-5 text-slate-100">
@@ -28,6 +31,15 @@ export default function FunderDealsPage() {
         <p className="mt-1 text-sm text-slate-400">
           Run deals end-to-end: negotiation, term sheets, contracts, signatures, and payment milestones.
         </p>
+        {!investingUnlocked ? (
+          <p className="mt-3 text-xs text-amber-300/90">
+            You can view and message on deals anytime. Funding actions unlock after{" "}
+            <Link href="/funders/verification" className="underline hover:text-amber-200">
+              verification is approved
+            </Link>
+            .
+          </p>
+        ) : null}
       </section>
 
       <div className="space-y-3">
@@ -43,17 +55,36 @@ export default function FunderDealsPage() {
                 <h2 className="text-lg font-semibold">{deal.opportunity?.title ?? "Untitled opportunity"}</h2>
                 <p className="text-xs text-slate-400">Status: {deal.pipelineStatus}</p>
               </div>
-              <div className="flex gap-2">
-                <button className="rounded-lg border border-slate-700 px-2 py-1 text-xs hover:bg-white/[0.05]" onClick={() => mutate.mutate({ action: "DECIDE_DEAL", dealId: deal.id, status: "FUNDED" })}>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={!investingUnlocked}
+                  className="rounded-lg border border-slate-700 px-2 py-1 text-xs hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={() => mutate.mutate({ action: "DECIDE_DEAL", dealId: deal.id, status: "FUNDED" })}
+                >
                   Accept & fund
                 </button>
-                <button className="rounded-lg border border-red-900 px-2 py-1 text-xs text-red-300 hover:bg-red-900/20" onClick={() => mutate.mutate({ action: "DECIDE_DEAL", dealId: deal.id, status: "REJECTED", rejectionReason: "Risk profile mismatch." })}>
+                <button
+                  type="button"
+                  className="rounded-lg border border-red-900 px-2 py-1 text-xs text-red-300 hover:bg-red-900/20"
+                  onClick={() => mutate.mutate({ action: "DECIDE_DEAL", dealId: deal.id, status: "REJECTED", rejectionReason: "Risk profile mismatch." })}
+                >
                   Reject
                 </button>
-                <button className="rounded-lg border border-slate-700 px-2 py-1 text-xs hover:bg-white/[0.05]" onClick={() => mutate.mutate({ action: "GENERATE_CONTRACT", dealId: deal.id })}>
+                <button
+                  type="button"
+                  disabled={!investingUnlocked}
+                  className="rounded-lg border border-slate-700 px-2 py-1 text-xs hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={() => mutate.mutate({ action: "GENERATE_CONTRACT", dealId: deal.id })}
+                >
                   Generate contract
                 </button>
-                <button className="rounded-lg border border-slate-700 px-2 py-1 text-xs hover:bg-white/[0.05]" onClick={() => mutate.mutate({ action: "SIGN_CONTRACT", dealId: deal.id })}>
+                <button
+                  type="button"
+                  disabled={!investingUnlocked}
+                  className="rounded-lg border border-slate-700 px-2 py-1 text-xs hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={() => mutate.mutate({ action: "SIGN_CONTRACT", dealId: deal.id })}
+                >
                   Sign
                 </button>
               </div>

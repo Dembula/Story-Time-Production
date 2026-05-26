@@ -108,8 +108,12 @@ export function CompanyAdminClient() {
             </div>
           </div>
           <p className="mb-4 text-xs text-slate-500">
-            Pipeline access for each profile can be restricted below (overrides package for that workspace). Invites and
-            approvals will follow in a later release.
+            Pipeline access for each profile can be restricted below (overrides package for that workspace). To invite
+            teammates by email, open{" "}
+            <Link href="/creator/company/control" className="text-orange-300 hover:underline">
+              Account control
+            </Link>
+            .
           </p>
           <ul className="space-y-2">
             {c.profiles.map((p) => (

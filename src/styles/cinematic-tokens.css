@@ -1,0 +1,40 @@
+/**
+ * Cinematic design tokens — depth, glow, glass layers.
+ * Complements Tailwind; use CSS variables for GPU-friendly overlays.
+ */
+:root {
+  --cin-depth-1: 0 4px 24px rgba(0, 0, 0, 0.35);
+  --cin-depth-2: 0 12px 48px rgba(0, 0, 0, 0.45);
+  --cin-glow-warm: 0 0 40px rgba(255, 140, 0, 0.12);
+  --cin-glass: rgba(10, 15, 24, 0.72);
+  --cin-glass-border: rgba(255, 255, 255, 0.08);
+  --cin-ambient-vignette: radial-gradient(ellipse at center, transparent 40%, rgba(0, 0, 0, 0.55) 100%);
+}
+
+.cinematic-route {
+  position: relative;
+  isolation: isolate;
+}
+
+.cinematic-glass {
+  background: var(--cin-glass);
+  border: 1px solid var(--cin-glass-border);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.cinematic-vignette::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background: var(--cin-ambient-vignette);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cinematic-route * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

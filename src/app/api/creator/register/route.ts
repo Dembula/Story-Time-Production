@@ -11,6 +11,7 @@ import {
   MISSING_PRISMA_STUDIO_DELEGATES,
 } from "@/lib/prisma-missing-table";
 import { ensureUserRole } from "@/lib/user-roles";
+import { linkPendingStudioInvitesToUser } from "@/lib/creator-studio-company";
 
 const CREATOR_TYPES = ["content", "music", "equipment", "location", "crew", "casting", "catering", "funder"] as const;
 const ROLE_MAP: Record<string, string> = {
@@ -534,6 +535,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Registration failed" }, { status: 500 });
     }
     await ensureUserRole(userForRole.id, role);
+    await linkPendingStudioInvitesToUser(userForRole.id, normalizedEmail);
 
     try {
       await sendWelcomeEmail(normalizedEmail, name?.trim() || null, {

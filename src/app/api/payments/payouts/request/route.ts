@@ -6,6 +6,8 @@ import { getPaymentGateway } from "@/lib/payments/gateway";
 import { ensureWalletForUser } from "@/lib/payments/wallet";
 import { postBalancedLedgerBatch } from "@/lib/payments/ledger";
 import { toGatewaySafeReference } from "@/lib/payments/reference";
+import { assertFunderVerificationApproved } from "@/lib/funder-verification";
+import { assertPayoutKycApproved, requiresPayoutKyc } from "@/lib/payout-kyc";
 const db = prisma as any;
 
 export async function POST(req: NextRequest) {
@@ -13,6 +15,18 @@ export async function POST(req: NextRequest) {
   const user = session?.user as { id?: string; role?: string } | undefined;
   if (!user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (user.role === "SUBSCRIBER") return NextResponse.json({ error: "Viewers cannot request payouts." }, { status: 403 });
+
+  if (user.role === "FUNDER") {
+    const funderCheck = await assertFunderVerificationApproved(user.id);
+    if (!funderCheck.ok) {
+      return NextResponse.json({ error: funderCheck.error, code: funderCheck.code }, { status: 403 });
+    }
+  } else if (requiresPayoutKyc(user.role)) {
+    const kycCheck = await assertPayoutKycApproved(user.id);
+    if (!kycCheck.ok) {
+      return NextResponse.json({ error: kycCheck.error, code: "PAYOUT_KYC_REQUIRED" }, { status: 403 });
+    }
+  }
 
   const body = (await req.json().catch(() => null)) as { amount?: number; beneficiaryToken?: string } | null;
   const amount = Number(body?.amount ?? 0);

@@ -5,6 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 import { ModocProvider } from "@/components/modoc";
 import { AdaptiveUiProvider } from "@/components/adaptive/adaptive-provider";
+import { MotionProvider } from "@/components/motion/motion-provider";
+import { MiniPlayer } from "@/components/player/mini-player";
 import { SessionTelemetry } from "@/components/session-telemetry";
 import { ProductAnalytics } from "@/components/product-analytics";
 
@@ -17,7 +19,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <ProductAnalytics />
       <QueryClientProvider client={queryClient}>
         <AdaptiveUiProvider>
-          <ModocProvider>{children}</ModocProvider>
+          <MotionProvider>
+            <ModocProvider>
+              {children}
+              <MiniPlayer />
+            </ModocProvider>
+          </MotionProvider>
         </AdaptiveUiProvider>
       </QueryClientProvider>
     </SessionProvider>

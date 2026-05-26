@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { ensureOwnedStudioCompanyForUser } from "@/lib/creator-studio-company";
 import Link from "next/link";
 import { CompanyAccountControlClient } from "./company-account-control-client";
 
@@ -10,8 +11,10 @@ export default async function CompanyAccountControlPage() {
   const role = (session?.user as { role?: string })?.role;
   const userId = (session?.user as { id?: string })?.id;
   if (!session || !userId || (role !== "CONTENT_CREATOR" && role !== "MUSIC_CREATOR")) {
-    redirect("/auth/signin");
+    redirect("/auth/creator/signin");
   }
+
+  await ensureOwnedStudioCompanyForUser(userId);
 
   const owned = await prisma.studioCompany.count({ where: { ownerUserId: userId } });
   const backHref = role === "MUSIC_CREATOR" ? "/music-creator/dashboard" : "/creator/command-center";

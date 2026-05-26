@@ -177,6 +177,8 @@ exports.Prisma.UserScalarFieldEnum = {
   availabilityStatus: 'availabilityStatus',
   reputationScore: 'reputationScore',
   networkProfilePublic: 'networkProfilePublic',
+  phoneNumber: 'phoneNumber',
+  accountOnboardingCompletedAt: 'accountOnboardingCompletedAt',
   creatorAccountStructure: 'creatorAccountStructure',
   creatorTeamSeatCap: 'creatorTeamSeatCap',
   activeCreatorStudioProfileId: 'activeCreatorStudioProfileId',
@@ -322,6 +324,47 @@ exports.Prisma.ContentScalarFieldEnum = {
   linkedProjectId: 'linkedProjectId'
 };
 
+exports.Prisma.ContentEnrichmentScalarFieldEnum = {
+  id: 'id',
+  contentId: 'contentId',
+  status: 'status',
+  moodTags: 'moodTags',
+  atmosphere: 'atmosphere',
+  pacing: 'pacing',
+  narrativeJson: 'narrativeJson',
+  dialogueIndex: 'dialogueIndex',
+  embedding: 'embedding',
+  enrichmentVersion: 'enrichmentVersion',
+  error: 'error',
+  processedAt: 'processedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.ContentSceneScalarFieldEnum = {
+  id: 'id',
+  contentId: 'contentId',
+  enrichmentId: 'enrichmentId',
+  startSeconds: 'startSeconds',
+  endSeconds: 'endSeconds',
+  summary: 'summary',
+  mood: 'mood',
+  actors: 'actors',
+  tags: 'tags',
+  thumbnailUrl: 'thumbnailUrl',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.ContentSubtitleScalarFieldEnum = {
+  id: 'id',
+  contentId: 'contentId',
+  language: 'language',
+  label: 'label',
+  vttUrl: 'vttUrl',
+  isDefault: 'isDefault',
+  createdAt: 'createdAt'
+};
+
 exports.Prisma.BtsVideoScalarFieldEnum = {
   id: 'id',
   title: 'title',
@@ -350,6 +393,17 @@ exports.Prisma.ViewerProfileScalarFieldEnum = {
   preferences: 'preferences',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
+};
+
+exports.Prisma.WatchProgressScalarFieldEnum = {
+  id: 'id',
+  positionSeconds: 'positionSeconds',
+  durationSeconds: 'durationSeconds',
+  updatedAt: 'updatedAt',
+  createdAt: 'createdAt',
+  userId: 'userId',
+  contentId: 'contentId',
+  viewerProfileId: 'viewerProfileId'
 };
 
 exports.Prisma.CommentScalarFieldEnum = {
@@ -1100,6 +1154,7 @@ exports.Prisma.UserPreferenceScalarFieldEnum = {
   accentColor: 'accentColor',
   notifyEmail: 'notifyEmail',
   playbackQuality: 'playbackQuality',
+  profileExtras: 'profileExtras',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 };
@@ -1627,6 +1682,37 @@ exports.Prisma.FunderProfileScalarFieldEnum = {
 exports.Prisma.FunderVerificationScalarFieldEnum = {
   id: 'id',
   funderProfileId: 'funderProfileId',
+  submittedById: 'submittedById',
+  documentType: 'documentType',
+  documentUrl: 'documentUrl',
+  status: 'status',
+  note: 'note',
+  reviewedById: 'reviewedById',
+  submittedAt: 'submittedAt',
+  reviewedAt: 'reviewedAt'
+};
+
+exports.Prisma.PayoutKycProfileScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  accountRole: 'accountRole',
+  entityType: 'entityType',
+  legalName: 'legalName',
+  verificationStatus: 'verificationStatus',
+  riskLevel: 'riskLevel',
+  kycData: 'kycData',
+  reviewNote: 'reviewNote',
+  submittedAt: 'submittedAt',
+  reviewedAt: 'reviewedAt',
+  approvedForPayoutsAt: 'approvedForPayoutsAt',
+  adminReviewRequired: 'adminReviewRequired',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.PayoutKycVerificationScalarFieldEnum = {
+  id: 'id',
+  payoutKycProfileId: 'payoutKycProfileId',
   submittedById: 'submittedById',
   documentType: 'documentType',
   documentUrl: 'documentUrl',
@@ -2250,9 +2336,13 @@ exports.Prisma.ModelName = {
   AdminRequest: 'AdminRequest',
   AdminAccessApplication: 'AdminAccessApplication',
   Content: 'Content',
+  ContentEnrichment: 'ContentEnrichment',
+  ContentScene: 'ContentScene',
+  ContentSubtitle: 'ContentSubtitle',
   BtsVideo: 'BtsVideo',
   WatchSession: 'WatchSession',
   ViewerProfile: 'ViewerProfile',
+  WatchProgress: 'WatchProgress',
   Comment: 'Comment',
   Rating: 'Rating',
   WatchlistItem: 'WatchlistItem',
@@ -2353,6 +2443,8 @@ exports.Prisma.ModelName = {
   FundingRequest: 'FundingRequest',
   FunderProfile: 'FunderProfile',
   FunderVerification: 'FunderVerification',
+  PayoutKycProfile: 'PayoutKycProfile',
+  PayoutKycVerification: 'PayoutKycVerification',
   InvestmentOpportunity: 'InvestmentOpportunity',
   CompanyFundingListing: 'CompanyFundingListing',
   InvestmentDeal: 'InvestmentDeal',

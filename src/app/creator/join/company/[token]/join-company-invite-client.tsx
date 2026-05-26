@@ -2,18 +2,25 @@
 
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CREATOR_STUDIO_PROFILES_QUERY_KEY } from "@/lib/pricing";
+import { normalizeInviteEmail } from "@/lib/creator-team-invites";
 
-type Preview = { valid: boolean; companyName?: string; expired?: boolean; status?: string; error?: string };
+type Preview = {
+  valid: boolean;
+  companyName?: string;
+  emailNorm?: string;
+  expired?: boolean;
+  status?: string;
+  error?: string;
+};
 
 export function JoinCompanyInviteClient({ token }: { token: string }) {
   const router = useRouter();
   const { data: session, status } = useSession();
   const queryClient = useQueryClient();
-  const [inviteList, setInviteList] = useState<{ id: string; companyName: string }[] | null>(null);
+  const callbackUrl = encodeURIComponent(`/creator/join/company/${token}`);
 
   const { data: preview, isLoading } = useQuery({
     queryKey: ["team-invite-preview", token],
@@ -25,23 +32,12 @@ export function JoinCompanyInviteClient({ token }: { token: string }) {
     },
   });
 
-  useEffect(() => {
-    if (status !== "authenticated" || !session?.user?.email) return;
-    void fetch("/api/creator/team-invites")
-      .then((r) => r.json())
-      .then((d: { invites?: { id: string; companyName: string; token: string }[] }) => {
-        const list = (d.invites ?? []).filter((i) => i.token === token);
-        setInviteList(list.map((i) => ({ id: i.id, companyName: i.companyName })));
-      })
-      .catch(() => setInviteList([]));
-  }, [status, session?.user?.email, token]);
-
   const accept = useMutation({
-    mutationFn: async (inviteId: string) => {
-      const res = await fetch(`/api/creator/team-invites/${inviteId}`, {
-        method: "PATCH",
+    mutationFn: async () => {
+      const res = await fetch("/api/creator/team-invites/accept", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "accept" }),
+        body: JSON.stringify({ token, action: "accept" }),
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(typeof j.error === "string" ? j.error : "Could not accept");
@@ -49,7 +45,8 @@ export function JoinCompanyInviteClient({ token }: { token: string }) {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: [...CREATOR_STUDIO_PROFILES_QUERY_KEY] });
-      router.push("/creator/command-center");
+      const role = session?.user?.role;
+      router.push(role === "MUSIC_CREATOR" ? "/music-creator/dashboard" : "/creator/command-center");
       router.refresh();
     },
   });
@@ -82,15 +79,18 @@ export function JoinCompanyInviteClient({ token }: { token: string }) {
           the invited email, then return to this page.
         </p>
         <Link
-          href={`/auth/signin?callbackUrl=${encodeURIComponent(`/creator/join/company/${token}`)}`}
+          href={`/auth/creator/signin?callbackUrl=${callbackUrl}`}
           className="inline-block rounded-lg bg-orange-500 px-4 py-2 font-medium text-white hover:bg-orange-400"
         >
-          Sign in
+          Creator sign in
         </Link>
         <p className="text-xs text-slate-500">
           New to Story Time?{" "}
-          <Link href={`/auth/creator/signup?callbackUrl=${encodeURIComponent(`/creator/join/company/${token}`)}`} className="text-orange-300 hover:underline">
-            Create an account
+          <Link
+            href={`/auth/creator/signup?callbackUrl=${callbackUrl}`}
+            className="text-orange-300 hover:underline"
+          >
+            Create a creator account
           </Link>{" "}
           using the same email the owner invited.
         </p>
@@ -98,13 +98,14 @@ export function JoinCompanyInviteClient({ token }: { token: string }) {
     );
   }
 
-  const match = inviteList?.[0];
-  if (inviteList && inviteList.length === 0) {
+  const sessionEmail = session?.user?.email ? normalizeInviteEmail(session.user.email) : "";
+  const invitedEmail = preview.emailNorm ?? "";
+  if (invitedEmail && sessionEmail && sessionEmail !== invitedEmail) {
     return (
       <p className="text-center text-sm text-amber-400">
-        This invite is tied to a different email than the one you are signed in with. Sign out and sign in with the
-        invited address, or ask the studio owner to send a new invite to{" "}
-        <span className="font-medium text-slate-200">{session?.user?.email}</span>.
+        This invite was sent to <span className="font-medium text-slate-200">{invitedEmail}</span>. You are signed in
+        as <span className="font-medium text-slate-200">{session?.user?.email}</span>. Sign out and sign in with the
+        invited address, or ask the studio owner to send a new invite to your current email.
       </p>
     );
   }
@@ -113,18 +114,14 @@ export function JoinCompanyInviteClient({ token }: { token: string }) {
     <div className="mx-auto max-w-md space-y-6 text-center">
       <h1 className="font-display text-2xl font-semibold text-white">Join {preview.companyName}</h1>
       <p className="text-sm text-slate-400">Accepting creates a company workspace profile under this studio.</p>
-      {match ? (
-        <button
-          type="button"
-          disabled={accept.isPending}
-          onClick={() => accept.mutate(match.id)}
-          className="w-full rounded-lg bg-orange-500 py-2.5 text-sm font-medium text-white hover:bg-orange-400 disabled:opacity-50"
-        >
-          {accept.isPending ? "Joining…" : "Accept invite"}
-        </button>
-      ) : (
-        <p className="text-xs text-slate-500">Checking invite for your account…</p>
-      )}
+      <button
+        type="button"
+        disabled={accept.isPending}
+        onClick={() => accept.mutate()}
+        className="w-full rounded-lg bg-orange-500 py-2.5 text-sm font-medium text-white hover:bg-orange-400 disabled:opacity-50"
+      >
+        {accept.isPending ? "Joining…" : "Accept invite"}
+      </button>
       {accept.error ? <p className="text-xs text-red-400">{(accept.error as Error).message}</p> : null}
     </div>
   );

@@ -309,9 +309,9 @@ export default function FunderVerificationPage() {
       <section className="rounded-2xl border border-white/8 bg-gradient-to-br from-slate-900 to-slate-950 p-5 shadow-panel">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-semibold">Funder KYC Verification</h1>
+            <h1 className="text-2xl font-semibold">Funder verification (KYC)</h1>
             <p className="mt-1 text-sm text-slate-400">
-              Complete all steps to unlock investment actions after admin approval.
+              Submit your documents for compliance review. You can browse the funder portal while we review — investing and deal funding unlock only after approval.
             </p>
           </div>
           <Link href="/funders" className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-200 hover:bg-white/[0.04]">
@@ -447,10 +447,10 @@ export default function FunderVerificationPage() {
           </span>
         </p>
         {(data as { profile?: { verificationStatus?: string } } | undefined)?.profile?.verificationStatus === "APPROVED" ? (
-          <p className="text-emerald-300">Approved funders are routed to `/funders` on sign-in.</p>
+          <p className="text-emerald-300">Your account is approved. You can express interest, negotiate deals, fund investments, and receive payouts.</p>
         ) : (
           <p className="text-slate-400">
-            After submission, you are sent home while your profile is under review. You can return here anytime from the Funders menu.
+            Platform access is not blocked. After you submit, investing and capital movements stay locked until compliance approves your application.
           </p>
         )}
       </div>

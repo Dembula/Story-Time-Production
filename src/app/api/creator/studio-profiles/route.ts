@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ensureCreatorStudioProfilesForUser } from "@/lib/creator-studio";
+import { ensureOwnedStudioCompanyForUser } from "@/lib/creator-studio-company";
 import { isMissingCreatorStudioInfrastructure } from "@/lib/prisma-missing-table";
 import { findUserActiveStudioProfileId } from "@/lib/prisma-user-studio-compat";
 
@@ -18,6 +19,7 @@ export async function GET() {
   }
 
   await ensureCreatorStudioProfilesForUser(userId);
+  await ensureOwnedStudioCompanyForUser(userId);
 
   const prismaExt = prisma as unknown as {
     creatorStudioProfile?: { findMany: (args: object) => Promise<unknown[]> };

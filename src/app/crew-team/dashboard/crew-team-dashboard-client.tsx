@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Users, Briefcase, Send, ArrowRight, DollarSign } from "lucide-react";
 import { formatZar } from "@/lib/format-currency-zar";
+import { OpsMetricCard, OpsPageHeader, OpsQuickActions } from "@/components/ecosystem/ops-shell";
 
 export function CrewTeamDashboardClient() {
   const [team, setTeam] = useState<{ id: string; companyName: string; _count: { members: number; requests: number } } | null>(null);
@@ -37,29 +38,29 @@ export function CrewTeamDashboardClient() {
 
   const pending = requests.filter((r) => r.status === "PENDING").length;
   return (
-    <div className="p-8 max-w-6xl mx-auto">
-      <h1 className="text-3xl font-semibold text-white mb-8">Dashboard</h1>
-      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <div className="p-6 rounded-2xl bg-slate-800/30 border border-slate-700/50">
-          <Users className="w-8 h-8 text-emerald-500 mb-3" />
-          <p className="text-2xl font-bold text-white">{team._count.members}</p>
-          <p className="text-sm text-slate-400">Team members</p>
-        </div>
-        <div className="p-6 rounded-2xl bg-slate-800/30 border border-slate-700/50">
-          <Send className="w-8 h-8 text-orange-500 mb-3" />
-          <p className="text-2xl font-bold text-white">{team._count.requests}</p>
-          <p className="text-sm text-slate-400">Total requests</p>
-        </div>
-        <div className="p-6 rounded-2xl bg-slate-800/30 border border-slate-700/50">
-          <p className="text-2xl font-bold text-white">{pending}</p>
-          <p className="text-sm text-slate-400">Pending</p>
-        </div>
-        <div className="p-6 rounded-2xl bg-slate-800/30 border border-slate-700/50">
-          <DollarSign className="w-8 h-8 text-emerald-400 mb-3" />
-          <p className="text-2xl font-bold text-emerald-300">{formatZar(revenue, { maximumFractionDigits: 0 })}</p>
-          <p className="text-sm text-slate-400">Settled marketplace revenue</p>
-        </div>
+    <div className="p-8 max-w-6xl mx-auto space-y-8">
+      <OpsPageHeader
+        title={team.companyName}
+        subtitle="Crew marketplace operations — team capacity, inbound requests, and settled revenue."
+      />
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+        <OpsMetricCard label="Team members" value={team._count.members} icon={Users} accent="emerald" />
+        <OpsMetricCard label="Total requests" value={team._count.requests} icon={Send} accent="orange" />
+        <OpsMetricCard label="Pending offers" value={pending} accent="amber" />
+        <OpsMetricCard
+          label="Settled revenue"
+          value={formatZar(revenue, { maximumFractionDigits: 0 })}
+          icon={DollarSign}
+          accent="emerald"
+        />
       </div>
+      <OpsQuickActions
+        items={[
+          { href: "/crew-team/requests", label: "Requests & offers", description: "Respond to creator bookings" },
+          { href: "/crew-team/team", label: "Manage team", description: "Roster and availability" },
+          { href: "/crew-team/wallet", label: "Wallet", description: "Payouts and balances" },
+        ]}
+      />
       <div className="rounded-2xl bg-slate-800/30 border border-slate-700/50 overflow-hidden">
         <div className="p-4 border-b border-slate-700/50 flex justify-between">
           <h2 className="text-lg font-semibold text-white">Recent requests</h2>

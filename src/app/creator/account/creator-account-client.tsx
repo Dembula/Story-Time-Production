@@ -24,6 +24,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { CreatorAccountVaultHub } from "@/components/creator/creator-account-vault-hub";
+import { PayoutKycBanner } from "@/components/payout-kyc/payout-kyc-banner";
 import { CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY } from "@/lib/pricing";
 import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
 import { formatZar } from "@/lib/format-currency-zar";
@@ -749,6 +750,7 @@ export function CreatorAccountClient({ backHref = "/creator/command-center" }: {
           <h2 className="text-lg font-semibold text-white">Banking & payouts</h2>
         </div>
         <p className="text-xs text-slate-500">Payout window figures and the bank account used for settlements.</p>
+        <PayoutKycBanner />
         <div className="flex flex-wrap gap-2">
           {(["month", "quarter"] as const).map((p) => (
             <button

@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { normalizeInviteEmail } from "@/lib/creator-team-invites";
+import { linkPendingStudioInvitesToUser } from "@/lib/creator-studio-company";
 
 /** Pending studio team invites for the signed-in user's email. */
 export async function GET() {
@@ -10,6 +11,8 @@ export async function GET() {
   const userId = (session?.user as { id?: string })?.id;
   const email = session?.user?.email?.trim().toLowerCase();
   if (!userId || !email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  await linkPendingStudioInvitesToUser(userId, email);
 
   const emailNorm = normalizeInviteEmail(email);
   const now = new Date();

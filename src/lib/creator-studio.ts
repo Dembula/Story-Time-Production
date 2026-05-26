@@ -2,6 +2,10 @@ import { prisma } from "@/lib/prisma";
 import { isCreatorLicensePeriodActive, isCreatorPerUploadLicense } from "@/lib/pricing";
 import { computeStudioSuiteAccess, type CreatorSuiteAccessMap } from "@/lib/creator-suite-access";
 import {
+  ensureOwnedStudioCompanyForUser,
+  resolveCreatorStudioAccountIntent,
+} from "@/lib/creator-studio-company";
+import {
   isMissingCreatorStudioInfrastructure,
   isMissingUserStudioWorkspacePrismaField,
   isPrismaMissingTable,
@@ -44,6 +48,7 @@ export async function ensureCreatorStudioProfilesForUser(userId: string): Promis
   }
 
   if (count > 0) {
+    await ensureOwnedStudioCompanyForUser(userId);
     try {
       const u = await prisma.user.findUnique({
         where: { id: userId },
@@ -68,6 +73,12 @@ export async function ensureCreatorStudioProfilesForUser(userId: string): Promis
       }
       throw e;
     }
+    return;
+  }
+
+  const intent = await resolveCreatorStudioAccountIntent(userId);
+  if (intent?.structure === "COMPANY") {
+    await ensureOwnedStudioCompanyForUser(userId);
     return;
   }
 

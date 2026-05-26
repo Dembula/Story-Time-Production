@@ -1,12 +1,14 @@
 "use client";
 
 import { signIn } from "next-auth/react";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowLeft, Shield } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { safeCallbackPath } from "@/lib/auth-callback-path";
 
-export default function CreatorSignInPage() {
+function CreatorSignInPageInner() {
   const hasGoogleProvider = Boolean(process.env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED === "true");
   const hasGitHubProvider = Boolean(process.env.NEXT_PUBLIC_GITHUB_AUTH_ENABLED === "true");
   const [email, setEmail] = useState("");
@@ -14,8 +16,14 @@ export default function CreatorSignInPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [selectedRole, setSelectedRole] = useState("FUNDER");
+  const searchParams = useSearchParams();
+  const callbackPath = safeCallbackPath(searchParams.get("callbackUrl"));
 
   async function redirectToRoleHome(defaultPath: string) {
+    if (callbackPath) {
+      window.location.href = callbackPath;
+      return;
+    }
     try {
       const sessionRes = await fetch("/api/auth/session", { cache: "no-store" });
       if (!sessionRes.ok) {
@@ -212,5 +220,19 @@ export default function CreatorSignInPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function CreatorSignInPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-slate-950">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
+        </div>
+      }
+    >
+      <CreatorSignInPageInner />
+    </Suspense>
   );
 }

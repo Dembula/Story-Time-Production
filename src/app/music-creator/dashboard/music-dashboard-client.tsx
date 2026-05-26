@@ -13,6 +13,7 @@ import {
   normalizeCreatorLicenseType,
 } from "@/lib/pricing";
 import { formatZar } from "@/lib/format-currency-zar";
+import { OpsMetricCard, OpsPageHeader, OpsQuickActions } from "@/components/ecosystem/ops-shell";
 
 interface SyncDeal { status: string; amount: number; content: { title: string; type?: string } }
 interface SyncReq {
@@ -61,45 +62,61 @@ export function MusicDashboardClient() {
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8">
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-3 flex-wrap mb-2">
-            <h1 className="text-3xl font-semibold text-white tracking-tight">Music Creator Dashboard</h1>
-            {license && (
-              <span className="px-3 py-1 rounded-full text-xs font-medium bg-slate-700/80 text-slate-300 border border-slate-600">
-                {normalizeCreatorLicenseType(license.type) === "YEARLY"
-                  ? `Yearly license (${formatZar(getCreatorLicenseConfig("YEARLY").price)})`
-                  : `Pay per upload (${formatZar(getCreatorLicenseConfig("PER_UPLOAD").price)})`}
-              </span>
-            )}
-          </div>
-          <p className="text-slate-400">Your complete hub for music, sync licensing, revenue tracking, and creator collaboration. Amounts are in ZAR.</p>
-        </div>
-        <Link href="/music-creator/upload" className="px-5 py-2.5 bg-pink-500 hover:bg-pink-600 text-white rounded-lg font-medium text-sm transition flex items-center gap-2">
-          <Music className="w-4 h-4" /> Upload Track
-        </Link>
+      <OpsPageHeader
+        title="Music creator operating system"
+        subtitle="Catalogue, sync licensing, placements, and revenue — amounts in ZAR."
+        badge={
+          license ? (
+            <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-slate-300">
+              {normalizeCreatorLicenseType(license.type) === "YEARLY"
+                ? `Yearly license (${formatZar(getCreatorLicenseConfig("YEARLY").price)})`
+                : `Pay per upload (${formatZar(getCreatorLicenseConfig("PER_UPLOAD").price)})`}
+            </span>
+          ) : null
+        }
+        actions={
+          <Link
+            href="/music-creator/upload"
+            className="inline-flex items-center gap-2 rounded-xl bg-pink-500 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-pink-600"
+          >
+            <Music className="w-4 h-4" /> Upload track
+          </Link>
+        }
+      />
+
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-5">
+        <OpsMetricCard label="Catalogue tracks" value={s.totalTracks} sub="Published library" icon={Disc} accent="violet" />
+        <OpsMetricCard
+          label="Sync earnings"
+          value={formatZar(s.totalSyncEarnings)}
+          sub={`${s.paidDeals} paid deals`}
+          icon={DollarSign}
+          accent="orange"
+        />
+        <OpsMetricCard label="Film placements" value={s.totalPlacements} sub="Active syncs" icon={Film} accent="emerald" />
+        <OpsMetricCard
+          label="Pending requests"
+          value={s.pendingRequests}
+          sub={`${formatZar(s.potentialRevenue, { maximumFractionDigits: 0 })} potential`}
+          icon={Bell}
+          accent="amber"
+        />
+        <OpsMetricCard
+          label="Genres represented"
+          value={s.genres.length}
+          sub={s.genres.slice(0, 3).join(", ") || "—"}
+          icon={Headphones}
+          accent="cyan"
+        />
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-        {[
-          { label: "Total Tracks", value: s.totalTracks, icon: Disc, color: "pink", sub: "In catalogue" },
-          { label: "Sync Earnings", value: formatZar(s.totalSyncEarnings), icon: DollarSign, color: "orange", sub: `${s.paidDeals} paid deals` },
-          { label: "Film Placements", value: s.totalPlacements, icon: Film, color: "emerald", sub: "Active syncs" },
-          { label: "Pending Requests", value: s.pendingRequests, icon: Bell, color: "yellow", sub: `${formatZar(s.potentialRevenue, { maximumFractionDigits: 0 })} potential` },
-          { label: "Genres", value: s.genres.length, icon: Headphones, color: "violet", sub: s.genres.slice(0, 3).join(", ") || "—" },
-        ].map((card) => {
-          const borderMap: Record<string, string> = { pink: "border-l-pink-500/50", orange: "border-l-orange-500/50", emerald: "border-l-emerald-500/50", yellow: "border-l-yellow-500/50", violet: "border-l-violet-500/50" };
-          const iconMap: Record<string, string> = { pink: "text-pink-400", orange: "text-orange-400", emerald: "text-emerald-400", yellow: "text-yellow-400", violet: "text-violet-400" };
-          return (
-            <div key={card.label} className={`bg-slate-800/30 border border-slate-700/50 border-l-4 ${borderMap[card.color]} rounded-xl p-4`}>
-              <div className="flex items-center justify-between mb-2"><span className="text-xs text-slate-400">{card.label}</span><card.icon className={`w-4 h-4 ${iconMap[card.color]}`} /></div>
-              <p className={`text-2xl font-bold ${card.color === "orange" ? "text-orange-500" : "text-white"}`}>{card.value}</p>
-              <p className="text-xs text-slate-500 mt-1">{card.sub}</p>
-            </div>
-          );
-        })}
-      </div>
+      <OpsQuickActions
+        items={[
+          { href: "/music-creator/sync-requests", label: "Sync requests", description: "Review inbound licensing inquiries" },
+          { href: "/music-creator/revenue", label: "Revenue hub", description: "Earnings by track and placement" },
+          { href: "/music-creator/wallet", label: "Wallet", description: "Balances and payout requests" },
+        ]}
+      />
 
       {/* Pending Sync Requests Alert */}
       {s.pendingRequests > 0 && (

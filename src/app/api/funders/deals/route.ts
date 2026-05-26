@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { assertFunderVerificationApproved } from "@/lib/funder-verification";
 import { isFunderRole, requireSessionUser } from "@/lib/funders";
 
 export async function GET() {
@@ -64,6 +65,12 @@ export async function POST(req: NextRequest) {
 
   if (body.action === "EXPRESS_INTEREST") {
     if (!isFunderRole(access.role!)) return NextResponse.json({ error: "Only funders can express interest." }, { status: 403 });
+    if (access.role === "FUNDER") {
+      const verified = await assertFunderVerificationApproved(access.userId!);
+      if (!verified.ok) {
+        return NextResponse.json({ error: verified.error, code: verified.code }, { status: 403 });
+      }
+    }
     if (!body.opportunityId) return NextResponse.json({ error: "Missing opportunityId" }, { status: 400 });
 
     const opp = await prisma.investmentOpportunity.findUnique({ where: { id: body.opportunityId } });

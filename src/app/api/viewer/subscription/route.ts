@@ -106,7 +106,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       subscription: existing,
       profileId: null,
-      redirectTo: "/profiles",
+      redirectTo: "/onboarding/account",
       message: "Already have an active subscription",
     });
   }
@@ -127,7 +127,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       subscription,
       profileId: null,
-      redirectTo: "/profiles",
+      redirectTo: "/onboarding/account",
       requiresPayment: false,
     });
   }
@@ -257,7 +257,7 @@ export async function POST(req: Request) {
   return NextResponse.json({
     subscription,
     profileId: null,
-    redirectTo: "/profiles",
+    redirectTo: "/onboarding/account",
     requiresPayment: Boolean(checkoutUrl),
     checkoutUrl,
     checkoutWarning,

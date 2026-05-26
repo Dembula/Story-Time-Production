@@ -6,6 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { ArrowLeft, Check, GraduationCap, Shield } from "lucide-react";
 import { useSearchParams } from "next/navigation";
+import { isStudioTeamJoinCallback, safeCallbackPath } from "@/lib/auth-callback-path";
 
 function CreatorSignUpPageInner() {
   const [consentReady, setConsentReady] = useState(false);
@@ -65,6 +66,10 @@ function CreatorSignUpPageInner() {
 
   useEffect(() => {
     setConsentReady(searchParams.get("termsAccepted") === "1");
+    const cb = safeCallbackPath(searchParams.get("callbackUrl"));
+    if (isStudioTeamJoinCallback(cb)) {
+      setAccountStructure("INDIVIDUAL");
+    }
   }, [searchParams]);
 
   function handleCreatorTypeChange(next: typeof creatorType) {
@@ -184,6 +189,11 @@ function CreatorSignUpPageInner() {
       });
       setLoading(false);
       if (res?.ok) {
+        const callbackUrl = safeCallbackPath(searchParams.get("callbackUrl"));
+        if (callbackUrl) {
+          window.location.href = callbackUrl;
+          return;
+        }
         const redirects: Record<string, string> = {
           music: "/music-creator/onboarding/license",
           content: "/creator/onboarding/license",
@@ -192,7 +202,7 @@ function CreatorSignUpPageInner() {
           crew: "/company/onboarding/subscription",
           casting: "/company/onboarding/subscription",
           catering: "/company/onboarding/subscription",
-          funder: "/funders/verification",
+          funder: "/funders",
         };
         window.location.href = redirects[type] ?? "/creator/command-center";
       } else {

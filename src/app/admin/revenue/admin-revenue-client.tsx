@@ -40,7 +40,7 @@ export function AdminRevenueClient() {
 
   if (loading) return <div className="flex items-center justify-center min-h-[60vh]"><div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" /></div>;
 
-  const p = data?.platform || { revenuePool: 10000, totalWatchTime: 0, platformCut: 0, creatorPool: 0 };
+  const p = data?.platform || { revenuePool: 0, totalWatchTime: 0, platformCut: 0, creatorPool: 0 };
   const creators = data?.creators || [];
   const contentRevenue = data?.contentRevenue || [];
   const sync = data?.syncDeals || { totalDeals: 0, totalSyncRevenue: 0 };

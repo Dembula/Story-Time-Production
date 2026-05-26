@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Package, MessageCircle, Clock, CheckCircle, XCircle, TrendingUp, Wrench, DollarSign } from "lucide-react";
 import { formatZar } from "@/lib/format-currency-zar";
+import { OpsMetricCard, OpsPageHeader, OpsQuickActions } from "@/components/ecosystem/ops-shell";
 
 interface EquipmentRequest {
   id: string;
@@ -77,30 +78,33 @@ export default function EquipmentDashboard() {
     );
 
   return (
-    <main className="max-w-7xl mx-auto px-6 md:px-12 py-10 space-y-10">
-      <div>
-        <h1 className="text-3xl font-bold text-white mb-1">Equipment Dashboard</h1>
-        <p className="text-slate-400 text-sm">Manage your equipment listings and creator requests</p>
+    <main className="max-w-7xl mx-auto px-6 md:px-12 py-10 space-y-8">
+      <OpsPageHeader
+        title="Equipment operations"
+        subtitle="Listings, rental requests, messaging, and settled marketplace revenue."
+      />
+
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+        <OpsMetricCard label="Listings" value={listings.length} icon={Package} accent="cyan" />
+        <OpsMetricCard label="Total requests" value={requests.length} icon={TrendingUp} accent="orange" />
+        <OpsMetricCard label="Pending" value={pending} icon={Clock} accent="amber" />
+        <OpsMetricCard label="Approved" value={approved} icon={CheckCircle} accent="emerald" />
+        <OpsMetricCard label="Messages" value={totalMessages} icon={MessageCircle} accent="violet" />
+        <OpsMetricCard
+          label="Settled revenue"
+          value={formatZar(revenue, { maximumFractionDigits: 0 })}
+          icon={DollarSign}
+          accent="emerald"
+        />
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        {[
-          { label: "Listings", value: listings.length, icon: Package, color: "text-blue-400" },
-          { label: "Total Requests", value: requests.length, icon: TrendingUp, color: "text-orange-400" },
-          { label: "Pending", value: pending, icon: Clock, color: "text-yellow-400" },
-          { label: "Approved", value: approved, icon: CheckCircle, color: "text-green-400" },
-          { label: "Messages", value: totalMessages, icon: MessageCircle, color: "text-purple-400" },
-          { label: "Settled revenue", value: formatZar(revenue, { maximumFractionDigits: 0 }), icon: DollarSign, color: "text-emerald-400" },
-        ].map((s) => (
-          <div key={s.label} className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
-            <div className="flex items-center gap-2 mb-2">
-              <s.icon className={`w-4 h-4 ${s.color}`} />
-              <span className="text-xs text-slate-400 uppercase tracking-wider">{s.label}</span>
-            </div>
-            <p className={`text-2xl font-bold ${s.label === "Settled revenue" ? "text-emerald-300" : "text-white"}`}>{s.value}</p>
-          </div>
-        ))}
-      </div>
+      <OpsQuickActions
+        items={[
+          { href: "/equipment-company/listings", label: "Manage listings", description: "Inventory and availability" },
+          { href: "/equipment-company/requests", label: "Request inbox", description: "Approve or decline bookings" },
+          { href: "/equipment-company/wallet", label: "Wallet", description: "Payouts and balances" },
+        ]}
+      />
 
       <section>
         <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">

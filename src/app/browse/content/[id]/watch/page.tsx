@@ -46,6 +46,7 @@ export default async function WatchPage({
       language: true,
       creatorId: true,
       minAge: true,
+      duration: true,
       createdAt: true,
     },
   });
@@ -81,6 +82,20 @@ export default async function WatchPage({
     if (next) nextEpisode = { id: next.id, title: next.title };
   }
 
+  let startTime = 0;
+  const progress = await prisma.watchProgress.findUnique({
+    where: {
+      viewerProfileId_contentId: { viewerProfileId: profileId, contentId: content.id },
+    },
+    select: { positionSeconds: true, durationSeconds: true },
+  });
+  if (progress && progress.positionSeconds >= 30) {
+    const dur = progress.durationSeconds ?? content.duration ?? null;
+    if (!dur || progress.positionSeconds / dur < 0.92) {
+      startTime = progress.positionSeconds;
+    }
+  }
+
   return (
     <WatchClient
       content={{
@@ -94,6 +109,7 @@ export default async function WatchPage({
       }}
       contentDetailUrl={`/browse/content/${content.id}`}
       nextEpisode={nextEpisode}
+      startTime={startTime}
     />
   );
 }

@@ -1,54 +1,101 @@
 import { NextRequest, NextResponse } from "next/server";
+import { buildCloudflarePlaybackUrls, getCloudflareStreamConfig } from "@/lib/cloudflare-stream";
 import { upsertStreamAsset } from "@/lib/stream-asset-store";
+import { syncLinkedEntitiesAfterStreamReady } from "@/lib/stream-entity-sync";
+import {
+  isLegacyWebhookSecretHeaderMatch,
+  verifyCloudflareStreamWebhookSignature,
+} from "@/lib/cloudflare-stream-webhook";
 
-function extractHeaderSecret(req: NextRequest): string | null {
-  return (
-    req.headers.get("x-stream-webhook-secret") ??
-    req.headers.get("webhook-secret") ??
-    req.headers.get("x-webhook-secret")
-  );
+function pickStatus(payload: Record<string, unknown>): string {
+  const status = payload.status;
+  if (status && typeof status === "object" && "state" in status) {
+    return String((status as { state?: unknown }).state ?? "unknown");
+  }
+  if (typeof status === "string") return status;
+  const result = payload.result;
+  if (result && typeof result === "object" && "status" in result) {
+    const rs = (result as { status?: unknown }).status;
+    if (rs && typeof rs === "object" && "state" in rs) {
+      return String((rs as { state?: unknown }).state ?? "unknown");
+    }
+  }
+  return "unknown";
 }
 
-function pickStatus(payload: any): string {
-  return (
-    payload?.status?.state ??
-    payload?.status ??
-    payload?.result?.status?.state ??
-    payload?.result?.status ??
-    "unknown"
-  );
+function pickUid(payload: Record<string, unknown>): string | null {
+  if (typeof payload.uid === "string") return payload.uid;
+  const result = payload.result;
+  if (result && typeof result === "object" && typeof (result as { uid?: string }).uid === "string") {
+    return (result as { uid: string }).uid;
+  }
+  return null;
 }
 
-function pickUid(payload: any): string | null {
-  return payload?.uid ?? payload?.result?.uid ?? null;
+function webhookAuthorized(req: NextRequest, rawBody: string): boolean {
+  const secret = process.env.CLOUDFLARE_STREAM_WEBHOOK_SECRET?.trim();
+  if (!secret) {
+    return process.env.NODE_ENV !== "production";
+  }
+
+  // Cloudflare Stream VOD: HMAC in Webhook-Signature (official)
+  const signature =
+    req.headers.get("Webhook-Signature") ?? req.headers.get("webhook-signature");
+  if (signature && verifyCloudflareStreamWebhookSignature(rawBody, signature, secret)) {
+    return true;
+  }
+
+  // Legacy manual header (optional dev / custom proxies)
+  if (isLegacyWebhookSecretHeaderMatch(req, secret)) {
+    return true;
+  }
+
+  return false;
 }
 
 export async function POST(req: NextRequest) {
-  const expected = process.env.CLOUDFLARE_STREAM_WEBHOOK_SECRET?.trim();
-  if (expected) {
-    const provided = extractHeaderSecret(req)?.trim();
-    if (!provided || provided !== expected) {
-      return NextResponse.json({ error: "Invalid webhook secret" }, { status: 401 });
-    }
+  const rawBody = await req.text();
+
+  if (!webhookAuthorized(req, rawBody)) {
+    return NextResponse.json({ error: "Invalid webhook signature" }, { status: 401 });
   }
 
-  const payload = await req.json().catch(() => null);
-  if (!payload) return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+  let payload: Record<string, unknown>;
+  try {
+    payload = JSON.parse(rawBody) as Record<string, unknown>;
+  } catch {
+    return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+  }
 
   const uid = pickUid(payload);
   if (!uid) return NextResponse.json({ error: "Missing stream uid" }, { status: 400 });
 
   const state = pickStatus(payload);
   const errorMessage =
-    payload?.error ?? payload?.errors?.[0]?.message ?? payload?.result?.error ?? null;
+    payload.error ??
+    (Array.isArray(payload.errors) ? payload.errors[0] : null) ??
+    (payload.result && typeof payload.result === "object"
+      ? (payload.result as { error?: unknown }).error
+      : null);
+
+  const cfg = getCloudflareStreamConfig();
+  const urls = cfg ? buildCloudflarePlaybackUrls(uid, cfg.customerSubdomain) : null;
 
   await upsertStreamAsset({
     uid,
     status: state,
+    hlsUrl: urls?.hlsUrl ?? null,
+    playbackUrl: urls?.mp4Url ?? null,
+    iframeUrl: urls?.iframeUrl ?? null,
     lastError: errorMessage ? String(errorMessage) : null,
     lastWebhookAt: new Date(),
   });
 
+  try {
+    await syncLinkedEntitiesAfterStreamReady(uid, state);
+  } catch (syncErr) {
+    console.error("Stream webhook entity sync failed:", syncErr);
+  }
+
   return NextResponse.json({ ok: true });
 }
-

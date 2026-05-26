@@ -6,6 +6,7 @@ declare module "next-auth" {
     role?: string;
     portalScope?: "VIEWER" | "CREATOR" | "ADMIN";
     funderVerificationStatus?: "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
+    payoutKycVerificationStatus?: "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
     image?: string | null;
     activeCreatorStudioProfileId?: string | null;
   }
@@ -16,6 +17,7 @@ declare module "next-auth" {
       role?: string;
       portalScope?: "VIEWER" | "CREATOR" | "ADMIN";
       funderVerificationStatus?: "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
+      payoutKycVerificationStatus?: "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
       name?: string | null;
       email?: string | null;
       image?: string | null;
@@ -30,6 +32,7 @@ declare module "next-auth/jwt" {
     role?: string;
     portalScope?: "VIEWER" | "CREATOR" | "ADMIN";
     funderVerificationStatus?: "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
+    payoutKycVerificationStatus?: "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
     name?: string | null;
     email?: string | null;
     picture?: string | null;

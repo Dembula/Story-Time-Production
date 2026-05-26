@@ -25,7 +25,7 @@ function RecommendationsRowInner() {
   return (
     <ContentRow
       title="For You"
-      subtitle="AI-powered picks based on what you watch"
+      subtitle="Picks based on what you watch and what’s trending"
       contents={recommendations.map((c: Record<string, unknown>) => {
         const { recScore: _, avgRating: __, ...rest } = c;
         return rest as { id: string; title: string; posterUrl: string | null; backdropUrl: string | null; category: string | null; type: string; _count?: { ratings: number } };

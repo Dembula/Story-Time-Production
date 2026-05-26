@@ -31,6 +31,7 @@ import type { CreatorCommandCenterPayload } from "@/lib/creator-command-center";
 import { CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY } from "@/lib/pricing";
 import type { CreatorSuiteAccessMap } from "@/lib/creator-suite-access";
 import { formatZar } from "@/lib/format-currency-zar";
+import { OpsMetricCard, OpsQuickActions } from "@/components/ecosystem/ops-shell";
 
 type RevenueData = {
   revenue: number;
@@ -161,16 +162,24 @@ export function CommandCenterClient() {
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<"month" | "quarter">("month");
   const [range, setRange] = useState<"7d" | "30d" | "month" | "all">("month");
+  const [ecosystem, setEcosystem] = useState<{
+    drafts?: number;
+    pendingReview?: number;
+    published?: number;
+    payoutStatus?: string | null;
+  } | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
     Promise.all([
       fetch(`/api/creator/command-center?range=${range}`).then(async (r) => (r.ok ? (await r.json()) as CreatorCommandCenterPayload : null)),
       fetch(`/api/creator/revenue?period=${period}`).then((r) => r.json()),
+      fetch(`/api/ecosystem/summary?range=${range}`).then(async (r) => (r.ok ? r.json() : null)),
     ])
-      .then(([cmd, rev]) => {
+      .then(([cmd, rev, eco]) => {
         setCc(cmd);
         setRevenueData(rev);
+        setEcosystem(eco);
       })
       .finally(() => setLoading(false));
   }, [range, period]);
@@ -200,28 +209,49 @@ export function CommandCenterClient() {
     return all.filter((item) => tabAllowed[item.id as keyof typeof tabAllowed]);
   }, [tabAllowed]);
 
-  const downloadCsv = useCallback(() => {
-    if (!cc) return;
-    const rows = cc.analytics.contentPerformance.map((c) => ({
-      title: c.title,
-      type: c.type,
-      views: c.views,
-      watchMinutes: Math.round(c.watchTimeSeconds / 60),
-      comments: c.comments,
-      ratings: c.ratings,
-      watchlist: c.watchlistAdds,
-      avgRating: c.avgRating ?? "",
-    }));
-    if (rows.length === 0) return;
-    const header = Object.keys(rows[0]).join(",");
-    const body = rows.map((r) => Object.values(r).map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
-    const blob = new Blob([header + "\n" + body], { type: "text/csv;charset=utf-8" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `story-time-command-center-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  }, [cc]);
+  const downloadCsv = useCallback(
+    (kind: "catalogue" | "retention") => {
+      if (!cc) return;
+      if (kind === "retention") {
+        const lines = [
+          "checkpoint_pct,retained_pct",
+          ...cc.retention.curve.map((p) => `${p.checkpoint},${p.retainedPct}`),
+          "",
+          "title,sample_size,median_completion_pct",
+          ...cc.retention.byTitle.map((t) =>
+            `"${t.title.replace(/"/g, '""')}",${t.sampleSize},${t.medianCompletionPct}`,
+          ),
+        ];
+        const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `story-time-retention-${range}-${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        return;
+      }
+      const rows = cc.analytics.contentPerformance.map((c) => ({
+        title: c.title,
+        type: c.type,
+        views: c.views,
+        watchMinutes: Math.round(c.watchTimeSeconds / 60),
+        comments: c.comments,
+        ratings: c.ratings,
+        watchlist: c.watchlistAdds,
+        avgRating: c.avgRating ?? "",
+      }));
+      if (rows.length === 0) return;
+      const header = Object.keys(rows[0]).join(",");
+      const body = rows.map((r) => Object.values(r).map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+      const blob = new Blob([header + "\n" + body], { type: "text/csv;charset=utf-8" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `story-time-catalogue-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    },
+    [cc, range],
+  );
 
   if (loading || !cc || !revenueData) {
     return (
@@ -272,6 +302,71 @@ export function CommandCenterClient() {
           prompt="I am viewing the Story Time Command Center. Using revenue, engagement, content performance, projects, production incidents, call sheets, and AI usage in your context: synthesize priorities, risks, and 4 concrete next actions to grow views and ZAR."
         />
       )}
+
+      <div className="cinematic-glass rounded-2xl border border-white/8 p-4 md:p-5">
+        <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Executive snapshot</p>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+          <OpsMetricCard
+            label="Revenue (window)"
+            value={formatZar(win.amount)}
+            sub={`${win.totalViews.toLocaleString()} views · ${RANGE_LABEL[range]}`}
+            icon={DollarSign}
+            accent="emerald"
+          />
+          <OpsMetricCard
+            label="Watch hours"
+            value={Math.round(eng.totalWatchTimeSeconds / 3600).toLocaleString()}
+            sub={`Engagement ${cc.overview.engagementRateApprox}%`}
+            icon={Eye}
+            accent="cyan"
+          />
+          <OpsMetricCard
+            label="Audience growth"
+            value={
+              cc.overview.viewerGrowth7dPct == null
+                ? "—"
+                : `${cc.overview.viewerGrowth7dPct > 0 ? "+" : ""}${cc.overview.viewerGrowth7dPct}%`
+            }
+            sub="7d vs prior 7d"
+            icon={TrendingUp}
+            accent="violet"
+          />
+          <OpsMetricCard
+            label="Publishing queue"
+            value={(ecosystem?.drafts ?? 0) + (ecosystem?.pendingReview ?? 0)}
+            sub={`${ecosystem?.drafts ?? 0} drafts · ${ecosystem?.pendingReview ?? 0} in review`}
+            icon={Layers}
+            accent="amber"
+          />
+          <OpsMetricCard
+            label="Live catalogue"
+            value={ecosystem?.published ?? contentList.filter((c) => c.views > 0).length}
+            sub={`${cc.overview.activeProjects} active projects`}
+            icon={Film}
+            accent="orange"
+          />
+          <OpsMetricCard
+            label="Latest payout"
+            value={ecosystem?.payoutStatus ?? revenueData.payouts[0]?.status ?? "—"}
+            sub={
+              revenueData.payouts[0]
+                ? formatZar(revenueData.payouts[0].amount)
+                : "Request from Wallet"
+            }
+            icon={ArrowDownToLine}
+            accent="emerald"
+          />
+        </div>
+        <div className="mt-4">
+          <OpsQuickActions
+            items={[
+              { href: "/creator/upload", label: "Upload title", description: "Add film, series, or trailer to catalogue" },
+              { href: "/creator/wallet", label: "Wallet & payouts", description: "Balances, banking, and payout requests" },
+              { href: "/creator/dashboard", label: "Production pipeline", description: "Projects, tasks, and call sheets" },
+            ]}
+          />
+        </div>
+      </div>
 
       <div className="flex flex-wrap items-center gap-2 border-b border-white/10 pb-3">
         {nav.map((item) => (
@@ -398,9 +493,71 @@ export function CommandCenterClient() {
             </p>
           </div>
         </div>
+        <div className="storytime-section p-4 space-y-4">
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <p className="text-sm font-medium text-white">Retention curve</p>
+              <p className="text-xs text-slate-500">
+                % of viewers who reached each point in the title runtime ({RANGE_LABEL[range]}, n=
+                {cc.retention.sampleSize.toLocaleString()}).
+              </p>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="border-white/15 text-xs"
+              onClick={() => downloadCsv("retention")}
+              disabled={cc.retention.sampleSize === 0}
+            >
+              <ArrowDownToLine className="w-3.5 h-3.5 mr-1 inline" />
+              Export retention CSV
+            </Button>
+          </div>
+          {cc.retention.sampleSize === 0 ? (
+            <p className="text-sm text-slate-500">No resume-position data in this window yet — curves appear after viewers watch with progress saved.</p>
+          ) : (
+            <>
+              <div className="flex items-end gap-1 h-36 pt-2">
+                {cc.retention.curve.map((point) => (
+                  <div key={point.checkpoint} className="flex flex-1 flex-col items-center gap-1">
+                    <span className="text-[10px] text-cyan-200/90">{point.retainedPct}%</span>
+                    <div
+                      className="w-full max-w-[48px] rounded-t bg-gradient-to-t from-orange-600/80 to-cyan-500/70"
+                      style={{ height: `${Math.max(6, Math.round((point.retainedPct / 100) * 120))}px` }}
+                      title={`${point.checkpoint}% — ${point.retainedPct}% retained`}
+                    />
+                    <span className="text-[10px] text-slate-500">{point.checkpoint}%</span>
+                  </div>
+                ))}
+              </div>
+              {cc.retention.byTitle.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="storytime-table w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-white/8 text-left text-slate-500">
+                        <th className="py-2 pr-3">Title</th>
+                        <th className="py-2 pr-3">Samples</th>
+                        <th className="py-2">Median completion</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cc.retention.byTitle.slice(0, 5).map((t) => (
+                        <tr key={t.contentId} className="border-b border-white/6">
+                          <td className="py-2 pr-3 text-white max-w-[200px] truncate">{t.title}</td>
+                          <td className="py-2 pr-3">{t.sampleSize}</td>
+                          <td className="py-2 text-cyan-200">{t.medianCompletionPct}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+            </>
+          )}
+        </div>
         <p className="text-xs text-slate-500">
-          Advanced segmentation (geo, device, retention curves, drop-off maps) uses the same watch session store — UI
-          placeholders until dedicated aggregation jobs ship.
+          Geo and device segmentation ship in a later pass; retention uses watch progress and session duration vs title length.
         </p>
       </Section>
       ) : null}
@@ -651,9 +808,20 @@ export function CommandCenterClient() {
       {tabAllowed.export ? (
       <Section id="export" title="Export & reporting" icon={Download}>
         <div className="flex flex-wrap gap-3">
-          <Button type="button" size="sm" className="bg-cyan-600 hover:bg-cyan-500" onClick={downloadCsv}>
+          <Button type="button" size="sm" className="bg-cyan-600 hover:bg-cyan-500" onClick={() => downloadCsv("catalogue")}>
             <Download className="w-4 h-4 mr-2 inline" />
             Download catalogue CSV
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="border-white/20"
+            onClick={() => downloadCsv("retention")}
+            disabled={cc.retention.sampleSize === 0}
+          >
+            <ArrowDownToLine className="w-4 h-4 mr-2 inline" />
+            Download retention CSV
           </Button>
           <Button type="button" size="sm" variant="outline" className="border-white/20" onClick={() => window.print()}>
             Print summary

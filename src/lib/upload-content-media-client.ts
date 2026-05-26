@@ -52,24 +52,57 @@ function buildDirectUploadFailureMessage(status: number, detail: string): string
   return `Direct upload failed (${status}). Check S3 CORS allows PUT + OPTIONS for this exact site origin.`;
 }
 
+async function xhrPutWithProgress(
+  url: string,
+  file: File,
+  headers: Record<string, string>,
+  onProgress?: (pct: number) => void,
+): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", url);
+    Object.entries(headers).forEach(([k, v]) => xhr.setRequestHeader(k, v));
+    xhr.upload.onprogress = (ev) => {
+      if (!onProgress || !ev.lengthComputable) return;
+      onProgress((ev.loaded / ev.total) * 100);
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) resolve();
+      else reject(new Error(buildDirectUploadFailureMessage(xhr.status, xhr.responseText || "")));
+    };
+    xhr.onerror = () =>
+      reject(new Error("Upload connection failed. Check network and S3 CORS (PUT + OPTIONS)."));
+    xhr.send(file);
+  });
+}
+
 /**
  * Uploads a file through `/api/upload/content-media`.
  * Files larger than {@link CONTENT_MEDIA_DIRECT_UPLOAD_MAX_BYTES} use a presigned S3 PUT
  * so uploads work on Vercel (serverless body limit ~4.5MB).
  */
-export async function uploadContentMediaViaApi(file: File): Promise<string> {
-  const data = await uploadContentMediaViaApiFull(file);
+export async function uploadContentMediaViaApi(
+  file: File,
+  options?: { onProgress?: (pct: number) => void },
+): Promise<string> {
+  const data = await uploadContentMediaViaApiFull(file, options);
   return data.publicUrl;
 }
 
-export async function uploadContentMediaViaApiFull(file: File): Promise<ContentMediaFinalizePayload> {
+export async function uploadContentMediaViaApiFull(
+  file: File,
+  options?: { onProgress?: (pct: number) => void },
+): Promise<ContentMediaFinalizePayload> {
+  const onProgress = options?.onProgress;
   if (file.size <= CONTENT_MEDIA_DIRECT_UPLOAD_MAX_BYTES) {
+    onProgress?.(8);
     const formData = new FormData();
     formData.append("file", file);
     const res = await fetchWithRetry("/api/upload/content-media", {
       method: "POST",
       body: formData,
     });
+    onProgress?.(85);
     const data = (await res.json().catch(() => ({}))) as Partial<ContentMediaFinalizePayload> & { error?: string };
     if (!res.ok) {
       throw new Error(typeof data.error === "string" ? data.error : "Upload failed");
@@ -77,9 +110,11 @@ export async function uploadContentMediaViaApiFull(file: File): Promise<ContentM
     if (!data.publicUrl) {
       throw new Error("Upload did not return a file URL");
     }
+    onProgress?.(100);
     return data as ContentMediaFinalizePayload;
   }
 
+  onProgress?.(2);
   const presignRes = await fetchWithRetry("/api/upload/content-media/presign", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -108,17 +143,10 @@ export async function uploadContentMediaViaApiFull(file: File): Promise<ContentM
     "Content-Type": presignJson.contentType,
   };
 
-  let putRes: Response;
   try {
-    putRes = await fetchWithRetry(
-      presignJson.uploadUrl,
-      {
-        method: "PUT",
-        body: file,
-        headers: putHeaders,
-      },
-      { attempts: 2, retryDelayMs: 700 },
-    );
+    await xhrPutWithProgress(presignJson.uploadUrl, file, putHeaders, (pct) => {
+      onProgress?.(5 + pct * 0.88);
+    });
   } catch (err) {
     if (isNetworkFetchError(err)) {
       throw new Error(
@@ -128,11 +156,7 @@ export async function uploadContentMediaViaApiFull(file: File): Promise<ContentM
     throw err instanceof Error ? err : new Error("Direct upload failed");
   }
 
-  if (!putRes.ok) {
-    const detail = await putRes.text().catch(() => "");
-    throw new Error(buildDirectUploadFailureMessage(putRes.status, detail));
-  }
-
+  onProgress?.(96);
   const completeRes = await fetchWithRetry("/api/upload/content-media/complete", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -151,5 +175,6 @@ export async function uploadContentMediaViaApiFull(file: File): Promise<ContentM
   if (!completeData.publicUrl) {
     throw new Error("Finalize did not return a file URL");
   }
+  onProgress?.(100);
   return completeData as ContentMediaFinalizePayload;
 }

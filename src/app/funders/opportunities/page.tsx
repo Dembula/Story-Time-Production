@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FUNDING_MARKET_LABELS } from "@/lib/funder-markets";
+import Link from "next/link";
+import { useFunderVerificationState } from "@/components/funders/funder-verification-banner";
 
 export default function FunderOpportunitiesPage() {
   const qc = useQueryClient();
@@ -22,6 +24,7 @@ export default function FunderOpportunitiesPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["funder-opportunities"] }),
   });
   const opportunities = useMemo(() => data?.opportunities ?? [], [data?.opportunities]);
+  const { investingUnlocked } = useFunderVerificationState();
 
   return (
     <main className="space-y-5 text-slate-100">
@@ -61,12 +64,31 @@ export default function FunderOpportunitiesPage() {
                 <h2 className="text-lg font-semibold text-white">{opp.title}</h2>
                 <p className="mt-1 text-sm text-slate-300">{opp.description || "No description provided."}</p>
               </div>
-              <button
-                onClick={() => investMutation.mutate(opp.id)}
-                className="rounded-lg bg-orange-500 px-3 py-2 text-xs font-semibold text-black hover:bg-orange-400"
-              >
-                Express interest
-              </button>
+              {investingUnlocked ? (
+                <button
+                  type="button"
+                  onClick={() => investMutation.mutate(opp.id)}
+                  className="rounded-lg bg-orange-500 px-3 py-2 text-xs font-semibold text-black hover:bg-orange-400"
+                >
+                  Express interest
+                </button>
+              ) : (
+                <div className="text-right">
+                  <button
+                    type="button"
+                    disabled
+                    className="rounded-lg bg-slate-700 px-3 py-2 text-xs font-semibold text-slate-400 cursor-not-allowed"
+                    title="Complete verification to invest"
+                  >
+                    Express interest
+                  </button>
+                  <p className="mt-1 text-[11px] text-amber-300/90">
+                    <Link href="/funders/verification" className="underline hover:text-amber-200">
+                      Verification required
+                    </Link>
+                  </p>
+                </div>
+              )}
             </div>
             <p className="mt-3 text-xs text-slate-400">
               Target: R{Number(opp.fundingTarget ?? 0).toLocaleString()} · Status: {opp.status}

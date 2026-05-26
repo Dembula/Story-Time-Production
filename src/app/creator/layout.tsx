@@ -9,18 +9,23 @@ import { useQuery } from "@tanstack/react-query";
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { WalletBalanceChip } from "@/components/layout/wallet-balance-chip";
 import { CreatorPipelineRouteGate } from "@/components/creator/creator-pipeline-route-gate";
+import { PayoutKycBanner } from "@/components/payout-kyc/payout-kyc-banner";
 import { CreatorStudioActingLabel } from "@/components/creator/creator-studio-switcher";
 import { CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY, CREATOR_STUDIO_PROFILES_QUERY_KEY } from "@/lib/pricing";
 import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
 
-const primaryNavItems = [
+const operatingNavItems = [
   { href: "/creator/command-center", label: "Command Center" },
   { href: "/creator/dashboard", label: "My Projects" },
-  { href: "/creator/account", label: "My Account" },
-  { href: "/creator/wallet", label: "Wallet" },
   { href: "/creator/network", label: "Network" },
   { href: "/creator/messages", label: "Messages" },
-  { href: "/creator/originals/submit", label: "Originals", highlight: true },
+  { href: "/creator/account", label: "My Account" },
+];
+
+const monetizationNavItems = [
+  { href: "/creator/wallet", label: "Wallet & payouts" },
+  { href: "/creator/upload", label: "Catalogue upload", requiresCatalogue: true },
+  { href: "/creator/command-center#revenue", label: "Revenue intelligence" },
 ];
 
 export default function CreatorLayout({
@@ -43,11 +48,8 @@ export default function CreatorLayout({
   const allowProd = suite == null || suite.pipeline_prod === true;
   const allowPost = suite == null || suite.pipeline_post === true;
   const allowCatalogue = suite == null || suite.catalogue_upload === true;
-  const primaryNavFiltered = useMemo(() => {
-    if (!allowCatalogue) {
-      return primaryNavItems.filter((item) => !item.href.startsWith("/creator/originals"));
-    }
-    return primaryNavItems;
+  const monetizationNavFiltered = useMemo(() => {
+    return monetizationNavItems.filter((item) => !item.requiresCatalogue || allowCatalogue);
   }, [allowCatalogue]);
   const { data: studioPayload } = useQuery({
     queryKey: [...CREATOR_STUDIO_PROFILES_QUERY_KEY],
@@ -142,7 +144,8 @@ export default function CreatorLayout({
                   ) : null}
                 </div>
               ) : null}
-              {primaryNavFiltered.map((item) => {
+              <p className="px-3 pb-1 pt-1 text-[11px] uppercase tracking-wide text-slate-500">Operating</p>
+              {operatingNavItems.map((item) => {
                 const isActive =
                   pathname === item.href || pathname.startsWith(item.href + "/");
                 return (
@@ -154,13 +157,50 @@ export default function CreatorLayout({
                       isActive
                         ? "bg-white/[0.08] text-white shadow-panel"
                         : "text-slate-400 hover:bg-white/[0.05] hover:text-white",
-                      item.highlight ? "font-medium text-orange-400 hover:text-orange-300" : "",
                     ].join(" ")}
                   >
                     {item.label}
                   </Link>
                 );
               })}
+
+              <div className="mt-3 border-t border-slate-800 pt-2 space-y-1">
+                <p className="px-3 text-[11px] uppercase tracking-wide text-slate-500">Monetization</p>
+                {monetizationNavFiltered.map((item) => {
+                  const isActive =
+                    item.href.includes("#")
+                      ? pathname.startsWith("/creator/command-center")
+                      : pathname === item.href || pathname.startsWith(item.href + "/");
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={[
+                        "flex items-center px-3 py-2 rounded-lg text-sm transition",
+                        isActive
+                          ? "bg-white/[0.08] text-white shadow-panel"
+                          : "text-slate-400 hover:bg-white/[0.05] hover:text-white",
+                      ].join(" ")}
+                    >
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </div>
+
+              <div className="mt-3 border-t border-slate-800 pt-2 space-y-1">
+                <Link
+                  href="/creator/originals/submit"
+                  className={[
+                    "flex items-center px-3 py-2 rounded-lg text-sm transition font-medium",
+                    pathname.startsWith("/creator/originals")
+                      ? "bg-orange-500/15 text-orange-300 shadow-panel"
+                      : "text-orange-400 hover:bg-orange-500/10 hover:text-orange-300",
+                  ].join(" ")}
+                >
+                  Originals
+                </Link>
+              </div>
 
               <div className="mt-3 border-t border-slate-800 pt-2 space-y-1">
                 <p className="px-3 text-[11px] uppercase tracking-wide text-slate-500">
@@ -209,19 +249,6 @@ export default function CreatorLayout({
                     ) : null}
                   </>
                 ) : null}
-                {allowCatalogue ? (
-                  <Link
-                    href="/creator/upload"
-                    className={[
-                      "flex items-center px-3 py-2 rounded-lg text-sm transition",
-                      pathname === "/creator/upload"
-                        ? "bg-white/[0.08] text-white shadow-panel"
-                        : "text-slate-400 hover:bg-white/[0.05] hover:text-white",
-                    ].join(" ")}
-                  >
-                    Catalogue upload
-                  </Link>
-                ) : null}
               </div>
 
               <button
@@ -235,6 +262,9 @@ export default function CreatorLayout({
         )}
 
         <main className={`flex-1 min-w-0 ${deviceClass === "tv" ? "text-lg" : ""}`}>
+          <div className="px-4 pt-4 md:px-6 md:pt-5 max-w-[1600px]">
+            <PayoutKycBanner />
+          </div>
           <CreatorPipelineRouteGate>{children}</CreatorPipelineRouteGate>
         </main>
       </div>

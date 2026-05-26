@@ -1,17 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Play, Plus, Lock, GraduationCap, Globe, BookOpen, Target, Briefcase, Music, Users as UsersIcon, X, AlertTriangle, Film } from "lucide-react";
+import { Play, Plus, Lock, GraduationCap, Globe, BookOpen, Target, Briefcase, Music, Users as UsersIcon, X, AlertTriangle, Film, Download, Check } from "lucide-react";
 import { BtsSection } from "@/components/player/bts-section";
 import { CommentsSection } from "@/components/player/comments-section";
 import { RatingsSection } from "@/components/player/ratings-section";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BackButton } from "@/components/layout/back-button";
 import { CheckoutModal } from "@/components/payments/checkout-modal";
+import { CastCrewMemberCard } from "@/components/browse/cast-crew-member-card";
+import { useWatchlist } from "@/hooks/use-watchlist";
+import { startDownload, getDownload } from "@/lib/offline/download-manager";
 
 type Content = {
   id: string;
@@ -72,6 +75,27 @@ export function ContentDetailClient({
   const [ppvCheckoutUrl, setPpvCheckoutUrl] = useState("");
   const [ppvCheckoutOpen, setPpvCheckoutOpen] = useState(false);
   const isSubscriber = (session?.user as { role?: string } | undefined)?.role === "SUBSCRIBER";
+  const { inList, toggle: toggleWatchlist } = useWatchlist(content.id);
+  const [downloadState, setDownloadState] = useState<string | null>(null);
+
+  useEffect(() => {
+    const d = getDownload(content.id);
+    setDownloadState(d?.status ?? null);
+    const onChange = () => setDownloadState(getDownload(content.id)?.status ?? null);
+    window.addEventListener("storytime-downloads-changed", onChange);
+    return () => window.removeEventListener("storytime-downloads-changed", onChange);
+  }, [content.id]);
+
+  const handleDownload = async () => {
+    if (!content.videoUrl) return;
+    await startDownload({
+      contentId: content.id,
+      title: content.title,
+      posterUrl: content.posterUrl,
+      videoUrl: content.videoUrl,
+    });
+    setDownloadState("downloading");
+  };
   const canPlay = isSubscriber && hasPlaybackAccess && !ageRestricted;
   const canPurchasePpv = isSubscriber && viewerModel === "PPV" && ppvEligible && !hasActivePpvAccess && !ageRestricted;
 
@@ -356,9 +380,33 @@ export function ContentDetailClient({
                     <Lock className="h-5 w-5" /> Unavailable right now
                   </button>
                 )}
-                <button className="flex items-center gap-2 px-8 py-3.5 rounded-lg bg-slate-700/50 text-white font-semibold hover:bg-slate-600/50 transition border border-slate-600">
-                  <Plus className="w-5 h-5" /> My List
+                <button
+                  type="button"
+                  onClick={() => void toggleWatchlist()}
+                  className={`flex items-center gap-2 rounded-lg border px-8 py-3.5 font-semibold transition ${
+                    inList
+                      ? "border-orange-400/40 bg-orange-500/15 text-orange-100"
+                      : "border-slate-600 bg-slate-700/50 text-white hover:bg-slate-600/50"
+                  }`}
+                >
+                  {inList ? <Check className="h-5 w-5" /> : <Plus className="w-5 h-5" />}
+                  {inList ? "In My List" : "My List"}
                 </button>
+                {content.videoUrl && (
+                  <button
+                    type="button"
+                    onClick={() => void handleDownload()}
+                    disabled={downloadState === "downloading" || downloadState === "completed"}
+                    className="flex items-center gap-2 rounded-lg border border-slate-600 bg-slate-800/50 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-slate-700/50 disabled:opacity-60"
+                  >
+                    <Download className="h-5 w-5" />
+                    {downloadState === "completed"
+                      ? "Downloaded"
+                      : downloadState === "downloading"
+                        ? "Downloading…"
+                        : "Download"}
+                  </button>
+                )}
               </>
             ) : (
               <>
@@ -515,13 +563,13 @@ export function ContentDetailClient({
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
             <UsersIcon className="w-5 h-5 text-emerald-500" /> Cast & Crew
           </h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             {content.crewMembers.map((member) => (
-              <div key={member.id} className="p-3 rounded-xl bg-slate-800/40 border border-slate-700/30">
-                <p className="text-white font-medium text-sm">{member.name}</p>
-                <p className="text-xs text-orange-400">{member.role}</p>
-                {member.bio && <p className="text-xs text-slate-500 mt-1">{member.bio}</p>}
-              </div>
+              <CastCrewMemberCard
+                key={member.id}
+                member={member}
+                excludeContentId={content.id}
+              />
             ))}
           </div>
         </div>

@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
 import { CheckoutModal } from "@/components/payments/checkout-modal";
+import { MediaDropzone } from "@/components/ecosystem/media-dropzone";
 
 const TYPES = [
   { value: "MOVIE", label: "Movie", icon: Film, desc: "Feature or short film" },
@@ -120,6 +121,7 @@ function DistributionUploadInner() {
   const [advisoryThemes, setAdvisoryThemes] = useState("");
 
   const [uploadingMainVideo, setUploadingMainVideo] = useState(false);
+  const [mainVideoProgress, setMainVideoProgress] = useState<number | null>(null);
   const [uploadingTrailer, setUploadingTrailer] = useState(false);
   const [uploadingPoster, setUploadingPoster] = useState(false);
   const [uploadingBackdrop, setUploadingBackdrop] = useState(false);
@@ -148,8 +150,24 @@ function DistributionUploadInner() {
     setCrew((prev) => prev.filter((_, i) => i !== idx));
   }
 
-  async function uploadToStorage(file: File): Promise<string> {
-    return uploadContentMediaViaApi(file);
+  async function uploadToStorage(file: File, onProgress?: (pct: number) => void): Promise<string> {
+    return uploadContentMediaViaApi(file, { onProgress });
+  }
+
+  async function handleMainVideoUpload(file: File) {
+    try {
+      setUploadingMainVideo(true);
+      setMainVideoProgress(0);
+      setError("");
+      const url = await uploadToStorage(file, (pct) => setMainVideoProgress(pct));
+      updateField("videoUrl", url);
+    } catch (err) {
+      console.error(err);
+      setError(err instanceof Error ? err.message : "Failed to upload main video. Please try again.");
+    } finally {
+      setUploadingMainVideo(false);
+      setMainVideoProgress(null);
+    }
   }
 
   function canAdvance(): boolean {
@@ -480,51 +498,27 @@ function DistributionUploadInner() {
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1.5 flex items-center gap-1.5">
-                  <Film className="w-4 h-4 text-orange-400" /> Main Video *
-                </label>
-                <div className="space-y-2">
+              <MediaDropzone
+                label="Main Video *"
+                hint="Recommended: final delivery master in MP4 (H.264/H.265), 1080p or higher. Resumable direct upload for large files."
+                accept="video/*"
+                uploading={uploadingMainVideo}
+                progress={mainVideoProgress}
+                done={Boolean(form.videoUrl) && !uploadingMainVideo}
+                onFile={handleMainVideoUpload}
+              >
+                <details className="rounded-lg border border-slate-700/60 bg-slate-900/30 px-3 py-2">
+                  <summary className="cursor-pointer text-xs text-slate-500 hover:text-slate-300 list-none [&::-webkit-details-marker]:hidden">
+                    Optional: paste a direct video URL instead
+                  </summary>
                   <input
-                    type="file"
-                    accept="video/*"
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      try {
-                        setUploadingMainVideo(true);
-                        const url = await uploadToStorage(file);
-                        updateField("videoUrl", url);
-                      } catch (err) {
-                        console.error(err);
-                        setError(
-                          err instanceof Error ? err.message : "Failed to upload main video. Please try again.",
-                        );
-                      } finally {
-                        setUploadingMainVideo(false);
-                      }
-                    }}
-                    className="block w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-orange-600 file:text-white hover:file:bg-orange-500 cursor-pointer"
+                    value={form.videoUrl}
+                    onChange={(e) => updateField("videoUrl", e.target.value)}
+                    placeholder="https://… (CDN or direct file)"
+                    className="mt-2 w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-xl text-white placeholder-slate-500 text-xs focus:border-orange-500 focus:outline-none transition"
                   />
-                  <p className="text-xs text-slate-500">
-                    Recommended: final delivery master in MP4 (H.264/H.265), 1080p or higher.
-                  </p>
-                  {uploadingMainVideo && (
-                    <p className="text-xs text-slate-400">Uploading…</p>
-                  )}
-                  <details className="rounded-lg border border-slate-700/60 bg-slate-900/30 px-3 py-2">
-                    <summary className="cursor-pointer text-xs text-slate-500 hover:text-slate-300 list-none [&::-webkit-details-marker]:hidden">
-                      Optional: paste a direct video URL instead
-                    </summary>
-                    <input
-                      value={form.videoUrl}
-                      onChange={(e) => updateField("videoUrl", e.target.value)}
-                      placeholder="https://… (CDN or direct file)"
-                      className="mt-2 w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-xl text-white placeholder-slate-500 text-xs focus:border-orange-500 focus:outline-none transition"
-                    />
-                  </details>
-                </div>
-              </div>
+                </details>
+              </MediaDropzone>
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-1.5">Trailer (optional)</label>
                 <div className="space-y-2">

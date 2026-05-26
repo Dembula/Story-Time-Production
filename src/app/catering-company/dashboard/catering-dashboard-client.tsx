@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { UtensilsCrossed, Calendar, DollarSign, AlertCircle } from "lucide-react";
+import { Calendar, DollarSign, AlertCircle } from "lucide-react";
 import { formatZar } from "@/lib/format-currency-zar";
+import { OpsMetricCard, OpsPageHeader, OpsQuickActions } from "@/components/ecosystem/ops-shell";
 
 type Company = { id: string; companyName: string; tagline: string | null } | null;
 
@@ -49,34 +50,31 @@ export function CateringDashboardClient() {
 
   return (
     <div className="p-8 max-w-5xl mx-auto space-y-8">
-      <div>
-        <h1 className="text-3xl font-semibold text-white mb-2 flex items-center gap-3">
-          <UtensilsCrossed className="w-8 h-8 text-orange-500" /> Dashboard
-        </h1>
-        <p className="text-slate-400">Overview of your catering company</p>
+      <OpsPageHeader
+        title={company.companyName}
+        subtitle={company.tagline || "Catering marketplace operations — bookings, messaging, and settled revenue."}
+      />
+
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+        <OpsMetricCard label="Bookings" value={bookingCount} icon={Calendar} accent="orange" />
+        <OpsMetricCard
+          label="Revenue (ZAR)"
+          value={formatZar(revenue)}
+          icon={DollarSign}
+          accent="emerald"
+          sub={revenueReportingNote ?? undefined}
+        />
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
-          <div className="flex items-center gap-2 mb-2"><Calendar className="w-4 h-4 text-orange-400" /><span className="text-xs text-slate-400">Bookings</span></div>
-          <p className="text-2xl font-bold text-white">{bookingCount}</p>
-        </div>
-        <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
-          <div className="flex items-center gap-2 mb-2"><DollarSign className="w-4 h-4 text-emerald-400" /><span className="text-xs text-slate-400">Revenue (ZAR)</span></div>
-          <p className="text-2xl font-bold text-white">{formatZar(revenue)}</p>
-          {revenueReportingNote ? <p className="text-[11px] text-slate-500 mt-2 leading-snug">{revenueReportingNote}</p> : null}
-        </div>
-      </div>
-
-      <div className="rounded-2xl bg-slate-800/30 border border-slate-700/50 p-6">
-        <h2 className="text-lg font-semibold text-white mb-4">Quick links</h2>
-        <div className="flex flex-wrap gap-4">
-          <Link href="/catering-company/profile" className="px-4 py-2 rounded-lg bg-slate-700/50 text-slate-300 hover:bg-slate-700 transition text-sm font-medium">Edit profile</Link>
-          <Link href="/catering-company/bookings" className="px-4 py-2 rounded-lg bg-slate-700/50 text-slate-300 hover:bg-slate-700 transition text-sm font-medium">View bookings</Link>
-          <Link href="/catering-company/messages" className="px-4 py-2 rounded-lg bg-slate-700/50 text-slate-300 hover:bg-slate-700 transition text-sm font-medium">Messages</Link>
-          <Link href="/catering-company/revenue" className="px-4 py-2 rounded-lg bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 transition text-sm font-medium">Revenue & banking</Link>
-        </div>
-      </div>
+      <OpsQuickActions
+        items={[
+          { href: "/catering-company/bookings", label: "Bookings & offers", description: "Confirm shoot catering requests" },
+          { href: "/catering-company/profile", label: "Edit profile", description: "Directory listing and menus" },
+          { href: "/catering-company/revenue", label: "Revenue & banking", description: "Settlements and reporting" },
+          { href: "/catering-company/messages", label: "Messages", description: "Creator conversations" },
+          { href: "/catering-company/wallet", label: "Wallet", description: "Payouts and balances" },
+        ]}
+      />
     </div>
   );
 }

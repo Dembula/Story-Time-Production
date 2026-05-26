@@ -43,6 +43,7 @@ const navSections: { title: string; items: { href: string; label: string; highli
       { href: "/admin/payments", label: "Payments" },
       { href: "/admin/promo-codes", label: "Promo codes" },
       { href: "/admin/funders", label: "Funders" },
+      { href: "/admin/payout-verification", label: "Payout KYC" },
       { href: "/admin/activity", label: "Activity" },
       { href: "/admin/competition", label: "Competition" },
       { href: "/browse", label: "View site" },

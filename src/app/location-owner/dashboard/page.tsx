@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { formatZar } from "@/lib/format-currency-zar";
-import type { LucideIcon } from "lucide-react";
 import { MapPin, MessageCircle, Clock, CheckCircle, XCircle, TrendingUp, DollarSign, Wallet } from "lucide-react";
 import Link from "next/link";
+import { OpsMetricCard, OpsPageHeader, OpsQuickActions, OpsSection } from "@/components/ecosystem/ops-shell";
 
 interface LocationBooking {
   id: string;
@@ -102,45 +102,43 @@ export default function LocationOwnerDashboard() {
   const pipeline = financials?.pipelineEstimate ?? 0;
 
   return (
-    <main className="max-w-7xl mx-auto px-6 md:px-12 py-10 space-y-10">
-      <div>
-        <h1 className="text-3xl font-bold text-white mb-1">Location Dashboard</h1>
-        <p className="text-slate-400 text-sm">
-          Manage your properties and shoot bookings. Settled revenue is all-time completed location booking transactions (not month-scoped); pipeline is unpaid approved bookings estimated from rates — same ledger rules as catering.
-        </p>
+    <main className="max-w-7xl mx-auto px-6 md:px-12 py-10 space-y-8">
+      <OpsPageHeader
+        title="Location operations"
+        subtitle="Listings, shoot bookings, messaging, and settled marketplace revenue. Settled revenue is all-time completed transactions; pipeline is unpaid approved bookings estimated from daily rates."
+      />
+
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+        <OpsMetricCard label="Listings" value={listings.length} icon={MapPin} accent="cyan" />
+        <OpsMetricCard label="Total bookings" value={bookings.length} icon={TrendingUp} accent="orange" />
+        <OpsMetricCard label="Pending" value={pending} icon={Clock} accent="amber" />
+        <OpsMetricCard label="Approved" value={approved} icon={CheckCircle} accent="emerald" />
+        <OpsMetricCard
+          label="Revenue (settled)"
+          value={formatZar(settled, { maximumFractionDigits: 0 })}
+          icon={DollarSign}
+          accent="emerald"
+        />
+        <OpsMetricCard
+          label="Pipeline (est.)"
+          value={formatZar(pipeline, { maximumFractionDigits: 0 })}
+          icon={Wallet}
+          accent="violet"
+          sub={financials ? `${financials.approvedAwaitingPaymentCount} unpaid approved` : undefined}
+        />
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        {(
-          [
-            { label: "Listings", value: listings.length, icon: MapPin, color: "text-blue-400" },
-            { label: "Total Bookings", value: bookings.length, icon: TrendingUp, color: "text-orange-400" },
-            { label: "Pending", value: pending, icon: Clock, color: "text-yellow-400" },
-            { label: "Approved", value: approved, icon: CheckCircle, color: "text-green-400" },
-            { label: "Revenue (settled)", value: formatZar(settled, { maximumFractionDigits: 0 }), icon: DollarSign, color: "text-emerald-400" },
-            {
-              label: "Pipeline (est.)",
-              value: formatZar(pipeline, { maximumFractionDigits: 0 }),
-              icon: Wallet,
-              color: "text-cyan-400",
-              sub: financials ? `${financials.approvedAwaitingPaymentCount} unpaid approved` : undefined,
-            },
-          ] satisfies { label: string; value: string | number; icon: LucideIcon; color: string; sub?: string }[]
-        ).map((s) => (
-          <div key={s.label} className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
-            <div className="flex items-center gap-2 mb-2">
-              <s.icon className={`w-4 h-4 ${s.color}`} />
-              <span className="text-xs text-slate-400 uppercase tracking-wider">{s.label}</span>
-            </div>
-            <p className="text-2xl font-bold text-white">{s.value}</p>
-            {s.sub ? <p className="text-[11px] text-slate-500 mt-1">{s.sub}</p> : null}
-          </div>
-        ))}
-      </div>
+      <OpsQuickActions
+        items={[
+          { href: "/location-owner/listings", label: "Manage listings", description: "Properties and daily rates" },
+          { href: "/location-owner/bookings", label: "Booking inbox", description: "Approve or decline shoot requests" },
+          { href: "/location-owner/messages", label: "Messages", description: "Creator conversations" },
+          { href: "/location-owner/wallet", label: "Wallet", description: "Payouts and balances" },
+        ]}
+      />
 
       {financials && financials.recentSettlements.length > 0 && (
-        <section>
-          <h2 className="text-lg font-semibold text-white mb-3">Recent settlements</h2>
+        <OpsSection title="Recent settlements">
           <ul className="space-y-2 text-sm">
             {financials.recentSettlements.slice(0, 8).map((t) => (
               <li key={t.id} className="flex justify-between rounded-lg border border-slate-700/50 bg-slate-800/30 px-4 py-2">
@@ -149,13 +147,10 @@ export default function LocationOwnerDashboard() {
               </li>
             ))}
           </ul>
-        </section>
+        </OpsSection>
       )}
 
-      <section>
-        <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-          <MapPin className="w-5 h-5 text-orange-400" /> Recent Bookings
-        </h2>
+      <OpsSection title="Recent bookings">
         {bookings.length === 0 ? (
           <div className="bg-slate-800/30 border border-slate-700/50 rounded-xl p-10 text-center">
             <MapPin className="w-12 h-12 text-slate-600 mx-auto mb-3" />
@@ -239,7 +234,7 @@ export default function LocationOwnerDashboard() {
             ))}
           </div>
         )}
-      </section>
+      </OpsSection>
     </main>
   );
 }
