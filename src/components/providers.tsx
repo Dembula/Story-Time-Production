@@ -9,6 +9,8 @@ import { MotionProvider } from "@/components/motion/motion-provider";
 import { MiniPlayer } from "@/components/player/mini-player";
 import { SessionTelemetry } from "@/components/session-telemetry";
 import { ProductAnalytics } from "@/components/product-analytics";
+import { PayoutKycBanner } from "@/components/payout-kyc/payout-kyc-banner";
+import { FunderVerificationBanner } from "@/components/funders/funder-verification-banner";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
@@ -22,6 +24,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
           <MotionProvider>
             <ModocProvider>
               {children}
+              <PayoutKycBanner />
+              <FunderVerificationBanner />
               <MiniPlayer />
             </ModocProvider>
           </MotionProvider>

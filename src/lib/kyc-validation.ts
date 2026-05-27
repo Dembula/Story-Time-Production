@@ -40,3 +40,10 @@ export function validateIdOrPassportByCountry(country?: string, value?: string):
   const rule = rules[code];
   return rule.regex.test(idValue) ? null : rule.message;
 }
+
+/** Validates ID format only when a value is present (draft saves). */
+export function validateIdOrPassportByCountryIfPresent(country?: string, value?: string): string | null {
+  const idValue = (value ?? "").trim();
+  if (!idValue) return null;
+  return validateIdOrPassportByCountry(country, idValue);
+}

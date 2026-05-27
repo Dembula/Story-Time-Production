@@ -7,7 +7,7 @@ import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
 
 const tabs = [
   { href: "/browse", label: "Home", icon: Home, match: (p: string) => p === "/browse" || p.startsWith("/browse/content") },
-  { href: "/browse?search=", label: "Search", icon: Search, match: (p: string) => p.includes("search=") },
+  { href: "/browse/search", label: "Search", icon: Search, match: (p: string) => p.startsWith("/browse/search") },
   { href: "/browse/downloads", label: "Downloads", icon: Download, match: (p: string) => p.startsWith("/browse/downloads") },
   { href: "/browse/settings", label: "Profile", icon: User, match: (p: string) => p.startsWith("/browse/settings") || p.startsWith("/browse/account") },
 ];

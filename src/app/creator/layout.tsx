@@ -9,7 +9,6 @@ import { useQuery } from "@tanstack/react-query";
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { WalletBalanceChip } from "@/components/layout/wallet-balance-chip";
 import { CreatorPipelineRouteGate } from "@/components/creator/creator-pipeline-route-gate";
-import { PayoutKycBanner } from "@/components/payout-kyc/payout-kyc-banner";
 import { CreatorStudioActingLabel } from "@/components/creator/creator-studio-switcher";
 import { CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY, CREATOR_STUDIO_PROFILES_QUERY_KEY } from "@/lib/pricing";
 import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
@@ -25,7 +24,6 @@ const operatingNavItems = [
 const monetizationNavItems = [
   { href: "/creator/wallet", label: "Wallet & payouts" },
   { href: "/creator/upload", label: "Catalogue upload", requiresCatalogue: true },
-  { href: "/creator/command-center#revenue", label: "Revenue intelligence" },
 ];
 
 export default function CreatorLayout({
@@ -262,9 +260,6 @@ export default function CreatorLayout({
         )}
 
         <main className={`flex-1 min-w-0 ${deviceClass === "tv" ? "text-lg" : ""}`}>
-          <div className="px-4 pt-4 md:px-6 md:pt-5 max-w-[1600px]">
-            <PayoutKycBanner />
-          </div>
           <CreatorPipelineRouteGate>{children}</CreatorPipelineRouteGate>
         </main>
       </div>

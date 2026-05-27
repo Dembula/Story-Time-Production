@@ -6,8 +6,6 @@ import { LogOut } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { WalletBalanceChip } from "@/components/layout/wallet-balance-chip";
-import { PayoutKycBanner } from "@/components/payout-kyc/payout-kyc-banner";
-
 const navItems = [
   { href: "/location-owner/dashboard", label: "Dashboard" },
   { href: "/location-owner/bookings", label: "Bookings / Offers" },
@@ -82,9 +80,6 @@ export default function LocationOwnerLayout({
         </aside>
 
         <main className="flex-1 min-w-0">
-          <div className="mb-4">
-            <PayoutKycBanner />
-          </div>
           {children}
         </main>
       </div>

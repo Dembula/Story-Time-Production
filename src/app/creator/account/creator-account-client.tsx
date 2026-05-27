@@ -750,7 +750,7 @@ export function CreatorAccountClient({ backHref = "/creator/command-center" }: {
           <h2 className="text-lg font-semibold text-white">Banking & payouts</h2>
         </div>
         <p className="text-xs text-slate-500">Payout window figures and the bank account used for settlements.</p>
-        <PayoutKycBanner />
+        <PayoutKycBanner inline />
         <div className="flex flex-wrap gap-2">
           {(["month", "quarter"] as const).map((p) => (
             <button

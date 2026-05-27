@@ -173,7 +173,10 @@ export function CommandCenterClient() {
     setLoading(true);
     Promise.all([
       fetch(`/api/creator/command-center?range=${range}`).then(async (r) => (r.ok ? (await r.json()) as CreatorCommandCenterPayload : null)),
-      fetch(`/api/creator/revenue?period=${period}`).then((r) => r.json()),
+      fetch(`/api/creator/revenue?period=${period}`).then(async (r) => {
+        const data = await r.json();
+        return r.ok && typeof data.revenue === "number" ? (data as RevenueData) : null;
+      }),
       fetch(`/api/ecosystem/summary?range=${range}`).then(async (r) => (r.ok ? r.json() : null)),
     ])
       .then(([cmd, rev, eco]) => {
@@ -253,10 +256,20 @@ export function CommandCenterClient() {
     [cc, range],
   );
 
-  if (loading || !cc || !revenueData) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
         <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!cc) {
+    return (
+      <div className="p-4 md:p-8 max-w-7xl mx-auto">
+        <div className="rounded-xl border border-red-400/25 bg-red-500/10 p-4 text-sm text-red-100">
+          Command Center could not load analytics. Refresh the page or try again in a moment.
+        </div>
       </div>
     );
   }
@@ -347,9 +360,9 @@ export function CommandCenterClient() {
           />
           <OpsMetricCard
             label="Latest payout"
-            value={ecosystem?.payoutStatus ?? revenueData.payouts[0]?.status ?? "—"}
+            value={ecosystem?.payoutStatus ?? revenueData?.payouts[0]?.status ?? "—"}
             sub={
-              revenueData.payouts[0]
+              revenueData?.payouts[0]
                 ? formatZar(revenueData.payouts[0].amount)
                 : "Request from Wallet"
             }
@@ -609,6 +622,12 @@ export function CommandCenterClient() {
 
       {tabAllowed.revenue ? (
       <Section id="revenue" title="Revenue & monetization (ZAR)" icon={DollarSign}>
+        {!revenueData ? (
+          <p className="rounded-xl border border-amber-400/25 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+            Revenue details are temporarily unavailable. Try refreshing, or open Wallet & payouts for balances.
+          </p>
+        ) : (
+        <>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="storytime-kpi p-4">
             <p className="text-xs text-slate-400">Payout period earnings</p>
@@ -671,6 +690,8 @@ export function CommandCenterClient() {
             </ul>
           )}
         </div>
+        </>
+        )}
       </Section>
       ) : null}
 

@@ -100,12 +100,13 @@ async function compressImageIfNeeded(file: File): Promise<File> {
   return new File([blob], file.name.replace(/\.\w+$/, ".jpg"), { type: "image/jpeg" });
 }
 
-async function uploadKycFile(file: File): Promise<string> {
+async function uploadKycFile(file: File, documentType: string): Promise<string> {
   if (!ACCEPTED_TYPES.includes(file.type)) throw new Error("Only JPG, PNG, or PDF files are allowed.");
   if (file.size > MAX_FILE_SIZE) throw new Error("File exceeds 12MB limit.");
   const prepared = await compressImageIfNeeded(file);
   const fd = new FormData();
   fd.append("file", prepared);
+  fd.append("documentType", documentType);
   const res = await fetch("/api/upload/kyc-document", { method: "POST", body: fd });
   const body = (await res.json().catch(() => ({}))) as { storageRef?: string; error?: string };
   if (!res.ok || !body.storageRef) throw new Error(body.error || "Upload failed.");
@@ -114,14 +115,18 @@ async function uploadKycFile(file: File): Promise<string> {
 
 function UploadField({
   label,
+  documentType,
   value,
   busy,
   onUploaded,
+  onPersistDraft,
 }: {
   label: string;
+  documentType: string;
   value: string;
   busy: boolean;
   onUploaded: (url: string) => void;
+  onPersistDraft?: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [error, setError] = useState("");
@@ -130,8 +135,9 @@ function UploadField({
     if (!file) return;
     setError("");
     try {
-      const url = await uploadKycFile(file);
+      const url = await uploadKycFile(file, documentType);
       onUploaded(url);
+      onPersistDraft?.();
     } catch (e) {
       setError((e as Error).message);
     }
@@ -187,6 +193,7 @@ export default function PayoutVerificationPage() {
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<KycForm>(EMPTY_FORM);
   const [error, setError] = useState("");
+  const [draftSaved, setDraftSaved] = useState(false);
 
   const { data } = useQuery({
     queryKey: ["payout-kyc-verification"],
@@ -225,7 +232,12 @@ export default function PayoutVerificationPage() {
       if (!res.ok) throw new Error((j as { error?: string }).error ?? "Could not save draft.");
       return j;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["payout-kyc-verification"] }),
+    onSuccess: () => {
+      setDraftSaved(true);
+      setError("");
+      qc.invalidateQueries({ queryKey: ["payout-kyc-verification"] });
+    },
+    onError: (err: Error) => setError(err.message),
   });
 
   const submit = useMutation({
@@ -288,6 +300,11 @@ export default function PayoutVerificationPage() {
     return "";
   }
 
+  function validateSubmission(): string {
+    // Submission requires *all* required fields, not only the current risk/compliance step.
+    return validateStep(0) || validateStep(1) || validateStep(2) || validateStep(3) || validateStep(4) || validateStep(5);
+  }
+
   async function handleNext() {
     const message = validateStep(step);
     if (message) {
@@ -299,7 +316,7 @@ export default function PayoutVerificationPage() {
   }
 
   async function handleSubmit() {
-    const message = validateStep(5);
+    const message = validateSubmission();
     if (message) {
       setError(message);
       return;
@@ -364,10 +381,10 @@ export default function PayoutVerificationPage() {
 
           {step === 2 ? (
             <>
-              <UploadField label="ID Document (Front)" value={form.identityVerification.idFrontUrl} busy={false} onUploaded={(url) => setForm((s) => ({ ...s, identityVerification: { ...s.identityVerification, idFrontUrl: url } }))} />
-              <UploadField label="ID Document (Back)" value={form.identityVerification.idBackUrl} busy={false} onUploaded={(url) => setForm((s) => ({ ...s, identityVerification: { ...s.identityVerification, idBackUrl: url } }))} />
+              <UploadField documentType="ID_FRONT" label="ID Document (Front)" value={form.identityVerification.idFrontUrl} busy={saveDraft.isPending} onUploaded={(url) => setForm((s) => ({ ...s, identityVerification: { ...s.identityVerification, idFrontUrl: url } }))} onPersistDraft={() => saveDraft.mutate()} />
+              <UploadField documentType="ID_BACK" label="ID Document (Back)" value={form.identityVerification.idBackUrl} busy={saveDraft.isPending} onUploaded={(url) => setForm((s) => ({ ...s, identityVerification: { ...s.identityVerification, idBackUrl: url } }))} onPersistDraft={() => saveDraft.mutate()} />
               <div className="md:col-span-2">
-                <UploadField label="Selfie for face verification" value={form.identityVerification.selfieUrl} busy={false} onUploaded={(url) => setForm((s) => ({ ...s, identityVerification: { ...s.identityVerification, selfieUrl: url } }))} />
+                <UploadField documentType="SELFIE" label="Selfie for face verification" value={form.identityVerification.selfieUrl} busy={saveDraft.isPending} onUploaded={(url) => setForm((s) => ({ ...s, identityVerification: { ...s.identityVerification, selfieUrl: url } }))} onPersistDraft={() => saveDraft.mutate()} />
               </div>
             </>
           ) : null}
@@ -383,8 +400,8 @@ export default function PayoutVerificationPage() {
                   <input className="rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm" placeholder="Company name" value={form.businessVerification.companyName} onChange={(e) => setForm((s) => ({ ...s, businessVerification: { ...s.businessVerification, companyName: e.target.value } }))} />
                   <input className="rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm" placeholder="Registration number (CIPC)" value={form.businessVerification.registrationNumber} onChange={(e) => setForm((s) => ({ ...s, businessVerification: { ...s.businessVerification, registrationNumber: e.target.value } }))} />
                   <input className="md:col-span-2 rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm" placeholder="Role in company" value={form.businessVerification.roleInCompany} onChange={(e) => setForm((s) => ({ ...s, businessVerification: { ...s.businessVerification, roleInCompany: e.target.value } }))} />
-                  <UploadField label="Registration documents (PDF)" value={form.businessVerification.companyDocsUrl} busy={false} onUploaded={(url) => setForm((s) => ({ ...s, businessVerification: { ...s.businessVerification, companyDocsUrl: url } }))} />
-                  <UploadField label="Proof of address" value={form.businessVerification.proofOfAddressUrl} busy={false} onUploaded={(url) => setForm((s) => ({ ...s, businessVerification: { ...s.businessVerification, proofOfAddressUrl: url } }))} />
+                  <UploadField documentType="COMPANY_REGISTRATION" label="Registration documents (PDF)" value={form.businessVerification.companyDocsUrl} busy={saveDraft.isPending} onUploaded={(url) => setForm((s) => ({ ...s, businessVerification: { ...s.businessVerification, companyDocsUrl: url } }))} onPersistDraft={() => saveDraft.mutate()} />
+                  <UploadField documentType="PROOF_OF_ADDRESS" label="Proof of address" value={form.businessVerification.proofOfAddressUrl} busy={saveDraft.isPending} onUploaded={(url) => setForm((s) => ({ ...s, businessVerification: { ...s.businessVerification, proofOfAddressUrl: url } }))} onPersistDraft={() => saveDraft.mutate()} />
                 </>
               ) : null}
             </>
@@ -425,6 +442,7 @@ export default function PayoutVerificationPage() {
           ) : null}
         </div>
 
+        {draftSaved ? <p className="mt-3 text-sm text-emerald-300">Draft saved. You can return anytime from Wallet or this page.</p> : null}
         {error ? <p className="mt-3 text-sm text-red-300">{error}</p> : null}
         <div className="mt-5 flex flex-wrap gap-2">
           <button type="button" onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0} className="rounded border border-slate-700 px-4 py-2 text-sm text-slate-200 disabled:opacity-50">
@@ -442,7 +460,12 @@ export default function PayoutVerificationPage() {
               Continue
             </button>
           ) : (
-            <button type="button" onClick={() => void handleSubmit()} className="rounded bg-orange-500 px-4 py-2 text-sm font-semibold text-black">
+            <button
+              type="button"
+              onClick={() => void handleSubmit()}
+              disabled={submit.isPending || !!validateSubmission()}
+              className="rounded bg-orange-500 px-4 py-2 text-sm font-semibold text-black disabled:opacity-50"
+            >
               Submit for review
             </button>
           )}

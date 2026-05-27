@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import {
   completeViewerAccountOnboarding,
   loadViewerOnboardingState,
+  saveViewerAccountOnboardingDraft,
 } from "@/lib/viewer-account-onboarding";
 
 export async function GET() {
@@ -18,6 +19,39 @@ export async function GET() {
   const state = await loadViewerOnboardingState(userId);
   if (!state) return NextResponse.json({ error: "User not found" }, { status: 404 });
   return NextResponse.json(state);
+}
+
+export async function PATCH(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  const userId = session?.user?.id;
+  const role = (session?.user as { role?: string })?.role;
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (role !== "SUBSCRIBER" && role !== "ADMIN") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const body = (await req.json().catch(() => null)) as {
+    name?: string;
+    email?: string;
+    phoneNumber?: string;
+    residentialAddress?: string;
+    city?: string;
+    provinceState?: string;
+    postalCode?: string;
+    country?: string;
+  } | null;
+
+  if (!body) return NextResponse.json({ error: "Invalid payload." }, { status: 400 });
+
+  try {
+    await saveViewerAccountOnboardingDraft(userId, body);
+    return NextResponse.json({ ok: true, redirectTo: "/browse/settings" });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Could not save account details." },
+      { status: 400 },
+    );
+  }
 }
 
 export async function POST(req: NextRequest) {

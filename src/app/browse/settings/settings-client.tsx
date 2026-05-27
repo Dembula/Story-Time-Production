@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, CreditCard, Gauge, Lock, Mail, Plus, Smartphone, Star, Trash2, User, Users } from "lucide-react";
+import { Bell, CreditCard, Gauge, Lock, Mail, MapPin, Plus, Smartphone, Star, Trash2, User, Users } from "lucide-react";
 import { VIEWER_PLAN_CONFIG } from "@/lib/pricing";
 import { formatZar } from "@/lib/format-currency-zar";
 import { getBirthDateOptionSets } from "@/lib/viewer-profiles";
@@ -21,6 +21,11 @@ export function SettingsClient() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [residentialAddress, setResidentialAddress] = useState("");
+  const [city, setCity] = useState("");
+  const [provinceState, setProvinceState] = useState("");
+  const [postalCode, setPostalCode] = useState("");
+  const [country, setCountry] = useState("South Africa");
   const [profiles, setProfiles] = useState<ViewerProfile[]>([]);
   const [isMasterActive, setIsMasterActive] = useState(false);
   const [profileLimit, setProfileLimit] = useState(1);
@@ -47,6 +52,8 @@ export function SettingsClient() {
   const [savingPrefs, setSavingPrefs] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [loadWarnings, setLoadWarnings] = useState<string[]>([]);
 
   useEffect(() => {
     setMounted(true);
@@ -54,39 +61,78 @@ export function SettingsClient() {
 
   useEffect(() => {
     if (!mounted) return;
-    Promise.all([
-      fetch("/api/me").then((r) => r.json()),
-      fetch("/api/viewer/preferences").then((r) => r.json()),
-      fetch("/api/viewer/payment-methods").then((r) => r.json()),
-      fetch("/api/viewer/profiles").then((r) => r.json()),
-      fetch("/api/viewer/profiles/active").then((r) => r.json()),
-      fetch("/api/viewer/subscription").then((r) => r.json()),
-    ]).then(([u, p, methods, profileData, activeData, subData]) => {
-      if (u?.name != null) setName(u.name);
-      if (u?.email != null) setEmail(u.email);
-      if (u?.phoneNumber != null) setPhoneNumber(u.phoneNumber);
 
-      if (p?.notifyEmail !== undefined) setNotifyEmail(p.notifyEmail);
-      if (p?.playbackQuality) setPlaybackQuality(p.playbackQuality);
+    let cancelled = false;
 
-      setPaymentMethods(Array.isArray(methods) ? methods : []);
+    (async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const res = await fetch("/api/viewer/settings", { cache: "no-store" });
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          account?: { name?: string; email?: string; phoneNumber?: string };
+          address?: {
+            residentialAddress?: string;
+            city?: string;
+            provinceState?: string;
+            postalCode?: string;
+            country?: string;
+          };
+          preferences?: { notifyEmail?: boolean; playbackQuality?: string | null };
+          paymentMethods?: PaymentMethod[];
+          profiles?: ViewerProfile[];
+          activeProfileId?: string | null;
+          subscription?: ViewerSubscription | null;
+          warnings?: string[];
+        };
+        if (!res.ok) throw new Error(data.error || "Failed to load settings");
+        if (cancelled) return;
 
-      const list = Array.isArray(profileData?.profiles) ? profileData.profiles : [];
-      const enhanced: ViewerProfile[] = list.map((item: ViewerProfile, index: number) => ({
-        ...item,
-        isMaster: index === 0,
-      }));
-      setProfiles(enhanced);
+        const account = data.account ?? {};
+        setName(account.name ?? "");
+        setEmail(account.email ?? "");
+        setPhoneNumber(account.phoneNumber ?? "");
 
-      const activeId = activeData?.profile?.id ?? null;
-      setIsMasterActive(!!enhanced.length && activeId === enhanced[0].id);
+        const addr = data.address ?? {};
+        setResidentialAddress(addr.residentialAddress ?? "");
+        setCity(addr.city ?? "");
+        setProvinceState(addr.provinceState ?? "");
+        setPostalCode(addr.postalCode ?? "");
+        setCountry(addr.country?.trim() || "South Africa");
 
-      const sub = subData?.subscription ?? null;
-      setSubscription(sub);
-      setProfileLimit(sub?.profileLimit ?? sub?.deviceCount ?? 1);
-    }).catch(() => {
-      setError("Failed to load settings");
-    });
+        const prefs = data.preferences ?? {};
+        if (prefs.notifyEmail !== undefined) setNotifyEmail(prefs.notifyEmail);
+        setPlaybackQuality(prefs.playbackQuality?.trim() || "auto");
+
+        setPaymentMethods(Array.isArray(data.paymentMethods) ? data.paymentMethods : []);
+
+        const list = Array.isArray(data.profiles) ? data.profiles : [];
+        const enhanced: ViewerProfile[] = list.map((item, index) => ({
+          ...item,
+          isMaster: index === 0,
+        }));
+        setProfiles(enhanced);
+
+        const activeId = data.activeProfileId ?? null;
+        setIsMasterActive(!!enhanced.length && activeId === enhanced[0].id);
+
+        const sub = data.subscription ?? null;
+        setSubscription(sub);
+        setProfileLimit(sub?.profileLimit ?? sub?.deviceCount ?? 1);
+        setLoadWarnings(Array.isArray(data.warnings) ? data.warnings : []);
+      } catch (e) {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : "Failed to load settings");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [mounted]);
 
   async function saveAccountInfo(e: React.FormEvent) {
@@ -94,15 +140,49 @@ export function SettingsClient() {
     setSavingAccount(true);
     setError("");
     setSuccess("");
+    if (!name.trim()) {
+      setError("Profile name is required");
+      setSavingAccount(false);
+      return;
+    }
+    if (!email.trim()) {
+      setError("Email is required");
+      setSavingAccount(false);
+      return;
+    }
     try {
       const res = await fetch("/api/me", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), email: email.trim(), phoneNumber: phoneNumber.trim() }),
+        body: JSON.stringify({
+          name: name.trim(),
+          email: email.trim(),
+          phoneNumber: phoneNumber.trim(),
+          residentialAddress: residentialAddress.trim(),
+          city: city.trim(),
+          provinceState: provinceState.trim(),
+          postalCode: postalCode.trim(),
+          country: country.trim(),
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Failed to update account");
-      setSuccess("Account details updated");
+      document.cookie = "st_onboarding_deferred=1; path=/; max-age=2592000; SameSite=Lax";
+      if (data.billingAddress) {
+        const addr = data.billingAddress as {
+          residentialAddress?: string;
+          city?: string;
+          provinceState?: string;
+          postalCode?: string;
+          country?: string;
+        };
+        setResidentialAddress(addr.residentialAddress ?? "");
+        setCity(addr.city ?? "");
+        setProvinceState(addr.provinceState ?? "");
+        setPostalCode(addr.postalCode ?? "");
+        setCountry(addr.country?.trim() || "South Africa");
+      }
+      setSuccess("Account details saved");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to update account");
     } finally {
@@ -141,11 +221,13 @@ export function SettingsClient() {
       const res = await fetch("/api/viewer/preferences", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notifyEmail, playbackQuality }),
+        body: JSON.stringify({ notifyEmail: Boolean(notifyEmail), playbackQuality }),
       });
-      if (!res.ok) throw new Error("Failed to save preferences");
-    } catch {
-      setError("Failed to save preferences");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Failed to save preferences");
+      setSuccess("Preferences saved");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to save preferences");
     } finally {
       setSavingPrefs(false);
     }
@@ -153,29 +235,43 @@ export function SettingsClient() {
 
   async function addPaymentMethod(e: React.FormEvent) {
     e.preventDefault();
+    setError("");
     const label = newPaymentLabel.trim();
     const lastFour = newPaymentLastFour.replace(/\D/g, "").slice(-4);
-    if (!label || lastFour.length !== 4) return;
+    if (!label || lastFour.length !== 4) {
+      setError("Enter a label and the last 4 digits of the card.");
+      return;
+    }
     const res = await fetch("/api/viewer/payment-methods", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ label, lastFour }),
     });
+    const data = await res.json().catch(() => ({}));
     if (res.ok) {
-      const m = await res.json();
+      const m = data as PaymentMethod;
       setPaymentMethods((prev) => [m, ...prev]);
       setNewPaymentLabel("");
       setNewPaymentLastFour("");
+      setSuccess("Payment method added");
+    } else {
+      setError(data?.error || "Failed to add payment method");
     }
   }
 
   async function setDefaultPayment(id: string) {
-    await fetch("/api/viewer/payment-methods", {
+    setError("");
+    const res = await fetch("/api/viewer/payment-methods", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, isDefault: true }),
     });
-    setPaymentMethods((prev) => prev.map((p) => ({ ...p, isDefault: p.id === id })));
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) {
+      setPaymentMethods((prev) => prev.map((p) => ({ ...p, isDefault: p.id === id })));
+    } else {
+      setError(data?.error || "Failed to update default payment method");
+    }
   }
 
   async function removePayment(id: string) {
@@ -283,9 +379,24 @@ export function SettingsClient() {
 
   if (!mounted) return null;
 
+  if (loading) {
+    return (
+      <div className="flex min-h-[30vh] items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-10">
       {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-300">{error}</div> : null}
+      {loadWarnings.length > 0 ? (
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-200">
+          {loadWarnings.map((warning) => (
+            <p key={warning}>{warning}</p>
+          ))}
+        </div>
+      ) : null}
       {success ? <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-300">{success}</div> : null}
 
       <section id="settings-my-account" className="storytime-section p-6">
@@ -305,6 +416,33 @@ export function SettingsClient() {
             <div>
               <label className="mb-1 block text-sm text-slate-400"><Smartphone className="mr-1 inline w-4 h-4" /> Phone number</label>
               <input value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} className="storytime-input w-full px-4 py-2.5" placeholder="+27 ..." />
+            </div>
+          </div>
+          <div className="border-t border-white/10 pt-4">
+            <h3 className="mb-3 flex items-center gap-2 text-sm font-medium text-white">
+              <MapPin className="h-4 w-4 text-slate-400" /> Billing address
+            </h3>
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="md:col-span-2 block">
+                <span className="mb-1 block text-sm text-slate-400">Street address</span>
+                <input value={residentialAddress} onChange={(e) => setResidentialAddress(e.target.value)} className="storytime-input w-full px-4 py-2.5" />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-sm text-slate-400">City</span>
+                <input value={city} onChange={(e) => setCity(e.target.value)} className="storytime-input w-full px-4 py-2.5" />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-sm text-slate-400">Province / state</span>
+                <input value={provinceState} onChange={(e) => setProvinceState(e.target.value)} className="storytime-input w-full px-4 py-2.5" />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-sm text-slate-400">Postal code</span>
+                <input value={postalCode} onChange={(e) => setPostalCode(e.target.value)} className="storytime-input w-full px-4 py-2.5" />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-sm text-slate-400">Country</span>
+                <input value={country} onChange={(e) => setCountry(e.target.value)} className="storytime-input w-full px-4 py-2.5" />
+              </label>
             </div>
           </div>
           <button type="submit" disabled={savingAccount} className="rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white shadow-glow hover:-translate-y-0.5 hover:bg-orange-400 disabled:opacity-50">

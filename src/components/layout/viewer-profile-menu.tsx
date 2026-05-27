@@ -14,7 +14,6 @@ import {
   Download,
   Bookmark,
   CreditCard,
-  SlidersHorizontal,
 } from "lucide-react";
 import { modalVariants } from "@/lib/motion/presets";
 
@@ -35,8 +34,7 @@ const subscriberLinks = [
   { href: "/browse#continue-watching", label: "Continue Watching", icon: Clock },
   { href: "/browse/downloads", label: "Downloads", icon: Download },
   { href: "/browse/my-list", label: "My List", icon: Bookmark },
-  { href: "/browse/settings", label: "Account Settings", icon: Settings },
-  { href: "/browse/settings", label: "Preferences", icon: SlidersHorizontal },
+  { href: "/browse/settings", label: "Account & preferences", icon: Settings },
   { href: "/browse/account", label: "Subscription", icon: CreditCard },
 ] as const;
 
@@ -65,7 +63,7 @@ export function ViewerProfileMenu({
           />
           <motion.div
             role="menu"
-            className="fixed z-[1210] w-72 overflow-hidden rounded-2xl border border-white/10 bg-[#0a0f18]/92 py-1 shadow-2xl backdrop-blur-xl cinematic-glass"
+            className="fixed z-[1210] w-72 overflow-hidden rounded-2xl border border-white/12 bg-[#080c16]/97 py-1 shadow-2xl backdrop-blur-2xl"
             style={{ top: `${position.top}px`, right: `${position.right}px` }}
             variants={modalVariants()}
             initial="hidden"
@@ -90,7 +88,7 @@ export function ViewerProfileMenu({
                   const active = pathname === link.href || pathname.startsWith(link.href + "/");
                   return (
                     <Link
-                      key={link.label}
+                      key={link.href}
                       href={link.href}
                       role="menuitem"
                       onClick={onClose}

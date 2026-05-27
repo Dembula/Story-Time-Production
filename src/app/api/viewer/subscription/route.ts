@@ -338,6 +338,6 @@ export async function PATCH(req: Request) {
 
   return NextResponse.json({
     subscription: updated,
-    message: "Package updated. Connect Paystack charging in this flow when ready.",
+    message: "Package updated. Recurring billing will be charged through Stitch when your saved card is on file.",
   });
 }

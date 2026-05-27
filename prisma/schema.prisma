@@ -1299,12 +1299,12 @@ model SubscriptionPayment {
   purpose               String?
   paidAt                DateTime?
   failureReason         String?
-  paystackReference     String?
+  gatewayReference      String?   @map("paystackReference")
   externalPaymentId     String?
   createdAt             DateTime  @default(now())
 
   @@index([viewerSubscriptionId])
-  @@index([paystackReference])
+  @@index([gatewayReference])
 }
 
 model CreatorPayout {
@@ -1349,14 +1349,14 @@ model Transaction {
   status            String    // PENDING, COMPLETED, FAILED, REFUNDED
   type              String    // LOCATION_BOOKING, EQUIPMENT_REQUEST, CREW_REQUEST, CAST_INQUIRY, CATERING_BOOKING
   referenceId       String    // booking/request/inquiry id
-  paystackReference String?
+  gatewayReference  String?   @map("paystackReference")
   externalPaymentId String?
   createdAt         DateTime  @default(now())
 
   @@index([payerId])
   @@index([payeeId])
   @@index([referenceId])
-  @@index([paystackReference])
+  @@index([gatewayReference])
 }
 
 // --- Catering ---
@@ -1452,13 +1452,13 @@ model UploadPayment {
   status        String   @default("COMPLETED") // PENDING, COMPLETED, FAILED
   contentId     String?
   musicTrackId  String?
-  paystackReference String?
+  gatewayReference  String?  @map("paystackReference")
   externalPaymentId String?
   transactionId String?
   createdAt     DateTime @default(now())
 
   @@index([userId])
-  @@index([paystackReference])
+  @@index([gatewayReference])
 }
 
 // --- Viewer competition ---
@@ -1509,7 +1509,7 @@ model PaymentRecord {
   id                    String   @id @default(cuid())
   userId                String?
   user                  User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  provider              String   @default("PAYSTACK")
+  provider              String   @default("STITCH")
   purpose               String
   status                String   @default("INITIALIZED") // INITIALIZED, PENDING, SUCCEEDED, FAILED, CANCELLED
   amount                Float
@@ -1518,10 +1518,10 @@ model PaymentRecord {
   metadata              Json?
   relatedEntityType     String?
   relatedEntityId       String?
-  paystackReference     String?  @unique
-  paystackAccessCode    String?
-  paystackAuthorizationUrl String?
-  paystackTransactionId String?
+  gatewayReference      String?  @unique @map("paystackReference")
+  gatewayAccessCode     String?  @map("paystackAccessCode")
+  gatewayAuthorizationUrl String? @map("paystackAuthorizationUrl")
+  gatewayTransactionId  String?  @map("paystackTransactionId")
   customerCode          String?
   authorizationCode     String?
   paidAt                DateTime?
@@ -1537,7 +1537,7 @@ model PaymentRecord {
 
 model PaymentWebhookEvent {
   id            String   @id @default(cuid())
-  provider      String   @default("PAYSTACK")
+  provider      String   @default("STITCH")
   eventType     String
   eventId       String?
   reference     String?
@@ -1747,7 +1747,7 @@ model ViewerPaymentMethod {
   id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  provider  String   @default("PAYSTACK")
+  provider  String   @default("STITCH")
   email     String?
   label     String   // e.g. "Visa ****4242"
   lastFour  String   // last 4 digits for display

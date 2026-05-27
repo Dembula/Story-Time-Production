@@ -178,9 +178,33 @@ export function AccountSetupClient() {
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           Save and continue
         </button>
-        <Link href="/browse/settings" className="text-sm text-slate-400 hover:text-white">
-          Manage account later in settings
-        </Link>
+        <button
+          type="button"
+          disabled={saving}
+          onClick={async () => {
+            setError("");
+            setSaving(true);
+            try {
+              const res = await fetch("/api/viewer/account/onboarding", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(form),
+              });
+              const data = await res.json().catch(() => ({}));
+              if (!res.ok) throw new Error(data.error || "Could not save account details");
+              document.cookie = "st_onboarding_deferred=1; path=/; max-age=2592000; SameSite=Lax";
+              router.push("/browse/settings");
+              router.refresh();
+            } catch (err) {
+              setError(err instanceof Error ? err.message : "Save failed");
+            } finally {
+              setSaving(false);
+            }
+          }}
+          className="text-sm text-slate-400 hover:text-white disabled:opacity-50"
+        >
+          Save for later — finish in settings
+        </button>
       </div>
     </form>
   );

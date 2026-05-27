@@ -18,33 +18,42 @@ export function CompanyAccountClient({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState("");
+  const [error, setError] = useState("");
 
   useEffect(() => {
     fetch("/api/me")
-      .then((r) => r.json())
+      .then(async (r) => {
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(data.error || "Could not load account details");
+        return data;
+      })
       .then((user) => {
         if (user) {
           setName(user.name ?? "");
           setEmail(user.email ?? "");
         }
-        setLoading(false);
-      });
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : "Could not load account details"))
+      .finally(() => setLoading(false));
   }, []);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
     setSuccess("");
+    setError("");
     try {
       const res = await fetch("/api/me", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name: name.trim() }),
       });
-      if (res.ok) {
-        setSuccess("Saved.");
-        setTimeout(() => setSuccess(""), 3000);
-      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Could not save account details");
+      setSuccess("Account details saved.");
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not save account details");
     } finally {
       setSaving(false);
     }
@@ -71,11 +80,14 @@ export function CompanyAccountClient({
         </div>
       </div>
 
-      {success && (
-        <div className="mb-6 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm">
+      {error ? (
+        <div className="mb-6 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{error}</div>
+      ) : null}
+      {success ? (
+        <div className="mb-6 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-400">
           {success}
         </div>
-      )}
+      ) : null}
 
       <form onSubmit={save} className="space-y-4 rounded-2xl bg-slate-800/30 border border-slate-700/50 p-6">
         <div>

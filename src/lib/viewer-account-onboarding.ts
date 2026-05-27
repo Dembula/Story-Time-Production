@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 export type ViewerAccountOnboardingPayload = {
@@ -56,6 +57,53 @@ export async function loadViewerOnboardingState(userId: string) {
   };
 }
 
+export async function saveViewerAccountOnboardingDraft(
+  userId: string,
+  payload: Partial<ViewerAccountOnboardingPayload>,
+): Promise<void> {
+  const data: Record<string, unknown> = {};
+  if (payload.name?.trim()) data.name = payload.name.trim();
+  if (payload.email?.trim()) {
+    const email = payload.email.trim().toLowerCase();
+    const existing = await prisma.user.findFirst({
+      where: { email, NOT: { id: userId } },
+      select: { id: true },
+    });
+    if (existing) throw new Error("That email is already used by another account.");
+    data.email = email;
+  }
+  if (payload.phoneNumber?.trim()) data.phoneNumber = payload.phoneNumber.trim();
+
+  const address = {
+    residentialAddress: payload.residentialAddress?.trim() ?? "",
+    city: payload.city?.trim() ?? "",
+    provinceState: payload.provinceState?.trim() ?? "",
+    postalCode: payload.postalCode?.trim() ?? "",
+    country: payload.country?.trim() ?? "",
+  };
+
+  await prisma.$transaction(async (tx) => {
+    if (Object.keys(data).length > 0) {
+      await tx.user.update({ where: { id: userId }, data });
+    }
+
+    const pref = await tx.userPreference.findUnique({ where: { userId } });
+    const currentExtras = (pref?.profileExtras ?? {}) as Record<string, unknown>;
+    const nextExtras = { ...currentExtras, accountAddress: address } as Prisma.InputJsonValue;
+
+    if (pref) {
+      await tx.userPreference.update({
+        where: { userId },
+        data: { profileExtras: nextExtras },
+      });
+    } else {
+      await tx.userPreference.create({
+        data: { userId, profileExtras: nextExtras },
+      });
+    }
+  });
+}
+
 export async function completeViewerAccountOnboarding(
   userId: string,
   payload: ViewerAccountOnboardingPayload,
@@ -97,7 +145,7 @@ export async function completeViewerAccountOnboarding(
 
     const pref = await tx.userPreference.findUnique({ where: { userId } });
     const currentExtras = (pref?.profileExtras ?? {}) as Record<string, unknown>;
-    const nextExtras = { ...currentExtras, accountAddress: address };
+    const nextExtras = { ...currentExtras, accountAddress: address } as Prisma.InputJsonValue;
 
     if (pref) {
       await tx.userPreference.update({

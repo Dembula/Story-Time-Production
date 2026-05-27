@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { getStorageConfig } from "@/lib/storage-config";
 import { prisma } from "@/lib/prisma";
 import { requiresPayoutKyc } from "@/lib/payout-kyc";
+import { registerFunderKycUpload, registerPayoutKycUpload } from "@/lib/kyc-verification-sync";
 
 export const runtime = "nodejs";
 
@@ -40,11 +41,25 @@ export async function POST(request: NextRequest) {
     }
     const bucket = storage.bucket;
     if (!bucket || !storage.region) {
-      return NextResponse.json({ error: "Storage is not configured." }, { status: 500 });
+      return NextResponse.json(
+        {
+          error:
+            "Document storage is not configured on this server. Set STORAGE_BUCKET_NAME and STORAGE_REGION (or S3_* equivalents) in your environment.",
+        },
+        { status: 503 },
+      );
+    }
+    if (!storage.accessKeyId || !storage.secretAccessKey) {
+      return NextResponse.json(
+        { error: "Storage credentials are missing. Set STORAGE_ACCESS_KEY_ID and STORAGE_SECRET_ACCESS_KEY." },
+        { status: 503 },
+      );
     }
 
     const formData = await request.formData();
     const file = formData.get("file");
+    const rawDocType = formData.get("documentType");
+    const documentType = typeof rawDocType === "string" ? rawDocType.trim() : "";
     if (!(file instanceof File)) {
       return NextResponse.json({ error: "Missing file field in form-data" }, { status: 400 });
     }
@@ -77,6 +92,8 @@ export async function POST(request: NextRequest) {
       }),
     );
 
+    const storageRef = `s3://${bucket}/${key}`;
+
     await prisma.adminAuditLog.create({
       data: {
         adminUserId: user.id!,
@@ -84,13 +101,22 @@ export async function POST(request: NextRequest) {
         entityType: "User",
         entityId: user.id!,
         oldValue: null as any,
-        newValue: { storageRef: `s3://${bucket}/${key}`, mimeType: file.type, size: file.size },
+        newValue: { storageRef, mimeType: file.type, size: file.size, documentType: documentType || null },
       },
     });
 
-    return NextResponse.json({ ok: true, storageRef: `s3://${bucket}/${key}` }, { status: 201 });
+    if (documentType) {
+      if (user.role === "FUNDER") {
+        await registerFunderKycUpload(user.id!, documentType, storageRef);
+      } else if (requiresPayoutKyc(user.role)) {
+        await registerPayoutKycUpload(user.id!, user.role!, documentType, storageRef);
+      }
+    }
+
+    return NextResponse.json({ ok: true, storageRef, documentType: documentType || null }, { status: 201 });
   } catch (error) {
     console.error("KYC upload error", error);
-    return NextResponse.json({ error: "Upload failed." }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Upload failed.";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

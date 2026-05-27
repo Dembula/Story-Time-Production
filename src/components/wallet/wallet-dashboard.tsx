@@ -84,8 +84,8 @@ export function WalletDashboard({
         <p className="mt-1 text-sm text-slate-400">{subtitle}</p>
       </section>
 
-      {requiresPayoutKyc(role) ? <PayoutKycBanner /> : null}
-      {isFunder ? <FunderVerificationBanner /> : null}
+      {requiresPayoutKyc(role) ? <PayoutKycBanner inline /> : null}
+      {isFunder ? <FunderVerificationBanner inline /> : null}
 
       <section className="grid gap-4 md:grid-cols-4">
         <Card label="Available" value={`R${money.format(Number(wallet?.availableBalance ?? 0))}`} />

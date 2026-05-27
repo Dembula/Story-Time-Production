@@ -7,7 +7,6 @@ import { useEffect, useState } from "react";
 import { Bell, ChevronLeft, LayoutDashboard, LogOut, ShieldCheck, WalletCards, Handshake } from "lucide-react";
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { WalletBalanceChip } from "@/components/layout/wallet-balance-chip";
-import { FunderVerificationBanner } from "@/components/funders/funder-verification-banner";
 
 const NAV_ITEMS = [
   { href: "/funders", label: "Dashboard", icon: LayoutDashboard },
@@ -103,7 +102,6 @@ export default function FundersLayout({ children }: { children: React.ReactNode 
         ) : null}
 
         <main className="min-w-0 flex-1 space-y-4">
-          <FunderVerificationBanner />
           {children}
         </main>
       </div>

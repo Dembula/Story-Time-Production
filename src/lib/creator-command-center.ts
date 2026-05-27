@@ -98,7 +98,18 @@ export async function getCreatorCommandCenter(
         },
       }),
       role === "ADMIN" ? prisma.watchSession.count({ where: { startedAt: { gte: d7 } } }) : 0,
-      getCreatorRetentionSnapshot(creatorId, start, end),
+      getCreatorRetentionSnapshot(creatorId, start, end).catch(() => ({
+        sampleSize: 0,
+        curve: [
+          { checkpoint: 10, retainedPct: 0 },
+          { checkpoint: 25, retainedPct: 0 },
+          { checkpoint: 50, retainedPct: 0 },
+          { checkpoint: 75, retainedPct: 0 },
+          { checkpoint: 90, retainedPct: 0 },
+          { checkpoint: 100, retainedPct: 0 },
+        ],
+        byTitle: [],
+      })),
     ]);
 
   const tasksByStatus: Record<string, number> = {};

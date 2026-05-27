@@ -836,7 +836,7 @@ exports.Prisma.SubscriptionPaymentScalarFieldEnum = {
   purpose: 'purpose',
   paidAt: 'paidAt',
   failureReason: 'failureReason',
-  paystackReference: 'paystackReference',
+  gatewayReference: 'gatewayReference',
   externalPaymentId: 'externalPaymentId',
   createdAt: 'createdAt'
 };
@@ -875,7 +875,7 @@ exports.Prisma.TransactionScalarFieldEnum = {
   status: 'status',
   type: 'type',
   referenceId: 'referenceId',
-  paystackReference: 'paystackReference',
+  gatewayReference: 'gatewayReference',
   externalPaymentId: 'externalPaymentId',
   createdAt: 'createdAt'
 };
@@ -946,7 +946,7 @@ exports.Prisma.UploadPaymentScalarFieldEnum = {
   status: 'status',
   contentId: 'contentId',
   musicTrackId: 'musicTrackId',
-  paystackReference: 'paystackReference',
+  gatewayReference: 'gatewayReference',
   externalPaymentId: 'externalPaymentId',
   transactionId: 'transactionId',
   createdAt: 'createdAt'
@@ -993,10 +993,10 @@ exports.Prisma.PaymentRecordScalarFieldEnum = {
   metadata: 'metadata',
   relatedEntityType: 'relatedEntityType',
   relatedEntityId: 'relatedEntityId',
-  paystackReference: 'paystackReference',
-  paystackAccessCode: 'paystackAccessCode',
-  paystackAuthorizationUrl: 'paystackAuthorizationUrl',
-  paystackTransactionId: 'paystackTransactionId',
+  gatewayReference: 'gatewayReference',
+  gatewayAccessCode: 'gatewayAccessCode',
+  gatewayAuthorizationUrl: 'gatewayAuthorizationUrl',
+  gatewayTransactionId: 'gatewayTransactionId',
   customerCode: 'customerCode',
   authorizationCode: 'authorizationCode',
   paidAt: 'paidAt',

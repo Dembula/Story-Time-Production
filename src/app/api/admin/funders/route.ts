@@ -18,6 +18,7 @@ export async function GET() {
 
   try {
     const profiles = await prisma.funderProfile.findMany({
+      where: { submittedAt: { not: null } },
       select: {
         id: true,
         userId: true,
@@ -34,6 +35,7 @@ export async function GET() {
         adminReviewRequired: true,
         reviewedAt: true,
         approvedForInvestingAt: true,
+        submittedAt: true,
         createdAt: true,
         updatedAt: true,
         user: { select: { id: true, name: true, email: true } },
@@ -54,7 +56,7 @@ export async function GET() {
           pendingCount,
           approvedCount,
           rejectedCount,
-          submittedAt: null,
+          submittedAt: p.submittedAt,
         },
       };
     });

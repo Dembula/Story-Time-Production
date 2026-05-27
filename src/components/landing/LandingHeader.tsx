@@ -4,6 +4,9 @@ import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 
+const AUTH_MENU_PANEL_CLASS =
+  "absolute right-0 top-full z-50 mt-2 w-48 rounded-xl border border-white/12 bg-[#080c16]/97 p-1.5 shadow-2xl backdrop-blur-2xl";
+
 export function LandingHeader() {
   const [scrolled, setScrolled] = useState(false);
   const [isPortraitMobile, setIsPortraitMobile] = useState(false);
@@ -93,43 +96,41 @@ export function LandingHeader() {
                 Sign Up
               </button>
 
-              {authMenuOpen && (
-                <div className="absolute right-0 top-full z-50 mt-2 w-48 rounded-xl border border-white/10 bg-[#0b1324]/96 p-1.5 shadow-panel backdrop-blur-xl">
-                  {authMenuOpen === "signin" ? (
-                    <>
-                      <Link
-                        href="/auth/signin"
-                        className="block rounded-lg px-3 py-2 text-xs text-slate-200 hover:bg-white/[0.06]"
-                        onClick={() => setAuthMenuOpen(null)}
-                      >
-                        Sign In
-                      </Link>
-                      <Link
-                        href="/auth/creator/signin"
-                        className="block rounded-lg px-3 py-2 text-xs text-orange-300 hover:bg-orange-500/10"
-                        onClick={() => setAuthMenuOpen(null)}
-                      >
-                        Creator Sign In
-                      </Link>
-                    </>
-                  ) : (
-                    <>
-                      <Link
-                        href="/auth/signup"
-                        className="block rounded-lg px-3 py-2 text-xs text-slate-200 hover:bg-white/[0.06]"
-                        onClick={() => setAuthMenuOpen(null)}
-                      >
-                        Sign Up
-                      </Link>
-                      <Link
-                        href="/auth/creator/signup"
-                        className="block rounded-lg px-3 py-2 text-xs text-orange-300 hover:bg-orange-500/10"
-                        onClick={() => setAuthMenuOpen(null)}
-                      >
-                        Creator Sign Up
-                      </Link>
-                    </>
-                  )}
+              {authMenuOpen === "signin" && (
+                <div className={AUTH_MENU_PANEL_CLASS}>
+                  <Link
+                    href="/auth/signin"
+                    className="block rounded-lg px-3 py-2 text-xs text-slate-200 hover:bg-white/[0.06]"
+                    onClick={() => setAuthMenuOpen(null)}
+                  >
+                    Sign In
+                  </Link>
+                  <Link
+                    href="/auth/creator/signin"
+                    className="block rounded-lg px-3 py-2 text-xs text-orange-300 hover:bg-orange-500/10"
+                    onClick={() => setAuthMenuOpen(null)}
+                  >
+                    Creator Sign In
+                  </Link>
+                </div>
+              )}
+
+              {authMenuOpen === "signup" && (
+                <div className={AUTH_MENU_PANEL_CLASS}>
+                  <Link
+                    href="/auth/signup"
+                    className="block rounded-lg px-3 py-2 text-xs text-slate-200 hover:bg-white/[0.06]"
+                    onClick={() => setAuthMenuOpen(null)}
+                  >
+                    Sign Up
+                  </Link>
+                  <Link
+                    href="/auth/creator/signup"
+                    className="block rounded-lg px-3 py-2 text-xs text-orange-300 hover:bg-orange-500/10"
+                    onClick={() => setAuthMenuOpen(null)}
+                  >
+                    Creator Sign Up
+                  </Link>
                 </div>
               )}
             </>

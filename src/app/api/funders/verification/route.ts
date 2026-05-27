@@ -2,47 +2,51 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { isFunderRole, requireSessionUser } from "@/lib/funders";
-import { validateIdOrPassportByCountry } from "@/lib/kyc-validation";
+import { validateIdOrPassportByCountry, validateIdOrPassportByCountryIfPresent } from "@/lib/kyc-validation";
+import {
+  extractKycDocumentsFromPayload,
+  syncFunderKycVerifications,
+  syncUserContactFromKyc,
+} from "@/lib/kyc-verification-sync";
+import type { KycPayload } from "@/lib/payout-kyc";
 
 type KycDocumentInput = { documentType: string; documentUrl: string };
 
-type KycPayload = {
-  basicIdentity?: {
-    fullName?: string;
-    idNumber?: string;
-    dateOfBirth?: string;
-    nationality?: string;
-    phoneNumber?: string;
-    emailAddress?: string;
-  };
-  addressInfo?: {
-    residentialAddress?: string;
-    city?: string;
-    provinceState?: string;
-    postalCode?: string;
-    country?: string;
-  };
-  businessVerification?: {
-    isBusinessApplicant?: boolean;
-    companyName?: string;
-    registrationNumber?: string;
-    roleInCompany?: string;
-  };
-  financialInfo?: {
-    bankName?: string;
-    accountHolderName?: string;
-    accountNumber?: string;
-    accountType?: string;
-    incomeRange?: string;
-    sourceOfFunds?: string;
-  };
-  riskCompliance?: {
-    politicallyExposedPerson?: boolean;
-    sanctionsDeclarationAccepted?: boolean;
-    termsAccepted?: boolean;
-    popiaConsentAccepted?: boolean;
-  };
-};
+function validateFunderSubmission(payload?: KycPayload, documents?: KycDocumentInput[]): string | null {
+  const kyc = payload ?? {};
+  const docs = Array.isArray(documents) ? documents : [];
+  const hasDoc = (type: string) => docs.some((d) => d.documentType === type && d.documentUrl?.trim());
+
+  if (!kyc.basicIdentity?.fullName?.trim() || !kyc.basicIdentity?.idNumber?.trim() || !kyc.basicIdentity?.dateOfBirth?.trim()) {
+    return "Complete full name, ID/passport number, and date of birth.";
+  }
+  if (!kyc.addressInfo?.residentialAddress?.trim() || !kyc.addressInfo?.city?.trim() || !kyc.addressInfo?.country?.trim()) {
+    return "Complete residential address details before submitting.";
+  }
+  if (!hasDoc("ID_FRONT") || !hasDoc("ID_BACK") || !hasDoc("SELFIE")) {
+    return "Required documents are missing (ID front, ID back, selfie).";
+  }
+  if (kyc.businessVerification?.isBusinessApplicant) {
+    if (
+      !kyc.businessVerification.companyName?.trim() ||
+      !kyc.businessVerification.registrationNumber?.trim() ||
+      !hasDoc("COMPANY_REGISTRATION")
+    ) {
+      return "Business applicants must provide company details and registration documents.";
+    }
+  }
+  if (!kyc.financialInfo?.bankName?.trim() || !kyc.financialInfo?.accountHolderName?.trim() || !kyc.financialInfo?.accountNumber?.trim()) {
+    return "Complete required banking details before submitting.";
+  }
+  if (
+    !kyc.riskCompliance?.sanctionsDeclarationAccepted ||
+    !kyc.riskCompliance?.termsAccepted ||
+    !kyc.riskCompliance?.popiaConsentAccepted
+  ) {
+    return "Accept required declarations and consent before submitting.";
+  }
+  return null;
+}
 
 function parseRiskLevel(payload: KycPayload): "LOW" | "MEDIUM" | "HIGH" {
   if (payload.riskCompliance?.politicallyExposedPerson) return "HIGH";
@@ -103,6 +107,10 @@ export async function POST(req: NextRequest) {
   if (idFormatError) {
     return NextResponse.json({ error: idFormatError }, { status: 400 });
   }
+  const submissionError = validateFunderSubmission(body.kycData, documents);
+  if (submissionError) {
+    return NextResponse.json({ error: submissionError }, { status: 400 });
+  }
 
   const profile = await prisma.$transaction(async (tx) => {
     const saved = await tx.funderProfile.upsert({
@@ -140,16 +148,10 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    await tx.funderVerification.deleteMany({ where: { funderProfileId: saved.id, status: "PENDING" } });
-    await tx.funderVerification.createMany({
-      data: documents.map((doc) => ({
-        funderProfileId: saved.id,
-        submittedById: access.userId!,
-        documentType: doc.documentType,
-        documentUrl: doc.documentUrl,
-        status: "PENDING",
-      })),
-    });
+    const docRefs =
+      documents.length > 0 ? documents : extractKycDocumentsFromPayload(body.kycData ?? {});
+    await syncFunderKycVerifications(tx, saved.id, access.userId!, docRefs);
+    await syncUserContactFromKyc(tx, access.userId!, body.kycData ?? {});
     await tx.adminAuditLog.create({
       data: {
         adminUserId: access.userId!,
@@ -182,44 +184,65 @@ export async function PATCH(req: NextRequest) {
   if (!body?.kycData) {
     return NextResponse.json({ error: "kycData is required." }, { status: 400 });
   }
-  const idFormatError = validateIdOrPassportByCountry(
-    body.kycData.addressInfo?.country || body.kycData.basicIdentity?.nationality,
-    body.kycData.basicIdentity?.idNumber,
+  const kycPayload = body.kycData;
+  const idFormatError = validateIdOrPassportByCountryIfPresent(
+    kycPayload.addressInfo?.country || kycPayload.basicIdentity?.nationality,
+    kycPayload.basicIdentity?.idNumber,
   );
   if (idFormatError) {
     return NextResponse.json({ error: idFormatError }, { status: 400 });
   }
 
-  const legalName = body.legalName?.trim() || body.kycData.basicIdentity?.fullName?.trim() || null;
-  const profile = await prisma.funderProfile.upsert({
-    where: { userId: access.userId! },
-    create: {
-      userId: access.userId!,
-      legalName,
-      entityType: body.entityType?.trim() || "INDIVIDUAL",
-      verificationStatus: "PENDING",
-      riskLevel: parseRiskLevel(body.kycData),
-      kycData: body.kycData as Prisma.InputJsonValue,
-      limitedAccessEnabled: true,
-      adminReviewRequired: true,
-    },
-    update: {
-      legalName,
-      entityType: body.entityType?.trim() || undefined,
-      kycData: body.kycData as Prisma.InputJsonValue,
-      riskLevel: parseRiskLevel(body.kycData),
-    },
-  });
+  const legalName = body.legalName?.trim() || kycPayload.basicIdentity?.fullName?.trim() || null;
+  const profile = await prisma.$transaction(async (tx) => {
+    const existing = await tx.funderProfile.findUnique({
+      where: { userId: access.userId! },
+      select: { submittedAt: true },
+    });
+    const draftStatusUpdate = existing?.submittedAt ? {} : { verificationStatus: "DRAFT" as const };
 
-  await prisma.adminAuditLog.create({
-    data: {
-      adminUserId: access.userId!,
-      action: "FUNDER_KYC_DRAFT_SAVED",
-      entityType: "FunderProfile",
-      entityId: profile.id,
-      oldValue: null as any,
-      newValue: { hasBasicIdentity: Boolean(body.kycData.basicIdentity?.fullName) },
-    },
+    const saved = await tx.funderProfile.upsert({
+      where: { userId: access.userId! },
+      create: {
+        userId: access.userId!,
+        legalName,
+        entityType: body.entityType?.trim() || "INDIVIDUAL",
+        verificationStatus: "DRAFT",
+        riskLevel: parseRiskLevel(kycPayload),
+        kycData: kycPayload as Prisma.InputJsonValue,
+        limitedAccessEnabled: true,
+        adminReviewRequired: true,
+      },
+      update: {
+        legalName,
+        entityType: body.entityType?.trim() || undefined,
+        kycData: kycPayload as Prisma.InputJsonValue,
+        riskLevel: parseRiskLevel(kycPayload),
+        ...draftStatusUpdate,
+      },
+    });
+
+    const docRefs = extractKycDocumentsFromPayload(kycPayload);
+    if (docRefs.length > 0) {
+      await syncFunderKycVerifications(tx, saved.id, access.userId!, docRefs);
+    }
+    await syncUserContactFromKyc(tx, access.userId!, kycPayload);
+
+    await tx.adminAuditLog.create({
+      data: {
+        adminUserId: access.userId!,
+        action: "FUNDER_KYC_DRAFT_SAVED",
+        entityType: "FunderProfile",
+        entityId: saved.id,
+        oldValue: null as any,
+        newValue: {
+          hasBasicIdentity: Boolean(kycPayload.basicIdentity?.fullName),
+          documentCount: docRefs.length,
+        },
+      },
+    });
+
+    return saved;
   });
 
   return NextResponse.json({ ok: true, profile });

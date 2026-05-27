@@ -118,7 +118,7 @@ export function NotificationBell() {
             onClick={() => setOpen(false)}
           />
           <div
-            className="fixed z-[1210] w-80 rounded-2xl border border-white/10 bg-slate-950/95 shadow-2xl backdrop-blur-xl"
+            className="fixed z-[1210] w-80 rounded-2xl border border-white/12 bg-[#080c16]/97 shadow-2xl backdrop-blur-2xl"
             style={{ top: `${panelPos.top}px`, right: `${panelPos.right}px` }}
           >
             <div className="flex items-center justify-between border-b border-white/8 px-4 py-3">

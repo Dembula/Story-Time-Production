@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { compare, hash } from "bcryptjs";
 import { normalizeAvatarImageUrl } from "@/lib/avatar-image-url";
+import { completeViewerAccountOnboarding, isViewerAccountOnboardingComplete } from "@/lib/viewer-account-onboarding";
+import { loadViewerBillingAddress, upsertViewerBillingAddress } from "@/lib/user-settings-persistence";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -15,6 +17,7 @@ export async function GET() {
       id: true,
       name: true,
       email: true,
+      phoneNumber: true,
       image: true,
       role: true,
       bio: true,
@@ -41,13 +44,15 @@ export async function GET() {
   });
   if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
-  const phoneRow = await prisma
-    .$queryRawUnsafe<{ phoneNumber: string | null }[]>(`SELECT "phoneNumber" FROM "User" WHERE "id" = $1`, session.user.id)
-    .catch(() => []);
+  const address =
+    (session.user as { role?: string }).role === "SUBSCRIBER" ||
+    (session.user as { role?: string }).role === "ADMIN"
+      ? await loadViewerBillingAddress(session.user.id).catch(() => null)
+      : null;
 
   return NextResponse.json({
     ...user,
-    phoneNumber: phoneRow[0]?.phoneNumber ?? null,
+    address,
   });
 }
 
@@ -55,11 +60,41 @@ export async function PATCH(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await req.json();
-  const { name, email, phoneNumber, currentPassword, newPassword, bio, socialLinks, education, goals, previousWork, headline, location, website, isAfdaStudent, image } = body;
+  let body: Record<string, unknown>;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+  }
+
+  const {
+    name,
+    email,
+    phoneNumber,
+    currentPassword,
+    newPassword,
+    bio,
+    socialLinks,
+    education,
+    goals,
+    previousWork,
+    headline,
+    location,
+    website,
+    isAfdaStudent,
+    image,
+    residentialAddress,
+    city,
+    provinceState,
+    postalCode,
+    country,
+  } = body as Record<string, unknown>;
 
   const data: Record<string, unknown> = {};
-  if (name !== undefined) data.name = name;
+  if (name !== undefined) data.name = typeof name === "string" ? name.trim() : name;
+  if (phoneNumber !== undefined) {
+    data.phoneNumber = typeof phoneNumber === "string" ? phoneNumber.trim() || null : null;
+  }
   if (image !== undefined) {
     try {
       data.image = normalizeAvatarImageUrl(typeof image === "string" ? image : "");
@@ -103,64 +138,101 @@ export async function PATCH(req: NextRequest) {
     data.passwordHash = await hash(next, 10);
   }
 
-  const updated = await prisma.user.update({
-    where: { id: session.user.id },
-    data,
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      image: true,
-      role: true,
-      bio: true,
-      socialLinks: true,
-      education: true,
-      goals: true,
-      previousWork: true,
-      isAfdaStudent: true,
-    },
-  });
+  if (headline !== undefined) data.headline = headline;
+  if (location !== undefined) data.location = location;
+  if (website !== undefined) data.website = website;
 
-  // Update network profile fields via raw SQL (columns may not be in generated client yet)
-  if (headline !== undefined || location !== undefined || website !== undefined || phoneNumber !== undefined) {
-    const updates: string[] = [];
-    const values: unknown[] = [];
-    let i = 1;
-    if (headline !== undefined) {
-      updates.push(`"headline" = $${i++}`);
-      values.push(headline);
+  const userSelect = {
+    id: true,
+    name: true,
+    email: true,
+    phoneNumber: true,
+    image: true,
+    role: true,
+    bio: true,
+    socialLinks: true,
+    education: true,
+    goals: true,
+    previousWork: true,
+    isAfdaStudent: true,
+    headline: true,
+    location: true,
+    website: true,
+  } as const;
+
+  let updated;
+  try {
+    if (Object.keys(data).length > 0) {
+      updated = await prisma.user.update({
+        where: { id: session.user.id },
+        data,
+        select: userSelect,
+      });
+    } else {
+      updated = await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: userSelect,
+      });
+      if (!updated) {
+        return NextResponse.json({ error: "User not found" }, { status: 404 });
+      }
     }
-    if (location !== undefined) {
-      updates.push(`"location" = $${i++}`);
-      values.push(location);
-    }
-    if (website !== undefined) {
-      updates.push(`"website" = $${i++}`);
-      values.push(website);
-    }
-    if (phoneNumber !== undefined) {
-      updates.push(`"phoneNumber" = $${i++}`);
-      values.push(typeof phoneNumber === "string" ? phoneNumber.trim() : null);
-    }
-    if (updates.length) {
-      values.push(session.user.id);
-      await prisma.$executeRawUnsafe(
-        `UPDATE "User" SET ${updates.join(", ")} WHERE "id" = $${i}`,
-        ...values
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Could not update profile.";
+    const hint =
+      message.includes("phoneNumber") || message.includes("column")
+        ? " Database may be missing viewer onboarding columns. Run: npx prisma migrate deploy"
+        : "";
+    return NextResponse.json({ error: `${message}${hint}` }, { status: 400 });
+  }
+
+  const hasAddressField =
+    residentialAddress !== undefined ||
+    city !== undefined ||
+    provinceState !== undefined ||
+    postalCode !== undefined ||
+    country !== undefined;
+  if (hasAddressField) {
+    try {
+      await upsertViewerBillingAddress(session.user.id, {
+        residentialAddress: typeof residentialAddress === "string" ? residentialAddress : undefined,
+        city: typeof city === "string" ? city : undefined,
+        provinceState: typeof provinceState === "string" ? provinceState : undefined,
+        postalCode: typeof postalCode === "string" ? postalCode : undefined,
+        country: typeof country === "string" ? country : undefined,
+      });
+    } catch (error) {
+      return NextResponse.json(
+        {
+          error:
+            error instanceof Error
+              ? error.message
+              : "Could not save billing address. Ensure UserPreference table exists (run migrations).",
+        },
+        { status: 400 },
       );
     }
   }
 
-  const extra = await prisma.$queryRawUnsafe<{ headline: string | null; location: string | null; website: string | null; phoneNumber: string | null }[]>(
-    `SELECT "headline", "location", "website", "phoneNumber" FROM "User" WHERE "id" = $1`,
-    session.user.id
-  ).catch(() => []);
-  const profile = extra[0];
-  return NextResponse.json({
-    ...updated,
-    headline: profile?.headline ?? null,
-    location: profile?.location ?? null,
-    website: profile?.website ?? null,
-    phoneNumber: profile?.phoneNumber ?? null,
-  });
+  const role = (session.user as { role?: string }).role;
+  if (role === "SUBSCRIBER" || role === "ADMIN") {
+    const fresh = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { name: true, email: true, phoneNumber: true, accountOnboardingCompletedAt: true },
+    });
+    if (fresh && !isViewerAccountOnboardingComplete(fresh) && fresh.name && fresh.email && fresh.phoneNumber) {
+      await completeViewerAccountOnboarding(session.user.id, {
+        name: fresh.name,
+        email: fresh.email,
+        phoneNumber: fresh.phoneNumber,
+      }).catch(() => null);
+    }
+  }
+
+  const billingAddress =
+    hasAddressField || role === "SUBSCRIBER" || role === "ADMIN"
+      ? await loadViewerBillingAddress(session.user.id).catch(() => null)
+      : null;
+
+  return NextResponse.json({ ...updated, billingAddress });
 }

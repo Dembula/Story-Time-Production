@@ -35,12 +35,13 @@ export default async function BrowseLayout({
       if (!sub) {
         redirect("/onboarding/package");
       }
-      if (user && !isViewerAccountOnboardingComplete(user)) {
+      const cookieStore = await cookies();
+      const onboardingDeferred = cookieStore.get("st_onboarding_deferred")?.value === "1";
+      if (user && !isViewerAccountOnboardingComplete(user) && !onboardingDeferred) {
         redirect("/onboarding/account");
       }
-      const cookieStore = await cookies();
       const activeProfileId = cookieStore.get("st_viewer_profile")?.value;
-      if (!activeProfileId) {
+      if (!activeProfileId && !onboardingDeferred) {
         redirect("/profiles");
       }
       subscriptionExpired = getViewerModel(sub) === "SUBSCRIPTION" ? isViewerSubscriptionExpired(sub) : false;

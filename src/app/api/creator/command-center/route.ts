@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
   const role = (session?.user as { role?: string })?.role;
   const creatorId = (session?.user as { id?: string })?.id;
 
-  if (role !== "CONTENT_CREATOR" && role !== "ADMIN") {
+  if (role !== "CONTENT_CREATOR" && role !== "MUSIC_CREATOR" && role !== "ADMIN") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   if (!creatorId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

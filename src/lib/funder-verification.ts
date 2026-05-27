@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 
-export type FunderVerificationStatus = "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
+export type FunderVerificationStatus = "DRAFT" | "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
 
 export function isFunderRole(role?: string | null): boolean {
   return role === "FUNDER" || role === "ADMIN";
@@ -68,12 +68,23 @@ export function getFunderVerificationBannerContent(input: {
   const platformNote =
     "You can browse opportunities, messages, and your dashboard normally. Investing, deal funding, and capital payouts stay locked until compliance approves your verification.";
 
-  if (!input.hasSubmittedProfile && !status) {
+  if (!input.hasSubmittedProfile) {
+    if (status === "REJECTED") {
+      return {
+        variant: "rejected",
+        title: "Verification needs attention",
+        body: input.reviewNote?.trim()
+          ? `${platformNote} Reason: ${input.reviewNote.trim()}`
+          : `${platformNote} Please update your documents and resubmit.`,
+        ctaLabel: "Update verification",
+      };
+    }
+    const isDraft = status === "DRAFT" || Boolean(status);
     return {
       variant: "not_submitted",
-      title: "Funder verification required",
+      title: isDraft ? "Continue funder verification" : "Funder verification required",
       body: `${platformNote} Submit your KYC application when you are ready to invest.`,
-      ctaLabel: "Start verification",
+      ctaLabel: isDraft ? "Continue verification" : "Start verification",
     };
   }
 

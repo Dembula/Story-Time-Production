@@ -9,8 +9,6 @@ import { CreatorStudioActingLabel } from "@/components/creator/creator-studio-sw
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { WalletBalanceChip } from "@/components/layout/wallet-balance-chip";
 import { CREATOR_STUDIO_PROFILES_QUERY_KEY } from "@/lib/pricing";
-import { PayoutKycBanner } from "@/components/payout-kyc/payout-kyc-banner";
-
 export default function MusicCreatorLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -79,9 +77,6 @@ export default function MusicCreatorLayout({ children }: { children: React.React
           </div>
         </div>
       </header>
-      <div className="max-w-7xl mx-auto px-6 pt-4 md:px-12">
-        <PayoutKycBanner />
-      </div>
       {children}
     </div>
   );

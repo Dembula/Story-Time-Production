@@ -19,6 +19,7 @@ export async function GET() {
   if (access.error) return access.error;
 
   const profiles = await prisma.payoutKycProfile.findMany({
+    where: { submittedAt: { not: null } },
     orderBy: [{ submittedAt: "desc" }, { createdAt: "desc" }],
     include: {
       user: { select: { id: true, name: true, email: true, role: true, creatorAccountStructure: true } },

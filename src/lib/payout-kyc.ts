@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 
-export type KycVerificationStatus = "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
+export type KycVerificationStatus = "DRAFT" | "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
 
 /** Roles that receive marketplace payouts and must complete KYC (funders use FunderProfile). */
 export const PAYOUT_KYC_ROLES = new Set([
@@ -135,12 +135,23 @@ export function getPayoutKycBannerContent(input: {
   const platformNote =
     "You can keep using Story Time normally. Withdrawals and marketplace payouts stay locked until compliance approves your verification.";
 
-  if (!input.hasSubmittedProfile && !status) {
+  if (!input.hasSubmittedProfile) {
+    if (status === "REJECTED") {
+      return {
+        variant: "rejected",
+        title: "Payout verification needs attention",
+        body: input.reviewNote?.trim()
+          ? `${platformNote} Reason: ${input.reviewNote.trim()}`
+          : `${platformNote} Please update your documents and resubmit.`,
+        ctaLabel: "Update verification",
+      };
+    }
+    const isDraft = status === "DRAFT" || Boolean(status);
     return {
       variant: "not_submitted",
-      title: "Payout verification required",
+      title: isDraft ? "Continue payout verification" : "Payout verification required",
       body: `${platformNote} Complete identity and banking verification to submit your application for review.`,
-      ctaLabel: "Start payout verification",
+      ctaLabel: isDraft ? "Continue payout verification" : "Start payout verification",
     };
   }
 

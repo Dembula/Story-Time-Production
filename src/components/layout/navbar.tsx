@@ -24,7 +24,6 @@ export function Navbar() {
   const pathname = usePathname();
   const { deviceClass } = useAdaptiveUi();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [navOpen, setNavOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [activeProfile, setActiveProfile] = useState<{ id: string; name: string; age: number } | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -126,16 +125,6 @@ export function Navbar() {
       </div>
 
       <div className="flex items-center gap-2">
-        {compactNav && (
-          <button
-            type="button"
-            onClick={() => setNavOpen((v) => !v)}
-            className="rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs text-slate-200"
-            aria-expanded={navOpen}
-          >
-            Browse
-          </button>
-        )}
         {session && <NotificationBell />}
 
         {session ? (
@@ -193,20 +182,6 @@ export function Navbar() {
         )}
       </div>
 
-      {compactNav && navOpen && (
-        <div className="absolute left-0 right-0 top-full border-b border-white/10 bg-[#080c16]/97 px-3 py-3 backdrop-blur-xl">
-          <div className="grid grid-cols-2 gap-1.5">
-            <Link href="/browse" className="rounded-lg px-3 py-2 text-sm text-slate-200 hover:bg-white/[0.06]" onClick={() => setNavOpen(false)}>
-              Home
-            </Link>
-            {CONTENT_TYPES.map((t) => (
-              <Link key={t.value} href={t.href} className="rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-white/[0.06]" onClick={() => setNavOpen(false)}>
-                {t.label}
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
     </nav>
   );
 }

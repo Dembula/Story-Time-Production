@@ -9,7 +9,8 @@ import { prisma } from "./prisma";
 import { findUserActiveStudioProfileId, findUserForCredentialsLogin } from "./prisma-user-studio-compat";
 import { sendWelcomeEmail } from "./sendgrid";
 import { CREATOR_ROLES, VIEWER_ROLES, ensureUserRole, getUserRoles } from "./user-roles";
-import { getPayoutKycStatus, requiresPayoutKyc } from "./payout-kyc";
+import { getPayoutKycStatus, requiresPayoutKyc, type KycVerificationStatus } from "./payout-kyc";
+import type { FunderVerificationStatus } from "./funder-verification";
 
 type PortalScope = "VIEWER" | "CREATOR" | "ADMIN";
 
@@ -283,7 +284,8 @@ export const authOptions: NextAuthOptions = {
             where: { userId: user.id },
             select: { verificationStatus: true },
           });
-          token.funderVerificationStatus = (profile?.verificationStatus as "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED" | undefined) ?? undefined;
+          token.funderVerificationStatus =
+            (profile?.verificationStatus as FunderVerificationStatus | undefined) ?? undefined;
         } else {
           token.funderVerificationStatus = undefined;
         }
@@ -312,8 +314,7 @@ export const authOptions: NextAuthOptions = {
           select: { verificationStatus: true },
         });
         token.funderVerificationStatus =
-          (profile?.verificationStatus as "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED" | undefined) ??
-          undefined;
+          (profile?.verificationStatus as FunderVerificationStatus | undefined) ?? undefined;
       }
       if (requiresPayoutKyc(token.role as string) && token.id) {
         token.payoutKycVerificationStatus =
@@ -330,10 +331,10 @@ export const authOptions: NextAuthOptions = {
         if (token.picture !== undefined) session.user.image = token.picture;
         (session.user as { portalScope?: PortalScope }).portalScope =
           ((token as { portalScope?: PortalScope }).portalScope as PortalScope | undefined) ?? undefined;
-        (session.user as { funderVerificationStatus?: "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED" }).funderVerificationStatus =
-          (token as { funderVerificationStatus?: "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED" }).funderVerificationStatus;
-        (session.user as { payoutKycVerificationStatus?: "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED" }).payoutKycVerificationStatus =
-          (token as { payoutKycVerificationStatus?: "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED" }).payoutKycVerificationStatus;
+        (session.user as { funderVerificationStatus?: FunderVerificationStatus }).funderVerificationStatus =
+          (token as { funderVerificationStatus?: FunderVerificationStatus }).funderVerificationStatus;
+        (session.user as { payoutKycVerificationStatus?: KycVerificationStatus }).payoutKycVerificationStatus =
+          (token as { payoutKycVerificationStatus?: KycVerificationStatus }).payoutKycVerificationStatus;
         (session.user as { activeCreatorStudioProfileId?: string | null }).activeCreatorStudioProfileId =
           (token as { activeCreatorStudioProfileId?: string | null }).activeCreatorStudioProfileId ?? null;
       }

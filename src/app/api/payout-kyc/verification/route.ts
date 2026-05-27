@@ -3,14 +3,56 @@ import { Prisma } from "@prisma/client";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { validateIdOrPassportByCountry } from "@/lib/kyc-validation";
+import { validateIdOrPassportByCountry, validateIdOrPassportByCountryIfPresent } from "@/lib/kyc-validation";
 import {
   type KycPayload,
   parsePayoutKycRiskLevel,
   requiresPayoutKyc,
 } from "@/lib/payout-kyc";
+import {
+  extractKycDocumentsFromPayload,
+  syncCreatorBankingFromKyc,
+  syncPayoutKycVerifications,
+  syncUserContactFromKyc,
+} from "@/lib/kyc-verification-sync";
 
 type KycDocumentInput = { documentType: string; documentUrl: string };
+
+function validatePayoutSubmission(payload?: KycPayload, documents?: KycDocumentInput[]): string | null {
+  const kyc = payload ?? {};
+  const docs = Array.isArray(documents) ? documents : [];
+  const hasDoc = (type: string) => docs.some((d) => d.documentType === type && d.documentUrl?.trim());
+
+  if (!kyc.basicIdentity?.fullName?.trim() || !kyc.basicIdentity?.idNumber?.trim() || !kyc.basicIdentity?.dateOfBirth?.trim()) {
+    return "Complete full name, ID/passport number, and date of birth.";
+  }
+  if (!kyc.addressInfo?.residentialAddress?.trim() || !kyc.addressInfo?.city?.trim() || !kyc.addressInfo?.country?.trim()) {
+    return "Complete residential address details before submitting.";
+  }
+  if (!hasDoc("ID_FRONT") || !hasDoc("ID_BACK") || !hasDoc("SELFIE")) {
+    return "Required documents are missing (ID front, ID back, selfie).";
+  }
+  if (kyc.businessVerification?.isBusinessApplicant) {
+    if (
+      !kyc.businessVerification.companyName?.trim() ||
+      !kyc.businessVerification.registrationNumber?.trim() ||
+      !hasDoc("COMPANY_REGISTRATION")
+    ) {
+      return "Business applicants must provide company details and registration documents.";
+    }
+  }
+  if (!kyc.financialInfo?.bankName?.trim() || !kyc.financialInfo?.accountHolderName?.trim() || !kyc.financialInfo?.accountNumber?.trim()) {
+    return "Complete required banking details before submitting.";
+  }
+  if (
+    !kyc.riskCompliance?.sanctionsDeclarationAccepted ||
+    !kyc.riskCompliance?.termsAccepted ||
+    !kyc.riskCompliance?.popiaConsentAccepted
+  ) {
+    return "Accept required declarations and consent before submitting.";
+  }
+  return null;
+}
 
 async function requirePayoutUser() {
   const session = await getServerSession(authOptions);
@@ -66,6 +108,9 @@ export async function POST(req: NextRequest) {
   );
   if (idFormatError) return NextResponse.json({ error: idFormatError }, { status: 400 });
 
+  const submissionError = validatePayoutSubmission(body.kycData, documents);
+  if (submissionError) return NextResponse.json({ error: submissionError }, { status: 400 });
+
   const profile = await prisma.$transaction(async (tx) => {
     const saved = await tx.payoutKycProfile.upsert({
       where: { userId: access.userId! },
@@ -91,39 +136,11 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    await tx.payoutKycVerification.deleteMany({
-      where: { payoutKycProfileId: saved.id, status: "PENDING" },
-    });
-    await tx.payoutKycVerification.createMany({
-      data: documents.map((doc) => ({
-        payoutKycProfileId: saved.id,
-        submittedById: access.userId!,
-        documentType: doc.documentType,
-        documentUrl: doc.documentUrl,
-        status: "PENDING",
-      })),
-    });
-
-    const fin = body.kycData?.financialInfo;
-    if (fin?.bankName && fin.accountNumber && fin.accountHolderName) {
-      await tx.creatorBanking.upsert({
-        where: { userId: access.userId! },
-        create: {
-          userId: access.userId!,
-          bankName: fin.bankName.trim(),
-          accountNumber: fin.accountNumber.trim(),
-          accountType: fin.accountType?.trim() || "CHEQUE",
-          branchCode: fin.branchCode?.trim() || null,
-        },
-        update: {
-          bankName: fin.bankName.trim(),
-          accountNumber: fin.accountNumber.trim(),
-          accountType: fin.accountType?.trim() || "CHEQUE",
-          branchCode: fin.branchCode?.trim() || null,
-          verifiedAt: null,
-        },
-      });
-    }
+    const docRefs =
+      documents.length > 0 ? documents : extractKycDocumentsFromPayload(body.kycData ?? {});
+    await syncPayoutKycVerifications(tx, saved.id, access.userId!, docRefs);
+    await syncUserContactFromKyc(tx, access.userId!, body.kycData ?? {});
+    await syncCreatorBankingFromKyc(tx, access.userId!, body.kycData ?? {});
 
     await tx.adminAuditLog.create({
       data: {
@@ -152,31 +169,51 @@ export async function PATCH(req: NextRequest) {
 
   if (!body?.kycData) return NextResponse.json({ error: "kycData is required." }, { status: 400 });
 
-  const idFormatError = validateIdOrPassportByCountry(
-    body.kycData.addressInfo?.country || body.kycData.basicIdentity?.nationality,
-    body.kycData.basicIdentity?.idNumber,
+  const kycPayload = body.kycData;
+
+  const idFormatError = validateIdOrPassportByCountryIfPresent(
+    kycPayload.addressInfo?.country || kycPayload.basicIdentity?.nationality,
+    kycPayload.basicIdentity?.idNumber,
   );
   if (idFormatError) return NextResponse.json({ error: idFormatError }, { status: 400 });
 
-  const legalName = body.legalName?.trim() || body.kycData.basicIdentity?.fullName?.trim() || null;
-  const profile = await prisma.payoutKycProfile.upsert({
-    where: { userId: access.userId! },
-    create: {
-      userId: access.userId!,
-      accountRole: access.role!,
-      legalName,
-      entityType: body.entityType?.trim() || "INDIVIDUAL",
-      verificationStatus: "PENDING",
-      riskLevel: parsePayoutKycRiskLevel(body.kycData),
-      kycData: body.kycData as Prisma.InputJsonValue,
-      adminReviewRequired: true,
-    },
-    update: {
-      legalName,
-      entityType: body.entityType?.trim() || undefined,
-      kycData: body.kycData as Prisma.InputJsonValue,
-      riskLevel: parsePayoutKycRiskLevel(body.kycData),
-    },
+  const legalName = body.legalName?.trim() || kycPayload.basicIdentity?.fullName?.trim() || null;
+  const profile = await prisma.$transaction(async (tx) => {
+    const existing = await tx.payoutKycProfile.findUnique({
+      where: { userId: access.userId! },
+      select: { submittedAt: true },
+    });
+    const draftStatusUpdate = existing?.submittedAt ? {} : { verificationStatus: "DRAFT" as const };
+
+    const saved = await tx.payoutKycProfile.upsert({
+      where: { userId: access.userId! },
+      create: {
+        userId: access.userId!,
+        accountRole: access.role!,
+        legalName,
+        entityType: body.entityType?.trim() || "INDIVIDUAL",
+        verificationStatus: "DRAFT",
+        riskLevel: parsePayoutKycRiskLevel(kycPayload),
+        kycData: kycPayload as Prisma.InputJsonValue,
+        adminReviewRequired: true,
+      },
+      update: {
+        legalName,
+        entityType: body.entityType?.trim() || undefined,
+        kycData: kycPayload as Prisma.InputJsonValue,
+        riskLevel: parsePayoutKycRiskLevel(kycPayload),
+        ...draftStatusUpdate,
+      },
+    });
+
+    const docRefs = extractKycDocumentsFromPayload(kycPayload);
+    if (docRefs.length > 0) {
+      await syncPayoutKycVerifications(tx, saved.id, access.userId!, docRefs);
+    }
+    await syncUserContactFromKyc(tx, access.userId!, kycPayload);
+    await syncCreatorBankingFromKyc(tx, access.userId!, kycPayload);
+
+    return saved;
   });
 
   return NextResponse.json({ ok: true, profile });
