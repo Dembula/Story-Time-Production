@@ -7,7 +7,9 @@ import { useRef, useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import { useContentPrefetch } from "@/hooks/use-content-prefetch";
 import { hoverPhysicsProps } from "@/lib/motion/presets";
+import { viewerHoverLiftProps } from "@/lib/motion/viewer-presets";
 import { useMotion } from "@/components/motion/motion-provider";
+import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
 import { Skeleton } from "@/components/ui/skeleton";
 import { resolveTrailerSources } from "@/lib/playback-sources";
 import { getDisplayPosterUrl, getStreamThumbnailGifUrl } from "@/lib/content-media-urls";
@@ -35,10 +37,15 @@ function ContentCard({
   const videoRef = useRef<HTMLVideoElement>(null);
   const prefetch = useContentPrefetch();
   const { intensity, prefersReducedMotion } = useMotion();
+  const { deviceClass } = useAdaptiveUi();
   const trailer = resolveTrailerSources(item.trailerUrl);
   const imageUrl = getDisplayPosterUrl(item);
   const hoverGif = !trailer ? getStreamThumbnailGifUrl(item.videoUrl ?? item.trailerUrl) : null;
-  const hoverMotion = prefersReducedMotion ? {} : hoverPhysicsProps(intensity);
+  const hoverMotion = prefersReducedMotion
+    ? {}
+    : deviceClass === "mobile"
+      ? viewerHoverLiftProps(false)
+      : hoverPhysicsProps(intensity);
 
   const onEnter = useCallback(() => {
     prefetch({
@@ -148,6 +155,7 @@ export function ContentRow({
   ppvMode?: boolean;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const { prefersReducedMotion } = useMotion();
 
   function scroll(direction: "left" | "right") {
     if (!scrollRef.current) return;
@@ -183,23 +191,25 @@ export function ContentRow({
           <h2 className="font-display text-xl font-semibold text-white">{title}</h2>
           {subtitle && <p className="mt-1 text-sm text-slate-400">{subtitle}</p>}
         </div>
-        <div className="flex gap-2 opacity-0 transition group-hover/row:opacity-100">
-          <button
+        <div className="flex gap-2 opacity-100 transition md:opacity-0 md:group-hover/row:opacity-100">
+          <motion.button
             type="button"
             onClick={() => scroll("left")}
-            className="rounded-full border border-white/10 bg-white/[0.06] p-2.5 shadow-panel hover:-translate-y-0.5 hover:bg-white/[0.12]"
+            whileTap={prefersReducedMotion ? undefined : { scale: 0.94 }}
+            className="viewer-motion-surface rounded-full border border-white/12 bg-white/[0.08] p-2.5 shadow-panel backdrop-blur-xl hover:-translate-y-0.5 hover:bg-white/[0.15]"
             aria-label="Scroll left"
           >
             <ChevronLeft className="h-5 w-5 text-white" />
-          </button>
-          <button
+          </motion.button>
+          <motion.button
             type="button"
             onClick={() => scroll("right")}
-            className="rounded-full border border-white/10 bg-white/[0.06] p-2.5 shadow-panel hover:-translate-y-0.5 hover:bg-white/[0.12]"
+            whileTap={prefersReducedMotion ? undefined : { scale: 0.94 }}
+            className="viewer-motion-surface rounded-full border border-white/12 bg-white/[0.08] p-2.5 shadow-panel backdrop-blur-xl hover:-translate-y-0.5 hover:bg-white/[0.15]"
             aria-label="Scroll right"
           >
             <ChevronRight className="h-5 w-5 text-white" />
-          </button>
+          </motion.button>
         </div>
       </div>
       <div

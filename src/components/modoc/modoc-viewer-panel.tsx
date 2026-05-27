@@ -1,11 +1,19 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { useModoc } from "./use-modoc";
 import { Bot, X, Send, Sparkles } from "lucide-react";
 import Link from "next/link";
+import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
+import { useMotion } from "@/components/motion/motion-provider";
+import {
+  viewerMessageVariants,
+  viewerOverlayVariants,
+  viewerSheetVariants,
+} from "@/lib/motion/viewer-presets";
 
-/** MODOC panel for the viewer (browse) dashboard: futuristic, large, easy to read. */
+/** MODOC panel for the viewer (browse) dashboard: premium glass sheet with tuned motion. */
 export function ModocViewerPanel({
   open,
   onClose,
@@ -16,6 +24,9 @@ export function ModocViewerPanel({
   const { messages, append, status, setRequestContext } = useModoc();
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
+  const { deviceClass } = useAdaptiveUi();
+  const { prefersReducedMotion } = useMotion();
+  const isMobile = deviceClass === "mobile";
 
   useEffect(() => {
     setRequestContext({
@@ -26,8 +37,8 @@ export function ModocViewerPanel({
   }, [setRequestContext]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    bottomRef.current?.scrollIntoView({ behavior: prefersReducedMotion ? "auto" : "smooth" });
+  }, [messages, prefersReducedMotion]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,151 +48,173 @@ export function ModocViewerPanel({
     setInput("");
   };
 
-  if (!open) return null;
-
   return (
-    <>
-      <div
-        className="fixed inset-0 z-[1200] bg-black/72 backdrop-blur-md"
-        onClick={onClose}
-        aria-hidden
-      />
-      <div
-        className="fixed inset-x-3 bottom-3 top-[5.25rem] z-[1210] mx-auto flex w-auto max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-700/90 bg-slate-950 shadow-2xl lg:inset-x-8 lg:top-[6.5rem]"
-        style={{ boxShadow: "0 16px 64px rgba(2, 6, 23, 0.75)" }}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-700/70 bg-slate-900/85 px-6 py-4">
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-500/20 bg-gradient-to-br from-cyan-500/20 to-orange-500/20 shadow-lg">
-                <Bot className="w-8 h-8 text-cyan-300" />
-              </div>
-              <span className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full bg-emerald-400/80 ring-2 ring-slate-900" />
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-white tracking-tight">
-                AI assistant
-              </h2>
-              <p className="text-sm text-slate-400 mt-0.5">
-                Find a movie by scene · Get suggestions from your watch history
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
+    <AnimatePresence>
+      {open ? (
+        <>
+          <motion.div
+            className="fixed inset-0 z-[1200] bg-black/62 backdrop-blur-xl"
+            variants={viewerOverlayVariants()}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
             onClick={onClose}
-            className="p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-700/50 transition-colors"
-            aria-label="Close"
+            aria-hidden
+          />
+          <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="modoc-viewer-title"
+            className="fixed inset-x-2 bottom-[calc(env(safe-area-inset-bottom)+0.5rem)] top-[4.8rem] z-[1210] mx-auto flex w-auto max-w-4xl flex-col overflow-hidden rounded-3xl border border-white/15 bg-[linear-gradient(145deg,rgba(10,16,28,0.92),rgba(7,11,20,0.88))] shadow-2xl backdrop-blur-2xl md:inset-x-5 md:bottom-4 md:top-[5.5rem] lg:inset-x-8 lg:top-[6.5rem]"
+            style={{ boxShadow: "0 18px 72px rgba(2, 6, 23, 0.75), inset 0 1px 0 rgba(255,255,255,0.08)" }}
+            variants={viewerSheetVariants(isMobile)}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
           >
-            <X className="w-6 h-6" />
-          </button>
-        </div>
-
-        {/* Messages */}
-        <div className="min-h-0 flex-1 space-y-6 overflow-y-auto bg-slate-950 px-6 py-5">
-          {messages.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-              <div className="w-20 h-20 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center mb-6">
-                <Sparkles className="w-10 h-10 text-cyan-400/80" />
-              </div>
-              <p className="text-lg text-slate-300 max-w-sm leading-relaxed">
-                Describe a scene or ask for a title — I’ll search the Story Time catalog.
-              </p>
-              <p className="text-slate-500 mt-2 text-sm max-w-sm">
-                I can also suggest films based on what you’ve been watching.
-              </p>
-            </div>
-          )}
-          {messages.map((message) => {
-            const isUser = message.role === "user";
-            return (
-              <div
-                key={message.id}
-                className={`flex ${isUser ? "justify-end" : "justify-start"}`}
-              >
-                <div
-                  className={`max-w-[88%] rounded-2xl px-5 py-4 ${
-                    isUser
-                      ? "bg-gradient-to-br from-cyan-500/25 to-orange-500/25 text-white border border-cyan-500/20"
-                      : "border border-slate-700/70 bg-slate-900 text-slate-100"
-                  }`}
-                >
-                  <div className="text-[15px] leading-relaxed whitespace-pre-wrap break-words">
-                    {message.parts?.map((part, i) => {
-                      if (part.type === "text") {
-                        const content = (part as { text?: string }).text ?? "";
-                        const linkRegex = /\/browse\/content\/([a-z0-9]+)/gi;
-                        const parts: React.ReactNode[] = [];
-                        let lastIndex = 0;
-                        let match: RegExpExecArray | null;
-                        while ((match = linkRegex.exec(content)) !== null) {
-                          parts.push(content.slice(lastIndex, match.index));
-                          parts.push(
-                            <Link
-                              key={i + match[0]}
-                              href={match[0]}
-                              className="inline-flex items-center gap-1 mt-1 px-2.5 py-1 rounded-lg bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 border border-cyan-500/30 transition-colors font-medium"
-                              onClick={onClose}
-                            >
-                              View this title →
-                            </Link>
-                          );
-                          lastIndex = match.index + match[0].length;
-                        }
-                        parts.push(content.slice(lastIndex));
-                        return <span key={i}>{parts}</span>;
-                      }
-                      return null;
-                    })}
+            <div className="flex items-center justify-between border-b border-white/10 bg-white/[0.03] px-4 py-4 md:px-6">
+              <div className="flex items-center gap-4">
+                <div className="relative">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-400/30 bg-gradient-to-br from-cyan-400/20 via-sky-400/10 to-orange-400/20 shadow-lg md:h-14 md:w-14">
+                    <Bot className="h-8 w-8 text-cyan-300" />
                   </div>
+                  <span className="absolute -bottom-1 -right-1 h-3 w-3 rounded-full bg-emerald-400/80 ring-2 ring-slate-900" />
+                </div>
+                <div>
+                  <h2 id="modoc-viewer-title" className="text-lg font-semibold tracking-tight text-white md:text-xl">
+                    AI assistant
+                  </h2>
+                  <p className="mt-0.5 text-xs text-slate-400 md:text-sm">
+                    Find a movie by scene · Get suggestions from your watch history
+                  </p>
                 </div>
               </div>
-            );
-          })}
-          {(status === "streaming" || status === "submitted") && (
-            <div className="flex justify-start">
-              <div className="flex items-center gap-3 rounded-2xl border border-slate-700/70 bg-slate-900 px-5 py-4">
-                <div className="flex gap-1">
-                  <span className="w-2 h-2 rounded-full bg-cyan-400 animate-bounce [animation-delay:0ms]" />
-                  <span className="w-2 h-2 rounded-full bg-cyan-400 animate-bounce [animation-delay:150ms]" />
-                  <span className="w-2 h-2 rounded-full bg-cyan-400 animate-bounce [animation-delay:300ms]" />
-                </div>
-                <span className="text-sm text-slate-400">Generating…</span>
-              </div>
+              <motion.button
+                type="button"
+                onClick={onClose}
+                whileTap={prefersReducedMotion ? undefined : { scale: 0.94 }}
+                className="viewer-motion-surface rounded-xl p-2.5 text-slate-400 hover:bg-white/10 hover:text-white"
+                aria-label="Close"
+              >
+                <X className="h-6 w-6" />
+              </motion.button>
             </div>
-          )}
-          <div ref={bottomRef} />
-        </div>
 
-        {/* Input */}
-        <form
-          onSubmit={handleSubmit}
-          className="border-t border-slate-700/70 bg-slate-900/90 p-5"
-        >
-          <div className="flex gap-3">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Describe a scene or ask for a movie..."
-              className="flex-1 rounded-xl border border-slate-700 bg-slate-950 px-5 py-4 text-base text-white placeholder:text-slate-500 focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
-              disabled={status === "streaming" || status === "submitted"}
-            />
-            <button
-              type="submit"
-              disabled={
-                !input.trim() ||
-                status === "streaming" ||
-                status === "submitted"
-              }
-              className="px-6 py-4 rounded-xl bg-gradient-to-r from-cyan-500 to-cyan-600 text-white font-medium hover:from-cyan-400 hover:to-cyan-500 disabled:opacity-50 disabled:pointer-events-none transition-all shadow-lg shadow-cyan-500/20"
-            >
-              <Send className="w-5 h-5" />
-            </button>
-          </div>
-        </form>
-      </div>
-    </>
+            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.08),transparent_45%),linear-gradient(180deg,rgba(2,6,23,0.55),rgba(2,6,23,0.78))] px-4 py-4 md:space-y-6 md:px-6 md:py-5">
+              {messages.length === 0 && (
+                <motion.div
+                  initial={prefersReducedMotion ? false : { opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+                  className="flex flex-col items-center justify-center px-6 py-16 text-center"
+                >
+                  <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-2xl border border-cyan-500/20 bg-cyan-500/10">
+                    <Sparkles className="h-10 w-10 text-cyan-400/80" />
+                  </div>
+                  <p className="max-w-sm text-lg leading-relaxed text-slate-300">
+                    Describe a scene or ask for a title — I’ll search the Story Time catalog.
+                  </p>
+                  <p className="mt-2 max-w-sm text-sm text-slate-500">
+                    I can also suggest films based on what you’ve been watching.
+                  </p>
+                </motion.div>
+              )}
+              {messages.map((message) => {
+                const isUser = message.role === "user";
+                return (
+                  <motion.div
+                    key={message.id}
+                    layout={!prefersReducedMotion}
+                    variants={viewerMessageVariants()}
+                    initial={prefersReducedMotion ? false : "hidden"}
+                    animate="visible"
+                    className={`flex ${isUser ? "justify-end" : "justify-start"}`}
+                  >
+                    <div
+                      className={`max-w-[90%] rounded-2xl px-4 py-3.5 md:max-w-[88%] md:px-5 md:py-4 ${
+                        isUser
+                          ? "border border-cyan-300/30 bg-gradient-to-br from-cyan-500/22 to-orange-500/18 text-white shadow-[0_8px_24px_rgba(14,116,144,0.2)]"
+                          : "border border-white/10 bg-white/[0.04] text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+                      }`}
+                    >
+                      <div className="whitespace-pre-wrap break-words text-[15px] leading-relaxed">
+                        {message.parts?.map((part, i) => {
+                          if (part.type === "text") {
+                            const content = (part as { text?: string }).text ?? "";
+                            const linkRegex = /\/browse\/content\/([a-z0-9]+)/gi;
+                            const parts: React.ReactNode[] = [];
+                            let lastIndex = 0;
+                            let match: RegExpExecArray | null;
+                            while ((match = linkRegex.exec(content)) !== null) {
+                              parts.push(content.slice(lastIndex, match.index));
+                              parts.push(
+                                <Link
+                                  key={i + match[0]}
+                                  href={match[0]}
+                                  className="viewer-motion-surface mt-1 inline-flex items-center gap-1 rounded-lg border border-cyan-400/35 bg-cyan-500/16 px-2.5 py-1 font-medium text-cyan-200 hover:bg-cyan-500/28"
+                                  onClick={onClose}
+                                >
+                                  View this title →
+                                </Link>
+                              );
+                              lastIndex = match.index + match[0].length;
+                            }
+                            parts.push(content.slice(lastIndex));
+                            return <span key={i}>{parts}</span>;
+                          }
+                          return null;
+                        })}
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })}
+              <AnimatePresence>
+                {(status === "streaming" || status === "submitted") && (
+                  <motion.div
+                    initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={prefersReducedMotion ? undefined : { opacity: 0, y: 4 }}
+                    className="flex justify-start"
+                  >
+                    <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3.5 md:px-5 md:py-4">
+                      <div className="flex gap-1">
+                        <span className="h-2 w-2 animate-bounce rounded-full bg-cyan-400 [animation-delay:0ms]" />
+                        <span className="h-2 w-2 animate-bounce rounded-full bg-cyan-400 [animation-delay:150ms]" />
+                        <span className="h-2 w-2 animate-bounce rounded-full bg-cyan-400 [animation-delay:300ms]" />
+                      </div>
+                      <span className="text-sm text-slate-400">Generating…</span>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              <div ref={bottomRef} />
+            </div>
+
+            <form onSubmit={handleSubmit} className="border-t border-white/10 bg-white/[0.03] p-4 md:p-5">
+              <div className="flex gap-3">
+                <input
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Describe a scene or ask for a movie..."
+                  className="viewer-motion-surface viewer-motion-glow flex-1 rounded-xl border border-white/12 bg-black/35 px-4 py-3.5 text-sm text-white placeholder:text-slate-500 focus:border-cyan-400/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/40 md:px-5 md:py-4 md:text-base"
+                  disabled={status === "streaming" || status === "submitted"}
+                />
+                <motion.button
+                  type="submit"
+                  disabled={!input.trim() || status === "streaming" || status === "submitted"}
+                  whileHover={prefersReducedMotion ? undefined : { y: -2, scale: 1.02 }}
+                  whileTap={prefersReducedMotion ? undefined : { scale: 0.96 }}
+                  className="viewer-motion-surface rounded-xl bg-gradient-to-r from-cyan-500 to-orange-500 px-4 py-3.5 font-medium text-white shadow-lg shadow-cyan-500/20 hover:from-cyan-400 hover:to-orange-400 disabled:pointer-events-none disabled:opacity-50 md:px-6 md:py-4"
+                >
+                  <Send className="h-5 w-5" />
+                </motion.button>
+              </div>
+            </form>
+          </motion.div>
+        </>
+      ) : null}
+    </AnimatePresence>
   );
 }

@@ -23,6 +23,13 @@ import {
   type DownloadQuality,
 } from "@/lib/offline/download-manager";
 import { useState } from "react";
+import { motion } from "framer-motion";
+import { useMotion } from "@/components/motion/motion-provider";
+import {
+  viewerListContainerVariants,
+  viewerListItemVariants,
+  viewerSprings,
+} from "@/lib/motion/viewer-presets";
 
 function formatBytes(n: number) {
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
@@ -34,6 +41,7 @@ export function DownloadsClient() {
   const { items, refresh } = useDownloads();
   const [quality, setQuality] = useState<DownloadQuality>("standard");
   const router = useRouter();
+  const { prefersReducedMotion } = useMotion();
 
   const active = items.filter((d) => d.status === "downloading" || d.status === "queued");
   const paused = items.filter((d) => d.status === "paused");
@@ -48,7 +56,7 @@ export function DownloadsClient() {
         <p className="mt-2 text-slate-400">Watch saved titles offline when downloads complete.</p>
       </header>
 
-      <div className="mb-8 flex flex-wrap items-center gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4 cinematic-glass">
+      <div className="cinematic-glass mb-8 flex flex-wrap items-center gap-4 rounded-2xl border border-white/12 bg-[linear-gradient(145deg,rgba(15,23,42,0.65),rgba(2,6,23,0.62))] p-4 shadow-panel">
         <div className="flex items-center gap-3">
           <HardDrive className="h-5 w-5 text-orange-300" />
           <div>
@@ -56,17 +64,44 @@ export function DownloadsClient() {
             <p className="text-xs text-slate-400">{formatBytes(storageUsed)} · {completed.length} title{completed.length !== 1 ? "s" : ""}</p>
           </div>
         </div>
-        <div className="ml-auto flex items-center gap-2">
-          <label htmlFor="dl-quality" className="text-xs text-slate-400">Default quality</label>
-          <select
-            id="dl-quality"
-            value={quality}
-            onChange={(e) => setQuality(e.target.value as DownloadQuality)}
-            className="rounded-lg border border-white/10 bg-black/40 px-3 py-1.5 text-sm text-white"
+        <div className="relative ml-auto flex items-center gap-2 rounded-xl border border-white/12 bg-black/25 p-1.5 backdrop-blur-xl">
+          <span className="px-2 text-[11px] font-medium uppercase tracking-wide text-slate-400">Quality</span>
+          <button
+            type="button"
+            onClick={() => setQuality("standard")}
+            className={`viewer-motion-surface relative rounded-lg px-3 py-1.5 text-xs font-medium ${
+              quality === "standard" ? "text-white" : "text-slate-300 hover:bg-white/[0.08]"
+            }`}
           >
-            <option value="standard">Standard</option>
-            <option value="high">High</option>
-          </select>
+            {quality === "standard" && !prefersReducedMotion ? (
+              <motion.span
+                layoutId="download-quality-pill"
+                className="absolute inset-0 rounded-lg bg-white/[0.16] shadow-[inset_0_1px_0_rgba(255,255,255,0.16)]"
+                transition={viewerSprings.nav}
+              />
+            ) : quality === "standard" ? (
+              <span className="absolute inset-0 rounded-lg bg-white/[0.16] shadow-[inset_0_1px_0_rgba(255,255,255,0.16)]" />
+            ) : null}
+            <span className="relative z-[1]">Standard</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setQuality("high")}
+            className={`viewer-motion-surface relative rounded-lg px-3 py-1.5 text-xs font-medium ${
+              quality === "high" ? "text-white" : "text-slate-300 hover:bg-white/[0.08]"
+            }`}
+          >
+            {quality === "high" && !prefersReducedMotion ? (
+              <motion.span
+                layoutId="download-quality-pill"
+                className="absolute inset-0 rounded-lg bg-orange-500/75 shadow-[0_8px_20px_rgba(251,146,60,0.28)]"
+                transition={viewerSprings.nav}
+              />
+            ) : quality === "high" ? (
+              <span className="absolute inset-0 rounded-lg bg-orange-500/75 shadow-[0_8px_20px_rgba(251,146,60,0.28)]" />
+            ) : null}
+            <span className="relative z-[1]">High</span>
+          </button>
         </div>
       </div>
 
@@ -105,9 +140,14 @@ export function DownloadsClient() {
       );
 
     return (
-      <div
+      <motion.div
         key={d.contentId}
-        className="flex items-center gap-4 rounded-xl border border-white/8 bg-white/[0.03] p-3 transition hover:border-white/12"
+        variants={viewerListItemVariants()}
+        initial={prefersReducedMotion ? false : "hidden"}
+        animate="visible"
+        whileHover={prefersReducedMotion ? undefined : { y: -3, scale: 1.005 }}
+        transition={viewerSprings.lift}
+        className="viewer-motion-surface flex items-center gap-4 rounded-xl border border-white/10 bg-white/[0.03] p-3 hover:border-white/20 hover:bg-white/[0.05]"
       >
         <div className="relative h-16 w-11 shrink-0 overflow-hidden rounded-lg bg-slate-900">
           {d.posterUrl ? (
@@ -124,7 +164,7 @@ export function DownloadsClient() {
           </div>
           {(d.status === "downloading" || d.status === "paused") && (
             <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/10">
-              <div className="h-full bg-orange-500 transition-all" style={{ width: `${d.progress}%` }} />
+              <div className="h-full bg-orange-500 transition-[width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]" style={{ width: `${d.progress}%` }} />
             </div>
           )}
         </div>
@@ -133,19 +173,19 @@ export function DownloadsClient() {
             <button
               type="button"
               onClick={() => router.push(`/browse/content/${d.contentId}/watch?offline=1`)}
-              className="rounded-lg p-2 text-slate-300 hover:bg-white/10 hover:text-white"
+              className="rounded-lg border border-transparent p-2 text-slate-300 transition hover:border-white/10 hover:bg-white/10 hover:text-white"
               aria-label="Play offline"
             >
               <Play className="h-4 w-4" />
             </button>
           )}
           {d.status === "downloading" && (
-            <button type="button" onClick={() => { pauseDownload(d.contentId); refresh(); }} className="rounded-lg p-2 text-slate-300 hover:bg-white/10" aria-label="Pause">
+            <button type="button" onClick={() => { pauseDownload(d.contentId); refresh(); }} className="rounded-lg border border-transparent p-2 text-slate-300 transition hover:border-white/10 hover:bg-white/10" aria-label="Pause">
               <Pause className="h-4 w-4" />
             </button>
           )}
           {d.status === "paused" && (
-            <button type="button" onClick={() => { resumeDownload(d.contentId); refresh(); }} className="rounded-lg p-2 text-slate-300 hover:bg-white/10" aria-label="Resume">
+            <button type="button" onClick={() => { resumeDownload(d.contentId); refresh(); }} className="rounded-lg border border-transparent p-2 text-slate-300 transition hover:border-white/10 hover:bg-white/10" aria-label="Resume">
               <Play className="h-4 w-4" />
             </button>
           )}
@@ -162,7 +202,7 @@ export function DownloadsClient() {
                 });
                 refresh();
               }}
-              className="rounded-lg px-2 py-1 text-xs text-orange-300 hover:bg-white/10"
+              className="rounded-lg border border-orange-300/25 bg-orange-500/10 px-2 py-1 text-xs text-orange-200 transition hover:bg-orange-500/20"
             >
               Retry
             </button>
@@ -170,22 +210,30 @@ export function DownloadsClient() {
           <button
             type="button"
             onClick={() => { void removeDownload(d.contentId); refresh(); }}
-            className="rounded-lg p-2 text-slate-400 hover:bg-white/10 hover:text-red-300"
+            className="rounded-lg border border-transparent p-2 text-slate-400 transition hover:border-red-300/20 hover:bg-red-500/10 hover:text-red-300"
             aria-label="Remove download"
           >
             <Trash2 className="h-4 w-4" />
           </button>
         </div>
-      </div>
+      </motion.div>
     );
   }
 }
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
+  const { prefersReducedMotion } = useMotion();
   return (
     <section>
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-500">{title}</h2>
-      <div className="space-y-2">{children}</div>
+      <motion.div
+        className="space-y-2"
+        variants={viewerListContainerVariants()}
+        initial={prefersReducedMotion ? false : "hidden"}
+        animate="visible"
+      >
+        {children}
+      </motion.div>
     </section>
   );
 }

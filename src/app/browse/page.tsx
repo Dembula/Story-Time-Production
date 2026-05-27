@@ -247,7 +247,7 @@ export default async function BrowsePage({
           </div>
         </div>
       )}
-      <div className="hidden md:block max-w-[1800px] mx-auto px-6 md:px-12 pt-6">
+      <div className="max-w-[1800px] mx-auto px-4 pt-4 md:px-12 md:pt-6">
         <BrowseSearchWithModoc defaultSearch={search} type={type} filter={filter} />
       </div>
       <Hero content={heroContent} />

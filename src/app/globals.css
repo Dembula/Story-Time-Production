@@ -299,3 +299,44 @@ html[data-device-class="tv"] .adaptive-table-mobile {
 .capture-protected-player {
   -webkit-touch-callout: none;
 }
+
+/* Viewer premium motion utilities */
+.viewer-motion-surface {
+  transition:
+    transform 380ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 380ms cubic-bezier(0.22, 1, 0.36, 1),
+    color 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.viewer-motion-lift {
+  will-change: transform;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .viewer-motion-lift:hover {
+    transform: translateY(-2px);
+  }
+}
+
+.viewer-motion-press:active {
+  transform: scale(0.985);
+  transition-duration: 120ms;
+}
+
+.viewer-motion-glow:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px rgba(251, 146, 60, 0.35),
+    0 0 0 6px rgba(251, 146, 60, 0.12);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .viewer-motion-surface,
+  .viewer-motion-lift,
+  .viewer-motion-press {
+    transition: none !important;
+    transform: none !important;
+  }
+}
