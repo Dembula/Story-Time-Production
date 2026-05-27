@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { isFunderRole, requireSessionUser } from "@/lib/funders";
+import { canAccessFunderVerificationApi, requireSessionUser } from "@/lib/funders";
 import { validateIdOrPassportByCountry, validateIdOrPassportByCountryIfPresent } from "@/lib/kyc-validation";
 import {
   extractKycDocumentsFromPayload,
@@ -56,7 +56,7 @@ function parseRiskLevel(payload: KycPayload): "LOW" | "MEDIUM" | "HIGH" {
 export async function GET() {
   const access = await requireSessionUser();
   if (access.error) return access.error;
-  if (!isFunderRole(access.role!)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!canAccessFunderVerificationApi(access.role!)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const profile = await prisma.funderProfile.findUnique({
     where: { userId: access.userId! },
@@ -71,7 +71,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const access = await requireSessionUser();
   if (access.error) return access.error;
-  if (!isFunderRole(access.role!)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!canAccessFunderVerificationApi(access.role!)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = (await req.json().catch(() => null)) as
     | {
@@ -171,7 +171,7 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   const access = await requireSessionUser();
   if (access.error) return access.error;
-  if (!isFunderRole(access.role!)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!canAccessFunderVerificationApi(access.role!)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = (await req.json().catch(() => null)) as
     | {

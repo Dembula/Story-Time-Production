@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getPaymentGateway } from "@/lib/payments/gateway";
 import { ensureWalletForUser } from "@/lib/payments/wallet";
 import { postBalancedLedgerBatch } from "@/lib/payments/ledger";
+import { applyPaymentRecordSettlementEffects } from "@/lib/payments/settlement-effects";
 
 const db = prisma as any;
 
@@ -45,49 +46,10 @@ async function settlePaymentRecord(paymentRecordId: string) {
     data: { status: "SUCCEEDED", paidAt: new Date() },
   });
 
-  if (paymentRecord.relatedEntityType === "ViewerSubscription" && paymentRecord.relatedEntityId) {
-    const now = new Date();
-    const current = await db.viewerSubscription.findUnique({
-      where: { id: paymentRecord.relatedEntityId },
-      select: { currentPeriodEnd: true },
-    });
-    const base = current?.currentPeriodEnd && current.currentPeriodEnd > now ? current.currentPeriodEnd : now;
-    const nextPeriodEnd = new Date(base.getTime() + 30 * 24 * 60 * 60 * 1000);
-    await db.viewerSubscription.update({
-      where: { id: paymentRecord.relatedEntityId },
-      data: {
-        status: "ACTIVE",
-        currentPeriodEnd: nextPeriodEnd,
-        lastPaymentStatus: "SUCCEEDED",
-        lastPaymentAt: now,
-        lastPaymentError: null,
-      },
-    });
-  }
-
-  if (paymentRecord.relatedEntityType === "ViewerContentAccess" && paymentRecord.relatedEntityId) {
-    await db.viewerContentAccess.update({
-      where: { id: paymentRecord.relatedEntityId },
-      data: { status: "COMPLETED", purchasedAt: new Date() },
-    });
-  }
-
-  if (paymentRecord.relatedEntityType === "CreatorDistributionLicense" && paymentRecord.relatedEntityId) {
-    // CreatorDistributionLicense currently has no lastPayment* columns.
-    // Settlement source of truth remains PaymentRecord + GatewayReference.
-  }
-
-  if (paymentRecord.relatedEntityType === "CompanySubscription" && paymentRecord.relatedEntityId) {
-    await db.companySubscription.update({
-      where: { id: paymentRecord.relatedEntityId },
-      data: {
-        status: "ACTIVE",
-        lastPaymentStatus: "SUCCEEDED",
-        lastPaymentAt: new Date(),
-        lastPaymentError: null,
-      },
-    });
-  }
+  await applyPaymentRecordSettlementEffects({
+    relatedEntityType: paymentRecord.relatedEntityType,
+    relatedEntityId: paymentRecord.relatedEntityId,
+  });
 
   return true;
 }

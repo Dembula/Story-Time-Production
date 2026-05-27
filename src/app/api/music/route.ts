@@ -2,7 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { normalizeCreatorLicenseType } from "@/lib/pricing";
+import {
+  CREATOR_LICENSE_CONFIG,
+  isCreatorPerUploadLicense,
+  normalizeCreatorLicenseType,
+} from "@/lib/pricing";
+import { initializeCheckout } from "@/lib/payments/billing";
+import { buildPaymentReturnUrl } from "@/lib/payments/return-url";
 import { validateStorageUrlField } from "@/lib/storage-origin";
 
 export async function GET(request: NextRequest) {
@@ -70,6 +76,8 @@ export async function POST(request: NextRequest) {
     where: { id: creatorId },
     select: {
       id: true,
+      email: true,
+      name: true,
       creatorDistributionLicense: {
         select: { type: true, yearlyExpiresAt: true },
       },
@@ -79,12 +87,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Distribution license required. Complete onboarding first." }, { status: 403 });
   }
   const license = user.creatorDistributionLicense;
-  if (normalizeCreatorLicenseType(license.type) === "YEARLY") {
+  const perUpload = isCreatorPerUploadLicense(license.type);
+  if (!perUpload && normalizeCreatorLicenseType(license.type) === "YEARLY") {
     if (license.yearlyExpiresAt && license.yearlyExpiresAt < new Date()) {
       return NextResponse.json({ error: "Yearly license expired. Renew to upload." }, { status: 402 });
     }
-  } else {
-    // Payment gateway has been removed; continue with direct submission.
   }
 
   const track = await prisma.musicTrack.create({
@@ -103,8 +110,35 @@ export async function POST(request: NextRequest) {
       language: language || null,
       licenseType: licenseType || "SYNC",
       creatorId,
+      published: !perUpload,
     },
   });
+
+  if (perUpload) {
+    const amount = CREATOR_LICENSE_CONFIG.PER_UPLOAD.price;
+    try {
+      const { checkout } = await initializeCheckout({
+        userId: creatorId,
+        email: user.email,
+        customerName: user.name,
+        amount,
+        purpose: "music_upload",
+        referenceType: "MusicTrack",
+        referenceId: track.id,
+        returnUrl: buildPaymentReturnUrl("/music-creator/dashboard", "music_upload"),
+        metadata: { trackId: track.id, trackTitle: title },
+      });
+      return NextResponse.json({
+        ...track,
+        requiresPayment: true,
+        checkoutUrl: checkout.checkoutUrl,
+      });
+    } catch (error) {
+      await prisma.musicTrack.delete({ where: { id: track.id } }).catch(() => undefined);
+      const message = error instanceof Error ? error.message : "Unable to initialize checkout.";
+      return NextResponse.json({ error: message }, { status: 502 });
+    }
+  }
 
   return NextResponse.json(track);
 }

@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 export type FunderVerificationStatus = "DRAFT" | "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
 
 export function isFunderRole(role?: string | null): boolean {
-  return role === "FUNDER" || role === "ADMIN";
+  return role === "FUNDER";
 }
 
 export function funderInvestingUnlocked(status?: FunderVerificationStatus | null): boolean {

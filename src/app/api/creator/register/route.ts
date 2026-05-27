@@ -484,6 +484,40 @@ export async function POST(request: NextRequest) {
           },
         });
       }
+
+        if (role === "CATERING_COMPANY") {
+          await tx.cateringCompany.upsert({
+            where: { userId: user.id },
+            update: {
+              companyName: normalizedCompanyName || "Catering Company",
+              description: bio?.trim() || null,
+              city: city?.trim() || null,
+              country: country?.trim() || null,
+              contactEmail: normalizedContactEmail || null,
+              website: website?.trim() || null,
+            },
+            create: {
+              userId: user.id,
+              companyName: normalizedCompanyName || "Catering Company",
+              description: bio?.trim() || null,
+              city: city?.trim() || null,
+              country: country?.trim() || null,
+              contactEmail: normalizedContactEmail || null,
+              website: website?.trim() || null,
+            },
+          });
+        }
+
+        if (role === "FUNDER") {
+          await tx.funderProfile.upsert({
+            where: { userId: user.id },
+            update: {},
+            create: {
+              userId: user.id,
+              verificationStatus: "PENDING",
+            },
+          });
+        }
       });
     };
 
@@ -549,6 +583,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("Creator register error:", e);
-    return NextResponse.json({ error: "Registration failed" }, { status: 500 });
+    const prismaCode = (e as { code?: string })?.code;
+    if (prismaCode === "P2002") {
+      return NextResponse.json({ error: "An account with this email already exists." }, { status: 409 });
+    }
+    const message = e instanceof Error ? e.message : "Registration failed";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

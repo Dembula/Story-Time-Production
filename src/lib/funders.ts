@@ -26,5 +26,10 @@ export function canCreateListings(role: string) {
 }
 
 export function isFunderRole(role: string) {
+  return role === "FUNDER";
+}
+
+/** Admin may review funder verification APIs; only funders see funder KYC prompts in the UI. */
+export function canAccessFunderVerificationApi(role: string) {
   return role === "FUNDER" || role === "ADMIN";
 }

@@ -104,6 +104,7 @@ export function FunderVerificationBanner({ className = "", inline = false }: { c
     setDismissed(window.localStorage.getItem(dismissKey(status)) === "1");
   }, [banner, status]);
 
+  if (role === "ADMIN" || pathname.startsWith("/admin")) return null;
   if (!isFunderRole(role) || pathname.startsWith("/funders/verification")) return null;
   if (!banner) return null;
   if (dismissed && !inline) return null;
