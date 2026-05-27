@@ -53,9 +53,12 @@ export async function PATCH(req: NextRequest) {
     });
     return NextResponse.json(prefs);
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Could not save preferences." },
-      { status: 400 },
-    );
+    const message = error instanceof Error ? error.message : "Could not save preferences.";
+    const schemaHint =
+      message.includes("notifyEmail") || message.includes("playbackQuality") || message.includes("column")
+        ? " Database schema is behind — run: npm run db:migrate:deploy"
+        : "";
+    console.error("PATCH /api/viewer/preferences", error);
+    return NextResponse.json({ error: `${message}${schemaHint}` }, { status: 400 });
   }
 }
