@@ -169,11 +169,11 @@ export function AccountSetupClient() {
 
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
 
-      <div className="flex flex-wrap items-center gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
         <button
           type="submit"
           disabled={saving}
-          className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-6 py-3 font-semibold text-white shadow-glow hover:bg-orange-400 disabled:opacity-60"
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-500 px-6 py-3 font-semibold text-white shadow-glow hover:bg-orange-400 disabled:opacity-60"
         >
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           Save and continue
@@ -193,7 +193,7 @@ export function AccountSetupClient() {
               const data = await res.json().catch(() => ({}));
               if (!res.ok) throw new Error(data.error || "Could not save account details");
               document.cookie = "st_onboarding_deferred=1; path=/; max-age=2592000; SameSite=Lax";
-              router.push("/browse/settings");
+              router.push("/profiles");
               router.refresh();
             } catch (err) {
               setError(err instanceof Error ? err.message : "Save failed");
@@ -203,9 +203,28 @@ export function AccountSetupClient() {
           }}
           className="text-sm text-slate-400 hover:text-white disabled:opacity-50"
         >
-          Save for later — finish in settings
+          Save progress for later
+        </button>
+        <button
+          type="button"
+          disabled={saving}
+          onClick={() => {
+            document.cookie = "st_onboarding_deferred=1; path=/; max-age=2592000; SameSite=Lax";
+            router.push("/profiles");
+            router.refresh();
+          }}
+          className="text-sm text-slate-500 hover:text-white disabled:opacity-50"
+        >
+          Skip for now — create a profile first
         </button>
       </div>
+      <p className="text-xs text-slate-500">
+        You can finish email, phone, and billing address anytime in{" "}
+        <Link href="/browse/settings" className="text-orange-300/90 hover:text-orange-200">
+          Account settings
+        </Link>{" "}
+        after choosing a profile.
+      </p>
     </form>
   );
 }

@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 
 const AUTH_MENU_PANEL_CLASS =
-  "absolute right-0 top-full z-50 mt-2 w-48 rounded-xl border border-white/12 bg-[#080c16]/97 p-1.5 shadow-2xl backdrop-blur-2xl";
+  "absolute right-0 top-full z-[60] mt-2 w-48 rounded-xl border border-white/14 bg-[#080c16] p-1.5 shadow-2xl ring-1 ring-black/40";
 
 export function LandingHeader() {
   const [scrolled, setScrolled] = useState(false);
@@ -63,6 +63,14 @@ export function LandingHeader() {
   }, [authMenuOpen]);
 
   return (
+    <>
+      {isPortraitMobile && authMenuOpen ? (
+        <div
+          className="fixed inset-0 z-40 bg-black/75 backdrop-blur-md"
+          aria-hidden
+          onClick={() => setAuthMenuOpen(null)}
+        />
+      ) : null}
     <header
       className={[
         "fixed top-0 left-0 right-0 z-50 transition-all duration-200",
@@ -154,5 +162,6 @@ export function LandingHeader() {
         </nav>
       </div>
     </header>
+    </>
   );
 }

@@ -41,7 +41,7 @@ export default async function BrowseLayout({
         redirect("/onboarding/account");
       }
       const activeProfileId = cookieStore.get("st_viewer_profile")?.value;
-      if (!activeProfileId && !onboardingDeferred) {
+      if (!activeProfileId) {
         redirect("/profiles");
       }
       subscriptionExpired = getViewerModel(sub) === "SUBSCRIPTION" ? isViewerSubscriptionExpired(sub) : false;

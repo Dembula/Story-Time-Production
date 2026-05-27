@@ -1,14 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { signOut } from "next-auth/react";
-import { LogOut, PanelLeftClose, PanelLeftOpen } from "lucide-react";
-import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { LogOut } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { DashboardSidebarShell, type DashboardNavSection } from "@/components/layout/dashboard-sidebar-shell";
 import { NotificationBell } from "@/components/layout/notification-bell";
-import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
 
-const navSections: { title: string; items: { href: string; label: string; highlight?: boolean }[] }[] = [
+const navSections: DashboardNavSection[] = [
   {
     title: "Operations",
     items: [
@@ -51,27 +49,8 @@ const navSections: { title: string; items: { href: string; label: string; highli
   },
 ];
 
-export default function AdminLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const pathname = usePathname();
-  const { deviceClass, orientation } = useAdaptiveUi();
-  const [sidebarOpen, setSidebarOpen] = useState(deviceClass !== "mobile");
-
-  useEffect(() => {
-    if (deviceClass === "mobile") {
-      setSidebarOpen(false);
-      return;
-    }
-    if (deviceClass === "tablet" && orientation === "portrait") {
-      setSidebarOpen(false);
-      return;
-    }
-    setSidebarOpen(true);
-  }, [deviceClass, orientation]);
 
   const handleSignOut = async () => {
     await signOut({ redirect: false });
@@ -84,23 +63,16 @@ export default function AdminLayout({
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,transparent_0%,rgba(249,115,22,0.02)_100%)]" />
       <div className="absolute left-0 top-0 h-px w-full bg-gradient-to-r from-transparent via-orange-500/30 to-transparent" />
 
-      <header className={`relative border-b border-white/8 bg-white/[0.03] backdrop-blur-xl ${deviceClass === "mobile" ? "px-3 py-3" : "px-6 py-4 md:px-12"}`}>
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setSidebarOpen((v) => !v)}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
-              aria-label={sidebarOpen ? "Hide menu" : "Show menu"}
-              aria-expanded={sidebarOpen}
-            >
-              {sidebarOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
-            </button>
-            <Link href="/admin" className="text-xl font-semibold tracking-tight text-white">
-              <span className="storytime-brand-text">STORY TIME</span> Admin
-            </Link>
-          </div>
-          <div className="flex items-center gap-3">
+      <DashboardSidebarShell
+        className="relative z-10 bg-transparent"
+        brandHref="/admin"
+        brandLabel={
+          <>
+            <span className="storytime-brand-text">STORY TIME</span> Admin
+          </>
+        }
+        headerEnd={
+          <>
             <NotificationBell />
             <button
               onClick={handleSignOut}
@@ -108,58 +80,20 @@ export default function AdminLayout({
             >
               <LogOut className="h-4 w-4" /> Logout
             </button>
-          </div>
-        </div>
-      </header>
-
-      <div className={`relative mx-auto flex max-w-7xl gap-4 md:gap-6 ${deviceClass === "mobile" ? "px-3 py-4" : "px-4 py-6 md:px-8"}`}>
-        {sidebarOpen && (
-          <aside className={`${deviceClass === "tablet" ? "w-64" : "w-56"} shrink-0`}>
-            <nav className="space-y-5 text-sm">
-              {navSections.map((section) => (
-                <div key={section.title}>
-                  <p className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                    {section.title}
-                  </p>
-                  <div className="space-y-0.5">
-                    {section.items.map((item) => {
-                      const active =
-                        item.href === "/admin"
-                          ? pathname === "/admin"
-                          : item.href === "/browse"
-                            ? pathname === "/browse" || pathname.startsWith("/browse/")
-                            : pathname === item.href || pathname.startsWith(item.href + "/");
-                      return (
-                        <Link
-                          key={item.href}
-                          href={item.href}
-                          className={[
-                            "flex items-center rounded-lg px-3 py-2 transition",
-                            active
-                              ? "bg-white/[0.08] text-white shadow-panel"
-                              : "text-slate-400 hover:bg-white/[0.05] hover:text-white",
-                            item.highlight ? "font-medium text-orange-400 hover:text-orange-300" : "",
-                          ].join(" ")}
-                        >
-                          {item.label}
-                        </Link>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-              <button
-                onClick={handleSignOut}
-                className="mt-2 flex w-full items-center gap-1.5 rounded-lg px-3 py-2 text-left text-sm text-slate-400 transition hover:bg-slate-900/70 hover:text-red-400 md:hidden"
-              >
-                <LogOut className="h-4 w-4" /> Logout
-              </button>
-            </nav>
-          </aside>
-        )}
-
-        <main className="min-w-0 flex-1">{children}</main>
-      </div>
+          </>
+        }
+        navSections={navSections}
+        sidebarFooter={
+          <button
+            onClick={handleSignOut}
+            className="flex w-full items-center gap-1.5 rounded-lg px-3 py-2 text-left text-sm text-slate-400 transition hover:bg-slate-900/70 hover:text-red-400 md:hidden"
+          >
+            <LogOut className="h-4 w-4" /> Logout
+          </button>
+        }
+      >
+        {children}
+      </DashboardSidebarShell>
     </div>
   );
 }

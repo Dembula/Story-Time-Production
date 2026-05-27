@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, User, Shield, Users, CheckCircle, AlertCircle } from "lucide-react";
+import { Plus, User, Shield, Users, CheckCircle, AlertCircle, Settings } from "lucide-react";
 import { getBirthDateOptionSets } from "@/lib/viewer-profiles";
 
 type Profile = { id: string; name: string; age: number; dateOfBirth: string | null; updatedAt: string | Date };
@@ -18,11 +19,13 @@ export function ProfilesClient({
   maxProfiles,
   deviceCount,
   viewerModel,
+  accountDetailsIncomplete = false,
 }: {
   initialProfiles: Profile[];
   maxProfiles: number;
   deviceCount: number;
   viewerModel: "SUBSCRIPTION" | "PPV";
+  accountDetailsIncomplete?: boolean;
 }) {
   const router = useRouter();
   const [profiles, setProfiles] = useState<Profile[]>(initialProfiles ?? []);
@@ -153,6 +156,21 @@ export function ProfilesClient({
           <AlertCircle className="w-4 h-4" /> {error}
         </div>
       )}
+
+      {accountDetailsIncomplete ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/12 bg-[#0a0f1a] px-4 py-3 shadow-panel">
+          <p className="text-sm text-slate-300">
+            Account details (email, phone, billing address) are not complete yet.
+          </p>
+          <Link
+            href="/browse/settings"
+            className="inline-flex items-center gap-2 rounded-lg border border-orange-400/30 bg-orange-500/10 px-3 py-2 text-sm font-medium text-orange-200 hover:bg-orange-500/15"
+          >
+            <Settings className="h-4 w-4" />
+            Complete in settings
+          </Link>
+        </div>
+      ) : null}
 
       {profiles.length === 0 && !creating && (
         <div className="mb-6 rounded-2xl border border-orange-400/20 bg-orange-500/6 p-6 shadow-panel">

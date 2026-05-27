@@ -1,5 +1,6 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ProfilesClient } from "./profiles-client";
@@ -21,7 +22,10 @@ export default async function ProfilesPage() {
     where: { id: session.user.id },
     select: { name: true, email: true, phoneNumber: true, accountOnboardingCompletedAt: true },
   });
-  if (userRecord && !isViewerAccountOnboardingComplete(userRecord)) {
+  const cookieStore = await cookies();
+  const onboardingDeferred = cookieStore.get("st_onboarding_deferred")?.value === "1";
+  const accountDetailsIncomplete = Boolean(userRecord && !isViewerAccountOnboardingComplete(userRecord));
+  if (accountDetailsIncomplete && !onboardingDeferred) {
     redirect("/onboarding/account");
   }
 
@@ -41,6 +45,7 @@ export default async function ProfilesPage() {
     <div className="min-h-screen bg-background px-6 py-16 text-slate-100">
       <div className="max-w-4xl mx-auto">
         <ProfilesClient
+          accountDetailsIncomplete={accountDetailsIncomplete}
           initialProfiles={profiles.map((profile) => ({
             id: profile.id,
             name: profile.name,

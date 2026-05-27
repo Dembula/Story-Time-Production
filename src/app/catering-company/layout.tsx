@@ -1,11 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { LogOut } from "lucide-react";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { DashboardSidebarShell } from "@/components/layout/dashboard-sidebar-shell";
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { WalletBalanceChip } from "@/components/layout/wallet-balance-chip";
+
 const navItems = [
   { href: "/catering-company/dashboard", label: "Dashboard" },
   { href: "/catering-company/bookings", label: "Bookings / Offers" },
@@ -16,13 +17,8 @@ const navItems = [
   { href: "/browse", label: "View Platform" },
 ];
 
-export default function CateringCompanyLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function CateringCompanyLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const pathname = usePathname();
 
   const handleSignOut = async () => {
     await signOut({ redirect: false });
@@ -31,59 +27,36 @@ export default function CateringCompanyLayout({
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-white/8 bg-white/[0.03] px-6 py-4 backdrop-blur-xl md:px-12">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <Link href="/catering-company/dashboard" className="text-xl font-semibold text-white">
-            <span className="storytime-brand-text">STORY TIME</span> Catering
-          </Link>
-          <div className="flex items-center gap-3">
-            <WalletBalanceChip />
-            <NotificationBell />
-            <button
-              onClick={handleSignOut}
-              className="hidden md:inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-red-400 transition"
-            >
-              <LogOut className="w-4 h-4" /> Logout
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <div className="max-w-7xl mx-auto px-4 md:px-8 py-6 flex gap-6">
-        <aside className="w-56 shrink-0">
-          <nav className="space-y-1 text-sm">
-            {navItems.map((item) => {
-              const active = pathname === item.href || pathname.startsWith(item.href + "/");
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={[
-                    "flex items-center px-3 py-2 rounded-lg transition",
-                    active
-                      ? "bg-white/[0.08] text-white shadow-panel"
-                      : "text-slate-400 hover:bg-white/[0.05] hover:text-white",
-                  ].join(" ")}
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
-            <button
-              onClick={handleSignOut}
-              className="mt-3 flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm text-slate-400 hover:text-red-400 hover:bg-slate-900/70 transition w-full text-left md:hidden"
-            >
-              <LogOut className="w-4 h-4" /> Logout
-            </button>
-          </nav>
-        </aside>
-
-        <main className="flex-1 min-w-0">
-          {children}
-        </main>
-      </div>
-    </div>
+    <DashboardSidebarShell
+      brandHref="/catering-company/dashboard"
+      brandLabel={
+        <>
+          <span className="storytime-brand-text">STORY TIME</span> Catering
+        </>
+      }
+      headerEnd={
+        <>
+          <WalletBalanceChip />
+          <NotificationBell />
+          <button
+            onClick={handleSignOut}
+            className="hidden items-center gap-1.5 text-sm text-slate-400 transition hover:text-red-400 md:inline-flex"
+          >
+            <LogOut className="w-4 h-4" /> Logout
+          </button>
+        </>
+      }
+      navSections={[{ items: navItems }]}
+      sidebarFooter={
+        <button
+          onClick={handleSignOut}
+          className="flex w-full items-center gap-1.5 rounded-lg px-3 py-2 text-left text-sm text-slate-400 transition hover:bg-slate-900/70 hover:text-red-400 md:hidden"
+        >
+          <LogOut className="w-4 h-4" /> Logout
+        </button>
+      }
+    >
+      {children}
+    </DashboardSidebarShell>
   );
 }
-

@@ -1,8 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Music, ChevronRight, ChevronLeft, Check, Upload, Info, Loader2 } from "lucide-react";
+import {
+  Music,
+  ChevronRight,
+  ChevronLeft,
+  Check,
+  Upload,
+  Info,
+  Loader2,
+  ShieldCheck,
+  ClipboardCheck,
+} from "lucide-react";
 import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
 import { CheckoutModal } from "@/components/payments/checkout-modal";
 
@@ -10,6 +20,7 @@ const GENRES = ["Indie", "Electronic", "Synthwave", "Ambient", "Hip-Hop", "Afro-
 const MOODS = ["Dreamy", "Energetic", "Moody", "Peaceful", "Confident", "Nostalgic", "Spiritual", "Melancholic", "Festive", "Dark", "Uplifting", "Romantic", "Tense", "Playful"];
 const KEYS = ["C Major", "C Minor", "C# Major", "C# Minor", "D Major", "D Minor", "D# Major", "D# Minor", "E Major", "E Minor", "F Major", "F Minor", "F# Major", "F# Minor", "G Major", "G Minor", "G# Major", "G# Minor", "A Major", "A Minor", "A# Major", "A# Minor", "B Major", "B Minor", "B Flat Major", "D Flat Major"];
 const LICENSE_TYPES = ["SYNC", "EXCLUSIVE", "NON_EXCLUSIVE", "CREATIVE_COMMONS"];
+const USAGE_HINTS = ["Trailer", "Montage", "Romance", "Action", "Documentary", "Opening credits", "Closing credits", "Tension build", "Celebration", "Emotional reveal"];
 
 export default function MusicUploadPage() {
   const router = useRouter();
@@ -24,9 +35,18 @@ export default function MusicUploadPage() {
     title: "", artistName: "", audioUrl: "", coverUrl: "",
     genre: "", mood: "", bpm: "", key: "", duration: "",
     description: "", tags: "", isrc: "", language: "", licenseType: "SYNC",
+    usageScenarios: "", stemsUrl: "", instrumentalUrl: "", lyricsTheme: "",
+    explicitLyrics: "NO", contactName: "", contactEmail: "", contactPhone: "",
+    ownershipNotes: "",
+  });
+  const [rightsChecks, setRightsChecks] = useState({
+    ownOrControlMaster: false,
+    publishingCleared: false,
+    noUnlicensedSamples: false,
+    metadataAccurate: false,
   });
 
-  const totalSteps = 4;
+  const totalSteps = 5;
 
   function updateField(field: string, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -34,12 +54,39 @@ export default function MusicUploadPage() {
 
   async function handleSubmit() {
     setError("");
+    if (!rightsChecks.ownOrControlMaster || !rightsChecks.publishingCleared || !rightsChecks.noUnlicensedSamples || !rightsChecks.metadataAccurate) {
+      setError("Please complete all rights and delivery confirmations.");
+      return;
+    }
+    if (!form.contactName.trim() || !form.contactEmail.trim()) {
+      setError("Release contact name and email are required.");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.contactEmail.trim())) {
+      setError("Please enter a valid release contact email.");
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch("/api/music", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          // Persist structured extras in description/tags for now (DB model unchanged).
+          description: [
+            form.description,
+            form.usageScenarios ? `Usage scenarios: ${form.usageScenarios}` : "",
+            form.lyricsTheme ? `Lyrics theme: ${form.lyricsTheme}` : "",
+            form.stemsUrl ? `Stems URL: ${form.stemsUrl}` : "",
+            form.instrumentalUrl ? `Instrumental URL: ${form.instrumentalUrl}` : "",
+            form.ownershipNotes ? `Ownership notes: ${form.ownershipNotes}` : "",
+            `Rights confirmation: master=${rightsChecks.ownOrControlMaster}; publishing=${rightsChecks.publishingCleared}; samples=${rightsChecks.noUnlicensedSamples}; metadata=${rightsChecks.metadataAccurate}`,
+            `Release contact: ${form.contactName} (${form.contactEmail}${form.contactPhone ? `, ${form.contactPhone}` : ""})`,
+            `Explicit lyrics: ${form.explicitLyrics}`,
+          ].filter(Boolean).join("\n\n"),
+          tags: [form.tags, form.explicitLyrics === "YES" ? "explicit" : "clean"].filter(Boolean).join(", "),
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data?.requiresPayment) {
@@ -57,6 +104,59 @@ export default function MusicUploadPage() {
     } finally { setLoading(false); }
   }
 
+  const stepReady = useMemo(() => {
+    if (step === 1) return Boolean(form.title.trim() && form.artistName.trim() && form.genre);
+    if (step === 2) return Boolean(form.duration.trim() && form.bpm.trim() && form.key);
+    if (step === 3) return Boolean(form.audioUrl.trim());
+    if (step === 4) return Boolean(form.contactName.trim() && form.contactEmail.trim());
+    return true;
+  }, [form, step]);
+
+  const canSubmit =
+    Boolean(form.title.trim() && form.artistName.trim() && form.audioUrl.trim()) &&
+    rightsChecks.ownOrControlMaster &&
+    rightsChecks.publishingCleared &&
+    rightsChecks.noUnlicensedSamples &&
+    rightsChecks.metadataAccurate &&
+    Boolean(form.contactName.trim() && form.contactEmail.trim());
+
+  const missingForCurrentStep = useMemo(() => {
+    const missing: string[] = [];
+    if (step === 1) {
+      if (!form.title.trim()) missing.push("Track title");
+      if (!form.artistName.trim()) missing.push("Artist name");
+      if (!form.genre) missing.push("Genre");
+      return missing;
+    }
+    if (step === 2) {
+      if (!form.bpm.trim()) missing.push("BPM");
+      if (!form.duration.trim()) missing.push("Duration");
+      if (!form.key) missing.push("Key");
+      return missing;
+    }
+    if (step === 3) {
+      if (!form.audioUrl.trim()) missing.push("Audio file");
+      return missing;
+    }
+    if (step === 4) {
+      if (!rightsChecks.ownOrControlMaster) missing.push("Master rights confirmation");
+      if (!rightsChecks.publishingCleared) missing.push("Publishing confirmation");
+      if (!rightsChecks.noUnlicensedSamples) missing.push("Samples clearance confirmation");
+      if (!rightsChecks.metadataAccurate) missing.push("Metadata confirmation");
+      if (!form.contactName.trim()) missing.push("Release contact name");
+      if (!form.contactEmail.trim()) missing.push("Release contact email");
+      if (
+        form.contactEmail.trim() &&
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.contactEmail.trim())
+      ) {
+        missing.push("Valid contact email");
+      }
+      return missing;
+    }
+    if (!canSubmit) missing.push("Resolve all remaining requirements");
+    return missing;
+  }, [canSubmit, form, rightsChecks, step]);
+
   return (
     <div className="p-8 max-w-3xl mx-auto space-y-8">
       <CheckoutModal
@@ -68,7 +168,7 @@ export default function MusicUploadPage() {
       />
       <div>
         <h1 className="text-3xl font-semibold text-white mb-2 flex items-center gap-3"><Upload className="w-8 h-8 text-pink-500" /> Upload Music</h1>
-        <p className="text-slate-400">Add a new track to your catalogue for sync licensing opportunities.</p>
+        <p className="text-slate-400">Professional sync intake: creative identity, technicals, delivery assets, rights clearance, and final QA review.</p>
       </div>
 
       {/* Progress */}
@@ -83,8 +183,24 @@ export default function MusicUploadPage() {
         ))}
       </div>
       <p className="text-sm text-slate-400">
-        Step {step}: {step === 1 ? "Track Info" : step === 2 ? "Technical Details" : step === 3 ? "Media & Description" : "License & Review"}
+        Step {step}: {step === 1 ? "Creative Profile" : step === 2 ? "Technical Specs" : step === 3 ? "Assets & Packaging" : step === 4 ? "Rights & Contacts" : "QA Review"}
       </p>
+      <div className="flex flex-wrap gap-2">
+        {missingForCurrentStep.length > 0 ? (
+          missingForCurrentStep.map((item) => (
+            <span
+              key={item}
+              className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[11px] text-amber-200"
+            >
+              Missing: {item}
+            </span>
+          ))
+        ) : (
+          <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-[11px] text-emerald-200">
+            All current-step requirements complete
+          </span>
+        )}
+      </div>
 
       <div className="bg-slate-800/30 border border-slate-700/50 rounded-xl p-6 space-y-5">
         {step === 1 && (<>
@@ -107,6 +223,31 @@ export default function MusicUploadPage() {
           <div>
             <label className="block text-sm text-slate-300 mb-1.5">Language</label>
             <input value={form.language} onChange={(e) => updateField("language", e.target.value)} className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" placeholder="e.g. Instrumental, English, Zulu" />
+          </div>
+          <div>
+            <label className="block text-sm text-slate-300 mb-1.5">Scene / usage scenarios</label>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {USAGE_HINTS.map((hint) => (
+                <button
+                  key={hint}
+                  type="button"
+                  onClick={() => {
+                    const current = form.usageScenarios.split(",").map((s) => s.trim()).filter(Boolean);
+                    if (current.includes(hint)) return;
+                    updateField("usageScenarios", [...current, hint].join(", "));
+                  }}
+                  className="px-2.5 py-1 rounded-md text-xs bg-slate-800/50 border border-slate-700/50 text-slate-300 hover:border-pink-500/40"
+                >
+                  {hint}
+                </button>
+              ))}
+            </div>
+            <input
+              value={form.usageScenarios}
+              onChange={(e) => updateField("usageScenarios", e.target.value)}
+              className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm"
+              placeholder="e.g. Trailer, emotional montage, end credits"
+            />
           </div>
         </>)}
 
@@ -132,6 +273,17 @@ export default function MusicUploadPage() {
             <label className="block text-sm text-slate-300 mb-1.5">ISRC Code (optional)</label>
             <input value={form.isrc} onChange={(e) => updateField("isrc", e.target.value)} className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" placeholder="e.g. USRC17607839" />
             <p className="text-xs text-slate-500 mt-1">International Standard Recording Code — if you have one registered</p>
+          </div>
+          <div>
+            <label className="block text-sm text-slate-300 mb-1.5">Explicit lyrics</label>
+            <select value={form.explicitLyrics} onChange={(e) => updateField("explicitLyrics", e.target.value)} className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm">
+              <option value="NO">No (clean)</option>
+              <option value="YES">Yes (explicit)</option>
+            </select>
+          </div>
+          <div className="col-span-2">
+            <label className="block text-sm text-slate-300 mb-1.5">Lyrics theme / content note</label>
+            <input value={form.lyricsTheme} onChange={(e) => updateField("lyricsTheme", e.target.value)} className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" placeholder="Optional lyrical theme summary for supervisors" />
           </div>
           <div>
             <label className="block text-sm text-slate-300 mb-1.5">Tags</label>
@@ -209,6 +361,14 @@ export default function MusicUploadPage() {
             <label className="block text-sm text-slate-300 mb-1.5">Description</label>
             <textarea value={form.description} onChange={(e) => updateField("description", e.target.value)} rows={4} className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" placeholder="Describe the track, what scenes it works for, its inspiration..." />
           </div>
+          <div>
+            <label className="block text-sm text-slate-300 mb-1.5">Instrumental version URL (optional)</label>
+            <input value={form.instrumentalUrl} onChange={(e) => updateField("instrumentalUrl", e.target.value)} className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" placeholder="https://..." />
+          </div>
+          <div>
+            <label className="block text-sm text-slate-300 mb-1.5">Stems / alt mixes URL (optional)</label>
+            <input value={form.stemsUrl} onChange={(e) => updateField("stemsUrl", e.target.value)} className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" placeholder="https://..." />
+          </div>
         </>)}
 
         {step === 4 && (<>
@@ -228,9 +388,48 @@ export default function MusicUploadPage() {
               ))}
             </div>
           </div>
+          <div className="rounded-lg border border-slate-700/40 bg-slate-900/40 p-4 space-y-3">
+            <h4 className="text-sm font-medium text-white flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-pink-400" /> Rights and ownership</h4>
+            {[
+              ["ownOrControlMaster", "I own/control the master rights for this recording."],
+              ["publishingCleared", "Publishing rights are cleared for the selected license type."],
+              ["noUnlicensedSamples", "No uncleared samples or copyrighted excerpts are used."],
+              ["metadataAccurate", "Metadata (title, artist, ISRC, credits) is accurate."],
+            ].map(([key, label]) => (
+              <label key={key} className="flex items-start gap-2 text-sm text-slate-300">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 rounded border-slate-600 bg-slate-900/50 text-pink-500 focus:ring-pink-500/40"
+                  checked={Boolean(rightsChecks[key as keyof typeof rightsChecks])}
+                  onChange={(e) => setRightsChecks((prev) => ({ ...prev, [key]: e.target.checked }))}
+                />
+                <span>{label}</span>
+              </label>
+            ))}
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm text-slate-300 mb-1.5">Release contact name *</label>
+              <input value={form.contactName} onChange={(e) => updateField("contactName", e.target.value)} className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" placeholder="Primary contact" />
+            </div>
+            <div>
+              <label className="block text-sm text-slate-300 mb-1.5">Release contact email *</label>
+              <input value={form.contactEmail} onChange={(e) => updateField("contactEmail", e.target.value)} className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" placeholder="name@label.com" />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-sm text-slate-300 mb-1.5">Release contact phone</label>
+              <input value={form.contactPhone} onChange={(e) => updateField("contactPhone", e.target.value)} className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" placeholder="+27 ..." />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-sm text-slate-300 mb-1.5">Ownership notes</label>
+              <textarea value={form.ownershipNotes} onChange={(e) => updateField("ownershipNotes", e.target.value)} rows={3} className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" placeholder="Optional splits, publishers, and rights admin notes" />
+            </div>
+          </div>
+        </>)}
 
+        {step === 5 && (<>
           <div className="bg-slate-900/30 rounded-lg p-4 border border-slate-700/30">
-            <h4 className="text-white font-medium mb-3 flex items-center gap-2"><Info className="w-4 h-4 text-pink-400" /> Review Your Track</h4>
+            <h4 className="text-white font-medium mb-3 flex items-center gap-2"><ClipboardCheck className="w-4 h-4 text-pink-400" /> Final QA Review</h4>
             <div className="grid grid-cols-2 gap-3 text-sm">
               {[
                 { label: "Title", value: form.title },
@@ -243,10 +442,20 @@ export default function MusicUploadPage() {
                 { label: "License", value: form.licenseType?.replace(/_/g, " ") },
                 { label: "Audio", value: form.audioUrl ? "File attached" : "" },
                 { label: "Cover", value: form.coverUrl ? "Image set" : "" },
+                { label: "Usage", value: form.usageScenarios },
+                { label: "Explicit", value: form.explicitLyrics === "YES" ? "Yes" : "No" },
+                { label: "Contact", value: form.contactEmail },
               ].map((f) => f.value ? (
                 <div key={f.label}><span className="text-slate-500">{f.label}:</span> <span className="text-slate-300">{f.value}</span></div>
               ) : null)}
             </div>
+          </div>
+          <div className="rounded-lg border border-pink-500/30 bg-pink-500/5 p-4 text-xs text-slate-300">
+            <p className="font-medium text-pink-300 mb-1 flex items-center gap-2"><Info className="w-3.5 h-3.5" /> Pre-submit checklist</p>
+            <p>
+              Verify loudness/master quality, fades, metadata spelling, and rights chain before publishing.
+              Approved entries move faster in sync matching and supervisor shortlisting.
+            </p>
           </div>
         </>)}
       </div>
@@ -258,16 +467,13 @@ export default function MusicUploadPage() {
         {step < totalSteps ? (
           <button
             onClick={() => setStep(step + 1)}
-            disabled={
-              (step === 1 && (!form.title || !form.artistName)) ||
-              (step === 3 && !form.audioUrl.trim())
-            }
+            disabled={!stepReady}
             className="flex items-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-medium bg-pink-500 text-white hover:bg-pink-600 transition disabled:opacity-50"
           >
             Next <ChevronRight className="w-4 h-4" />
           </button>
         ) : (
-          <button onClick={handleSubmit} disabled={loading || !form.title || !form.artistName || !form.audioUrl.trim()} className="flex items-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-medium bg-pink-500 text-white hover:bg-pink-600 transition disabled:opacity-50">
+          <button onClick={handleSubmit} disabled={loading || !canSubmit} className="flex items-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-medium bg-pink-500 text-white hover:bg-pink-600 transition disabled:opacity-50">
             <Upload className="w-4 h-4" /> {loading ? "Publishing..." : "Publish Track"}
           </button>
         )}

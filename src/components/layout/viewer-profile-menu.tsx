@@ -54,7 +54,7 @@ export function ViewerProfileMenu({
       {open && (
         <>
           <motion.div
-            className="fixed inset-0 z-[1200]"
+            className="fixed inset-0 z-[1200] bg-black/75 backdrop-blur-md"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -63,7 +63,7 @@ export function ViewerProfileMenu({
           />
           <motion.div
             role="menu"
-            className="fixed z-[1210] w-72 overflow-hidden rounded-2xl border border-white/12 bg-[#080c16]/97 py-1 shadow-2xl backdrop-blur-2xl"
+            className="fixed z-[1210] w-72 overflow-hidden rounded-2xl border border-white/14 bg-[#080c16] py-1 shadow-2xl ring-1 ring-black/40"
             style={{ top: `${position.top}px`, right: `${position.right}px` }}
             variants={modalVariants()}
             initial="hidden"

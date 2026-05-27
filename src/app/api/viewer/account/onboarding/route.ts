@@ -45,7 +45,7 @@ export async function PATCH(req: NextRequest) {
 
   try {
     await saveViewerAccountOnboardingDraft(userId, body);
-    return NextResponse.json({ ok: true, redirectTo: "/browse/settings" });
+    return NextResponse.json({ ok: true, redirectTo: "/profiles" });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Could not save account details." },

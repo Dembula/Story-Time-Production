@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { signOut, useSession } from "next-auth/react";
-import { LogOut, PanelLeftOpen, PanelLeftClose } from "lucide-react";
-import { useRouter, usePathname } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { LogOut } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { DashboardSidebarShell } from "@/components/layout/dashboard-sidebar-shell";
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { WalletBalanceChip } from "@/components/layout/wallet-balance-chip";
 import { CreatorPipelineRouteGate } from "@/components/creator/creator-pipeline-route-gate";
@@ -26,17 +27,20 @@ const monetizationNavItems = [
   { href: "/creator/upload", label: "Catalogue upload", requiresCatalogue: true },
 ];
 
-export default function CreatorLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+function navLinkClass(active: boolean, extra = "") {
+  return [
+    "flex items-center px-3 py-2 rounded-lg text-sm transition",
+    active ? "bg-white/[0.08] text-white shadow-panel" : "text-slate-400 hover:bg-white/[0.05] hover:text-white",
+    extra,
+  ].join(" ");
+}
+
+export default function CreatorLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const pathname = usePathname();
   const { data: session } = useSession();
-  const { deviceClass, orientation } = useAdaptiveUi();
+  const { deviceClass } = useAdaptiveUi();
   const role = session?.user?.role;
-  const [sidebarOpen, setSidebarOpen] = useState(deviceClass !== "mobile");
+
   const { data: licensePayload } = useQuery({
     queryKey: [...CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY],
     queryFn: () => fetch("/api/creator/distribution-license").then((r) => r.json()),
@@ -56,20 +60,7 @@ export default function CreatorLayout({
   });
   const showCompanyAdminNav = Boolean(studioPayload?.companies?.length);
   const showAccountControlNav = role === "CONTENT_CREATOR" || role === "ADMIN";
-  // While loading, show pipeline links to avoid a flash of hidden nav for full-pipeline creators.
   const showPipelineNav = licensePayload?.pipelineAccess !== false;
-
-  useEffect(() => {
-    if (deviceClass === "mobile") {
-      setSidebarOpen(false);
-      return;
-    }
-    if (deviceClass === "tablet" && orientation === "portrait") {
-      setSidebarOpen(false);
-      return;
-    }
-    setSidebarOpen(true);
-  }, [deviceClass, orientation]);
 
   const handleSignOut = async () => {
     await signOut({ redirect: false });
@@ -78,191 +69,142 @@ export default function CreatorLayout({
   };
 
   return (
-    <div className="min-h-screen bg-background text-slate-100 adaptive-tv-surface">
-      <div className={`border-b border-white/8 bg-white/[0.03] backdrop-blur-xl ${deviceClass === "mobile" ? "px-3 py-3" : "px-6 py-4 md:px-12"}`}>
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setSidebarOpen((v) => !v)}
-              className="adaptive-interactive inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] text-slate-300 hover:bg-white/[0.08] hover:text-white"
-              aria-label={sidebarOpen ? "Hide menu" : "Show menu"}
-              aria-expanded={sidebarOpen}
+    <DashboardSidebarShell
+      className="text-slate-100 adaptive-tv-surface"
+      brandHref="/creator/command-center"
+      brandLabel={
+        <>
+          <span className="storytime-brand-text">STORY TIME</span> Creator
+        </>
+      }
+      headerEnd={
+        <>
+          <CreatorStudioActingLabel />
+          <WalletBalanceChip />
+          <NotificationBell />
+          <button
+            onClick={handleSignOut}
+            className="hidden md:inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-red-400 transition"
+          >
+            <LogOut className="w-4 h-4" /> Logout
+          </button>
+        </>
+      }
+      sidebar={({ closeSidebar, pathname }) => (
+        <nav className="space-y-1">
+          {showAccountControlNav ? (
+            <div className="mb-2 space-y-1 border-b border-slate-800 pb-2">
+              <p className="px-3 text-[11px] uppercase tracking-wide text-slate-500">Studio</p>
+              <Link
+                href="/creator/company/control"
+                onClick={closeSidebar}
+                className={navLinkClass(pathname.startsWith("/creator/company/control"))}
+              >
+                Account control
+              </Link>
+              {showCompanyAdminNav ? (
+                <Link
+                  href="/creator/company"
+                  onClick={closeSidebar}
+                  className={navLinkClass(
+                    pathname.startsWith("/creator/company") && !pathname.startsWith("/creator/company/control")
+                  )}
+                >
+                  Company admin
+                </Link>
+              ) : null}
+            </div>
+          ) : null}
+          <p className="px-3 pb-1 pt-1 text-[11px] uppercase tracking-wide text-slate-500">Operating</p>
+          {operatingNavItems.map((item) => {
+            const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+            return (
+              <Link key={item.href} href={item.href} onClick={closeSidebar} className={navLinkClass(isActive)}>
+                {item.label}
+              </Link>
+            );
+          })}
+
+          <div className="mt-3 border-t border-slate-800 pt-2 space-y-1">
+            <p className="px-3 text-[11px] uppercase tracking-wide text-slate-500">Monetization</p>
+            {monetizationNavFiltered.map((item) => {
+              const isActive =
+                item.href.includes("#")
+                  ? pathname.startsWith("/creator/command-center")
+                  : pathname === item.href || pathname.startsWith(item.href + "/");
+              return (
+                <Link key={item.href} href={item.href} onClick={closeSidebar} className={navLinkClass(isActive)}>
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
+
+          <div className="mt-3 border-t border-slate-800 pt-2 space-y-1">
+            <Link
+              href="/creator/originals/submit"
+              onClick={closeSidebar}
+              className={navLinkClass(
+                pathname.startsWith("/creator/originals"),
+                "font-medium " +
+                  (pathname.startsWith("/creator/originals")
+                    ? "bg-orange-500/15 text-orange-300 shadow-panel"
+                    : "text-orange-400 hover:bg-orange-500/10 hover:text-orange-300")
+              )}
             >
-              {sidebarOpen ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeftOpen className="w-4 h-4" />}
-            </button>
-            <Link href="/creator/command-center" className="text-xl font-semibold text-white">
-              <span className="storytime-brand-text">STORY TIME</span> Creator
+              Originals
             </Link>
           </div>
-          <div className="flex items-center gap-2 sm:gap-3">
-            <CreatorStudioActingLabel />
-            <WalletBalanceChip />
-            <NotificationBell />
-            <button
-              onClick={handleSignOut}
-              className="hidden md:inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-red-400 transition"
-            >
-              <LogOut className="w-4 h-4" /> Logout
-            </button>
-          </div>
-        </div>
-      </div>
 
-      <div className={`max-w-7xl mx-auto ${deviceClass === "mobile" ? "px-3 py-4" : "px-4 md:px-8 py-6"} flex gap-4 md:gap-6`}>
-        {sidebarOpen && (
-          <aside className={`${deviceClass === "tablet" ? "w-64" : "w-56"} shrink-0`}>
-            <nav className="space-y-1">
-              {showAccountControlNav ? (
-                <div className="mb-2 space-y-1 border-b border-slate-800 pb-2">
-                  <p className="px-3 text-[11px] uppercase tracking-wide text-slate-500">Studio</p>
+          <div className="mt-3 border-t border-slate-800 pt-2 space-y-1">
+            <p className="px-3 text-[11px] uppercase tracking-wide text-slate-500">
+              {showPipelineNav ? "Pipeline" : "Distribution"}
+            </p>
+            {showPipelineNav && (allowPre || allowProd || allowPost) ? (
+              <>
+                {allowPre ? (
                   <Link
-                    href="/creator/company/control"
-                    className={[
-                      "flex items-center px-3 py-2 rounded-lg text-sm transition",
-                      pathname.startsWith("/creator/company/control")
-                        ? "bg-white/[0.08] text-white shadow-panel"
-                        : "text-slate-400 hover:bg-white/[0.05] hover:text-white",
-                    ].join(" ")}
+                    href="/creator/pre-production"
+                    onClick={closeSidebar}
+                    className={navLinkClass(pathname.startsWith("/creator/pre-production"))}
                   >
-                    Account control
+                    Pre-Production
                   </Link>
-                  {showCompanyAdminNav ? (
-                    <Link
-                      href="/creator/company"
-                      className={[
-                        "flex items-center px-3 py-2 rounded-lg text-sm transition",
-                        pathname.startsWith("/creator/company") && !pathname.startsWith("/creator/company/control")
-                          ? "bg-white/[0.08] text-white shadow-panel"
-                          : "text-slate-400 hover:bg-white/[0.05] hover:text-white",
-                      ].join(" ")}
-                    >
-                      Company admin
-                    </Link>
-                  ) : null}
-                </div>
-              ) : null}
-              <p className="px-3 pb-1 pt-1 text-[11px] uppercase tracking-wide text-slate-500">Operating</p>
-              {operatingNavItems.map((item) => {
-                const isActive =
-                  pathname === item.href || pathname.startsWith(item.href + "/");
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={[
-                      "flex items-center px-3 py-2 rounded-lg text-sm transition",
-                      isActive
-                        ? "bg-white/[0.08] text-white shadow-panel"
-                        : "text-slate-400 hover:bg-white/[0.05] hover:text-white",
-                    ].join(" ")}
-                  >
-                    {item.label}
-                  </Link>
-                );
-              })}
-
-              <div className="mt-3 border-t border-slate-800 pt-2 space-y-1">
-                <p className="px-3 text-[11px] uppercase tracking-wide text-slate-500">Monetization</p>
-                {monetizationNavFiltered.map((item) => {
-                  const isActive =
-                    item.href.includes("#")
-                      ? pathname.startsWith("/creator/command-center")
-                      : pathname === item.href || pathname.startsWith(item.href + "/");
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={[
-                        "flex items-center px-3 py-2 rounded-lg text-sm transition",
-                        isActive
-                          ? "bg-white/[0.08] text-white shadow-panel"
-                          : "text-slate-400 hover:bg-white/[0.05] hover:text-white",
-                      ].join(" ")}
-                    >
-                      {item.label}
-                    </Link>
-                  );
-                })}
-              </div>
-
-              <div className="mt-3 border-t border-slate-800 pt-2 space-y-1">
-                <Link
-                  href="/creator/originals/submit"
-                  className={[
-                    "flex items-center px-3 py-2 rounded-lg text-sm transition font-medium",
-                    pathname.startsWith("/creator/originals")
-                      ? "bg-orange-500/15 text-orange-300 shadow-panel"
-                      : "text-orange-400 hover:bg-orange-500/10 hover:text-orange-300",
-                  ].join(" ")}
-                >
-                  Originals
-                </Link>
-              </div>
-
-              <div className="mt-3 border-t border-slate-800 pt-2 space-y-1">
-                <p className="px-3 text-[11px] uppercase tracking-wide text-slate-500">
-                  {showPipelineNav ? "Pipeline" : "Distribution"}
-                </p>
-                {showPipelineNav && (allowPre || allowProd || allowPost) ? (
-                  <>
-                    {allowPre ? (
-                      <Link
-                        href="/creator/pre-production"
-                        className={[
-                          "flex items-center px-3 py-2 rounded-lg text-sm transition",
-                          pathname.startsWith("/creator/pre-production")
-                            ? "bg-white/[0.08] text-white shadow-panel"
-                            : "text-slate-400 hover:bg-white/[0.05] hover:text-white",
-                        ].join(" ")}
-                      >
-                        Pre-Production
-                      </Link>
-                    ) : null}
-                    {allowProd ? (
-                      <Link
-                        href="/creator/production"
-                        className={[
-                          "flex items-center px-3 py-2 rounded-lg text-sm transition",
-                          pathname.startsWith("/creator/production")
-                            ? "bg-white/[0.08] text-white shadow-panel"
-                            : "text-slate-400 hover:bg-white/[0.05] hover:text-white",
-                        ].join(" ")}
-                      >
-                        Production
-                      </Link>
-                    ) : null}
-                    {allowPost ? (
-                      <Link
-                        href="/creator/post-production"
-                        className={[
-                          "flex items-center px-3 py-2 rounded-lg text-sm transition",
-                          pathname.startsWith("/creator/post-production")
-                            ? "bg-white/[0.08] text-white shadow-panel"
-                            : "text-slate-400 hover:bg-white/[0.05] hover:text-white",
-                        ].join(" ")}
-                      >
-                        Post-Production
-                      </Link>
-                    ) : null}
-                  </>
                 ) : null}
-              </div>
-
-              <button
-                onClick={handleSignOut}
-                className="mt-3 flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm text-slate-400 hover:text-red-400 hover:bg-slate-900/70 transition w-full text-left md:hidden"
-              >
-                <LogOut className="w-4 h-4" /> Logout
-              </button>
-            </nav>
-          </aside>
-        )}
-
-        <main className={`flex-1 min-w-0 ${deviceClass === "tv" ? "text-lg" : ""}`}>
-          <CreatorPipelineRouteGate>{children}</CreatorPipelineRouteGate>
-        </main>
-      </div>
-    </div>
+                {allowProd ? (
+                  <Link
+                    href="/creator/production"
+                    onClick={closeSidebar}
+                    className={navLinkClass(pathname.startsWith("/creator/production"))}
+                  >
+                    Production
+                  </Link>
+                ) : null}
+                {allowPost ? (
+                  <Link
+                    href="/creator/post-production"
+                    onClick={closeSidebar}
+                    className={navLinkClass(pathname.startsWith("/creator/post-production"))}
+                  >
+                    Post-Production
+                  </Link>
+                ) : null}
+              </>
+            ) : null}
+          </div>
+        </nav>
+      )}
+      sidebarFooter={
+        <button
+          onClick={handleSignOut}
+          className="flex w-full items-center gap-1.5 rounded-lg px-3 py-2 text-left text-sm text-slate-400 transition hover:bg-slate-900/70 hover:text-red-400 md:hidden"
+        >
+          <LogOut className="w-4 h-4" /> Logout
+        </button>
+      }
+      mainClassName={deviceClass === "tv" ? "text-lg" : ""}
+    >
+      <CreatorPipelineRouteGate>{children}</CreatorPipelineRouteGate>
+    </DashboardSidebarShell>
   );
 }

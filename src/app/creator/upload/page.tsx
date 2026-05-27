@@ -119,6 +119,17 @@ function DistributionUploadInner() {
   const [minAge, setMinAge] = useState<number>(0);
   const [advisoryFlags, setAdvisoryFlags] = useState<Record<string, boolean>>({});
   const [advisoryThemes, setAdvisoryThemes] = useState("");
+  const [deliveryNotes, setDeliveryNotes] = useState("");
+  const [releaseContactName, setReleaseContactName] = useState("");
+  const [releaseContactEmail, setReleaseContactEmail] = useState("");
+  const [releaseContactPhone, setReleaseContactPhone] = useState("");
+  const [complianceChecks, setComplianceChecks] = useState({
+    rightsOwnershipConfirmed: false,
+    thirdPartyClearancesConfirmed: false,
+    musicRightsConfirmed: false,
+    noUnlicensedBranding: false,
+    finalMasterReviewed: false,
+  });
 
   const [uploadingMainVideo, setUploadingMainVideo] = useState(false);
   const [mainVideoProgress, setMainVideoProgress] = useState<number | null>(null);
@@ -177,8 +188,63 @@ function DistributionUploadInner() {
     return true;
   }
 
+  function getStepMissing(stepId: number): string[] {
+    if (stepId === 1) return form.type ? [] : ["Select a content type"];
+    if (stepId === 2) {
+      const missing: string[] = [];
+      if (!form.title.trim()) missing.push("Title");
+      if (!form.description.trim()) missing.push("Synopsis");
+      return missing;
+    }
+    if (stepId === 3) return form.videoUrl.trim() ? [] : ["Main video upload"];
+    if (stepId === 4) {
+      const missing: string[] = [];
+      if (!form.language.trim()) missing.push("Language");
+      if (!form.ageRating.trim()) missing.push("Age rating");
+      return missing;
+    }
+    if (stepId === 6) {
+      const missing: string[] = [];
+      if (!releaseContactName.trim()) missing.push("Release contact name");
+      if (!releaseContactEmail.trim()) missing.push("Release contact email");
+      if (
+        releaseContactEmail.trim() &&
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(releaseContactEmail.trim())
+      ) {
+        missing.push("Valid release contact email");
+      }
+      if (!complianceChecks.rightsOwnershipConfirmed) missing.push("Rights ownership confirmation");
+      if (!complianceChecks.thirdPartyClearancesConfirmed) missing.push("Third-party clearances confirmation");
+      if (!complianceChecks.musicRightsConfirmed) missing.push("Music rights confirmation");
+      if (!complianceChecks.noUnlicensedBranding) missing.push("Unlicensed branding confirmation");
+      if (!complianceChecks.finalMasterReviewed) missing.push("Final master QA confirmation");
+      return missing;
+    }
+    return [];
+  }
+
   async function handleSubmit(asDraft: boolean) {
     setError("");
+    if (!asDraft) {
+      const hasCoreRightsChecks =
+        complianceChecks.rightsOwnershipConfirmed &&
+        complianceChecks.thirdPartyClearancesConfirmed &&
+        complianceChecks.musicRightsConfirmed &&
+        complianceChecks.noUnlicensedBranding &&
+        complianceChecks.finalMasterReviewed;
+      if (!hasCoreRightsChecks) {
+        setError("Complete all rights and compliance confirmations before submitting.");
+        return;
+      }
+      if (!releaseContactName.trim() || !releaseContactEmail.trim()) {
+        setError("Add a release contact name and email before submitting.");
+        return;
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(releaseContactEmail.trim())) {
+        setError("Enter a valid release contact email.");
+        return;
+      }
+    }
     setLoading(true);
     try {
       const combinedDescriptionParts = [
@@ -186,11 +252,19 @@ function DistributionUploadInner() {
         logline && `Logline: ${logline}`,
         contentWarnings && `Content warnings: ${contentWarnings}`,
         festivalHistory && `Festival / awards: ${festivalHistory}`,
+        deliveryNotes && `Delivery notes: ${deliveryNotes}`,
+        !asDraft && releaseContactName.trim()
+          ? `Release contact: ${releaseContactName.trim()} (${releaseContactEmail.trim()}${releaseContactPhone.trim() ? `, ${releaseContactPhone.trim()}` : ""})`
+          : "",
       ].filter(Boolean) as string[];
 
       const advisoryPayload =
         Object.keys(advisoryFlags).length > 0 || advisoryThemes.trim()
-          ? { ...advisoryFlags, ...(advisoryThemes.trim() && { themes: advisoryThemes.trim() }) }
+          ? {
+              ...advisoryFlags,
+              ...(advisoryThemes.trim() && { themes: advisoryThemes.trim() }),
+              compliance: complianceChecks,
+            }
           : undefined;
 
       const payload = {
@@ -358,6 +432,24 @@ function DistributionUploadInner() {
               </div>
               <div className="border-t border-white/10 pt-3 text-xs text-slate-500">
                 Step {step} of {STEPS.length}
+                {getStepMissing(step).length > 0 ? (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {getStepMissing(step).map((item) => (
+                      <span
+                        key={item}
+                        className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[11px] text-amber-200"
+                      >
+                        Missing: {item}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-2">
+                    <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-[11px] text-emerald-200">
+                      All current-step requirements complete
+                    </span>
+                  </div>
+                )}
                 {linkedProject && (
                   <>
                     <br />
@@ -1025,6 +1117,80 @@ function DistributionUploadInner() {
             )}
           </div>
 
+          <div className="rounded-xl border border-white/10 bg-slate-900/40 p-5">
+            <h3 className="text-white font-medium mb-2">Release contact & delivery notes</h3>
+            <p className="text-xs text-slate-500 mb-4">
+              These details help our review team resolve issues quickly and speed up catalogue approval.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs text-slate-400 mb-1.5">Release contact name *</label>
+                <input
+                  value={releaseContactName}
+                  onChange={(e) => setReleaseContactName(e.target.value)}
+                  placeholder="Primary release manager"
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1.5">Release contact email *</label>
+                <input
+                  value={releaseContactEmail}
+                  onChange={(e) => setReleaseContactEmail(e.target.value)}
+                  placeholder="name@company.com"
+                  className={inputClass}
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-xs text-slate-400 mb-1.5">Release contact phone (optional)</label>
+                <input
+                  value={releaseContactPhone}
+                  onChange={(e) => setReleaseContactPhone(e.target.value)}
+                  placeholder="+27 …"
+                  className={inputClass}
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-xs text-slate-400 mb-1.5">Delivery notes (optional)</label>
+                <textarea
+                  value={deliveryNotes}
+                  onChange={(e) => setDeliveryNotes(e.target.value)}
+                  rows={3}
+                  placeholder="Version notes, subtitle roadmap, holdbacks, embargoes, or QA notes."
+                  className={inputClass}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-orange-500/30 bg-orange-500/5 p-5">
+            <h3 className="text-orange-300 font-medium mb-2">Rights & compliance confirmation</h3>
+            <p className="text-xs text-slate-400 mb-3">
+              Confirm each requirement below before final submission.
+            </p>
+            <div className="space-y-2">
+              {[
+                ["rightsOwnershipConfirmed", "I own or control the rights required to distribute this title."],
+                ["thirdPartyClearancesConfirmed", "Third-party footage, logos, and likenesses are cleared for release."],
+                ["musicRightsConfirmed", "Music rights are cleared (master + publishing where applicable)."],
+                ["noUnlicensedBranding", "No unlicensed branding/trademarks remain in the final cut."],
+                ["finalMasterReviewed", "Final master was reviewed for sync, audio levels, and technical issues."],
+              ].map(([key, label]) => (
+                <label key={key} className="flex items-start gap-2 text-sm text-slate-300">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 rounded border-slate-600 bg-slate-900/50 text-orange-500 focus:ring-orange-500/50"
+                    checked={Boolean(complianceChecks[key as keyof typeof complianceChecks])}
+                    onChange={(e) =>
+                      setComplianceChecks((prev) => ({ ...prev, [key]: e.target.checked }))
+                    }
+                  />
+                  <span>{label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
           <div className="bg-orange-500/5 border border-orange-500/20 rounded-xl p-5">
             <div className="flex items-start gap-3">
               <Shield className="w-5 h-5 text-orange-400 mt-0.5" />
@@ -1064,7 +1230,18 @@ function DistributionUploadInner() {
               </button>
               <button
                 onClick={() => handleSubmit(false)}
-                disabled={loading || !form.title || !form.type}
+                disabled={
+                  loading ||
+                  !form.title ||
+                  !form.type ||
+                  !releaseContactName.trim() ||
+                  !releaseContactEmail.trim() ||
+                  !complianceChecks.rightsOwnershipConfirmed ||
+                  !complianceChecks.thirdPartyClearancesConfirmed ||
+                  !complianceChecks.musicRightsConfirmed ||
+                  !complianceChecks.noUnlicensedBranding ||
+                  !complianceChecks.finalMasterReviewed
+                }
                 className="flex items-center gap-2 px-6 py-2.5 rounded-lg bg-orange-500 text-white hover:bg-orange-600 transition text-sm font-medium disabled:opacity-50"
               >
                 <Send className="w-4 h-4" /> {loading ? "Submitting..." : "Submit for Review"}

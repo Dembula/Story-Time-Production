@@ -55,10 +55,23 @@ export function PayoutKycBanner({ className = "", inline = false }: { className?
   const sessionStatus = (session?.user as { payoutKycVerificationStatus?: KycVerificationStatus })
     ?.payoutKycVerificationStatus;
 
+  const { data: eligibility } = useQuery({
+    queryKey: ["payout-kyc-eligibility", pathname, role],
+    queryFn: async () => {
+      const params = new URLSearchParams({ pathname });
+      const res = await fetch(`/api/payout-kyc/eligibility?${params}`);
+      return res.json() as Promise<{ showPrompt?: boolean; packagePaid?: boolean; onDashboard?: boolean }>;
+    },
+    enabled: needsKyc && !!session?.user,
+    staleTime: 60_000,
+  });
+
+  const mayShowAfterCheckout = eligibility?.showPrompt === true;
+
   const { data } = useQuery({
     queryKey: ["payout-kyc-banner"],
     queryFn: async () => fetch("/api/payout-kyc/verification").then((r) => r.json()),
-    enabled: needsKyc && !!session?.user,
+    enabled: needsKyc && !!session?.user && mayShowAfterCheckout,
     staleTime: 60_000,
   });
 
@@ -78,7 +91,7 @@ export function PayoutKycBanner({ className = "", inline = false }: { className?
     setDismissed(window.localStorage.getItem(dismissKey(status)) === "1");
   }, [content, status]);
 
-  if (!needsKyc || !content) return null;
+  if (!needsKyc || !mayShowAfterCheckout || !content) return null;
   if (dismissed && !inline) return null;
 
   const styles = VARIANT_STYLES[content.variant];
