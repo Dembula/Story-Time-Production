@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { prisma } from "@/lib/prisma";
+import { getCreatorPackageStatus } from "@/lib/creator-package-gate";
 import { LicenseClient } from "./license-client";
 
 export default async function CreatorLicenseOnboardingPage() {
@@ -9,30 +9,11 @@ export default async function CreatorLicenseOnboardingPage() {
   if (!session?.user?.email) redirect("/auth/signin");
   if ((session.user as { role?: string })?.role !== "CONTENT_CREATOR") redirect("/creator/dashboard");
 
-  const user = await prisma.user.findUnique({
-    where: { email: session.user.email },
-    select: {
-      id: true,
-      creatorDistributionLicense: {
-        select: { id: true, type: true },
-      },
-    },
-  });
-  const license = user?.creatorDistributionLicense;
-  const paidOrNoUpfrontCharge = !license
-    ? true
-    : license.type.includes("PER_UPLOAD") ||
-      Boolean(
-        await prisma.paymentRecord.findFirst({
-          where: {
-            relatedEntityType: "CreatorDistributionLicense",
-            relatedEntityId: license.id,
-            status: "SUCCEEDED",
-          },
-          select: { id: true },
-        }),
-      );
-  if (license && paidOrNoUpfrontCharge) redirect("/creator/command-center");
+  const userId = (session.user as { id?: string }).id;
+  if (userId) {
+    const status = await getCreatorPackageStatus(userId, "CONTENT_CREATOR");
+    if (status.complete) redirect("/creator/command-center");
+  }
 
   return (
     <div className="min-h-screen bg-background px-6 py-16 text-slate-100">

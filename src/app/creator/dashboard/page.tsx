@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { requireCreatorPackageComplete } from "@/lib/creator-package-gate";
 import { CreatorProjectsDashboardClient } from "./creator-projects-dashboard-client";
 
 export default async function CreatorDashboardPage() {
@@ -9,15 +9,9 @@ export default async function CreatorDashboardPage() {
   const role = (session?.user as { role?: string })?.role;
   if (!session || (role !== "CONTENT_CREATOR" && role !== "ADMIN")) redirect("/auth/signin");
 
-  if (role === "CONTENT_CREATOR" && session?.user?.email) {
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-      select: {
-        id: true,
-        creatorDistributionLicense: { select: { id: true } },
-      },
-    });
-    if (!user?.creatorDistributionLicense) redirect("/creator/onboarding/license");
+  const userId = (session.user as { id?: string }).id;
+  if (role === "CONTENT_CREATOR" && userId) {
+    await requireCreatorPackageComplete(userId, role);
   }
 
   return (

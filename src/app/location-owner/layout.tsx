@@ -3,6 +3,7 @@
 import { signOut } from "next-auth/react";
 import { LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { CompanyPackageGate } from "@/components/layout/company-package-gate";
 import { DashboardSidebarShell } from "@/components/layout/dashboard-sidebar-shell";
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { WalletBalanceChip } from "@/components/layout/wallet-balance-chip";
@@ -56,7 +57,7 @@ export default function LocationOwnerLayout({ children }: { children: React.Reac
         </button>
       }
     >
-      {children}
+      <CompanyPackageGate>{children}</CompanyPackageGate>
     </DashboardSidebarShell>
   );
 }

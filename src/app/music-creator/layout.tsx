@@ -2,16 +2,18 @@
 
 import { signOut, useSession } from "next-auth/react";
 import { LogOut } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { DashboardSidebarShell, type DashboardNavSection } from "@/components/layout/dashboard-sidebar-shell";
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { WalletBalanceChip } from "@/components/layout/wallet-balance-chip";
+import { CreatorPackageGate } from "@/components/creator/creator-package-gate";
 import { CreatorStudioActingLabel } from "@/components/creator/creator-studio-switcher";
 import { CREATOR_STUDIO_PROFILES_QUERY_KEY } from "@/lib/pricing";
 
 export default function MusicCreatorLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const router = useRouter();
   const { data: session } = useSession();
   const role = session?.user?.role;
@@ -55,6 +57,10 @@ export default function MusicCreatorLayout({ children }: { children: React.React
     router.refresh();
   };
 
+  if (pathname.startsWith("/music-creator/onboarding")) {
+    return <>{children}</>;
+  }
+
   return (
     <DashboardSidebarShell
       brandHref="/music-creator/dashboard"
@@ -86,7 +92,7 @@ export default function MusicCreatorLayout({ children }: { children: React.React
         </button>
       }
     >
-      {children}
+      <CreatorPackageGate>{children}</CreatorPackageGate>
     </DashboardSidebarShell>
   );
 }

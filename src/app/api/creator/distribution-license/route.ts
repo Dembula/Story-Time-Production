@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { ensureCreatorStudioProfilesForUser, loadStudioPipelineContext } from "@/lib/creator-studio";
 import { defaultSuiteAccessOpen } from "@/lib/creator-suite-access";
 import { isMissingCreatorStudioInfrastructure } from "@/lib/prisma-missing-table";
+import { getCreatorPackageStatus } from "@/lib/creator-package-gate";
 import { CREATOR_LICENSE_CONFIG, CREATOR_LICENSE_TYPE, CREATOR_ONBOARDING_PLANS, formatCreatorLicenseSummary } from "@/lib/pricing";
 import { computeDiscountedAmount, redeemPromoCode, resolvePromoCode } from "@/lib/promo-codes";
 import { initializeCheckout } from "@/lib/payments/billing";
@@ -82,6 +83,7 @@ export async function GET() {
   await ensureCreatorStudioProfilesForUser(userId);
   const ctx = await loadStudioPipelineContext(userId);
   const license = ctx?.license ?? null;
+  const packageStatus = await getCreatorPackageStatus(userId, role);
   return NextResponse.json({
     license,
     pipelineAccess: ctx?.pipelineAccess ?? false,
@@ -89,6 +91,10 @@ export async function GET() {
     planSummary: license ? formatCreatorLicenseSummary(license.type) : null,
     licensePeriodActive: ctx?.licensePeriodActive ?? false,
     activeStudioProfile: ctx?.activeProfile ?? null,
+    packageComplete: packageStatus.complete,
+    packageGateReason: packageStatus.reason ?? null,
+    onboardingPath: packageStatus.onboardingPath,
+    requiresPayment: packageStatus.reason === "payment_required",
   });
 }
 

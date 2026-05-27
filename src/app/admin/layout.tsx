@@ -64,7 +64,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <div className="absolute left-0 top-0 h-px w-full bg-gradient-to-r from-transparent via-orange-500/30 to-transparent" />
 
       <DashboardSidebarShell
-        className="relative z-10 bg-transparent"
+        className="relative z-10"
         brandHref="/admin"
         brandLabel={
           <>

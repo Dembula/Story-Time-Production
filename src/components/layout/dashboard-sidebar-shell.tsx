@@ -98,9 +98,7 @@ export function DashboardSidebarShell({
   brandHref: string;
   brandLabel: ReactNode;
   headerEnd?: ReactNode;
-  /** Simple layouts: flat nav sections (one section without title is fine). */
   navSections?: DashboardNavSection[];
-  /** Complex layouts: custom sidebar nav (creator, etc.). */
   sidebar?: ReactNode | ((ctx: { closeSidebar: () => void; pathname: string }) => ReactNode);
   sidebarFooter?: ReactNode;
   children: ReactNode;
@@ -122,6 +120,15 @@ export function DashboardSidebarShell({
     if (overlayMode) setSidebarOpen(false);
   }, [pathname, overlayMode]);
 
+  useEffect(() => {
+    if (!overlayMode || !sidebarOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [overlayMode, sidebarOpen]);
+
   const closeSidebar = () => {
     if (overlayMode) setSidebarOpen(false);
   };
@@ -134,14 +141,17 @@ export function DashboardSidebarShell({
 
   const paddedHeader = deviceClass === "mobile" ? "px-3 py-3" : "px-6 py-4 md:px-12";
   const paddedContent = deviceClass === "mobile" ? "px-3 py-4" : "px-4 py-6 md:px-8";
+  const headerHeightClass = deviceClass === "mobile" ? "top-[3.75rem]" : "top-[4.25rem]";
+
+  const showDockedSidebar = !overlayMode && sidebarOpen;
 
   return (
     <div className={`relative min-h-screen bg-background text-foreground ${className}`.trim()}>
       <header
-        className={`relative z-30 border-b border-white/8 bg-white/[0.03] backdrop-blur-xl ${paddedHeader} ${headerClassName}`}
+        className={`sticky top-0 z-50 border-b border-white/8 bg-background/95 backdrop-blur-xl ${paddedHeader} ${headerClassName}`}
       >
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 sm:gap-3">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <button
               type="button"
               onClick={() => setSidebarOpen((v) => !v)}
@@ -151,54 +161,63 @@ export function DashboardSidebarShell({
             >
               {sidebarOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
             </button>
-            <Link href={brandHref} className="truncate text-xl font-semibold text-white" onClick={closeSidebar}>
+            <Link
+              href={brandHref}
+              onClick={closeSidebar}
+              className="min-w-0 max-w-[11rem] truncate text-base font-semibold text-white sm:max-w-none sm:text-xl"
+            >
               {brandLabel}
             </Link>
           </div>
-          {headerEnd ? <div className="flex shrink-0 items-center gap-2 sm:gap-3">{headerEnd}</div> : null}
+          {headerEnd ? (
+            <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">{headerEnd}</div>
+          ) : null}
         </div>
       </header>
 
-      {overlayMode && sidebarOpen ? (
-        <button
-          type="button"
-          className="fixed inset-0 z-40 bg-black/70 backdrop-blur-md"
-          aria-label="Close menu"
-          onClick={() => setSidebarOpen(false)}
-        />
+      {overlayMode ? (
+        <>
+          <button
+            type="button"
+            aria-label="Close menu"
+            onClick={() => setSidebarOpen(false)}
+            className={[
+              `fixed inset-0 ${headerHeightClass} z-40 bg-black/55 backdrop-blur-[2px] transition-opacity duration-300`,
+              sidebarOpen ? "opacity-100" : "pointer-events-none opacity-0",
+            ].join(" ")}
+          />
+          <aside
+            className={[
+              `fixed bottom-0 left-0 ${headerHeightClass} z-[45] flex w-[min(18rem,88vw)] flex-col border-r border-white/10 bg-[#080c16]/98 shadow-2xl backdrop-blur-md`,
+              "transition-transform duration-300 ease-out",
+              sidebarOpen ? "translate-x-0" : "-translate-x-full pointer-events-none",
+            ].join(" ")}
+            aria-hidden={!sidebarOpen}
+          >
+            <div className="flex-1 overflow-y-auto px-3 py-4">{sidebarBody}</div>
+            {sidebarFooter ? (
+              <div className="shrink-0 border-t border-white/8 p-3">{sidebarFooter}</div>
+            ) : null}
+          </aside>
+        </>
       ) : null}
 
-      <div className={`relative mx-auto max-w-7xl ${paddedContent} ${contentClassName}`}>
-        <div className="flex gap-0 md:gap-6">
-          {sidebarOpen ? (
-            overlayMode ? (
-              <aside
-                className="fixed bottom-0 left-0 top-[4.25rem] z-50 flex w-[min(18rem,88vw)] flex-col border-r border-white/12 bg-[#080c16] shadow-2xl ring-1 ring-black/40"
-                role="dialog"
-                aria-modal="true"
-                aria-label="Navigation menu"
-              >
-                <div className="flex-1 overflow-y-auto px-3 py-4">{sidebarBody}</div>
-                {sidebarFooter ? (
-                  <div className="shrink-0 border-t border-white/8 p-3">{sidebarFooter}</div>
-                ) : null}
-              </aside>
-            ) : (
-              <aside className="w-56 shrink-0 xl:w-64">
-                <div className="sticky top-24 max-h-[calc(100vh-7rem)] overflow-y-auto pr-1">{sidebarBody}</div>
-                {sidebarFooter ? <div className="mt-4">{sidebarFooter}</div> : null}
-              </aside>
-            )
+      <div className={`relative mx-auto w-full max-w-7xl ${paddedContent} ${contentClassName}`}>
+        <div className="flex w-full gap-4 md:gap-6">
+          {showDockedSidebar ? (
+            <aside className="hidden w-56 shrink-0 md:block xl:w-64">
+              <div className="sticky top-24 max-h-[calc(100vh-7rem)] overflow-y-auto pr-1">{sidebarBody}</div>
+              {sidebarFooter ? <div className="mt-4">{sidebarFooter}</div> : null}
+            </aside>
           ) : null}
 
-          <main className={`min-w-0 flex-1 ${mainClassName}`}>{children}</main>
+          <main className={`min-w-0 w-full flex-1 ${mainClassName}`}>{children}</main>
         </div>
       </div>
     </div>
   );
 }
 
-/** Wrap custom nav links so they close the overlay drawer on tap. */
 export function DashboardSidebarNav({
   children,
   onNavigate,

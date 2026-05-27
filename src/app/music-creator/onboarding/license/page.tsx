@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { prisma } from "@/lib/prisma";
+import { getCreatorPackageStatus } from "@/lib/creator-package-gate";
 import { LicenseClient } from "./license-client";
 
 export default async function MusicLicenseOnboardingPage() {
@@ -9,14 +9,11 @@ export default async function MusicLicenseOnboardingPage() {
   if (!session?.user?.email) redirect("/auth/signin");
   if ((session.user as { role?: string })?.role !== "MUSIC_CREATOR") redirect("/music-creator/dashboard");
 
-  const user = await prisma.user.findUnique({
-    where: { email: session.user.email },
-    select: {
-      id: true,
-      creatorDistributionLicense: { select: { id: true } },
-    },
-  });
-  if (user?.creatorDistributionLicense) redirect("/music-creator/dashboard");
+  const userId = (session.user as { id?: string }).id;
+  if (userId) {
+    const status = await getCreatorPackageStatus(userId, "MUSIC_CREATOR");
+    if (status.complete) redirect("/music-creator/dashboard");
+  }
 
   return (
     <div className="min-h-screen bg-background px-6 py-16 text-slate-100">
