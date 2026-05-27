@@ -1,12 +1,20 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, User, Shield, Users, CheckCircle, AlertCircle, Settings } from "lucide-react";
+import { Plus, User, Shield, Users, CheckCircle, AlertCircle, Settings, Lock } from "lucide-react";
 import { getBirthDateOptionSets } from "@/lib/viewer-profiles";
+import { ProfilePinModal } from "@/components/viewer/profile-pin-modal";
 
-type Profile = { id: string; name: string; age: number; dateOfBirth: string | null; updatedAt: string | Date };
+type Profile = {
+  id: string;
+  name: string;
+  age: number;
+  dateOfBirth: string | null;
+  updatedAt: string | Date;
+  pinEnabled?: boolean;
+};
 
 function ageLabel(age: number): string {
   if (age <= 12) return "Kids";
@@ -20,12 +28,14 @@ export function ProfilesClient({
   deviceCount,
   viewerModel,
   accountDetailsIncomplete = false,
+  pendingPinProfile = null,
 }: {
   initialProfiles: Profile[];
   maxProfiles: number;
   deviceCount: number;
   viewerModel: "SUBSCRIPTION" | "PPV";
   accountDetailsIncomplete?: boolean;
+  pendingPinProfile?: { id: string; name: string } | null;
 }) {
   const router = useRouter();
   const [profiles, setProfiles] = useState<Profile[]>(initialProfiles ?? []);
@@ -34,8 +44,13 @@ export function ProfilesClient({
   const [birthYear, setBirthYear] = useState<number | "">("");
   const [birthMonth, setBirthMonth] = useState<number | "">("");
   const [birthDay, setBirthDay] = useState<number | "">("");
+  const [pinEnabledOnCreate, setPinEnabledOnCreate] = useState(false);
+  const [createPin, setCreatePin] = useState("");
+  const [createPinConfirm, setCreatePinConfirm] = useState("");
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [pinModalProfile, setPinModalProfile] = useState<Profile | null>(null);
+  const [pinModalError, setPinModalError] = useState("");
   const canCreateMore = profiles.length < maxProfiles;
   const { years, months } = getBirthDateOptionSets();
   const days = useMemo(() => {
@@ -46,19 +61,47 @@ export function ProfilesClient({
     return Array.from({ length: dayCount }, (_, index) => index + 1);
   }, [birthYear, birthMonth]);
 
-  async function setActive(profileId: string) {
+  useEffect(() => {
+    if (!pendingPinProfile) return;
+    const profile = profiles.find((p) => p.id === pendingPinProfile.id);
+    if (profile) {
+      setPinModalProfile(profile);
+    } else {
+      setPinModalProfile({
+        id: pendingPinProfile.id,
+        name: pendingPinProfile.name,
+        age: 0,
+        dateOfBirth: null,
+        updatedAt: new Date().toISOString(),
+        pinEnabled: true,
+      });
+    }
+  }, [pendingPinProfile, profiles]);
+
+  async function activateProfile(profileId: string, pin?: string) {
     setError("");
+    setPinModalError("");
     setLoading(profileId);
     try {
       const res = await fetch("/api/viewer/profiles/active", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ profileId }),
+        body: JSON.stringify({ profileId, ...(pin ? { pin } : {}) }),
       });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401 && data.requiresPin) {
+        const profile = profiles.find((p) => p.id === profileId);
+        if (profile) setPinModalProfile(profile);
+        return;
+      }
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
+        if (data.requiresPin) {
+          setPinModalError(data.error || "Incorrect PIN");
+          return;
+        }
         throw new Error(data.error || "Failed to select profile");
       }
+      setPinModalProfile(null);
       router.push("/browse");
       router.refresh();
     } catch (e) {
@@ -66,6 +109,15 @@ export function ProfilesClient({
     } finally {
       setLoading(null);
     }
+  }
+
+  function requestProfile(profile: Profile) {
+    if (profile.pinEnabled) {
+      setPinModalError("");
+      setPinModalProfile(profile);
+      return;
+    }
+    void activateProfile(profile.id);
   }
 
   async function createProfile() {
@@ -86,13 +138,30 @@ export function ProfilesClient({
       setError("Please select the full date of birth.");
       return;
     }
+    if (pinEnabledOnCreate) {
+      if (createPin.length !== 4 || createPinConfirm.length !== 4) {
+        setError("Enter and confirm a 4-digit PIN.");
+        return;
+      }
+      if (createPin !== createPinConfirm) {
+        setError("PIN confirmation does not match.");
+        return;
+      }
+    }
 
     setLoading("create");
     try {
       const res = await fetch("/api/viewer/profiles", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), birthYear, birthMonth, birthDay }),
+        body: JSON.stringify({
+          name: name.trim(),
+          birthYear,
+          birthMonth,
+          birthDay,
+          pinEnabled: pinEnabledOnCreate,
+          ...(pinEnabledOnCreate ? { pin: createPin } : {}),
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Failed to create profile");
@@ -102,6 +171,9 @@ export function ProfilesClient({
       setBirthYear("");
       setBirthMonth("");
       setBirthDay("");
+      setPinEnabledOnCreate(false);
+      setCreatePin("");
+      setCreatePinConfirm("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to create profile");
     } finally {
@@ -140,12 +212,10 @@ export function ProfilesClient({
           </div>
           <div className="storytime-kpi p-4">
             <p className="text-xs uppercase tracking-wide text-slate-500 flex items-center gap-2">
-              <CheckCircle className="w-4 h-4" /> Account rules
+              <Lock className="w-4 h-4" /> Profile PIN
             </p>
             <p className="text-sm text-slate-300 mt-1">
-              {viewerModel === "PPV"
-                ? "PPV viewers can keep one profile only and must pay per eligible title."
-                : "Your package controls how many profiles can be linked to this account."}
+              Optionally protect a profile with a 4-digit PIN. Manage PINs anytime in account settings.
             </p>
           </div>
         </div>
@@ -197,7 +267,7 @@ export function ProfilesClient({
           <button
             key={p.id}
             type="button"
-            onClick={() => setActive(p.id)}
+            onClick={() => requestProfile(p)}
             disabled={loading !== null}
             className="storytime-section group p-5 text-left hover:-translate-y-1 hover:bg-white/[0.04]"
           >
@@ -211,6 +281,7 @@ export function ProfilesClient({
                     <p className="text-white font-semibold truncate">{p.name}</p>
                     <p className="text-xs text-slate-500">
                       {ageLabel(p.age)} · Age {p.age}
+                      {p.pinEnabled ? " · PIN protected" : ""}
                     </p>
                   </div>
                 </div>
@@ -219,7 +290,7 @@ export function ProfilesClient({
                 </p>
               </div>
               <div className="text-xs text-slate-500">
-                {loading === p.id ? "Loading…" : "Select"}
+                {loading === p.id ? "Loading…" : p.pinEnabled ? "Enter PIN" : "Select"}
               </div>
             </div>
           </button>
@@ -324,6 +395,58 @@ export function ProfilesClient({
               </p>
             </div>
           </div>
+
+          <div className="rounded-xl border border-white/8 bg-white/[0.03] p-4 space-y-3">
+            <label className="flex items-start gap-3 text-sm text-slate-300 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={pinEnabledOnCreate}
+                onChange={(e) => {
+                  setPinEnabledOnCreate(e.target.checked);
+                  if (!e.target.checked) {
+                    setCreatePin("");
+                    setCreatePinConfirm("");
+                  }
+                }}
+                className="mt-1"
+              />
+              <span>
+                <span className="font-medium text-white">Protect this profile with a PIN</span>
+                <span className="block text-xs text-slate-500 mt-0.5">
+                  Optional. Anyone selecting this profile will need the 4-digit PIN.
+                </span>
+              </span>
+            </label>
+            {pinEnabledOnCreate ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pl-7">
+                <div>
+                  <label className="mb-1 block text-xs text-slate-400">PIN</label>
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={4}
+                    value={createPin}
+                    onChange={(e) => setCreatePin(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                    className="storytime-input w-full px-3 py-2.5"
+                    placeholder="4 digits"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-slate-400">Confirm PIN</label>
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={4}
+                    value={createPinConfirm}
+                    onChange={(e) => setCreatePinConfirm(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                    className="storytime-input w-full px-3 py-2.5"
+                    placeholder="4 digits"
+                  />
+                </div>
+              </div>
+            ) : null}
+          </div>
+
           <div className="flex justify-end gap-2">
             <button
               type="button"
@@ -343,7 +466,20 @@ export function ProfilesClient({
           </div>
         </div>
       )}
+
+      <ProfilePinModal
+        open={!!pinModalProfile}
+        profileName={pinModalProfile?.name ?? ""}
+        loading={!!pinModalProfile && loading === pinModalProfile.id}
+        error={pinModalError}
+        onCancel={() => {
+          setPinModalProfile(null);
+          setPinModalError("");
+        }}
+        onSubmit={(pin) => {
+          if (pinModalProfile) void activateProfile(pinModalProfile.id, pin);
+        }}
+      />
     </div>
   );
 }
-

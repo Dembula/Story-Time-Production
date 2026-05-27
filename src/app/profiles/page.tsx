@@ -7,8 +7,13 @@ import { ProfilesClient } from "./profiles-client";
 import { getLatestViewerSubscription, getViewerDeviceCount, getViewerModel, getViewerProfileLimit } from "@/lib/viewer-access";
 import { getViewerProfileAge } from "@/lib/viewer-profiles";
 import { isViewerAccountOnboardingComplete } from "@/lib/viewer-account-onboarding";
+import { isViewerProfilePinUnlocked } from "@/lib/viewer-profile-access";
 
-export default async function ProfilesPage() {
+export default async function ProfilesPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ verify?: string }>;
+}) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) redirect("/auth/signin");
 
@@ -32,14 +37,36 @@ export default async function ProfilesPage() {
   const subscription = await getLatestViewerSubscription(session.user.id);
   if (!subscription) redirect("/onboarding/package");
 
+  const params = searchParams ? await searchParams : {};
+  const verifyRequested = params.verify === "1";
+
   const profiles =
     "viewerProfile" in prisma && prisma.viewerProfile
       ? await prisma.viewerProfile.findMany({
           where: { userId: session.user.id },
           orderBy: { createdAt: "asc" },
-          select: { id: true, name: true, age: true, dateOfBirth: true, updatedAt: true },
+          select: {
+            id: true,
+            name: true,
+            age: true,
+            dateOfBirth: true,
+            updatedAt: true,
+            pinEnabled: true,
+          },
         })
       : [];
+
+  const activeProfileId = cookieStore.get("st_viewer_profile")?.value ?? null;
+  let pendingPinProfile: { id: string; name: string } | null = null;
+  if (activeProfileId && verifyRequested) {
+    const pending = profiles.find((p) => p.id === activeProfileId);
+    if (pending?.pinEnabled) {
+      const unlocked = await isViewerProfilePinUnlocked(session.user.id, activeProfileId, cookieStore);
+      if (!unlocked) {
+        pendingPinProfile = { id: pending.id, name: pending.name };
+      }
+    }
+  }
 
   return (
     <div className="min-h-screen bg-background px-6 py-16 text-slate-100">
@@ -52,7 +79,9 @@ export default async function ProfilesPage() {
             age: getViewerProfileAge(profile) ?? profile.age,
             dateOfBirth: profile.dateOfBirth?.toISOString() ?? null,
             updatedAt: profile.updatedAt,
+            pinEnabled: profile.pinEnabled,
           }))}
+          pendingPinProfile={pendingPinProfile}
           viewerModel={getViewerModel(subscription)}
           maxProfiles={getViewerProfileLimit(subscription)}
           deviceCount={getViewerDeviceCount(subscription)}

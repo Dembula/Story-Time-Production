@@ -565,6 +565,11 @@ model ViewerProfile {
   /// Free-form personalization and learned preferences for recommendations.
   preferences Json?
 
+  /// Optional profile PIN (hashed). When enabled, viewers must enter the PIN to use this profile.
+  pinEnabled   Boolean   @default(false)
+  pinHash      String?
+  pinUpdatedAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

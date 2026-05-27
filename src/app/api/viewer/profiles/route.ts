@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getLatestViewerSubscription, getViewerProfileLimit } from "@/lib/viewer-access";
 import { getDateFromBirthParts, getViewerProfileAge } from "@/lib/viewer-profiles";
+import { hashProfilePin, validateProfilePin, verifyProfilePin } from "@/lib/viewer-profile-pin";
 
 function getViewerProfileDelegate() {
   if ("viewerProfile" in prisma && prisma.viewerProfile) return prisma.viewerProfile;
@@ -16,6 +17,7 @@ function toProfileResponse(profile: {
   age: number;
   dateOfBirth?: Date | null;
   updatedAt: Date;
+  pinEnabled?: boolean;
 }) {
   return {
     id: profile.id,
@@ -23,8 +25,19 @@ function toProfileResponse(profile: {
     age: getViewerProfileAge(profile) ?? profile.age,
     dateOfBirth: profile.dateOfBirth?.toISOString() ?? null,
     updatedAt: profile.updatedAt,
+    pinEnabled: profile.pinEnabled ?? false,
   };
 }
+
+const profileSelect = {
+  id: true,
+  name: true,
+  age: true,
+  dateOfBirth: true,
+  updatedAt: true,
+  pinEnabled: true,
+  pinHash: true,
+} as const;
 
 async function getMasterProfileId(userId: string, delegate: NonNullable<ReturnType<typeof getViewerProfileDelegate>>) {
   const master = await delegate.findFirst({
@@ -33,6 +46,47 @@ async function getMasterProfileId(userId: string, delegate: NonNullable<ReturnTy
     select: { id: true },
   });
   return master?.id ?? null;
+}
+
+async function applyPinUpdates(
+  profile: { id: string; pinEnabled: boolean; pinHash: string | null },
+  body: {
+    pinEnabled?: boolean;
+    pin?: string;
+    currentPin?: string;
+    removePin?: boolean;
+  }
+): Promise<{ pinEnabled?: boolean; pinHash?: string | null; pinUpdatedAt?: Date } | { error: string; status: number }> {
+  const wantsEnable = body.pinEnabled === true;
+  const wantsDisable = body.pinEnabled === false || body.removePin === true;
+  const newPin = typeof body.pin === "string" ? body.pin : "";
+  const currentPin = typeof body.currentPin === "string" ? body.currentPin : "";
+
+  if (profile.pinEnabled && (wantsDisable || newPin)) {
+    if (!currentPin) {
+      return { error: "Current PIN is required to change or remove profile PIN protection", status: 400 };
+    }
+    const validCurrent = await verifyProfilePin(currentPin, profile.pinHash);
+    if (!validCurrent) {
+      return { error: "Current PIN is incorrect", status: 403 };
+    }
+  }
+
+  if (wantsDisable) {
+    return { pinEnabled: false, pinHash: null, pinUpdatedAt: new Date() };
+  }
+
+  if (wantsEnable || newPin) {
+    if (!newPin) {
+      return { error: "A 4-digit PIN is required when enabling profile protection", status: 400 };
+    }
+    const validationError = validateProfilePin(newPin);
+    if (validationError) return { error: validationError, status: 400 };
+    const pinHash = await hashProfilePin(newPin);
+    return { pinEnabled: true, pinHash, pinUpdatedAt: new Date() };
+  }
+
+  return {};
 }
 
 export async function GET() {
@@ -51,7 +105,7 @@ export async function GET() {
     const profiles = await delegate.findMany({
       where: { userId: session.user.id },
       orderBy: { createdAt: "asc" },
-      select: { id: true, name: true, age: true, dateOfBirth: true, updatedAt: true },
+      select: { id: true, name: true, age: true, dateOfBirth: true, updatedAt: true, pinEnabled: true },
     });
     return NextResponse.json({ profiles: profiles.map(toProfileResponse) });
   } catch (e) {
@@ -78,6 +132,8 @@ export async function POST(req: NextRequest) {
     birthYear?: number;
     birthMonth?: number;
     birthDay?: number;
+    pinEnabled?: boolean;
+    pin?: string;
   } | null;
   const name = body?.name?.trim();
   const birthYear = typeof body?.birthYear === "number" ? Math.floor(body.birthYear) : null;
@@ -101,6 +157,17 @@ export async function POST(req: NextRequest) {
   const age = getViewerProfileAge({ dateOfBirth });
   if (age == null || age < 0 || age > 120) return NextResponse.json({ error: "Invalid date of birth" }, { status: 400 });
 
+  const pinEnabled = body?.pinEnabled === true;
+  let pinHash: string | null = null;
+  let pinUpdatedAt: Date | undefined;
+  if (pinEnabled) {
+    const pin = typeof body?.pin === "string" ? body.pin : "";
+    const validationError = validateProfilePin(pin);
+    if (validationError) return NextResponse.json({ error: validationError }, { status: 400 });
+    pinHash = await hashProfilePin(pin);
+    pinUpdatedAt = new Date();
+  }
+
   try {
     const subscription = await getLatestViewerSubscription(session.user.id);
     if (!subscription) {
@@ -122,8 +189,16 @@ export async function POST(req: NextRequest) {
     }
 
     const profile = await delegate.create({
-      data: { userId: session.user.id, name, age, dateOfBirth },
-      select: { id: true, name: true, age: true, dateOfBirth: true, updatedAt: true },
+      data: {
+        userId: session.user.id,
+        name,
+        age,
+        dateOfBirth,
+        pinEnabled,
+        pinHash,
+        pinUpdatedAt,
+      },
+      select: { id: true, name: true, age: true, dateOfBirth: true, updatedAt: true, pinEnabled: true },
     });
     return NextResponse.json({ profile: toProfileResponse(profile) }, { status: 201 });
   } catch (e) {
@@ -152,6 +227,10 @@ export async function PATCH(req: NextRequest) {
     birthMonth?: number;
     birthDay?: number;
     isChild?: boolean;
+    pinEnabled?: boolean;
+    pin?: string;
+    currentPin?: string;
+    removePin?: boolean;
   } | null;
 
   const profileId = body?.id?.trim();
@@ -159,11 +238,19 @@ export async function PATCH(req: NextRequest) {
 
   const profile = await delegate.findFirst({
     where: { id: profileId, userId: session.user.id },
-    select: { id: true, name: true, dateOfBirth: true, age: true, updatedAt: true },
+    select: profileSelect,
   });
   if (!profile) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
 
-  const updates: { name?: string; dateOfBirth?: Date; age?: number } = {};
+  const updates: {
+    name?: string;
+    dateOfBirth?: Date;
+    age?: number;
+    pinEnabled?: boolean;
+    pinHash?: string | null;
+    pinUpdatedAt?: Date;
+  } = {};
+
   if (typeof body?.name === "string") {
     const trimmed = body.name.trim();
     if (!trimmed) return NextResponse.json({ error: "Name cannot be empty" }, { status: 400 });
@@ -190,13 +277,18 @@ export async function PATCH(req: NextRequest) {
     updates.dateOfBirth = dob;
     updates.age = derivedAge;
   } else if (typeof body?.isChild === "boolean") {
-    // Quick toggle for under-18 censorship: we anchor to a safe representative DOB.
     const now = new Date();
     const year = body.isChild ? now.getUTCFullYear() - 10 : now.getUTCFullYear() - 21;
     const dob = getDateFromBirthParts(year, 1, 1);
     updates.dateOfBirth = dob;
     updates.age = getViewerProfileAge({ dateOfBirth: dob }) ?? (body.isChild ? 10 : 21);
   }
+
+  const pinUpdates = await applyPinUpdates(profile, body ?? {});
+  if ("error" in pinUpdates) {
+    return NextResponse.json({ error: pinUpdates.error }, { status: pinUpdates.status });
+  }
+  Object.assign(updates, pinUpdates);
 
   if (!Object.keys(updates).length) {
     return NextResponse.json({ error: "No changes supplied" }, { status: 400 });
@@ -205,7 +297,7 @@ export async function PATCH(req: NextRequest) {
   const updated = await delegate.update({
     where: { id: profile.id },
     data: updates,
-    select: { id: true, name: true, age: true, dateOfBirth: true, updatedAt: true },
+    select: { id: true, name: true, age: true, dateOfBirth: true, updatedAt: true, pinEnabled: true },
   });
   return NextResponse.json({ profile: toProfileResponse(updated) });
 }
@@ -240,4 +332,3 @@ export async function DELETE(req: NextRequest) {
   await delegate.delete({ where: { id } });
   return NextResponse.json({ success: true });
 }
-

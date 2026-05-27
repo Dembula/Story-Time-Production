@@ -391,6 +391,9 @@ exports.Prisma.ViewerProfileScalarFieldEnum = {
   age: 'age',
   dateOfBirth: 'dateOfBirth',
   preferences: 'preferences',
+  pinEnabled: 'pinEnabled',
+  pinHash: 'pinHash',
+  pinUpdatedAt: 'pinUpdatedAt',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 };

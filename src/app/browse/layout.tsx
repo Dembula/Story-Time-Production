@@ -9,6 +9,7 @@ import { ViewerSuggestionsTrigger } from "./viewer-suggestions-trigger";
 import { cookies } from "next/headers";
 import { getLatestViewerSubscription, getViewerModel, isViewerSubscriptionExpired } from "@/lib/viewer-access";
 import { isViewerAccountOnboardingComplete } from "@/lib/viewer-account-onboarding";
+import { isViewerProfilePinUnlocked } from "@/lib/viewer-profile-access";
 
 export default async function BrowseLayout({
   children,
@@ -43,6 +44,12 @@ export default async function BrowseLayout({
       const activeProfileId = cookieStore.get("st_viewer_profile")?.value;
       if (!activeProfileId) {
         redirect("/profiles");
+      }
+      if (user?.id) {
+        const unlocked = await isViewerProfilePinUnlocked(user.id, activeProfileId, cookieStore);
+        if (!unlocked) {
+          redirect("/profiles?verify=1");
+        }
       }
       subscriptionExpired = getViewerModel(sub) === "SUBSCRIPTION" ? isViewerSubscriptionExpired(sub) : false;
     } catch {

@@ -106,6 +106,7 @@ export async function GET() {
     name: string;
     age: number;
     dateOfBirth: string | null;
+    pinEnabled: boolean;
   };
   let profiles: ProfileRow[] = [];
   let activeProfileId: string | null = null;
@@ -120,13 +121,14 @@ export async function GET() {
       const rows = await profileDelegate.findMany({
         where: { userId },
         orderBy: { createdAt: "asc" },
-        select: { id: true, name: true, age: true, dateOfBirth: true },
+        select: { id: true, name: true, age: true, dateOfBirth: true, pinEnabled: true },
       });
       profiles = rows.map((p) => ({
         id: p.id,
         name: p.name,
         age: getViewerProfileAge(p) ?? p.age,
         dateOfBirth: p.dateOfBirth?.toISOString() ?? null,
+        pinEnabled: p.pinEnabled,
       }));
 
       const cookieStore = await cookies();

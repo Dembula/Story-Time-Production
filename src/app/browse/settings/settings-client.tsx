@@ -7,7 +7,14 @@ import { formatZar } from "@/lib/format-currency-zar";
 import { getBirthDateOptionSets } from "@/lib/viewer-profiles";
 
 type PaymentMethod = { id: string; label: string; lastFour: string; isDefault: boolean };
-type ViewerProfile = { id: string; name: string; age: number; dateOfBirth: string | null; isMaster: boolean };
+type ViewerProfile = {
+  id: string;
+  name: string;
+  age: number;
+  dateOfBirth: string | null;
+  isMaster: boolean;
+  pinEnabled: boolean;
+};
 type ViewerSubscription = {
   id: string;
   plan: string;
@@ -38,7 +45,14 @@ export function SettingsClient() {
   const [newPaymentLabel, setNewPaymentLabel] = useState("");
   const [newPaymentLastFour, setNewPaymentLastFour] = useState("");
   const [newProfileName, setNewProfileName] = useState("");
+  const [newProfilePinEnabled, setNewProfilePinEnabled] = useState(false);
+  const [newProfilePin, setNewProfilePin] = useState("");
+  const [newProfilePinConfirm, setNewProfilePinConfirm] = useState("");
   const [savingProfileId, setSavingProfileId] = useState<string | null>(null);
+  const [pinEditorId, setPinEditorId] = useState<string | null>(null);
+  const [pinCurrent, setPinCurrent] = useState("");
+  const [pinNew, setPinNew] = useState("");
+  const [pinConfirm, setPinConfirm] = useState("");
   const [birthYear, setBirthYear] = useState<number | "">("");
   const [birthMonth, setBirthMonth] = useState<number | "">("");
   const [birthDay, setBirthDay] = useState<number | "">("");
@@ -110,6 +124,7 @@ export function SettingsClient() {
         const list = Array.isArray(data.profiles) ? data.profiles : [];
         const enhanced: ViewerProfile[] = list.map((item, index) => ({
           ...item,
+          pinEnabled: Boolean((item as { pinEnabled?: boolean }).pinEnabled),
           isMaster: index === 0,
         }));
         setProfiles(enhanced);
@@ -328,6 +343,60 @@ export function SettingsClient() {
     }
   }
 
+  function resetPinEditor() {
+    setPinEditorId(null);
+    setPinCurrent("");
+    setPinNew("");
+    setPinConfirm("");
+  }
+
+  async function saveProfilePin(profile: ViewerProfile, enable: boolean) {
+    if (!isMasterActive) return;
+    if (enable) {
+      if (pinNew.length !== 4 || pinConfirm.length !== 4) {
+        setError("Enter and confirm a 4-digit PIN.");
+        return;
+      }
+      if (pinNew !== pinConfirm) {
+        setError("PIN confirmation does not match.");
+        return;
+      }
+      if (profile.pinEnabled && !pinCurrent) {
+        setError("Enter the current PIN to change it.");
+        return;
+      }
+    } else if (profile.pinEnabled && !pinCurrent) {
+      setError("Enter the current PIN to turn off protection.");
+      return;
+    }
+
+    setSavingProfileId(profile.id);
+    setError("");
+    const res = await fetch("/api/viewer/profiles", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: profile.id,
+        pinEnabled: enable,
+        ...(enable ? { pin: pinNew } : { removePin: true }),
+        ...(profile.pinEnabled && pinCurrent ? { currentPin: pinCurrent } : {}),
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data?.profile) {
+      setProfiles((prev) =>
+        prev.map((p) =>
+          p.id === profile.id ? { ...p, ...data.profile, isMaster: p.isMaster, pinEnabled: data.profile.pinEnabled } : p
+        )
+      );
+      setSuccess(enable ? "Profile PIN protection enabled." : "Profile PIN protection removed.");
+      resetPinEditor();
+    } else {
+      setError(data?.error || "Failed to update profile PIN");
+    }
+    setSavingProfileId(null);
+  }
+
   async function addProfile(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = newProfileName.trim();
@@ -335,6 +404,16 @@ export function SettingsClient() {
     if (!birthYear || !birthMonth || !birthDay) {
       setError("Please enter date of birth for the profile");
       return;
+    }
+    if (newProfilePinEnabled) {
+      if (newProfilePin.length !== 4 || newProfilePinConfirm.length !== 4) {
+        setError("Enter and confirm a 4-digit PIN for the new profile.");
+        return;
+      }
+      if (newProfilePin !== newProfilePinConfirm) {
+        setError("PIN confirmation does not match.");
+        return;
+      }
     }
     const res = await fetch("/api/viewer/profiles", {
       method: "POST",
@@ -344,16 +423,21 @@ export function SettingsClient() {
         birthYear,
         birthMonth,
         birthDay,
+        pinEnabled: newProfilePinEnabled,
+        ...(newProfilePinEnabled ? { pin: newProfilePin } : {}),
       }),
     });
     const data = await res.json().catch(() => ({}));
     if (res.ok && data?.profile) {
       const profile = data.profile as ViewerProfile;
-      setProfiles((prev) => [...prev, { ...profile, isMaster: false }]);
+      setProfiles((prev) => [...prev, { ...profile, isMaster: false, pinEnabled: Boolean(profile.pinEnabled) }]);
       setNewProfileName("");
       setBirthYear("");
       setBirthMonth("");
       setBirthDay("");
+      setNewProfilePinEnabled(false);
+      setNewProfilePin("");
+      setNewProfilePinConfirm("");
     } else {
       setError(data?.error || "Failed to add profile");
     }
@@ -523,6 +607,101 @@ export function SettingsClient() {
                   </button>
                 )}
               </div>
+
+              <div className="mt-4 rounded-lg border border-white/8 bg-black/20 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-medium text-white flex items-center gap-2">
+                      <Lock className="w-3.5 h-3.5 text-slate-400" />
+                      Profile PIN
+                    </p>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {profile.pinEnabled
+                        ? "PIN required when selecting this profile."
+                        : "Optional 4-digit PIN to lock this profile."}
+                    </p>
+                  </div>
+                  {isMasterActive ? (
+                    <button
+                      type="button"
+                      disabled={!!savingProfileId}
+                      onClick={() => {
+                        if (pinEditorId === profile.id) {
+                          resetPinEditor();
+                        } else {
+                          resetPinEditor();
+                          setPinEditorId(profile.id);
+                        }
+                      }}
+                      className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-slate-200 hover:bg-white/[0.06] disabled:opacity-50"
+                    >
+                      {pinEditorId === profile.id ? "Close" : profile.pinEnabled ? "Change PIN" : "Set PIN"}
+                    </button>
+                  ) : null}
+                </div>
+
+                {pinEditorId === profile.id && isMasterActive ? (
+                  <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {profile.pinEnabled ? (
+                      <div>
+                        <label className="mb-1 block text-xs text-slate-400">Current PIN</label>
+                        <input
+                          type="password"
+                          inputMode="numeric"
+                          maxLength={4}
+                          value={pinCurrent}
+                          onChange={(e) => setPinCurrent(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                          className="storytime-input w-full px-3 py-2 text-sm"
+                        />
+                      </div>
+                    ) : null}
+                    <div>
+                      <label className="mb-1 block text-xs text-slate-400">
+                        {profile.pinEnabled ? "New PIN" : "PIN"}
+                      </label>
+                      <input
+                        type="password"
+                        inputMode="numeric"
+                        maxLength={4}
+                        value={pinNew}
+                        onChange={(e) => setPinNew(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                        className="storytime-input w-full px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs text-slate-400">Confirm PIN</label>
+                      <input
+                        type="password"
+                        inputMode="numeric"
+                        maxLength={4}
+                        value={pinConfirm}
+                        onChange={(e) => setPinConfirm(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                        className="storytime-input w-full px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div className="sm:col-span-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        disabled={!!savingProfileId}
+                        onClick={() => saveProfilePin(profile, true)}
+                        className="rounded-lg bg-orange-500 px-3 py-2 text-xs font-semibold text-white hover:bg-orange-400 disabled:opacity-50"
+                      >
+                        {profile.pinEnabled ? "Update PIN" : "Enable PIN"}
+                      </button>
+                      {profile.pinEnabled ? (
+                        <button
+                          type="button"
+                          disabled={!!savingProfileId}
+                          onClick={() => saveProfilePin(profile, false)}
+                          className="rounded-lg border border-white/10 px-3 py-2 text-xs text-slate-300 hover:bg-white/[0.04] disabled:opacity-50"
+                        >
+                          Remove PIN
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
             </div>
           ))}
         </div>
@@ -576,6 +755,49 @@ export function SettingsClient() {
               className="storytime-input w-20 px-3 py-2 text-sm"
             />
           </div>
+          <label className="flex w-full items-center gap-2 text-sm text-slate-300 sm:w-auto">
+            <input
+              type="checkbox"
+              checked={newProfilePinEnabled}
+              disabled={!isMasterActive || profiles.length >= profileLimit}
+              onChange={(e) => {
+                setNewProfilePinEnabled(e.target.checked);
+                if (!e.target.checked) {
+                  setNewProfilePin("");
+                  setNewProfilePinConfirm("");
+                }
+              }}
+            />
+            Protect with PIN
+          </label>
+          {newProfilePinEnabled ? (
+            <>
+              <div>
+                <label className="mb-1 block text-xs text-slate-400">PIN</label>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={4}
+                  value={newProfilePin}
+                  onChange={(e) => setNewProfilePin(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                  disabled={!isMasterActive || profiles.length >= profileLimit}
+                  className="storytime-input w-24 px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-slate-400">Confirm</label>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={4}
+                  value={newProfilePinConfirm}
+                  onChange={(e) => setNewProfilePinConfirm(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                  disabled={!isMasterActive || profiles.length >= profileLimit}
+                  className="storytime-input w-24 px-3 py-2 text-sm"
+                />
+              </div>
+            </>
+          ) : null}
           <button
             type="submit"
             disabled={!isMasterActive || profiles.length >= profileLimit}
