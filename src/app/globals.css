@@ -340,3 +340,21 @@ html[data-device-class="tv"] .adaptive-table-mobile {
     transform: none !important;
   }
 }
+
+/* Viewer mobile dock — keep Modoc composer above bottom nav */
+:root {
+  --viewer-mobile-dock: 5.25rem;
+}
+
+html.modoc-viewer-open .browse-mobile-nav {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(100%);
+  transition:
+    opacity 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+html.modoc-viewer-open {
+  overflow: hidden;
+}

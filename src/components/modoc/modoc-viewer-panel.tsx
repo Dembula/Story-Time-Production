@@ -40,6 +40,13 @@ export function ModocViewerPanel({
     bottomRef.current?.scrollIntoView({ behavior: prefersReducedMotion ? "auto" : "smooth" });
   }, [messages, prefersReducedMotion]);
 
+  useEffect(() => {
+    if (!open) return;
+    const root = document.documentElement;
+    root.classList.add("modoc-viewer-open");
+    return () => root.classList.remove("modoc-viewer-open");
+  }, [open]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const text = input.trim();
@@ -53,7 +60,7 @@ export function ModocViewerPanel({
       {open ? (
         <>
           <motion.div
-            className="fixed inset-0 z-[1200] bg-black/62 backdrop-blur-xl"
+            className="fixed inset-0 z-[1340] bg-black/62 backdrop-blur-xl"
             variants={viewerOverlayVariants()}
             initial="hidden"
             animate="visible"
@@ -65,7 +72,7 @@ export function ModocViewerPanel({
             role="dialog"
             aria-modal="true"
             aria-labelledby="modoc-viewer-title"
-            className="fixed inset-x-2 bottom-[calc(env(safe-area-inset-bottom)+0.5rem)] top-[4.8rem] z-[1210] mx-auto flex w-auto max-w-4xl flex-col overflow-hidden rounded-3xl border border-white/15 bg-[linear-gradient(145deg,rgba(10,16,28,0.92),rgba(7,11,20,0.88))] shadow-2xl backdrop-blur-2xl md:inset-x-5 md:bottom-4 md:top-[5.5rem] lg:inset-x-8 lg:top-[6.5rem]"
+            className="fixed inset-x-2 bottom-[max(0.5rem,env(safe-area-inset-bottom))] top-[4.5rem] z-[1350] mx-auto flex w-auto max-w-4xl flex-col overflow-hidden rounded-3xl border border-white/15 bg-[linear-gradient(145deg,rgba(10,16,28,0.92),rgba(7,11,20,0.88))] shadow-2xl backdrop-blur-2xl max-md:bottom-[max(0.5rem,env(safe-area-inset-bottom))] max-md:top-[4.5rem] md:inset-x-5 md:bottom-4 md:top-[5.5rem] lg:inset-x-8 lg:top-[6.5rem]"
             style={{ boxShadow: "0 18px 72px rgba(2, 6, 23, 0.75), inset 0 1px 0 rgba(255,255,255,0.08)" }}
             variants={viewerSheetVariants(isMobile)}
             initial="hidden"
@@ -191,7 +198,10 @@ export function ModocViewerPanel({
               <div ref={bottomRef} />
             </div>
 
-            <form onSubmit={handleSubmit} className="border-t border-white/10 bg-white/[0.03] p-4 md:p-5">
+            <form
+              onSubmit={handleSubmit}
+              className="shrink-0 border-t border-white/10 bg-white/[0.03] p-4 pb-[max(1rem,env(safe-area-inset-bottom))] md:p-5 md:pb-5"
+            >
               <div className="flex gap-3">
                 <input
                   type="text"
