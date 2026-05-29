@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
+import { prismaDbNull, type InputJsonValue } from "@/lib/prisma-json";
 import { notifyUser } from "@/lib/notify-user";
 import { sanitizeReviewFeedback } from "@/lib/review-feedback";
 import { buildAppUrl } from "@/lib/app-url";
@@ -48,7 +48,7 @@ export async function PATCH(req: NextRequest) {
   const now = new Date();
   const feedbackList = sanitizeReviewFeedback(rawFeedback, before.linkedProjectId);
   const feedbackForDb =
-    feedbackList === null ? Prisma.JsonNull : (feedbackList as Prisma.InputJsonValue);
+    feedbackList === null ? prismaDbNull : (feedbackList as InputJsonValue);
 
   const baseAudit = {
     adminUserId: adminId,
@@ -57,7 +57,7 @@ export async function PATCH(req: NextRequest) {
     oldValue: {
       reviewStatus: before.reviewStatus,
       published: before.published,
-    } as Prisma.InputJsonValue,
+    } as InputJsonValue,
   };
 
   const notify = async (
@@ -103,7 +103,7 @@ export async function PATCH(req: NextRequest) {
         published: true,
         featured: featured ?? false,
         reviewNote: reviewNote || null,
-        reviewFeedback: Prisma.JsonNull as unknown as Prisma.InputJsonValue,
+        reviewFeedback: prismaDbNull,
         reviewedAt: now,
       },
     });
@@ -111,7 +111,7 @@ export async function PATCH(req: NextRequest) {
       data: {
         ...baseAudit,
         action: "CONTENT_REVIEW_APPROVE",
-        newValue: { reviewStatus: updated.reviewStatus, published: updated.published } as Prisma.InputJsonValue,
+        newValue: { reviewStatus: updated.reviewStatus, published: updated.published } as InputJsonValue,
       },
     });
     await notify(
@@ -129,7 +129,7 @@ export async function PATCH(req: NextRequest) {
         reviewStatus: "REJECTED",
         published: false,
         reviewNote: reviewNote || "Content did not meet platform guidelines.",
-        reviewFeedback: feedbackForDb as unknown as Prisma.InputJsonValue,
+        reviewFeedback: feedbackForDb,
         reviewedAt: now,
       },
     });
@@ -140,7 +140,7 @@ export async function PATCH(req: NextRequest) {
         newValue: {
           reviewStatus: updated.reviewStatus,
           reviewNote: updated.reviewNote,
-        } as Prisma.InputJsonValue,
+        } as InputJsonValue,
       },
     });
     await notify(
@@ -158,7 +158,7 @@ export async function PATCH(req: NextRequest) {
         reviewStatus: "CHANGES_REQUESTED",
         published: false,
         reviewNote: reviewNote || "Please address the noted issues and resubmit.",
-        reviewFeedback: feedbackForDb as unknown as Prisma.InputJsonValue,
+        reviewFeedback: feedbackForDb,
         reviewedAt: now,
       },
     });
@@ -169,7 +169,7 @@ export async function PATCH(req: NextRequest) {
         newValue: {
           reviewStatus: updated.reviewStatus,
           reviewNote: updated.reviewNote,
-        } as Prisma.InputJsonValue,
+        } as InputJsonValue,
       },
     });
     await notify(
@@ -194,7 +194,7 @@ export async function PATCH(req: NextRequest) {
       data: {
         ...baseAudit,
         action: "CONTENT_REVIEW_UNPUBLISH",
-        newValue: { reviewStatus: updated.reviewStatus, published: false } as Prisma.InputJsonValue,
+        newValue: { reviewStatus: updated.reviewStatus, published: false } as InputJsonValue,
       },
     });
     await notify(
