@@ -28,6 +28,7 @@ export function ProfilesClient({
   deviceCount,
   viewerModel,
   accountDetailsIncomplete = false,
+  subscriptionStatus = "ACTIVE",
   pendingPinProfile = null,
 }: {
   initialProfiles: Profile[];
@@ -35,6 +36,7 @@ export function ProfilesClient({
   deviceCount: number;
   viewerModel: "SUBSCRIPTION" | "PPV";
   accountDetailsIncomplete?: boolean;
+  subscriptionStatus?: string;
   pendingPinProfile?: { id: string; name: string } | null;
 }) {
   const router = useRouter();
@@ -51,6 +53,7 @@ export function ProfilesClient({
   const [error, setError] = useState("");
   const [pinModalProfile, setPinModalProfile] = useState<Profile | null>(null);
   const [pinModalError, setPinModalError] = useState("");
+  const paymentPending = subscriptionStatus === "PAST_DUE";
   const canCreateMore = profiles.length < maxProfiles;
   const { years, months } = getBirthDateOptionSets();
   const days = useMemo(() => {
@@ -112,6 +115,10 @@ export function ProfilesClient({
   }
 
   function requestProfile(profile: Profile) {
+    if (paymentPending) {
+      setError("Complete your subscription payment before entering the catalogue.");
+      return;
+    }
     if (profile.pinEnabled) {
       setPinModalError("");
       setPinModalProfile(profile);
@@ -220,6 +227,41 @@ export function ProfilesClient({
           </div>
         </div>
       </div>
+
+      {paymentPending ? (
+        <div className="rounded-xl border border-orange-400/30 bg-orange-500/10 p-4 text-sm text-orange-100 shadow-panel">
+          <p className="font-medium text-white">Subscription payment required</p>
+          <p className="mt-1 text-orange-100/90">
+            Finish secure payment to activate your plan, then choose a profile to enter the catalogue.
+          </p>
+          <button
+            type="button"
+            onClick={async () => {
+              const pendingCheckout =
+                typeof window !== "undefined" ? sessionStorage.getItem("st_pending_viewer_checkout") : null;
+              if (pendingCheckout) {
+                sessionStorage.removeItem("st_pending_viewer_checkout");
+                window.location.assign(pendingCheckout);
+                return;
+              }
+              setError("");
+              try {
+                const res = await fetch("/api/viewer/subscription/resume-checkout", { method: "POST" });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok || typeof data.checkoutUrl !== "string" || !data.checkoutUrl) {
+                  throw new Error(data.error || "Unable to start checkout.");
+                }
+                window.location.assign(data.checkoutUrl);
+              } catch (err) {
+                setError(err instanceof Error ? err.message : "Unable to start checkout.");
+              }
+            }}
+            className="mt-3 rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-400"
+          >
+            Complete payment
+          </button>
+        </div>
+      ) : null}
 
       {error && (
         <div className="flex items-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300 shadow-panel">

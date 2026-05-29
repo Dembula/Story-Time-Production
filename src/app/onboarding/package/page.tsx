@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { PackageClient } from "./package-client";
 import { getViewerModel, isViewerSubscriptionExpired } from "@/lib/viewer-access";
+import { isViewerAccountOnboardingComplete } from "@/lib/viewer-account-onboarding";
 
 export default async function OnboardingPackagePage() {
   const session = await getServerSession(authOptions);
@@ -11,7 +12,11 @@ export default async function OnboardingPackagePage() {
 
   const user = await prisma.user.findUnique({
     where: { email: session.user.email },
-    include: {
+    select: {
+      name: true,
+      email: true,
+      phoneNumber: true,
+      accountOnboardingCompletedAt: true,
       viewerSubscriptions: {
         orderBy: { createdAt: "desc" },
         take: 1,
@@ -22,6 +27,9 @@ export default async function OnboardingPackagePage() {
   const sub = user?.viewerSubscriptions?.[0];
   const hasActive = sub && !isViewerSubscriptionExpired(sub);
   if (hasActive) redirect(getViewerModel(sub) === "PPV" ? "/browse" : "/profiles");
+  if (sub?.status === "PAST_DUE") {
+    redirect(user && isViewerAccountOnboardingComplete(user) ? "/profiles" : "/onboarding/account");
+  }
 
   return (
     <div className="min-h-screen bg-background px-6 py-16 text-slate-100">

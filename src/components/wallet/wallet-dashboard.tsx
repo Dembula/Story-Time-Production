@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
+import { PAYEE_DASHBOARD_REFETCH_MS } from "@/lib/dashboard-refresh";
 import { PayoutKycBanner } from "@/components/payout-kyc/payout-kyc-banner";
 import { requiresPayoutKyc } from "@/lib/payout-kyc";
 import { FunderVerificationBanner } from "@/components/funders/funder-verification-banner";
@@ -36,6 +37,7 @@ export function WalletDashboard({
       const res = await fetch("/api/wallet");
       return readJsonOrThrow(res);
     },
+    refetchInterval: PAYEE_DASHBOARD_REFETCH_MS,
   });
   const filterMutation = useMutation({
     mutationFn: async () => {

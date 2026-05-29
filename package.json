@@ -32,6 +32,7 @@
     "payments:reconcile": "tsx scripts/reconcile-ledger.ts",
     "payments:stitch:bootstrap": "node scripts/stitch-bootstrap.mjs",
     "payments:stitch:smoke": "node scripts/stitch-smoke.mjs",
+    "payments:creator-pool:distribute": "tsx scripts/run-creator-pool-distribution.ts",
     "db:studio": "prisma studio",
     "refresh": "prisma generate && node scripts/clear-dev-cache.mjs"
   },

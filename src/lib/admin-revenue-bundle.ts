@@ -9,13 +9,22 @@ import {
   getPlatformStats,
   getViewerSubscriptionRevenue,
 } from "@/lib/financial-ledger";
+import { VIEWER_CREATOR_SPLIT, VIEWER_PLATFORM_SPLIT } from "@/lib/payments/config";
+import { getPlatformTreasuryUserId } from "@/lib/payments/treasury-inflow";
+import { getWalletSnapshot } from "@/lib/payments/wallet";
+import { hasCreatorPoolDistribution, getPreviousCalendarMonthRange } from "@/lib/payments/creator-pool-distribution";
 
 export async function fetchAdminRevenueBundle() {
   const { periodStart, periodEnd } = getCalendarMonthToDateRange();
 
   const viewerSubRevenue = await getViewerSubscriptionRevenue(periodStart, periodEnd);
-  const creatorPoolFromSubs = viewerSubRevenue * 0.6;
-  const storyTimeFromSubs = viewerSubRevenue * 0.4;
+  const creatorPoolFromSubs = viewerSubRevenue * VIEWER_CREATOR_SPLIT;
+  const storyTimeFromSubs = viewerSubRevenue * VIEWER_PLATFORM_SPLIT;
+
+  const treasuryUserId = await getPlatformTreasuryUserId();
+  const treasuryWallet = await getWalletSnapshot(treasuryUserId);
+  const previousMonth = getPreviousCalendarMonthRange();
+  const previousMonthDistributed = await hasCreatorPoolDistribution(previousMonth.periodKey);
 
   const transactionFees = await aggregateCompletedMarketplaceFees(periodStart, periodEnd);
   const companySubRevenue = await prisma.paymentRecord.findMany({
@@ -90,7 +99,7 @@ export async function fetchAdminRevenueBundle() {
   });
 
   const totalWatchTime = contentWithWatch.reduce((s, c) => s + c.watchSessions.reduce((ss, w) => ss + w.durationSeconds, 0), 0);
-  const creatorPool = platformStats.revenuePool * 0.7;
+  const creatorPool = creatorPoolFromSubs || platformStats.revenuePool * VIEWER_CREATOR_SPLIT;
 
   const contentRevenue = contentWithWatch
     .map((c) => {
@@ -117,13 +126,20 @@ export async function fetchAdminRevenueBundle() {
     creators: revenueData.sort((a, b) => b.revenue + b.syncEarnings - (a.revenue + a.syncEarnings)),
     platform: {
       ...platformStats,
-      platformCut: platformStats.revenuePool * 0.3,
-      creatorPool: creatorPoolFromSubs || platformStats.revenuePool * 0.7,
+      platformCut: platformStats.revenuePool * VIEWER_PLATFORM_SPLIT,
+      creatorPool: creatorPoolFromSubs || platformStats.revenuePool * VIEWER_CREATOR_SPLIT,
       totalWatchTime: platformStats.totalWatchTime,
     },
     syncDeals: { totalDeals: syncDealCount, totalSyncRevenue },
     contentRevenue: contentRevenue.sort((a, b) => b.revenue - a.revenue),
     viewerSub: { viewerSubRevenue, creatorPoolFromSubs, storyTimeFromSubs },
+    treasury: {
+      availableBalance: treasuryWallet?.availableBalance ?? 0,
+      pendingBalance: treasuryWallet?.pendingBalance ?? 0,
+      totalEarnings: treasuryWallet?.totalEarnings ?? 0,
+      previousMonthKey: previousMonth.periodKey,
+      previousMonthDistributed,
+    },
     transactionFees: { totalFees: transactionFees._sum.feeAmount ?? 0, totalVolume: transactionFees._sum.totalAmount ?? 0 },
     companySubs: { count: companySubRevenue.length, revenue: companySubTotal },
     distributionLicenses: { yearlyCount, perUploadCount, revenue: distRevenue },

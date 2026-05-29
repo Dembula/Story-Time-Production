@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getPaymentGateway } from "@/lib/payments/gateway";
-import { ensureWalletForUser } from "@/lib/payments/wallet";
-import { postBalancedLedgerBatch } from "@/lib/payments/ledger";
+import { creditTreasuryFromGatewayPayment } from "@/lib/payments/treasury-inflow";
 import { applyPaymentRecordSettlementEffects } from "@/lib/payments/settlement-effects";
 
 const db = prisma as any;
@@ -12,33 +11,11 @@ async function settlePaymentRecord(paymentRecordId: string) {
   if (!paymentRecord || !paymentRecord.userId) return false;
   if (paymentRecord.status === "SUCCEEDED") return true;
 
-  await ensureWalletForUser(paymentRecord.userId);
-  const treasury =
-    (await db.user.findFirst({ where: { role: "ADMIN" }, select: { id: true } })) ??
-    ({ id: paymentRecord.userId } as { id: string });
-  await ensureWalletForUser(treasury.id);
-
-  await postBalancedLedgerBatch({
-    idempotencyKey: `payment_record_success_${paymentRecord.id}`,
-    referenceType: paymentRecord.relatedEntityType || "PAYMENT_RECORD",
-    referenceId: paymentRecord.relatedEntityId || paymentRecord.id,
-    entries: [
-      {
-        // End-users pay Story Time first; do not credit the payer's wallet.
-        userId: treasury.id,
-        direction: "CREDIT",
-        accountType: "AVAILABLE",
-        transactionType: "incoming_payment",
-        amount: paymentRecord.amount,
-      },
-      {
-        userId: treasury.id,
-        direction: "DEBIT",
-        accountType: "PLATFORM_REVENUE",
-        transactionType: "incoming_payment",
-        amount: paymentRecord.amount,
-      },
-    ],
+  await creditTreasuryFromGatewayPayment({
+    id: paymentRecord.id,
+    amount: paymentRecord.amount,
+    relatedEntityType: paymentRecord.relatedEntityType,
+    relatedEntityId: paymentRecord.relatedEntityId,
   });
 
   await db.paymentRecord.update({
@@ -47,6 +24,8 @@ async function settlePaymentRecord(paymentRecordId: string) {
   });
 
   await applyPaymentRecordSettlementEffects({
+    purpose: paymentRecord.purpose,
+    amount: paymentRecord.amount,
     relatedEntityType: paymentRecord.relatedEntityType,
     relatedEntityId: paymentRecord.relatedEntityId,
   });

@@ -122,6 +122,10 @@ export function PackageClient() {
         setPromoMessage(`Promo ${data.pricing.promoCode} applied. Discount ${formatZar(data.pricing.discountAmount || 0)}.`);
       }
 
+      if (data?.deferCheckout && typeof data?.checkoutUrl === "string" && data.checkoutUrl) {
+        sessionStorage.setItem("st_pending_viewer_checkout", data.checkoutUrl);
+      }
+
       if (data?.requiresPayment) {
         if (typeof data?.checkoutUrl === "string" && data.checkoutUrl) {
           setCheckoutUrl(data.checkoutUrl);

@@ -3,6 +3,9 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getCreatorRevenue, getViewerSubscriptionRevenue } from "@/lib/financial-ledger";
+import { VIEWER_CREATOR_SPLIT } from "@/lib/payments/config";
+import { formatRevenuePeriodKey } from "@/lib/payments/creator-pool-distribution";
+import { getWalletSnapshot, ensureWalletForUser } from "@/lib/payments/wallet";
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -27,7 +30,7 @@ export async function GET(request: NextRequest) {
     periodEnd = new Date();
   }
 
-  const [revenue, watchSessions, totalViews, banking, payouts, viewerSubRevenue] = await Promise.all([
+  const [revenue, watchSessions, totalViews, banking, payouts, viewerSubRevenue, wallet] = await Promise.all([
     getCreatorRevenue(creatorId, periodStart, periodEnd),
     prisma.watchSession.findMany({
       where: { content: { creatorId }, startedAt: { gte: periodStart, lte: periodEnd } },
@@ -43,9 +46,14 @@ export async function GET(request: NextRequest) {
       take: 20,
     }),
     getViewerSubscriptionRevenue(periodStart, periodEnd),
+    ensureWalletForUser(creatorId).then(() => getWalletSnapshot(creatorId)),
   ]);
 
-  const creatorPool = viewerSubRevenue * 0.6;
+  const creatorPool = viewerSubRevenue * VIEWER_CREATOR_SPLIT;
+  const periodKey = formatRevenuePeriodKey(periodStart);
+  const distributedToWallet = payouts
+    .filter((p) => p.bankReference?.startsWith("pool:") && p.period === periodKey)
+    .reduce((sum, p) => sum + p.amount, 0);
   const perViewRand = totalViews > 0 ? revenue.revenue / totalViews : 0;
   const perStreamRand = watchSessions.length > 0 ? revenue.revenue / watchSessions.length : 0;
 
@@ -61,6 +69,10 @@ export async function GET(request: NextRequest) {
     perStreamRand: Math.round(perStreamRand * 100) / 100,
     creatorPool,
     viewerSubRevenue,
+    walletAvailable: wallet?.availableBalance ?? 0,
+    walletTotalEarnings: wallet?.totalEarnings ?? 0,
+    distributedToWallet,
+    projectedRevenue: revenue.revenue,
     banking: banking ? { bankName: banking.bankName, accountNumberLast4: banking.accountNumber?.slice(-4) ?? "****", accountType: banking.accountType, verified: !!banking.verifiedAt } : null,
     payouts,
   });

@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getPaymentGateway } from "@/lib/payments/gateway";
 import { recordGatewayEventIfNew } from "@/lib/payments/idempotency";
-import { postBalancedLedgerBatch } from "@/lib/payments/ledger";
-import { ensureWalletForUser } from "@/lib/payments/wallet";
+import { creditTreasuryFromGatewayPayment } from "@/lib/payments/treasury-inflow";
 import {
   collectPossibleMerchantReferences,
   isLikelyPaymentSuccessEvent,
@@ -90,38 +89,19 @@ export async function POST(req: NextRequest) {
       if (paymentRecordId) {
         const paymentRecord = await db.paymentRecord.findUnique({ where: { id: paymentRecordId } });
         if (paymentRecord && paymentRecord.userId && paymentRecord.status !== "SUCCEEDED") {
-          await ensureWalletForUser(paymentRecord.userId);
-          const treasury =
-            (await db.user.findFirst({ where: { role: "ADMIN" }, select: { id: true } })) ??
-            ({ id: paymentRecord.userId } as { id: string });
-          await ensureWalletForUser(treasury.id);
-          await postBalancedLedgerBatch({
-            idempotencyKey: `webhook_${event.id}`,
-            referenceType: paymentRecord.relatedEntityType || "PAYMENT_RECORD",
-            referenceId: paymentRecord.relatedEntityId || paymentRecord.id,
-            entries: [
-              {
-                // End-users pay Story Time first; do not credit the payer's wallet.
-                userId: treasury.id,
-                direction: "CREDIT",
-                accountType: "AVAILABLE",
-                transactionType: "incoming_payment",
-                amount: paymentRecord.amount,
-              },
-              {
-                userId: treasury.id,
-                direction: "DEBIT",
-                accountType: "PLATFORM_REVENUE",
-                transactionType: "incoming_payment",
-                amount: paymentRecord.amount,
-              },
-            ],
+          await creditTreasuryFromGatewayPayment({
+            id: paymentRecord.id,
+            amount: paymentRecord.amount,
+            relatedEntityType: paymentRecord.relatedEntityType,
+            relatedEntityId: paymentRecord.relatedEntityId,
           });
           await db.paymentRecord.update({
             where: { id: paymentRecord.id },
             data: { status: "SUCCEEDED", paidAt: new Date() },
           });
           await applyPaymentRecordSettlementEffects({
+            purpose: paymentRecord.purpose,
+            amount: paymentRecord.amount,
             relatedEntityType: paymentRecord.relatedEntityType,
             relatedEntityId: paymentRecord.relatedEntityId,
           });

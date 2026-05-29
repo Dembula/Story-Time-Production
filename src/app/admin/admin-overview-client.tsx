@@ -7,6 +7,7 @@ import { Users, Film, Clock, DollarSign, Music, Handshake, GraduationCap, Globe,
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatZar } from "@/lib/format-currency-zar";
+import { ADMIN_DASHBOARD_REFETCH_MS } from "@/lib/dashboard-refresh";
 
 export function AdminOverviewClient() {
   const queryClient = useQueryClient();
@@ -18,10 +19,12 @@ export function AdminOverviewClient() {
   const { data: stats, isLoading } = useQuery({
     queryKey: ["admin-stats"],
     queryFn: () => fetch("/api/admin/stats").then((r) => r.json()),
+    refetchInterval: ADMIN_DASHBOARD_REFETCH_MS,
   });
   const { data: analyticsSummary } = useQuery({
     queryKey: ["admin-analytics-summary"],
     queryFn: () => fetch("/api/admin/analytics/summary").then((r) => r.json()),
+    refetchInterval: ADMIN_DASHBOARD_REFETCH_MS,
   });
   const { data: opsIncidents } = useQuery({
     queryKey: ["admin-ops-incidents"],

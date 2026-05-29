@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/send-monthly-update",
       "schedule": "0 9 1 * *"
+    },
+    {
+      "path": "/api/cron/creator-pool-distribution",
+      "schedule": "0 2 1 * *"
     }
   ]
 }

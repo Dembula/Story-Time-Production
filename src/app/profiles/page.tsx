@@ -73,6 +73,7 @@ export default async function ProfilesPage({
       <div className="max-w-4xl mx-auto">
         <ProfilesClient
           accountDetailsIncomplete={accountDetailsIncomplete}
+          subscriptionStatus={subscription.status}
           initialProfiles={profiles.map((profile) => ({
             id: profile.id,
             name: profile.name,

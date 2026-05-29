@@ -30,6 +30,7 @@ import { useModocOptional, useModoc } from "@/components/modoc";
 import type { CreatorCommandCenterPayload } from "@/lib/creator-command-center";
 import { CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY } from "@/lib/pricing";
 import type { CreatorSuiteAccessMap } from "@/lib/creator-suite-access";
+import { PAYEE_DASHBOARD_REFETCH_MS } from "@/lib/dashboard-refresh";
 import { formatZar } from "@/lib/format-currency-zar";
 import { OpsMetricCard, OpsQuickActions } from "@/components/ecosystem/ops-shell";
 
@@ -189,6 +190,8 @@ export function CommandCenterClient() {
 
   useEffect(() => {
     load();
+    const timer = window.setInterval(load, PAYEE_DASHBOARD_REFETCH_MS);
+    return () => window.clearInterval(timer);
   }, [load]);
 
   useEffect(() => {

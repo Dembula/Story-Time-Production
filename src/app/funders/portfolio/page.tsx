@@ -2,10 +2,13 @@
 
 import { useQuery } from "@tanstack/react-query";
 
+import { PAYEE_DASHBOARD_REFETCH_MS } from "@/lib/dashboard-refresh";
+
 export default function FunderPortfolioPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["funder-portfolio"],
     queryFn: async () => fetch("/api/funders/portfolio").then((r) => r.json()),
+    refetchInterval: PAYEE_DASHBOARD_REFETCH_MS,
   });
   const metrics = data?.metrics ?? {};
   const payouts = data?.payouts ?? [];

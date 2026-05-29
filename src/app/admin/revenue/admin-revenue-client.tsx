@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { formatZar } from "@/lib/format-currency-zar";
+import { ADMIN_DASHBOARD_REFETCH_MS } from "@/lib/dashboard-refresh";
 import { COMPANY_PLAN_CONFIG, CREATOR_LICENSE_CONFIG, CREATOR_ONBOARDING_PLANS } from "@/lib/pricing";
 import {
   DollarSign, TrendingUp, Users, Film, Music, PieChart, BarChart3,
@@ -27,6 +28,13 @@ interface RevenueData {
   transactionFees?: { totalFees: number; totalVolume: number };
   companySubs?: { count: number; revenue: number };
   distributionLicenses?: { yearlyCount: number; perUploadCount: number; revenue: number };
+  treasury?: {
+    availableBalance: number;
+    pendingBalance: number;
+    totalEarnings: number;
+    previousMonthKey: string;
+    previousMonthDistributed: boolean;
+  };
 }
 
 export function AdminRevenueClient() {
@@ -35,7 +43,23 @@ export function AdminRevenueClient() {
   const [tab, setTab] = useState<"overview" | "creators" | "content" | "sync" | "financials">("overview");
 
   useEffect(() => {
-    fetch("/api/admin/revenue").then((r) => r.json()).then(setData).finally(() => setLoading(false));
+    let cancelled = false;
+    const load = () => {
+      fetch("/api/admin/revenue")
+        .then((r) => r.json())
+        .then((payload) => {
+          if (!cancelled) setData(payload);
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    };
+    load();
+    const timer = window.setInterval(load, ADMIN_DASHBOARD_REFETCH_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
   }, []);
 
   if (loading) return <div className="flex items-center justify-center min-h-[60vh]"><div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" /></div>;
@@ -57,6 +81,12 @@ export function AdminRevenueClient() {
             <span className="text-slate-400 font-medium">Reporting periods: </span>
             Most lines use {data.reporting.primaryWindow.label.toLowerCase()} ({new Date(data.reporting.primaryWindow.periodStartIso).toLocaleDateString()}–
             {new Date(data.reporting.primaryWindow.periodEndIso).toLocaleDateString()}). Sync licensing reflects PAID deals created in this same window. Platform user/content counts are cumulative, not month-filtered. See the Story Time Revenue tab for fee and subscription lines.
+          </p>
+        ) : null}
+        {data?.treasury ? (
+          <p className="text-xs text-slate-500 mt-2 max-w-3xl leading-relaxed">
+            Story Time treasury available: {formatZar(data.treasury.availableBalance)} · Previous month ({data.treasury.previousMonthKey}) pool{" "}
+            {data.treasury.previousMonthDistributed ? "distributed to creators" : "pending distribution"} · Refreshes every 5 minutes.
           </p>
         ) : null}
       </div>

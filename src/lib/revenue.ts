@@ -1,15 +1,32 @@
 import { prisma } from "./prisma";
 
-/** Viewer subscription revenue (ZAR) in period from completed payments */
+const VIEWER_SUBSCRIPTION_PURPOSES = ["viewer_subscription", "viewer_subscription_renewal"] as const;
+
+/** Viewer subscription revenue (ZAR) in period from completed gateway payments. */
 export async function getViewerSubscriptionRevenue(periodStart: Date, periodEnd: Date): Promise<number> {
-  const result = await prisma.subscriptionPayment.aggregate({
-    where: {
-      status: "COMPLETED",
-      paidAt: { gte: periodStart, lte: periodEnd },
-    },
-    _sum: { amount: true },
-  });
-  return result._sum.amount ?? 0;
+  const [gatewayPayments, legacyPayments] = await Promise.all([
+    prisma.paymentRecord.aggregate({
+      where: {
+        status: "SUCCEEDED",
+        purpose: { in: [...VIEWER_SUBSCRIPTION_PURPOSES] },
+        paidAt: { gte: periodStart, lte: periodEnd },
+      },
+      _sum: { amount: true },
+    }),
+    prisma.subscriptionPayment.aggregate({
+      where: {
+        status: "COMPLETED",
+        paidAt: { gte: periodStart, lte: periodEnd },
+      },
+      _sum: { amount: true },
+    }),
+  ]);
+
+  return roundMoney((gatewayPayments._sum.amount ?? 0) + (legacyPayments._sum.amount ?? 0));
+}
+
+function roundMoney(amount: number): number {
+  return Math.round((amount + Number.EPSILON) * 100) / 100;
 }
 
 /** 60% of viewer sub revenue goes to creators, split by view share. 40% retained by Story Time. */

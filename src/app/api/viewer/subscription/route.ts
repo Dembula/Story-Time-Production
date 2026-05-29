@@ -102,6 +102,38 @@ export async function POST(req: Request) {
     orderBy: { createdAt: "desc" },
   });
 
+  if (existing?.status === "PAST_DUE") {
+    let checkoutUrl: string | null = null;
+    const pendingPlanConfig =
+      VIEWER_PLAN_CONFIG[existing.plan as keyof typeof VIEWER_PLAN_CONFIG] ?? VIEWER_PLAN_CONFIG.BASE_1;
+    try {
+      const checkout = await initializeCheckout({
+        userId: user.id,
+        email: user.email,
+        customerName: user.name,
+        amount: pendingPlanConfig.price,
+        purpose: "viewer_subscription",
+        referenceType: "ViewerSubscription",
+        referenceId: existing.id,
+        returnUrl: buildPaymentReturnUrl("/profiles", "viewer_subscription"),
+        metadata: { planType: existing.plan, resume: true },
+      });
+      checkoutUrl = checkout.checkout.checkoutUrl;
+    } catch {
+      checkoutUrl = null;
+    }
+
+    return NextResponse.json({
+      subscription: existing,
+      profileId: null,
+      redirectTo: "/onboarding/account",
+      requiresPayment: false,
+      deferCheckout: Boolean(checkoutUrl),
+      checkoutUrl,
+      message: "Continue onboarding to finish your subscription setup.",
+    });
+  }
+
   if (existing && (existing.status === "TRIAL_ACTIVE" || existing.status === "ACTIVE")) {
     return NextResponse.json({
       subscription: existing,
@@ -208,7 +240,7 @@ export async function POST(req: Request) {
       const gateway = getPaymentGateway();
       const consent = await gateway.createCardConsentSession({
         reference: `trial-consent-${subscription.id}`,
-        returnUrl: buildPaymentReturnUrl("/profiles", "viewer_trial_card_capture"),
+        returnUrl: buildPaymentReturnUrl("/onboarding/account", "viewer_trial_card_capture"),
         customer: { email: user.email, name: user.name, payerId: user.id },
       });
       checkoutUrl = consent.checkoutUrl;
@@ -236,7 +268,7 @@ export async function POST(req: Request) {
         purpose: "viewer_subscription",
         referenceType: "ViewerSubscription",
         referenceId: subscription.id,
-        returnUrl: buildPaymentReturnUrl("/browse/settings", "viewer_subscription"),
+        returnUrl: buildPaymentReturnUrl("/profiles", "viewer_subscription"),
         metadata: { planType },
       });
       checkoutUrl = checkout.checkout.checkoutUrl;
@@ -254,11 +286,14 @@ export async function POST(req: Request) {
     }
   }
 
+  const deferCheckout = !useTrial && Boolean(checkoutUrl);
+
   return NextResponse.json({
     subscription,
     profileId: null,
     redirectTo: "/onboarding/account",
-    requiresPayment: Boolean(checkoutUrl),
+    requiresPayment: useTrial ? Boolean(checkoutUrl) : false,
+    deferCheckout,
     checkoutUrl,
     checkoutWarning,
     pricing: {

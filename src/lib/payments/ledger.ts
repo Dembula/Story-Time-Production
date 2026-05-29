@@ -90,9 +90,15 @@ export async function postBalancedLedgerBatch(args: {
       });
 
       if (entry.accountType === "AVAILABLE") {
+        const walletUpdate: Record<string, unknown> = {
+          availableBalance: { increment: delta },
+        };
+        if (entry.direction === "CREDIT" && entry.transactionType === "creator_earnings") {
+          walletUpdate.totalEarnings = { increment: roundMoney(entry.amount) };
+        }
         await (tx as any).wallet.update({
           where: { id: wallet.id },
-          data: { availableBalance: { increment: delta } },
+          data: walletUpdate,
         });
       } else if (entry.accountType === "PENDING") {
         await (tx as any).wallet.update({

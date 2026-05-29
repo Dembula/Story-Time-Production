@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { useQuery } from "@tanstack/react-query";
+import { PAYEE_DASHBOARD_REFETCH_MS } from "@/lib/dashboard-refresh";
 import { getWalletRouteForRole } from "@/lib/wallet-route";
 
 const currencyNumberFormat = new Intl.NumberFormat("en-ZA", {
@@ -19,7 +20,7 @@ export function WalletBalanceChip() {
       if (!res.ok) return null;
       return res.json().catch(() => null);
     },
-    refetchInterval: 15000,
+    refetchInterval: PAYEE_DASHBOARD_REFETCH_MS,
   });
 
   const available = Number(data?.wallet?.availableBalance ?? 0);

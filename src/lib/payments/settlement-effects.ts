@@ -4,10 +4,16 @@ const db = prisma as any;
 
 /** Apply domain side-effects after a payment record is marked SUCCEEDED. */
 export async function applyPaymentRecordSettlementEffects(paymentRecord: {
+  purpose?: string | null;
+  amount?: number | null;
   relatedEntityType: string | null;
   relatedEntityId: string | null;
 }) {
-  if (paymentRecord.relatedEntityType === "ViewerSubscription" && paymentRecord.relatedEntityId) {
+  if (
+    paymentRecord.relatedEntityType === "ViewerSubscription" &&
+    paymentRecord.relatedEntityId &&
+    typeof paymentRecord.amount === "number"
+  ) {
     const now = new Date();
     const current = await db.viewerSubscription.findUnique({
       where: { id: paymentRecord.relatedEntityId },
@@ -23,6 +29,17 @@ export async function applyPaymentRecordSettlementEffects(paymentRecord: {
         lastPaymentStatus: "SUCCEEDED",
         lastPaymentAt: now,
         lastPaymentError: null,
+      },
+    });
+
+    await db.subscriptionPayment.create({
+      data: {
+        viewerSubscriptionId: paymentRecord.relatedEntityId,
+        amount: paymentRecord.amount,
+        currency: "ZAR",
+        status: "COMPLETED",
+        purpose: paymentRecord.purpose ?? "viewer_subscription",
+        paidAt: now,
       },
     });
   }

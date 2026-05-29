@@ -49,6 +49,15 @@ export function AccountSetupClient() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Could not save account details");
+
+      const pendingCheckout =
+        typeof window !== "undefined" ? sessionStorage.getItem("st_pending_viewer_checkout") : null;
+      if (pendingCheckout) {
+        sessionStorage.removeItem("st_pending_viewer_checkout");
+        window.location.assign(pendingCheckout);
+        return;
+      }
+
       router.push(data.redirectTo ?? "/profiles");
       router.refresh();
     } catch (err) {
