@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { parseCrewMemberProfile } from "@/lib/company-marketplace-profiles";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -11,5 +12,13 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     },
   });
   if (!team) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json(team);
+  return NextResponse.json({
+    ...team,
+    members: team.members.map((m) => ({
+      ...m,
+      profile: parseCrewMemberProfile(m),
+      plainBio: parseCrewMemberProfile(m).plainBio,
+      previewImageUrl: m.photoUrl,
+    })),
+  });
 }

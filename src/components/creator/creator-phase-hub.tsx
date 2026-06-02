@@ -30,7 +30,10 @@ function standaloneToolHref(phase: ProjectPhase, slug: string): string {
     return map[slug] ?? `/creator/pre/${slug}`;
   }
   if (phase === "PRODUCTION") {
-    return `/creator/production/${slug}`;
+    const map: Record<string, string> = {
+      "on-set-catering": "/creator/catering",
+    };
+    return map[slug] ?? `/creator/production/${slug}`;
   }
   if (slug === "distribution") return "/creator/upload";
   if (slug === "footage-ingestion") return "/creator/post/footage-ingestion";

@@ -10,8 +10,18 @@ export default function CrewTeamTeamPage() {
   const [members, setMembers] = useState<{ id: string; name: string; role: string; department: string | null; bio: string | null; photoUrl: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: "", role: "Crew", department: "", bio: "", photoUrl: "" });
+  const [form, setForm] = useState({
+    name: "",
+    role: "Crew",
+    department: "",
+    bio: "",
+    photoUrl: "",
+    dailyRate: "",
+    experienceLevel: "",
+    location: "",
+  });
   const [uploading, setUploading] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   useEffect(() => {
     fetch("/api/crew-team/members").then((r) => r.json()).then((arr) => { setMembers(Array.isArray(arr) ? arr : []); setLoading(false); });
@@ -19,12 +29,30 @@ export default function CrewTeamTeamPage() {
 
   async function addMember() {
     if (!form.name.trim()) return;
-    const res = await fetch("/api/crew-team/members", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, photoUrl: form.photoUrl || null }) });
+    setSaveError("");
+    const res = await fetch("/api/crew-team/members", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: form.name,
+        role: form.role,
+        department: form.department || null,
+        bio: form.bio || null,
+        photoUrl: form.photoUrl || null,
+        profile: {
+          dailyRate: form.dailyRate ? parseFloat(form.dailyRate) : null,
+          experienceLevel: form.experienceLevel || null,
+          location: form.location || null,
+        },
+      }),
+    });
+    const data = await res.json();
     if (res.ok) {
-      const m = await res.json();
-      setMembers((prev) => [m, ...prev]);
-      setForm({ name: "", role: "Crew", department: "", bio: "", photoUrl: "" });
+      setMembers((prev) => [data, ...prev]);
+      setForm({ name: "", role: "Crew", department: "", bio: "", photoUrl: "", dailyRate: "", experienceLevel: "", location: "" });
       setShowForm(false);
+    } else {
+      setSaveError(data?.error || "Failed to save member");
     }
   }
   async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -58,6 +86,12 @@ export default function CrewTeamTeamPage() {
           <input placeholder="Role" value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))} className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm" />
           <input placeholder="Department" value={form.department} onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))} className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm" />
           <textarea placeholder="Bio" value={form.bio} onChange={(e) => setForm((f) => ({ ...f, bio: e.target.value }))} rows={2} className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm resize-none" />
+          <div className="grid grid-cols-2 gap-3">
+            <input type="number" min={0} placeholder="Day rate (ZAR)" value={form.dailyRate} onChange={(e) => setForm((f) => ({ ...f, dailyRate: e.target.value }))} className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm" />
+            <input placeholder="Experience level" value={form.experienceLevel} onChange={(e) => setForm((f) => ({ ...f, experienceLevel: e.target.value }))} className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm" />
+          </div>
+          <input placeholder="Base location" value={form.location} onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))} className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm" />
+          {saveError && <p className="text-sm text-red-400">{saveError}</p>}
           <div>
             <label className="block text-sm text-slate-400 mb-1">Headshot</label>
             <label className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800 border border-slate-600 text-slate-300 text-sm cursor-pointer w-fit">

@@ -1,9 +1,19 @@
 import { prisma } from "@/lib/prisma";
+import { finalizeMarketplaceGatewayPayment } from "@/lib/payments/marketplace-settlement";
 
 const db = prisma as any;
 
+const MARKETPLACE_ENTITY_TYPES = new Set([
+  "EquipmentRequest",
+  "LocationBooking",
+  "CateringBooking",
+  "CrewTeamRequest",
+  "CastingInquiry",
+]);
+
 /** Apply domain side-effects after a payment record is marked SUCCEEDED. */
 export async function applyPaymentRecordSettlementEffects(paymentRecord: {
+  id?: string;
   purpose?: string | null;
   amount?: number | null;
   relatedEntityType: string | null;
@@ -67,6 +77,17 @@ export async function applyPaymentRecordSettlementEffects(paymentRecord: {
     await db.musicTrack.update({
       where: { id: paymentRecord.relatedEntityId },
       data: { published: true },
+    });
+  }
+
+  if (
+    paymentRecord.id &&
+    paymentRecord.relatedEntityType &&
+    MARKETPLACE_ENTITY_TYPES.has(paymentRecord.relatedEntityType) &&
+    paymentRecord.relatedEntityId
+  ) {
+    await finalizeMarketplaceGatewayPayment(paymentRecord.id).catch((err: unknown) => {
+      console.error("marketplace gateway settlement failed", err);
     });
   }
 }

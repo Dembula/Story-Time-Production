@@ -100,6 +100,7 @@ export async function POST(req: NextRequest) {
             data: { status: "SUCCEEDED", paidAt: new Date() },
           });
           await applyPaymentRecordSettlementEffects({
+            id: paymentRecord.id,
             purpose: paymentRecord.purpose,
             amount: paymentRecord.amount,
             relatedEntityType: paymentRecord.relatedEntityType,

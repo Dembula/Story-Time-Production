@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Film, Eye, Users, Clock, DollarSign, Star, MessageSquare, TrendingUp, Wrench, Megaphone, UsersRound, CheckCircle, XCircle, AlertTriangle, FileText, Send, Trophy, Store } from "lucide-react";
+import { Film, Eye, Users, Clock, DollarSign, Star, MessageSquare, TrendingUp, Wrench, Megaphone, CheckCircle, XCircle, AlertTriangle, FileText, Send, Trophy, Store } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -154,15 +154,15 @@ export function CreatorDashboardClient() {
 
       {/* Quick Links */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
-        <Link href="/creator/equipment" className="storytime-section group p-5 hover:-translate-y-1 hover:border-orange-400/22">
-          <Wrench className="w-8 h-8 text-orange-500 mb-3 group-hover:scale-110 transition" />
-          <h3 className="font-semibold text-white mb-1">Equipment Repository</h3>
-          <p className="text-sm text-slate-400">Find cameras, lighting, sound gear, and more from rental companies</p>
+        <Link href="/creator/pre-production" className="storytime-section group p-5 hover:-translate-y-1 hover:border-violet-400/22">
+          <Users className="w-8 h-8 text-violet-500 mb-3 group-hover:scale-110 transition" />
+          <h3 className="font-semibold text-white mb-1">Pre-Production</h3>
+          <p className="text-sm text-slate-400">Casting, crew, locations, equipment, and funding — inside each pipeline tool</p>
         </Link>
-        <Link href="/creator/crew" className="storytime-section group p-5 hover:-translate-y-1 hover:border-emerald-400/22">
-          <UsersRound className="w-8 h-8 text-emerald-500 mb-3 group-hover:scale-110 transition" />
-          <h3 className="font-semibold text-white mb-1">Crew & Cast</h3>
-          <p className="text-sm text-slate-400">Manage your production team, actors, and crew members</p>
+        <Link href="/creator/production" className="storytime-section group p-5 hover:-translate-y-1 hover:border-orange-400/22">
+          <Wrench className="w-8 h-8 text-orange-500 mb-3 group-hover:scale-110 transition" />
+          <h3 className="font-semibold text-white mb-1">Production</h3>
+          <p className="text-sm text-slate-400">On-set tools including catering bookings for your shoot</p>
         </Link>
         <Link href="/creator/auditions" className="storytime-section group p-5 hover:-translate-y-1 hover:border-violet-400/22">
           <Megaphone className="w-8 h-8 text-violet-500 mb-3 group-hover:scale-110 transition" />

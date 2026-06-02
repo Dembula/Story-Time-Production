@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isFeaturedCompanyPlan } from "@/lib/pricing";
+import { parseCateringCompanyProfile } from "@/lib/company-marketplace-profiles";
 
 export async function GET() {
   const now = new Date();
@@ -27,5 +28,11 @@ export async function GET() {
     const promotedB = isFeaturedCompanyPlan((b.user as { companySubscriptions?: { plan: string }[] })?.companySubscriptions?.[0]?.plan) ? 0 : 1;
     return promotedA - promotedB || (a.companyName || "").localeCompare(b.companyName || "");
   });
-  return NextResponse.json(sorted);
+  return NextResponse.json(
+    sorted.map((row) => ({
+      ...row,
+      profile: parseCateringCompanyProfile(row),
+      previewImageUrl: row.logoUrl,
+    })),
+  );
 }

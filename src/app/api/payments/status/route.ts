@@ -24,6 +24,7 @@ async function settlePaymentRecord(paymentRecordId: string) {
   });
 
   await applyPaymentRecordSettlementEffects({
+    id: paymentRecord.id,
     purpose: paymentRecord.purpose,
     amount: paymentRecord.amount,
     relatedEntityType: paymentRecord.relatedEntityType,

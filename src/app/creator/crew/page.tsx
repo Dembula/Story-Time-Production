@@ -1,7 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { BackButton } from "@/components/layout/back-button";
+import {
+  CreatorProjectContextBanner,
+  useCreatorProjectContext,
+  usePrefillProjectName,
+} from "@/components/creator/creator-project-context";
+import { fetchMarketplaceList, postMarketplaceJson } from "@/lib/creator-marketplace-fetch";
 import {
   Users,
   Briefcase,
@@ -13,9 +19,12 @@ import {
   ChevronUp,
   CheckCircle,
   CreditCard,
+  MessageCircle,
 } from "lucide-react";
 import { formatZar } from "@/lib/format-currency-zar";
 import { computeMarketplaceFeeZar, DEFAULT_CREW_TEAM_REQUEST_BASE_ZAR } from "@/lib/marketplace-zar-defaults";
+import { useMarketplacePay } from "@/lib/hooks/use-marketplace-pay";
+import { MarketplaceCheckoutModal } from "@/components/marketplace/marketplace-checkout-modal";
 
 type CrewRosterEntry = {
   id: string;
@@ -39,8 +48,30 @@ type CrewTeam = {
   user: { id: string; name: string | null; email: string | null };
   _count: { members: number; requests: number };
 };
+type CrewMemberProfile = {
+  plainBio: string;
+  dailyRate: number | null;
+  experienceLevel: string | null;
+  location: string | null;
+  availability: string | null;
+  department: string | null;
+  role: string | null;
+};
+
 type CrewTeamDetail = CrewTeam & {
-  members: { id: string; name: string; role: string; department: string | null; bio: string | null; skills: string | null; pastWork: string | null }[];
+  members: {
+    id: string;
+    name: string;
+    role: string;
+    department: string | null;
+    bio: string | null;
+    skills: string | null;
+    pastWork: string | null;
+    photoUrl?: string | null;
+    previewImageUrl?: string | null;
+    plainBio?: string;
+    profile?: CrewMemberProfile;
+  }[];
 };
 
 type SentCrewRequest = {
@@ -53,8 +84,14 @@ type SentCrewRequest = {
   crewTeam: { id: string; companyName: string; tagline: string | null };
 };
 
-export default function CreatorCrewPage() {
-  const [tab, setTab] = useState<"my-roster" | "find-crew" | "my-requests">("my-roster");
+function CreatorCrewPageContent() {
+  const { projectId, projectTitle } = useCreatorProjectContext({
+    phase: "PRE_PRODUCTION",
+    toolSlug: "crew-marketplace",
+  });
+  const [tab, setTab] = useState<"my-roster" | "find-crew" | "my-requests">(
+    projectId ? "find-crew" : "my-roster",
+  );
   const [crewRoster, setCrewRoster] = useState<CrewRosterEntry[]>([]);
   const [crewTeams, setCrewTeams] = useState<CrewTeam[]>([]);
   const [loading, setLoading] = useState(true);
@@ -67,17 +104,35 @@ export default function CreatorCrewPage() {
   const [requestForm, setRequestForm] = useState({ projectName: "", message: "" });
   const [sentRequests, setSentRequests] = useState<SentCrewRequest[]>([]);
   const [payingId, setPayingId] = useState<string | null>(null);
+  const marketplacePay = useMarketplacePay({
+    onPaid: () => {
+      fetch("/api/crew-teams/requests")
+        .then((r) => (r.ok ? r.json() : []))
+        .then((rows) => setSentRequests(Array.isArray(rows) ? rows : []));
+    },
+  });
+  const [loadError, setLoadError] = useState("");
+
+  const prefillProjectName = useCallback(
+    (title: string) => {
+      setRequestForm((f) => (f.projectName.trim() ? f : { ...f, projectName: title }));
+    },
+    [],
+  );
+  usePrefillProjectName(projectTitle, prefillProjectName);
 
   useEffect(() => {
     const load = async () => {
-      const [crew, teams, mine] = await Promise.all([
+      setLoadError("");
+      const [crewRes, teamsRes, mineRes] = await Promise.all([
         fetch("/api/creator/crew-roster").then((r) => r.json()),
-        fetch("/api/crew-teams").then((r) => r.json()),
+        fetchMarketplaceList<CrewTeam>("/api/crew-teams"),
         fetch("/api/crew-teams/requests").then((r) => (r.ok ? r.json() : [])),
       ]);
-      setCrewRoster(Array.isArray(crew) ? crew : []);
-      setCrewTeams(Array.isArray(teams) ? teams : []);
-      setSentRequests(Array.isArray(mine) ? mine : []);
+      setCrewRoster(Array.isArray(crewRes) ? crewRes : []);
+      setCrewTeams(teamsRes.data);
+      if (teamsRes.error) setLoadError(teamsRes.error);
+      setSentRequests(Array.isArray(mineRes) ? mineRes : []);
       setLoading(false);
     };
     load();
@@ -109,33 +164,42 @@ export default function CreatorCrewPage() {
     if (res.ok) setCrewRoster((prev) => prev.filter((e) => e.id !== id));
   }
   async function sendCrewRequest(crewTeamId: string) {
-    const res = await fetch("/api/crew-teams/requests", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ crewTeamId, projectName: requestForm.projectName, message: requestForm.message }),
+    const { data: row, error } = await postMarketplaceJson<{
+      id: string;
+      status?: string;
+      projectName?: string | null;
+      message?: string | null;
+      createdAt?: string;
+      paymentTransactionId?: string | null;
+    }>("/api/crew-teams/requests", {
+      crewTeamId,
+      projectName: requestForm.projectName || projectTitle || undefined,
+      message: requestForm.message,
     });
-    if (res.ok) {
-      const row = await res.json();
-      const team = crewTeams.find((t) => t.id === crewTeamId);
-      setRequestTeamId(null);
-      setRequestForm({ projectName: "", message: "" });
-      setSentRequests((prev) => [
-        {
-          id: row.id,
-          status: row.status ?? "PENDING",
-          projectName: row.projectName ?? null,
-          message: row.message ?? null,
-          createdAt: row.createdAt ?? new Date().toISOString(),
-          paymentTransactionId: row.paymentTransactionId ?? null,
-          crewTeam: team
-            ? { id: team.id, companyName: team.companyName, tagline: team.tagline }
-            : { id: crewTeamId, companyName: "Crew team", tagline: null },
-        },
-        ...prev,
-      ]);
-      setSuccess("Request sent to crew team.");
-      setTimeout(() => setSuccess(""), 3000);
+    if (error || !row) {
+      setSuccess("");
+      alert(error || "Could not send request");
+      return;
     }
+    const team = crewTeams.find((t) => t.id === crewTeamId);
+    setRequestTeamId(null);
+    setRequestForm({ projectName: projectTitle || "", message: "" });
+    setSentRequests((prev) => [
+      {
+        id: row.id,
+        status: row.status ?? "PENDING",
+        projectName: row.projectName ?? requestForm.projectName ?? null,
+        message: row.message ?? null,
+        createdAt: row.createdAt ?? new Date().toISOString(),
+        paymentTransactionId: row.paymentTransactionId ?? null,
+        crewTeam: team
+          ? { id: team.id, companyName: team.companyName, tagline: team.tagline }
+          : { id: crewTeamId, companyName: "Crew team", tagline: null },
+      },
+      ...prev,
+    ]);
+    setSuccess("Request sent to crew team.");
+    setTimeout(() => setSuccess(""), 3000);
   }
 
   async function payCrewRequest(requestId: string) {
@@ -167,7 +231,15 @@ export default function CreatorCrewPage() {
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
-      <BackButton fallback="/creator/dashboard" />
+      <BackButton
+        fallback={
+          projectId ? `/creator/pre/crew-marketplace?projectId=${encodeURIComponent(projectId)}` : "/creator/dashboard"
+        }
+      />
+      <CreatorProjectContextBanner phase="PRE_PRODUCTION" toolSlug="crew-marketplace" accent="emerald" />
+      {loadError && (
+        <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{loadError}</div>
+      )}
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-semibold text-white mb-2 tracking-tight flex items-center gap-3">
@@ -256,7 +328,7 @@ export default function CreatorCrewPage() {
 
       {tab === "my-requests" && (
         <div className="space-y-4">
-          <p className="text-slate-400 text-sm">After a crew team accepts your request, pay the simulated engagement fee to record settlement on your account.</p>
+          <p className="text-slate-400 text-sm">After a crew team accepts your request, pay via wallet or Stitch to unlock messaging.</p>
           {sentRequests.length === 0 ? (
             <div className="rounded-2xl bg-slate-800/30 border border-slate-700/50 p-12 text-center text-slate-500">No outbound crew requests yet.</div>
           ) : (
@@ -281,16 +353,26 @@ export default function CreatorCrewPage() {
                         </p>
                       )}
                     </div>
-                    {canPay && (
-                      <button
-                        type="button"
-                        disabled={payingId === req.id}
-                        onClick={() => payCrewRequest(req.id)}
-                        className="shrink-0 flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-500 disabled:opacity-50"
-                      >
-                        <CreditCard className="w-4 h-4" /> {payingId === req.id ? "Processing…" : "Pay now"}
-                      </button>
-                    )}
+                    <div className="flex flex-col gap-2 shrink-0">
+                      {paid && (
+                        <a
+                          href={`/creator/messages?tab=crew&crewRequestId=${req.id}`}
+                          className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-orange-500/10 text-orange-400 border border-orange-500/30 text-sm hover:bg-orange-500/20"
+                        >
+                          <MessageCircle className="w-4 h-4" /> Message
+                        </a>
+                      )}
+                      {canPay && (
+                        <button
+                          type="button"
+                          disabled={payingId === req.id}
+                          onClick={() => payCrewRequest(req.id)}
+                          className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-500 disabled:opacity-50"
+                        >
+                          <CreditCard className="w-4 h-4" /> {payingId === req.id ? "Processing…" : "Pay now"}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -341,15 +423,33 @@ export default function CreatorCrewPage() {
                       <div>
                         <h4 className="text-sm font-medium text-white mb-2">Team members</h4>
                         <div className="grid gap-2">
-                          {teamDetail.members.map((m) => (
-                            <div key={m.id} className="p-3 rounded-lg bg-slate-800/50 border border-slate-700/30">
-                              <p className="font-medium text-white">
-                                {m.name} · {m.role}
-                              </p>
-                              {m.department && <p className="text-xs text-emerald-400">{m.department}</p>}
-                              {(m.bio || m.skills || m.pastWork) && <p className="text-xs text-slate-500 mt-1 line-clamp-2">{m.bio || m.skills || m.pastWork}</p>}
+                          {teamDetail.members.map((m) => {
+                            const photo = m.previewImageUrl || m.photoUrl;
+                            const bio = m.plainBio || m.profile?.plainBio || m.bio;
+                            return (
+                            <div key={m.id} className="flex gap-3 p-3 rounded-lg bg-slate-800/50 border border-slate-700/30">
+                              {photo ? (
+                                <img src={photo} alt="" className="w-14 h-14 rounded-lg object-cover shrink-0" />
+                              ) : (
+                                <div className="w-14 h-14 rounded-lg bg-slate-700/50 flex items-center justify-center shrink-0">
+                                  <Users className="w-5 h-5 text-slate-500" />
+                                </div>
+                              )}
+                              <div className="min-w-0 flex-1">
+                                <p className="font-medium text-white">{m.name} · {m.role}</p>
+                                {m.department && <p className="text-xs text-emerald-400">{m.department}</p>}
+                                <div className="flex flex-wrap gap-2 mt-0.5 text-xs">
+                                  {m.profile?.experienceLevel && <span className="text-slate-400">{m.profile.experienceLevel}</span>}
+                                  {m.profile?.dailyRate != null && <span className="text-orange-300 font-medium">{formatZar(m.profile.dailyRate)}/day</span>}
+                                </div>
+                                {(m.profile?.location || m.profile?.availability) && (
+                                  <p className="text-xs text-slate-500">{[m.profile.location, m.profile.availability].filter(Boolean).join(" · ")}</p>
+                                )}
+                                {bio && <p className="text-xs text-slate-500 mt-1 line-clamp-2">{bio}</p>}
+                                {m.pastWork && <p className="text-xs text-slate-600 mt-0.5 line-clamp-1">Credits: {m.pastWork}</p>}
+                              </div>
                             </div>
-                          ))}
+                          );})}
                         </div>
                       </div>
                       <div className="flex gap-2">
@@ -378,6 +478,20 @@ export default function CreatorCrewPage() {
           )}
         </div>
       )}
+      <MarketplaceCheckoutModal
+        open={marketplacePay.checkoutOpen}
+        checkoutUrl={marketplacePay.checkoutUrl}
+        onClose={marketplacePay.closeCheckout}
+        title="Crew request checkout"
+      />
     </div>
+  );
+}
+
+export default function CreatorCrewPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-slate-400">Loading…</div>}>
+      <CreatorCrewPageContent />
+    </Suspense>
   );
 }

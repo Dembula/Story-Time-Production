@@ -29,6 +29,7 @@ export type ProjectToolId =
   | "dailies-review"
   | "expense-tracker"
   | "incident-reporting"
+  | "on-set-catering"
   | "wrap"
   // Post
   | "footage-ingestion"
@@ -289,6 +290,14 @@ export const PRODUCTION_TOOLS: ProjectToolMeta[] = [
     description: "Log and resolve on-set incidents.",
     toolSlug: "incident-reporting",
     pipelineStep: "RISK",
+  },
+  {
+    id: "on-set-catering",
+    phase: "PRODUCTION",
+    label: "On-Set Catering",
+    description: "Book caterers with menus, galleries, and per-head pricing for shoot days.",
+    toolSlug: "on-set-catering",
+    pipelineStep: "ON_SET",
   },
   {
     id: "wrap",

@@ -10,11 +10,12 @@ import { WalletBalanceChip } from "@/components/layout/wallet-balance-chip";
 
 const navItems = [
   { href: "/location-owner/dashboard", label: "Dashboard" },
-  { href: "/location-owner/bookings", label: "Bookings / Offers" },
-  { href: "/location-owner/listings", label: "My Listings" },
+  { href: "/location-owner/listings", label: "Properties" },
+  { href: "/location-owner/deals", label: "Booking pipeline" },
+  { href: "/location-owner/bookings", label: "Booking inbox" },
   { href: "/location-owner/messages", label: "Messages" },
-  { href: "/location-owner/account", label: "Account" },
   { href: "/location-owner/wallet", label: "Wallet" },
+  { href: "/location-owner/account", label: "Account" },
   { href: "/browse", label: "View Platform" },
 ];
 

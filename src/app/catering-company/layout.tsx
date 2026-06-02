@@ -10,10 +10,11 @@ import { WalletBalanceChip } from "@/components/layout/wallet-balance-chip";
 
 const navItems = [
   { href: "/catering-company/dashboard", label: "Dashboard" },
-  { href: "/catering-company/bookings", label: "Bookings / Offers" },
+  { href: "/catering-company/profile", label: "Menu & gallery" },
+  { href: "/catering-company/deals", label: "Event pipeline" },
+  { href: "/catering-company/bookings", label: "Bookings inbox" },
   { href: "/catering-company/messages", label: "Messages" },
   { href: "/catering-company/revenue", label: "Revenue" },
-  { href: "/catering-company/profile", label: "Profile" },
   { href: "/catering-company/wallet", label: "Wallet" },
   { href: "/browse", label: "View Platform" },
 ];

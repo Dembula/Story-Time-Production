@@ -36,7 +36,7 @@ interface CateringBooking {
   cateringCompany: { companyName: string; userId: string };
 }
 
-type InboxTab = "equipment" | "locations" | "catering" | "network";
+type InboxTab = "equipment" | "locations" | "catering" | "crew" | "cast" | "network";
 
 function MessageBubble({ msg, isSelf }: { msg: Msg; isSelf: boolean }) {
   return (
@@ -104,24 +104,42 @@ function MessagesContent() {
   const tabParam = params.get("tab");
   const bookingIdParam = params.get("bookingId");
   const cateringParam = params.get("catering");
+  const crewRequestParam = params.get("crewRequestId");
+  const castingInquiryParam = params.get("castingInquiryId");
   const withParam = params.get("with");
 
   const initialTab: InboxTab = withParam
     ? "network"
     : cateringParam
       ? "catering"
-      : tabParam === "locations"
-        ? "locations"
-        : "equipment";
+      : crewRequestParam
+        ? "crew"
+        : castingInquiryParam
+          ? "cast"
+          : tabParam === "locations"
+            ? "locations"
+            : tabParam === "crew"
+              ? "crew"
+              : tabParam === "cast"
+                ? "cast"
+                : "equipment";
 
   const [messages, setMessages] = useState<Msg[]>([]);
   const [requests, setRequests] = useState<Request[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [cateringBookings, setCateringBookings] = useState<CateringBooking[]>([]);
+  const [crewRequests, setCrewRequests] = useState<
+    { id: string; status: string; projectName: string | null; paymentTransactionId?: string | null; crewTeam: { companyName: string; userId: string } }[]
+  >([]);
+  const [castingInquiries, setCastingInquiries] = useState<
+    { id: string; status: string; projectName: string | null; paymentTransactionId?: string | null; agency: { agencyName: string; userId: string } }[]
+  >([]);
   const [tab, setTab] = useState<InboxTab>(initialTab);
   const [activeReqId, setActiveReqId] = useState<string | null>(initialRequestId);
   const [activeBookingId, setActiveBookingId] = useState<string | null>(bookingIdParam);
   const [activeCateringId, setActiveCateringId] = useState<string | null>(cateringParam);
+  const [activeCrewRequestId, setActiveCrewRequestId] = useState<string | null>(crewRequestParam);
+  const [activeCastingInquiryId, setActiveCastingInquiryId] = useState<string | null>(castingInquiryParam);
   const [peerId, setPeerId] = useState<string | null>(withParam);
   const [peerName, setPeerName] = useState<string | null>(null);
   const [selfId, setSelfId] = useState<string | null>(null);
@@ -139,9 +157,11 @@ function MessagesContent() {
     }
     if (tab === "locations" && activeBookingId) q.set("bookingId", activeBookingId);
     if (tab === "catering" && activeCateringId) q.set("catering", activeCateringId);
+    if (tab === "crew" && activeCrewRequestId) q.set("crewRequestId", activeCrewRequestId);
+    if (tab === "cast" && activeCastingInquiryId) q.set("castingInquiryId", activeCastingInquiryId);
     if (tab === "network" && peerId) q.set("with", peerId);
     router.replace(`/creator/messages?${q.toString()}`, { scroll: false });
-  }, [tab, activeReqId, activeBookingId, activeCateringId, peerId, companyIdParam, router]);
+  }, [tab, activeReqId, activeBookingId, activeCateringId, activeCrewRequestId, activeCastingInquiryId, peerId, companyIdParam, router]);
 
   useEffect(() => {
     if (skipUrlSync.current) {
@@ -165,19 +185,47 @@ function MessagesContent() {
       setTab("catering");
       setActiveCateringId(cateringParam);
     }
+    if (crewRequestParam) {
+      setTab("crew");
+      setActiveCrewRequestId(crewRequestParam);
+    }
+    if (castingInquiryParam) {
+      setTab("cast");
+      setActiveCastingInquiryId(castingInquiryParam);
+    }
     if (withParam) {
       setTab("network");
       setPeerId(withParam);
     }
-  }, [tabParam, bookingIdParam, cateringParam, withParam]);
+  }, [tabParam, bookingIdParam, cateringParam, crewRequestParam, castingInquiryParam, withParam]);
 
   useEffect(() => {
     fetch("/api/equipment-requests")
       .then((r) => r.json())
-      .then((reqs) => setRequests(Array.isArray(reqs) ? reqs : []));
+      .then((reqs) =>
+        setRequests(
+          Array.isArray(reqs) ? reqs.filter((r: Request & { paymentTransactionId?: string | null }) => r.paymentTransactionId) : [],
+        ),
+      );
     fetch("/api/location-bookings")
       .then((r) => r.json())
-      .then((bks) => setBookings(Array.isArray(bks) ? bks : []));
+      .then((bks) =>
+        setBookings(
+          Array.isArray(bks) ? bks.filter((b: Booking & { paymentTransactionId?: string | null }) => b.paymentTransactionId) : [],
+        ),
+      );
+    fetch("/api/crew-teams/requests")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows) =>
+        setCrewRequests(Array.isArray(rows) ? rows.filter((row: { paymentTransactionId?: string | null }) => row.paymentTransactionId) : []),
+      );
+    fetch("/api/casting-agencies/inquiries")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows) =>
+        setCastingInquiries(
+          Array.isArray(rows) ? rows.filter((row: { paymentTransactionId?: string | null }) => row.paymentTransactionId) : [],
+        ),
+      );
     fetch("/api/catering-bookings")
       .then((r) => r.json())
       .then((bks) => {
@@ -215,16 +263,38 @@ function MessagesContent() {
   }, [tab, cateringBookings, cateringParam]);
 
   useEffect(() => {
+    if (tab !== "crew" || crewRequests.length === 0) return;
+    setActiveCrewRequestId((id) => {
+      if (id && crewRequests.some((r) => r.id === id)) return id;
+      if (crewRequestParam && crewRequests.some((r) => r.id === crewRequestParam)) return crewRequestParam;
+      return crewRequests[0].id;
+    });
+  }, [tab, crewRequests, crewRequestParam]);
+
+  useEffect(() => {
+    if (tab !== "cast" || castingInquiries.length === 0) return;
+    setActiveCastingInquiryId((id) => {
+      if (id && castingInquiries.some((r) => r.id === id)) return id;
+      if (castingInquiryParam && castingInquiries.some((r) => r.id === castingInquiryParam)) return castingInquiryParam;
+      return castingInquiries[0].id;
+    });
+  }, [tab, castingInquiries, castingInquiryParam]);
+
+  useEffect(() => {
     if (tab === "equipment" && activeReqId) {
       fetch(`/api/messages?requestId=${activeReqId}`).then((r) => r.json()).then(setMessages);
     } else if (tab === "locations" && activeBookingId) {
       fetch(`/api/messages?locationBookingId=${activeBookingId}`).then((r) => r.json()).then(setMessages);
     } else if (tab === "catering" && activeCateringId) {
       fetch(`/api/messages?cateringBookingId=${activeCateringId}`).then((r) => r.json()).then(setMessages);
+    } else if (tab === "crew" && activeCrewRequestId) {
+      fetch(`/api/messages?crewTeamRequestId=${activeCrewRequestId}`).then((r) => r.json()).then(setMessages);
+    } else if (tab === "cast" && activeCastingInquiryId) {
+      fetch(`/api/messages?castingInquiryId=${activeCastingInquiryId}`).then((r) => r.json()).then(setMessages);
     } else if (tab === "network" && peerId) {
       fetch(`/api/messages?peerId=${peerId}`).then((r) => r.json()).then(setMessages);
     } else setMessages([]);
-  }, [tab, activeReqId, activeBookingId, activeCateringId, peerId]);
+  }, [tab, activeReqId, activeBookingId, activeCateringId, activeCrewRequestId, activeCastingInquiryId, peerId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -244,6 +314,8 @@ function MessagesContent() {
   const activeReq = requests.find((r) => r.id === activeReqId);
   const activeBooking = bookings.find((b) => b.id === activeBookingId);
   const activeCatering = cateringBookings.find((b) => b.id === activeCateringId);
+  const activeCrewRequest = crewRequests.find((r) => r.id === activeCrewRequestId);
+  const activeCastingInquiry = castingInquiries.find((r) => r.id === activeCastingInquiryId);
 
   const q = listFilter.trim().toLowerCase();
   const filteredRequests = q
@@ -267,6 +339,20 @@ function MessagesContent() {
   const filteredCatering = q
     ? cateringBookings.filter((b) => b.cateringCompany.companyName.toLowerCase().includes(q))
     : cateringBookings;
+  const filteredCrew = q
+    ? crewRequests.filter(
+        (r) =>
+          r.crewTeam.companyName.toLowerCase().includes(q) ||
+          (r.projectName?.toLowerCase().includes(q) ?? false),
+      )
+    : crewRequests;
+  const filteredCast = q
+    ? castingInquiries.filter(
+        (r) =>
+          r.agency.agencyName.toLowerCase().includes(q) ||
+          (r.projectName?.toLowerCase().includes(q) ?? false),
+      )
+    : castingInquiries;
 
   function selectTab(next: InboxTab) {
     setTab(next);
@@ -318,6 +404,44 @@ function MessagesContent() {
     }
   }
 
+  async function sendCrewMessage(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newMsg.trim() || !activeCrewRequest) return;
+    const res = await fetch("/api/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        body: newMsg,
+        receiverId: activeCrewRequest.crewTeam.userId,
+        crewTeamRequestId: activeCrewRequestId,
+      }),
+    });
+    if (res.ok) {
+      const msg = await res.json();
+      setMessages((prev) => [...prev, msg]);
+      setNewMsg("");
+    }
+  }
+
+  async function sendCastMessage(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newMsg.trim() || !activeCastingInquiry) return;
+    const res = await fetch("/api/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        body: newMsg,
+        receiverId: activeCastingInquiry.agency.userId,
+        castingInquiryId: activeCastingInquiryId,
+      }),
+    });
+    if (res.ok) {
+      const msg = await res.json();
+      setMessages((prev) => [...prev, msg]);
+      setNewMsg("");
+    }
+  }
+
   async function sendNetworkMessage(e: React.FormEvent) {
     e.preventDefault();
     if (!newMsg.trim() || !peerId) return;
@@ -344,6 +468,8 @@ function MessagesContent() {
   const tabButtons: { id: InboxTab; label: string; icon: typeof Wrench }[] = [
     { id: "equipment", label: "Equipment", icon: Wrench },
     { id: "locations", label: "Locations", icon: MapPin },
+    { id: "crew", label: "Crew", icon: Users },
+    { id: "cast", label: "Cast", icon: Users },
     { id: "catering", label: "Catering", icon: UtensilsCrossed },
     { id: "network", label: "Direct", icon: Users },
   ];
@@ -358,7 +484,7 @@ function MessagesContent() {
         <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">Inbox</p>
         <h1 className="font-display text-2xl font-semibold tracking-tight text-white md:text-3xl">Messages</h1>
         <p className="mt-2 max-w-2xl text-sm text-slate-400 md:text-base">
-          Equipment, locations, catering, and direct messages with creators you open from Network.
+          Equipment, locations, crew, cast, catering, and direct messages — marketplace threads unlock after payment.
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
           {tabButtons.map(({ id, label, icon: Icon }) => (
@@ -386,9 +512,13 @@ function MessagesContent() {
                 ? "Equipment requests"
                 : tab === "locations"
                   ? "Location bookings"
-                  : tab === "catering"
-                    ? "Catering bookings"
-                    : "Direct"}
+                  : tab === "crew"
+                    ? "Crew requests"
+                    : tab === "cast"
+                      ? "Casting inquiries"
+                      : tab === "catering"
+                        ? "Catering bookings"
+                        : "Direct"}
             </h2>
             {tab !== "network" && (
               <div className="relative">
@@ -445,12 +575,58 @@ function MessagesContent() {
                   </button>
                 ))
               )
+            ) : tab === "crew" ? (
+              filteredCrew.length === 0 ? (
+                <div className="storytime-empty-state m-4 p-6 text-center text-sm text-slate-500">
+                  No paid crew requests.{" "}
+                  <Link href="/creator/crew" className="text-orange-400 hover:text-orange-300">
+                    Crew marketplace →
+                  </Link>
+                </div>
+              ) : (
+                filteredCrew.map((r) => (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() => setActiveCrewRequestId(r.id)}
+                    className={`w-full border-b border-white/6 p-4 text-left transition last:border-0 ${
+                      activeCrewRequestId === r.id ? "bg-orange-500/10 border-l-2 border-l-orange-500" : "hover:bg-white/[0.04]"
+                    }`}
+                  >
+                    <p className="truncate text-sm font-medium text-white">{r.crewTeam.companyName}</p>
+                    <p className="text-xs text-slate-400">{r.projectName || "Project"}</p>
+                  </button>
+                ))
+              )
+            ) : tab === "cast" ? (
+              filteredCast.length === 0 ? (
+                <div className="storytime-empty-state m-4 p-6 text-center text-sm text-slate-500">
+                  No paid casting inquiries.{" "}
+                  <Link href="/creator/cast" className="text-orange-400 hover:text-orange-300">
+                    Cast & auditions →
+                  </Link>
+                </div>
+              ) : (
+                filteredCast.map((r) => (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() => setActiveCastingInquiryId(r.id)}
+                    className={`w-full border-b border-white/6 p-4 text-left transition last:border-0 ${
+                      activeCastingInquiryId === r.id ? "bg-orange-500/10 border-l-2 border-l-orange-500" : "hover:bg-white/[0.04]"
+                    }`}
+                  >
+                    <p className="truncate text-sm font-medium text-white">{r.agency.agencyName}</p>
+                    <p className="text-xs text-slate-400">{r.projectName || "Project"}</p>
+                  </button>
+                ))
+              )
             ) : tab === "equipment" ? (
               filteredRequests.length === 0 ? (
                 <div className="storytime-empty-state m-4 p-6 text-center text-sm text-slate-500">
-                  No equipment requests yet.{" "}
+                  Pay for an approved equipment request to unlock messages.{" "}
                   <Link href="/creator/equipment" className="text-orange-400 hover:text-orange-300">
-                    Browse equipment →
+                    Equipment →
                   </Link>
                 </div>
               ) : (
@@ -573,6 +749,34 @@ function MessagesContent() {
                   placeholder="Type your message…"
                   className="storytime-input min-w-0 flex-1 px-4 py-2.5 text-sm"
                 />
+                <button type="submit" className="shrink-0 rounded-xl bg-orange-500 px-4 py-2.5 text-white hover:bg-orange-600">
+                  <Send className="h-4 w-4" />
+                </button>
+              </form>
+            </>
+          ) : tab === "crew" && activeCrewRequest ? (
+            <>
+              <div className="shrink-0 border-b border-white/8 p-4">
+                <p className="font-medium text-white">{activeCrewRequest.crewTeam.companyName}</p>
+                <p className="text-xs text-slate-400">{activeCrewRequest.projectName || "Crew request"}</p>
+              </div>
+              <MessageThread messages={messages} selfId={selfId} bottomRef={bottomRef} emptyLabel="Coordinate crew availability and rates here." />
+              <form onSubmit={sendCrewMessage} className="shrink-0 flex gap-3 border-t border-white/8 p-4">
+                <input value={newMsg} onChange={(e) => setNewMsg(e.target.value)} placeholder="Type your message…" className="storytime-input min-w-0 flex-1 px-4 py-2.5 text-sm" />
+                <button type="submit" className="shrink-0 rounded-xl bg-orange-500 px-4 py-2.5 text-white hover:bg-orange-600">
+                  <Send className="h-4 w-4" />
+                </button>
+              </form>
+            </>
+          ) : tab === "cast" && activeCastingInquiry ? (
+            <>
+              <div className="shrink-0 border-b border-white/8 p-4">
+                <p className="font-medium text-white">{activeCastingInquiry.agency.agencyName}</p>
+                <p className="text-xs text-slate-400">{activeCastingInquiry.projectName || "Casting inquiry"}</p>
+              </div>
+              <MessageThread messages={messages} selfId={selfId} bottomRef={bottomRef} emptyLabel="Discuss talent, auditions, and availability." />
+              <form onSubmit={sendCastMessage} className="shrink-0 flex gap-3 border-t border-white/8 p-4">
+                <input value={newMsg} onChange={(e) => setNewMsg(e.target.value)} placeholder="Type your message…" className="storytime-input min-w-0 flex-1 px-4 py-2.5 text-sm" />
                 <button type="submit" className="shrink-0 rounded-xl bg-orange-500 px-4 py-2.5 text-white hover:bg-orange-600">
                   <Send className="h-4 w-4" />
                 </button>

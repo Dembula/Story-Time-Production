@@ -1,9 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { BackButton } from "@/components/layout/back-button";
+import {
+  CreatorProjectContextBanner,
+  useCreatorProjectContext,
+  usePrefillProjectName,
+} from "@/components/creator/creator-project-context";
+import { fetchMarketplaceList, postMarketplaceJson } from "@/lib/creator-marketplace-fetch";
 import { MapPin, DollarSign, Users, ChevronDown, ChevronUp, MessageCircle, CheckCircle, Calendar, CreditCard } from "lucide-react";
 import { formatZar } from "@/lib/format-currency-zar";
+import { useMarketplacePay } from "@/lib/hooks/use-marketplace-pay";
+import { MarketplaceCheckoutModal } from "@/components/marketplace/marketplace-checkout-modal";
 
 const LOCATION_TYPES = ["Studio", "House", "Warehouse", "Outdoor", "Office", "Historical", "Restaurant", "Other"];
 
@@ -20,11 +28,19 @@ type Location = {
   dailyRate: number | null;
   amenities: string | null;
   photoUrls: string | null;
+  photos?: string[];
+  previewImageUrl?: string | null;
   rules: string | null;
   availability: string | null;
   contactUrl: string | null;
   company: { id: string; name: string | null } | null;
   _count: { bookings: number };
+  profile?: {
+    dailyRate?: number | null;
+    permitRequirements?: string | null;
+    restrictions?: string | null;
+    logistics?: string | null;
+  };
 };
 
 type Booking = {
@@ -42,30 +58,11 @@ type Booking = {
   _count: { messages: number };
 };
 
-function LocationPayButton({ bookingId, onPaid }: { bookingId: string; onPaid: () => void }) {
-  const [loading, setLoading] = useState(false);
-  async function pay() {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/location-bookings/${bookingId}/pay`, { method: "POST" });
-      if (res.ok) onPaid();
-    } finally {
-      setLoading(false);
-    }
-  }
-  return (
-    <button
-      type="button"
-      onClick={pay}
-      disabled={loading}
-      className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-sm font-medium hover:bg-emerald-500/25 disabled:opacity-50"
-    >
-      <CreditCard className="w-4 h-4" /> {loading ? "Processing…" : "Pay to confirm"}
-    </button>
-  );
-}
-
-export default function CreatorLocationsPage() {
+function CreatorLocationsPageContent() {
+  const { projectId, projectTitle } = useCreatorProjectContext({
+    phase: "PRE_PRODUCTION",
+    toolSlug: "location-marketplace",
+  });
   const [locations, setLocations] = useState<Location[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,22 +75,55 @@ export default function CreatorLocationsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState("");
   const [setupError, setSetupError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState("");
+  const [payingId, setPayingId] = useState<string | null>(null);
+  const marketplacePay = useMarketplacePay({
+    onPaid: () => {
+      fetch("/api/location-bookings")
+        .then((r) => r.json())
+        .then((bks) => setBookings(Array.isArray(bks) ? bks : []));
+    },
+  });
+
+  async function payBooking(bookingId: string) {
+    setPayingId(bookingId);
+    try {
+      const result = await marketplacePay.pay(`/api/location-bookings/${bookingId}/pay`);
+      if (result?.mode === "wallet") {
+        setBookings((prev) =>
+          prev.map((x) => (x.id === bookingId ? { ...x, paymentTransactionId: result.data.transactionId ?? "paid" } : x)),
+        );
+      }
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Payment failed");
+    } finally {
+      setPayingId(null);
+    }
+  }
+
+  const prefillNote = useCallback(
+    (title: string) => {
+      setBookForm((f) => {
+        if (f.note.trim()) return f;
+        return { ...f, note: `Booking for project: ${title}` };
+      });
+    },
+    [],
+  );
+  usePrefillProjectName(projectTitle, prefillNote);
 
   useEffect(() => {
     Promise.all([
-      fetch("/api/locations").then(async (r) => {
-        const data = await r.json();
-        if (r.status === 503 && data.error) throw new Error(data.error);
-        return Array.isArray(data) ? data : [];
-      }),
+      fetchMarketplaceList<Location>("/api/locations"),
       fetch("/api/location-bookings").then(async (r) => {
         const data = await r.json();
         if (r.status === 503 && data.error) throw new Error(data.error);
         return Array.isArray(data) ? data : [];
       }),
     ])
-      .then(([locs, bks]) => {
-        setLocations(locs);
+      .then(([locsRes, bks]) => {
+        setLocations(locsRes.data);
+        if (locsRes.error) setSetupError(locsRes.error);
         setBookings(bks);
         setLoading(false);
       })
@@ -112,27 +142,34 @@ export default function CreatorLocationsPage() {
 
   async function submitBooking(locationId: string) {
     setSubmitting(true);
-    const res = await fetch("/api/location-bookings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    setSubmitError("");
+    const note =
+      bookForm.note ||
+      (projectTitle ? `Booking for project: ${projectTitle}` : null);
+    const { data: newBooking, error } = await postMarketplaceJson<Booking & { paymentTransactionId?: string | null }>(
+      "/api/location-bookings",
+      {
         locationId,
         shootType: bookForm.shootType || null,
         startDate: bookForm.startDate || null,
         endDate: bookForm.endDate || null,
         crewSize: bookForm.crewSize ? parseInt(bookForm.crewSize, 10) : null,
-        note: bookForm.note || null,
-      }),
-    });
+        note,
+      },
+    );
     setSubmitting(false);
-    if (res.ok) {
-      const newBooking = await res.json();
-      setBookings((prev) => [{ ...newBooking, paymentTransactionId: newBooking.paymentTransactionId ?? null, _count: { messages: 0 } }, ...prev]);
-      setBookingForId(null);
-      setBookForm({ shootType: "", startDate: "", endDate: "", crewSize: "", note: "" });
-      setSuccess("Booking request sent!");
-      setTimeout(() => setSuccess(""), 3000);
+    if (error || !newBooking) {
+      setSubmitError(error || "Could not send booking request");
+      return;
     }
+    setBookings((prev) => [
+      { ...newBooking, paymentTransactionId: newBooking.paymentTransactionId ?? null, _count: { messages: 0 } },
+      ...prev,
+    ]);
+    setBookingForId(null);
+    setBookForm({ shootType: "", startDate: "", endDate: "", crewSize: "", note: projectTitle ? `Booking for project: ${projectTitle}` : "" });
+    setSuccess("Booking request sent!");
+    setTimeout(() => setSuccess(""), 3000);
   }
 
   if (loading)
@@ -155,7 +192,15 @@ export default function CreatorLocationsPage() {
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
-      <BackButton fallback="/creator/dashboard" />
+      <BackButton
+        fallback={
+          projectId ? `/creator/pre/location-marketplace?projectId=${encodeURIComponent(projectId)}` : "/creator/dashboard"
+        }
+      />
+      <CreatorProjectContextBanner phase="PRE_PRODUCTION" toolSlug="location-marketplace" accent="cyan" />
+      {submitError && (
+        <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{submitError}</div>
+      )}
       <div className="mb-8 flex items-end justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-3xl font-semibold text-white mb-2 tracking-tight flex items-center gap-3">
@@ -194,12 +239,16 @@ export default function CreatorLocationsPage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filtered.map((loc) => {
-              const firstPhoto = loc.photoUrls?.split(/[\n,]/)[0]?.trim();
+              const gallery = loc.photos?.length ? loc.photos : loc.photoUrls?.split(/[\n,]/).map((s) => s.trim()).filter((s) => s.startsWith("http")) ?? [];
+              const hero = loc.previewImageUrl || gallery[0];
+              const displayRate = loc.profile?.dailyRate ?? loc.dailyRate;
               const isExpanded = expandedId === loc.id;
               const showBookForm = bookingForId === loc.id;
               return (
                 <div key={loc.id} className="rounded-2xl bg-slate-800/30 border border-slate-700/50 overflow-hidden hover:border-orange-500/30 transition">
-                  {firstPhoto && <img src={firstPhoto} alt="" className="w-full h-40 object-cover" />}
+                  {hero ? <img src={hero} alt="" className="w-full h-40 object-cover" /> : (
+                    <div className="h-32 flex items-center justify-center bg-slate-800/60"><MapPin className="w-10 h-10 text-slate-600" /></div>
+                  )}
                   <div className="p-5 space-y-3">
                     <div className="flex items-start justify-between gap-2">
                       <h3 className="text-lg font-semibold text-white">{loc.name}</h3>
@@ -209,15 +258,24 @@ export default function CreatorLocationsPage() {
                     {loc.description && <p className="text-sm text-slate-400 line-clamp-2">{loc.description}</p>}
                     <div className="flex flex-wrap gap-3 text-xs text-slate-500">
                       {loc.capacity != null && <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {loc.capacity} max</span>}
-                      {loc.dailyRate != null && <span className="flex items-center gap-1 text-orange-400"><DollarSign className="w-3 h-3" /> {formatZar(loc.dailyRate, { maximumFractionDigits: 0 })}/day</span>}
+                      {displayRate != null && <span className="flex items-center gap-1 text-orange-400"><DollarSign className="w-3 h-3" /> {formatZar(displayRate, { maximumFractionDigits: 0 })}/day</span>}
                     </div>
                     <button onClick={() => setExpandedId(isExpanded ? null : loc.id)} className="flex items-center gap-1 text-sm text-orange-400 hover:text-orange-300">
                       {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />} {isExpanded ? "Less" : "More details"}
                     </button>
                     {isExpanded && (
                       <div className="pt-3 border-t border-slate-700/50 space-y-2 text-sm">
+                        {gallery.length > 1 && (
+                          <div className="flex gap-2 overflow-x-auto pb-2">
+                            {gallery.slice(0, 6).map((url) => (
+                              <img key={url} src={url} alt="" className="h-16 w-24 shrink-0 rounded-lg object-cover" />
+                            ))}
+                          </div>
+                        )}
                         {loc.amenities && <p><span className="text-slate-500">Amenities:</span> {loc.amenities}</p>}
-                        {loc.rules && <p><span className="text-slate-500">Rules:</span> {loc.rules}</p>}
+                        {loc.profile?.permitRequirements && <p><span className="text-slate-500">Permits:</span> {loc.profile.permitRequirements}</p>}
+                        {loc.profile?.logistics && <p><span className="text-slate-500">Logistics:</span> {loc.profile.logistics}</p>}
+                        {(loc.profile?.restrictions || loc.rules) && <p><span className="text-slate-500">Rules:</span> {loc.profile?.restrictions || loc.rules}</p>}
                         {loc.availability && <p><span className="text-slate-500">Availability:</span> {loc.availability}</p>}
                         {loc.contactUrl && <a href={loc.contactUrl} target="_blank" rel="noopener noreferrer" className="text-orange-400 hover:underline">Contact / Website</a>}
                       </div>
@@ -278,18 +336,20 @@ export default function CreatorLocationsPage() {
               </div>
               <div className="flex flex-wrap items-center gap-2 justify-end">
                 {b.status === "APPROVED" && !b.paymentTransactionId && (
-                  <LocationPayButton
-                    bookingId={b.id}
-                    onPaid={() => {
-                      setBookings((prev) =>
-                        prev.map((x) => (x.id === b.id ? { ...x, paymentTransactionId: "paid" } : x)),
-                      );
-                    }}
-                  />
+                  <button
+                    type="button"
+                    disabled={payingId === b.id}
+                    onClick={() => payBooking(b.id)}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-sm font-medium hover:bg-emerald-500/25 disabled:opacity-50"
+                  >
+                    <CreditCard className="w-4 h-4" /> {payingId === b.id ? "Processing…" : "Pay to unlock messaging"}
+                  </button>
                 )}
-                <a href={`/creator/messages?tab=locations&bookingId=${b.id}`} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500/10 text-orange-400 border border-orange-500/30 text-sm hover:bg-orange-500/20 transition">
-                  <MessageCircle className="w-4 h-4" /> Chat
-                </a>
+                {b.paymentTransactionId && (
+                  <a href={`/creator/messages?tab=locations&bookingId=${b.id}`} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500/10 text-orange-400 border border-orange-500/30 text-sm hover:bg-orange-500/20 transition">
+                    <MessageCircle className="w-4 h-4" /> Chat
+                  </a>
+                )}
               </div>
             </div>
           ))}
@@ -301,6 +361,20 @@ export default function CreatorLocationsPage() {
           )}
         </div>
       )}
+      <MarketplaceCheckoutModal
+        open={marketplacePay.checkoutOpen}
+        checkoutUrl={marketplacePay.checkoutUrl}
+        onClose={marketplacePay.closeCheckout}
+        title="Location booking checkout"
+      />
     </div>
+  );
+}
+
+export default function CreatorLocationsPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-slate-400">Loading…</div>}>
+      <CreatorLocationsPageContent />
+    </Suspense>
   );
 }

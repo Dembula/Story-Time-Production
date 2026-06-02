@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import { useSession } from "next-auth/react";
 import { Package, Plus, MapPin, Globe, Tag, Upload } from "lucide-react";
 import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
 
@@ -20,25 +21,64 @@ export default function ListingsPage() {
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ companyName: "", category: "", description: "", imageUrl: "", contactUrl: "", location: "" });
+  const [form, setForm] = useState({
+    companyName: "",
+    category: "",
+    description: "",
+    imageUrl: "",
+    contactUrl: "",
+    location: "",
+    dailyRate: "",
+    specifications: "",
+  });
   const [uploading, setUploading] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const { data: session } = useSession();
+  const companyId = (session?.user as { id?: string })?.id;
 
   useEffect(() => {
-    fetch("/api/equipment").then((r) => r.json()).then(setListings).finally(() => setLoading(false));
-  }, []);
+    if (!companyId) return;
+    fetch(`/api/equipment?companyId=${encodeURIComponent(companyId)}`)
+      .then((r) => r.json())
+      .then((data) => setListings(Array.isArray(data) ? data : []))
+      .finally(() => setLoading(false));
+  }, [companyId]);
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
+    setSaveError("");
     const res = await fetch("/api/equipment", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
+      body: JSON.stringify({
+        companyName: form.companyName,
+        category: form.category,
+        description: form.description,
+        imageUrl: form.imageUrl || null,
+        contactUrl: form.contactUrl || null,
+        location: form.location || null,
+        profile: {
+          dailyRate: form.dailyRate ? parseFloat(form.dailyRate) : null,
+          specifications: form.specifications || null,
+        },
+      }),
     });
+    const data = await res.json();
     if (res.ok) {
-      const item = await res.json();
-      setListings((prev) => [item, ...prev]);
+      setListings((prev) => [data, ...prev]);
       setShowForm(false);
-      setForm({ companyName: "", category: "", description: "", imageUrl: "", contactUrl: "", location: "" });
+      setForm({
+        companyName: "",
+        category: "",
+        description: "",
+        imageUrl: "",
+        contactUrl: "",
+        location: "",
+        dailyRate: "",
+        specifications: "",
+      });
+    } else {
+      setSaveError(data?.error || "Failed to save listing");
     }
   }
 
@@ -94,6 +134,11 @@ export default function ListingsPage() {
             </select>
           </div>
           <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Description" rows={3} className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 text-sm" />
+          <div className="grid grid-cols-2 gap-4">
+            <input type="number" min={0} step={50} value={form.dailyRate} onChange={(e) => setForm({ ...form, dailyRate: e.target.value })} placeholder="Daily rate (ZAR)" className="px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 text-sm" />
+            <input value={form.specifications} onChange={(e) => setForm({ ...form, specifications: e.target.value })} placeholder="Specs (e.g. 4K, includes lens)" className="px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 text-sm" />
+          </div>
+          {saveError && <p className="text-sm text-red-400">{saveError}</p>}
           <div>
             <label className="block text-sm text-slate-400 mb-1">Equipment image</label>
             <div className="flex items-center gap-3">

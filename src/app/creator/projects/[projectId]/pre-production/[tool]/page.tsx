@@ -6501,6 +6501,15 @@ function CastingPortalWorkspace({
             ))}
         </div>
       )}
+      <Link
+        href={projectId ? `/creator/cast?projectId=${encodeURIComponent(projectId)}` : "/creator/cast"}
+        className="creator-glass-panel block p-4 transition hover:border-violet-400/35"
+      >
+        <h3 className="text-sm font-semibold text-white mb-1">Open full Cast &amp; Auditions</h3>
+        <p className="text-xs text-slate-400">
+          Browse agency talent with headshots, rates, and experience — send inquiries and manage your cast roster.
+        </p>
+      </Link>
     </div>
   );
 }
@@ -7130,7 +7139,7 @@ function CrewMarketplaceWorkspace({
         </div>
       )}
       <Link
-        href="/creator/crew"
+        href={projectId ? `/creator/crew?projectId=${encodeURIComponent(projectId)}` : "/creator/crew"}
         className="creator-glass-panel block p-4 transition hover:border-emerald-400/35"
       >
         <h3 className="text-sm font-semibold text-white mb-1">Open Crew marketplace</h3>
@@ -7451,7 +7460,7 @@ function LocationMarketplaceWorkspace({
         )}
       </div>
       <Link
-        href="/creator/locations"
+        href={projectId ? `/creator/locations?projectId=${encodeURIComponent(projectId)}` : "/creator/locations"}
         className="creator-glass-panel p-4 transition hover:border-orange-400/35 block"
       >
         <h3 className="text-sm font-semibold text-white mb-1">Open Locations</h3>
@@ -10672,7 +10681,10 @@ function EquipmentPlanningWorkspace({
           </div>
         </div>
       )}
-      <Link href="/creator/equipment" className="creator-glass-panel p-4 transition hover:border-orange-400/35 block">
+      <Link
+        href={projectId ? `/creator/equipment?projectId=${encodeURIComponent(projectId)}` : "/creator/equipment"}
+        className="creator-glass-panel p-4 transition hover:border-orange-400/35 block"
+      >
         <h3 className="text-sm font-semibold text-white mb-1">Open Equipment marketplace</h3>
         <p className="text-xs text-slate-400">Find cameras, lighting, audio, and more.</p>
       </Link>

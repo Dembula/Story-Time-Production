@@ -3,7 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isFeaturedCompanyPlan } from "@/lib/pricing";
-import { parseEmbeddedMeta, embedMeta, type LocationMarketMeta } from "@/lib/marketplace-profile-meta";
+import { shapeLocationListingForMarketplace } from "@/lib/company-marketplace-profiles";
+import { embedMeta, type LocationMarketMeta } from "@/lib/marketplace-profile-meta";
 import { validateStorageUrlList } from "@/lib/storage-origin";
 
 function hasLocationModels(): boolean {
@@ -60,21 +61,11 @@ export async function GET(req: NextRequest) {
   });
   const shaped = sorted
     .map((location) => {
-      const parsed = parseEmbeddedMeta<LocationMarketMeta>(location.rules);
-      if (availability && !(location.availability ?? parsed.meta?.availability ?? "").toLowerCase().includes(availability.toLowerCase())) {
+      const item = shapeLocationListingForMarketplace(location);
+      if (availability && !(item.profile.availability ?? "").toLowerCase().includes(availability.toLowerCase())) {
         return null;
       }
-      return {
-        ...location,
-        profile: {
-          permitRequirements: parsed.meta?.permitNotes ?? null,
-          restrictions: parsed.meta?.restrictions ?? parsed.plain,
-          hourlyRate: parsed.meta?.hourlyRate ?? null,
-          dailyRate: parsed.meta?.dailyRate ?? location.dailyRate ?? null,
-          availability: location.availability ?? parsed.meta?.availability ?? null,
-          logistics: parsed.meta?.logistics ?? null,
-        },
-      };
+      return item;
     })
     .filter((row): row is NonNullable<typeof row> => Boolean(row));
   return NextResponse.json(shaped);

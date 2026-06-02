@@ -14,16 +14,16 @@ export default function CreatorPreProductionHub() {
       tools={PRE_PRODUCTION_TOOLS}
       sectionProjectsTitle="Choose a project"
       sectionToolsTitle="Jump into a pre-production tool"
-      sectionToolsLead="Pick a tool, then open it for a project. Work is saved on that project. Casting, crew, locations, and equipment also offer standalone entry where available."
+      sectionToolsLead="Pick a tool, then open it for a project. Casting, crew, locations, equipment, and funding live in their dedicated tools below — not a separate marketplace menu."
       ProjectsIcon={Film}
       footerSection={
         <section className="storytime-section space-y-2 p-5 md:p-6">
           <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-200">
             <MapPin className="h-4 w-4 text-sky-400" />
-            Crew, cast, locations, equipment &amp; catering
+            Casting, crew, locations, equipment &amp; funding
           </h2>
           <p className="text-xs text-slate-500">
-            Use the cards above — marketplace tools link to Casting, Crew, Locations, Equipment, and Catering flows. Some open in standalone mode when you have no project yet.
+            Use the tool cards above: Casting Portal, Crew Marketplace, Location Marketplace, Equipment Planning, and Funding Hub. Each opens the full directory (headshots, rates, photos) inside that workflow.
           </p>
         </section>
       }

@@ -16,6 +16,7 @@ import { ProductionControlCenterClient } from "../production-control-center-clie
 import { CallSheetGenerator } from "../call-sheet-generator-client";
 import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
 import { formatZar } from "@/lib/format-currency-zar";
+import { CreatorCateringClient } from "@/app/creator/catering/creator-catering-client";
 
 interface ProductionToolPageProps {
   params: Promise<{ projectId?: string; tool: string }>;
@@ -31,6 +32,7 @@ const LABELS: Record<string, string> = {
   "dailies-review": "Dailies Review",
   "expense-tracker": "Production Expense Tracker",
   "incident-reporting": "Incident Reporting",
+  "on-set-catering": "On-Set Catering",
   wrap: "Production Wrap",
 };
 
@@ -131,6 +133,33 @@ export default function ProductionToolPage({ params }: ProductionToolPageProps) 
       <>
         {!hasProject && <UnlinkedBanner />}
         <IncidentReporting projectId={projectId} title={title} />
+      </>
+    );
+  }
+  if (tool === "on-set-catering") {
+    return (
+      <>
+        {!hasProject && <UnlinkedBanner />}
+        <div className="space-y-4">
+          <header>
+            <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
+            <p className="mt-1 text-sm text-slate-400">
+              Browse catering companies with food galleries and per-head rates. Bookings are saved to your creator account for this production workflow.
+            </p>
+          </header>
+          <Suspense fallback={<Skeleton className="h-40 w-full rounded-xl bg-slate-800/60" />}>
+            <CreatorCateringClient projectIdProp={projectId} />
+          </Suspense>
+          {projectId && (
+            <Link
+              href={`/creator/catering?projectId=${encodeURIComponent(projectId)}`}
+              className="creator-glass-panel block p-4 transition hover:border-amber-400/35"
+            >
+              <h3 className="text-sm font-semibold text-white mb-1">Open full On-Set Catering</h3>
+              <p className="text-xs text-slate-400">Browse all caterers, manage bookings, and pay to unlock messaging.</p>
+            </Link>
+          )}
+        </div>
       </>
     );
   }
@@ -1247,7 +1276,10 @@ function EquipmentTracking({ projectId, title }: { projectId?: string; title: st
           <h3 className="text-sm font-semibold text-white mb-1">Pre-Production Equipment Planning</h3>
           <p className="text-xs text-slate-400">Edit planned cameras, lighting, audio, and gear for this project.</p>
         </Link>
-        <Link href="/creator/equipment" className="creator-glass-panel block p-4 transition hover:border-orange-400/35">
+        <Link
+          href={projectId ? `/creator/equipment?projectId=${encodeURIComponent(projectId)}` : "/creator/equipment"}
+          className="creator-glass-panel block p-4 transition hover:border-orange-400/35"
+        >
           <h3 className="text-sm font-semibold text-white mb-1">Equipment marketplace & requests</h3>
           <p className="text-xs text-slate-400">View and update gear requests; track check-out and return.</p>
         </Link>

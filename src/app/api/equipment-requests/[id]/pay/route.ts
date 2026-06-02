@@ -2,10 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { MARKETPLACE_TRANSACTION_TYPE } from "@/lib/financial-ledger";
-import { computeEquipmentRequestBaseZar } from "@/lib/equipment-request-base-zar";
-import { computeMarketplaceFeeZar } from "@/lib/marketplace-zar-defaults";
-import { settleMarketplaceWithWallet } from "@/lib/payments/marketplace-wallet";
+import { payMarketplaceEntity } from "@/lib/payments/marketplace-pay";
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
@@ -17,67 +14,39 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const booking = await prisma.equipmentRequest.findUnique({
-    where: { id: requestId, requesterId: user.id },
-    include: { equipment: { select: { description: true } } },
-  });
-  if (!booking) return NextResponse.json({ error: "Request not found" }, { status: 404 });
-  if (booking.paymentTransactionId) return NextResponse.json({ error: "Already paid" }, { status: 400 });
-  if (booking.status !== "APPROVED") {
-    return NextResponse.json({ error: "Equipment request must be approved before payment" }, { status: 400 });
-  }
-
-  const baseAmount = computeEquipmentRequestBaseZar({
-    equipmentDescription: booking.equipment.description,
-    startDate: booking.startDate,
-    endDate: booking.endDate,
-  });
-  const feeAmount = computeMarketplaceFeeZar(baseAmount);
-  const totalAmount = Math.round((baseAmount + feeAmount) * 100) / 100;
-
-  const walletSettle = await settleMarketplaceWithWallet({
+  const result = await payMarketplaceEntity({
+    entityType: "EquipmentRequest",
+    entityId: requestId,
     buyerUserId: user.id,
-    sellerUserId: booking.companyId,
-    baseAmount,
-    feeAmount,
-    totalAmount,
-    referenceType: "EquipmentRequest",
-    referenceId: requestId,
-    escrowIdempotencyKey: `escrow_hold_equipment_${requestId}`,
+    buyerEmail: user.email,
+    buyerName: user.name,
+    returnPath: "/creator/equipment?tab=requests",
   });
-  if (!walletSettle.ok) {
-    return NextResponse.json(
-      { error: walletSettle.error },
-      { status: 402 },
-    );
+
+  if (!result.ok) {
+    return NextResponse.json({ error: result.error }, { status: result.status });
   }
 
-  const tx = await prisma.transaction.create({
-    data: {
-      payerId: user.id,
-      payeeId: booking.companyId,
-      amount: baseAmount,
-      feeAmount,
-      totalAmount,
-      status: "COMPLETED",
-      type: MARKETPLACE_TRANSACTION_TYPE.EQUIPMENT_REQUEST,
-      referenceId: requestId,
-      externalPaymentId: null,
-    },
-  });
-
-  await prisma.equipmentRequest.update({
-    where: { id: requestId },
-    data: { paymentTransactionId: tx.id },
-  });
+  if (result.requiresPayment) {
+    return NextResponse.json({
+      success: true,
+      requiresPayment: true,
+      checkoutUrl: result.checkoutUrl,
+      paymentRecordId: result.paymentRecordId,
+      baseAmount: result.baseAmount,
+      feeAmount: result.feeAmount,
+      totalAmount: result.totalAmount,
+      walletHint: result.walletHint,
+    });
+  }
 
   return NextResponse.json({
-    transactionId: tx.id,
+    transactionId: result.transactionId,
     success: true,
     requiresPayment: false,
-    paymentMode: "wallet",
-    baseAmount,
-    feeAmount,
-    totalAmount,
+    paymentMode: result.paymentMode,
+    baseAmount: result.baseAmount,
+    feeAmount: result.feeAmount,
+    totalAmount: result.totalAmount,
   });
 }

@@ -3,7 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isFeaturedCompanyPlan } from "@/lib/pricing";
-import { parseEmbeddedMeta, embedMeta, type EquipmentMarketMeta } from "@/lib/marketplace-profile-meta";
+import { shapeEquipmentListingForMarketplace } from "@/lib/company-marketplace-profiles";
+import { embedMeta, type EquipmentMarketMeta } from "@/lib/marketplace-profile-meta";
 import { validateStorageUrlField } from "@/lib/storage-origin";
 
 export async function GET(req: NextRequest) {
@@ -42,24 +43,14 @@ export async function GET(req: NextRequest) {
   });
   const shaped = sorted
     .map((row) => {
-      const parsed = parseEmbeddedMeta<EquipmentMarketMeta>(row.description);
-      const dailyRate = parsed.meta?.dailyRate ?? null;
+      const item = shapeEquipmentListingForMarketplace(row);
+      const dailyRate = item.profile.dailyRate ?? null;
       const passMin = Number.isFinite(minCost) ? (dailyRate ?? 0) >= minCost : true;
       const passMax = Number.isFinite(maxCost) ? (dailyRate ?? 0) <= maxCost : true;
       if (!passMin || !passMax) return null;
-      if (availability && !(parsed.meta?.availability ?? "").toLowerCase().includes(availability.toLowerCase())) return null;
-      if (specs && !(parsed.meta?.specifications ?? "").toLowerCase().includes(specs.toLowerCase())) return null;
-      return {
-        ...row,
-        profile: {
-          name: parsed.plain || row.companyName,
-          category: row.category,
-          specifications: parsed.meta?.specifications ?? null,
-          dailyRate,
-          quantityAvailable: parsed.meta?.quantityAvailable ?? null,
-          availability: parsed.meta?.availability ?? null,
-        },
-      };
+      if (availability && !(item.profile.availability ?? "").toLowerCase().includes(availability.toLowerCase())) return null;
+      if (specs && !(item.profile.specifications ?? "").toLowerCase().includes(specs.toLowerCase())) return null;
+      return item;
     })
     .filter((row): row is NonNullable<typeof row> => Boolean(row));
   return NextResponse.json(shaped);

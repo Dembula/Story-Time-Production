@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { assertMarketplaceMessagingAccess } from "@/lib/messages/marketplace-access";
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -38,6 +39,12 @@ export async function GET(req: NextRequest) {
       include: { sender: { select: { id: true, name: true, role: true } } },
     });
     return NextResponse.json(dmMessages);
+  }
+
+  const threadParams = { requestId, locationBookingId, crewTeamRequestId, castingInquiryId, cateringBookingId };
+  if (requestId || locationBookingId || crewTeamRequestId || castingInquiryId || cateringBookingId) {
+    const access = await assertMarketplaceMessagingAccess({ userId, ...threadParams });
+    if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
   }
 
   if (requestId) {
@@ -104,6 +111,24 @@ export async function POST(req: NextRequest) {
 
   const userId = (session.user as { id?: string })?.id!;
   const body = await req.json();
+
+  if (
+    body.requestId ||
+    body.locationBookingId ||
+    body.crewTeamRequestId ||
+    body.castingInquiryId ||
+    body.cateringBookingId
+  ) {
+    const access = await assertMarketplaceMessagingAccess({
+      userId,
+      requestId: body.requestId,
+      locationBookingId: body.locationBookingId,
+      crewTeamRequestId: body.crewTeamRequestId,
+      castingInquiryId: body.castingInquiryId,
+      cateringBookingId: body.cateringBookingId,
+    });
+    if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
+  }
 
   const message = await prisma.message.create({
     data: {

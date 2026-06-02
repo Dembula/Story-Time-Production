@@ -2,79 +2,96 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Users, Briefcase, Send, ArrowRight, DollarSign } from "lucide-react";
+import { Users, Send, DollarSign, ClipboardList } from "lucide-react";
 import { formatZar } from "@/lib/format-currency-zar";
-import { OpsMetricCard, OpsPageHeader, OpsQuickActions } from "@/components/ecosystem/ops-shell";
+import { readCompanyApiJson } from "@/lib/casting-agency-client";
+import { OpsMetricCard, OpsPageHeader, OpsQuickActions, OpsSection } from "@/components/ecosystem/ops-shell";
 
 export function CrewTeamDashboardClient() {
-  const [team, setTeam] = useState<{ id: string; companyName: string; _count: { members: number; requests: number } } | null>(null);
-  const [requests, setRequests] = useState<{ id: string; projectName: string | null; status: string; creator: { name: string | null } }[]>([]);
-  const [revenue, setRevenue] = useState(0);
+  const [teamName, setTeamName] = useState("");
+  const [metrics, setMetrics] = useState({
+    members: 0,
+    requests: 0,
+    pendingRequests: 0,
+    pendingInvitations: 0,
+    revenue: 0,
+  });
+  const [roster, setRoster] = useState<{ id: string; name: string; role: string; photoUrl: string | null; department: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    Promise.all([
-      fetch("/api/crew-team").then((r) => r.json()),
-      fetch("/api/crew-team/requests").then((r) => r.json()),
-      fetch("/api/crew-team/stats").then((r) => r.json()),
-    ]).then(([t, reqs, stats]) => {
-      setTeam(t);
-      setRequests(Array.isArray(reqs) ? reqs : []);
-      setRevenue(typeof stats?.revenue === "number" ? stats.revenue : 0);
-      setLoading(false);
-    });
+    fetch("/api/crew-team/overview")
+      .then((r) => readCompanyApiJson<{
+        team?: { companyName: string };
+        metrics: typeof metrics;
+        rosterPreview: typeof roster;
+      }>(r))
+      .then(({ data, error: err }) => {
+        if (err) setError(err);
+        if (data?.team) setTeamName(data.team.companyName);
+        if (data?.metrics) setMetrics(data.metrics);
+        setRoster(data?.rosterPreview ?? []);
+        setLoading(false);
+      });
   }, []);
 
-  if (loading) return <div className="flex justify-center min-h-[40vh]"><div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" /></div>;
-  if (!team) return (
-    <div className="p-8 max-w-2xl mx-auto">
-      <div className="rounded-2xl bg-slate-800/30 border border-slate-700/50 p-8 text-center">
-        <Briefcase className="w-12 h-12 text-emerald-500 mx-auto mb-4" />
-        <h2 className="text-xl font-semibold text-white mb-2">Set up your crew team profile</h2>
-        <Link href="/crew-team/profile" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-emerald-500 text-white font-medium hover:bg-emerald-600">Create profile <ArrowRight className="w-4 h-4" /></Link>
+  if (loading) {
+    return (
+      <div className="flex min-h-[40vh] justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
       </div>
-    </div>
-  );
+    );
+  }
 
-  const pending = requests.filter((r) => r.status === "PENDING").length;
   return (
-    <div className="p-8 max-w-6xl mx-auto space-y-8">
+    <div className="mx-auto max-w-6xl space-y-8 p-6 md:p-8">
       <OpsPageHeader
-        title={team.companyName}
-        subtitle="Crew marketplace operations — team capacity, inbound requests, and settled revenue."
+        title={teamName || "Crew team"}
+        subtitle="Roster with headshots and day rates, inbound hire requests, and project invitations — built for production crew companies."
       />
-      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-        <OpsMetricCard label="Team members" value={team._count.members} icon={Users} accent="emerald" />
-        <OpsMetricCard label="Total requests" value={team._count.requests} icon={Send} accent="orange" />
-        <OpsMetricCard label="Pending offers" value={pending} accent="amber" />
-        <OpsMetricCard
-          label="Settled revenue"
-          value={formatZar(revenue, { maximumFractionDigits: 0 })}
-          icon={DollarSign}
-          accent="emerald"
-        />
+      {error && <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">{error}</div>}
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <OpsMetricCard label="Crew members" value={metrics.members} icon={Users} accent="emerald" />
+        <OpsMetricCard label="Requests" value={metrics.requests} icon={Send} accent="orange" />
+        <OpsMetricCard label="Pending requests" value={metrics.pendingRequests} accent="amber" />
+        <OpsMetricCard label="Pending invites" value={metrics.pendingInvitations} icon={ClipboardList} accent="violet" />
+        <OpsMetricCard label="Settled revenue" value={formatZar(metrics.revenue, { maximumFractionDigits: 0 })} icon={DollarSign} accent="emerald" />
       </div>
+
       <OpsQuickActions
         items={[
-          { href: "/crew-team/requests", label: "Requests & offers", description: "Respond to creator bookings" },
-          { href: "/crew-team/team", label: "Manage team", description: "Roster and availability" },
+          { href: "/crew-team/team", label: "Crew roster", description: "Photos, roles, rates, availability" },
+          { href: "/crew-team/deals", label: "Jobs pipeline", description: "Requests and project invitations" },
+          { href: "/crew-team/requests", label: "Request inbox", description: "Respond to creator bookings" },
           { href: "/crew-team/wallet", label: "Wallet", description: "Payouts and balances" },
         ]}
       />
-      <div className="rounded-2xl bg-slate-800/30 border border-slate-700/50 overflow-hidden">
-        <div className="p-4 border-b border-slate-700/50 flex justify-between">
-          <h2 className="text-lg font-semibold text-white">Recent requests</h2>
-          <Link href="/crew-team/requests" className="text-sm text-emerald-400">View all</Link>
+
+      <OpsSection title="Roster preview">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {roster.length === 0 ? (
+            <p className="text-slate-500 text-sm col-span-full">Add crew members with photos so creators can preview your team.</p>
+          ) : (
+            roster.map((m) => (
+              <Link key={m.id} href="/crew-team/team" className="flex items-center gap-3 rounded-xl border border-slate-700/50 bg-slate-800/30 p-3 hover:border-emerald-500/30">
+                {m.photoUrl ? (
+                  <img src={m.photoUrl} alt="" className="h-12 w-12 rounded-lg object-cover" />
+                ) : (
+                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-slate-700/50 text-slate-500">
+                    <Users className="h-5 w-5" />
+                  </div>
+                )}
+                <div>
+                  <p className="font-medium text-white">{m.name}</p>
+                  <p className="text-xs text-emerald-300">{m.role}{m.department ? ` · ${m.department}` : ""}</p>
+                </div>
+              </Link>
+            ))
+          )}
         </div>
-        <div className="divide-y divide-slate-700/50">
-          {requests.slice(0, 5).length === 0 ? <div className="p-8 text-center text-slate-500">No requests yet.</div> : requests.slice(0, 5).map((r) => (
-            <div key={r.id} className="p-4 flex justify-between">
-              <div><p className="font-medium text-white">{r.projectName || "Project"}</p><p className="text-sm text-slate-400">{r.creator?.name}</p></div>
-              <span className={"px-3 py-1 rounded-full text-xs " + (r.status === "PENDING" ? "bg-amber-500/20 text-amber-400" : "bg-green-500/20 text-green-400")}>{r.status}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+      </OpsSection>
     </div>
   );
 }

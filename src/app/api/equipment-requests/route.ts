@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import {
+  notifyEquipmentRequestCreated,
+  notifyEquipmentRequestStatus,
+} from "@/lib/marketplace-notifications";
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -44,7 +48,7 @@ export async function POST(req: NextRequest) {
 
   const equipment = await prisma.equipmentListing.findUnique({
     where: { id: body.equipmentId },
-    select: { companyId: true },
+    select: { companyId: true, companyName: true },
   });
 
   if (!equipment?.companyId) {
@@ -62,8 +66,21 @@ export async function POST(req: NextRequest) {
     },
     include: {
       equipment: { select: { companyName: true, category: true } },
+      requester: { select: { name: true } },
     },
   });
+
+  try {
+    const requesterName = request.requester?.name;
+    await notifyEquipmentRequestCreated({
+      companyUserId: equipment.companyId,
+      requesterName,
+      equipmentName: equipment.companyName,
+      requestId: request.id,
+    });
+  } catch {
+    /* notification failure must not block booking */
+  }
 
   return NextResponse.json(request);
 }
@@ -72,10 +89,36 @@ export async function PATCH(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const userId = (session.user as { id?: string })?.id!;
+  const role = (session.user as { role?: string })?.role;
   const body = await req.json();
+
+  const existing = await prisma.equipmentRequest.findUnique({
+    where: { id: body.id },
+    include: { equipment: { select: { companyName: true } } },
+  });
+  if (!existing) return NextResponse.json({ error: "Request not found" }, { status: 404 });
+  if (existing.companyId !== userId && role !== "ADMIN") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const updated = await prisma.equipmentRequest.update({
     where: { id: body.id },
     data: { status: body.status },
   });
+
+  if (body.status && body.status !== existing.status) {
+    try {
+      await notifyEquipmentRequestStatus({
+        creatorUserId: existing.requesterId,
+        equipmentName: existing.equipment.companyName,
+        status: body.status,
+        requestId: existing.id,
+      });
+    } catch {
+      /* non-blocking */
+    }
+  }
+
   return NextResponse.json(updated);
 }

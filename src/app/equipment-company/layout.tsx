@@ -10,11 +10,12 @@ import { WalletBalanceChip } from "@/components/layout/wallet-balance-chip";
 
 const navItems = [
   { href: "/equipment-company/dashboard", label: "Dashboard" },
-  { href: "/equipment-company/requests", label: "Requests / Offers" },
-  { href: "/equipment-company/listings", label: "My Listings" },
+  { href: "/equipment-company/listings", label: "Fleet & kit" },
+  { href: "/equipment-company/deals", label: "Rental pipeline" },
+  { href: "/equipment-company/requests", label: "Request inbox" },
   { href: "/equipment-company/messages", label: "Messages" },
-  { href: "/equipment-company/account", label: "Account" },
   { href: "/equipment-company/wallet", label: "Wallet" },
+  { href: "/equipment-company/account", label: "Company account" },
 ];
 
 export default function EquipmentCompanyLayout({ children }: { children: React.ReactNode }) {

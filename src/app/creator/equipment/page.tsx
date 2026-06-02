@@ -1,20 +1,37 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { BackButton } from "@/components/layout/back-button";
+import {
+  CreatorProjectContextBanner,
+  useCreatorProjectContext,
+  usePrefillProjectName,
+} from "@/components/creator/creator-project-context";
+import { fetchMarketplaceList, postMarketplaceJson } from "@/lib/creator-marketplace-fetch";
 import { Wrench, MapPin, ExternalLink, Send, Package, Clock, CheckCircle, MessageCircle, ArrowRight, CreditCard } from "lucide-react";
 import { formatZar } from "@/lib/format-currency-zar";
 import { computeEquipmentRequestBaseZar } from "@/lib/equipment-request-base-zar";
 import { computeMarketplaceFeeZar } from "@/lib/marketplace-zar-defaults";
+import { useMarketplacePay } from "@/lib/hooks/use-marketplace-pay";
+import { MarketplaceCheckoutModal } from "@/components/marketplace/marketplace-checkout-modal";
 
 type Equipment = {
   id: string;
   companyName: string;
   description: string | null;
+  plainDescription?: string | null;
   category: string;
+  imageUrl?: string | null;
+  previewImageUrl?: string | null;
   contactUrl: string | null;
   location: string | null;
   company: { id: string; name: string | null } | null;
+  profile?: {
+    dailyRate?: number | null;
+    specifications?: string | null;
+    quantityAvailable?: number | null;
+    availability?: string | null;
+  };
 };
 
 type Request = {
@@ -30,7 +47,11 @@ type Request = {
   _count: { messages: number };
 };
 
-export default function EquipmentPage() {
+function EquipmentPageContent() {
+  const { projectId, projectTitle } = useCreatorProjectContext({
+    phase: "PRE_PRODUCTION",
+    toolSlug: "equipment-planning",
+  });
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [requests, setRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,15 +59,33 @@ export default function EquipmentPage() {
   const [requesting, setRequesting] = useState<string | null>(null);
   const [form, setForm] = useState({ note: "", startDate: "", endDate: "" });
   const [success, setSuccess] = useState("");
+  const [loadError, setLoadError] = useState("");
+  const [submitError, setSubmitError] = useState("");
   const [payingId, setPayingId] = useState<string | null>(null);
+  const marketplacePay = useMarketplacePay({
+    onPaid: () => {
+      fetch("/api/equipment-requests")
+        .then((r) => r.json())
+        .then((reqs) => setRequests(Array.isArray(reqs) ? reqs : []));
+    },
+  });
+
+  const prefillNote = useCallback(
+    (title: string) => {
+      setForm((f) => (f.note.trim() ? f : { ...f, note: `Rental for project: ${title}` }));
+    },
+    [],
+  );
+  usePrefillProjectName(projectTitle, prefillNote);
 
   useEffect(() => {
     Promise.all([
-      fetch("/api/equipment").then((r) => r.json()),
+      fetchMarketplaceList<Equipment>("/api/equipment"),
       fetch("/api/equipment-requests").then((r) => r.json()),
-    ]).then(([equip, reqs]) => {
-      setEquipment(equip);
-      setRequests(reqs);
+    ]).then(([equipRes, reqs]) => {
+      setEquipment(equipRes.data);
+      if (equipRes.error) setLoadError(equipRes.error);
+      setRequests(Array.isArray(reqs) ? reqs : []);
       setLoading(false);
     });
   }, []);
@@ -54,51 +93,58 @@ export default function EquipmentPage() {
   const categories = [...new Set(equipment.map((e) => e.category))].sort();
 
   async function submitRequest(equipmentId: string) {
-    const res = await fetch("/api/equipment-requests", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ equipmentId, ...form }),
-    });
-    if (res.ok) {
-      const req = await res.json();
-      setRequests((prev) => [
-        {
-          ...req,
-          _count: { messages: 0 },
-          company: equipment.find((e) => e.id === equipmentId)?.company || { id: "", name: "" },
-          equipment: req.equipment ?? equipment.find((e) => e.id === equipmentId) ?? {
-            companyName: "",
-            category: "",
-            description: null,
-          },
-        },
-        ...prev,
-      ]);
-      setRequesting(null);
-      setForm({ note: "", startDate: "", endDate: "" });
-      setSuccess("Request sent successfully!");
-      setTimeout(() => setSuccess(""), 3000);
+    setSubmitError("");
+    const note = form.note || (projectTitle ? `Rental for project: ${projectTitle}` : "");
+    const { data: req, error } = await postMarketplaceJson<Request & { equipment?: Request["equipment"] }>(
+      "/api/equipment-requests",
+      { equipmentId, note, startDate: form.startDate || null, endDate: form.endDate || null },
+    );
+    if (error || !req) {
+      setSubmitError(error || "Could not send request");
+      return;
     }
+    const listing = equipment.find((e) => e.id === equipmentId);
+    setRequests((prev) => [
+      {
+        ...req,
+        _count: { messages: 0 },
+        company: listing?.company || { id: "", name: "" },
+        equipment: req.equipment ?? listing ?? {
+          companyName: "",
+          category: "",
+          description: null,
+        },
+      },
+      ...prev,
+    ]);
+    setRequesting(null);
+    setForm({
+      note: projectTitle ? `Rental for project: ${projectTitle}` : "",
+      startDate: "",
+      endDate: "",
+    });
+    setSuccess("Request sent successfully!");
+    setTimeout(() => setSuccess(""), 3000);
   }
 
   async function payRequest(requestId: string) {
     setPayingId(requestId);
     try {
-      const res = await fetch(`/api/equipment-requests/${requestId}/pay`, { method: "POST" });
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        setSuccess("");
-        alert(data?.error || "Payment failed");
-        return;
+      const result = await marketplacePay.pay(`/api/equipment-requests/${requestId}/pay`);
+      if (result?.mode === "wallet") {
+        setRequests((prev) =>
+          prev.map((r) =>
+            r.id === requestId ? { ...r, paymentTransactionId: result.data.transactionId ?? "paid" } : r,
+          ),
+        );
+        const total =
+          typeof result.data.totalAmount === "number" ? formatZar(result.data.totalAmount) : "paid";
+        setSuccess(`Payment recorded (${total} incl. platform fee).`);
+        setTimeout(() => setSuccess(""), 5000);
       }
-      setRequests((prev) =>
-        prev.map((r) =>
-          r.id === requestId ? { ...r, paymentTransactionId: data.transactionId ?? "paid" } : r,
-        ),
-      );
-      const total = typeof data?.totalAmount === "number" ? formatZar(data.totalAmount) : "paid";
-      setSuccess(`Payment recorded (${total} charged incl. platform fee).`);
-      setTimeout(() => setSuccess(""), 5000);
+    } catch (e) {
+      setSuccess("");
+      alert(e instanceof Error ? e.message : "Payment failed");
     } finally {
       setPayingId(null);
     }
@@ -112,7 +158,14 @@ export default function EquipmentPage() {
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
-      <BackButton fallback="/creator/dashboard" />
+      <BackButton
+        fallback={
+          projectId ? `/creator/pre/equipment-planning?projectId=${encodeURIComponent(projectId)}` : "/creator/dashboard"
+        }
+      />
+      <CreatorProjectContextBanner phase="PRE_PRODUCTION" toolSlug="equipment-planning" accent="orange" />
+      {loadError && <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{loadError}</div>}
+      {submitError && <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{submitError}</div>}
       <div className="mb-8 flex items-end justify-between">
         <div>
           <h1 className="text-3xl font-semibold text-white mb-2 tracking-tight flex items-center gap-3">
@@ -143,16 +196,30 @@ export default function EquipmentPage() {
             <div key={category}>
               <h2 className="text-xl font-semibold text-white mb-4">{category}</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {equipment.filter((e) => e.category === category).map((e) => (
-                  <div key={e.id} className="p-5 rounded-2xl bg-slate-800/30 border border-slate-700/50 hover:border-orange-500/30 transition space-y-3">
+                {equipment.filter((e) => e.category === category).map((e) => {
+                  const thumb = e.previewImageUrl || e.imageUrl;
+                  const desc = e.plainDescription || e.description;
+                  return (
+                  <div key={e.id} className="rounded-2xl bg-slate-800/30 border border-slate-700/50 hover:border-orange-500/30 transition overflow-hidden">
+                    {thumb ? (
+                      <img src={thumb} alt="" className="w-full h-36 object-cover" />
+                    ) : (
+                      <div className="h-28 flex items-center justify-center bg-slate-800/60">
+                        <Package className="w-10 h-10 text-slate-600" />
+                      </div>
+                    )}
+                    <div className="p-5 space-y-3">
                     <div className="flex items-start justify-between">
                       <div>
                         <h3 className="text-lg font-semibold text-white">{e.companyName}</h3>
                         {e.company?.name && <p className="text-xs text-orange-400">{e.company.name}</p>}
                       </div>
-                      <Package className="w-5 h-5 text-slate-600" />
                     </div>
-                    {e.description && <p className="text-sm text-slate-400 leading-relaxed">{e.description}</p>}
+                    {e.profile?.dailyRate != null && (
+                      <p className="text-sm font-medium text-orange-300">{formatZar(e.profile.dailyRate)}/day</p>
+                    )}
+                    {desc && <p className="text-sm text-slate-400 leading-relaxed line-clamp-3">{desc}</p>}
+                    {e.profile?.specifications && <p className="text-xs text-slate-500">{e.profile.specifications}</p>}
                     <div className="flex flex-wrap gap-3 text-xs">
                       {e.location && <span className="flex items-center gap-1 text-slate-500"><MapPin className="w-3 h-3" /> {e.location}</span>}
                       {e.contactUrl && <a href={e.contactUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-orange-400 hover:text-orange-300"><ExternalLink className="w-3 h-3" /> Website</a>}
@@ -187,8 +254,9 @@ export default function EquipmentPage() {
                     ) : (
                       <p className="text-xs text-slate-600 mt-2 italic">Not available for direct requests</p>
                     )}
+                    </div>
                   </div>
-                ))}
+                );})}
               </div>
             </div>
           ))}
@@ -231,14 +299,16 @@ export default function EquipmentPage() {
                     <p className="text-xs text-slate-500 mt-1">{r._count.messages} messages &middot; {new Date(r.createdAt).toLocaleDateString()}</p>
                     {canPay && (
                       <p className="text-xs text-slate-400 mt-2">
-                        Estimated checkout: {formatZar(base)} + fee {formatZar(fee)} = <span className="text-orange-300 font-medium">{formatZar(estTotal)}</span> (simulated gateway)
+                        Checkout: {formatZar(base)} + fee {formatZar(fee)} = <span className="text-orange-300 font-medium">{formatZar(estTotal)}</span> (wallet or Stitch)
                       </p>
                     )}
                   </div>
                   <div className="flex flex-col sm:items-end gap-2 shrink-0">
-                    <a href={`/creator/messages?requestId=${r.id}&companyId=${r.company.id}`} className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 transition text-sm">
-                      <MessageCircle className="w-4 h-4" /> Chat <ArrowRight className="w-3 h-3" />
-                    </a>
+                    {paid && (
+                      <a href={`/creator/messages?requestId=${r.id}&companyId=${r.company.id}`} className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 transition text-sm">
+                        <MessageCircle className="w-4 h-4" /> Chat <ArrowRight className="w-3 h-3" />
+                      </a>
+                    )}
                     {canPay && (
                       <button
                         type="button"
@@ -256,6 +326,20 @@ export default function EquipmentPage() {
           )}
         </div>
       )}
+      <MarketplaceCheckoutModal
+        open={marketplacePay.checkoutOpen}
+        checkoutUrl={marketplacePay.checkoutUrl}
+        onClose={marketplacePay.closeCheckout}
+        title="Equipment rental checkout"
+      />
     </div>
+  );
+}
+
+export default function EquipmentPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-slate-400">Loading…</div>}>
+      <EquipmentPageContent />
+    </Suspense>
   );
 }

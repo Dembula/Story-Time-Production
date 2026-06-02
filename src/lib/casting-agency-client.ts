@@ -1,4 +1,5 @@
-export async function readCastingApiJson<T>(res: Response): Promise<{ data: T | null; error: string | null }> {
+/** Shared JSON helper for company portal API routes. */
+export async function readCompanyApiJson<T>(res: Response): Promise<{ data: T | null; error: string | null }> {
   let payload: unknown = null;
   try {
     payload = await res.json();
@@ -16,3 +17,6 @@ export async function readCastingApiJson<T>(res: Response): Promise<{ data: T | 
 
   return { data: payload as T, error: null };
 }
+
+/** @deprecated Use readCompanyApiJson */
+export const readCastingApiJson = readCompanyApiJson;

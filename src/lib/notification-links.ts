@@ -6,6 +6,9 @@ export type NotificationItem = {
 
 type NotificationMeta = {
   url?: string;
+  requestId?: string;
+  bookingId?: string;
+  inquiryId?: string;
   contentId?: string;
   projectId?: string;
   pitchId?: string;
@@ -45,6 +48,19 @@ export function resolveNotificationUrl(
   }
   if (meta.pitchId) {
     return "/creator/originals/submit";
+  }
+
+  if (n.type.startsWith("MARKETPLACE_")) {
+    if (role === "CREW_TEAM") return "/crew-team/requests";
+    if (role === "LOCATION_OWNER") return "/location-owner/bookings";
+    if (role === "CATERING_COMPANY") return "/catering-company/bookings";
+    if (role === "EQUIPMENT_COMPANY") return "/equipment-company/requests";
+    if (role === "CASTING_AGENCY") return "/casting-agency/inquiries";
+    if (n.type.includes("EQUIPMENT")) return "/creator/equipment";
+    if (n.type.includes("LOCATION")) return "/creator/locations";
+    if (n.type.includes("CATERING")) return "/creator/catering";
+    if (n.type.includes("CREW")) return "/creator/crew";
+    if (n.type.includes("CASTING")) return "/creator/cast";
   }
 
   const networkLike =
@@ -90,6 +106,7 @@ export function notificationActionLabel(n: NotificationItem): string {
   if (n.type.includes("MESSAGE") || n.type.includes("NETWORK")) return "View message";
   if (n.type.includes("INVITE")) return "View invite";
   if (n.type.includes("CONTRACT")) return "View contract";
+  if (n.type.startsWith("MARKETPLACE_")) return "View request";
   return "Open";
 }
 

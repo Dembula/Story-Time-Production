@@ -775,9 +775,34 @@ exports.Prisma.CastingTalentScalarFieldEnum = {
   reelUrl: 'reelUrl',
   contactEmail: 'contactEmail',
   sortOrder: 'sortOrder',
+  agencyCommissionPercent: 'agencyCommissionPercent',
+  representationType: 'representationType',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt',
   castingAgencyId: 'castingAgencyId'
+};
+
+exports.Prisma.CastingAuditionSubmissionScalarFieldEnum = {
+  id: 'id',
+  status: 'status',
+  notes: 'notes',
+  submittedAt: 'submittedAt',
+  updatedAt: 'updatedAt',
+  auditionPostId: 'auditionPostId',
+  castingAgencyId: 'castingAgencyId',
+  talentId: 'talentId'
+};
+
+exports.Prisma.CastingTalentAvailabilityScalarFieldEnum = {
+  id: 'id',
+  status: 'status',
+  startDate: 'startDate',
+  endDate: 'endDate',
+  projectLabel: 'projectLabel',
+  notes: 'notes',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt',
+  talentId: 'talentId'
 };
 
 exports.Prisma.CastingInquiryScalarFieldEnum = {
@@ -2372,6 +2397,8 @@ exports.Prisma.ModelName = {
   CrewTeamRequest: 'CrewTeamRequest',
   CastingAgency: 'CastingAgency',
   CastingTalent: 'CastingTalent',
+  CastingAuditionSubmission: 'CastingAuditionSubmission',
+  CastingTalentAvailability: 'CastingTalentAvailability',
   CastingInquiry: 'CastingInquiry',
   ViewerSubscription: 'ViewerSubscription',
   ViewerContentAccess: 'ViewerContentAccess',

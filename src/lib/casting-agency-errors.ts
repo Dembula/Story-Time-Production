@@ -1,7 +1,7 @@
 import { Prisma } from "../../generated/prisma";
 
 /** User-facing message when casting ops tables are not migrated yet. */
-export function castingAgencyDbErrorMessage(error: unknown): string | null {
+export function companyOpsDbErrorMessage(error: unknown): string | null {
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     if (error.code === "P2021" || error.code === "P2010") {
       return "Casting agency database tables are not ready. Run prisma migrate deploy on the server.";
@@ -19,12 +19,17 @@ export function castingAgencyDbErrorMessage(error: unknown): string | null {
   return null;
 }
 
-export function handleCastingAgencyApiError(error: unknown, fallback: string) {
-  const migrationHint = castingAgencyDbErrorMessage(error);
+export function handleCompanyOpsApiError(error: unknown, fallback: string) {
+  const migrationHint = companyOpsDbErrorMessage(error);
   if (migrationHint) {
     console.error("Casting agency API (schema):", error);
     return { message: migrationHint, status: 503 };
   }
-  console.error("Casting agency API:", error);
+  console.error("Company ops API:", error);
   return { message: fallback, status: 500 };
 }
+
+/** @deprecated */
+export const castingAgencyDbErrorMessage = companyOpsDbErrorMessage;
+/** @deprecated */
+export const handleCastingAgencyApiError = handleCompanyOpsApiError;

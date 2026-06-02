@@ -1,8 +1,14 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { BackButton } from "@/components/layout/back-button";
+import {
+  CreatorProjectContextBanner,
+  useCreatorProjectContext,
+  usePrefillProjectName,
+} from "@/components/creator/creator-project-context";
+import { fetchMarketplaceList, postMarketplaceJson } from "@/lib/creator-marketplace-fetch";
 import {
   Users,
   MapPin,
@@ -19,6 +25,9 @@ import {
 } from "lucide-react";
 import { formatZar } from "@/lib/format-currency-zar";
 import { computeMarketplaceFeeZar, DEFAULT_CASTING_INQUIRY_BASE_ZAR } from "@/lib/marketplace-zar-defaults";
+import { useMarketplacePay } from "@/lib/hooks/use-marketplace-pay";
+import { MarketplaceCheckoutModal } from "@/components/marketplace/marketplace-checkout-modal";
+import { MessageCircle } from "lucide-react";
 
 type CastRosterEntry = {
   id: string;
@@ -38,17 +47,30 @@ type CastingAgency = {
   user: { id: string; name: string | null; email: string | null };
   _count: { talent: number; inquiries: number };
 };
+type TalentProfile = {
+  plainBio: string;
+  dailyRate: number | null;
+  projectRate: number | null;
+  experienceLevel: string | null;
+  location: string | null;
+  availability: string | null;
+  languages: string[];
+};
+
 type CastingAgencyDetail = CastingAgency & {
   talent: {
     id: string;
     name: string;
     bio: string | null;
+    plainBio?: string;
     cvUrl: string | null;
     headshotUrl: string | null;
+    previewImageUrl?: string | null;
     ageRange: string | null;
     skills: string | null;
     pastWork: string | null;
     reelUrl: string | null;
+    profile?: TalentProfile;
   }[];
 };
 type Audition = { id: string; roleName: string; description: string | null; status: string; createdAt: string; content: { title: string } };
@@ -69,8 +91,14 @@ function CreatorCastPageContent() {
   const searchParams = useSearchParams();
   const projectId = searchParams.get("projectId") || undefined;
   const roleIdFromUrl = searchParams.get("roleId") || "";
+  const { projectTitle } = useCreatorProjectContext({
+    phase: "PRE_PRODUCTION",
+    toolSlug: "casting-portal",
+  });
 
-  const [tab, setTab] = useState<"my-roster" | "find-cast" | "auditions" | "my-inquiries">("my-roster");
+  const [tab, setTab] = useState<"my-roster" | "find-cast" | "auditions" | "my-inquiries">(
+    projectId ? "find-cast" : "my-roster",
+  );
   const [castRoster, setCastRoster] = useState<CastRosterEntry[]>([]);
   const [agencies, setAgencies] = useState<CastingAgency[]>([]);
   const [auditions, setAuditions] = useState<Audition[]>([]);
@@ -88,18 +116,35 @@ function CreatorCastPageContent() {
   const [showAuditionForm, setShowAuditionForm] = useState(false);
   const [myInquiries, setMyInquiries] = useState<MyCastingInquiry[]>([]);
   const [payingInquiryId, setPayingInquiryId] = useState<string | null>(null);
+  const marketplacePay = useMarketplacePay({
+    onPaid: () => {
+      fetch("/api/casting-agencies/inquiries")
+        .then((r) => (r.ok ? r.json() : []))
+        .then((rows) => setMyInquiries(Array.isArray(rows) ? rows : []));
+    },
+  });
+  const [loadError, setLoadError] = useState("");
+
+  const prefillInquiry = useCallback(
+    (title: string) => {
+      setInquiryForm((f) => (f.projectName.trim() ? f : { ...f, projectName: title }));
+    },
+    [],
+  );
+  usePrefillProjectName(projectTitle, prefillInquiry);
 
   useEffect(() => {
     const load = async () => {
-      const [cast, agys, auds, cont, inq] = await Promise.all([
+      const [cast, agysRes, auds, cont, inq] = await Promise.all([
         fetch("/api/creator/cast-roster").then((r) => r.json()),
-        fetch("/api/casting-agencies").then((r) => r.json()),
+        fetchMarketplaceList<CastingAgency>("/api/casting-agencies"),
         fetch("/api/auditions").then((r) => r.json()),
         fetch("/api/creator/content").then((r) => r.json()).then((arr: { id: string; title: string }[]) => (Array.isArray(arr) ? arr : [])),
         fetch("/api/casting-agencies/inquiries").then((r) => (r.ok ? r.json() : [])),
       ]);
       setCastRoster(Array.isArray(cast) ? cast : []);
-      setAgencies(Array.isArray(agys) ? agys : []);
+      setAgencies(agysRes.data);
+      if (agysRes.error) setLoadError(agysRes.error);
       setAuditions(Array.isArray(auds) ? auds : []);
       setContents(Array.isArray(cont) ? cont : []);
       setMyInquiries(Array.isArray(inq) ? inq : []);
@@ -136,55 +181,59 @@ function CreatorCastPageContent() {
   }
 
   async function sendInquiry(agencyId: string) {
-    const res = await fetch("/api/casting-agencies/inquiries", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        agencyId,
-        projectName: inquiryForm.projectName,
-        roleName: inquiryForm.roleName,
-        message: inquiryForm.message,
-        talentId: inquiryForm.talentId || undefined,
-      }),
+    const { data: row, error } = await postMarketplaceJson<{
+      id: string;
+      status?: string;
+      projectName?: string | null;
+      roleName?: string | null;
+      message?: string | null;
+      createdAt?: string;
+      paymentTransactionId?: string | null;
+    }>("/api/casting-agencies/inquiries", {
+      agencyId,
+      projectName: inquiryForm.projectName || projectTitle || undefined,
+      roleName: inquiryForm.roleName,
+      message: inquiryForm.message,
+      talentId: inquiryForm.talentId || undefined,
     });
-    if (res.ok) {
-      const row = await res.json();
-      const agencyMeta = agencies.find((a) => a.id === agencyId);
-      setMyInquiries((prev) => [
-        {
-          id: row.id,
-          status: row.status ?? "PENDING",
-          projectName: row.projectName ?? null,
-          roleName: row.roleName ?? null,
-          message: row.message ?? null,
-          createdAt: row.createdAt ?? new Date().toISOString(),
-          paymentTransactionId: row.paymentTransactionId ?? null,
-          agency: { id: agencyId, agencyName: agencyMeta?.agencyName ?? "Agency" },
-        },
-        ...prev,
-      ]);
-      setInquiryAgencyId(null);
-      setInquiryForm({ projectName: "", roleName: "", message: "", talentId: "" });
-      setSuccess("Inquiry sent to agency.");
-      setTimeout(() => setSuccess(""), 3000);
+    if (error || !row) {
+      alert(error || "Could not send inquiry");
+      return;
     }
+    const agencyMeta = agencies.find((a) => a.id === agencyId);
+    setMyInquiries((prev) => [
+      {
+        id: row.id,
+        status: row.status ?? "PENDING",
+        projectName: row.projectName ?? inquiryForm.projectName ?? null,
+        roleName: row.roleName ?? null,
+        message: row.message ?? null,
+        createdAt: row.createdAt ?? new Date().toISOString(),
+        paymentTransactionId: row.paymentTransactionId ?? null,
+        agency: { id: agencyId, agencyName: agencyMeta?.agencyName ?? "Agency" },
+      },
+      ...prev,
+    ]);
+    setInquiryAgencyId(null);
+    setInquiryForm({ projectName: projectTitle || "", roleName: "", message: "", talentId: "" });
+    setSuccess("Inquiry sent to agency.");
+    setTimeout(() => setSuccess(""), 3000);
   }
 
   async function payInquiry(inquiryId: string) {
     setPayingInquiryId(inquiryId);
     try {
-      const res = await fetch(`/api/casting-agency/inquiries/${inquiryId}/pay`, { method: "POST" });
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        alert(data?.error || "Payment failed");
-        return;
+      const result = await marketplacePay.pay(`/api/casting-agency/inquiries/${inquiryId}/pay`);
+      if (result?.mode === "wallet") {
+        setMyInquiries((prev) =>
+          prev.map((q) => (q.id === inquiryId ? { ...q, paymentTransactionId: result.data.transactionId ?? "paid" } : q)),
+        );
+        const total = typeof result.data.totalAmount === "number" ? formatZar(result.data.totalAmount) : "recorded";
+        setSuccess(`Inquiry payment ${total} recorded.`);
+        setTimeout(() => setSuccess(""), 5000);
       }
-      setMyInquiries((prev) =>
-        prev.map((q) => (q.id === inquiryId ? { ...q, paymentTransactionId: data.transactionId ?? "paid" } : q)),
-      );
-      const total = typeof data?.totalAmount === "number" ? formatZar(data.totalAmount) : "recorded";
-      setSuccess(`Inquiry payment ${total} (simulated).`);
-      setTimeout(() => setSuccess(""), 5000);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Payment failed");
     } finally {
       setPayingInquiryId(null);
     }
@@ -245,7 +294,18 @@ function CreatorCastPageContent() {
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
-      <BackButton fallback="/creator/dashboard" />
+      <BackButton
+        fallback={
+          projectId ? `/creator/pre/casting-portal?projectId=${encodeURIComponent(projectId)}` : "/creator/dashboard"
+        }
+      />
+      <CreatorProjectContextBanner
+        phase="PRE_PRODUCTION"
+        toolSlug="casting-portal"
+        accent="violet"
+        roleHint={selectedRoleId ? "A specific role is selected from the casting portal." : undefined}
+      />
+      {loadError && <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{loadError}</div>}
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-semibold text-white mb-2 tracking-tight flex items-center gap-3">
@@ -253,17 +313,7 @@ function CreatorCastPageContent() {
             Cast & Auditions
           </h1>
           <p className="text-slate-400">
-            Your cast repository, find casting agencies and talent, and post auditions.{" "}
-            {projectId && (
-              <span className="text-xs text-slate-500 block mt-1">
-                Invitations are currently linked to project <span className="font-mono">{projectId}</span>
-                {selectedRoleId ? (
-                  <> and a specific role.</>
-                ) : (
-                  <>. Open a role in the project casting portal to invite a specific talent.</>
-                )}
-              </span>
-            )}
+            Your cast repository, find casting agencies and talent, and post auditions.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -347,7 +397,7 @@ function CreatorCastPageContent() {
       {tab === "my-inquiries" && (
         <div className="space-y-4">
           <p className="text-slate-400 text-sm">
-            After you contact an agency, you can record a simulated inquiry payment (fixed platform fee + 3%) so payouts show on the agency dashboard.
+            After you contact an agency, pay via wallet or Stitch to unlock messaging (platform fee included).
           </p>
           {myInquiries.length === 0 ? (
             <div className="rounded-2xl bg-slate-800/30 border border-slate-700/50 p-12 text-center text-slate-500">No inquiries yet. Use Find Cast to message an agency.</div>
@@ -373,16 +423,26 @@ function CreatorCastPageContent() {
                         </p>
                       )}
                     </div>
-                    {canPay && (
-                      <button
-                        type="button"
-                        disabled={payingInquiryId === q.id}
-                        onClick={() => payInquiry(q.id)}
-                        className="shrink-0 flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-500 disabled:opacity-50"
-                      >
-                        <CreditCard className="w-4 h-4" /> {payingInquiryId === q.id ? "Processing…" : "Pay now"}
-                      </button>
-                    )}
+                    <div className="flex flex-col gap-2 shrink-0">
+                      {paid && (
+                        <a
+                          href={`/creator/messages?tab=cast&castingInquiryId=${q.id}`}
+                          className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-orange-500/10 text-orange-400 border border-orange-500/30 text-sm hover:bg-orange-500/20"
+                        >
+                          <MessageCircle className="w-4 h-4" /> Message
+                        </a>
+                      )}
+                      {canPay && (
+                        <button
+                          type="button"
+                          disabled={payingInquiryId === q.id}
+                          onClick={() => payInquiry(q.id)}
+                          className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-500 disabled:opacity-50"
+                        >
+                          <CreditCard className="w-4 h-4" /> {payingInquiryId === q.id ? "Processing…" : "Pay now"}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -436,14 +496,38 @@ function CreatorCastPageContent() {
                       <div>
                         <h4 className="text-sm font-medium text-white mb-2">Talent</h4>
                         <div className="grid gap-3">
-                          {agencyDetail.talent.map((t) => (
+                          {agencyDetail.talent.map((t) => {
+                            const headshot = t.previewImageUrl || t.headshotUrl;
+                            const bioText = t.plainBio || t.profile?.plainBio || t.bio;
+                            const rate =
+                              t.profile?.dailyRate != null
+                                ? `${formatZar(t.profile.dailyRate)}/day`
+                                : t.profile?.projectRate != null
+                                  ? `${formatZar(t.profile.projectRate)} project`
+                                  : null;
+                            return (
                             <div key={t.id} className="p-4 rounded-xl bg-slate-800/50 border border-slate-700/30 flex gap-4">
-                              {t.headshotUrl && <img src={t.headshotUrl} alt="" className="w-16 h-16 rounded-lg object-cover" />}
+                              {headshot ? (
+                                <img src={headshot} alt="" className="w-20 h-20 rounded-lg object-cover shrink-0" />
+                              ) : (
+                                <div className="w-20 h-20 rounded-lg bg-slate-700/50 flex items-center justify-center shrink-0">
+                                  <Users className="w-8 h-8 text-slate-500" />
+                                </div>
+                              )}
                               <div className="flex-1 min-w-0">
                                 <p className="font-medium text-white">{t.name}</p>
-                                {(t.ageRange || t.skills) && <p className="text-xs text-violet-400">{[t.ageRange, t.skills].filter(Boolean).join(" · ")}</p>}
-                                {t.bio && <p className="text-xs text-slate-500 mt-1 line-clamp-2">{t.bio}</p>}
-                                {t.pastWork && <p className="text-xs text-slate-600 mt-1 line-clamp-1">{t.pastWork}</p>}
+                                <div className="flex flex-wrap gap-2 mt-0.5 text-xs">
+                                  {(t.ageRange || t.skills) && <span className="text-violet-400">{[t.ageRange, t.skills].filter(Boolean).join(" · ")}</span>}
+                                  {t.profile?.experienceLevel && <span className="text-slate-400">{t.profile.experienceLevel}</span>}
+                                  {rate && <span className="text-orange-300 font-medium">{rate}</span>}
+                                </div>
+                                {(t.profile?.location || t.profile?.availability) && (
+                                  <p className="text-xs text-slate-500 mt-0.5">
+                                    {[t.profile.location, t.profile.availability].filter(Boolean).join(" · ")}
+                                  </p>
+                                )}
+                                {bioText && <p className="text-xs text-slate-500 mt-1 line-clamp-2">{bioText}</p>}
+                                {t.pastWork && <p className="text-xs text-slate-600 mt-1 line-clamp-1"><span className="text-slate-500">Experience:</span> {t.pastWork}</p>}
                                 <div className="flex flex-wrap gap-2 mt-2">
                                   {t.cvUrl && (
                                     <a href={t.cvUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-orange-400 hover:underline flex items-center gap-1">
@@ -465,7 +549,7 @@ function CreatorCastPageContent() {
                                 </div>
                               </div>
                             </div>
-                          ))}
+                          );})}
                         </div>
                       </div>
                       <div className="flex gap-2">
@@ -548,6 +632,12 @@ function CreatorCastPageContent() {
           )}
         </div>
       )}
+      <MarketplaceCheckoutModal
+        open={marketplacePay.checkoutOpen}
+        checkoutUrl={marketplacePay.checkoutUrl}
+        onClose={marketplacePay.closeCheckout}
+        title="Casting inquiry checkout"
+      />
     </div>
   );
 }

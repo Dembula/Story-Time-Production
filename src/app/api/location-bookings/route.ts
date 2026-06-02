@@ -3,6 +3,10 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasLocationBookingModels } from "@/lib/prisma-location-booking";
+import {
+  notifyLocationBookingCreated,
+  notifyLocationBookingStatus,
+} from "@/lib/marketplace-notifications";
 
 export async function GET(req: NextRequest) {
   if (!hasLocationBookingModels()) {
@@ -51,12 +55,14 @@ export async function POST(req: NextRequest) {
 
   const location = await prisma.locationListing.findUnique({
     where: { id: body.locationId },
-    select: { companyId: true },
+    select: { companyId: true, name: true },
   });
 
   if (!location?.companyId) {
     return NextResponse.json({ error: "Location not found or has no owner" }, { status: 400 });
   }
+
+  const requester = await prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
 
   const booking = await prisma.locationBooking.create({
     data: {
@@ -74,6 +80,17 @@ export async function POST(req: NextRequest) {
     },
   });
 
+  try {
+    await notifyLocationBookingCreated({
+      ownerUserId: location.companyId,
+      requesterName: requester?.name,
+      locationName: location.name,
+      bookingId: booking.id,
+    });
+  } catch {
+    /* non-blocking */
+  }
+
   return NextResponse.json(booking);
 }
 
@@ -84,7 +101,7 @@ export async function PATCH(req: NextRequest) {
   const body = await req.json();
   const existing = await prisma.locationBooking.findUnique({
     where: { id: body.id },
-    select: { ownerId: true },
+    select: { ownerId: true, status: true, requesterId: true },
   });
 
   if (!existing) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
@@ -98,6 +115,21 @@ export async function PATCH(req: NextRequest) {
   const updated = await prisma.locationBooking.update({
     where: { id: body.id },
     data: { status: body.status },
+    include: { location: { select: { name: true } } },
   });
+
+  if (body.status && body.status !== existing.status) {
+    try {
+      await notifyLocationBookingStatus({
+        creatorUserId: existing.requesterId,
+        locationName: updated.location.name,
+        status: body.status,
+        bookingId: body.id,
+      });
+    } catch {
+      /* non-blocking */
+    }
+  }
+
   return NextResponse.json(updated);
 }

@@ -10,9 +10,11 @@ import { WalletBalanceChip } from "@/components/layout/wallet-balance-chip";
 
 const navItems = [
   { href: "/crew-team/dashboard", label: "Dashboard" },
-  { href: "/crew-team/requests", label: "Requests / Offers" },
-  { href: "/crew-team/team", label: "My Team" },
-  { href: "/crew-team/profile", label: "Profile" },
+  { href: "/crew-team/team", label: "Crew roster" },
+  { href: "/crew-team/deals", label: "Jobs pipeline" },
+  { href: "/crew-team/invitations", label: "Project invites" },
+  { href: "/crew-team/requests", label: "Request inbox" },
+  { href: "/crew-team/profile", label: "Company profile" },
   { href: "/crew-team/wallet", label: "Wallet" },
   { href: "/browse", label: "View Platform" },
 ];

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { MapPin, Plus, Tag, DollarSign, Users, Image, Upload } from "lucide-react";
 import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
 
@@ -47,6 +48,9 @@ export default function LocationListingsPage() {
     contactUrl: "",
   });
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const { data: session } = useSession();
+  const ownerId = (session?.user as { id?: string })?.id;
 
   async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -64,8 +68,12 @@ export default function LocationListingsPage() {
   }
 
   useEffect(() => {
-    fetch("/api/locations").then((r) => r.json()).then(setListings).finally(() => setLoading(false));
-  }, []);
+    if (!ownerId) return;
+    fetch(`/api/locations?ownerId=${encodeURIComponent(ownerId)}`)
+      .then((r) => r.json())
+      .then((data) => setListings(Array.isArray(data) ? data : []))
+      .finally(() => setLoading(false));
+  }, [ownerId]);
 
   function toggleAmenity(a: string) {
     const list = form.amenities ? form.amenities.split(",").map((x) => x.trim()).filter(Boolean) : [];
@@ -75,6 +83,7 @@ export default function LocationListingsPage() {
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
+    setSaveError("");
     const res = await fetch("/api/locations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -86,11 +95,13 @@ export default function LocationListingsPage() {
         photoUrls: form.photoUrls || null,
       }),
     });
+    const item = await res.json();
     if (res.ok) {
-      const item = await res.json();
       setListings((prev) => [item, ...prev]);
       setShowForm(false);
       setForm({ name: "", description: "", type: "Studio", address: "", city: "", province: "", country: "", capacity: "", dailyRate: "", amenities: "", photoUrls: "", rules: "", availability: "", contactUrl: "" });
+    } else {
+      setSaveError(item?.error || "Failed to save property");
     }
   }
 
@@ -169,6 +180,7 @@ export default function LocationListingsPage() {
           <div><label className="block text-xs text-slate-400 mb-1">House rules</label><textarea value={form.rules} onChange={(e) => setForm({ ...form, rules: e.target.value })} rows={2} placeholder="No smoking, quiet after 10pm..." className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" /></div>
           <div><label className="block text-xs text-slate-400 mb-1">Availability notes</label><input value={form.availability} onChange={(e) => setForm({ ...form, availability: e.target.value })} placeholder="e.g. Weekdays only, book 2 weeks ahead" className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" /></div>
           <div><label className="block text-xs text-slate-400 mb-1">Contact / website URL</label><input value={form.contactUrl} onChange={(e) => setForm({ ...form, contactUrl: e.target.value })} placeholder="https://..." className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" /></div>
+          {saveError && <p className="text-sm text-red-400">{saveError}</p>}
           <button type="submit" className="px-5 py-2.5 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 transition">Create Listing</button>
         </form>
       )}
