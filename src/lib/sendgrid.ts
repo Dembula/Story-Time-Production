@@ -74,12 +74,17 @@ export async function sendWelcomeEmail(
   }
 }
 
-export async function sendPasswordResetEmail(email: string, resetLink: string): Promise<{ messageId?: string }> {
+export async function sendPasswordResetEmail(
+  email: string,
+  resetLink: string,
+  extras?: { rawToken?: string; portal?: "viewer" | "creator" | "admin" },
+): Promise<{ messageId?: string }> {
   const portalMatch = resetLink.match(/[?&]portal=([^&]+)/i);
-  const portalRaw = portalMatch?.[1] ? decodeURIComponent(portalMatch[1]) : "";
+  const portalRaw = extras?.portal || (portalMatch?.[1] ? decodeURIComponent(portalMatch[1]) : "");
   const portal =
     portalRaw === "creator" || portalRaw === "admin" || portalRaw === "viewer" ? portalRaw : "viewer";
   const portalLabel = portal === "admin" ? "Admin" : portal === "creator" ? "Creator" : "Viewer";
+  const rawToken = extras?.rawToken ?? "";
 
   if (hasSendGridTemplateConfig(PASSWORD_RESET_TEMPLATE_ID)) {
     try {
@@ -90,6 +95,9 @@ export async function sendPasswordResetEmail(email: string, resetLink: string): 
         dynamicTemplateData: {
           email,
           reset_link: resetLink,
+          reset_url: resetLink,
+          reset_token: rawToken,
+          token: rawToken,
           portal,
           portal_label: portalLabel,
         },

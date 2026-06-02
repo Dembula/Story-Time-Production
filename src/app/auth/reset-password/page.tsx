@@ -1,4 +1,7 @@
-import { ResetPasswordForm } from "./reset-password-form";
+import { Suspense } from "react";
+import { redirect } from "next/navigation";
+import { normalizePasswordResetToken } from "@/lib/password-reset-token";
+import { ResetPasswordPageClient } from "./reset-password-page-client";
 
 export default async function ResetPasswordPage({
   searchParams,
@@ -6,7 +9,18 @@ export default async function ResetPasswordPage({
   searchParams: Promise<{ token?: string; portal?: string }>;
 }) {
   const params = await searchParams;
-  const token = params.token ?? "";
-  const portal = params.portal ?? "viewer";
-  return <ResetPasswordForm token={token} portal={portal} />;
+  const token = normalizePasswordResetToken(params.token);
+  if (token) {
+    const portal = params.portal ? `?portal=${encodeURIComponent(params.portal)}` : "";
+    redirect(`/auth/reset-password/${encodeURIComponent(token)}${portal}`);
+  }
+
+  return (
+    <Suspense fallback={null}>
+      <ResetPasswordPageClient
+        initialToken={params.token ?? ""}
+        initialPortal={params.portal ?? "viewer"}
+      />
+    </Suspense>
+  );
 }

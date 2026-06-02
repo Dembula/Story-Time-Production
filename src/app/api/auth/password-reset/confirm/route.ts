@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { hash } from "bcryptjs";
 import { consumePasswordResetToken } from "@/lib/password-reset";
+import { normalizePasswordResetToken } from "@/lib/password-reset-token";
 
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as { token?: string; password?: string; newPassword?: string };
-    const token = body.token?.trim();
+    const token = normalizePasswordResetToken(body.token);
     const password = body.password ?? body.newPassword ?? "";
 
     if (!token) {

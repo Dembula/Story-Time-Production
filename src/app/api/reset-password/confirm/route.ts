@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { hash } from "bcryptjs";
 import { consumePasswordResetToken } from "@/lib/password-reset";
+import { normalizePasswordResetToken } from "@/lib/password-reset-token";
 import { validatePassword } from "@/lib/auth-utils";
 import { checkRateLimit } from "@/lib/rate-limit";
 
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = (await request.json()) as { token?: string; newPassword?: string; password?: string };
-    const rawToken = body.token?.trim() || "";
+    const rawToken = normalizePasswordResetToken(body.token);
     const newPassword = body.newPassword || body.password || "";
 
     if (!rawToken) {

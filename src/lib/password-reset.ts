@@ -3,11 +3,18 @@ import { prisma } from "@/lib/prisma";
 import { buildAppUrl } from "@/lib/app-url";
 import { sendPasswordResetEmail } from "@/lib/sendgrid";
 import { logPasswordResetAudit } from "@/lib/password-reset-audit";
+import { isPasswordResetTokenFormat, normalizePasswordResetToken } from "@/lib/password-reset-token";
 
 const RESET_TOKEN_TTL_MS = 1000 * 60 * 60;
 
 function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
+}
+
+export function buildPasswordResetLink(rawToken: string, portal: "viewer" | "creator" | "admin"): string {
+  const encodedPortal = encodeURIComponent(portal);
+  // Path-based token survives more email clients than very long query strings alone.
+  return buildAppUrl(`/auth/reset-password/${encodeURIComponent(rawToken)}?portal=${encodedPortal}`);
 }
 
 function accountPortalFromRole(role?: string | null): "viewer" | "creator" | "admin" {
@@ -38,7 +45,7 @@ export async function issuePasswordReset(email: string, meta?: { ip?: string | n
   }
 
   const rawToken = randomBytes(32).toString("hex");
-  const token = hashToken(rawToken);
+  const tokenHash = hashToken(rawToken);
   const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MS);
 
   const [, createdToken] = await prisma.$transaction([
@@ -49,7 +56,7 @@ export async function issuePasswordReset(email: string, meta?: { ip?: string | n
     prisma.passwordResetToken.create({
       data: {
         userId: user.id,
-        token,
+        token: tokenHash,
         expiresAt,
       },
     }),
@@ -63,11 +70,9 @@ export async function issuePasswordReset(email: string, meta?: { ip?: string | n
   });
 
   const portal = accountPortalFromRole(user.role);
-  const resetLink = buildAppUrl(
-    `/auth/reset-password?token=${encodeURIComponent(rawToken)}&portal=${encodeURIComponent(portal)}`
-  );
+  const resetLink = buildPasswordResetLink(rawToken, portal);
   try {
-    const mail = await sendPasswordResetEmail(user.email, resetLink);
+    const mail = await sendPasswordResetEmail(user.email, resetLink, { rawToken, portal });
     await logPasswordResetAudit({
       status: "EMAIL_SENT",
       userId: user.id,
@@ -89,8 +94,34 @@ export async function issuePasswordReset(email: string, meta?: { ip?: string | n
   }
 }
 
+export async function findValidPasswordResetToken(rawToken: string) {
+  const normalized = normalizePasswordResetToken(rawToken);
+  if (!isPasswordResetTokenFormat(normalized)) return null;
+
+  const tokenHash = hashToken(normalized);
+  const now = new Date();
+
+  return prisma.passwordResetToken.findFirst({
+    where: {
+      token: tokenHash,
+      used: false,
+      expiresAt: { gt: now },
+    },
+    select: { id: true, userId: true, expiresAt: true },
+  });
+}
+
 export async function consumePasswordResetToken(input: { token: string; newPasswordHash: string }): Promise<boolean> {
-  const tokenHash = hashToken(input.token);
+  const normalized = normalizePasswordResetToken(input.token);
+  if (!isPasswordResetTokenFormat(normalized)) {
+    await logPasswordResetAudit({
+      status: "CONFIRM_FAILED_INVALID_OR_EXPIRED",
+      error: "invalid_token_format",
+    });
+    return false;
+  }
+
+  const tokenHash = hashToken(normalized);
   const now = new Date();
 
   const reset = await prisma.passwordResetToken.findFirst({
