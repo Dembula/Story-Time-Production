@@ -2,10 +2,26 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeft, Shield } from "lucide-react";
+import {
+  extractPasswordResetTokenFromUrl,
+  isPasswordResetTokenFormat,
+  normalizePasswordResetToken,
+} from "@/lib/password-reset-token";
 
-export function ResetPasswordForm({ token, portal = "viewer" }: { token: string; portal?: string }) {
+function resolveToken(initialToken: string): string {
+  if (typeof window === "undefined") {
+    return normalizePasswordResetToken(initialToken);
+  }
+  return (
+    extractPasswordResetTokenFromUrl(window.location.href) ||
+    normalizePasswordResetToken(initialToken)
+  );
+}
+
+export function ResetPasswordForm({ token: initialToken, portal = "viewer" }: { token: string; portal?: string }) {
+  const [token, setToken] = useState(() => normalizePasswordResetToken(initialToken));
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -13,12 +29,24 @@ export function ResetPasswordForm({ token, portal = "viewer" }: { token: string;
   const [done, setDone] = useState(false);
   const normalizedPortal = portal === "admin" || portal === "creator" ? portal : "viewer";
   const portalLabel = normalizedPortal === "admin" ? "admin" : normalizedPortal === "creator" ? "creator" : "viewer";
+  const hasValidToken = isPasswordResetTokenFormat(token);
+
+  useEffect(() => {
+    const resolved = resolveToken(initialToken);
+    if (resolved) setToken(resolved);
+  }, [initialToken]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    if (!token) {
-      setError("Missing reset token. Open the link from your email again.");
+
+    const submitToken = resolveToken(token);
+    if (!submitToken) {
+      setError("Missing reset token. Open the full link from your email (do not copy only part of the URL).");
+      return;
+    }
+    if (!isPasswordResetTokenFormat(submitToken)) {
+      setError("This reset link looks incomplete. Request a new password reset email and use the latest link.");
       return;
     }
     if (password.length < 8) {
@@ -34,7 +62,7 @@ export function ResetPasswordForm({ token, portal = "viewer" }: { token: string;
       const res = await fetch("/api/reset-password/confirm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, newPassword: password }),
+        body: JSON.stringify({ token: submitToken, newPassword: password }),
       });
       const data = (await res.json()) as { error?: string };
       if (!res.ok) throw new Error(data.error || "Unable to reset password.");
@@ -80,8 +108,23 @@ export function ResetPasswordForm({ token, portal = "viewer" }: { token: string;
                 </Link>
               </div>
             </div>
+          ) : !hasValidToken ? (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3">
+                <p className="text-sm text-amber-200">
+                  No reset token was found in this link. Request a new email and tap the button in that message (do not type the URL manually).
+                </p>
+              </div>
+              <Link
+                href="/auth/forgot-password"
+                className="inline-flex w-full items-center justify-center rounded-xl bg-orange-500 py-3 font-semibold text-white shadow-glow hover:bg-orange-400"
+              >
+                Request new reset email
+              </Link>
+            </div>
           ) : (
             <form onSubmit={onSubmit} className="space-y-4">
+              <input type="hidden" name="token" value={token} readOnly />
               <div>
                 <label htmlFor="password" className="mb-2 block text-sm font-medium text-slate-300">
                   New password

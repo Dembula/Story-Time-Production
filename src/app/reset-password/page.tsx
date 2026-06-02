@@ -9,8 +9,8 @@ export default async function ResetPasswordLegacyEntry({
   const params = await searchParams;
   const token = normalizePasswordResetToken(params.token);
   if (token) {
-    const portal = params.portal ? `?portal=${encodeURIComponent(params.portal)}` : "";
-    redirect(`/auth/reset-password/${encodeURIComponent(token)}${portal}`);
+    const portal = params.portal ? `&portal=${encodeURIComponent(params.portal)}` : "";
+    redirect(`/auth/reset-password?token=${encodeURIComponent(token)}${portal}`);
   }
   redirect("/auth/forgot-password");
 }

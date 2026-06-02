@@ -12,9 +12,12 @@ function hashToken(token: string): string {
 }
 
 export function buildPasswordResetLink(rawToken: string, portal: "viewer" | "creator" | "admin"): string {
+  const encodedToken = encodeURIComponent(rawToken);
   const encodedPortal = encodeURIComponent(portal);
-  // Path-based token survives more email clients than very long query strings alone.
-  return buildAppUrl(`/auth/reset-password/${encodeURIComponent(rawToken)}?portal=${encodedPortal}`);
+  // Query token matches SendGrid templates (?token={{token}}); path segment kept for older links.
+  return buildAppUrl(
+    `/auth/reset-password?token=${encodedToken}&portal=${encodedPortal}`,
+  );
 }
 
 function accountPortalFromRole(role?: string | null): "viewer" | "creator" | "admin" {

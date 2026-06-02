@@ -1,7 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { normalizePasswordResetToken } from "@/lib/password-reset-token";
+import {
+  extractPasswordResetTokenFromUrl,
+  normalizePasswordResetToken,
+} from "@/lib/password-reset-token";
 import { ResetPasswordForm } from "./reset-password-form";
 
 export function ResetPasswordPageClient({
@@ -13,11 +17,18 @@ export function ResetPasswordPageClient({
 }) {
   const params = useParams();
   const searchParams = useSearchParams();
+  const [token, setToken] = useState(initialToken);
 
   const pathToken = typeof params?.token === "string" ? params.token : "";
-  const queryToken = searchParams.get("token") ?? "";
-  const token = normalizePasswordResetToken(pathToken || queryToken || initialToken);
+  const queryToken = searchParams.get("token") ?? searchParams.get("reset_token") ?? "";
   const portal = searchParams.get("portal") ?? initialPortal ?? "viewer";
+
+  useEffect(() => {
+    const fromUrl =
+      extractPasswordResetTokenFromUrl(window.location.href) ||
+      normalizePasswordResetToken(pathToken || queryToken || initialToken);
+    if (fromUrl) setToken(fromUrl);
+  }, [pathToken, queryToken, initialToken]);
 
   return <ResetPasswordForm token={token} portal={portal} />;
 }
