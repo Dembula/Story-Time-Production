@@ -858,6 +858,8 @@ model AuditionPost {
   creatorId String
   creator   User    @relation(fields: [creatorId], references: [id], onDelete: Cascade)
 
+  agencySubmissions CastingAuditionSubmission[]
+
   @@index([contentId])
   @@index([creatorId])
 }
@@ -1188,9 +1190,10 @@ model CastingAgency {
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  talent             CastingTalent[]
-  inquiries          CastingInquiry[]
-  castingInvitations CastingInvitation[]
+  talent              CastingTalent[]
+  inquiries           CastingInquiry[]
+  castingInvitations  CastingInvitation[]
+  auditionSubmissions CastingAuditionSubmission[]
 
   @@index([userId])
   @@index([city])
@@ -1198,29 +1201,71 @@ model CastingAgency {
 }
 
 model CastingTalent {
-  id           String   @id @default(cuid())
-  name         String
-  bio          String?
-  cvUrl        String?
-  headshotUrl  String?
-  ageRange     String? // e.g. "25-35"
-  ethnicity    String?
-  gender       String?
-  skills       String? // Theatre, Film, TV, Voice, etc.
-  pastWork     String?
-  reelUrl      String?
-  contactEmail String?
-  sortOrder    Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                      String   @id @default(cuid())
+  name                    String
+  bio                     String?
+  cvUrl                   String?
+  headshotUrl             String?
+  ageRange                String? // e.g. "25-35"
+  ethnicity               String?
+  gender                  String?
+  skills                  String? // Theatre, Film, TV, Voice, etc.
+  pastWork                String?
+  reelUrl                 String?
+  contactEmail            String?
+  sortOrder               Int      @default(0)
+  agencyCommissionPercent Float?
+  representationType      String? // EXCLUSIVE, NON_EXCLUSIVE, FREELANCE
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
 
   castingAgencyId String
   castingAgency   CastingAgency @relation(fields: [castingAgencyId], references: [id], onDelete: Cascade)
 
-  castingInvitations CastingInvitation[]
-  projectContracts   ProjectContract[]
+  castingInvitations  CastingInvitation[]
+  projectContracts    ProjectContract[]
+  auditionSubmissions CastingAuditionSubmission[]
+  availabilityBlocks  CastingTalentAvailability[]
 
   @@index([castingAgencyId])
+}
+
+model CastingAuditionSubmission {
+  id          String   @id @default(cuid())
+  status      String   @default("SUBMITTED") // SUBMITTED, SHORTLISTED, CALLBACK, BOOKED, REJECTED, WITHDRAWN
+  notes       String?
+  submittedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  auditionPostId  String
+  auditionPost    AuditionPost  @relation(fields: [auditionPostId], references: [id], onDelete: Cascade)
+  castingAgencyId String
+  castingAgency   CastingAgency @relation(fields: [castingAgencyId], references: [id], onDelete: Cascade)
+  talentId        String
+  talent          CastingTalent @relation(fields: [talentId], references: [id], onDelete: Cascade)
+
+  @@unique([auditionPostId, talentId])
+  @@index([castingAgencyId])
+  @@index([talentId])
+  @@index([status])
+}
+
+model CastingTalentAvailability {
+  id           String    @id @default(cuid())
+  status       String    @default("AVAILABLE") // AVAILABLE, LIMITED, BOOKED, UNAVAILABLE
+  startDate    DateTime?
+  endDate      DateTime?
+  projectLabel String?
+  notes        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  talentId String
+  talent   CastingTalent @relation(fields: [talentId], references: [id], onDelete: Cascade)
+
+  @@index([talentId])
+  @@index([status])
+  @@index([startDate])
 }
 
 model CastingInquiry {

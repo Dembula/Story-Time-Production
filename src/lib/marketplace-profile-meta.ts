@@ -9,7 +9,11 @@ export type ActorMarketMeta = {
   experienceLevel?: string | null;
   dailyRate?: number | null;
   projectRate?: number | null;
+  hourlyRate?: number | null;
+  weeklyRate?: number | null;
   availability?: string | null;
+  availabilityStatus?: "AVAILABLE" | "LIMITED" | "BOOKED" | "UNAVAILABLE" | null;
+  agencyCommissionPercent?: number | null;
   contactVisibility?: "PRIVATE" | "PUBLIC";
 };
 

@@ -10,12 +10,15 @@ import { WalletBalanceChip } from "@/components/layout/wallet-balance-chip";
 
 const navItems = [
   { href: "/casting-agency/dashboard", label: "Dashboard" },
-  { href: "/casting-agency/inquiries", label: "Requests / Offers" },
-  { href: "/casting-agency/invitations", label: "Casting invitations" },
+  { href: "/casting-agency/talent", label: "Talent roster" },
+  { href: "/casting-agency/auditions", label: "Auditions" },
+  { href: "/casting-agency/availability", label: "Availability" },
+  { href: "/casting-agency/deals", label: "Deal pipeline" },
+  { href: "/casting-agency/inquiries", label: "Inquiries" },
+  { href: "/casting-agency/invitations", label: "Invitations" },
   { href: "/casting-agency/contracts", label: "Contracts" },
-  { href: "/casting-agency/talent", label: "Talent" },
-  { href: "/casting-agency/profile", label: "Profile" },
   { href: "/casting-agency/wallet", label: "Wallet" },
+  { href: "/casting-agency/profile", label: "Agency profile" },
   { href: "/browse", label: "View Platform" },
 ];
 

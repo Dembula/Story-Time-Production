@@ -3,25 +3,59 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Users, Plus, Trash2, ArrowLeft, FileText, Film, Upload } from "lucide-react";
+import { readCastingApiJson } from "@/lib/casting-agency-client";
 import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
 
+type TalentRow = {
+  id: string;
+  name: string;
+  bio: string | null;
+  cvUrl: string | null;
+  headshotUrl: string | null;
+  ageRange: string | null;
+  skills: string | null;
+  pastWork: string | null;
+  reelUrl: string | null;
+  agencyCommissionPercent?: number | null;
+  representationType?: string | null;
+  profile?: {
+    dailyRate?: number | null;
+    availabilityStatus?: string | null;
+    location?: string | null;
+  };
+};
+
 export default function CastingAgencyTalentPage() {
-  const [talent, setTalent] = useState<{ id: string; name: string; bio: string | null; cvUrl: string | null; headshotUrl: string | null; ageRange: string | null; skills: string | null; pastWork: string | null; reelUrl: string | null }[]>([]);
+  const [talent, setTalent] = useState<TalentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: "", bio: "", cvUrl: "", headshotUrl: "", ageRange: "", skills: "", pastWork: "", reelUrl: "" });
   const [uploadingHeadshot, setUploadingHeadshot] = useState(false);
   const [uploadingCv, setUploadingCv] = useState(false);
   const [uploadingReel, setUploadingReel] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    fetch("/api/casting-agency/talent").then((r) => r.json()).then((arr) => { setTalent(Array.isArray(arr) ? arr : []); setLoading(false); });
+    fetch("/api/casting-agency/talent")
+      .then((r) => readCastingApiJson<TalentRow[]>(r))
+      .then(({ data, error: loadErr }) => {
+        if (loadErr) setError(loadErr);
+        setTalent(Array.isArray(data) ? data : []);
+        setLoading(false);
+      });
   }, []);
 
   async function addTalent() {
     if (!form.name.trim()) return;
+    setError("");
     const res = await fetch("/api/casting-agency/talent", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
-    if (res.ok) { const t = await res.json(); setTalent((prev) => [t, ...prev]); setForm({ name: "", bio: "", cvUrl: "", headshotUrl: "", ageRange: "", skills: "", pastWork: "", reelUrl: "" }); setShowForm(false); }
+    const { data: t, error: postErr } = await readCastingApiJson<TalentRow>(res);
+    if (postErr) setError(postErr);
+    else if (t) {
+      setTalent((prev) => [t, ...prev]);
+      setForm({ name: "", bio: "", cvUrl: "", headshotUrl: "", ageRange: "", skills: "", pastWork: "", reelUrl: "" });
+      setShowForm(false);
+    }
   }
   async function handleHeadshotUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -70,6 +104,9 @@ export default function CastingAgencyTalentPage() {
         <h1 className="text-2xl font-semibold text-white flex items-center gap-2"><Users className="w-7 h-7 text-violet-500" /> Talent</h1>
         <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-violet-500/20 text-violet-400 text-sm font-medium"><Plus className="w-4 h-4" /> Add talent</button>
       </div>
+      {error && (
+        <div className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{error}</div>
+      )}
       {showForm && (
         <div className="mb-6 p-6 rounded-2xl bg-slate-800/50 border border-slate-600 space-y-3">
           <input placeholder="Name *" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm" />
@@ -116,11 +153,16 @@ export default function CastingAgencyTalentPage() {
             <div key={t.id} className="p-5 rounded-2xl bg-slate-800/30 border border-slate-700/50 flex gap-4">
               {t.headshotUrl && <img src={t.headshotUrl} alt="" className="w-20 h-20 rounded-lg object-cover" />}
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-white">{t.name}</p>
-                {(t.ageRange || t.skills) && <p className="text-sm text-violet-400">{[t.ageRange, t.skills].filter(Boolean).join(" · ")}</p>}
-                {t.bio && <p className="text-sm text-slate-400 mt-1">{t.bio}</p>}
-                {t.pastWork && <p className="text-xs text-slate-500 mt-1">{t.pastWork}</p>}
+                <Link href={`/casting-agency/talent/${t.id}`} className="font-semibold text-white hover:text-violet-300">
+                  {t.name}
+                </Link>
+                <p className="text-sm text-violet-400">
+                  {[t.profile?.availabilityStatus, t.representationType?.replace("_", " "), t.agencyCommissionPercent != null ? `${t.agencyCommissionPercent}% commission` : null, t.ageRange, t.skills].filter(Boolean).join(" · ")}
+                </p>
+                {t.profile?.dailyRate != null && <p className="text-xs text-emerald-400/90 mt-0.5">Day rate from R{t.profile.dailyRate.toLocaleString()}</p>}
+                {t.pastWork && <p className="text-xs text-slate-500 mt-1 line-clamp-2">{t.pastWork}</p>}
                 <div className="flex gap-3 mt-2">
+                  <Link href={`/casting-agency/talent/${t.id}`} className="text-xs text-violet-400">Manage profile →</Link>
                   {t.cvUrl && <a href={t.cvUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-orange-400 flex items-center gap-1"><FileText className="w-3 h-3" /> CV</a>}
                   {t.reelUrl && <a href={t.reelUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-orange-400 flex items-center gap-1"><Film className="w-3 h-3" /> Reel</a>}
                 </div>
