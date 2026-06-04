@@ -128,16 +128,27 @@ export function Hero() {
               transition={{ duration: 0.65, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
               className="w-full max-w-[min(100%,22rem)] overflow-visible sm:max-w-md"
             >
-              <h1 className="font-display text-[2.1rem] font-bold leading-[1.08] tracking-tight text-white drop-shadow-[0_4px_24px_rgba(0,0,0,0.45)] xs:text-[2.5rem] sm:text-[3rem]">
+              <h1 className="font-display text-[2.1rem] font-bold leading-[1.08] tracking-tight text-orange-200/90 drop-shadow-[0_4px_24px_rgba(249,115,22,0.22)] xs:text-[2.5rem] sm:text-[3rem]">
                 Be The Authority
               </h1>
               <div className="mx-auto mt-4 h-px w-20 bg-gradient-to-r from-transparent via-orange-400/70 to-transparent sm:w-28" />
             </motion.div>
 
+            <motion.p
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.55, delay: 0.28 }}
+              className="mt-5 max-w-[19rem] text-[15px] font-light leading-relaxed text-slate-300/92 sm:max-w-sm sm:text-base"
+            >
+              <span className="text-slate-500">Your story.</span>{" "}
+              <span className="text-slate-200/95">Your platform.</span>{" "}
+              <span className="text-orange-200/90">No middleman.</span>
+            </motion.p>
+
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.28 }}
+              transition={{ duration: 0.5, delay: 0.38 }}
               className="mt-8 w-full max-w-[17rem] sm:max-w-xs"
             >
               <Link
