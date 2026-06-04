@@ -5,10 +5,11 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import { ArrowRight, Clapperboard, Play, Sparkles } from "lucide-react";
 import { LandingReveal } from "@/components/landing/LandingReveal";
+import { LandingSpotlightSlider } from "@/components/landing/LandingSpotlightSlider";
 
 export function Hero() {
   return (
-    <section className="relative flex min-h-[100svh] items-center overflow-hidden px-4 pb-12 pt-20 sm:px-6 sm:pb-14 sm:pt-24 lg:min-h-[92svh] lg:pb-12 lg:pt-24">
+    <section className="relative flex min-h-[100svh] items-center overflow-x-hidden px-4 pb-10 pt-[4.5rem] sm:px-6 sm:pb-12 sm:pt-24 lg:min-h-[92svh] lg:overflow-hidden lg:pb-12 lg:pt-24">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_18%,rgba(255,170,51,0.14),transparent_42%),linear-gradient(180deg,rgba(5,8,14,0.15),rgba(5,8,14,0.92))]" />
       <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,8,14,0.35),rgba(5,8,14,0.88))] lg:bg-[linear-gradient(90deg,rgba(5,8,14,0.96),rgba(5,8,14,0.72)_40%,rgba(5,8,14,0.78))]" />
 
@@ -92,78 +93,52 @@ export function Hero() {
 
       <div className="relative z-10 mx-auto grid w-full max-w-7xl items-center gap-8 sm:gap-10 lg:gap-14 lg:grid-cols-[minmax(0,1.08fr)_minmax(320px,0.92fr)]">
         <LandingReveal className="max-w-3xl lg:max-w-3xl">
-          {/* Mobile / tablet portrait: cinematic intro */}
-          <div className="relative flex min-h-[calc(100svh-7rem)] flex-col items-center justify-center px-4 py-12 text-center lg:hidden">
+          {/* Mobile / tablet: cinematic intro */}
+          <div className="relative flex w-full flex-col items-center justify-center overflow-visible px-2 py-8 text-center sm:py-10 lg:hidden">
             <motion.p
-              initial={{ opacity: 0, letterSpacing: "0.5em" }}
-              animate={{ opacity: 1, letterSpacing: "0.38em" }}
-              transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
-              className="mb-8 text-[10px] font-medium uppercase text-slate-400/90"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+              className="mb-6 text-[10px] font-medium uppercase tracking-[0.32em] text-slate-400/90"
             >
               Story Time
             </motion.p>
 
             <motion.div
-              initial={{ opacity: 0, scale: 0.88 }}
+              initial={{ opacity: 0, scale: 0.94 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.75, ease: [0.22, 1, 0.36, 1] }}
-              className="relative mb-9 sm:mb-10"
+              transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
+              className="mb-8"
             >
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 28, repeat: Infinity, ease: "linear" }}
-                className="absolute -inset-5 rounded-[2rem] border border-dashed border-orange-400/20"
-              />
-              <div className="absolute -inset-3 rounded-[1.65rem] bg-gradient-to-br from-orange-500/25 via-transparent to-amber-500/10 blur-md" />
-              <div className="relative rounded-[1.4rem] border border-white/12 bg-white/[0.04] p-1 shadow-[0_0_80px_-20px_rgba(255,130,40,0.7)] backdrop-blur-sm">
+              <div className="rounded-[1.35rem] border border-white/10 bg-white/[0.04] p-1 shadow-[0_0_60px_-24px_rgba(255,130,40,0.65)]">
                 <Image
                   src="/logo.png"
                   alt="Story Time"
-                  width={100}
-                  height={100}
-                  className="rounded-[1.2rem] sm:h-[108px] sm:w-[108px]"
+                  width={92}
+                  height={92}
+                  className="h-[92px] w-[92px] rounded-[1.15rem] sm:h-[100px] sm:w-[100px]"
                   priority
                 />
               </div>
             </motion.div>
 
             <motion.div
-              initial={{ opacity: 0, y: 24 }}
+              initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
-              className="relative w-full max-w-[20rem] sm:max-w-md"
+              transition={{ duration: 0.65, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
+              className="w-full max-w-[min(100%,22rem)] overflow-visible sm:max-w-md"
             >
-              <div className="mb-3 flex items-center justify-center gap-3">
-                <span className="h-px w-10 bg-gradient-to-r from-transparent to-orange-400/50 sm:w-14" />
-                <span className="text-[11px] font-semibold uppercase tracking-[0.42em] text-orange-200/80">Be The</span>
-                <span className="h-px w-10 bg-gradient-to-l from-transparent to-orange-400/50 sm:w-14" />
-              </div>
-
-              <h1 className="relative font-display font-bold leading-[0.92] tracking-tight">
-                <span
-                  aria-hidden
-                  className="pointer-events-none absolute inset-x-2 top-1 select-none font-display text-[3.4rem] font-bold uppercase text-white/[0.04] blur-[1px] xs:text-[4rem] sm:text-[4.6rem]"
-                >
-                  Authority
-                </span>
-                <span className="relative block bg-gradient-to-b from-white via-orange-50 to-orange-300 bg-clip-text text-[3.35rem] uppercase text-transparent drop-shadow-[0_8px_32px_rgba(249,115,22,0.35)] xs:text-[4rem] sm:text-[4.5rem]">
-                  Authority
-                </span>
+              <h1 className="font-display text-[2.1rem] font-bold leading-[1.08] tracking-tight text-orange-200/90 drop-shadow-[0_4px_24px_rgba(249,115,22,0.22)] xs:text-[2.5rem] sm:text-[3rem]">
+                Be The Authority
               </h1>
-
-              <motion.div
-                initial={{ scaleX: 0 }}
-                animate={{ scaleX: 1 }}
-                transition={{ duration: 0.8, delay: 0.35, ease: [0.22, 1, 0.36, 1] }}
-                className="mx-auto mt-4 h-[2px] w-24 origin-center rounded-full bg-gradient-to-r from-transparent via-orange-400 to-transparent sm:w-32"
-              />
+              <div className="mx-auto mt-4 h-px w-20 bg-gradient-to-r from-transparent via-orange-400/70 to-transparent sm:w-28" />
             </motion.div>
 
             <motion.p
-              initial={{ opacity: 0, y: 12 }}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.4 }}
-              className="mt-6 max-w-[18rem] text-[15px] font-light leading-relaxed text-slate-300/92 sm:max-w-sm sm:text-base"
+              transition={{ duration: 0.55, delay: 0.28 }}
+              className="mt-5 max-w-[19rem] text-[15px] font-light leading-relaxed text-slate-300/92 sm:max-w-sm sm:text-base"
             >
               <span className="text-slate-500">Your story.</span>{" "}
               <span className="text-slate-200/95">Your platform.</span>{" "}
@@ -171,36 +146,21 @@ export function Hero() {
             </motion.p>
 
             <motion.div
-              initial={{ opacity: 0, y: 14 }}
+              initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.55, delay: 0.52 }}
-              className="mt-9 w-full max-w-[16.5rem] sm:max-w-xs"
+              transition={{ duration: 0.5, delay: 0.38 }}
+              className="mt-8 w-full max-w-[17rem] sm:max-w-xs"
             >
               <Link
-                href="/auth/signup"
-                className="group relative flex w-full items-center justify-center gap-2.5 overflow-hidden rounded-2xl border border-orange-400/35 bg-gradient-to-b from-orange-500 to-orange-600 px-6 py-3.5 text-sm font-semibold text-white shadow-[0_16px_48px_-14px_rgba(249,115,22,0.75)] transition active:scale-[0.98]"
+                href="/auth/signin"
+                className="group flex w-full items-center justify-center gap-2.5 rounded-2xl border border-orange-400/35 bg-gradient-to-b from-orange-500 to-orange-600 px-6 py-3.5 text-sm font-semibold text-white shadow-[0_16px_48px_-14px_rgba(249,115,22,0.75)] transition active:scale-[0.98]"
               >
-                <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent opacity-0 transition group-hover:opacity-100" />
-                <Play className="relative h-5 w-5 fill-white" />
-                <span className="relative">Enter Platform</span>
+                <Play className="h-5 w-5 fill-white" />
+                Enter Platform
               </Link>
             </motion.div>
 
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 1, duration: 0.8 }}
-              className="mt-12 flex flex-col items-center gap-3"
-            >
-              <motion.span
-                animate={{ y: [0, 6, 0], opacity: [0.4, 1, 0.4] }}
-                transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
-                className="flex h-9 w-5 items-start justify-center rounded-full border border-white/10"
-              >
-                <span className="mt-1.5 h-2 w-0.5 rounded-full bg-orange-300/80" />
-              </motion.span>
-              <span className="text-[9px] uppercase tracking-[0.4em] text-slate-500/90">Discover</span>
-            </motion.div>
+            <LandingSpotlightSlider />
           </div>
 
           {/* Desktop: original hero copy and actions */}
@@ -225,7 +185,7 @@ export function Hero() {
             </p>
             <div className="mb-8 flex flex-wrap gap-4">
               <Link
-                href="/auth/signup"
+                href="/auth/signin"
                 className="group flex items-center gap-2 rounded-2xl bg-orange-500 px-8 py-3.5 text-base font-semibold text-white shadow-glow hover:-translate-y-0.5 hover:bg-orange-400"
               >
                 <Play className="h-5 w-5" />
