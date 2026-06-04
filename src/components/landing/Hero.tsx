@@ -13,65 +13,34 @@ export function Hero() {
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_18%,rgba(255,170,51,0.14),transparent_42%),linear-gradient(180deg,rgba(5,8,14,0.15),rgba(5,8,14,0.92))]" />
       <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,8,14,0.35),rgba(5,8,14,0.88))] lg:bg-[linear-gradient(90deg,rgba(5,8,14,0.96),rgba(5,8,14,0.72)_40%,rgba(5,8,14,0.78))]" />
 
-      {/* Mobile: poster wall + atmosphere */}
+      {/* Mobile: cinematic backdrop */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden lg:hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_0%,rgba(255,140,50,0.2),transparent_50%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_12%,rgba(255,120,40,0.18),transparent_38%),radial-gradient(circle_at_72%_78%,rgba(120,80,255,0.08),transparent_34%)]" />
         <motion.div
-          animate={{ opacity: [0.25, 0.45, 0.25] }}
-          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute left-1/2 top-[28%] h-56 w-56 -translate-x-1/2 rounded-full bg-orange-500/20 blur-[90px] sm:h-72 sm:w-72"
+          animate={{ opacity: [0.35, 0.55, 0.35], scale: [1, 1.06, 1] }}
+          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute left-1/2 top-[42%] h-[22rem] w-[22rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-orange-500/14 blur-[80px]"
         />
         {[
-          {
-            src: "/posters/poster-1.svg",
-            className: "left-[4%] top-[6%] w-[46%] -rotate-[11deg]",
-            drift: { y: [0, -14, 0], rotate: [-11, -8, -11] },
-            duration: 11,
-          },
-          {
-            src: "/posters/poster-2.svg",
-            className: "right-[2%] top-[12%] w-[44%] rotate-[9deg]",
-            drift: { y: [0, 12, 0], rotate: [9, 12, 9] },
-            duration: 13,
-          },
-          {
-            src: "/posters/poster-3.svg",
-            className: "left-[22%] top-[32%] w-[40%] rotate-[4deg]",
-            drift: { y: [0, -10, 0], rotate: [4, 7, 4] },
-            duration: 9,
-          },
-          {
-            src: "/posters/poster-2.svg",
-            className: "right-[14%] top-[38%] w-[32%] -rotate-[6deg] opacity-80",
-            drift: { y: [0, 8, 0], rotate: [-6, -3, -6] },
-            duration: 12,
-          },
-        ].map((poster, index) => (
-          <motion.div
-            key={`${poster.src}-${index}`}
-            animate={poster.drift}
-            transition={{ duration: poster.duration, repeat: Infinity, ease: "easeInOut" }}
-            className={`absolute overflow-hidden rounded-[1.15rem] border border-white/[0.08] shadow-[0_28px_90px_-36px_rgba(0,0,0,0.95)] ${poster.className}`}
+          { src: "/posters/poster-2.svg", className: "-left-[18%] top-[14%] w-[42%] -rotate-[14deg] opacity-[0.22]" },
+          { src: "/posters/poster-1.svg", className: "-right-[16%] top-[22%] w-[38%] rotate-[11deg] opacity-[0.18]" },
+          { src: "/posters/poster-3.svg", className: "left-[8%] bottom-[8%] w-[34%] rotate-[6deg] opacity-[0.14]" },
+        ].map((poster) => (
+          <div
+            key={poster.src}
+            className={`absolute overflow-hidden rounded-2xl border border-white/[0.06] shadow-[0_24px_80px_-40px_rgba(0,0,0,0.9)] ${poster.className}`}
           >
-            <Image src={poster.src} alt="" width={300} height={450} className="h-auto w-full saturate-[1.08] contrast-[1.05]" />
-            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#05080e]/70" />
-            <div className="absolute inset-0 ring-1 ring-inset ring-white/[0.06]" />
-          </motion.div>
+            <Image src={poster.src} alt="" width={280} height={420} className="h-auto w-full blur-[1px]" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#05080e] via-[#05080e]/55 to-transparent" />
+          </div>
         ))}
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,8,14,0.55)_0%,rgba(5,8,14,0.2)_38%,rgba(5,8,14,0.88)_72%,#05080e_100%)]" />
-        <div className="absolute inset-x-0 top-0 h-[3px] bg-black/70" />
-        <div className="absolute inset-x-0 bottom-0 h-[3px] bg-black/70" />
-        <div
-          className="absolute inset-0 opacity-[0.14] mix-blend-overlay"
-          style={{
-            backgroundImage:
-              "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E\")",
-          }}
-        />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_42%,rgba(5,8,14,0.75)_100%)]" />
+        <div className="absolute inset-x-0 top-[18%] h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-[#05080e] via-[#05080e]/90 to-transparent" />
         <motion.div
-          animate={{ x: ["-40%", "140%"] }}
-          transition={{ duration: 14, repeat: Infinity, ease: "linear" }}
-          className="absolute top-[44%] h-px w-1/2 bg-gradient-to-r from-transparent via-orange-300/35 to-transparent"
+          animate={{ x: ["-30%", "130%"] }}
+          transition={{ duration: 9, repeat: Infinity, ease: "linear" }}
+          className="absolute top-[36%] h-px w-[40%] bg-gradient-to-r from-transparent via-orange-300/40 to-transparent"
         />
       </div>
 
@@ -124,51 +93,63 @@ export function Hero() {
 
       <div className="relative z-10 mx-auto grid w-full max-w-7xl items-center gap-8 sm:gap-10 lg:gap-14 lg:grid-cols-[minmax(0,1.08fr)_minmax(320px,0.92fr)]">
         <LandingReveal className="max-w-3xl lg:max-w-3xl">
-          {/* Mobile / tablet: poster-led intro */}
-          <div className="relative flex min-h-[calc(100svh-4.5rem)] w-full flex-col justify-end overflow-visible pb-6 pt-[42vh] text-center lg:hidden">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.75, ease: [0.22, 1, 0.36, 1] }}
-              className="relative mx-auto w-full max-w-sm px-3"
+          {/* Mobile / tablet: cinematic intro */}
+          <div className="relative flex w-full flex-col items-center justify-center overflow-visible px-2 py-8 text-center sm:py-10 lg:hidden">
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+              className="mb-6 text-[10px] font-medium uppercase tracking-[0.32em] text-slate-400/90"
             >
-              <div
-                className="pointer-events-none absolute -left-3 top-1/2 h-16 w-[3px] -translate-y-1/2 rounded-full bg-gradient-to-b from-transparent via-orange-400/80 to-transparent"
-                aria-hidden
-              />
-              <div
-                className="pointer-events-none absolute -right-3 top-1/2 h-16 w-[3px] -translate-y-1/2 rounded-full bg-gradient-to-b from-transparent via-orange-400/80 to-transparent"
-                aria-hidden
-              />
-              <h1 className="font-display text-[1.5rem] font-semibold leading-snug tracking-tight text-white drop-shadow-[0_2px_20px_rgba(0,0,0,0.55)] sm:text-[1.7rem]">
-                Be The Authority
-              </h1>
-              <div className="mx-auto mt-3 flex items-center justify-center gap-2" aria-hidden>
-                <span className="h-px w-8 bg-gradient-to-r from-transparent to-orange-400/60" />
-                <span className="h-1.5 w-1.5 rounded-full bg-orange-400 shadow-[0_0_12px_rgba(249,115,22,0.9)]" />
-                <span className="h-px w-8 bg-gradient-to-l from-transparent to-orange-400/60" />
+              Story Time
+            </motion.p>
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.94 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
+              className="mb-8"
+            >
+              <div className="rounded-[1.35rem] border border-white/10 bg-white/[0.04] p-1 shadow-[0_0_60px_-24px_rgba(255,130,40,0.65)]">
+                <Image
+                  src="/logo.png"
+                  alt="Story Time"
+                  width={92}
+                  height={92}
+                  className="h-[92px] w-[92px] rounded-[1.15rem] sm:h-[100px] sm:w-[100px]"
+                  priority
+                />
               </div>
             </motion.div>
 
             <motion.div
-              initial={{ opacity: 0, y: 14 }}
+              initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.12, ease: [0.22, 1, 0.36, 1] }}
-              className="mx-auto mt-7 w-full max-w-[15.5rem] sm:max-w-[17rem]"
+              transition={{ duration: 0.65, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
+              className="w-full max-w-[min(100%,22rem)] overflow-visible sm:max-w-md"
+            >
+              <h1 className="font-display text-[2.1rem] font-bold leading-[1.08] tracking-tight text-white drop-shadow-[0_4px_24px_rgba(0,0,0,0.45)] xs:text-[2.5rem] sm:text-[3rem]">
+                Be The Authority
+              </h1>
+              <div className="mx-auto mt-4 h-px w-20 bg-gradient-to-r from-transparent via-orange-400/70 to-transparent sm:w-28" />
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.28 }}
+              className="mt-8 w-full max-w-[17rem] sm:max-w-xs"
             >
               <Link
                 href="/auth/signin"
-                className="group relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-full border border-orange-400/30 bg-orange-500 px-6 py-3 text-sm font-semibold text-white shadow-[0_12px_40px_-12px_rgba(249,115,22,0.8)] transition active:scale-[0.98]"
+                className="group flex w-full items-center justify-center gap-2.5 rounded-2xl border border-orange-400/35 bg-gradient-to-b from-orange-500 to-orange-600 px-6 py-3.5 text-sm font-semibold text-white shadow-[0_16px_48px_-14px_rgba(249,115,22,0.75)] transition active:scale-[0.98]"
               >
-                <span className="absolute inset-0 bg-gradient-to-r from-orange-400/0 via-white/15 to-orange-400/0 opacity-0 transition group-active:opacity-100" />
-                <Play className="relative h-4 w-4 fill-white" />
-                <span className="relative">Enter Platform</span>
+                <Play className="h-5 w-5 fill-white" />
+                Enter Platform
               </Link>
             </motion.div>
 
-            <div className="mx-auto mt-8 w-full max-w-lg px-1">
-              <LandingSpotlightSlider />
-            </div>
+            <LandingSpotlightSlider />
           </div>
 
           {/* Desktop: original hero copy and actions */}
