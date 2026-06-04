@@ -1,4 +1,4 @@
- "use client";
+"use client";
 
 import Link from "next/link";
 import Image from "next/image";
@@ -8,9 +8,42 @@ import { LandingReveal } from "@/components/landing/LandingReveal";
 
 export function Hero() {
   return (
-    <section className="relative flex min-h-[92svh] items-center overflow-hidden px-4 pb-10 pt-20 sm:min-h-screen sm:px-6 sm:pb-12 sm:pt-24">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(255,170,51,0.12),transparent_26%),linear-gradient(180deg,rgba(5,8,14,0.24),rgba(5,8,14,0.72))]" />
-      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(5,8,14,0.96),rgba(5,8,14,0.72)_40%,rgba(5,8,14,0.78))]" />
+    <section className="relative flex min-h-[100svh] items-center overflow-hidden px-4 pb-12 pt-20 sm:px-6 sm:pb-14 sm:pt-24 lg:min-h-[92svh] lg:pb-12 lg:pt-24">
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_18%,rgba(255,170,51,0.14),transparent_42%),linear-gradient(180deg,rgba(5,8,14,0.15),rgba(5,8,14,0.92))]" />
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,8,14,0.35),rgba(5,8,14,0.88))] lg:bg-[linear-gradient(90deg,rgba(5,8,14,0.96),rgba(5,8,14,0.72)_40%,rgba(5,8,14,0.78))]" />
+
+      {/* Mobile: cinematic backdrop */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden lg:hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_12%,rgba(255,120,40,0.18),transparent_38%),radial-gradient(circle_at_72%_78%,rgba(120,80,255,0.08),transparent_34%)]" />
+        <motion.div
+          animate={{ opacity: [0.35, 0.55, 0.35], scale: [1, 1.06, 1] }}
+          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute left-1/2 top-[42%] h-[22rem] w-[22rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-orange-500/14 blur-[80px]"
+        />
+        {[
+          { src: "/posters/poster-2.svg", className: "-left-[18%] top-[14%] w-[42%] -rotate-[14deg] opacity-[0.22]" },
+          { src: "/posters/poster-1.svg", className: "-right-[16%] top-[22%] w-[38%] rotate-[11deg] opacity-[0.18]" },
+          { src: "/posters/poster-3.svg", className: "left-[8%] bottom-[8%] w-[34%] rotate-[6deg] opacity-[0.14]" },
+        ].map((poster) => (
+          <div
+            key={poster.src}
+            className={`absolute overflow-hidden rounded-2xl border border-white/[0.06] shadow-[0_24px_80px_-40px_rgba(0,0,0,0.9)] ${poster.className}`}
+          >
+            <Image src={poster.src} alt="" width={280} height={420} className="h-auto w-full blur-[1px]" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#05080e] via-[#05080e]/55 to-transparent" />
+          </div>
+        ))}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_42%,rgba(5,8,14,0.75)_100%)]" />
+        <div className="absolute inset-x-0 top-[18%] h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-[#05080e] via-[#05080e]/90 to-transparent" />
+        <motion.div
+          animate={{ x: ["-30%", "130%"] }}
+          transition={{ duration: 9, repeat: Infinity, ease: "linear" }}
+          className="absolute top-[36%] h-px w-[40%] bg-gradient-to-r from-transparent via-orange-300/40 to-transparent"
+        />
+      </div>
+
+      {/* Desktop: floating posters */}
       <div className="absolute inset-y-0 left-1/2 hidden w-[44rem] -translate-x-1/2 lg:block">
         <motion.div
           initial={{ opacity: 0.4, scale: 0.96 }}
@@ -58,51 +91,178 @@ export function Hero() {
       </div>
 
       <div className="relative z-10 mx-auto grid w-full max-w-7xl items-center gap-8 sm:gap-10 lg:gap-14 lg:grid-cols-[minmax(0,1.08fr)_minmax(320px,0.92fr)]">
-        <LandingReveal className="max-w-3xl">
-          <div className="storytime-panel mb-6 inline-flex items-center gap-3 rounded-full px-4 py-2 text-[0.68rem] sm:mb-8 sm:px-5 sm:py-2.5 sm:text-[0.78rem] font-medium uppercase tracking-[0.18em] sm:tracking-[0.22em] text-slate-200/92">
-            <span className="h-2 w-2 rounded-full bg-orange-300 shadow-[0_0_14px_rgba(255,179,71,0.75)]" />
-            Creator-owned streaming infrastructure
-          </div>
-          <div className="mb-5 flex items-center gap-3 sm:mb-6 sm:gap-4">
-            <Image src="/logo.png" alt="Story Time" width={72} height={72} className="rounded-[1.2rem] shadow-glow sm:h-[88px] sm:w-[88px] sm:rounded-[1.4rem]" />
-            <div>
-              <p className="text-xs sm:text-sm uppercase tracking-[0.2em] sm:tracking-[0.28em] text-slate-400">Story Time</p>
-              <p className="text-sm sm:text-base text-orange-200/85">Built for stories that deserve to endure</p>
-            </div>
-          </div>
-          <h1 className="mb-4 font-display text-4xl font-bold tracking-tight text-white sm:mb-5 sm:text-5xl md:text-7xl">
-            Where Stories Become Legacy.
-          </h1>
-          <p className="mb-3 text-lg sm:text-xl font-light tracking-wide text-orange-200/90 md:text-2xl">
-            Create, release, and shape your work on your own terms.
-          </p>
-          <p className="mb-8 max-w-2xl text-base leading-7 text-slate-300/88 sm:mb-10 sm:text-lg sm:leading-8">
-            Story Time is a creator-powered ecosystem for filmmakers, writers, musicians, and production teams to develop work, share it with the world, and build a body of work that remains in their hands.
-          </p>
-          <div className="mb-7 flex flex-wrap gap-3 sm:mb-8 sm:gap-4">
-            <Link href="/auth/signup" className="group flex items-center gap-2 rounded-2xl bg-orange-500 px-6 py-3 text-sm font-semibold text-white shadow-glow hover:-translate-y-0.5 hover:bg-orange-400 sm:px-8 sm:py-3.5 sm:text-base">
-              <Play className="w-5 h-5" />
-              Enter Platform
-            </Link>
-            <Link href="#features" className="storytime-panel flex items-center gap-2 rounded-2xl px-6 py-3 text-sm font-semibold text-white hover:-translate-y-0.5 hover:bg-white/[0.04] sm:px-8 sm:py-3.5 sm:text-base">
-              <ArrowRight className="w-5 h-5" />
-              Explore Features
-            </Link>
-          </div>
-          <div className="inline-flex items-center gap-3 sm:gap-4 rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-2.5 sm:px-4 sm:py-3 text-xs sm:text-sm text-slate-300/88 shadow-panel">
-            <div className="flex items-center gap-3">
-              <div className="flex items-end gap-1">
-                <span className="w-1.5 rounded-full bg-orange-300/80 animate-[pulse_1.2s_ease-in-out_infinite]" style={{ height: "14px" }} />
-                <span className="w-1.5 rounded-full bg-orange-300/70 animate-[pulse_1.2s_ease-in-out_0.18s_infinite]" style={{ height: "20px" }} />
-                <span className="w-1.5 rounded-full bg-orange-300 animate-[pulse_1.2s_ease-in-out_0.36s_infinite]" style={{ height: "26px" }} />
+        <LandingReveal className="max-w-3xl lg:max-w-3xl">
+          {/* Mobile / tablet portrait: cinematic intro */}
+          <div className="relative flex min-h-[calc(100svh-7rem)] flex-col items-center justify-center px-4 py-12 text-center lg:hidden">
+            <motion.p
+              initial={{ opacity: 0, letterSpacing: "0.5em" }}
+              animate={{ opacity: 1, letterSpacing: "0.38em" }}
+              transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
+              className="mb-8 text-[10px] font-medium uppercase text-slate-400/90"
+            >
+              Story Time
+            </motion.p>
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.88 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.75, ease: [0.22, 1, 0.36, 1] }}
+              className="relative mb-9 sm:mb-10"
+            >
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 28, repeat: Infinity, ease: "linear" }}
+                className="absolute -inset-5 rounded-[2rem] border border-dashed border-orange-400/20"
+              />
+              <div className="absolute -inset-3 rounded-[1.65rem] bg-gradient-to-br from-orange-500/25 via-transparent to-amber-500/10 blur-md" />
+              <div className="relative rounded-[1.4rem] border border-white/12 bg-white/[0.04] p-1 shadow-[0_0_80px_-20px_rgba(255,130,40,0.7)] backdrop-blur-sm">
+                <Image
+                  src="/logo.png"
+                  alt="Story Time"
+                  width={100}
+                  height={100}
+                  className="rounded-[1.2rem] sm:h-[108px] sm:w-[108px]"
+                  priority
+                />
               </div>
-              <span>Opening a new era for storytellers</span>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 24 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.7, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+              className="relative w-full max-w-[20rem] sm:max-w-md"
+            >
+              <div className="mb-3 flex items-center justify-center gap-3">
+                <span className="h-px w-10 bg-gradient-to-r from-transparent to-orange-400/50 sm:w-14" />
+                <span className="text-[11px] font-semibold uppercase tracking-[0.42em] text-orange-200/80">Be The</span>
+                <span className="h-px w-10 bg-gradient-to-l from-transparent to-orange-400/50 sm:w-14" />
+              </div>
+
+              <h1 className="relative font-display font-bold leading-[0.92] tracking-tight">
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute inset-x-2 top-1 select-none font-display text-[3.4rem] font-bold uppercase text-white/[0.04] blur-[1px] xs:text-[4rem] sm:text-[4.6rem]"
+                >
+                  Authority
+                </span>
+                <span className="relative block bg-gradient-to-b from-white via-orange-50 to-orange-300 bg-clip-text text-[3.35rem] uppercase text-transparent drop-shadow-[0_8px_32px_rgba(249,115,22,0.35)] xs:text-[4rem] sm:text-[4.5rem]">
+                  Authority
+                </span>
+              </h1>
+
+              <motion.div
+                initial={{ scaleX: 0 }}
+                animate={{ scaleX: 1 }}
+                transition={{ duration: 0.8, delay: 0.35, ease: [0.22, 1, 0.36, 1] }}
+                className="mx-auto mt-4 h-[2px] w-24 origin-center rounded-full bg-gradient-to-r from-transparent via-orange-400 to-transparent sm:w-32"
+              />
+            </motion.div>
+
+            <motion.p
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.4 }}
+              className="mt-6 max-w-[18rem] text-[15px] font-light leading-relaxed text-slate-300/92 sm:max-w-sm sm:text-base"
+            >
+              <span className="text-slate-500">Your story.</span>{" "}
+              <span className="text-slate-200/95">Your platform.</span>{" "}
+              <span className="text-orange-200/90">No middleman.</span>
+            </motion.p>
+
+            <motion.div
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.55, delay: 0.52 }}
+              className="mt-9 w-full max-w-[16.5rem] sm:max-w-xs"
+            >
+              <Link
+                href="/auth/signup"
+                className="group relative flex w-full items-center justify-center gap-2.5 overflow-hidden rounded-2xl border border-orange-400/35 bg-gradient-to-b from-orange-500 to-orange-600 px-6 py-3.5 text-sm font-semibold text-white shadow-[0_16px_48px_-14px_rgba(249,115,22,0.75)] transition active:scale-[0.98]"
+              >
+                <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent opacity-0 transition group-hover:opacity-100" />
+                <Play className="relative h-5 w-5 fill-white" />
+                <span className="relative">Enter Platform</span>
+              </Link>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 1, duration: 0.8 }}
+              className="mt-12 flex flex-col items-center gap-3"
+            >
+              <motion.span
+                animate={{ y: [0, 6, 0], opacity: [0.4, 1, 0.4] }}
+                transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+                className="flex h-9 w-5 items-start justify-center rounded-full border border-white/10"
+              >
+                <span className="mt-1.5 h-2 w-0.5 rounded-full bg-orange-300/80" />
+              </motion.span>
+              <span className="text-[9px] uppercase tracking-[0.4em] text-slate-500/90">Discover</span>
+            </motion.div>
+          </div>
+
+          {/* Desktop: original hero copy and actions */}
+          <div className="hidden lg:block">
+            <div className="storytime-panel mb-8 inline-flex items-center gap-3 rounded-full px-5 py-2.5 text-[0.78rem] font-medium uppercase tracking-[0.22em] text-slate-200/92">
+              <span className="h-2 w-2 rounded-full bg-orange-300 shadow-[0_0_14px_rgba(255,179,71,0.75)]" />
+              Creator-owned streaming infrastructure
+            </div>
+            <div className="mb-6 flex items-center gap-4">
+              <Image src="/logo.png" alt="Story Time" width={88} height={88} className="rounded-[1.4rem] shadow-glow" />
+              <div>
+                <p className="text-sm uppercase tracking-[0.28em] text-slate-400">Story Time</p>
+                <p className="text-base text-orange-200/85">Built for stories that deserve to endure</p>
+              </div>
+            </div>
+            <h1 className="mb-5 font-display text-7xl font-bold tracking-tight text-white">Be The Authority.</h1>
+            <p className="mb-3 text-xl font-light tracking-wide text-orange-200/90 md:text-2xl">
+              Create, release, and shape your work on your own terms.
+            </p>
+            <p className="mb-10 max-w-2xl text-lg leading-8 text-slate-300/88">
+              Story Time is a creator-powered ecosystem for filmmakers, writers, musicians, and production teams to develop work, share it with the world, and build a body of work that remains in their hands.
+            </p>
+            <div className="mb-8 flex flex-wrap gap-4">
+              <Link
+                href="/auth/signup"
+                className="group flex items-center gap-2 rounded-2xl bg-orange-500 px-8 py-3.5 text-base font-semibold text-white shadow-glow hover:-translate-y-0.5 hover:bg-orange-400"
+              >
+                <Play className="h-5 w-5" />
+                Enter Platform
+              </Link>
+              <Link
+                href="#features"
+                className="storytime-panel flex items-center gap-2 rounded-2xl px-8 py-3.5 text-base font-semibold text-white hover:-translate-y-0.5 hover:bg-white/[0.04]"
+              >
+                <ArrowRight className="h-5 w-5" />
+                Explore Features
+              </Link>
+            </div>
+            <div className="inline-flex items-center gap-4 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 text-sm text-slate-300/88 shadow-panel">
+              <div className="flex items-center gap-3">
+                <div className="flex items-end gap-1">
+                  <span
+                    className="w-1.5 rounded-full bg-orange-300/80 animate-[pulse_1.2s_ease-in-out_infinite]"
+                    style={{ height: "14px" }}
+                  />
+                  <span
+                    className="w-1.5 rounded-full bg-orange-300/70 animate-[pulse_1.2s_ease-in-out_0.18s_infinite]"
+                    style={{ height: "20px" }}
+                  />
+                  <span
+                    className="w-1.5 rounded-full bg-orange-300 animate-[pulse_1.2s_ease-in-out_0.36s_infinite]"
+                    style={{ height: "26px" }}
+                  />
+                </div>
+                <span>Opening a new era for storytellers</span>
+              </div>
             </div>
           </div>
         </LandingReveal>
 
-        <LandingReveal delay={0.12} className="lg:justify-self-end">
-          <div className="storytime-section relative overflow-hidden p-4 sm:p-6 md:p-7">
+        <LandingReveal delay={0.12} className="hidden lg:block lg:justify-self-end">
+          <div className="storytime-section relative overflow-hidden p-7">
             <div className="absolute inset-x-0 top-0 h-24 bg-[linear-gradient(180deg,rgba(255,186,93,0.16),transparent)]" />
             <div className="relative">
               <div className="mb-6 flex items-center justify-between">
@@ -114,9 +274,21 @@ export function Hero() {
               </div>
               <div className="space-y-3">
                 {[
-                  { icon: Clapperboard, title: "Shape the work", text: "Write, plan, refine, and produce inside one environment designed to keep the creative process connected." },
-                  { icon: Play, title: "Release without friction", text: "Bring films, series, shows, podcasts, and music to audiences through a platform built for creator-led distribution." },
-                  { icon: ArrowRight, title: "Grow with clarity", text: "Understand how your work moves through the world, how audiences respond, and how your presence deepens over time." },
+                  {
+                    icon: Clapperboard,
+                    title: "Shape the work",
+                    text: "Write, plan, refine, and produce inside one environment designed to keep the creative process connected.",
+                  },
+                  {
+                    icon: Play,
+                    title: "Release without friction",
+                    text: "Bring films, series, shows, podcasts, and music to audiences through a platform built for creator-led distribution.",
+                  },
+                  {
+                    icon: ArrowRight,
+                    title: "Grow with clarity",
+                    text: "Understand how your work moves through the world, how audiences respond, and how your presence deepens over time.",
+                  },
                 ].map((item, index) => (
                   <motion.div
                     key={item.title}
