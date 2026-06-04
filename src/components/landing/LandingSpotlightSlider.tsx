@@ -49,7 +49,7 @@ export function LandingSpotlightSlider() {
   if (!items?.length) return null;
 
   return (
-    <section className="mt-10 w-full max-w-[min(100%,24rem)] sm:max-w-lg" aria-label="Discover on Story Time">
+    <section className="w-full text-left" aria-label="Discover on Story Time">
       <div className="mb-3 flex items-end justify-between gap-3 px-1">
         <div className="text-left">
           <p className="text-[10px] font-medium uppercase tracking-[0.32em] text-slate-500">Discover</p>
