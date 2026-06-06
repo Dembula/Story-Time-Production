@@ -20,6 +20,26 @@ const sizeStyles = {
 
 type LoaderSize = keyof typeof sizeStyles;
 
+function ServerLoaderOverlay({
+  children,
+  mode = "viewport",
+}: {
+  children: React.ReactNode;
+  mode?: "viewport" | "inset";
+}) {
+  return (
+    <div
+      className={
+        mode === "viewport"
+          ? "storytime-loader-overlay fixed inset-0 z-[100] flex items-center justify-center"
+          : "storytime-loader-overlay storytime-loader-overlay--inset absolute inset-0 z-[20] flex items-center justify-center"
+      }
+    >
+      <div className="relative z-[1]">{children}</div>
+    </div>
+  );
+}
+
 /** Server-safe loader — no client JS required (for loading.tsx route segments). */
 export function ServerStoryTimeLoader({
   size = "md",
@@ -59,23 +79,22 @@ export function ServerStoryTimeLoader({
 
 export function ServerStoryTimeLoadingScreen({ size = "lg" }: { size?: LoaderSize }) {
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-[2px]">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(255,153,49,0.12),transparent_55%)]" />
+    <ServerLoaderOverlay mode="viewport">
       <ServerStoryTimeLoader size={size} />
-    </div>
+    </ServerLoaderOverlay>
   );
 }
 
 export function ServerStoryTimeLoadingCenter({
-  minHeight = "60vh",
+  minHeight: _minHeight,
   size = "md",
 }: {
   minHeight?: string;
   size?: LoaderSize;
 }) {
   return (
-    <div className="flex w-full items-center justify-center px-4" style={{ minHeight }}>
+    <ServerLoaderOverlay mode="viewport">
       <ServerStoryTimeLoader size={size} />
-    </div>
+    </ServerLoaderOverlay>
   );
 }

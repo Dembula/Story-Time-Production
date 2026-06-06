@@ -368,6 +368,32 @@ html.modoc-viewer-open {
   overflow: hidden;
 }
 
+/* Frosted Story Time loader shell — blurs content beneath, never solid black */
+.storytime-loader-overlay {
+  background: rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(18px) saturate(1.12);
+  -webkit-backdrop-filter: blur(18px) saturate(1.12);
+}
+
+.storytime-loader-overlay::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    circle at 50% 44%,
+    rgba(255, 153, 49, 0.16) 0%,
+    rgba(255, 119, 0, 0.06) 38%,
+    transparent 68%
+  );
+}
+
+.storytime-loader-overlay--inset {
+  background: rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(14px) saturate(1.1);
+  -webkit-backdrop-filter: blur(14px) saturate(1.1);
+}
+
 /* Story Time branded loader — letters flow in, then shimmer + underline sweep */
 @keyframes storytime-letter-in {
   0% {

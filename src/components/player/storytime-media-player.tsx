@@ -32,7 +32,7 @@ import { PlaybackChrome } from "./playback-chrome";
 import { PlaybackMetadataPanel } from "./playback-metadata-panel";
 import { ForensicWatermark } from "./forensic-watermark";
 import { CaptureProtectionBadge } from "./capture-protection-badge";
-import { StoryTimeLoader } from "@/components/ui/storytime-loader";
+import { StoryTimeLoader, StoryTimeLoaderOverlay } from "@/components/ui/storytime-loader";
 import { PlaybackBufferingOverlay } from "./playback-buffering-overlay";
 
 
@@ -333,10 +333,12 @@ export function StorytimeMediaPlayer({
 
   if (waitingForSignedBundle) {
     return (
-      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black p-8 text-center">
-        <StoryTimeLoader size="md" />
-        <p className="mt-4 text-sm text-slate-400">Securing playback…</p>
-      </div>
+      <StoryTimeLoaderOverlay mode="viewport">
+        <div className="flex flex-col items-center text-center">
+          <StoryTimeLoader size="md" />
+          <p className="mt-4 text-sm text-slate-300/90">Securing playback…</p>
+        </div>
+      </StoryTimeLoaderOverlay>
     );
   }
 

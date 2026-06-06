@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useMediaState } from "@vidstack/react";
-import { StoryTimeLoader } from "@/components/ui/storytime-loader";
+import { StoryTimeLoader, StoryTimeLoaderOverlay } from "@/components/ui/storytime-loader";
 
 const BUFFERING_SHOW_MS = 280;
 
@@ -27,11 +27,8 @@ export function PlaybackBufferingOverlay() {
   if (!visible) return null;
 
   return (
-    <div
-      className="pointer-events-none absolute inset-0 z-[20] flex items-center justify-center bg-black/55 backdrop-blur-[2px]"
-      aria-hidden
-    >
+    <StoryTimeLoaderOverlay mode="inset">
       <StoryTimeLoader size="md" />
-    </div>
+    </StoryTimeLoaderOverlay>
   );
 }

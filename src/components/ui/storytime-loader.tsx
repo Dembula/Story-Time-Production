@@ -64,34 +64,55 @@ export function StoryTimeLoader({ size = "md", className, hideTrack = false }: S
   );
 }
 
-type StoryTimeLoadingCenterProps = {
-  minHeight?: string;
-  size?: StoryTimeLoaderSize;
-  className?: string;
-};
+type OverlayMode = "viewport" | "inset";
 
-/** Centered loader for page sections and data-fetch buffers. */
-export function StoryTimeLoadingCenter({
-  minHeight = "60vh",
-  size = "md",
+/** Frosted glass shell — blurs content beneath instead of solid black. */
+export function StoryTimeLoaderOverlay({
+  children,
+  mode = "viewport",
   className,
-}: StoryTimeLoadingCenterProps) {
+}: {
+  children: React.ReactNode;
+  mode?: OverlayMode;
+  className?: string;
+}) {
   return (
     <div
-      className={cn("flex w-full items-center justify-center px-4", className)}
-      style={{ minHeight }}
+      className={cn(
+        "storytime-loader-overlay relative flex items-center justify-center",
+        mode === "viewport" && "fixed inset-0 z-[100]",
+        mode === "inset" && "storytime-loader-overlay--inset absolute inset-0 z-[20]",
+        className,
+      )}
+      aria-hidden={mode === "inset" ? true : undefined}
     >
-      <StoryTimeLoader size={size} />
+      <div className="relative z-[1]">{children}</div>
     </div>
   );
 }
 
-/** Full-screen overlay for route transitions and heavy buffers. */
+/** Full-screen frosted overlay for route transitions and heavy buffers. */
 export function StoryTimeLoadingScreen({ size = "lg" }: { size?: StoryTimeLoaderSize }) {
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-[2px]">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(255,153,49,0.12),transparent_55%)]" />
+    <StoryTimeLoaderOverlay mode="viewport">
       <StoryTimeLoader size={size} />
-    </div>
+    </StoryTimeLoaderOverlay>
+  );
+}
+
+/** Same frosted viewport overlay for in-page data fetches. */
+export function StoryTimeLoadingCenter({
+  minHeight: _minHeight,
+  size = "md",
+  className,
+}: {
+  minHeight?: string;
+  size?: StoryTimeLoaderSize;
+  className?: string;
+}) {
+  return (
+    <StoryTimeLoaderOverlay mode="viewport" className={className}>
+      <StoryTimeLoader size={size} />
+    </StoryTimeLoaderOverlay>
   );
 }
