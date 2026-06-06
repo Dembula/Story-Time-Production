@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { buildAdminProjectReviewDigest } from "@/lib/admin-project-review-digest";
 
 export async function GET(
   _req: NextRequest,
@@ -14,33 +14,9 @@ export async function GET(
   }
 
   const { projectId } = await context.params;
-
-  const [project, toolProgress, linkedContent] = await Promise.all([
-    prisma.originalProject.findUnique({
-      where: { id: projectId },
-      select: { id: true, title: true, status: true, phase: true },
-    }),
-    prisma.projectToolProgress.findMany({
-      where: { projectId },
-      select: { toolId: true, phase: true, status: true, percent: true },
-      orderBy: { updatedAt: "desc" },
-    }),
-    prisma.content.findMany({
-      where: { linkedProjectId: projectId },
-      select: {
-        id: true,
-        title: true,
-        reviewStatus: true,
-        submittedAt: true,
-      },
-      orderBy: { updatedAt: "desc" },
-      take: 8,
-    }),
-  ]);
-
-  if (!project) {
+  const digest = await buildAdminProjectReviewDigest(projectId);
+  if (!digest) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-
-  return NextResponse.json({ project, toolProgress, linkedContent });
+  return NextResponse.json(digest);
 }

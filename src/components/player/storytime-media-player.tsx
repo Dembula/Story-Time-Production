@@ -32,6 +32,8 @@ import { PlaybackChrome } from "./playback-chrome";
 import { PlaybackMetadataPanel } from "./playback-metadata-panel";
 import { ForensicWatermark } from "./forensic-watermark";
 import { CaptureProtectionBadge } from "./capture-protection-badge";
+import { StoryTimeLoader } from "@/components/ui/storytime-loader";
+import { PlaybackBufferingOverlay } from "./playback-buffering-overlay";
 
 
 
@@ -332,8 +334,8 @@ export function StorytimeMediaPlayer({
   if (waitingForSignedBundle) {
     return (
       <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black p-8 text-center">
-        <div className="mb-4 h-8 w-8 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
-        <p className="text-sm text-slate-400">Securing playback…</p>
+        <StoryTimeLoader size="md" />
+        <p className="mt-4 text-sm text-slate-400">Securing playback…</p>
       </div>
     );
   }
@@ -458,6 +460,8 @@ export function StorytimeMediaPlayer({
       >
 
         <MediaProvider />
+
+        <PlaybackBufferingOverlay />
 
         <DefaultVideoLayout icons={defaultLayoutIcons} />
       </MediaPlayer>

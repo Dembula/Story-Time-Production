@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { loadStudioPipelineContext } from "@/lib/creator-studio";
 import { defaultSuiteAccessOpen } from "@/lib/creator-suite-access";
+import { isStoryTimeOriginalGreenlit } from "@/lib/storytime-original";
 import { ProjectWorkspaceShell } from "./project-workspace-shell";
 
 interface ProjectLayoutProps {
@@ -45,7 +46,7 @@ export default async function ProjectLayout({ children, params }: ProjectLayoutP
   }
 
   const latestPitch = project.pitches[0];
-  const isOriginal = !!latestPitch && latestPitch.status !== "DRAFT";
+  const isOriginal = isStoryTimeOriginalGreenlit(latestPitch);
   const studioCtx = await loadStudioPipelineContext(userId);
   const pipelineAccess = Boolean(studioCtx?.pipelineAccess);
   const suiteAccess = studioCtx?.suiteAccess ?? defaultSuiteAccessOpen();

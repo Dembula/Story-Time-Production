@@ -1,5 +1,6 @@
 "use client";
 
+import { StoryTimeLoader, StoryTimeLoadingCenter } from "@/components/ui/storytime-loader";
 import { useEffect, useState } from "react";
 import { FileText, CheckCircle2, Clock, AlertTriangle, ArrowRight, Upload, Loader2 } from "lucide-react";
 import { formatZar } from "@/lib/format-currency-zar";
@@ -98,7 +99,7 @@ export function AdminScriptReviewsClient() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-height-[60vh]">
-        <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+        <StoryTimeLoader size="sm" hideTrack />
       </div>
     );
   }

@@ -5,6 +5,7 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowLeft, Shield } from "lucide-react";
+import { AuthButton, AuthForm, AuthInput } from "@/components/auth/auth-form-controls";
 
 export default function SignInPage() {
   const hasGoogleProvider = Boolean(process.env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED === "true");
@@ -49,17 +50,18 @@ export default function SignInPage() {
           <h1 className="mb-2 font-display text-2xl font-semibold text-white">Welcome back</h1>
           <p className="mb-6 text-sm leading-6 text-slate-300/78">Sign in to watch unlimited content from independent creators</p>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <AuthForm onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label htmlFor="email" className="mb-2 block text-sm font-medium text-slate-300">
                 Email address
               </label>
-              <input
+              <AuthInput
                 id="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
+                autoComplete="email"
                 required
                 className="storytime-input px-4 py-3"
               />
@@ -68,12 +70,13 @@ export default function SignInPage() {
               <label htmlFor="password" className="mb-2 block text-sm font-medium text-slate-300">
                 Password
               </label>
-              <input
+              <AuthInput
                 id="password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
+                autoComplete="current-password"
                 required
                 className="storytime-input px-4 py-3"
               />
@@ -88,14 +91,14 @@ export default function SignInPage() {
                 <p className="text-sm text-red-400">{error}</p>
               </div>
             )}
-            <button
+            <AuthButton
               type="submit"
               disabled={loading}
               className="w-full rounded-xl bg-orange-500 py-3 font-semibold text-white shadow-glow hover:-translate-y-0.5 hover:bg-orange-400 disabled:opacity-50"
             >
               {loading ? "Signing in..." : "Sign In"}
-            </button>
-          </form>
+            </AuthButton>
+          </AuthForm>
 
           <div className="relative my-6">
             <span className="absolute inset-0 flex items-center">

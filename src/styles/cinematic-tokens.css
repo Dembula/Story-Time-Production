@@ -3,12 +3,12 @@
  * Complements Tailwind; use CSS variables for GPU-friendly overlays.
  */
 :root {
-  --cin-depth-1: 0 4px 24px rgba(0, 0, 0, 0.35);
-  --cin-depth-2: 0 12px 48px rgba(0, 0, 0, 0.45);
+  --cin-depth-1: 0 4px 24px rgba(0, 0, 0, 0.45);
+  --cin-depth-2: 0 12px 48px rgba(0, 0, 0, 0.6);
   --cin-glow-warm: 0 0 40px rgba(255, 140, 0, 0.12);
-  --cin-glass: rgba(10, 15, 24, 0.72);
+  --cin-glass: rgba(0, 0, 0, 0.88);
   --cin-glass-border: rgba(255, 255, 255, 0.08);
-  --cin-ambient-vignette: radial-gradient(ellipse at center, transparent 40%, rgba(0, 0, 0, 0.55) 100%);
+  --cin-ambient-vignette: radial-gradient(ellipse at center, transparent 40%, rgba(0, 0, 0, 0.65) 100%);
 }
 
 .cinematic-route {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getStoryTimeOriginalBadge } from "@/lib/storytime-original";
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -20,12 +21,36 @@ export async function GET(req: NextRequest) {
     where,
     include: {
       creator: { select: { id: true, name: true, email: true, isAfdaStudent: true } },
-      linkedProject: { select: { id: true, title: true } },
-      _count: { select: { watchSessions: true, ratings: true, comments: true, crewMembers: true } },
-      crewMembers: { select: { name: true, role: true }, take: 5 },
+      linkedProject: {
+        select: {
+          id: true,
+          title: true,
+          pitches: { orderBy: { createdAt: "desc" }, take: 1, select: { id: true, status: true, title: true } },
+        },
+      },
+      _count: { select: { watchSessions: true, ratings: true, comments: true, crewMembers: true, btsVideos: true, subtitles: true } },
+      crewMembers: { select: { name: true, role: true }, take: 20 },
+      btsVideos: { select: { id: true, title: true, videoUrl: true, thumbnail: true }, orderBy: { sortOrder: "asc" } },
+      subtitles: { select: { id: true, language: true, label: true, vttUrl: true, isDefault: true } },
     },
     orderBy: { createdAt: "desc" },
   });
 
-  return NextResponse.json(content);
+  const enriched = content.map((item) => {
+    const latestPitch = item.linkedProject?.pitches[0] ?? null;
+    const originalBadge = getStoryTimeOriginalBadge(latestPitch);
+    return {
+      ...item,
+      linkedProject: item.linkedProject
+        ? {
+            id: item.linkedProject.id,
+            title: item.linkedProject.title,
+            originalBadge,
+            latestPitchStatus: latestPitch?.status ?? null,
+          }
+        : null,
+    };
+  });
+
+  return NextResponse.json(enriched);
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isStoryTimeOriginalGreenlit } from "@/lib/storytime-original";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -47,7 +48,7 @@ export async function GET() {
 
   const withActivity = projects.map((p) => {
     const latestPitch = p.pitches[0];
-    const isOriginal = !!latestPitch && latestPitch.status !== "DRAFT";
+    const isOriginal = isStoryTimeOriginalGreenlit(latestPitch);
 
     return {
       ...p,

@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { PAYEE_DASHBOARD_REFETCH_MS } from "@/lib/dashboard-refresh";
 import { PayoutKycBanner } from "@/components/payout-kyc/payout-kyc-banner";
-import { requiresPayoutKyc } from "@/lib/payout-kyc";
+import { requiresPayoutKyc } from "@/lib/payout-kyc-shared";
 import { FunderVerificationBanner } from "@/components/funders/funder-verification-banner";
 
 const money = new Intl.NumberFormat("en-ZA", {

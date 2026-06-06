@@ -477,6 +477,7 @@ export function CreatorProjectsDashboardClient() {
   const [type, setType] = useState("FEATURE_FILM");
   const [logline, setLogline] = useState("");
   const [genre, setGenre] = useState("");
+  const [isStoryTimeOriginal, setIsStoryTimeOriginal] = useState(false);
   const [isCollaboration, setIsCollaboration] = useState(false);
   const [networkCreators, setNetworkCreators] = useState<NetworkCreator[]>([]);
   const [selectedCollaborators, setSelectedCollaborators] = useState<string[]>([]);
@@ -491,7 +492,7 @@ export function CreatorProjectsDashboardClient() {
           type,
           logline,
           genre,
-          isOriginal: true,
+          isOriginal: isStoryTimeOriginal,
           isCollaboration,
           collaboratorIds: isCollaboration ? selectedCollaborators : [],
         }),
@@ -671,6 +672,25 @@ export function CreatorProjectsDashboardClient() {
                 className="storytime-input rounded-xl px-3 py-2"
                 placeholder="Drama, Sci-Fi, Thriller..."
               />
+            </div>
+            <div className="space-y-1 md:col-span-2">
+              <label className="text-xs text-slate-400">Story Time Originals program</label>
+              <button
+                type="button"
+                onClick={() => setIsStoryTimeOriginal((v) => !v)}
+                className={[
+                  "inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs border transition",
+                  isStoryTimeOriginal
+                    ? "bg-orange-500/10 border-orange-500 text-orange-300"
+                    : "bg-white/[0.03] border-white/10 text-slate-300",
+                ].join(" ")}
+              >
+                {isStoryTimeOriginal ? "Applying for Originals" : "Standard film project"}
+              </button>
+              <p className="text-[11px] text-slate-500">
+                Only enable if you are submitting this title to the Story Time Originals greenlight program.
+                Regular catalogue films should stay off.
+              </p>
             </div>
             <div className="space-y-1 md:col-span-2">
               <label className="text-xs text-slate-400">Collaboration</label>

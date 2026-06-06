@@ -85,7 +85,7 @@ export function Hero({ content }: { content: Content[] }) {
           ) : (
             <div className="h-full w-full bg-gradient-to-b from-slate-900 to-slate-950" />
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-[#090d17] via-[#090d17]/75 to-[#090d17]/15" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/75 to-black/15" />
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_12%,rgba(255,165,54,0.18),transparent_32%)]" />
         </motion.div>
       </AnimatePresence>

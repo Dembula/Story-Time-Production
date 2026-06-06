@@ -32,6 +32,18 @@ const cloudflareCustomerPattern = parseRemotePattern(process.env.CLOUDFLARE_STRE
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  webpack: (config, { dev }) => {
+    if (dev) {
+      config.output = config.output ?? {};
+      config.output.chunkLoadTimeout = 300_000;
+      // On Windows, webpack's filesystem pack cache races when .next is touched by
+      // multiple processes (or antivirus), causing ENOENT rename failures and 500s.
+      if (process.platform === "win32") {
+        config.cache = { type: "memory" };
+      }
+    }
+    return config;
+  },
   env: {
     NEXT_PUBLIC_GOOGLE_AUTH_ENABLED: process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET ? "true" : "false",
     NEXT_PUBLIC_GITHUB_AUTH_ENABLED: process.env.GITHUB_ID && process.env.GITHUB_SECRET ? "true" : "false",

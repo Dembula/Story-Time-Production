@@ -1,5 +1,7 @@
 "use client";
 
+import { StoryTimeLoader, StoryTimeLoadingCenter } from "@/components/ui/storytime-loader";
+
 import { useEffect, useState, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Send, MessageCircle, ArrowLeft } from "lucide-react";
@@ -23,7 +25,7 @@ interface Request {
 
 export default function EquipmentMessagesPage() {
   return (
-    <Suspense fallback={<div className="flex items-center justify-center min-h-[60vh]"><div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" /></div>}>
+    <Suspense fallback={<StoryTimeLoadingCenter />}>
       <MessagesContent />
     </Suspense>
   );
@@ -80,7 +82,7 @@ function MessagesContent() {
 
   if (loading) return (
     <div className="flex items-center justify-center min-h-[60vh]">
-      <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+      <StoryTimeLoader size="sm" hideTrack />
     </div>
   );
 

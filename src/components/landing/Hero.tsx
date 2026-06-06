@@ -10,8 +10,8 @@ import { LandingSpotlightSlider } from "@/components/landing/LandingSpotlightSli
 export function Hero() {
   return (
     <section className="relative flex min-h-[100svh] items-center overflow-x-hidden px-4 pb-10 pt-[4.5rem] sm:px-6 sm:pb-12 sm:pt-24 lg:min-h-[92svh] lg:overflow-hidden lg:pb-12 lg:pt-24">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_18%,rgba(255,170,51,0.14),transparent_42%),linear-gradient(180deg,rgba(5,8,14,0.15),rgba(5,8,14,0.92))]" />
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,8,14,0.35),rgba(5,8,14,0.88))] lg:bg-[linear-gradient(90deg,rgba(5,8,14,0.96),rgba(5,8,14,0.72)_40%,rgba(5,8,14,0.78))]" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_18%,rgba(255,170,51,0.14),transparent_42%),linear-gradient(180deg,rgba(0,0,0,0.15),rgba(0,0,0,0.92))]" />
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.35),rgba(0,0,0,0.88))] lg:bg-[linear-gradient(90deg,rgba(0,0,0,0.96),rgba(0,0,0,0.72)_40%,rgba(0,0,0,0.78))]" />
 
       {/* Mobile: cinematic backdrop */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden lg:hidden">
@@ -31,12 +31,12 @@ export function Hero() {
             className={`absolute overflow-hidden rounded-2xl border border-white/[0.06] shadow-[0_24px_80px_-40px_rgba(0,0,0,0.9)] ${poster.className}`}
           >
             <Image src={poster.src} alt="" width={280} height={420} className="h-auto w-full blur-[1px]" />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#05080e] via-[#05080e]/55 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/55 to-transparent" />
           </div>
         ))}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_42%,rgba(5,8,14,0.75)_100%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_42%,rgba(0,0,0,0.75)_100%)]" />
         <div className="absolute inset-x-0 top-[18%] h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-        <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-[#05080e] via-[#05080e]/90 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-black via-black/90 to-transparent" />
         <motion.div
           animate={{ x: ["-30%", "130%"] }}
           transition={{ duration: 9, repeat: Infinity, ease: "linear" }}
@@ -80,7 +80,7 @@ export function Hero() {
               className="h-auto w-full opacity-90"
               priority={index === 0}
             />
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent,rgba(5,8,14,0.45))]" />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent,rgba(0,0,0,0.45))]" />
           </motion.div>
         ))}
         <motion.div

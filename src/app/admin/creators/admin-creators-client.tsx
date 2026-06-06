@@ -1,5 +1,6 @@
 "use client";
 
+import { StoryTimeLoader, StoryTimeLoadingCenter } from "@/components/ui/storytime-loader";
 import { useEffect, useState } from "react";
 import { formatZar } from "@/lib/format-currency-zar";
 import Link from "next/link";
@@ -32,7 +33,7 @@ export function AdminCreatorsClient() {
 
   const filtered = creators.filter((c) => !search || c.name?.toLowerCase().includes(search.toLowerCase()) || c.email?.toLowerCase().includes(search.toLowerCase()));
 
-  if (loading) return <div className="flex items-center justify-center min-h-[60vh]"><div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" /></div>;
+  if (loading) return <StoryTimeLoadingCenter />;
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8">

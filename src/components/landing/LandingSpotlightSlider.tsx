@@ -103,7 +103,7 @@ export function LandingSpotlightSlider() {
                   </span>
                 </div>
               )}
-              <div className="absolute inset-0 bg-gradient-to-t from-[#05080e] via-transparent to-transparent opacity-90" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-90" />
               <span className="absolute left-2 top-2 flex h-6 min-w-[1.5rem] items-center justify-center rounded-md bg-black/55 px-1.5 text-[11px] font-bold tabular-nums text-orange-200 ring-1 ring-white/10 backdrop-blur-sm">
                 {index + 1}
               </span>

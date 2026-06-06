@@ -237,7 +237,7 @@ export function ContentDetailClient({
         ) : (
           <div className="w-full h-full bg-slate-800" />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0c1222] via-[#0c1222]/60 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent" />
       </div>
 
       <div className="flex flex-col md:flex-row gap-8 -mt-36 relative z-10 px-2">
@@ -665,7 +665,7 @@ export function ContentDetailClient({
                 className="absolute inset-0 w-full h-full object-cover opacity-30"
               />
             )}
-            <div className="absolute inset-0 bg-gradient-to-t from-[#0c1222] to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black to-transparent" />
             <div className="relative z-10 text-center p-12">
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-800 border border-slate-600 mb-6">
                 <Lock className="w-8 h-8 text-slate-400" />

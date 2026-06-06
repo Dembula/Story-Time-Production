@@ -1,5 +1,6 @@
 "use client";
 
+import { StoryTimeLoader, StoryTimeLoadingCenter } from "@/components/ui/storytime-loader";
 import { useEffect, useState } from "react";
 import { Trophy, RefreshCw, Crown, Zap } from "lucide-react";
 
@@ -63,7 +64,7 @@ export function AdminCompetitionClient() {
     }
   }
 
-  if (loading) return <div className="p-8 flex justify-center"><div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" /></div>;
+  if (loading) return <StoryTimeLoadingCenter />;
 
   return (
     <div className="p-8 max-w-6xl mx-auto space-y-8">

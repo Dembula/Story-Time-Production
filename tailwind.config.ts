@@ -44,6 +44,20 @@ export default {
           foreground: "hsl(var(--secondary-foreground))",
         },
         surface: "hsl(var(--surface))",
+        // Neutral black/charcoal — replaces blue-tinted default slate across dashboards.
+        slate: {
+          50: "#fafafa",
+          100: "#f5f5f5",
+          200: "#e5e5e5",
+          300: "#d4d4d4",
+          400: "#a3a3a3",
+          500: "#737373",
+          600: "#525252",
+          700: "#333333",
+          800: "#1a1a1a",
+          900: "#0a0a0a",
+          950: "#000000",
+        },
       },
       fontFamily: {
         sans: ["var(--font-sans)", "system-ui", "sans-serif"],

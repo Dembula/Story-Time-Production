@@ -1,5 +1,6 @@
 "use client";
 
+import { StoryTimeLoader, StoryTimeLoadingCenter } from "@/components/ui/storytime-loader";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { User, Save, ArrowLeft } from "lucide-react";
@@ -62,7 +63,7 @@ export function CompanyAccountClient({
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[40vh]">
-        <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+        <StoryTimeLoader size="sm" hideTrack />
       </div>
     );
   }

@@ -1,5 +1,6 @@
 "use client";
 
+import { StoryTimeLoader, StoryTimeLoadingCenter } from "@/components/ui/storytime-loader";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
@@ -493,7 +494,7 @@ export function CreatorAccountClient({ backHref = "/creator/command-center" }: {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[40vh]">
-        <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+        <StoryTimeLoader size="sm" hideTrack />
       </div>
     );
   }
@@ -769,7 +770,7 @@ export function CreatorAccountClient({ backHref = "/creator/command-center" }: {
         </div>
         {loadingRevenue ? (
           <div className="flex justify-center py-10">
-            <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+            <StoryTimeLoader size="sm" hideTrack />
           </div>
         ) : revenueLoadFailed || !revenueData ? (
           <p className="text-sm text-slate-400 py-4">

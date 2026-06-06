@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 
 const AUTH_MENU_PANEL_CLASS =
-  "absolute right-0 top-full z-[60] mt-2 w-48 rounded-xl border border-white/14 bg-[#080c16] p-1.5 shadow-2xl ring-1 ring-black/40";
+  "absolute right-0 top-full z-[60] mt-2 w-48 rounded-xl border border-white/14 bg-black p-1.5 shadow-2xl ring-1 ring-black/40";
 
 export function LandingHeader() {
   const [scrolled, setScrolled] = useState(false);
@@ -75,8 +75,8 @@ export function LandingHeader() {
       className={[
         "fixed top-0 left-0 right-0 z-50 transition-all duration-200",
         scrolled
-          ? "border-b border-white/10 bg-[#080c16]/92 shadow-panel backdrop-blur-2xl"
-          : "border-b border-white/6 bg-[#080c16]/58 backdrop-blur-xl",
+          ? "border-b border-white/10 bg-black/92 shadow-panel backdrop-blur-2xl"
+          : "border-b border-white/6 bg-black/58 backdrop-blur-xl",
       ].join(" ")}
     >
       <div className="max-w-7xl mx-auto px-4 py-2.5 sm:px-6 sm:py-3 flex items-center justify-between gap-3">

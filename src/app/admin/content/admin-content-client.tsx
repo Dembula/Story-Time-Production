@@ -1,5 +1,6 @@
 "use client";
 
+import { StoryTimeLoader, StoryTimeLoadingCenter } from "@/components/ui/storytime-loader";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
@@ -14,6 +15,8 @@ import {
   parseReviewFeedback,
   type ReviewFeedbackKind,
 } from "@/lib/review-feedback";
+import { AdminProjectReviewDigest } from "@/components/admin/admin-project-review-digest";
+import { parsePlatformScriptVersionId } from "@/lib/content-catalogue-tags";
 
 interface ContentItem {
   id: string;
@@ -21,13 +24,17 @@ interface ContentItem {
   type: string;
   description: string | null;
   posterUrl: string | null;
+  backdropUrl: string | null;
   videoUrl: string | null;
   trailerUrl: string | null;
+  scriptUrl: string | null;
   category: string | null;
   tags: string | null;
   language: string | null;
   country: string | null;
   ageRating: string | null;
+  minAge: number;
+  advisory: Record<string, unknown> | null;
   year: number | null;
   duration: number | null;
   episodes: number | null;
@@ -37,47 +44,33 @@ interface ContentItem {
   reviewNote: string | null;
   reviewFeedback?: unknown;
   linkedProjectId?: string | null;
-  linkedProject?: { id: string; title: string } | null;
+  linkedProject?: {
+    id: string;
+    title: string;
+    originalBadge?: { label: string; tone: "greenlit" | "pending" | null };
+    latestPitchStatus?: string | null;
+  } | null;
   submittedAt: string | null;
   reviewedAt: string | null;
   createdAt: string;
   creator: { id: string; name: string | null; email: string | null; isAfdaStudent: boolean };
-  _count: { watchSessions: number; ratings: number; comments: number; crewMembers: number };
+  _count: {
+    watchSessions: number;
+    ratings: number;
+    comments: number;
+    crewMembers: number;
+    btsVideos: number;
+    subtitles: number;
+  };
   crewMembers: { name: string; role: string }[];
+  btsVideos: { id: string; title: string; videoUrl: string | null; thumbnail: string | null }[];
+  subtitles: { id: string; language: string; label: string; vttUrl: string; isDefault: boolean }[];
 }
 
 type FeedbackDraftRow = { kind: ReviewFeedbackKind; message: string; presetPath: string };
 
 function AdminPipelineDigest({ projectId }: { projectId: string }) {
-  const { data, isLoading } = useQuery({
-    queryKey: ["admin-project-digest", projectId],
-    queryFn: () => fetch(`/api/admin/projects/${projectId}/digest`).then((r) => r.json()),
-  });
-  if (isLoading) {
-    return <p className="text-xs text-slate-500">Loading pipeline…</p>;
-  }
-  if (!data?.project) return null;
-  const tp = (data.toolProgress ?? []) as { toolId: string; status: string; percent: number }[];
-  const complete = tp.filter((t) => t.status === "COMPLETE").length;
-  const lc = (data.linkedContent ?? []) as { id: string; title: string; reviewStatus: string }[];
-  return (
-    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 space-y-2">
-      <p className="text-xs font-medium text-orange-300/90">Linked project pipeline</p>
-      <p className="text-[11px] text-slate-400">
-        {data.project.title} · {complete}/{tp.length || 0} tools marked complete (snapshot)
-      </p>
-      {lc.length > 0 && (
-        <div className="text-[11px] text-slate-500">
-          <span className="text-slate-400">Catalogue linked: </span>
-          {lc.map((x) => (
-            <span key={x.id} className="mr-2">
-              {x.title} ({x.reviewStatus})
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+  return <AdminProjectReviewDigest projectId={projectId} />;
 }
 
 const STATUS_TABS = [
@@ -275,7 +268,7 @@ export function AdminContentClient() {
       })()}
 
       {loading ? (
-        <div className="flex items-center justify-center py-20"><div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" /></div>
+        <StoryTimeLoadingCenter />
       ) : filtered.length === 0 ? (
         <div className="bg-slate-800/30 border border-slate-700/50 rounded-xl p-10 text-center"><Film className="w-12 h-12 text-slate-600 mx-auto mb-3" /><p className="text-slate-400">No content found.</p></div>
       ) : (
@@ -299,6 +292,12 @@ export function AdminContentClient() {
                       <h3 className="text-white font-semibold">{c.title}</h3>
                       {statusBadge(c.reviewStatus)}
                       {c.featured && <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-400"><Star className="w-3 h-3 inline" /> Featured</span>}
+                      {c.linkedProject?.originalBadge?.tone === "greenlit" && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-300">Story Time Original</span>
+                      )}
+                      {c.linkedProject?.originalBadge?.tone === "pending" && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-300">Originals application</span>
+                      )}
                       {c.creator.isAfdaStudent && <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400">Student</span>}
                     </div>
                     <div className="flex items-center gap-3 text-xs text-slate-400 flex-wrap">
@@ -340,6 +339,7 @@ export function AdminContentClient() {
                         <div><span className="text-slate-500">Country:</span> <span className="text-slate-300">{c.country || "—"}</span></div>
                         <div><span className="text-slate-500">Language:</span> <span className="text-slate-300">{c.language || "—"}</span></div>
                         <div><span className="text-slate-500">Age Rating:</span> <span className="text-slate-300">{c.ageRating || "—"}</span></div>
+                        <div><span className="text-slate-500">Min age:</span> <span className="text-slate-300">{c.minAge > 0 ? `${c.minAge}+` : "—"}</span></div>
                         <div><span className="text-slate-500">Year:</span> <span className="text-slate-300">{c.year || "—"}</span></div>
                         <div><span className="text-slate-500">Duration:</span> <span className="text-slate-300">{c.duration ? `${c.duration} min` : "—"}</span></div>
                         {c.episodes && <div><span className="text-slate-500">Episodes:</span> <span className="text-slate-300">{c.episodes}</span></div>}
@@ -348,16 +348,45 @@ export function AdminContentClient() {
                         <div className="md:col-span-2">
                           <span className="text-slate-500">Linked project: </span>
                           {c.linkedProject ? (
-                            <Link
-                              href={`/admin/projects#${c.linkedProject.id}`}
-                              className="text-orange-400 hover:text-orange-300"
-                            >
-                              {c.linkedProject.title}
-                            </Link>
+                            <>
+                              <Link
+                                href={`/admin/projects#${c.linkedProject.id}`}
+                                className="text-orange-400 hover:text-orange-300"
+                              >
+                                {c.linkedProject.title}
+                              </Link>
+                              {c.linkedProject.originalBadge?.tone === "greenlit" && (
+                                <span className="ml-2 text-[10px] text-orange-300">· Greenlit Original</span>
+                              )}
+                              {c.linkedProject.originalBadge?.tone === "pending" && (
+                                <span className="ml-2 text-[10px] text-sky-300">· Originals application (not greenlit)</span>
+                              )}
+                              {!c.linkedProject.originalBadge?.tone && (
+                                <span className="ml-2 text-[10px] text-slate-500">· Standard pipeline (not an Original)</span>
+                              )}
+                            </>
                           ) : (
                             <span className="text-slate-300">—</span>
                           )}
                         </div>
+                        {parsePlatformScriptVersionId(c.tags) && (
+                          <div className="md:col-span-2">
+                            <span className="text-slate-500">Script source: </span>
+                            <span className="text-emerald-300">Platform Script Writing tool</span>
+                            <span className="text-slate-500"> (version {parsePlatformScriptVersionId(c.tags)?.slice(0, 8)}…)</span>
+                          </div>
+                        )}
+                        {c.advisory && Object.keys(c.advisory).length > 0 && (
+                          <div className="md:col-span-2">
+                            <span className="text-slate-500">Content advisories: </span>
+                            <span className="text-slate-300">
+                              {Object.entries(c.advisory)
+                                .filter(([k, v]) => k !== "compliance" && v === true)
+                                .map(([k]) => k)
+                                .join(", ") || "See compliance block"}
+                            </span>
+                          </div>
+                        )}
                       </div>
 
                       {c.linkedProject?.id && <AdminPipelineDigest projectId={c.linkedProject.id} />}
@@ -374,6 +403,8 @@ export function AdminContentClient() {
                           { label: "Main Video", url: c.videoUrl },
                           { label: "Trailer", url: c.trailerUrl },
                           { label: "Poster", url: c.posterUrl },
+                          { label: "Backdrop", url: c.backdropUrl },
+                          { label: "Script PDF", url: c.scriptUrl },
                         ].map((a) => (
                           <div key={a.label} className="flex items-center gap-2">
                             <span className={`w-2 h-2 rounded-full ${a.url ? "bg-green-400" : "bg-red-400"}`} />
@@ -390,6 +421,40 @@ export function AdminContentClient() {
                       )}
 
                       {c.posterUrl && <img src={c.posterUrl} alt="" className="w-20 h-30 rounded-lg object-cover border border-slate-700/50 mt-3" />}
+
+                      {c.btsVideos.length > 0 && (
+                        <>
+                          <h4 className="text-sm font-medium text-slate-300 mt-4">Behind the scenes ({c.btsVideos.length})</h4>
+                          <ul className="space-y-1 text-xs">
+                            {c.btsVideos.map((b) => (
+                              <li key={b.id}>
+                                {b.videoUrl ? (
+                                  <a href={b.videoUrl} target="_blank" rel="noopener noreferrer" className="text-orange-400 hover:underline">
+                                    {b.title}
+                                  </a>
+                                ) : (
+                                  <span className="text-slate-400">{b.title} (no URL)</span>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        </>
+                      )}
+
+                      {c.subtitles.length > 0 && (
+                        <>
+                          <h4 className="text-sm font-medium text-slate-300 mt-4">Subtitles</h4>
+                          <ul className="space-y-1 text-xs">
+                            {c.subtitles.map((s) => (
+                              <li key={s.id}>
+                                <a href={s.vttUrl} target="_blank" rel="noopener noreferrer" className="text-orange-400 hover:underline">
+                                  {s.label} ({s.language}){s.isDefault ? " · default" : ""}
+                                </a>
+                              </li>
+                            ))}
+                          </ul>
+                        </>
+                      )}
 
                       {c.reviewNote && (
                         <div className="p-3 rounded-lg bg-orange-500/5 border border-orange-500/20 mt-3">

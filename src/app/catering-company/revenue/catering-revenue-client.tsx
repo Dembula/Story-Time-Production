@@ -1,5 +1,6 @@
 "use client";
 
+import { StoryTimeLoader, StoryTimeLoadingCenter } from "@/components/ui/storytime-loader";
 import { useEffect, useState } from "react";
 import { DollarSign, CreditCard } from "lucide-react";
 import { formatZar } from "@/lib/format-currency-zar";
@@ -22,7 +23,7 @@ export function CateringRevenueClient() {
     }).finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <div className="p-8 flex justify-center"><div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" /></div>;
+  if (loading) return <StoryTimeLoadingCenter />;
 
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-8">

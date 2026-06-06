@@ -1,3 +1,5 @@
+import { StoryTimeLoader, StoryTimeLoadingCenter } from "@/components/ui/storytime-loader";
+
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
@@ -7,7 +9,7 @@ import { CreatorAccountClient } from "./creator-account-client";
 function AccountPageFallback() {
   return (
     <div className="flex items-center justify-center min-h-[40vh]">
-      <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+      <StoryTimeLoader size="sm" hideTrack />
     </div>
   );
 }

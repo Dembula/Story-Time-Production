@@ -1,5 +1,6 @@
 "use client";
 
+import { StoryTimeLoader, StoryTimeLoadingCenter } from "@/components/ui/storytime-loader";
 import { useEffect, useState } from "react";
 import {
   Activity, Users, Clock, Globe, Monitor, Shield, Search, Filter,
@@ -40,7 +41,7 @@ export function AdminActivityClient() {
     fetch("/api/admin/activity").then((r) => r.json()).then(setData).finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <div className="flex items-center justify-center min-h-[60vh]"><div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" /></div>;
+  if (loading) return <StoryTimeLoadingCenter />;
 
   const activity = data?.activity || [];
   const signIns = data?.signInsByRole || [];

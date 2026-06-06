@@ -1,5 +1,7 @@
 "use client";
 
+import { StoryTimeLoader, StoryTimeLoadingCenter } from "@/components/ui/storytime-loader";
+
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
@@ -54,7 +56,7 @@ export function JoinCompanyInviteClient({ token }: { token: string }) {
   if (isLoading) {
     return (
       <div className="flex justify-center py-20">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
+        <StoryTimeLoader size="sm" hideTrack />
       </div>
     );
   }

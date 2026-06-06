@@ -1,5 +1,6 @@
 import { requireAdminSession } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
+import { isStoryTimeOriginalGreenlit, getStoryTimeOriginalBadge } from "@/lib/storytime-original";
 
 export default async function AdminProjectsPage() {
   await requireAdminSession();
@@ -52,7 +53,8 @@ export default async function AdminProjectsPage() {
         {projects.map((project) => {
           const latestPitch = project.pitches[0];
           const created = new Date(project.createdAt);
-          const isOriginal = !!latestPitch;
+          const originalBadge = getStoryTimeOriginalBadge(latestPitch);
+          const isOriginal = isStoryTimeOriginalGreenlit(latestPitch);
           const stage = project.status || "DEVELOPMENT";
           const tp = project.toolProgress ?? [];
           const toolsComplete = tp.filter((t) => t.status === "COMPLETE").length;
@@ -70,9 +72,14 @@ export default async function AdminProjectsPage() {
                   <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] text-slate-300">
                     {stage}
                   </span>
-                  {isOriginal && (
+                  {originalBadge.tone === "greenlit" && (
                     <span className="rounded-full border border-orange-500/40 bg-orange-500/10 px-2 py-0.5 text-[10px] text-orange-300">
                       Story Time Original
+                    </span>
+                  )}
+                  {originalBadge.tone === "pending" && (
+                    <span className="rounded-full border border-sky-500/30 bg-sky-500/10 px-2 py-0.5 text-[10px] text-sky-300">
+                      Originals application
                     </span>
                   )}
                 </div>

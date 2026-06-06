@@ -43,7 +43,7 @@ export function ProfilePinModal({
       <div
         role="dialog"
         aria-labelledby="profile-pin-title"
-        className="w-full max-w-md rounded-2xl border border-white/12 bg-[#0a0f1a] p-6 shadow-2xl"
+        className="w-full max-w-md rounded-2xl border border-white/12 bg-black p-6 shadow-2xl"
       >
         <div className="mb-4 flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-orange-400/20 bg-orange-500/10">

@@ -72,7 +72,7 @@ export function ModocViewerPanel({
             role="dialog"
             aria-modal="true"
             aria-labelledby="modoc-viewer-title"
-            className="fixed inset-x-2 bottom-[max(0.5rem,env(safe-area-inset-bottom))] top-[4.5rem] z-[1350] mx-auto flex w-auto max-w-4xl flex-col overflow-hidden rounded-3xl border border-white/15 bg-[linear-gradient(145deg,rgba(10,16,28,0.92),rgba(7,11,20,0.88))] shadow-2xl backdrop-blur-2xl max-md:bottom-[max(0.5rem,env(safe-area-inset-bottom))] max-md:top-[4.5rem] md:inset-x-5 md:bottom-4 md:top-[5.5rem] lg:inset-x-8 lg:top-[6.5rem]"
+            className="fixed inset-x-2 bottom-[max(0.5rem,env(safe-area-inset-bottom))] top-[4.5rem] z-[1350] mx-auto flex w-auto max-w-4xl flex-col overflow-hidden rounded-3xl border border-white/15 bg-[linear-gradient(145deg,rgba(0,0,0,0.96),rgba(0,0,0,0.92))] shadow-2xl backdrop-blur-2xl max-md:bottom-[max(0.5rem,env(safe-area-inset-bottom))] max-md:top-[4.5rem] md:inset-x-5 md:bottom-4 md:top-[5.5rem] lg:inset-x-8 lg:top-[6.5rem]"
             style={{ boxShadow: "0 18px 72px rgba(2, 6, 23, 0.75), inset 0 1px 0 rgba(255,255,255,0.08)" }}
             variants={viewerSheetVariants(isMobile)}
             initial="hidden"

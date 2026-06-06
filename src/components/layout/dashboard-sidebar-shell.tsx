@@ -64,7 +64,7 @@ function NavLinks({
                   className={[
                     "flex items-center gap-2 rounded-lg px-3 py-2 transition",
                     active
-                      ? "bg-white/[0.08] text-white shadow-panel"
+                      ? "border border-orange-500/25 bg-orange-500/[0.08] text-white shadow-[0_0_28px_-14px_rgba(249,115,22,0.55)]"
                       : "text-slate-400 hover:bg-white/[0.05] hover:text-white",
                     item.highlight ? "font-medium text-orange-400 hover:text-orange-300" : "",
                     item.className ?? "",
@@ -188,7 +188,7 @@ export function DashboardSidebarShell({
           />
           <aside
             className={[
-              `fixed bottom-0 left-0 ${headerHeightClass} z-[45] flex w-[min(18rem,88vw)] flex-col border-r border-white/10 bg-[#080c16]/98 shadow-2xl backdrop-blur-md`,
+              `fixed bottom-0 left-0 ${headerHeightClass} z-[45] flex w-[min(18rem,88vw)] flex-col border-r border-white/10 bg-black/98 shadow-2xl backdrop-blur-md`,
               "transition-transform duration-300 ease-out",
               sidebarOpen ? "translate-x-0" : "-translate-x-full pointer-events-none",
             ].join(" ")}

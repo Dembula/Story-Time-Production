@@ -6,8 +6,8 @@ import { useSession } from "next-auth/react";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { AlertTriangle, Lock, ShieldCheck, X } from "lucide-react";
-import { getPayoutKycBannerContent, requiresPayoutKyc } from "@/lib/payout-kyc";
-import type { KycVerificationStatus } from "@/lib/payout-kyc";
+import { getPayoutKycBannerContent, requiresPayoutKyc } from "@/lib/payout-kyc-shared";
+import type { KycVerificationStatus } from "@/lib/payout-kyc-shared";
 
 const VARIANT_STYLES = {
   not_submitted: {

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { validateIdOrPassportByCountry } from "@/lib/kyc-validation";
-import { payoutKycHomePath } from "@/lib/payout-kyc";
+import { payoutKycHomePath } from "@/lib/payout-kyc-shared";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 

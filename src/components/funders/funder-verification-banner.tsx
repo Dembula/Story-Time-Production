@@ -11,7 +11,7 @@ import {
   funderInvestingUnlocked,
   isFunderRole,
   type FunderVerificationStatus,
-} from "@/lib/funder-verification";
+} from "@/lib/funder-verification-shared";
 
 const VARIANT_STYLES = {
   not_submitted: {

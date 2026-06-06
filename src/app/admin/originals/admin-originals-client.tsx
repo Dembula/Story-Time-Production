@@ -1,5 +1,6 @@
 "use client";
 
+import { StoryTimeLoader, StoryTimeLoadingCenter } from "@/components/ui/storytime-loader";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { formatZar } from "@/lib/format-currency-zar";
@@ -237,7 +238,7 @@ export function AdminOriginalsClient() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-10 h-10 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+        <StoryTimeLoader size="sm" hideTrack />
       </div>
     );
   }

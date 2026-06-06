@@ -1,5 +1,6 @@
 "use client";
 
+import { StoryTimeLoader, StoryTimeLoadingCenter } from "@/components/ui/storytime-loader";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { useState, useEffect } from "react";
 import Link from "next/link";
@@ -78,7 +79,7 @@ export default function AdminLoginPage() {
   if (status === "loading") {
     return (
       <div className="relative flex min-h-screen items-center justify-center bg-background px-4">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
+        <StoryTimeLoader size="sm" hideTrack />
       </div>
     );
   }

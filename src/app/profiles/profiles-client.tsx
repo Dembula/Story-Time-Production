@@ -270,7 +270,7 @@ export function ProfilesClient({
       )}
 
       {accountDetailsIncomplete ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/12 bg-[#0a0f1a] px-4 py-3 shadow-panel">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/12 bg-black px-4 py-3 shadow-panel">
           <p className="text-sm text-slate-300">
             Account details (email, phone, billing address) are not complete yet.
           </p>

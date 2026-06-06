@@ -84,8 +84,8 @@ export function ModocCreatorPanel({
         aria-hidden
       />
       <div
-        className="fixed right-0 top-0 bottom-0 w-full max-w-2xl sm:max-w-3xl z-50 flex flex-col overflow-hidden rounded-l-2xl border-l border-cyan-500/30 bg-gradient-to-b from-slate-900/98 to-[#0c1222]/98 shadow-2xl shadow-cyan-500/10"
-        style={{ boxShadow: "-0 0 80px rgba(6, 182, 212, 0.08)" }}
+        className="fixed right-0 top-0 bottom-0 w-full max-w-2xl sm:max-w-3xl z-50 flex flex-col overflow-hidden rounded-l-2xl border-l border-orange-500/25 bg-gradient-to-b from-black/98 to-black shadow-2xl shadow-orange-500/10"
+        style={{ boxShadow: "-0 0 80px rgba(249, 115, 22, 0.08)" }}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700/50 bg-slate-900/50">
           <div className="flex items-center gap-4">

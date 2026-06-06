@@ -63,7 +63,7 @@ export function ViewerProfileMenu({
           />
           <motion.div
             role="menu"
-            className="fixed z-[1210] w-72 overflow-hidden rounded-2xl border border-white/14 bg-[#080c16] py-1 shadow-2xl ring-1 ring-black/40"
+            className="fixed z-[1210] w-72 overflow-hidden rounded-2xl border border-white/14 bg-black py-1 shadow-2xl ring-1 ring-black/40"
             style={{ top: `${position.top}px`, right: `${position.right}px` }}
             variants={modalVariants()}
             initial="hidden"

@@ -1,5 +1,6 @@
 "use client";
 
+import { StoryTimeLoader, StoryTimeLoadingCenter } from "@/components/ui/storytime-loader";
 import { useEffect, useState } from "react";
 import { formatZar } from "@/lib/format-currency-zar";
 import type { MusicCreatorSyncStatsPayload } from "@/lib/financial-ledger";
@@ -50,7 +51,7 @@ export function AdminMusicClient() {
   const totalEarnings = artists.reduce((s, a) => s + a.totalEarnings, 0);
   const totalPlacements = artists.reduce((s, a) => s + a.totalPlacements, 0);
 
-  if (loading) return <div className="flex items-center justify-center min-h-[60vh]"><div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" /></div>;
+  if (loading) return <StoryTimeLoadingCenter />;
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8">

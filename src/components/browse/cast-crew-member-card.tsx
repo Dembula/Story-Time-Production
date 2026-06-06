@@ -97,7 +97,7 @@ export function CastCrewMemberCard({
       </div>
 
       {open && (
-        <div className="absolute left-0 top-full z-50 mt-2 w-72 rounded-2xl border border-white/10 bg-[#0c121c] p-4 shadow-2xl">
+        <div className="absolute left-0 top-full z-50 mt-2 w-72 rounded-2xl border border-white/10 bg-black p-4 shadow-2xl">
           <p className="font-semibold text-white">{member.name}</p>
           <p className="text-xs text-orange-400">{member.role}</p>
           {(person?.bio || member.bio) && (

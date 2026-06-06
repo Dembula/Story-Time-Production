@@ -1,5 +1,7 @@
 "use client";
 
+import { StoryTimeLoader, StoryTimeLoadingCenter } from "@/components/ui/storytime-loader";
+
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { UtensilsCrossed, Upload } from "lucide-react";
@@ -151,7 +153,7 @@ export function CateringProfileClient() {
   if (loading) {
     return (
       <div className="flex justify-center p-8">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
+        <StoryTimeLoader size="sm" hideTrack />
       </div>
     );
   }

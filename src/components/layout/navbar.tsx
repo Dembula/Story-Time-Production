@@ -95,8 +95,8 @@ export function Navbar() {
         "fixed top-0 left-0 right-0 z-50 flex items-center justify-between transition-[background,box-shadow,border-color] duration-300",
         compactNav ? "px-3 py-2.5" : "px-4 py-3 sm:px-6",
         scrolled
-          ? "border-b border-white/12 bg-[#060a14]/94 shadow-[0_8px_32px_rgba(0,0,0,0.35)] backdrop-blur-2xl"
-          : "border-b border-transparent bg-gradient-to-b from-[#060a14]/88 to-transparent backdrop-blur-md",
+          ? "border-b border-white/12 bg-black/94 shadow-[0_8px_32px_rgba(0,0,0,0.35)] backdrop-blur-2xl"
+          : "border-b border-transparent bg-gradient-to-b from-black/88 to-transparent backdrop-blur-md",
       ].join(" ")}
     >
       <div className="flex items-center gap-3 sm:gap-8">

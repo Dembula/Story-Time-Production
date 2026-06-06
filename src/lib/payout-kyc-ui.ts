@@ -1,4 +1,4 @@
-import type { KycVerificationStatus } from "@/lib/payout-kyc";
+import type { KycVerificationStatus } from "@/lib/payout-kyc-shared";
 
 export type PayoutKycBannerVariant =
   | "not_submitted"

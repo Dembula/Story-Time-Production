@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FootageIngestion } from "@/components/project-tools/post/PostProductionWidgets";
+import { DistributionToolPanel } from "@/components/project-tools/post/DistributionToolPanel";
 
 interface PostProductionToolPageProps {
   params: Promise<{ projectId: string; tool: string }>;
@@ -137,7 +138,7 @@ export default function PostProductionToolPage({ params }: PostProductionToolPag
   if (tool === "final-sound-mix") return <FinalSoundMix projectId={projectId} title={title} />;
   if (tool === "final-cut-approval") return <FinalCutApproval projectId={projectId} title={title} />;
   if (tool === "film-packaging") return <FilmPackaging projectId={projectId} title={title} />;
-  if (tool === "distribution") return <Distribution projectId={projectId} title={title} />;
+  if (tool === "distribution") return <DistributionToolPanel projectId={projectId} title={title} />;
 
   return (
     <div className="space-y-4">
@@ -450,91 +451,3 @@ function FilmPackaging({ projectId, title }: { projectId?: string; title: string
   );
 }
 
-function Distribution({ projectId, title }: { projectId?: string; title: string }) {
-  const queryClient = useQueryClient();
-  const hasProject = !!projectId;
-  const { data: deliveryData } = useQuery({
-    queryKey: ["project-final-delivery", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/final-delivery`).then((r) => r.json()),
-    enabled: hasProject,
-  });
-  const { data: subsData } = useQuery({
-    queryKey: ["project-distribution", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/distribution`).then((r) => r.json()),
-    enabled: hasProject,
-  });
-  const delivery = deliveryData?.delivery as { status: string } | null;
-  const submissions = (subsData?.submissions ?? []) as { id: string; target: string; status: string }[];
-  const [target, setTarget] = useState("STORY_TIME");
-  const createMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch(`/api/creator/projects/${projectId}/distribution`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ target }),
-      });
-      if (!res.ok) throw new Error("Failed");
-      return res.json();
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project-distribution", projectId] }),
-  });
-  return (
-    <div className="space-y-4">
-      <header>
-        <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
-        <p className="text-sm text-slate-400 mt-1">Prepare for release. Final delivery and distribution submissions.</p>
-      </header>
-      <div className="creator-glass-panel p-3 space-y-2">
-        <p className="text-xs text-slate-400">Final delivery: {delivery?.status ?? "—"}</p>
-        <div className="flex gap-2 mt-2">
-          <select value={target} onChange={(e) => setTarget(e.target.value)} className="rounded-md bg-slate-900 border border-slate-700 px-2 py-1 text-sm text-white">
-            <option value="STORY_TIME">Story Time</option>
-            <option value="FESTIVAL">Festival</option>
-            <option value="OTHER">Other</option>
-          </select>
-          <Button size="sm" className="bg-orange-500 hover:bg-orange-600" onClick={() => hasProject && createMutation.mutate()} disabled={createMutation.isPending || !hasProject}>Add submission</Button>
-        </div>
-      </div>
-      <div className="creator-glass-panel p-3 space-y-2">
-        {submissions.length === 0 ? (
-          <p className="text-sm text-slate-500">
-            {!hasProject ? "Link a project above to manage distribution." : "No distribution submissions yet."}
-          </p>
-        ) : (
-          submissions.map((s) => (
-            <div key={s.id} className="text-sm text-slate-300">{s.target} · {s.status}</div>
-          ))
-        )}
-      </div>
-      <Link
-        href={hasProject && projectId ? `/creator/upload?projectId=${projectId}` : "/creator/upload"}
-        className="creator-glass-panel block p-4 transition hover:border-orange-400/35"
-      >
-        <h3 className="text-sm font-semibold text-white mb-1">Upload &amp; delivery</h3>
-        <p className="text-xs text-slate-400">
-          {hasProject
-            ? "Open the catalogue wizard with this project linked for tracking."
-            : "Deliver final master and metadata to Story Time."}
-        </p>
-      </Link>
-      {hasProject && (
-        <div className="creator-glass-panel p-4">
-          <ProjectStageControls projectId={projectId!} status="POST_PRODUCTION" phase="EDITING" />
-        </div>
-      )}
-      {hasProject && projectId && (
-        <div className="flex flex-wrap gap-3 text-xs text-slate-400">
-          <Link href={`/creator/projects/${projectId}/post-production/final-cut-approval`} className="hover:text-orange-400">
-            Final cut →
-          </Link>
-          <Link href={`/creator/projects/${projectId}/post-production/film-packaging`} className="hover:text-orange-400">
-            Film packaging →
-          </Link>
-          <Link href={`/creator/projects/${projectId}/post-production/footage-ingestion`} className="hover:text-orange-400">
-            Footage →
-          </Link>
-        </div>
-      )}
-    </div>
-  );
-}

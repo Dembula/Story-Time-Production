@@ -1,5 +1,7 @@
 "use client";
 
+import { StoryTimeLoader, StoryTimeLoadingCenter } from "@/components/ui/storytime-loader";
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, AlertTriangle, CheckCircle, XCircle, Clock, ExternalLink } from "lucide-react";
@@ -50,9 +52,7 @@ export function CatalogueReviewDetailClient({ contentId }: { contentId: string }
 
   if (!data) {
     return (
-      <div className="flex min-h-[40vh] items-center justify-center">
-        <div className="h-10 w-10 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
-      </div>
+      <StoryTimeLoadingCenter />
     );
   }
 

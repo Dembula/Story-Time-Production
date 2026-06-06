@@ -148,7 +148,7 @@ export function BrowseSearchWithModoc({ defaultSearch = "", type, filter }: Prop
             {showRecentDropdown && (
               <motion.div
                 key="recent-dropdown"
-                className="absolute left-0 right-0 top-full z-40 mt-2 overflow-hidden rounded-2xl border border-white/10 bg-[#0a0f18]/92 shadow-2xl backdrop-blur-2xl"
+                className="absolute left-0 right-0 top-full z-40 mt-2 overflow-hidden rounded-2xl border border-white/10 bg-black/92 shadow-2xl backdrop-blur-2xl"
                 variants={viewerDropdownVariants()}
                 initial={prefersReducedMotion ? false : "hidden"}
                 animate="visible"
@@ -197,7 +197,7 @@ export function BrowseSearchWithModoc({ defaultSearch = "", type, filter }: Prop
             {showResultsDropdown && (
               <motion.div
                 key="results-dropdown"
-                className="absolute left-0 right-0 top-full z-40 mt-2 overflow-hidden rounded-2xl border border-white/10 bg-[#0a0f18]/92 shadow-2xl backdrop-blur-2xl"
+                className="absolute left-0 right-0 top-full z-40 mt-2 overflow-hidden rounded-2xl border border-white/10 bg-black/92 shadow-2xl backdrop-blur-2xl"
                 variants={viewerDropdownVariants()}
                 initial={prefersReducedMotion ? false : "hidden"}
                 animate="visible"
@@ -289,7 +289,7 @@ export function BrowseSearchWithModoc({ defaultSearch = "", type, filter }: Prop
           >
             <Bot className="w-6 h-6 text-white" />
           </motion.button>
-          <span className="pointer-events-none absolute left-full z-10 ml-3 whitespace-nowrap rounded-xl border border-white/10 bg-[#0a0f18]/95 px-3 py-1.5 text-sm font-medium text-white opacity-0 shadow-panel transition-opacity duration-200 group-hover:opacity-100">
+          <span className="pointer-events-none absolute left-full z-10 ml-3 whitespace-nowrap rounded-xl border border-white/10 bg-black/95 px-3 py-1.5 text-sm font-medium text-white opacity-0 shadow-panel transition-opacity duration-200 group-hover:opacity-100">
             Ask AI
           </span>
         </div>

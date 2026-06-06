@@ -1,5 +1,6 @@
 "use client";
 
+import { StoryTimeLoader, StoryTimeLoadingCenter } from "@/components/ui/storytime-loader";
 import { useEffect, useState } from "react";
 import { Bell, CreditCard, Gauge, Lock, Mail, MapPin, Plus, Smartphone, Star, Trash2, User, Users } from "lucide-react";
 import { VIEWER_PLAN_CONFIG } from "@/lib/pricing";
@@ -466,7 +467,7 @@ export function SettingsClient() {
   if (loading) {
     return (
       <div className="flex min-h-[30vh] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
+        <StoryTimeLoader size="sm" hideTrack />
       </div>
     );
   }
@@ -899,7 +900,7 @@ export function SettingsClient() {
 
       {showPlanModal ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-3xl rounded-2xl border border-white/10 bg-[#0b1220] p-6 shadow-panel">
+          <div className="w-full max-w-3xl rounded-2xl border border-white/10 bg-black p-6 shadow-panel">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-xl font-semibold text-white">Choose package</h3>
               <button type="button" onClick={() => setShowPlanModal(false)} className="text-sm text-slate-400 hover:text-white">Close</button>

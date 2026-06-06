@@ -30,6 +30,7 @@ const REQUIRED_PRISMA_DELEGATES = [
   "promoCodeRedemption",
 ] as const;
 function prismaSingletonIsStale(client: unknown): boolean {
+  if (typeof window !== "undefined") return false;
   const c = client as Record<string, unknown>;
   return REQUIRED_PRISMA_DELEGATES.some((name) => typeof c[name] === "undefined");
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import { StoryTimeLoader, StoryTimeLoadingCenter } from "@/components/ui/storytime-loader";
+
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -42,9 +44,7 @@ export function CreatorPackageGate({ children }: { children: React.ReactNode }) 
 
   if ((isLoading || isFetching) && data?.packageComplete !== true) {
     return (
-      <div className="flex min-h-[40vh] items-center justify-center">
-        <div className="h-10 w-10 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
-      </div>
+      <StoryTimeLoadingCenter />
     );
   }
 

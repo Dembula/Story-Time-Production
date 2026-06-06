@@ -1,5 +1,6 @@
 "use client";
 
+import { StoryTimeLoader, StoryTimeLoadingCenter } from "@/components/ui/storytime-loader";
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -9,6 +10,7 @@ import {
   Clapperboard, Globe, Tag, Clock, Calendar, Star, Tv, Shield, FileText,
 } from "lucide-react";
 import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
+import { applyPrefillToUploadForm, type ProjectUploadPrefill } from "@/lib/project-upload-prefill";
 import { CheckoutModal } from "@/components/payments/checkout-modal";
 import { MediaDropzone } from "@/components/ecosystem/media-dropzone";
 
@@ -67,22 +69,54 @@ function DistributionUploadInner() {
   const searchParams = useSearchParams();
   const projectIdFromUrl = searchParams.get("projectId");
   const [linkedProject, setLinkedProject] = useState<{ id: string; title: string } | null>(null);
+  const [prefillData, setPrefillData] = useState<ProjectUploadPrefill | null>(null);
+  const [dataSourceMode, setDataSourceMode] = useState<"unset" | "platform" | "manual">("unset");
+  const [scriptSource, setScriptSource] = useState<"platform" | "upload">("upload");
+  const [platformScriptVersionId, setPlatformScriptVersionId] = useState<string | null>(null);
+  const [scriptPreview, setScriptPreview] = useState<string | null>(null);
 
   useEffect(() => {
     if (!projectIdFromUrl) {
       setLinkedProject(null);
+      setPrefillData(null);
+      setDataSourceMode("unset");
       return;
     }
     fetch("/api/creator/projects")
       .then((r) => r.json())
       .then((d) => {
-        const p = (d.projects ?? []).find((x: { id: string }) => x.id === projectIdFromUrl);
+        const p = (d.projects ?? []).find((x: { id: string; title: string }) => x.id === projectIdFromUrl);
         setLinkedProject(
           p ? { id: p.id, title: p.title } : { id: projectIdFromUrl, title: "Your project" },
         );
       })
       .catch(() => setLinkedProject({ id: projectIdFromUrl, title: "Linked project" }));
+
+    fetch(`/api/creator/projects/${projectIdFromUrl}/upload-prefill`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: ProjectUploadPrefill | null) => {
+        if (data) {
+          setPrefillData(data);
+          setDataSourceMode("unset");
+        }
+      })
+      .catch(() => setPrefillData(null));
   }, [projectIdFromUrl]);
+
+  function applyPlatformPrefill() {
+    if (!prefillData) return;
+    const applied = applyPrefillToUploadForm(prefillData, "platform");
+    setForm((f) => ({ ...f, ...applied.formPatch }));
+    setSelectedGenres(applied.selectedGenres);
+    setCrew(applied.crew);
+    setLogline(applied.logline);
+    if (applied.platformScriptVersionId) {
+      setPlatformScriptVersionId(applied.platformScriptVersionId);
+      setScriptSource("platform");
+      setScriptPreview(prefillData.script?.preview ?? null);
+    }
+    setDataSourceMode("platform");
+  }
 
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -271,7 +305,14 @@ function DistributionUploadInner() {
         ...form,
         description: combinedDescriptionParts.join("\n\n"),
         category: selectedGenres.join(", ") || form.category,
-        tags: form.tags || selectedGenres.join(", "),
+        tags: [
+          form.tags || selectedGenres.join(", "),
+          scriptSource === "platform" && platformScriptVersionId
+            ? `platform-script-version:${platformScriptVersionId}`
+            : "",
+        ]
+          .filter(Boolean)
+          .join(", "),
         published: false,
         reviewStatus: asDraft ? "DRAFT" : "PENDING",
         submittedAt: asDraft ? null : new Date().toISOString(),
@@ -387,6 +428,47 @@ function DistributionUploadInner() {
             >
               Clear link
             </button>
+          </div>
+        )}
+
+        {linkedProject && prefillData && dataSourceMode === "unset" && (
+          <div className="creator-glass-panel space-y-4 rounded-xl border border-orange-500/25 p-5">
+            <div>
+              <p className="text-sm font-semibold text-white">How should we prepare this submission?</p>
+              <p className="mt-1 text-xs leading-relaxed text-slate-400">
+                Your project has work in Story Time tools. Import what you already built, or enter and upload everything
+                yourself.
+              </p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={applyPlatformPrefill}
+                className="rounded-xl border border-orange-400/35 bg-orange-500/10 p-4 text-left transition hover:bg-orange-500/15"
+              >
+                <p className="text-sm font-semibold text-orange-100">Use platform data</p>
+                <p className="mt-1 text-xs text-slate-400">
+                  Prefill title, synopsis, cast/crew
+                  {prefillData.sources.script ? ", and link your Script Writing screenplay" : ""}.
+                </p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setDataSourceMode("manual")}
+                className="rounded-xl border border-white/12 bg-white/[0.03] p-4 text-left transition hover:border-white/20"
+              >
+                <p className="text-sm font-semibold text-white">Enter manually</p>
+                <p className="mt-1 text-xs text-slate-400">
+                  Start with a blank form and upload your own video, poster, and script files.
+                </p>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {dataSourceMode === "platform" && (
+          <div className="rounded-xl border border-green-500/25 bg-green-500/10 px-4 py-3 text-xs text-green-100">
+            Platform prefill applied — review each step and upload your master video before submitting.
           </div>
         )}
 
@@ -740,8 +822,52 @@ function DistributionUploadInner() {
               <FileText className="w-4 h-4 text-orange-400" /> Script (PDF)
             </label>
             <p className="text-xs text-slate-500 mb-1">
-              Upload the final production script used for this cut. This is only visible to Story Time admins for review.
+              Upload the final production script used for this cut, or link the screenplay from Script Writing.
             </p>
+            {prefillData?.script && (
+              <div className="flex flex-wrap gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setScriptSource("platform");
+                    setPlatformScriptVersionId(prefillData.script!.versionId);
+                    setScriptPreview(prefillData.script!.preview);
+                    updateField("scriptUrl", "");
+                  }}
+                  className={[
+                    "rounded-lg border px-3 py-1.5",
+                    scriptSource === "platform"
+                      ? "border-orange-400/40 bg-orange-500/15 text-orange-100"
+                      : "border-white/12 text-slate-300",
+                  ].join(" ")}
+                >
+                  Use platform screenplay
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setScriptSource("upload");
+                    setPlatformScriptVersionId(null);
+                    setScriptPreview(null);
+                  }}
+                  className={[
+                    "rounded-lg border px-3 py-1.5",
+                    scriptSource === "upload"
+                      ? "border-orange-400/40 bg-orange-500/15 text-orange-100"
+                      : "border-white/12 text-slate-300",
+                  ].join(" ")}
+                >
+                  Upload external PDF
+                </button>
+              </div>
+            )}
+            {scriptSource === "platform" && scriptPreview && (
+              <div className="max-h-40 overflow-y-auto rounded-xl border border-white/10 bg-black/40 p-3 font-mono text-[11px] leading-relaxed text-slate-300">
+                {scriptPreview}
+                {prefillData?.script && prefillData.script.characterCount > scriptPreview.length ? "…" : null}
+              </div>
+            )}
+            {scriptSource === "upload" && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <input
@@ -782,6 +908,7 @@ function DistributionUploadInner() {
                 </p>
               </div>
             </div>
+            )}
           </div>
 
           {/* BTS videos */}
@@ -1272,7 +1399,7 @@ export default function DistributionUploadPage() {
     <Suspense
       fallback={
         <div className="flex min-h-[50vh] items-center justify-center">
-          <div className="h-10 w-10 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
+          <StoryTimeLoader size="sm" hideTrack />
         </div>
       }
     >
