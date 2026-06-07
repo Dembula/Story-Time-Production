@@ -205,6 +205,9 @@ model User {
   networkMessagesSent   NetworkMessage[]
   incidentReportsCreated IncidentReport[] @relation("IncidentReportCreator")
   incidentResolutionAssigned IncidentReport[] @relation("IncidentResolutionAssignee")
+  calendarEventsOwned   CreatorCalendarEvent[] @relation("CalendarEventOwner")
+  calendarEventsCreated CreatorCalendarEvent[] @relation("CalendarEventCreator")
+  calendarEventsAssigned CreatorCalendarEvent[] @relation("CalendarEventAssignee")
   dailiesNotes          DailiesNote[]
   reviewNotes           ReviewNote[]
 
@@ -311,6 +314,7 @@ model StudioCompany {
 
   profiles   CreatorStudioProfile[]
   teamInvites CreatorStudioTeamInvite[]
+  calendarEvents CreatorCalendarEvent[]
 
   @@index([ownerUserId])
 }
@@ -937,8 +941,40 @@ model OriginalProject {
   capTableEntries      CapTableEntry[]
   revenueEvents        ProjectRevenueEvent[]
   stakeholderPayouts   StakeholderPayout[]
+  calendarEvents     CreatorCalendarEvent[]
 
   @@index([status])
+}
+
+/// Manual calendar entries from Command Center (personal or team-visible).
+model CreatorCalendarEvent {
+  id            String   @id @default(cuid())
+  ownerUserId   String
+  owner         User     @relation("CalendarEventOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  companyId     String?
+  company       StudioCompany? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  projectId     String?
+  project       OriginalProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  title         String
+  description   String?
+  startAt       DateTime
+  endAt         DateTime?
+  allDay        Boolean  @default(true)
+  /// PERSONAL = only owner/assignee; TEAM = visible to studio company members
+  visibility    String   @default("PERSONAL")
+  assigneeId    String?
+  assignee      User?    @relation("CalendarEventAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  createdById   String
+  createdBy     User     @relation("CalendarEventCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([ownerUserId])
+  @@index([companyId])
+  @@index([projectId])
+  @@index([startAt])
+  @@index([assigneeId])
+  @@index([visibility])
 }
 
 model OriginalPitch {

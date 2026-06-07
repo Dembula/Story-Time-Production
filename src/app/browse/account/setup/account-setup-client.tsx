@@ -173,7 +173,7 @@ export function AccountSetupClient() {
         <button
           type="submit"
           disabled={saving}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-500 px-6 py-3 font-semibold text-white shadow-glow hover:bg-orange-400 disabled:opacity-60"
+          className="inline-flex items-center justify-center gap-2 rounded-xl viewer-btn-primary px-6 py-3 font-semibold transition disabled:opacity-60"
         >
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           Save and continue

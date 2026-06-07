@@ -351,6 +351,41 @@ html[data-device-class="tv"] .adaptive-table-mobile {
   --viewer-mobile-dock: 5.25rem;
 }
 
+/* Primary CTA — semi-transparent orange glass (viewer + landing) */
+.viewer-btn-primary {
+  border: 1px solid rgba(251, 146, 60, 0.38);
+  background: linear-gradient(
+    180deg,
+    rgba(251, 146, 60, 0.24) 0%,
+    rgba(234, 88, 12, 0.12) 100%
+  );
+  color: rgb(255, 251, 245);
+  box-shadow:
+    0 12px 36px -14px rgba(251, 146, 60, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.viewer-btn-primary:hover {
+  border-color: rgba(251, 146, 60, 0.52);
+  background: linear-gradient(
+    180deg,
+    rgba(251, 146, 60, 0.34) 0%,
+    rgba(234, 88, 12, 0.2) 100%
+  );
+  color: #fff;
+}
+
+.viewer-btn-primary:disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+html.modoc-viewer-open {
+  overflow: hidden;
+}
+
 html.modoc-viewer-open .browse-mobile-nav {
   opacity: 0;
   pointer-events: none;
@@ -360,12 +395,17 @@ html.modoc-viewer-open .browse-mobile-nav {
     transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.capture-protected-player media-spinner {
-  display: none !important;
+html.modoc-viewer-open [data-browse-chrome] > nav {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-100%);
+  transition:
+    opacity 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-html.modoc-viewer-open {
-  overflow: hidden;
+.capture-protected-player media-spinner {
+  display: none !important;
 }
 
 /* Frosted Story Time loader shell — blurs content beneath, never solid black */

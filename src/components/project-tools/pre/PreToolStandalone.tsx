@@ -1,76 +1,120 @@
 "use client";
 
+
+
 import { Suspense } from "react";
+
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+
 import { useQuery } from "@tanstack/react-query";
+
 import PreProductionToolPageImpl from "@/app/creator/projects/[projectId]/pre-production/[tool]/page";
-import { Skeleton } from "@/components/ui/skeleton";
+
+import { ProjectContextBarStandalone } from "@/components/creator/project-context-bar";
+
+import { projectToolQueryFn } from "@/lib/project-tool-fetch";
+
+
 
 interface PreToolStandaloneProps {
+
   toolSlug: string;
+
   title: string;
+
   description: string;
+
 }
 
+
+
 function PreToolStandaloneContent({ toolSlug }: PreToolStandaloneProps) {
+
   const router = useRouter();
+
   const searchParams = useSearchParams();
+
   const pathname = usePathname();
+
   const projectId = searchParams.get("projectId") ?? "";
 
+
+
   const { data, isLoading } = useQuery({
+
     queryKey: ["creator-projects"],
-    queryFn: () => fetch("/api/creator/projects").then((r) => r.json()),
+
+    queryFn: projectToolQueryFn("/api/creator/projects"),
+
   });
+
+
 
   const projects = (data?.projects ?? []) as { id: string; title: string }[];
 
+
+
   const handleProjectChange = (value: string) => {
-    const params = new URLSearchParams(searchParams.toString());
-    if (!value) {
-      params.delete("projectId");
-    } else {
-      params.set("projectId", value);
+
+    if (value) {
+
+      router.push(`/creator/projects/${value}/pre-production/${toolSlug}`);
+
+      return;
+
     }
+
+    const params = new URLSearchParams(searchParams.toString());
+
+    params.delete("projectId");
+
     const qs = params.toString();
+
     router.push(qs ? `${pathname}?${qs}` : pathname);
+
   };
 
+
+
   return (
+
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <div className="flex flex-col gap-1 text-xs text-slate-300">
-          <span className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
-            Link project (optional)
-          </span>
-          {isLoading ? (
-            <Skeleton className="h-9 w-56 bg-slate-800/60" />
-          ) : (
-            <select
-              value={projectId}
-              onChange={(e) => handleProjectChange(e.target.value)}
-              className="w-56 rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-white outline-none focus:border-orange-500"
-            >
-              <option value="">No project selected</option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.title}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-      </div>
+
+      <ProjectContextBarStandalone
+
+        projectId={projectId}
+
+        projects={projects}
+
+        isLoading={isLoading}
+
+        onChange={handleProjectChange}
+
+      />
+
       <PreProductionToolPageImpl params={Promise.resolve({ projectId: projectId || undefined, tool: toolSlug })} />
+
     </div>
+
   );
+
 }
 
+
+
 export function PreToolStandalone(props: PreToolStandaloneProps) {
+
   return (
+
     <Suspense fallback={<div className="space-y-4 p-4 text-slate-400">Loading…</div>}>
+
       <PreToolStandaloneContent {...props} />
+
     </Suspense>
+
   );
+
 }
+
+
 

@@ -56,7 +56,7 @@ export function DownloadsClient() {
         <p className="mt-2 text-slate-400">Watch saved titles offline when downloads complete.</p>
       </header>
 
-      <div className="cinematic-glass mb-8 flex flex-wrap items-center gap-4 rounded-2xl border border-white/12 bg-[linear-gradient(145deg,rgba(15,23,42,0.65),rgba(2,6,23,0.62))] p-4 shadow-panel">
+      <div className="cinematic-glass mb-8 flex flex-wrap items-center gap-4 rounded-2xl border border-white/12 bg-black/80 p-4 shadow-panel backdrop-blur-xl">
         <div className="flex items-center gap-3">
           <HardDrive className="h-5 w-5 text-orange-300" />
           <div>

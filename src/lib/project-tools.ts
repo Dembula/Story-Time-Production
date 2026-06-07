@@ -421,3 +421,32 @@ export function getProjectToolHref(
   return `/creator/projects/${projectId}/post-production/${tool.toolSlug}`;
 }
 
+/** When leaving a linked project workspace, open the same tool standalone (no project). */
+export function resolveStandaloneFromProjectPath(pathname: string): string {
+  const match = pathname.match(
+    /^\/creator\/projects\/[^/]+\/(pre-production|production|post-production)\/([^/?]+)/,
+  );
+  if (!match) return "/creator/dashboard";
+  const phaseFolder = match[1];
+  const slug = match[2];
+  if (phaseFolder === "pre-production") {
+    const map: Record<string, string> = {
+      "casting-portal": "/creator/cast",
+      "crew-marketplace": "/creator/crew",
+      "location-marketplace": "/creator/locations",
+      "equipment-planning": "/creator/equipment",
+    };
+    return map[slug] ?? `/creator/pre/${slug}`;
+  }
+  if (phaseFolder === "production") {
+    const map: Record<string, string> = {
+      "on-set-catering": "/creator/catering",
+    };
+    return map[slug] ?? `/creator/production/${slug}`;
+  }
+  if (slug === "distribution") return "/creator/upload";
+  if (slug === "footage-ingestion") return "/creator/post/footage-ingestion";
+  if (slug === "music-scoring") return "/creator/music";
+  return "/creator/post-production";
+}
+

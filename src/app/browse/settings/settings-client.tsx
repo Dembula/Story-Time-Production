@@ -530,7 +530,7 @@ export function SettingsClient() {
               </label>
             </div>
           </div>
-          <button type="submit" disabled={savingAccount} className="rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white shadow-glow hover:-translate-y-0.5 hover:bg-orange-400 disabled:opacity-50">
+          <button type="submit" disabled={savingAccount} className="rounded-xl viewer-btn-primary px-4 py-2.5 text-sm font-semibold transition hover:-translate-y-0.5 disabled:opacity-50">
             {savingAccount ? "Saving..." : "Save account details"}
           </button>
         </form>
@@ -685,7 +685,7 @@ export function SettingsClient() {
                         type="button"
                         disabled={!!savingProfileId}
                         onClick={() => saveProfilePin(profile, true)}
-                        className="rounded-lg bg-orange-500 px-3 py-2 text-xs font-semibold text-white hover:bg-orange-400 disabled:opacity-50"
+                        className="rounded-lg viewer-btn-primary px-3 py-2 text-xs font-semibold disabled:opacity-50"
                       >
                         {profile.pinEnabled ? "Update PIN" : "Enable PIN"}
                       </button>
@@ -802,7 +802,7 @@ export function SettingsClient() {
           <button
             type="submit"
             disabled={!isMasterActive || profiles.length >= profileLimit}
-            className="rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white shadow-glow hover:bg-orange-400 disabled:opacity-50"
+            className="rounded-xl viewer-btn-primary px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
           >
             <Plus className="mr-1 inline w-4 h-4" /> Add profile
           </button>
@@ -843,7 +843,7 @@ export function SettingsClient() {
         <p className="mb-4 text-sm text-slate-400">
           Current package: {subscription?.plan ?? "N/A"} · {subscription?.deviceCount ?? 1} devices · {subscription?.profileLimit ?? 1} profiles
         </p>
-        <button type="button" onClick={() => setShowPlanModal(true)} className="rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white shadow-glow hover:bg-orange-400">
+        <button type="button" onClick={() => setShowPlanModal(true)} className="rounded-xl viewer-btn-primary px-4 py-2.5 text-sm font-semibold">
           Change package
         </button>
       </section>
@@ -892,7 +892,7 @@ export function SettingsClient() {
               className="storytime-input w-24 px-3 py-2 text-sm"
             />
           </div>
-          <button type="submit" className="flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white shadow-glow hover:-translate-y-0.5 hover:bg-orange-400">
+          <button type="submit" className="flex items-center gap-2 rounded-xl viewer-btn-primary px-4 py-2.5 text-sm font-semibold transition hover:-translate-y-0.5">
             <Plus className="w-4 h-4" /> Add
           </button>
         </form>

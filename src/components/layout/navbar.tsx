@@ -175,7 +175,7 @@ export function Navbar() {
             <Link href="/auth/signin" className="rounded-xl px-3 py-2 text-sm font-medium text-slate-300 hover:text-white">
               Sign In
             </Link>
-            <Link href="/auth/signup" className="rounded-xl bg-orange-500 px-4 py-2 text-sm font-semibold text-white shadow-glow hover:bg-orange-400">
+            <Link href="/auth/signup" className="rounded-xl viewer-btn-primary px-4 py-2 text-sm font-semibold">
               Sign Up
             </Link>
           </div>

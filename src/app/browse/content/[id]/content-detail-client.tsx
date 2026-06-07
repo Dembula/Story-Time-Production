@@ -168,7 +168,7 @@ export function ContentDetailClient({
             </p>
             <Link
               href="/browse/account/renew"
-              className="inline-flex px-6 py-3 rounded-xl bg-orange-500 text-white font-medium hover:bg-orange-600 transition"
+              className="inline-flex rounded-xl viewer-btn-primary px-6 py-3 font-medium transition"
             >
               Go to Account &amp; renew
             </Link>
@@ -212,7 +212,7 @@ export function ContentDetailClient({
                 type="button"
                 onClick={handlePpvPurchase}
                 disabled={ppvLoading}
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-3 font-semibold text-white transition hover:bg-orange-400 disabled:opacity-50"
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl viewer-btn-primary px-4 py-3 font-semibold transition disabled:opacity-50"
               >
                 {ppvLoading ? "Processing..." : "Pay now"}
               </button>
@@ -346,7 +346,7 @@ export function ContentDetailClient({
                   <button
                     type="button"
                     onClick={() => setShowPpvModal(true)}
-                    className="flex items-center gap-2 rounded-lg bg-orange-500 px-8 py-3.5 font-semibold text-white transition hover:bg-orange-400"
+                    className="flex items-center gap-2 rounded-lg viewer-btn-primary px-8 py-3.5 font-semibold transition"
                   >
                     <Lock className="h-5 w-5" /> Pay now
                   </button>
@@ -410,7 +410,7 @@ export function ContentDetailClient({
               </>
             ) : (
               <>
-                <Link href="/auth/signup" className="flex items-center gap-2 px-8 py-3.5 rounded-lg bg-orange-500 text-white font-semibold hover:bg-orange-600 transition">
+                <Link href="/auth/signup" className="flex items-center gap-2 px-8 py-3.5 rounded-lg viewer-btn-primary font-semibold transition">
                   <Lock className="w-5 h-5" /> Sign up to watch
                 </Link>
                 <Link href="/auth/signin" className="flex items-center gap-2 px-8 py-3.5 rounded-lg bg-slate-700/50 text-white font-semibold hover:bg-slate-600/50 transition border border-slate-600">
@@ -584,7 +584,7 @@ export function ContentDetailClient({
               </div>
               <h3 className="text-xl font-semibold text-white mb-2">Your subscription has ended</h3>
               <p className="text-slate-400 max-w-md mx-auto mb-8">Pay in Account to resume watching.</p>
-              <Link href="/browse/account/renew" className="inline-flex px-8 py-3.5 rounded-lg bg-orange-500 text-white font-semibold hover:bg-orange-600 transition">
+              <Link href="/browse/account/renew" className="inline-flex px-8 py-3.5 rounded-lg viewer-btn-primary font-semibold transition">
                 Go to Account &amp; renew
               </Link>
             </div>
@@ -606,7 +606,7 @@ export function ContentDetailClient({
               <button
                 type="button"
                 onClick={() => setShowPpvModal(true)}
-                className="inline-flex rounded-lg bg-orange-500 px-8 py-3.5 font-semibold text-white transition hover:bg-orange-400"
+                className="inline-flex rounded-lg viewer-btn-primary px-8 py-3.5 font-semibold transition"
               >
                 Pay now
               </button>
@@ -626,7 +626,7 @@ export function ContentDetailClient({
               <p className="mx-auto mb-8 max-w-md text-slate-400">
                 Pay Per View only unlocks one title at a time. Switch this viewer account to a subscription plan for full catalogue access.
               </p>
-              <Link href="/browse/account/renew" className="inline-flex rounded-lg bg-orange-500 px-8 py-3.5 font-semibold text-white transition hover:bg-orange-400">
+              <Link href="/browse/account/renew" className="inline-flex rounded-lg viewer-btn-primary px-8 py-3.5 font-semibold transition">
                 Choose a subscription plan
               </Link>
             </div>
@@ -645,7 +645,7 @@ export function ContentDetailClient({
               <p className="text-slate-400 max-w-md mx-auto mb-8">
                 This content is restricted to viewers aged {contentMinAge} and above. Switch to an adult profile from Who&apos;s watching? to watch.
               </p>
-              <Link href="/profiles" className="inline-flex px-8 py-3.5 rounded-lg bg-orange-500 text-white font-semibold hover:bg-orange-600 transition">
+              <Link href="/profiles" className="inline-flex px-8 py-3.5 rounded-lg viewer-btn-primary font-semibold transition">
                 Switch profile
               </Link>
             </div>
@@ -674,7 +674,7 @@ export function ContentDetailClient({
               <p className="text-slate-400 max-w-md mx-auto mb-8">
                 Create a free account to stream all content.
               </p>
-              <Link href="/auth/signup" className="inline-flex px-8 py-3.5 rounded-lg bg-orange-500 text-white font-semibold hover:bg-orange-600 transition">
+              <Link href="/auth/signup" className="inline-flex px-8 py-3.5 rounded-lg viewer-btn-primary font-semibold transition">
                 Sign Up Free
               </Link>
             </div>

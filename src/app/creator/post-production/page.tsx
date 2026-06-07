@@ -15,7 +15,7 @@ export default function CreatorPostProductionHub() {
       tools={POST_PRODUCTION_HUB_TOOLS}
       sectionProjectsTitle="Choose a project"
       sectionToolsTitle="Jump into a post-production tool"
-      sectionToolsLead="Workspace links open the project tool. For distribution, you can also start the catalogue upload flow tied to a project (see “Upload · project” under Distribution)."
+      sectionToolsLead="Pick a project above, then open a tool — or open a tool directly and link a project from inside the workspace."
       ProjectsIcon={Clapperboard}
       footerSection={
         <section className="storytime-section space-y-4 p-5 md:p-6">
@@ -40,8 +40,7 @@ export default function CreatorPostProductionHub() {
             <Link href="/creator/upload" className="text-orange-400 hover:text-orange-300">
               Catalogue upload
             </Link>{" "}
-            wizard as in the sidebar. Open it from a project (workspace Distribution or the{" "}
-            <span className="text-slate-400">Upload · …</span> chip) to attach the submission to that film for tracking.
+            wizard as in the sidebar. Open it from a project workspace (Distribution tool) to attach the submission to that film for tracking.
           </p>
           <h3 className="flex items-center gap-2 text-xs font-semibold text-slate-300">
             <Music2 className="h-3.5 w-3.5 text-violet-400" />

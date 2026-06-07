@@ -59,7 +59,7 @@ export function AccountClient({ subscription }: { subscription: Subscription }) 
         <CreditCard className="w-12 h-12 text-slate-500 mx-auto mb-4" />
         <h2 className="text-xl font-semibold text-white mb-2">No active subscription</h2>
         <p className="text-slate-400 mb-6">Choose a plan to start watching.</p>
-        <Link href="/onboarding/package" className="inline-flex rounded-xl bg-orange-500 px-6 py-3 font-semibold text-white shadow-glow hover:-translate-y-0.5 hover:bg-orange-400">
+        <Link href="/onboarding/package" className="inline-flex rounded-xl viewer-btn-primary px-6 py-3 font-semibold transition hover:-translate-y-0.5">
           Choose a plan
         </Link>
       </div>
@@ -74,7 +74,7 @@ export function AccountClient({ subscription }: { subscription: Subscription }) 
         <div className="rounded-2xl border border-orange-400/28 bg-orange-500/10 p-6 shadow-panel">
           <h2 className="text-lg font-semibold text-white mb-1">Your subscription has ended</h2>
           <p className="text-slate-300 text-sm mb-4">Pay below to resume watching. Choose a plan and complete payment to restore your account.</p>
-          <Link href="/browse/account/renew" className="inline-flex rounded-xl bg-orange-500 px-5 py-2.5 font-semibold text-white shadow-glow hover:-translate-y-0.5 hover:bg-orange-400">
+          <Link href="/browse/account/renew" className="inline-flex rounded-xl viewer-btn-primary px-5 py-2.5 font-semibold transition hover:-translate-y-0.5">
             Pay &amp; resume subscription
           </Link>
         </div>

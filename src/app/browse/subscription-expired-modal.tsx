@@ -18,7 +18,7 @@ export function SubscriptionExpiredModal({ show }: { show: boolean }) {
         <div className="flex gap-3">
           <Link
             href="/browse/account/renew"
-            className="flex-1 py-3 rounded-xl bg-orange-500 text-white font-medium text-center hover:bg-orange-600 transition"
+            className="flex-1 py-3 rounded-xl viewer-btn-primary font-medium text-center transition"
           >
             Renew subscription
           </Link>

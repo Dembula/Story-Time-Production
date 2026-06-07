@@ -589,6 +589,23 @@ exports.Prisma.OriginalProjectScalarFieldEnum = {
   updatedAt: 'updatedAt'
 };
 
+exports.Prisma.CreatorCalendarEventScalarFieldEnum = {
+  id: 'id',
+  ownerUserId: 'ownerUserId',
+  companyId: 'companyId',
+  projectId: 'projectId',
+  title: 'title',
+  description: 'description',
+  startAt: 'startAt',
+  endAt: 'endAt',
+  allDay: 'allDay',
+  visibility: 'visibility',
+  assigneeId: 'assigneeId',
+  createdById: 'createdById',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
 exports.Prisma.OriginalPitchScalarFieldEnum = {
   id: 'id',
   title: 'title',
@@ -2386,6 +2403,7 @@ exports.Prisma.ModelName = {
   CrewMember: 'CrewMember',
   AuditionPost: 'AuditionPost',
   OriginalProject: 'OriginalProject',
+  CreatorCalendarEvent: 'CreatorCalendarEvent',
   OriginalPitch: 'OriginalPitch',
   OriginalMember: 'OriginalMember',
   LocationListing: 'LocationListing',

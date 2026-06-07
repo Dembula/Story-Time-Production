@@ -52,7 +52,7 @@ export default function RenewPage() {
               type="button"
               onClick={handleRetry}
               disabled={loading}
-              className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-orange-500 px-5 py-3 font-semibold text-white shadow-glow hover:bg-orange-400 disabled:opacity-50"
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl viewer-btn-primary px-5 py-3 font-semibold transition disabled:opacity-50"
             >
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
               Retry saved-card renewal

@@ -154,7 +154,7 @@ export function LandingHeader() {
               <Link href="/auth/creator/signin" className="hidden md:inline-flex rounded-xl px-4 py-2.5 text-sm font-medium text-orange-300 hover:bg-orange-500/10 hover:text-orange-200">
                 Creator Sign In
               </Link>
-              <Link href="/auth/creator/signup" className="hidden md:inline-flex rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white shadow-glow hover:-translate-y-0.5 hover:bg-orange-400">
+              <Link href="/auth/creator/signup" className="hidden md:inline-flex rounded-xl viewer-btn-primary px-5 py-2.5 text-sm font-semibold transition hover:-translate-y-0.5">
                 Creator Sign Up
               </Link>
             </>

@@ -483,7 +483,7 @@ export default async function BrowsePage({
             </p>
             <Link
               href="/auth/signup"
-              className="inline-flex rounded-xl bg-orange-500 px-6 py-3 font-semibold text-white shadow-glow hover:-translate-y-0.5 hover:bg-orange-400"
+              className="inline-flex rounded-xl viewer-btn-primary px-6 py-3 font-semibold transition hover:-translate-y-0.5"
             >
               Create Account
             </Link>

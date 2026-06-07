@@ -7,6 +7,7 @@ import { useState } from "react";
 import { AlertCircle, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProjectStageControls } from "@/app/creator/projects/[projectId]/project-stage-controls";
+import { mutationErrorMessage, projectToolFetch, projectToolQueryFn } from "@/lib/project-tool-fetch";
 
 type DistributionSubmission = {
   id: string;
@@ -26,21 +27,13 @@ export function DistributionToolPanel({ projectId, title }: { projectId?: string
 
   const { data: deliveryData } = useQuery({
     queryKey: ["project-final-delivery", projectId],
-    queryFn: async () => {
-      const res = await fetch(`/api/creator/projects/${projectId}/final-delivery`);
-      if (!res.ok) throw new Error("Could not load delivery status");
-      return res.json();
-    },
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/final-delivery`),
     enabled: hasProject,
   });
 
   const { data: subsData, isError: subsError } = useQuery({
     queryKey: ["project-distribution", projectId],
-    queryFn: async () => {
-      const res = await fetch(`/api/creator/projects/${projectId}/distribution`);
-      if (!res.ok) throw new Error("Could not load submissions");
-      return res.json();
-    },
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/distribution`),
     enabled: hasProject,
   });
 
@@ -49,16 +42,16 @@ export function DistributionToolPanel({ projectId, title }: { projectId?: string
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      setActionError("");
-      const res = await fetch(`/api/creator/projects/${projectId}/distribution`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ target }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Could not create submission");
-      return data as { submission: DistributionSubmission };
+      return projectToolFetch<{ submission: DistributionSubmission }>(
+        `/api/creator/projects/${projectId}/distribution`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ target }),
+        },
+      );
     },
+    onMutate: () => setActionError(""),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["project-distribution", projectId] });
       if (target === "STORY_TIME" && projectId) {
@@ -68,7 +61,7 @@ export function DistributionToolPanel({ projectId, title }: { projectId?: string
         router.push(`/creator/upload?${qs.toString()}`);
       }
     },
-    onError: (err: Error) => setActionError(err.message),
+    onError: (err) => setActionError(mutationErrorMessage(err, "Could not create submission")),
   });
 
   function openUpload(submissionId?: string) {

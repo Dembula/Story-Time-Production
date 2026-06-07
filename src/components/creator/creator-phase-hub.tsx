@@ -72,12 +72,9 @@ export function CreatorPhaseHub({
   const projects: Project[] = data?.projects ?? [];
   const PIcon = ProjectsIcon ?? ClipboardList;
 
-  const projectHref = (tool: ProjectToolMeta, projectId: string) =>
-    getProjectToolHref(projectId, { phase, toolSlug: tool.toolSlug });
-
   const primaryHref = (tool: ProjectToolMeta) =>
     projects[0]
-      ? projectHref(tool, projects[0].id)
+      ? getProjectToolHref(projects[0].id, { phase, toolSlug: tool.toolSlug })
       : standaloneToolHref(phase, tool.toolSlug);
 
   return (
@@ -134,66 +131,13 @@ export function CreatorPhaseHub({
         {sectionToolsLead ? <p className="text-xs text-slate-500">{sectionToolsLead}</p> : null}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {tools.map((tool) => (
-            <div key={tool.id} className="flex flex-col gap-3">
-              <CreatorToolNavCard
-                hub
-                href={primaryHref(tool)}
-                label={tool.label}
-                description={tool.description}
-              />
-              <div className="flex flex-col gap-2 text-xs">
-                <div className="flex flex-wrap gap-2">
-                  {projects.length > 0 ? (
-                    projects.slice(0, 5).map((project) => (
-                      <Link
-                        key={project.id}
-                        href={projectHref(tool, project.id)}
-                        className="inline-flex max-w-[10rem] items-center gap-1 truncate rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-slate-200 transition hover:border-orange-400/35 hover:bg-orange-500/10"
-                      >
-                        Workspace · {project.title}
-                      </Link>
-                    ))
-                  ) : tool.toolSlug === "distribution" && phase === "POST_PRODUCTION" ? (
-                  <span className="text-slate-500">
-                    Use{" "}
-                    <Link href="/creator/upload" className="text-orange-400 hover:text-orange-300">
-                      Upload
-                    </Link>{" "}
-                    or create a project first.
-                  </span>
-                ) : (
-                  <Link
-                    href={standaloneToolHref(phase, tool.toolSlug)}
-                    className="inline-flex items-center gap-1 rounded-full border border-white/[0.1] px-2.5 py-1 text-slate-300 hover:border-orange-400/30 hover:text-white"
-                  >
-                    Open without project
-                  </Link>
-                )}
-                </div>
-                {tool.toolSlug === "distribution" && phase === "POST_PRODUCTION" && projects.length > 0 && (
-                  <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-2.5 py-2">
-                    <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-slate-500">
-                      Catalogue delivery (linked flow)
-                    </p>
-                    <p className="mb-2 text-[11px] text-slate-500">
-                      Same 6-step catalogue wizard — adds a linked-project banner and notes the project on your submission
-                      for reviewers.
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {projects.slice(0, 6).map((project) => (
-                        <Link
-                          key={`up-${project.id}`}
-                          href={`/creator/upload?projectId=${project.id}`}
-                          className="inline-flex max-w-[11rem] items-center gap-1 truncate rounded-full border border-sky-500/25 bg-sky-500/10 px-2.5 py-1 text-sky-200 transition hover:border-sky-400/40 hover:bg-sky-500/15"
-                        >
-                          Upload · {project.title}
-                        </Link>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
+            <CreatorToolNavCard
+              key={tool.id}
+              hub
+              href={primaryHref(tool)}
+              label={tool.label}
+              description={tool.description}
+            />
           ))}
         </div>
       </section>

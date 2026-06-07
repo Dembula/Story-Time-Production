@@ -17,6 +17,8 @@ import { CallSheetGenerator } from "../call-sheet-generator-client";
 import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
 import { formatZar } from "@/lib/format-currency-zar";
 import { CreatorCateringClient } from "@/app/creator/catering/creator-catering-client";
+import { mutationErrorMessage, projectToolFetch, projectToolQueryFn } from "@/lib/project-tool-fetch";
+import { ToolActionError } from "@/components/project-tools/tool-action-error";
 
 interface ProductionToolPageProps {
   params: Promise<{ projectId?: string; tool: string }>;
@@ -234,17 +236,17 @@ function OnSetTasks({ projectId, title }: { projectId?: string; title: string })
   const hasProject = !!projectId;
   const { data, isLoading } = useQuery({
     queryKey: ["project-tasks", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/tasks`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/tasks`),
     enabled: hasProject,
   });
   const { data: scheduleData } = useQuery({
     queryKey: ["project-schedule", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/schedule`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/schedule`),
     enabled: hasProject,
   });
   const { data: scenesData } = useQuery({
     queryKey: ["project-scenes", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/scenes`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/scenes`),
     enabled: hasProject,
   });
   const tasks = useMemo(
@@ -274,10 +276,11 @@ function OnSetTasks({ projectId, title }: { projectId?: string; title: string })
   const [filterDept, setFilterDept] = useState<string>("");
   const [filterShootDayId, setFilterShootDayId] = useState<string>("");
   const [mobileLane, setMobileLane] = useState<"TODO" | "IN_PROGRESS" | "DONE">("TODO");
+  const [actionError, setActionError] = useState("");
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch(`/api/creator/projects/${projectId}/tasks`, {
+      return projectToolFetch(`/api/creator/projects/${projectId}/tasks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -288,15 +291,17 @@ function OnSetTasks({ projectId, title }: { projectId?: string; title: string })
           sceneId: newSceneId || undefined,
         }),
       });
-      if (!res.ok) throw new Error("Failed");
-      return res.json();
     },
+    onMutate: () => setActionError(""),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["project-tasks", projectId] });
       setNewTitle("");
       setNewDepartment("");
       setNewShootDayId("");
       setNewSceneId("");
+    },
+    onError: (err) => {
+      setActionError(mutationErrorMessage(err, "Could not create task. Try again."));
     },
   });
   const updateMutation = useMutation({
@@ -372,6 +377,8 @@ function OnSetTasks({ projectId, title }: { projectId?: string; title: string })
         />
       )}
 
+      <ToolActionError message={actionError} onDismiss={() => setActionError("")} />
+
       <Card className="creator-glass-panel border-0 bg-transparent p-4 shadow-none">
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex-1 min-w-[180px] space-y-1">
@@ -405,12 +412,19 @@ function OnSetTasks({ projectId, title }: { projectId?: string; title: string })
             </select>
           </div>
           <Button
+            type="button"
             size="sm"
             className="bg-orange-500 hover:bg-orange-600"
             disabled={!newTitle.trim() || createMutation.isPending || !hasProject}
-            onClick={() => hasProject && newTitle.trim() && createMutation.mutate()}
+            onClick={() => {
+              if (!hasProject) {
+                setActionError("Link a project to add tasks.");
+                return;
+              }
+              if (newTitle.trim()) createMutation.mutate();
+            }}
           >
-            Add task
+            {createMutation.isPending ? "Adding…" : "Add task"}
           </Button>
         </div>
         <div className="flex flex-wrap items-end gap-3 mt-3 pt-3 border-t border-slate-800">
@@ -710,13 +724,13 @@ function EquipmentTracking({ projectId, title }: { projectId?: string; title: st
   const [uploadingChecklistItemId, setUploadingChecklistItemId] = useState<string | null>(null);
   const { data, isLoading } = useQuery({
     queryKey: ["project-equipment-plan", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/equipment-plan`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/equipment-plan`),
     enabled: hasProject,
     refetchInterval: 5000,
   });
   const { data: scheduleData } = useQuery({
     queryKey: ["project-schedule", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/schedule`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/schedule`),
     enabled: hasProject,
   });
   const items = useMemo(
@@ -2111,7 +2125,7 @@ function DailiesReview({ projectId, title }: { projectId?: string; title: string
   const hasProject = !!projectId;
   const { data, isLoading } = useQuery({
     queryKey: ["project-dailies", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/dailies`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/dailies`),
     enabled: hasProject,
   });
   const batches = (data?.batches ?? []) as {
@@ -2233,12 +2247,12 @@ function ExpenseTracker({ projectId, title }: { projectId?: string; title: strin
   });
   const { data: budgetData } = useQuery({
     queryKey: ["project-budget", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/budget`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/budget`),
     enabled: hasProject,
   });
   const { data: scheduleData } = useQuery({
     queryKey: ["project-schedule", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/schedule`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/schedule`),
     enabled: hasProject,
   });
   const scenes = (scheduleData?.scenes ?? []) as Array<{ id: string; number: string; heading: string | null }>;

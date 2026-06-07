@@ -27,9 +27,9 @@ export function BrowseMobileNav() {
       initial={prefersReducedMotion ? false : { opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ ...viewerSprings.sheet, delay: 0.08 }}
-      className="browse-mobile-nav fixed bottom-0 left-0 right-0 z-40 border-t border-white/12 bg-[linear-gradient(180deg,rgba(8,12,22,0.72),rgba(8,12,22,0.86))] px-2 pb-[max(env(safe-area-inset-bottom),0.45rem)] pt-2 backdrop-blur-2xl md:hidden"
+      className="browse-mobile-nav fixed bottom-0 left-0 right-0 z-40 border-t border-white/10 bg-black/94 px-2 pb-[max(env(safe-area-inset-bottom),0.45rem)] pt-2 backdrop-blur-2xl md:hidden"
     >
-      <ul className="grid grid-cols-4 gap-1 rounded-2xl border border-white/10 bg-white/[0.03] p-1.5 shadow-[0_10px_40px_rgba(2,6,23,0.45)]">
+      <ul className="grid grid-cols-4 gap-1 rounded-2xl border border-white/10 bg-black/80 p-1.5 shadow-[0_10px_40px_rgba(0,0,0,0.55)]">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const active = tab.match(pathname);

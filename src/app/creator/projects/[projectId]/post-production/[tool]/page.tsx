@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FootageIngestion } from "@/components/project-tools/post/PostProductionWidgets";
 import { DistributionToolPanel } from "@/components/project-tools/post/DistributionToolPanel";
+import { projectToolQueryFn } from "@/lib/project-tool-fetch";
 
 interface PostProductionToolPageProps {
   params: Promise<{ projectId: string; tool: string }>;
@@ -41,7 +42,7 @@ function PostDepartmentTaskHub({
   const queryClient = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ["project-tasks", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/tasks`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/tasks`),
     enabled: !!projectId,
   });
   const tasks = ((data?.tasks ?? []) as { id: string; title: string; status: string; department: string | null }[]).filter(
@@ -154,12 +155,12 @@ function EditingStudio({ projectId, title }: { projectId?: string; title: string
   const hasProject = !!projectId;
   const { data: reviewsData } = useQuery({
     queryKey: ["project-reviews", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/reviews`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/reviews`),
     enabled: hasProject,
   });
   const { data: footageData } = useQuery({
     queryKey: ["project-footage", projectId, "EDIT"],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/footage?type=EDIT`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/footage?type=EDIT`),
     enabled: hasProject,
   });
   const reviews = (reviewsData?.reviews ?? []) as { id: string; status: string; cutAssetId: string | null; notes: { body: string }[] }[];
@@ -232,7 +233,7 @@ function MusicScoring({ projectId, title }: { projectId?: string; title: string 
   const hasProject = !!projectId;
   const { data, isLoading } = useQuery({
     queryKey: ["project-music-selection", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/music-selection`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/music-selection`),
     enabled: hasProject,
   });
   const selections = (data?.selections ?? []) as { id: string; usage: string | null; notes: string | null; track?: { title: string } }[];
@@ -338,12 +339,12 @@ function FinalCutApproval({ projectId, title }: { projectId?: string; title: str
   const hasProject = !!projectId;
   const { data: reviewsData } = useQuery({
     queryKey: ["project-reviews", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/reviews`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/reviews`),
     enabled: hasProject,
   });
   const { data: deliveryData } = useQuery({
     queryKey: ["project-final-delivery", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/final-delivery`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/final-delivery`),
     enabled: hasProject,
   });
   const reviews = (reviewsData?.reviews ?? []) as { id: string; status: string }[];
@@ -393,7 +394,7 @@ function FilmPackaging({ projectId, title }: { projectId?: string; title: string
   const hasProject = !!projectId;
   const { data } = useQuery({
     queryKey: ["project-footage", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/footage`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/footage`),
     enabled: hasProject,
   });
   const assets = (data?.assets ?? []) as { type: string; label: string | null }[];

@@ -225,6 +225,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ projec
 
   const existing = await prisma.projectBudget.findUnique({
     where: { projectId },
+    include: { lines: true },
   });
   if (existing) {
     return NextResponse.json({ budget: existing }, { status: 200 });
@@ -237,6 +238,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ projec
       currency: "ZAR",
       totalPlanned: 0,
     },
+    include: { lines: true },
   });
   return NextResponse.json({ budget }, { status: 201 });
 }

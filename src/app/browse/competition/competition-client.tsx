@@ -98,13 +98,13 @@ export function CompetitionClient({
               <button
                 key={c.id}
                 onClick={() => setSelectedCreatorId(c.id)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition ${selectedCreatorId === c.id ? "bg-orange-500 text-white" : "bg-slate-700/50 text-slate-300 hover:bg-slate-700"}`}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition ${selectedCreatorId === c.id ? "viewer-btn-primary" : "bg-black/40 border border-white/10 text-slate-300 hover:bg-white/[0.06]"}`}
               >
                 {c.name || "Unknown"}
               </button>
             ))}
           </div>
-          <button onClick={vote} disabled={!selectedCreatorId || loading} className="mt-4 px-6 py-2.5 rounded-lg bg-orange-500 text-white font-medium hover:bg-orange-600 disabled:opacity-50">
+          <button onClick={vote} disabled={!selectedCreatorId || loading} className="mt-4 rounded-lg viewer-btn-primary px-6 py-2.5 font-medium disabled:opacity-50">
             {loading ? "Submitting…" : "Submit vote"}
           </button>
         </div>

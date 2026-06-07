@@ -15,7 +15,7 @@ export function LandingCta() {
               Story Time is for creators who want more than exposure. It is for those who want to shape culture, protect their work, and take part in building the future architecture of storytelling itself.
             </p>
             <div className="flex flex-wrap justify-center gap-3 sm:gap-4">
-              <Link href="/auth/creator/signup" className="rounded-2xl bg-orange-500 px-6 py-3 text-sm sm:px-8 sm:py-3.5 sm:text-base font-semibold text-white shadow-glow hover:-translate-y-0.5 hover:bg-orange-400">
+              <Link href="/auth/creator/signup" className="rounded-2xl viewer-btn-primary px-6 py-3 text-sm sm:px-8 sm:py-3.5 sm:text-base font-semibold transition hover:-translate-y-0.5">
                 Start Building
               </Link>
               <Link href="/auth/signup" className="storytime-panel rounded-2xl px-6 py-3 text-sm sm:px-8 sm:py-3.5 sm:text-base font-semibold text-white hover:-translate-y-0.5 hover:bg-white/[0.04]">

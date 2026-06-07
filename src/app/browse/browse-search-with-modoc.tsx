@@ -269,7 +269,7 @@ export function BrowseSearchWithModoc({ defaultSearch = "", type, filter }: Prop
             whileHover={prefersReducedMotion ? undefined : { y: -2, scale: 1.01 }}
             whileTap={prefersReducedMotion ? undefined : { scale: 0.98 }}
             transition={viewerSprings.lift}
-            className="viewer-motion-surface rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500 px-5 py-3 font-semibold text-white shadow-glow hover:from-orange-400 hover:to-amber-400"
+            className="viewer-motion-surface viewer-btn-primary rounded-2xl px-5 py-3 font-semibold transition hover:-translate-y-0.5"
           >
             Search
           </motion.button>

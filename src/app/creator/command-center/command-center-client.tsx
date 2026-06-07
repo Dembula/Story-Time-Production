@@ -34,6 +34,7 @@ import type { CreatorSuiteAccessMap } from "@/lib/creator-suite-access";
 import { PAYEE_DASHBOARD_REFETCH_MS } from "@/lib/dashboard-refresh";
 import { formatZar } from "@/lib/format-currency-zar";
 import { OpsMetricCard, OpsQuickActions } from "@/components/ecosystem/ops-shell";
+import { CommandCenterCalendar } from "@/components/creator/command-center-calendar";
 
 type RevenueData = {
   revenue: number;
@@ -262,15 +263,31 @@ export function CommandCenterClient() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <StoryTimeLoader size="sm" hideTrack />
+      <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8">
+        <div>
+          <h1 className="mb-2 flex items-center gap-3 font-display text-2xl font-semibold text-white md:text-3xl">
+            <Radio className="w-8 h-8 text-orange-500" />
+            Command Center
+          </h1>
+        </div>
+        <CommandCenterCalendar />
+        <div className="flex items-center justify-center min-h-[30vh]">
+          <StoryTimeLoader size="sm" hideTrack />
+        </div>
       </div>
     );
   }
 
   if (!cc) {
     return (
-      <div className="p-4 md:p-8 max-w-7xl mx-auto">
+      <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8">
+        <div>
+          <h1 className="mb-2 flex items-center gap-3 font-display text-2xl font-semibold text-white md:text-3xl">
+            <Radio className="w-8 h-8 text-orange-500" />
+            Command Center
+          </h1>
+        </div>
+        <CommandCenterCalendar />
         <div className="rounded-xl border border-red-400/25 bg-red-500/10 p-4 text-sm text-red-100">
           Command Center could not load analytics. Refresh the page or try again in a moment.
         </div>
@@ -319,6 +336,8 @@ export function CommandCenterClient() {
           prompt="I am viewing the Story Time Command Center. Using revenue, engagement, content performance, projects, production incidents, call sheets, and AI usage in your context: synthesize priorities, risks, and 4 concrete next actions to grow views and ZAR."
         />
       )}
+
+      <CommandCenterCalendar />
 
       <div className="cinematic-glass rounded-2xl border border-white/8 p-4 md:p-5">
         <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Executive snapshot</p>

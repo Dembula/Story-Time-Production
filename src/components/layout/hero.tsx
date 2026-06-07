@@ -43,7 +43,7 @@ export function Hero({ content }: { content: Content[] }) {
           </p>
           <Link
             href="/auth/signup"
-            className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-8 py-3 font-semibold text-white shadow-glow hover:bg-orange-400"
+            className="inline-flex items-center gap-2 rounded-xl viewer-btn-primary px-8 py-3 font-semibold transition hover:-translate-y-0.5"
           >
             Get Started
           </Link>

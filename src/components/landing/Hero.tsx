@@ -153,7 +153,7 @@ export function Hero() {
             >
               <Link
                 href="/auth/signin"
-                className="group flex w-full items-center justify-center gap-2.5 rounded-2xl border border-orange-400/35 bg-gradient-to-b from-orange-500 to-orange-600 px-6 py-3.5 text-sm font-semibold text-white shadow-[0_16px_48px_-14px_rgba(249,115,22,0.75)] transition active:scale-[0.98]"
+                className="group flex w-full items-center justify-center gap-2.5 rounded-2xl viewer-btn-primary px-6 py-3.5 text-sm font-semibold transition active:scale-[0.98]"
               >
                 <Play className="h-5 w-5 fill-white" />
                 Enter Platform
@@ -186,7 +186,7 @@ export function Hero() {
             <div className="mb-8 flex flex-wrap gap-4">
               <Link
                 href="/auth/signin"
-                className="group flex items-center gap-2 rounded-2xl bg-orange-500 px-8 py-3.5 text-base font-semibold text-white shadow-glow hover:-translate-y-0.5 hover:bg-orange-400"
+                className="group flex items-center gap-2 rounded-2xl viewer-btn-primary px-8 py-3.5 text-base font-semibold transition hover:-translate-y-0.5"
               >
                 <Play className="h-5 w-5" />
                 Enter Platform

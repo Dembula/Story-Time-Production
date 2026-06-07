@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { ensureProjectAccess } from "@/lib/project-access";
 import { prisma } from "@/lib/prisma";
-import { parseEmbeddedMeta, type EquipmentMarketMeta } from "@/lib/marketplace-profile-meta";
 import {
   CONTRACT_STATUS,
   SIGNED_CONTRACT_STATUSES,
@@ -10,226 +11,32 @@ import {
   getTemplateByType,
   getTemplatePlaceholders,
   mapLegacyContractType,
-  renderTemplate,
   statusToTone,
   type ContractTemplateType,
 } from "@/lib/contract-template-engine";
+import {
+  buildRenderedContract,
+  emptyFieldValues,
+  mergeFieldValues,
+  projectFieldValues,
+  resourceFieldValues,
+  isContractEditable,
+} from "@/lib/contract-prefill";
+import {
+  buildContractResourceContext,
+  findResourceInContext,
+} from "@/lib/contract-resource-context";
 
 interface Params {
   params: Promise<{ projectId: string }>;
 }
 
-const ROLE_LINK_MARKER_PREFIX = "castingRoleId:";
-const NEED_LINK_MARKER_PREFIX = "crewNeedId:";
-
-function zCurrency(amount: number | null | undefined) {
-  if (amount == null || !Number.isFinite(amount)) return "TBD";
-  return `R${amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
-}
-
-function toDateOnly(value: Date | string | null | undefined): string {
-  if (!value) return "TBD";
-  const d = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(d.getTime())) return "TBD";
-  return d.toISOString().slice(0, 10);
-}
-
-async function buildContractResourceContext(projectId: string, creatorId: string) {
-  const [project, budget, actorRoles, crewNeeds, locationBreakdowns, equipmentItems] = await Promise.all([
-    prisma.originalProject.findUnique({
-      where: { id: projectId },
-      include: {
-        pitches: {
-          orderBy: { createdAt: "desc" },
-          take: 1,
-          include: { creator: { select: { id: true, name: true, email: true } } },
-        },
-        shootDays: { orderBy: { date: "asc" }, select: { date: true } },
-      },
-    }),
-    prisma.projectBudget.findUnique({
-      where: { projectId },
-      include: { lines: true },
-    }),
-    prisma.castingRole.findMany({
-      where: { projectId },
-      orderBy: { createdAt: "asc" },
-      include: {
-        invitations: {
-          where: { status: "ACCEPTED" },
-          orderBy: { respondedAt: "desc" },
-          take: 1,
-          include: { talent: { include: { castingAgency: true } } },
-        },
-      },
-    }),
-    prisma.crewRoleNeed.findMany({
-      where: { projectId },
-      orderBy: { createdAt: "asc" },
-    }),
-    prisma.breakdownLocation.findMany({
-      where: { projectId },
-      include: {
-        locationListing: {
-          include: {
-            bookings: { orderBy: { createdAt: "desc" }, take: 1 },
-            company: { select: { id: true, name: true, email: true } },
-          },
-        },
-      },
-    }),
-    prisma.equipmentPlanItem.findMany({
-      where: { projectId },
-      orderBy: { createdAt: "asc" },
-      include: {
-        equipmentListing: {
-          include: {
-            company: { select: { id: true, name: true, email: true } },
-            requests: { orderBy: { createdAt: "desc" }, take: 1 },
-          },
-        },
-      },
-    }),
-  ]);
-
-  if (!project) return null;
-
-  const earliestDay = project.shootDays[0]?.date ?? null;
-  const latestDay = project.shootDays[project.shootDays.length - 1]?.date ?? null;
-  const productionCompany =
-    project.pitches[0]?.productionCompany ||
-    project.pitches[0]?.creator?.name ||
-    "Story Time Production";
-
-  const actorResources = actorRoles.map((role) => {
-    const accepted = role.invitations[0];
-    const talent = accepted?.talent ?? null;
-    const marker = `${ROLE_LINK_MARKER_PREFIX}${role.id}`;
-    const line = budget?.lines.find((l) => (l.notes ?? "").includes(marker));
-    return {
-      id: role.id,
-      kind: "ACTOR" as const,
-      partyName: talent?.name ?? role.name,
-      partyType: talent?.castingAgency?.agencyName ? "COMPANY" : "INDIVIDUAL",
-      role: role.name,
-      rate: zCurrency(line?.unitCost ?? null),
-      paymentTerms: "Per project schedule and approved payroll cycle",
-      startDate: toDateOnly(earliestDay),
-      endDate: toDateOnly(latestDay),
-      projectInvolvement: role.description || "Included in casting schedule and shoot plan",
-      locationName: "N/A",
-      equipmentList: "N/A",
-      counterpartyUserId: null as string | null,
-      castingTalentId: talent?.id ?? null,
-      crewTeamId: null as string | null,
-      locationListingId: null as string | null,
-      vendorName: talent?.castingAgency?.agencyName ?? null,
-      label: `${role.name} · ${talent?.name ?? "Unassigned actor"}`,
-    };
-  });
-
-  const creatorCrew = await prisma.creatorCrewRoster.findMany({
-    where: { creatorId },
-    orderBy: { updatedAt: "desc" },
-  });
-
-  const crewResources = crewNeeds.map((need) => {
-    const marker = `${NEED_LINK_MARKER_PREFIX}${need.id}`;
-    const budgetLine = budget?.lines.find((l) => (l.notes ?? "").includes(marker));
-    const roster = creatorCrew.find((m) => (m.notes ?? "").includes(marker));
-    return {
-      id: need.id,
-      kind: "CREW" as const,
-      partyName: roster?.name ?? need.role,
-      partyType: "INDIVIDUAL",
-      role: `${need.department ?? "Crew"} / ${need.role}`,
-      rate: zCurrency(budgetLine?.unitCost ?? null),
-      paymentTerms: "Per timesheet approval and production payroll terms",
-      startDate: toDateOnly(earliestDay),
-      endDate: toDateOnly(latestDay),
-      projectInvolvement: `Assigned need: ${need.role}`,
-      locationName: "N/A",
-      equipmentList: "N/A",
-      counterpartyUserId: null as string | null,
-      castingTalentId: null as string | null,
-      crewTeamId: null as string | null,
-      locationListingId: null as string | null,
-      vendorName: null as string | null,
-      label: `${need.role} · ${roster?.name ?? "Unassigned crew"}`,
-    };
-  });
-
-  const locationResources = locationBreakdowns
-    .filter((loc) => loc.locationListing)
-    .map((loc) => {
-      const listing = loc.locationListing!;
-      const booking = listing.bookings[0];
-      return {
-        id: loc.id,
-        kind: "LOCATION" as const,
-        partyName: listing.company?.name ?? listing.name,
-        partyType: listing.companyId ? "COMPANY" : "INDIVIDUAL",
-        role: "Location use agreement",
-        rate: zCurrency(listing.dailyRate ?? null),
-        paymentTerms: "Per booking confirmation and usage compliance",
-        startDate: booking?.startDate ?? toDateOnly(earliestDay),
-        endDate: booking?.endDate ?? toDateOnly(latestDay),
-        projectInvolvement: loc.name,
-        locationName: listing.name,
-        equipmentList: "N/A",
-        counterpartyUserId: listing.companyId ?? null,
-        castingTalentId: null as string | null,
-        crewTeamId: null as string | null,
-        locationListingId: listing.id,
-        vendorName: null as string | null,
-        label: `${listing.name} · ${loc.name}`,
-      };
-    });
-
-  const equipmentResources = equipmentItems
-    .filter((item) => item.equipmentListing)
-    .map((item) => {
-      const listing = item.equipmentListing!;
-      const meta = parseEmbeddedMeta<EquipmentMarketMeta>(listing.description);
-      const req = listing.requests[0];
-      return {
-        id: item.id,
-        kind: "EQUIPMENT" as const,
-        partyName: listing.company?.name ?? listing.companyName,
-        partyType: listing.companyId ? "COMPANY" : "INDIVIDUAL",
-        role: `${item.category} rental`,
-        rate: zCurrency(meta.meta?.dailyRate ?? null),
-        paymentTerms: "Per rental terms and return condition checklist",
-        startDate: req?.startDate ?? toDateOnly(earliestDay),
-        endDate: req?.endDate ?? toDateOnly(latestDay),
-        projectInvolvement: `${item.category} (qty ${item.quantity})`,
-        locationName: "N/A",
-        equipmentList: item.description || meta.plain || `${item.category} x${item.quantity}`,
-        counterpartyUserId: listing.companyId ?? null,
-        castingTalentId: null as string | null,
-        crewTeamId: null as string | null,
-        locationListingId: null as string | null,
-        vendorName: listing.companyName,
-        label: `${listing.companyName} · ${item.category} x${item.quantity}`,
-        equipmentListingId: listing.id,
-      };
-    });
-
-  return {
-    project: {
-      id: project.id,
-      title: project.title,
-      productionCompany,
-      startDate: toDateOnly(earliestDay),
-      endDate: toDateOnly(latestDay),
-    },
-    resources: {
-      actors: actorResources,
-      crew: crewResources,
-      locations: locationResources,
-      equipment: equipmentResources,
-    },
-  };
+function buildTermsFromBody(
+  templateType: ContractTemplateType,
+  fields: Record<string, string>,
+  templateBodyOverride?: string | null,
+) {
+  return buildRenderedContract(templateType, mergeFieldValues(emptyFieldValues(), fields), templateBodyOverride ?? undefined);
 }
 
 export async function GET(_req: NextRequest, { params }: Params) {
@@ -242,11 +49,12 @@ export async function GET(_req: NextRequest, { params }: Params) {
       where: { projectId },
       orderBy: { createdAt: "desc" },
       include: {
-        versions: { orderBy: { version: "desc" }, take: 1 },
-        signatures: true,
+        versions: { orderBy: { version: "desc" } },
+        signatures: { orderBy: { signedAt: "asc" } },
         castingTalent: { select: { id: true, name: true } },
         crewTeam: { select: { id: true, companyName: true } },
         locationListing: { select: { id: true, name: true } },
+        createdBy: { select: { id: true, name: true } },
       },
     }),
     buildContractResourceContext(projectId, access.userId!),
@@ -255,6 +63,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const signed = contracts.filter((c) => SIGNED_CONTRACT_STATUSES.has(c.status)).length;
   const sent = contracts.filter((c) => c.status === CONTRACT_STATUS.SENT || c.status === CONTRACT_STATUS.VIEWED).length;
   const drafts = contracts.filter((c) => c.status === CONTRACT_STATUS.DRAFT).length;
+  const rejected = contracts.filter((c) => c.status === CONTRACT_STATUS.REJECTED).length;
   const needsSignature = contracts.filter((c) => !SIGNED_CONTRACT_STATUSES.has(c.status)).length;
 
   return NextResponse.json({
@@ -264,6 +73,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
       description: t.description,
       body: t.body,
       placeholders: getTemplatePlaceholders(t.body),
+      resourceKinds: t.resourceKinds,
+      legalReferences: t.legalReferences,
     })),
     defaultDisclaimer: getDefaultDisclaimer(),
     resourceContext: context,
@@ -272,6 +83,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
       signed,
       sent,
       drafts,
+      rejected,
       unconfirmed: needsSignature,
     },
     contracts: contracts.map((c) => ({
@@ -280,6 +92,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
       normalizedType: mapLegacyContractType(c.type),
       status: c.status,
       statusTone: statusToTone(c.status),
+      editable: isContractEditable(c.status),
+      viewOnly: SIGNED_CONTRACT_STATUSES.has(c.status),
       subject: c.subject,
       createdAt: c.createdAt,
       latestVersion: c.versions[0]
@@ -287,15 +101,28 @@ export async function GET(_req: NextRequest, { params }: Params) {
             id: c.versions[0].id,
             version: c.versions[0].version,
             terms: c.versions[0].terms,
+            changeNotes: c.versions[0].changeNotes,
             createdAt: c.versions[0].createdAt,
           }
         : null,
+      versions: c.versions.map((v) => ({
+        id: v.id,
+        version: v.version,
+        changeNotes: v.changeNotes,
+        createdAt: v.createdAt,
+      })),
+      signatures: c.signatures.map((s) => ({
+        id: s.id,
+        name: s.name,
+        role: s.role,
+        signedAt: s.signedAt,
+      })),
       signaturesCount: c.signatures.length,
       actor: c.castingTalent ? { id: c.castingTalent.id, name: c.castingTalent.name } : null,
       crewTeam: c.crewTeam ? { id: c.crewTeam.id, name: c.crewTeam.companyName } : null,
       location:
         c.locationListing && "name" in c.locationListing
-          ? { id: c.locationListing.id, name: (c.locationListing as any).name as string }
+          ? { id: c.locationListing.id, name: (c.locationListing as { name: string }).name }
           : null,
       vendorName: c.vendorName,
     })),
@@ -312,7 +139,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     | {
         type?: string;
         templateType?: ContractTemplateType;
-        resourceType?: "ACTOR" | "CREW" | "LOCATION" | "EQUIPMENT" | "GENERAL";
+        resourceType?: "ACTOR" | "CREW" | "LOCATION" | "EQUIPMENT" | "CATERING" | "FUNDING" | "GENERAL";
         resourceId?: string | null;
         subject?: string | null;
         counterpartyUserId?: string | null;
@@ -321,6 +148,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         locationListingId?: string | null;
         vendorName?: string | null;
         terms?: string;
+        fields?: Record<string, string>;
         templateBody?: string | null;
         customClauses?: string | null;
         paymentTerms?: string | null;
@@ -343,35 +171,31 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Project not found" }, { status: 404 });
   }
 
-  const selectedResource =
-    body.resourceType === "ACTOR"
-      ? resourceContext.resources.actors.find((r) => r.id === body.resourceId)
-      : body.resourceType === "CREW"
-      ? resourceContext.resources.crew.find((r) => r.id === body.resourceId)
-      : body.resourceType === "LOCATION"
-      ? resourceContext.resources.locations.find((r) => r.id === body.resourceId)
-      : body.resourceType === "EQUIPMENT"
-      ? resourceContext.resources.equipment.find((r) => r.id === body.resourceId)
-      : null;
+  const selectedResource = findResourceInContext(
+    resourceContext,
+    body.resourceType ?? "GENERAL",
+    body.resourceId,
+  );
+
+  const mergedFields = mergeFieldValues(
+    emptyFieldValues(),
+    projectFieldValues(resourceContext.project),
+    selectedResource ? resourceFieldValues(selectedResource) : {},
+    body.fields ?? {},
+    {
+      role: body.role ?? undefined,
+      rate: body.rate ?? undefined,
+      payment_terms: body.paymentTerms ?? undefined,
+      start_date: body.startDate ?? undefined,
+      end_date: body.endDate ?? undefined,
+      custom_clauses: body.customClauses ?? undefined,
+      party_name: body.vendorName ?? undefined,
+    },
+  );
 
   const termsForVersion =
     body.terms?.trim() ||
-    renderTemplate(body.templateBody?.trim() || template.body, {
-      production_name: resourceContext.project.title,
-      production_company: resourceContext.project.productionCompany,
-      party_name: selectedResource?.partyName ?? body.vendorName ?? "TBD",
-      party_type: selectedResource?.partyType ?? "INDIVIDUAL",
-      role: body.role ?? selectedResource?.role ?? "General Services",
-      rate: body.rate ?? selectedResource?.rate ?? "TBD",
-      payment_terms: body.paymentTerms ?? selectedResource?.paymentTerms ?? "As agreed between parties",
-      start_date: body.startDate ?? selectedResource?.startDate ?? resourceContext.project.startDate,
-      end_date: body.endDate ?? selectedResource?.endDate ?? resourceContext.project.endDate,
-      project_involvement: selectedResource?.projectInvolvement ?? "Defined in schedule",
-      location_name: selectedResource?.locationName ?? "N/A",
-      equipment_list: selectedResource?.equipmentList ?? "N/A",
-      custom_clauses: body.customClauses ?? "None specified.",
-      legal_disclaimer: getDefaultDisclaimer(),
-    });
+    buildTermsFromBody(templateType, mergedFields, body.templateBody ?? template.body);
 
   const contractType = body.type ?? template.type;
   const initialStatus = body.sendContract ? CONTRACT_STATUS.SENT : CONTRACT_STATUS.DRAFT;
@@ -383,7 +207,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       status: initialStatus,
       subject:
         body.subject ??
-        `${template.label} · ${selectedResource?.partyName ?? body.vendorName ?? "Counterparty"}`,
+        `${template.label}${selectedResource?.partyName ? ` · ${selectedResource.partyName}` : body.vendorName ? ` · ${body.vendorName}` : ""}`,
       counterpartyUserId: body.counterpartyUserId ?? selectedResource?.counterpartyUserId ?? null,
       castingTalentId: body.castingTalentId ?? selectedResource?.castingTalentId ?? null,
       crewTeamId: body.crewTeamId ?? selectedResource?.crewTeamId ?? null,
@@ -398,7 +222,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       contractId: contract.id,
       version: 1,
       terms: termsForVersion,
-      changeNotes: "Auto-generated from legal template + production data",
+      changeNotes: "Generated from legal template + production data",
       createdById: userId,
     },
   });
@@ -439,7 +263,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const updated = await prisma.projectContract.findUnique({
     where: { id: contract.id },
-    include: { versions: true },
+    include: { versions: true, signatures: true },
   });
 
   return NextResponse.json({ contract: updated ?? contract }, { status: 201 });
@@ -458,6 +282,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         status?: string;
         terms?: string;
         changeNotes?: string | null;
+        reopenAsDraft?: boolean;
       }
     | null;
 
@@ -474,14 +299,36 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Contract not found" }, { status: 404 });
   }
 
+  const isSigned = SIGNED_CONTRACT_STATUSES.has(existing.status);
+  if (isSigned && (body.terms !== undefined || body.reopenAsDraft)) {
+    return NextResponse.json(
+      { error: "Signed contracts cannot be edited. View or download only." },
+      { status: 403 },
+    );
+  }
+
+  if (body.terms !== undefined && !isContractEditable(existing.status) && !body.reopenAsDraft) {
+    return NextResponse.json(
+      { error: "Only draft, rejected, or changes-requested contracts can be edited." },
+      { status: 403 },
+    );
+  }
+
   const updateData: { subject?: string; status?: string } = {};
   if (body.subject !== undefined) updateData.subject = body.subject ?? undefined;
-  if (body.status !== undefined) updateData.status = body.status;
 
-  await prisma.projectContract.update({
-    where: { id: body.id },
-    data: updateData,
-  });
+  if (body.reopenAsDraft && (existing.status === CONTRACT_STATUS.REJECTED || existing.status === CONTRACT_STATUS.CHANGES_REQUESTED)) {
+    updateData.status = CONTRACT_STATUS.DRAFT;
+  } else if (body.status !== undefined) {
+    updateData.status = body.status;
+  }
+
+  if (Object.keys(updateData).length > 0) {
+    await prisma.projectContract.update({
+      where: { id: body.id },
+      data: updateData,
+    });
+  }
 
   if (body.terms !== undefined) {
     const nextVersion = (existing.versions[0]?.version ?? 0) + 1;
@@ -496,7 +343,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     });
     await prisma.projectContract.update({
       where: { id: body.id },
-      data: { currentVersionId: version.id },
+      data: { currentVersionId: version.id, status: updateData.status ?? CONTRACT_STATUS.DRAFT },
     });
   }
 
@@ -522,14 +369,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
   }
 
-  if (body.status) {
+  if (body.status || body.reopenAsDraft) {
     await prisma.projectActivity.create({
       data: {
         projectId,
         userId,
         type: "CONTRACT_STATUS_UPDATED",
-        message: `Contract status updated to ${body.status}.`,
-        metadata: JSON.stringify({ contractId: body.id, status: body.status }),
+        message: `Contract status updated.`,
+        metadata: JSON.stringify({ contractId: body.id, status: updateData.status ?? body.status }),
       },
     });
   }

@@ -3,10 +3,8 @@ import { notFound } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { loadStudioPipelineContext } from "@/lib/creator-studio";
-import { defaultSuiteAccessOpen } from "@/lib/creator-suite-access";
 import { isStoryTimeOriginalGreenlit } from "@/lib/storytime-original";
-import { ProjectWorkspaceShell } from "./project-workspace-shell";
+import { ProjectWorkspaceShellSuspense } from "./project-workspace-shell-suspense";
 
 interface ProjectLayoutProps {
   children: ReactNode;
@@ -33,7 +31,6 @@ export default async function ProjectLayout({ children, params }: ProjectLayoutP
           }),
     },
     include: {
-      members: { include: { user: true } },
       pitches: {
         select: { id: true, status: true },
         orderBy: { createdAt: "desc" },
@@ -47,9 +44,6 @@ export default async function ProjectLayout({ children, params }: ProjectLayoutP
 
   const latestPitch = project.pitches[0];
   const isOriginal = isStoryTimeOriginalGreenlit(latestPitch);
-  const studioCtx = await loadStudioPipelineContext(userId);
-  const pipelineAccess = Boolean(studioCtx?.pipelineAccess);
-  const suiteAccess = studioCtx?.suiteAccess ?? defaultSuiteAccessOpen();
 
   const switchableProjects = await prisma.originalProject.findMany({
     where:
@@ -67,28 +61,17 @@ export default async function ProjectLayout({ children, params }: ProjectLayoutP
   });
 
   return (
-    <ProjectWorkspaceShell
-      pipelineAccess={pipelineAccess}
-      suiteAccess={suiteAccess}
+    <ProjectWorkspaceShellSuspense
       project={{
         id: project.id,
         title: project.title,
-        status: project.status,
-        phase: project.phase,
-        createdAt: project.createdAt,
-        updatedAt: project.updatedAt,
-        members: project.members.map((m) => ({
-          id: m.id,
-          role: m.role,
-          user: { id: m.user.id, name: m.user.name },
-        })),
         isOriginal,
         adminNote: project.adminNote ?? null,
       }}
       switchableProjects={switchableProjects.map((p) => ({ id: p.id, title: p.title }))}
     >
       {children}
-    </ProjectWorkspaceShell>
+    </ProjectWorkspaceShellSuspense>
   );
 }
 

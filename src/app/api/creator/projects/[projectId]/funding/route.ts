@@ -439,7 +439,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
     const access = await ensureProjectAccess(projectId);
     if (access.error) return access.error;
-    const template = getTemplateByType("GENERAL_SERVICE_AGREEMENT");
+    const template = getTemplateByType("FUNDING_AGREEMENT");
     const terms = renderTemplate(template.body, {
       production_name: access.project?.title ?? "Project",
       production_company: access.project?.pitches?.[0]?.productionCompany ?? "Story Time Production",
@@ -461,7 +461,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const contract = await prisma.projectContract.create({
       data: {
         projectId,
-        type: "GENERAL_SERVICE_AGREEMENT",
+        type: "FUNDING_AGREEMENT",
         status: "DRAFT",
         subject: `Funding agreement · ${source.name}`,
         vendorName: source.name,

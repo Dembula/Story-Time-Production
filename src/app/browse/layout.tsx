@@ -58,7 +58,7 @@ export default async function BrowseLayout({
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen bg-background text-foreground" data-browse-chrome>
       <Navbar />
       <main className="pb-20 pt-16 md:pb-0">{children}</main>
       <BrowseMobileNav />

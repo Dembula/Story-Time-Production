@@ -15,12 +15,15 @@ import { useModoc, useModocOptional } from "@/components/modoc/use-modoc";
 import { parseScenesFromScreenplay } from "@/lib/scene-parser";
 import { parseSluglineMeta } from "@/lib/slugline-meta";
 import { VisualPlanningCatalogue } from "@/components/creator/visual-planning-catalogue";
+import { LegalContractsWorkspace } from "@/components/project-tools/pre/LegalContractsWorkspace";
 import { formatZar } from "@/lib/format-currency-zar";
 import {
   AUDITION_LISTING_FEE_ZAR,
   CASTING_ACQUISITION_FEE_ZAR,
   EXECUTIVE_SCRIPT_REVIEW_FEE_ZAR,
 } from "@/lib/pricing";
+import { mutationErrorMessage, projectToolFetch, projectToolQueryFn } from "@/lib/project-tool-fetch";
+import { ToolActionError } from "@/components/project-tools/tool-action-error";
 
 interface PreProductionToolPageProps {
   params: Promise<{ projectId?: string; tool: string }>;
@@ -154,12 +157,7 @@ export default function PreProductionToolPage({ params }: PreProductionToolPageP
   }
 
   if (tool === "legal-contracts") {
-    return (
-      <>
-        {!hasProject && <UnlinkedBanner />}
-        <LegalContractsWorkspace projectId={projectId} title={title} />
-      </>
-    );
+    return <LegalContractsWorkspace projectId={projectId} title={title} />;
   }
 
   if (tool === "funding-hub") {
@@ -250,7 +248,7 @@ function IdeaDevelopmentWorkspace({ projectId, title }: IdeaDevelopmentWorkspace
   const hasProject = !!projectId;
   const { data, isLoading } = useQuery({
     queryKey: ["project-ideas", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/ideas`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/ideas`),
     enabled: hasProject,
   });
 
@@ -290,6 +288,7 @@ function IdeaDevelopmentWorkspace({ projectId, title }: IdeaDevelopmentWorkspace
   const [draft, setDraft] = useState<IdeaDraft | null>(null);
   const [savedSnapshot, setSavedSnapshot] = useState<IdeaDraft | null>(null);
   const [saving, setSaving] = useState(false);
+  const [createError, setCreateError] = useState("");
 
   useEffect(() => {
     if (selected) {
@@ -326,16 +325,18 @@ function IdeaDevelopmentWorkspace({ projectId, title }: IdeaDevelopmentWorkspace
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch(`/api/creator/projects/${projectId}/ideas`, {
+      return projectToolFetch(`/api/creator/projects/${projectId}/ideas`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: "New idea" }),
       });
-      if (!res.ok) throw new Error("Failed to create idea");
-      return res.json();
     },
+    onMutate: () => setCreateError(""),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["project-ideas", projectId] });
+    },
+    onError: (err) => {
+      setCreateError(mutationErrorMessage(err, "Could not create idea. Try again."));
     },
   });
 
@@ -399,17 +400,26 @@ function IdeaDevelopmentWorkspace({ projectId, title }: IdeaDevelopmentWorkspace
         </div>
         <div className="flex items-center gap-2">
           <Button
+            type="button"
             variant="outline"
             className="border-slate-700 text-slate-200 hover:bg-slate-800"
-            onClick={() => hasProject && createMutation.mutate()}
-            disabled={!hasProject}
+            onClick={() => {
+              if (!hasProject) {
+                setCreateError("Link a project above before creating ideas.");
+                return;
+              }
+              createMutation.mutate();
+            }}
+            disabled={!hasProject || createMutation.isPending}
             title={!hasProject ? "Link a project above to create ideas" : undefined}
           >
-            New idea
+            {createMutation.isPending ? "Creating…" : "New idea"}
           </Button>
         </div>
         </div>
       </header>
+
+      <ToolActionError message={createError} onDismiss={() => setCreateError("")} />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="md:col-span-1 space-y-2">
@@ -651,7 +661,7 @@ function ScriptWritingWorkspace({ projectId, title }: ScriptWritingWorkspaceProp
 
   const { data, isLoading } = useQuery({
     queryKey: ["creator-scripts", projectId ?? null],
-    queryFn: () => fetch(listEndpoint).then((r) => r.json()),
+    queryFn: projectToolQueryFn(listEndpoint),
   });
 
   const scripts = useMemo(
@@ -789,8 +799,7 @@ function ScriptWritingWorkspace({ projectId, title }: ScriptWritingWorkspaceProp
   const { data: ideasData } = useQuery({
     enabled: !!hasProject && !!projectId,
     queryKey: ["project-ideas", projectId],
-    queryFn: () =>
-      fetch(`/api/creator/projects/${projectId}/ideas`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/ideas`),
   });
   const projectIdeas = (ideasData?.ideas ?? []) as Array<{
     id: string;
@@ -808,8 +817,9 @@ function ScriptWritingWorkspace({ projectId, title }: ScriptWritingWorkspaceProp
 
   const { data: marketplaceData } = useQuery({
     queryKey: ["ip-marketplace", projectId ?? null],
-    queryFn: () =>
-      fetch(projectId ? `/api/creator/ip-marketplace?projectId=${projectId}` : "/api/creator/ip-marketplace").then((r) => r.json()),
+    queryFn: projectToolQueryFn(
+      projectId ? `/api/creator/ip-marketplace?projectId=${projectId}` : "/api/creator/ip-marketplace",
+    ),
   });
 
   const listToMarketplaceMutation = useMutation({
@@ -1572,7 +1582,7 @@ function ScriptReviewWorkspace({ projectId, title }: ScriptReviewWorkspaceProps)
   const { data: scriptsData } = useQuery({
     enabled: !!hasProject && !!projectId,
     queryKey: ["creator-scripts", projectId],
-    queryFn: () => fetch(`/api/creator/scripts?projectId=${projectId}`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/scripts?projectId=${projectId}`),
   });
   const projectScripts = useMemo(
     () => ((scriptsData?.scripts ?? []) as Array<{ id: string; title: string; content?: string; type?: string }>),
@@ -1587,7 +1597,7 @@ function ScriptReviewWorkspace({ projectId, title }: ScriptReviewWorkspaceProps)
 
   const { data, isLoading } = useQuery({
     queryKey: ["script-review", projectId ?? null],
-    queryFn: () => fetch(notesEndpoint).then((r) => r.json()),
+    queryFn: projectToolQueryFn(notesEndpoint),
   });
 
   const requests =
@@ -1967,7 +1977,7 @@ function ScriptReviewWorkspaceV2({ projectId, title }: ScriptReviewWorkspaceProp
 
   const { data: projectsData } = useQuery({
     queryKey: ["creator-projects", "script-review-selector-v2"],
-    queryFn: () => fetch("/api/creator/projects").then((r) => r.json()),
+    queryFn: projectToolQueryFn("/api/creator/projects"),
   });
   const creatorProjects = useMemo(
     () => ((projectsData?.projects ?? []) as Array<{ id: string; title: string }>),
@@ -1988,7 +1998,7 @@ function ScriptReviewWorkspaceV2({ projectId, title }: ScriptReviewWorkspaceProp
   const { data: scriptData, isLoading: scriptLoading } = useQuery({
     enabled: hasProject,
     queryKey: ["project-script-review-script-v2", workingProjectId],
-    queryFn: () => fetch(`/api/creator/projects/${workingProjectId}/script`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/projects/${workingProjectId}/script`),
   });
 
   const scriptTitle = (scriptData?.script?.title as string | undefined) ?? "Project script";
@@ -2005,7 +2015,7 @@ function ScriptReviewWorkspaceV2({ projectId, title }: ScriptReviewWorkspaceProp
   const { data: creatorScriptsData } = useQuery({
     enabled: hasProject,
     queryKey: ["creator-scripts", "script-review-v2", workingProjectId],
-    queryFn: () => fetch(`/api/creator/scripts?projectId=${workingProjectId}`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/scripts?projectId=${workingProjectId}`),
   });
   const creatorScripts = useMemo(
     () =>
@@ -2058,7 +2068,7 @@ function ScriptReviewWorkspaceV2({ projectId, title }: ScriptReviewWorkspaceProp
   const { data, isLoading } = useQuery({
     enabled: hasProject,
     queryKey: ["script-review-v2", workingProjectId],
-    queryFn: () => fetch(notesEndpoint).then((r) => r.json()),
+    queryFn: projectToolQueryFn(notesEndpoint),
   });
 
   const requests = ((data?.requests as Array<{
@@ -2505,29 +2515,29 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
   const hasProject = !!projectId;
   const { data, isLoading } = useQuery({
     queryKey: ["project-breakdown", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/breakdown`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/breakdown`),
     enabled: hasProject,
   });
 
   const { data: scriptsData } = useQuery({
     enabled: !!hasProject && !!projectId,
     queryKey: ["creator-scripts-breakdown", projectId],
-    queryFn: () => fetch(`/api/creator/scripts?projectId=${projectId}`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/scripts?projectId=${projectId}`),
   });
   const { data: projectScriptData } = useQuery({
     enabled: !!hasProject && !!projectId,
     queryKey: ["project-script-breakdown", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/script`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/script`),
   });
   const { data: scriptReviewData } = useQuery({
     enabled: !!hasProject && !!projectId,
     queryKey: ["script-review-note-breakdown", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/script-review`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/script-review`),
   });
   const { data: scenesListData } = useQuery({
     enabled: hasProject,
     queryKey: ["project-scenes", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/scenes`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/scenes`),
   });
   const projectScenesForBreakdownUnsorted = (scenesListData?.scenes ?? []) as {
     id: string;
@@ -3612,20 +3622,20 @@ interface BudgetBuilderWorkspaceProps {
 function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProps) {
   const queryClient = useQueryClient();
   const hasProject = !!projectId;
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError: budgetLoadError, error: budgetLoadErr } = useQuery({
     queryKey: ["project-budget", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/budget`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/budget`),
     enabled: hasProject,
   });
 
   const { data: breakdownData } = useQuery({
     queryKey: ["project-breakdown", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/breakdown`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/breakdown`),
     enabled: !!hasProject && !!projectId,
   });
   const { data: scenesData } = useQuery({
     queryKey: ["project-scenes", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/scenes`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/scenes`),
     enabled: !!hasProject && !!projectId,
   });
 
@@ -3717,6 +3727,8 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
   const [draftRows, setDraftRows] = useState<BudgetRow[]>([]);
   const [savedRows, setSavedRows] = useState<BudgetRow[]>([]);
   const [saveMessage, setSaveMessage] = useState("");
+  const [saveError, setSaveError] = useState("");
+  const [initError, setInitError] = useState("");
 
   function calcTotal(quantity: number, unitCost: number): number {
     return Math.max(0, quantity) * Math.max(0, unitCost);
@@ -3894,16 +3906,25 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
 
   const initMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch(`/api/creator/projects/${projectId}/budget`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ template: templateChoice }),
-      });
-      if (!res.ok) throw new Error("Failed to create budget");
-      return res.json();
+      return projectToolFetch<{ budget: NonNullable<typeof budget> }>(
+        `/api/creator/projects/${projectId}/budget`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ template: templateChoice }),
+        },
+      );
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["project-budget", projectId] });
+    onMutate: () => setInitError(""),
+    onSuccess: (result) => {
+      queryClient.setQueryData(["project-budget", projectId], (prev: typeof data) => ({
+        ...(prev ?? {}),
+        budget: result.budget,
+      }));
+      void queryClient.invalidateQueries({ queryKey: ["project-budget", projectId] });
+    },
+    onError: (err) => {
+      setInitError(mutationErrorMessage(err, "Could not create budget. Try again."));
     },
   });
 
@@ -3918,20 +3939,22 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
         total: r.total,
         notes: r.notes || null,
       }));
-      const res = await fetch(`/api/creator/projects/${projectId}/budget`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lines }),
-      });
-      if (!res.ok) throw new Error("Failed to save budget");
-      return res.json();
+      return projectToolFetch<{ budget: NonNullable<typeof budget> }>(
+        `/api/creator/projects/${projectId}/budget`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ lines }),
+        },
+      );
     },
     onSuccess: (_d, rows) => {
       setSavedRows(JSON.parse(JSON.stringify(rows)));
       setSaveMessage("Budget saved");
+      setSaveError("");
     },
-    onError: () => {
-      setSaveMessage("Could not save budget. Try again.");
+    onError: (err) => {
+      setSaveError(mutationErrorMessage(err, "Could not save budget. Try again."));
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["project-budget", projectId] });
@@ -4074,10 +4097,18 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
                 <option value="COMMERCIAL_SHOOT">Commercial shoot</option>
               </select>
               <Button
+                type="button"
                 size="sm"
                 className="bg-orange-500 hover:bg-orange-600 text-white text-xs"
-                onClick={() => hasProject && initMutation.mutate()}
+                onClick={() => {
+                  if (!hasProject) {
+                    setInitError("Link a project above before creating a budget.");
+                    return;
+                  }
+                  initMutation.mutate();
+                }}
                 disabled={initMutation.isPending || !hasProject}
+                title={!hasProject ? "Link a project above to create a budget" : undefined}
               >
                 {initMutation.isPending ? "Creating..." : "Create budget"}
               </Button>
@@ -4086,6 +4117,14 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
         </div>
         </div>
       </header>
+
+      <ToolActionError message={initError} onDismiss={() => setInitError("")} />
+      {budgetLoadError ? (
+        <ToolActionError
+          message={mutationErrorMessage(budgetLoadErr, "Could not load budget.")}
+        />
+      ) : null}
+      <ToolActionError message={saveError} onDismiss={() => setSaveError("")} />
 
       {modoc && budget && modocReportOpen && (
         <ModocReportModal
@@ -4669,12 +4708,12 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
   const hasProject = !!projectId;
   const { data, isLoading } = useQuery<ScheduleResponse>({
     queryKey: ["project-schedule", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/schedule`).then((r) => r.json()),
+    queryFn: projectToolQueryFn<ScheduleResponse>(`/api/creator/projects/${projectId}/schedule`),
     enabled: hasProject,
   });
   const { data: callSheetsData } = useQuery({
     queryKey: ["project-call-sheets", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/call-sheets`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/call-sheets`),
     enabled: hasProject,
   });
 
@@ -4736,17 +4775,19 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
   const createDayMutation = useMutation({
     mutationFn: async () => {
       const today = new Date();
-      const res = await fetch(`/api/creator/projects/${projectId}/schedule`, {
+      return projectToolFetch(`/api/creator/projects/${projectId}/schedule`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ date: today.toISOString() }),
       });
-      if (!res.ok) throw new Error("Failed to create shoot day");
-      return res.json();
     },
+    onMutate: () => setScheduleMessage(""),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["project-schedule", projectId] });
       setDraftDays(null);
+    },
+    onError: (err) => {
+      setScheduleMessage(mutationErrorMessage(err, "Could not create shoot day. Try again."));
     },
   });
 
@@ -5928,17 +5969,17 @@ function CastingPortalWorkspace({
   const [modocReportOpen, setModocReportOpen] = useState(false);
   const { data: rolesData, isLoading } = useQuery({
     queryKey: ["project-casting", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/casting`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/casting`),
     enabled: hasProject,
   });
   const { data: invitationsData } = useQuery({
     queryKey: ["project-casting-invitations", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/casting/invitations`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/casting/invitations`),
     enabled: hasProject,
   });
   const { data: agenciesData } = useQuery({
     queryKey: ["casting-agencies-directory"],
-    queryFn: () => fetch("/api/casting-agencies").then((r) => r.json()),
+    queryFn: projectToolQueryFn("/api/casting-agencies"),
     enabled: true,
   });
   const roles = useMemo(
@@ -6235,9 +6276,19 @@ function CastingPortalWorkspace({
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-white font-medium">{r.name}</span>
-                      <span className="text-xs text-slate-400">
-                        {r.status} · {r.invitationsCount} invite(s)
-                      </span>
+                      <div className="flex items-center gap-2">
+                        {hasProject && projectId && (
+                          <Link
+                            href={`/creator/projects/${projectId}/pre-production/legal-contracts?templateType=ACTOR_AGREEMENT&resourceType=ACTOR&resourceId=${r.id}`}
+                            className="text-[10px] text-orange-300 hover:text-orange-200 underline"
+                          >
+                            Generate contract
+                          </Link>
+                        )}
+                        <span className="text-xs text-slate-400">
+                          {r.status} · {r.invitationsCount} invite(s)
+                        </span>
+                      </div>
                     </div>
                     <div className="grid gap-2 md:grid-cols-4">
                       <Input
@@ -6553,17 +6604,17 @@ function CrewMarketplaceWorkspace({
 
   const { data, isLoading } = useQuery({
     queryKey: ["project-crew", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/crew`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/crew`),
     enabled: hasProject,
   });
   const { data: crewDirectoryData, isLoading: isDirectoryLoading } = useQuery({
     queryKey: ["crew-teams-directory", directoryQuery],
-    queryFn: () => fetch(directoryQuery).then((r) => r.json()),
+    queryFn: projectToolQueryFn(directoryQuery),
     enabled: true,
   });
   const { data: internalRosterData, isLoading: isInternalLoading } = useQuery({
     queryKey: ["creator-crew-roster"],
-    queryFn: () => fetch("/api/creator/crew-roster").then((r) => r.json()),
+    queryFn: projectToolQueryFn("/api/creator/crew-roster"),
     enabled: true,
   });
   const needs = useMemo(
@@ -7184,17 +7235,17 @@ function LocationMarketplaceWorkspace({
 
   const { data: breakdown } = useQuery({
     queryKey: ["project-breakdown", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/breakdown`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/breakdown`),
     enabled: hasProject,
   });
   const { data: listingsData, isLoading: isListingsLoading } = useQuery({
     queryKey: ["locations-directory", listingQueryUrl],
-    queryFn: () => fetch(listingQueryUrl).then((r) => r.json()),
+    queryFn: projectToolQueryFn(listingQueryUrl),
     enabled: true,
   });
   const { data: scheduleData } = useQuery({
     queryKey: ["project-schedule", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/schedule`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/schedule`),
     enabled: hasProject,
   });
   const locations = useMemo(
@@ -7470,483 +7521,6 @@ function LocationMarketplaceWorkspace({
   );
 }
 
-// --- Legal & Contracts ---
-function LegalContractsWorkspace({
-  projectId,
-  title,
-}: { projectId?: string; title: string }) {
-  const queryClient = useQueryClient();
-  const hasProject = !!projectId;
-  const modoc = useModocOptional();
-  const [modocReportOpen, setModocReportOpen] = useState(false);
-  const [portalMessage, setPortalMessage] = useState("");
-  const { data, isLoading } = useQuery({
-    queryKey: ["project-contracts", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/contracts`).then((r) => r.json()),
-    enabled: hasProject,
-  });
-  const contracts = (data?.contracts ?? []) as Array<{
-    id: string;
-    type: string;
-    normalizedType: string;
-    status: string;
-    statusTone: "slate" | "blue" | "amber" | "emerald" | "red";
-    subject: string | null;
-    createdAt: string;
-    latestVersion: { id: string; version: number; terms: string; createdAt: string } | null;
-    signaturesCount: number;
-    actor?: { id: string; name: string } | null;
-    crewTeam?: { id: string; name: string } | null;
-    location?: { id: string; name: string } | null;
-    vendorName?: string | null;
-  }>;
-  const templates = (data?.templates ?? []) as Array<{
-    type: string;
-    label: string;
-    description: string;
-    body: string;
-    placeholders: string[];
-  }>;
-  const resourceContext = data?.resourceContext as
-    | {
-        project: {
-          id: string;
-          title: string;
-          productionCompany: string;
-          startDate: string;
-          endDate: string;
-        };
-        resources: {
-          actors: Array<{ id: string; label: string }>;
-          crew: Array<{ id: string; label: string }>;
-          locations: Array<{ id: string; label: string }>;
-          equipment: Array<{ id: string; label: string }>;
-        };
-      }
-    | undefined;
-  const metrics = (data?.metrics ?? {
-    total: 0,
-    signed: 0,
-    sent: 0,
-    drafts: 0,
-    unconfirmed: 0,
-  }) as { total: number; signed: number; sent: number; drafts: number; unconfirmed: number };
-
-  const [showCreate, setShowCreate] = useState(false);
-  const [newType, setNewType] = useState("ACTOR_AGREEMENT");
-  const [resourceType, setResourceType] = useState<"ACTOR" | "CREW" | "LOCATION" | "EQUIPMENT" | "GENERAL">(
-    "ACTOR",
-  );
-  const [resourceId, setResourceId] = useState("");
-  const [newSubject, setNewSubject] = useState("");
-  const [newPaymentTerms, setNewPaymentTerms] = useState("");
-  const [newCustomClauses, setNewCustomClauses] = useState("");
-  const [newTemplateBody, setNewTemplateBody] = useState("");
-  const selectedTemplate = templates.find((t) => t.type === newType) ?? templates[0] ?? null;
-  const selectedResources = useMemo(() => {
-    if (!resourceContext) return [];
-    if (resourceType === "ACTOR") return resourceContext.resources.actors;
-    if (resourceType === "CREW") return resourceContext.resources.crew;
-    if (resourceType === "LOCATION") return resourceContext.resources.locations;
-    if (resourceType === "EQUIPMENT") return resourceContext.resources.equipment;
-    return [];
-  }, [resourceContext, resourceType]);
-
-  useEffect(() => {
-    if (!showCreate || !selectedTemplate) return;
-    setNewTemplateBody(selectedTemplate.body);
-  }, [selectedTemplate, showCreate]);
-
-  useEffect(() => {
-    if (selectedResources.length === 0) {
-      setResourceId("");
-      return;
-    }
-    if (!resourceId || !selectedResources.some((r) => r.id === resourceId)) {
-      setResourceId(selectedResources[0].id);
-    }
-  }, [resourceId, selectedResources]);
-
-  const createMutation = useMutation({
-    mutationFn: async (sendContract?: boolean) => {
-      const res = await fetch(`/api/creator/projects/${projectId}/contracts`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          templateType: newType,
-          resourceType,
-          resourceId: resourceId || null,
-          subject: newSubject || null,
-          templateBody: newTemplateBody || selectedTemplate?.body || "",
-          customClauses: newCustomClauses || null,
-          paymentTerms: newPaymentTerms || null,
-          sendContract: !!sendContract,
-        }),
-      });
-      if (!res.ok) throw new Error("Failed to create contract");
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["project-contracts", projectId] });
-      setPortalMessage("Contract generated successfully.");
-      setShowCreate(false);
-      setNewSubject("");
-      setNewPaymentTerms("");
-      setNewCustomClauses("");
-    },
-  });
-  const contractActionMutation = useMutation({
-    mutationFn: async ({
-      contractId,
-      kind,
-      action,
-    }: {
-      contractId: string;
-      kind: "status" | "respond";
-      action: string;
-    }) => {
-      if (kind === "status") {
-        const res = await fetch(`/api/creator/projects/${projectId}/contracts`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: contractId, status: action }),
-        });
-        if (!res.ok) throw new Error("Failed to update contract");
-        return res.json();
-      }
-      const res = await fetch(`/api/creator/projects/${projectId}/contracts/${contractId}/respond`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
-      });
-      if (!res.ok) throw new Error("Failed to respond to contract");
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["project-contracts", projectId] });
-      setPortalMessage("Contract status updated.");
-    },
-  });
-
-  function toneClasses(tone: "slate" | "blue" | "amber" | "emerald" | "red") {
-    if (tone === "emerald") return "border-emerald-500/40 bg-emerald-500/10 text-emerald-200";
-    if (tone === "blue") return "border-sky-500/40 bg-sky-500/10 text-sky-200";
-    if (tone === "amber") return "border-amber-500/40 bg-amber-500/10 text-amber-200";
-    if (tone === "red") return "border-rose-500/40 bg-rose-500/10 text-rose-200";
-    return "border-slate-600 bg-slate-800/70 text-slate-200";
-  }
-
-  function downloadTerms(contract: (typeof contracts)[number]) {
-    const terms = contract.latestVersion?.terms ?? "No terms available.";
-    const blob = new Blob([terms], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${(contract.subject || "contract").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  return (
-    <div className="space-y-4">
-      <header className="storytime-plan-card p-5 md:p-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div className="min-w-0 flex-1">
-            <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">
-              Pre-production workspace
-            </p>
-            <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
-              Generate dynamic, template-driven agreements with production data pulled from casting, crew,
-              locations, equipment, and project schedules.
-            </p>
-          </div>
-          <div className="flex gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            className="border-slate-600 text-slate-200"
-            onClick={() => {
-              setNewType("ACTOR_AGREEMENT");
-              setResourceType("ACTOR");
-              setResourceId("");
-              setNewSubject("");
-              setNewPaymentTerms("");
-              setNewCustomClauses("");
-              setShowCreate(true);
-            }}
-            disabled={!hasProject}
-            title={!hasProject ? "Link a project above to create contracts" : undefined}
-          >
-            Generate Contract
-          </Button>
-          {modoc && (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="border-cyan-500/50 text-cyan-200 hover:bg-cyan-500/10 text-xs"
-              onClick={() => setModocReportOpen(true)}
-            >
-              <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
-              Get AI contract review
-            </Button>
-          )}
-          </div>
-        </div>
-      </header>
-      {modoc && modocReportOpen && (
-        <ModocReportModal
-          task="legal_contracts"
-          reportTitle="Contract analysis"
-          prompt="Analyze our project contracts for compliance with industry standards. Highlight important terms (rights, payment, termination, indemnity, credits) and flag potential issues we should review with legal counsel. Use the contract data provided in your context."
-          onClose={() => setModocReportOpen(false)}
-          projectId={projectId ?? undefined}
-        />
-      )}
-      {portalMessage && (
-        <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
-          {portalMessage}
-        </p>
-      )}
-      <div className="grid gap-2 md:grid-cols-4">
-        <div className="creator-glass-panel p-3 text-xs">
-          <p className="text-slate-400">Total contracts</p>
-          <p className="mt-1 text-xl font-semibold text-white">{metrics.total}</p>
-        </div>
-        <div className="creator-glass-panel p-3 text-xs">
-          <p className="text-slate-400">Signed</p>
-          <p className="mt-1 text-xl font-semibold text-emerald-300">{metrics.signed}</p>
-        </div>
-        <div className="creator-glass-panel p-3 text-xs">
-          <p className="text-slate-400">Sent / Viewed</p>
-          <p className="mt-1 text-xl font-semibold text-sky-300">{metrics.sent}</p>
-        </div>
-        <div className="creator-glass-panel p-3 text-xs">
-          <p className="text-slate-400">Unconfirmed resources</p>
-          <p className="mt-1 text-xl font-semibold text-amber-300">{metrics.unconfirmed}</p>
-        </div>
-      </div>
-      {showCreate && (
-        <Card className="creator-glass-panel border-0 bg-transparent shadow-none">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Generate contract</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="grid gap-2 md:grid-cols-3">
-              <select
-                value={newType}
-                onChange={(e) => setNewType(e.target.value)}
-                className="h-10 rounded-md bg-slate-900 border border-slate-700 px-2 py-1 text-sm text-white"
-              >
-                {templates.map((template) => (
-                  <option key={template.type} value={template.type}>
-                    {template.label}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={resourceType}
-                onChange={(e) =>
-                  setResourceType(e.target.value as "ACTOR" | "CREW" | "LOCATION" | "EQUIPMENT" | "GENERAL")
-                }
-                className="h-10 rounded-md bg-slate-900 border border-slate-700 px-2 py-1 text-sm text-white"
-              >
-                <option value="ACTOR">Actor</option>
-                <option value="CREW">Crew</option>
-                <option value="LOCATION">Location</option>
-                <option value="EQUIPMENT">Equipment</option>
-                <option value="GENERAL">General Service</option>
-              </select>
-              <select
-                value={resourceId}
-                onChange={(e) => setResourceId(e.target.value)}
-                disabled={resourceType === "GENERAL" || selectedResources.length === 0}
-                className="h-10 rounded-md bg-slate-900 border border-slate-700 px-2 py-1 text-sm text-white disabled:opacity-50"
-              >
-                {resourceType === "GENERAL" ? (
-                  <option value="">No linked resource (general agreement)</option>
-                ) : selectedResources.length === 0 ? (
-                  <option value="">No resources available</option>
-                ) : (
-                  selectedResources.map((resource) => (
-                    <option key={resource.id} value={resource.id}>
-                      {resource.label}
-                    </option>
-                  ))
-                )}
-              </select>
-            </div>
-            <input
-              value={newSubject}
-              onChange={(e) => setNewSubject(e.target.value)}
-              placeholder="Short description (optional)"
-              className="w-full rounded-md bg-slate-900 border border-slate-700 px-3 py-1.5 text-sm text-white"
-            />
-            <div className="grid gap-2 md:grid-cols-2">
-              <Input
-                value={newPaymentTerms}
-                onChange={(e) => setNewPaymentTerms(e.target.value)}
-                placeholder="Payment terms override (optional)"
-                className="bg-slate-900 border-slate-700 text-xs"
-              />
-              <Input
-                value={newCustomClauses}
-                onChange={(e) => setNewCustomClauses(e.target.value)}
-                placeholder="Custom clauses"
-                className="bg-slate-900 border-slate-700 text-xs"
-              />
-            </div>
-            <textarea
-              value={newTemplateBody}
-              onChange={(e) => setNewTemplateBody(e.target.value)}
-              rows={8}
-              placeholder="Template body with placeholders..."
-              className="w-full rounded-md bg-slate-900 border border-slate-700 px-3 py-2 text-sm text-white"
-            />
-            {selectedTemplate && (
-              <p className="text-[11px] text-slate-400">
-                Placeholders: {selectedTemplate.placeholders.join(", ")}
-              </p>
-            )}
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={() => setShowCreate(false)}>
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                className="bg-orange-500 hover:bg-orange-600"
-                onClick={() => hasProject && createMutation.mutate(false)}
-                disabled={createMutation.isPending || !hasProject}
-              >
-                Generate draft
-              </Button>
-              <Button
-                size="sm"
-                className="bg-emerald-600 hover:bg-emerald-700"
-                onClick={() => hasProject && createMutation.mutate(true)}
-                disabled={createMutation.isPending || !hasProject}
-              >
-                Generate + send
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-      {isLoading ? (
-        <Skeleton className="h-48 bg-slate-800/60" />
-      ) : (
-        <div className="creator-glass-panel p-3 space-y-2">
-          {contracts.length === 0 ? (
-            <p className="text-xs text-slate-500 p-4">
-              {!hasProject
-                ? "Link a project above to manage contracts."
-                : "No contracts yet. Use the buttons above to create Actor, Crew, Location, or Catering & Vendor agreements for this project."}
-            </p>
-          ) : (
-            contracts.map((c) => (
-              <div
-                key={c.id}
-                className="rounded-xl bg-slate-900/80 border border-slate-800 px-3 py-3 text-xs md:text-sm space-y-2"
-              >
-                <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                  <div className="space-y-0.5">
-                    <p className="text-white font-medium">
-                      {c.normalizedType.replaceAll("_", " ")}{" "}
-                      {c.subject ? <span className="text-slate-300">· {c.subject}</span> : null}
-                    </p>
-                    <p className="text-[11px] text-slate-400">
-                      {c.actor && <span>Actor: {c.actor.name}</span>}
-                      {c.crewTeam && <span>{c.actor ? " · " : ""}Crew: {c.crewTeam.name}</span>}
-                      {c.location && <span>{(c.actor || c.crewTeam) ? " · " : ""}Location: {c.location.name}</span>}
-                      {c.vendorName && <span>{(c.actor || c.crewTeam || c.location) ? " · " : ""}Vendor: {c.vendorName}</span>}
-                      {!c.actor && !c.crewTeam && !c.location && !c.vendorName && <span>No linked party yet</span>}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`rounded-full border px-2 py-1 text-[10px] ${toneClasses(c.statusTone)}`}>
-                      {c.status}
-                    </span>
-                    <span className="text-[11px] text-slate-500">
-                      v{c.latestVersion?.version ?? 0} · {c.signaturesCount} signature{c.signaturesCount === 1 ? "" : "s"}
-                    </span>
-                  </div>
-                </div>
-                <p className="rounded-md border border-slate-800 bg-slate-950/40 px-2 py-1.5 text-[11px] text-slate-300 whitespace-pre-wrap">
-                  {(c.latestVersion?.terms || "No terms preview yet.").slice(0, 420)}
-                  {(c.latestVersion?.terms?.length ?? 0) > 420 ? "..." : ""}
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {c.status === "DRAFT" && (
-                    <Button
-                      size="sm"
-                      className="h-7 bg-orange-500 hover:bg-orange-600 text-[10px]"
-                      onClick={() => contractActionMutation.mutate({ contractId: c.id, kind: "status", action: "SENT" })}
-                      disabled={contractActionMutation.isPending}
-                    >
-                      Send
-                    </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 border-slate-700 px-2 text-[10px]"
-                    onClick={() => contractActionMutation.mutate({ contractId: c.id, kind: "respond", action: "VIEW" })}
-                    disabled={contractActionMutation.isPending}
-                  >
-                    Mark viewed
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 border-emerald-600/60 px-2 text-[10px] text-emerald-200"
-                    onClick={() => contractActionMutation.mutate({ contractId: c.id, kind: "respond", action: "ACCEPT" })}
-                    disabled={contractActionMutation.isPending}
-                  >
-                    Accept / sign
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 border-amber-600/60 px-2 text-[10px] text-amber-200"
-                    onClick={() =>
-                      contractActionMutation.mutate({
-                        contractId: c.id,
-                        kind: "respond",
-                        action: "REQUEST_CHANGES",
-                      })
-                    }
-                    disabled={contractActionMutation.isPending}
-                  >
-                    Request changes
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 border-rose-600/60 px-2 text-[10px] text-rose-200"
-                    onClick={() => contractActionMutation.mutate({ contractId: c.id, kind: "respond", action: "REJECT" })}
-                    disabled={contractActionMutation.isPending}
-                  >
-                    Reject
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 border-slate-700 px-2 text-[10px]"
-                    onClick={() => downloadTerms(c)}
-                  >
-                    Download
-                  </Button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // --- Funding Hub ---
 function FundingHubWorkspace({
   projectId,
@@ -7959,12 +7533,12 @@ function FundingHubWorkspace({
   const [hubMessage, setHubMessage] = useState("");
   const { data, isLoading } = useQuery({
     queryKey: ["project-funding", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/funding`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/funding`),
     enabled: hasProject,
   });
   const { data: budgetData } = useQuery({
     queryKey: ["project-budget", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/budget`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/budget`),
     enabled: hasProject,
   });
   const funding = data?.funding as {
@@ -8870,7 +8444,7 @@ function PitchDeckWorkspace({
   const [modocReportOpen, setModocReportOpen] = useState(false);
   const { data, isLoading } = useQuery({
     queryKey: ["project-pitch-deck", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/pitch-deck`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/pitch-deck`),
     enabled: hasProject,
   });
   const deck = data?.deck as {
@@ -9529,7 +9103,7 @@ function TableReadsWorkspace({
 
   const { data, isLoading } = useQuery({
     queryKey: ["project-table-reads", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/table-reads`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/table-reads`),
     enabled: hasProject,
   });
   const sessions = useMemo(() => ((data?.sessions ?? []) as TableReadSessionRow[]), [data?.sessions]);
@@ -9693,19 +9267,19 @@ function ProductionWorkspace({
 
   const { data: workspaceData, isLoading: tasksLoading } = useQuery({
     queryKey: ["project-production-workspace", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/production-workspace`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/production-workspace`),
     enabled: hasProject,
     refetchInterval: 5000,
     refetchOnWindowFocus: true,
   });
   const { data: scheduleData } = useQuery({
     queryKey: ["project-schedule", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/schedule`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/schedule`),
     enabled: hasProject,
   });
   const { data: scenesData } = useQuery({
     queryKey: ["project-scenes", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/scenes`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/scenes`),
     enabled: hasProject,
   });
 
@@ -10448,12 +10022,12 @@ function EquipmentPlanningWorkspace({
 
   const { data, isLoading } = useQuery({
     queryKey: ["project-equipment-plan", projectId, queryUrl],
-    queryFn: () => fetch(queryUrl).then((r) => r.json()),
+    queryFn: projectToolQueryFn(queryUrl),
     enabled: hasProject,
   });
   const { data: scheduleData } = useQuery({
     queryKey: ["project-schedule", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/schedule`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/schedule`),
     enabled: hasProject,
   });
 
@@ -10704,7 +10278,7 @@ function RiskInsuranceWorkspace({
   const [workspaceMessage, setWorkspaceMessage] = useState("");
   const { data, isLoading } = useQuery({
     queryKey: ["project-risk", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/risk`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/risk`),
     enabled: hasProject,
   });
   const plan = data?.plan as
@@ -11226,7 +10800,7 @@ function ProductionReadinessWorkspace({
   const [modocReportOpen, setModocReportOpen] = useState(false);
   const { data, isLoading } = useQuery({
     queryKey: ["project-readiness", projectId],
-    queryFn: () => fetch(`/api/creator/projects/${projectId}/readiness`).then((r) => r.json()),
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/readiness`),
     enabled: hasProject,
   });
   const checklist = data?.checklist as Record<string, boolean> | null;
