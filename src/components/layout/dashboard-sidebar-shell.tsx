@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
 
@@ -110,7 +110,27 @@ export function DashboardSidebarShell({
   const pathname = usePathname();
   const overlayMode = useOverlayNavMode();
   const { deviceClass } = useAdaptiveUi();
+  const headerRef = useRef<HTMLElement>(null);
+  const [headerHeightPx, setHeaderHeightPx] = useState<number | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(!overlayMode);
+
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+
+    const measure = () => {
+      setHeaderHeightPx(Math.ceil(el.getBoundingClientRect().height));
+    };
+
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    window.addEventListener("resize", measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [headerEnd, brandLabel, overlayMode]);
 
   useEffect(() => {
     setSidebarOpen(!overlayMode);
@@ -141,13 +161,14 @@ export function DashboardSidebarShell({
 
   const paddedHeader = deviceClass === "mobile" ? "px-3 py-3" : "px-6 py-4 md:px-12";
   const paddedContent = deviceClass === "mobile" ? "px-3 py-4" : "px-4 py-6 md:px-8";
-  const headerHeightClass = deviceClass === "mobile" ? "top-[3.75rem]" : "top-[4.25rem]";
+  const overlayTopPx = headerHeightPx ?? (deviceClass === "mobile" ? 60 : 68);
 
   const showDockedSidebar = !overlayMode && sidebarOpen;
 
   return (
     <div className={`relative min-h-screen bg-background text-foreground ${className}`.trim()}>
       <header
+        ref={headerRef}
         className={`sticky top-0 z-50 border-b border-white/8 bg-background/95 backdrop-blur-xl ${paddedHeader} ${headerClassName}`}
       >
         <div className="mx-auto flex max-w-7xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
@@ -183,14 +204,16 @@ export function DashboardSidebarShell({
             type="button"
             aria-label="Close menu"
             onClick={() => setSidebarOpen(false)}
+            style={{ top: overlayTopPx }}
             className={[
-              `fixed inset-0 ${headerHeightClass} z-40 bg-black/55 backdrop-blur-[2px] transition-opacity duration-300`,
+              "fixed inset-x-0 bottom-0 z-40 bg-black/55 backdrop-blur-[2px] transition-opacity duration-300",
               sidebarOpen ? "opacity-100" : "pointer-events-none opacity-0",
             ].join(" ")}
           />
           <aside
+            style={{ top: overlayTopPx }}
             className={[
-              `fixed bottom-0 left-0 ${headerHeightClass} z-[45] flex w-[min(18rem,88vw)] flex-col border-r border-white/10 bg-black/98 shadow-2xl backdrop-blur-md`,
+              "fixed bottom-0 left-0 z-[45] flex w-[min(18rem,88vw)] flex-col border-r border-white/10 bg-black/98 shadow-2xl backdrop-blur-md",
               "transition-transform duration-300 ease-out",
               sidebarOpen ? "translate-x-0" : "-translate-x-full pointer-events-none",
             ].join(" ")}
@@ -208,7 +231,15 @@ export function DashboardSidebarShell({
         <div className="flex w-full gap-4 md:gap-6">
           {showDockedSidebar ? (
             <aside className="hidden w-56 shrink-0 md:block xl:w-64">
-              <div className="sticky top-24 max-h-[calc(100vh-7rem)] overflow-y-auto pr-1">{sidebarBody}</div>
+              <div
+                className="sticky overflow-y-auto pr-1"
+                style={{
+                  top: overlayTopPx + 16,
+                  maxHeight: `calc(100vh - ${overlayTopPx + 32}px)`,
+                }}
+              >
+                {sidebarBody}
+              </div>
               {sidebarFooter ? <div className="mt-4">{sidebarFooter}</div> : null}
             </aside>
           ) : null}
