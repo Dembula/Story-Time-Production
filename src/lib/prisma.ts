@@ -28,6 +28,15 @@ const REQUIRED_PRISMA_DELEGATES = [
   "userRole",
   "promoCode",
   "promoCodeRedemption",
+  "creatorCalendarEvent",
+  "notification",
+  "projectScene",
+  "projectBudget",
+  "callSheet",
+  "projectTask",
+  "breakdownCharacter",
+  "castingRole",
+  "crewRoleNeed",
 ] as const;
 function prismaSingletonIsStale(client: unknown): boolean {
   if (typeof window !== "undefined") return false;

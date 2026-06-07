@@ -24,6 +24,17 @@ import {
 } from "@/lib/pricing";
 import { mutationErrorMessage, projectToolFetch, projectToolQueryFn } from "@/lib/project-tool-fetch";
 import { ToolActionError } from "@/components/project-tools/tool-action-error";
+import { buildStandaloneBudgetStarter } from "@/lib/budget-engine";
+import {
+  getLocalBudgetDraft,
+  saveLocalBudgetDraft,
+  type LocalBudgetDraft,
+} from "@/lib/budget-local-draft";
+import {
+  emptyLocalBreakdownDraft,
+  getLocalBreakdownDraft,
+  saveLocalBreakdownDraft,
+} from "@/lib/breakdown-local-draft";
 
 interface PreProductionToolPageProps {
   params: Promise<{ projectId?: string; tool: string }>;
@@ -2741,7 +2752,7 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
   const [saveMessage, setSaveMessage] = useState("");
 
   useEffect(() => {
-    if (data && !draft) {
+    if (data && !draft && hasProject) {
       const initial: BreakdownPayload = {
         characters: data.characters ?? [],
         props: data.props ?? [],
@@ -2756,7 +2767,16 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
       setDraft(initial);
       setSavedSnapshot(JSON.parse(JSON.stringify(initial)) as BreakdownPayload);
     }
-  }, [data, draft]);
+  }, [data, draft, hasProject]);
+
+  useEffect(() => {
+    if (!hasProject && !draft) {
+      const stored = getLocalBreakdownDraft();
+      const initial = (stored ?? emptyLocalBreakdownDraft()) as BreakdownPayload;
+      setDraft(initial);
+      setSavedSnapshot(JSON.parse(JSON.stringify(initial)) as BreakdownPayload);
+    }
+  }, [hasProject, draft]);
 
   const breakdownDirty =
     !!draft &&
@@ -2765,6 +2785,20 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
 
   const saveMutation = useMutation({
     mutationFn: async (payload: BreakdownPayload) => {
+      if (!hasProject) {
+        saveLocalBreakdownDraft({
+          characters: payload.characters ?? [],
+          props: payload.props ?? [],
+          locations: payload.locations ?? [],
+          wardrobe: payload.wardrobe ?? [],
+          extras: payload.extras ?? [],
+          vehicles: payload.vehicles ?? [],
+          stunts: payload.stunts ?? [],
+          sfx: payload.sfx ?? [],
+          makeups: payload.makeups ?? [],
+        });
+        return payload;
+      }
       const res = await fetch(`/api/creator/projects/${projectId}/breakdown`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -2798,21 +2832,25 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [breakdownDirty, saving, draft, saveMutation]);
 
-  if (!hasProject) {
-    return (
-      <div className="space-y-4">
-        <h2 className="text-xl font-semibold text-white">{title}</h2>
-        <p className="text-sm text-slate-400">Link a project above to create and save script breakdown (characters, props, locations, etc.).</p>
-      </div>
-    );
-  }
-  if (isLoading || !draft) {
+  if (hasProject && (isLoading || !draft)) {
     return (
       <div className="space-y-4">
         <h2 className="text-xl font-semibold text-white">{title}</h2>
         <Skeleton className="h-64 bg-slate-800/60" />
       </div>
     );
+  }
+  if (!hasProject && !draft) {
+    return (
+      <div className="space-y-4">
+        <h2 className="text-xl font-semibold text-white">{title}</h2>
+        <Skeleton className="h-64 bg-slate-800/60" />
+      </div>
+    );
+  }
+
+  if (!draft) {
+    return null;
   }
 
   const categoryTab = tab === "scenes" ? null : tab;
@@ -2910,11 +2948,16 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
             </p>
             <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
             <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
-            Build a scene-by-scene breakdown: scenes come from your project screenplay (Script Writing).
-            Tag characters, props, locations, wardrobe, extras, vehicles, stunts, SFX, and makeup per scene.
-            This powers casting, locations, equipment, and risk tools later.
-          </p>
-        </div>
+              Build a scene-by-scene breakdown: scenes come from your project screenplay (Script Writing).
+              Tag characters, props, locations, wardrobe, extras, vehicles, stunts, SFX, and makeup per scene.
+              This powers casting, locations, equipment, and risk tools later.
+              {!hasProject && (
+                <span className="block mt-2 text-amber-200/90">
+                  Working without a linked project — changes save locally in this browser. Link a project above to sync to your production workspace.
+                </span>
+              )}
+            </p>
+          </div>
         <div className="flex items-center gap-2">
           {modoc && selectedScript && (
             <Button
@@ -3622,6 +3665,14 @@ interface BudgetBuilderWorkspaceProps {
 function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProps) {
   const queryClient = useQueryClient();
   const hasProject = !!projectId;
+  const [localBudgetDraft, setLocalBudgetDraft] = useState<LocalBudgetDraft | null>(null);
+
+  useEffect(() => {
+    if (!hasProject) {
+      setLocalBudgetDraft(getLocalBudgetDraft());
+    }
+  }, [hasProject]);
+
   const { data, isLoading, isError: budgetLoadError, error: budgetLoadErr } = useQuery({
     queryKey: ["project-budget", projectId],
     queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/budget`),
@@ -3642,7 +3693,7 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
   const modoc = useModocOptional();
   const [modocReportOpen, setModocReportOpen] = useState(false);
 
-  const budget = data?.budget as
+  const apiBudget = data?.budget as
     | {
         id: string;
         template: string;
@@ -3658,7 +3709,7 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
         }[];
       }
     | undefined;
-  const engine = data?.engine as
+  const apiEngine = data?.engine as
     | {
         dashboard?: {
           estimatedTotal: number;
@@ -3692,6 +3743,29 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
         optimizationSuggestions?: string[];
       }
     | undefined;
+
+  const budget = hasProject
+    ? apiBudget
+    : localBudgetDraft
+      ? {
+          id: "local",
+          template: localBudgetDraft.template,
+          totalPlanned: localBudgetDraft.lines.reduce(
+            (sum, line) => sum + Number(line.total ?? (line.quantity ?? 1) * (line.unitCost ?? 0)),
+            0,
+          ),
+          lines: localBudgetDraft.lines.map((line, idx) => ({
+            id: line.id ?? `local-${idx}`,
+            department: line.department,
+            name: line.name,
+            quantity: line.quantity,
+            unitCost: line.unitCost,
+            total: line.total,
+            notes: line.notes,
+          })),
+        }
+      : undefined;
+  const engine = hasProject ? apiEngine : localBudgetDraft?.engine;
 
   type BudgetScene = { id: string; number: string; heading: string | null };
   type BudgetRow = {
@@ -3906,6 +3980,37 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
 
   const initMutation = useMutation({
     mutationFn: async () => {
+      if (!hasProject) {
+        const starter = buildStandaloneBudgetStarter(templateChoice);
+        const rows = starter.sceneLineItems.map((item) => ({
+          key: item.key,
+          department: item.department,
+          name: item.name,
+          quantity: Number(item.quantity ?? 1),
+          unitCost: Number(item.unitCost ?? 0),
+          total: Number(item.total ?? 0),
+          notes: item.notes ?? "",
+          sceneId: item.sceneId ?? null,
+          sceneNumber: item.sceneNumber ?? null,
+          sceneHeading: item.sceneHeading ?? null,
+          category: item.category ?? "ENGINE",
+        }));
+        const lines = rows.map((r) => ({
+          department: r.department,
+          name: r.name,
+          quantity: r.quantity,
+          unitCost: r.unitCost,
+          total: r.total,
+          notes: r.notes || null,
+        }));
+        const draft = saveLocalBudgetDraft({
+          template: templateChoice,
+          lines,
+          engine: starter,
+        });
+        setLocalBudgetDraft(draft);
+        return { budget: { id: "local", template: templateChoice, totalPlanned: 0, lines } };
+      }
       return projectToolFetch<{ budget: NonNullable<typeof budget> }>(
         `/api/creator/projects/${projectId}/budget`,
         {
@@ -3917,11 +4022,31 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
     },
     onMutate: () => setInitError(""),
     onSuccess: (result) => {
-      queryClient.setQueryData(["project-budget", projectId], (prev: typeof data) => ({
-        ...(prev ?? {}),
-        budget: result.budget,
-      }));
-      void queryClient.invalidateQueries({ queryKey: ["project-budget", projectId] });
+      if (hasProject) {
+        queryClient.setQueryData(["project-budget", projectId], (prev: typeof data) => ({
+          ...(prev ?? {}),
+          budget: result.budget,
+        }));
+        void queryClient.invalidateQueries({ queryKey: ["project-budget", projectId] });
+      } else {
+        const starter = buildStandaloneBudgetStarter(templateChoice);
+        const rows = starter.sceneLineItems.map((item) => ({
+          key: item.key,
+          id: undefined,
+          department: item.department,
+          name: item.name,
+          quantity: Number(item.quantity ?? 1),
+          unitCost: Number(item.unitCost ?? 0),
+          total: Number(item.total ?? 0),
+          notes: item.notes ?? "",
+          sceneId: item.sceneId ?? null,
+          sceneNumber: item.sceneNumber ?? null,
+          sceneHeading: item.sceneHeading ?? null,
+          category: item.category ?? "ENGINE",
+        }));
+        setDraftRows(rows);
+        setSavedRows(JSON.parse(JSON.stringify(rows)));
+      }
     },
     onError: (err) => {
       setInitError(mutationErrorMessage(err, "Could not create budget. Try again."));
@@ -3939,6 +4064,15 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
         total: r.total,
         notes: r.notes || null,
       }));
+      if (!hasProject) {
+        const draft = saveLocalBudgetDraft({
+          template: (localBudgetDraft?.template ?? templateChoice) as LocalBudgetDraft["template"],
+          lines: lines.map(({ id, ...rest }) => rest),
+          engine: localBudgetDraft?.engine ?? buildStandaloneBudgetStarter(templateChoice),
+        });
+        setLocalBudgetDraft(draft);
+        return { budget: { id: "local", template: draft.template, totalPlanned: 0, lines } };
+      }
       return projectToolFetch<{ budget: NonNullable<typeof budget> }>(
         `/api/creator/projects/${projectId}/budget`,
         {
@@ -4100,15 +4234,8 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
                 type="button"
                 size="sm"
                 className="bg-orange-500 hover:bg-orange-600 text-white text-xs"
-                onClick={() => {
-                  if (!hasProject) {
-                    setInitError("Link a project above before creating a budget.");
-                    return;
-                  }
-                  initMutation.mutate();
-                }}
-                disabled={initMutation.isPending || !hasProject}
-                title={!hasProject ? "Link a project above to create a budget" : undefined}
+                onClick={() => initMutation.mutate()}
+                disabled={initMutation.isPending}
               >
                 {initMutation.isPending ? "Creating..." : "Create budget"}
               </Button>
@@ -4135,11 +4262,11 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
         />
       )}
 
-      {isLoading ? (
+      {hasProject && isLoading ? (
         <Skeleton className="h-64 bg-slate-800/60" />
       ) : !budget ? (
         <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/40 p-6 text-sm text-slate-400">
-          Choose a template and create a budget for this project.
+          Choose a template and create a budget{hasProject ? " for this project" : " (saved locally until you link a project)"}.
         </div>
       ) : (
         <div className="space-y-3">

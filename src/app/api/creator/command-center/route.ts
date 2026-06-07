@@ -18,6 +18,11 @@ export async function GET(req: NextRequest) {
   const raw = req.nextUrl.searchParams.get("range");
   const range = raw && VALID_RANGES.has(raw) ? raw : "month";
 
-  const payload = await getCreatorCommandCenter(creatorId, role ?? "", { range });
-  return NextResponse.json(payload);
+  try {
+    const payload = await getCreatorCommandCenter(creatorId, role ?? "", { range });
+    return NextResponse.json(payload);
+  } catch (e) {
+    console.error("[command-center GET]", e);
+    return NextResponse.json({ error: "Failed to load command center" }, { status: 500 });
+  }
 }

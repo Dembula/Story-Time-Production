@@ -265,6 +265,45 @@ function sum<T>(arr: readonly T[], selector: (v: T) => number): number {
   return arr.reduce((acc, item) => acc + selector(item), 0);
 }
 
+/** Starter budget for tools opened without a linked project (local draft / templates). */
+export function buildStandaloneBudgetStarter(template: BudgetTemplate): BudgetEngineOutput {
+  return runBudgetEngine({
+    template,
+    projectDurationMinutes: 15,
+    logisticsDistanceKm: 30,
+    shootDaysCount: 5,
+    scenes: [
+      {
+        id: "standalone-scene",
+        number: "1",
+        heading: "INT. MAIN LOCATION - DAY",
+        intExt: "INT",
+        timeOfDay: "DAY",
+        pageCount: 3,
+        storyDay: 1,
+        primaryLocationName: "Main location",
+        locationDailyRate: null,
+        locationRules: null,
+        characters: [{ importance: "LEAD" }, { importance: "SUPPORTING" }],
+        propsCount: 3,
+        wardrobeCount: 2,
+        extrasCount: 1,
+        extrasQty: 5,
+        vehiclesCount: 1,
+        stuntsCount: 0,
+        sfxCount: 1,
+        makeupsCount: 2,
+        shootDaysAssigned: 1,
+      },
+    ],
+    manualLines: [],
+    expenses: [],
+    crewNeeds: [{ department: "Camera", role: "Director of Photography", seniority: null, notes: null }],
+    castRoles: [],
+    equipmentItems: [{ category: "Camera", quantity: 1, notes: null }],
+  });
+}
+
 export function runBudgetEngine(input: BudgetEngineInput): BudgetEngineOutput {
   const config = TEMPLATE_CONFIG[input.template] ?? TEMPLATE_CONFIG.SHORT_FILM;
   const departmentTotals: Record<BudgetDepartment, number> = {
