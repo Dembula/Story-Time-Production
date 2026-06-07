@@ -30,7 +30,7 @@ export function WalletBalanceChip() {
   return (
     <Link
       href={walletHref}
-      className="inline-flex max-w-[7.5rem] shrink-0 items-center gap-1 truncate rounded-lg border border-emerald-800/60 bg-emerald-950/30 px-2 py-1.5 text-[11px] text-emerald-200 hover:bg-emerald-900/30 sm:max-w-none sm:px-2.5 sm:text-xs"
+      className="inline-flex max-w-[4.5rem] shrink-0 items-center truncate rounded-md border border-emerald-800/60 bg-emerald-950/30 px-1.5 py-1 text-[11px] text-emerald-200 hover:bg-emerald-900/30 sm:max-w-none sm:rounded-lg sm:px-2.5 sm:py-1.5 sm:text-xs"
       title={`Wallet balance: R${currencyNumberFormat.format(available)}`}
     >
       <span className="hidden sm:inline">Wallet: </span>

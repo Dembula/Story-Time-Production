@@ -86,9 +86,7 @@ export default function CreatorLayout({ children }: { children: React.ReactNode 
       }
       headerEnd={
         <>
-          <div className="order-first min-w-0 w-full basis-full sm:order-none sm:w-auto sm:basis-auto">
-            <CreatorStudioActingLabel />
-          </div>
+          <CreatorStudioActingLabel />
           <WalletBalanceChip />
           <NotificationBell />
           <button

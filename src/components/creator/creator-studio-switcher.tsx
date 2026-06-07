@@ -56,6 +56,16 @@ export function formatProfileOptionLabel(p: StudioProfileRow, userId?: string | 
   return companyName ? `Company · ${companyName}` : "Company workspace";
 }
 
+function formatCompactProfileLabel(p: StudioProfileRow, userId?: string | null): string {
+  const kind = classifyWorkspaceProfile(p, userId);
+  const name = p.displayName?.trim();
+  const companyName = p.company?.displayName?.trim();
+
+  if (kind === "personal") return name ?? "Personal";
+  if (kind === "company_admin") return companyName ?? "Company";
+  return companyName ?? name ?? "Company";
+}
+
 function profileKindSubtitle(p: StudioProfileRow, userId?: string | null): string {
   const kind = classifyWorkspaceProfile(p, userId);
   if (kind === "personal") return "Your personal creator account";
@@ -75,6 +85,9 @@ function sortProfiles(profiles: StudioProfileRow[], userId?: string | null): Stu
   );
 }
 
+const chipShellClass =
+  "flex min-w-0 max-w-[7rem] shrink items-center gap-1 rounded-md border border-white/10 bg-white/[0.04] px-1.5 py-1 sm:max-w-[14rem] sm:gap-1.5 sm:rounded-lg sm:px-2 sm:py-1.5 md:max-w-[18rem]";
+
 /**
  * Header chip for the active studio workspace. When the user has more than one
  * `CreatorStudioProfile` (e.g. personal + joined team), this becomes a dropdown
@@ -90,7 +103,6 @@ export function CreatorStudioActingLabel() {
 
   const [switching, setSwitching] = useState(false);
   const [switchError, setSwitchError] = useState<string | null>(null);
-  const [switchOk, setSwitchOk] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: [...CREATOR_STUDIO_PROFILES_QUERY_KEY],
@@ -109,12 +121,12 @@ export function CreatorStudioActingLabel() {
   const activeId = data?.activeCreatorStudioProfileId ?? null;
   const activeProfile = profiles.find((p) => p.id === activeId) ?? profiles[0] ?? null;
   const activeLabel =
-    (activeProfile ? formatProfileOptionLabel(activeProfile, userId) : null) ??
+    (activeProfile ? formatCompactProfileLabel(activeProfile, userId) : null) ??
     session?.user?.name ??
     session?.user?.email ??
     "Creator";
+  const activeFullLabel = activeProfile ? formatProfileOptionLabel(activeProfile, userId) : activeLabel;
   const activeSubtitle = activeProfile ? profileKindSubtitle(activeProfile, userId) : null;
-
   const multiWorkspace = profiles.length > 1;
 
   const onSelectProfile = useCallback(
@@ -122,7 +134,6 @@ export function CreatorStudioActingLabel() {
       if (!nextId || nextId === activeId || switching) return;
       setSwitching(true);
       setSwitchError(null);
-      setSwitchOk(null);
       try {
         const res = await fetch("/api/creator/studio-profiles/active", {
           method: "PATCH",
@@ -134,94 +145,68 @@ export function CreatorStudioActingLabel() {
           setSwitchError(typeof body.error === "string" ? body.error : "Could not switch workspace.");
           return;
         }
-        const nextProfile = profiles.find((p) => p.id === nextId);
         await queryClient.invalidateQueries({ queryKey: [...CREATOR_STUDIO_PROFILES_QUERY_KEY] });
         await queryClient.invalidateQueries({ queryKey: [...CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY] });
         await updateSession?.({ activeCreatorStudioProfileId: nextId });
         router.refresh();
-        if (nextProfile) {
-          setSwitchOk(`Switched to ${formatProfileOptionLabel(nextProfile, userId)}`);
-          window.setTimeout(() => setSwitchOk(null), 4000);
-        }
       } catch {
         setSwitchError("Could not switch workspace.");
       } finally {
         setSwitching(false);
       }
     },
-    [activeId, switching, profiles, userId, queryClient, updateSession, router],
+    [activeId, switching, queryClient, updateSession, router],
   );
 
   if (!studioRoles) return null;
 
-  const shellClass =
-    "min-w-0 w-full max-w-full rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1.5 text-left sm:w-auto sm:max-w-[min(100vw-6rem,20rem)] md:max-w-[22rem]";
-
   if (isLoading) {
     return (
-      <div className={`${shellClass} flex items-center gap-2 text-xs text-slate-400`}>
-        <UserCircle2 className="h-4 w-4 shrink-0 text-orange-400" />
-        <span className="truncate">Loading workspace…</span>
+      <div className={`${chipShellClass} text-[11px] text-slate-400 sm:text-xs`}>
+        <UserCircle2 className="h-3.5 w-3.5 shrink-0 text-orange-400 sm:h-4 sm:w-4" />
+        <span className="truncate">Loading…</span>
       </div>
     );
   }
 
   if (multiWorkspace) {
     const selectValue = activeId && profiles.some((p) => p.id === activeId) ? activeId : profiles[0]?.id ?? "";
+    const selectTitle = [activeFullLabel, activeSubtitle, switchError].filter(Boolean).join(" — ");
     return (
-      <div className={`${shellClass} flex flex-col gap-1`}>
-        <label
-          htmlFor="creator-workspace-select"
-          className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-slate-500"
+      <div className={`${chipShellClass} relative`} title={selectTitle}>
+        <UserCircle2 className="h-3.5 w-3.5 shrink-0 text-orange-400 sm:h-4 sm:w-4" aria-hidden />
+        <select
+          id="creator-workspace-select"
+          className="storytime-select min-w-0 flex-1 appearance-none truncate border-0 bg-transparent py-0 pl-0 pr-4 text-[11px] font-medium text-white focus:outline-none focus:ring-0 disabled:opacity-60 sm:text-xs"
+          value={selectValue}
+          disabled={switching}
+          onChange={(e) => void onSelectProfile(e.target.value)}
+          title={selectTitle}
+          aria-label="Switch workspace"
+          aria-busy={switching}
         >
-          <UserCircle2 className="h-3.5 w-3.5 shrink-0 text-orange-400" aria-hidden />
-          <span className="truncate">Switch workspace</span>
-          {switching ? <Loader2 className="h-3 w-3 shrink-0 animate-spin text-slate-500" aria-label="Switching" /> : null}
-        </label>
-        <div className="relative min-w-0">
-          <select
-            id="creator-workspace-select"
-            className="storytime-select w-full min-w-0 appearance-none truncate rounded-md border border-white/10 bg-slate-950/80 py-1.5 pl-2 pr-7 text-xs font-medium text-white focus:border-orange-400/50 focus:outline-none focus:ring-1 focus:ring-orange-400/30 disabled:opacity-60"
-            value={selectValue}
-            disabled={switching}
-            onChange={(e) => void onSelectProfile(e.target.value)}
-            title="Switch between personal and company creator workspaces"
-            aria-busy={switching}
-          >
-            {profiles.map((p) => (
-              <option key={p.id} value={p.id}>
-                {formatProfileOptionLabel(p, userId)}
-              </option>
-            ))}
-          </select>
-          <ChevronDown
-            className="pointer-events-none absolute right-1.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500"
-            aria-hidden
-          />
-        </div>
-        {activeSubtitle ? (
-          <p className="truncate text-[10px] leading-snug text-slate-500" title={activeSubtitle}>
-            {activeSubtitle}
-          </p>
-        ) : null}
-        {switchOk ? <p className="text-[10px] text-emerald-400">{switchOk}</p> : null}
-        {switchError ? <p className="text-[10px] text-red-400">{switchError}</p> : null}
+          {profiles.map((p) => (
+            <option key={p.id} value={p.id}>
+              {formatProfileOptionLabel(p, userId)}
+            </option>
+          ))}
+        </select>
+        {switching ? (
+          <Loader2 className="absolute right-1 h-3 w-3 shrink-0 animate-spin text-slate-500" aria-label="Switching" />
+        ) : (
+          <ChevronDown className="pointer-events-none absolute right-0 h-3 w-3 shrink-0 text-slate-500" aria-hidden />
+        )}
       </div>
     );
   }
 
   return (
     <div
-      className={`${shellClass} grid grid-cols-[auto,minmax(0,1fr)] gap-x-2 gap-y-0.5`}
-      title={activeSubtitle ?? "Active studio workspace for this session"}
+      className={chipShellClass}
+      title={[activeFullLabel, activeSubtitle].filter(Boolean).join(" — ")}
     >
-      <UserCircle2 className="col-start-1 row-start-1 row-span-2 h-4 w-4 shrink-0 self-center text-orange-400" />
-      <span className="col-start-2 row-start-1 text-[10px] font-medium uppercase leading-none tracking-wide text-slate-500">
-        Workspace
-      </span>
-      <span className="col-start-2 row-start-2 min-w-0 truncate text-xs font-medium leading-tight text-white">
-        {activeLabel}
-      </span>
+      <UserCircle2 className="h-3.5 w-3.5 shrink-0 text-orange-400 sm:h-4 sm:w-4" aria-hidden />
+      <span className="min-w-0 truncate text-[11px] font-medium text-white sm:text-xs">{activeLabel}</span>
     </div>
   );
 }

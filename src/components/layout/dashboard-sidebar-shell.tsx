@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
 
@@ -110,27 +110,7 @@ export function DashboardSidebarShell({
   const pathname = usePathname();
   const overlayMode = useOverlayNavMode();
   const { deviceClass } = useAdaptiveUi();
-  const headerRef = useRef<HTMLElement>(null);
-  const [headerHeightPx, setHeaderHeightPx] = useState<number | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(!overlayMode);
-
-  useEffect(() => {
-    const el = headerRef.current;
-    if (!el) return;
-
-    const measure = () => {
-      setHeaderHeightPx(Math.ceil(el.getBoundingClientRect().height));
-    };
-
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    window.addEventListener("resize", measure);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("resize", measure);
-    };
-  }, [headerEnd, brandLabel, overlayMode]);
 
   useEffect(() => {
     setSidebarOpen(!overlayMode);
@@ -159,24 +139,23 @@ export function DashboardSidebarShell({
       : sidebar ??
         (navSections ? <NavLinks sections={navSections} pathname={pathname} onNavigate={closeSidebar} /> : null);
 
-  const paddedHeader = deviceClass === "mobile" ? "px-3 py-3" : "px-6 py-4 md:px-12";
+  const paddedHeader = deviceClass === "mobile" ? "px-3 py-2" : "px-6 py-4 md:px-12";
   const paddedContent = deviceClass === "mobile" ? "px-3 py-4" : "px-4 py-6 md:px-8";
-  const overlayTopPx = headerHeightPx ?? (deviceClass === "mobile" ? 60 : 68);
+  const headerPositionClass = overlayMode ? "relative z-30" : "sticky top-0 z-50";
 
   const showDockedSidebar = !overlayMode && sidebarOpen;
 
   return (
     <div className={`relative min-h-screen bg-background text-foreground ${className}`.trim()}>
       <header
-        ref={headerRef}
-        className={`sticky top-0 z-50 border-b border-white/8 bg-background/95 backdrop-blur-xl ${paddedHeader} ${headerClassName}`}
+        className={`border-b border-white/8 bg-background/95 backdrop-blur-xl ${headerPositionClass} ${paddedHeader} ${headerClassName}`}
       >
-        <div className="mx-auto flex max-w-7xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+        <div className="mx-auto flex max-w-7xl items-center gap-1.5 sm:gap-3">
+          <div className="flex min-w-0 shrink-0 items-center gap-1.5 sm:gap-3">
             <button
               type="button"
               onClick={() => setSidebarOpen((v) => !v)}
-              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] text-slate-300 transition hover:bg-white/[0.08] hover:text-white sm:h-10 sm:w-10"
               aria-label={sidebarOpen ? "Close menu" : "Open menu"}
               aria-expanded={sidebarOpen}
             >
@@ -185,13 +164,13 @@ export function DashboardSidebarShell({
             <Link
               href={brandHref}
               onClick={closeSidebar}
-              className="min-w-0 truncate text-base font-semibold text-white sm:text-xl"
+              className="min-w-0 max-w-[5.5rem] truncate text-sm font-semibold text-white sm:max-w-[12rem] sm:text-base md:max-w-none md:text-xl"
             >
               {brandLabel}
             </Link>
           </div>
           {headerEnd ? (
-            <div className="flex min-w-0 w-full flex-wrap items-center justify-end gap-1.5 sm:w-auto sm:shrink-0 sm:gap-2 md:gap-3">
+            <div className="flex min-w-0 flex-1 items-center justify-end gap-1 overflow-hidden sm:gap-2 md:gap-3">
               {headerEnd}
             </div>
           ) : null}
@@ -204,24 +183,24 @@ export function DashboardSidebarShell({
             type="button"
             aria-label="Close menu"
             onClick={() => setSidebarOpen(false)}
-            style={{ top: overlayTopPx }}
             className={[
-              "fixed inset-x-0 bottom-0 z-40 bg-black/55 backdrop-blur-[2px] transition-opacity duration-300",
+              "fixed inset-0 z-40 bg-black/55 backdrop-blur-[2px] transition-opacity duration-300",
               sidebarOpen ? "opacity-100" : "pointer-events-none opacity-0",
             ].join(" ")}
           />
           <aside
-            style={{ top: overlayTopPx }}
             className={[
-              "fixed bottom-0 left-0 z-[45] flex w-[min(18rem,88vw)] flex-col border-r border-white/10 bg-black/98 shadow-2xl backdrop-blur-md",
+              "fixed inset-y-0 left-0 z-[45] flex w-[min(18rem,88vw)] flex-col border-r border-white/10 bg-black/98 shadow-2xl backdrop-blur-md",
               "transition-transform duration-300 ease-out",
               sidebarOpen ? "translate-x-0" : "-translate-x-full pointer-events-none",
             ].join(" ")}
             aria-hidden={!sidebarOpen}
           >
-            <div className="flex-1 overflow-y-auto px-3 py-4">{sidebarBody}</div>
+            <div className="flex-1 overflow-y-auto px-3 py-4 pt-[max(1rem,env(safe-area-inset-top))]">{sidebarBody}</div>
             {sidebarFooter ? (
-              <div className="shrink-0 border-t border-white/8 p-3">{sidebarFooter}</div>
+              <div className="shrink-0 border-t border-white/8 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+                {sidebarFooter}
+              </div>
             ) : null}
           </aside>
         </>
@@ -231,15 +210,7 @@ export function DashboardSidebarShell({
         <div className="flex w-full gap-4 md:gap-6">
           {showDockedSidebar ? (
             <aside className="hidden w-56 shrink-0 md:block xl:w-64">
-              <div
-                className="sticky overflow-y-auto pr-1"
-                style={{
-                  top: overlayTopPx + 16,
-                  maxHeight: `calc(100vh - ${overlayTopPx + 32}px)`,
-                }}
-              >
-                {sidebarBody}
-              </div>
+              <div className="sticky top-24 max-h-[calc(100vh-7rem)] overflow-y-auto pr-1">{sidebarBody}</div>
               {sidebarFooter ? <div className="mt-4">{sidebarFooter}</div> : null}
             </aside>
           ) : null}
