@@ -150,7 +150,7 @@ export function DashboardSidebarShell({
       <header
         className={`sticky top-0 z-50 border-b border-white/8 bg-background/95 backdrop-blur-xl ${paddedHeader} ${headerClassName}`}
       >
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 sm:gap-3">
+        <div className="mx-auto flex max-w-7xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <button
               type="button"
@@ -164,13 +164,15 @@ export function DashboardSidebarShell({
             <Link
               href={brandHref}
               onClick={closeSidebar}
-              className="min-w-0 max-w-[11rem] truncate text-base font-semibold text-white sm:max-w-none sm:text-xl"
+              className="min-w-0 truncate text-base font-semibold text-white sm:text-xl"
             >
               {brandLabel}
             </Link>
           </div>
           {headerEnd ? (
-            <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">{headerEnd}</div>
+            <div className="flex min-w-0 w-full flex-wrap items-center justify-end gap-1.5 sm:w-auto sm:shrink-0 sm:gap-2 md:gap-3">
+              {headerEnd}
+            </div>
           ) : null}
         </div>
       </header>

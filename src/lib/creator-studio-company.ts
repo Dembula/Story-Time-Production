@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { parseEmbeddedMeta } from "@/lib/marketplace-profile-meta";
 import { normalizeInviteEmail } from "@/lib/creator-team-invites";
+import { seatCapFromGoals } from "@/lib/creator-studio-company-seats";
 import {
   isMissingCreatorStudioInfrastructure,
   isMissingUserStudioWorkspacePrismaField,
@@ -22,15 +23,6 @@ function studioDelegatesReady(): boolean {
     typeof ext.creatorStudioProfile?.count === "function" &&
     typeof ext.studioCompany?.findFirst === "function"
   );
-}
-
-function seatCapFromGoals(goals: string | null): number | null {
-  const { meta } = parseEmbeddedMeta<{ teamSeatCap?: number }>(goals);
-  const cap = meta?.teamSeatCap;
-  if (typeof cap === "number" && Number.isFinite(cap)) {
-    return Math.min(5, Math.max(1, Math.floor(cap)));
-  }
-  return null;
 }
 
 /** Resolve whether this film/music creator registered as individual or company (DB column or goals meta). */

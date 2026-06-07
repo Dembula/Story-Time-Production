@@ -60,8 +60,9 @@ export default function CreatorLayout({ children }: { children: React.ReactNode 
     queryFn: () => fetch("/api/creator/studio-profiles").then((r) => r.json()),
     enabled: role === "CONTENT_CREATOR" || role === "MUSIC_CREATOR",
   });
-  const showCompanyAdminNav = Boolean(studioPayload?.companies?.length);
-  const showAccountControlNav = role === "CONTENT_CREATOR" || role === "ADMIN";
+  const ownedCompanyCount = studioPayload?.companies?.length ?? 0;
+  const showCompanyAdminNav = ownedCompanyCount > 0;
+  const showAccountControlNav = ownedCompanyCount > 0;
   const showPipelineNav = licensePayload?.pipelineAccess !== false;
 
   const handleSignOut = async () => {
@@ -85,7 +86,9 @@ export default function CreatorLayout({ children }: { children: React.ReactNode 
       }
       headerEnd={
         <>
-          <CreatorStudioActingLabel />
+          <div className="order-first min-w-0 w-full basis-full sm:order-none sm:w-auto sm:basis-auto">
+            <CreatorStudioActingLabel />
+          </div>
           <WalletBalanceChip />
           <NotificationBell />
           <button

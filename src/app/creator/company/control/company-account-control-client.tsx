@@ -197,9 +197,15 @@ export function CompanyAccountControlClient() {
         </label>
         {feedback.ok ? <p className="mb-2 text-xs text-emerald-400">{feedback.ok}</p> : null}
         {feedback.err ? <p className="mb-2 text-xs text-red-400">{feedback.err}</p> : null}
+        {selectedCompany && selectedCompany.seatCap <= 1 ? (
+          <p className="mb-2 text-xs text-amber-300">
+            Your workspace is on a 1-seat plan (admin only). Inviting will automatically raise your seat cap to match
+            your registered team size when possible.
+          </p>
+        ) : null}
         <button
           type="button"
-          disabled={inviteMutation.isPending || !email.trim()}
+          disabled={inviteMutation.isPending || !email.trim() || suites.length === 0}
           onClick={() => {
             setFeedback({});
             inviteMutation.mutate();

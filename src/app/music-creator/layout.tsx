@@ -29,10 +29,8 @@ export default function MusicCreatorLayout({ children }: { children: React.React
   const navSections = useMemo((): DashboardNavSection[] => {
     const items: Array<{ href: string; label: string; highlight?: boolean }> = [];
 
-    if (role === "MUSIC_CREATOR") {
-      items.push({ href: "/creator/company/control", label: "Account control" });
-    }
     if (showCompanyAdmin) {
+      items.push({ href: "/creator/company/control", label: "Account control" });
       items.push({ href: "/music-creator/company", label: "Company admin" });
     }
 
@@ -71,7 +69,9 @@ export default function MusicCreatorLayout({ children }: { children: React.React
       }
       headerEnd={
         <>
-          <CreatorStudioActingLabel />
+          <div className="order-first min-w-0 w-full basis-full sm:order-none sm:w-auto sm:basis-auto">
+            <CreatorStudioActingLabel />
+          </div>
           <WalletBalanceChip />
           <NotificationBell />
           <button

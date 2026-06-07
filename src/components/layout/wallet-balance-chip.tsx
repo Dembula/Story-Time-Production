@@ -30,9 +30,11 @@ export function WalletBalanceChip() {
   return (
     <Link
       href={walletHref}
-      className="inline-flex items-center gap-1 rounded-lg border border-emerald-800/60 bg-emerald-950/30 px-2.5 py-1.5 text-xs text-emerald-200 hover:bg-emerald-900/30"
+      className="inline-flex max-w-[7.5rem] shrink-0 items-center gap-1 truncate rounded-lg border border-emerald-800/60 bg-emerald-950/30 px-2 py-1.5 text-[11px] text-emerald-200 hover:bg-emerald-900/30 sm:max-w-none sm:px-2.5 sm:text-xs"
+      title={`Wallet balance: R${currencyNumberFormat.format(available)}`}
     >
-      Wallet: R{currencyNumberFormat.format(available)}
+      <span className="hidden sm:inline">Wallet: </span>
+      <span className="truncate">R{currencyNumberFormat.format(available)}</span>
     </Link>
   );
 }
