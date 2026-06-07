@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { CompanyPackageGate } from "@/components/layout/company-package-gate";
 import { DashboardSidebarShell } from "@/components/layout/dashboard-sidebar-shell";
 import { NotificationBell } from "@/components/layout/notification-bell";
-import { WalletBalanceChip } from "@/components/layout/wallet-balance-chip";
 
 const navItems = [
   { href: "/crew-team/dashboard", label: "Dashboard" },
@@ -38,7 +37,6 @@ export default function CrewTeamLayout({ children }: { children: React.ReactNode
       }
       headerEnd={
         <>
-          <WalletBalanceChip />
           <NotificationBell />
           <button
             onClick={handleSignOut}

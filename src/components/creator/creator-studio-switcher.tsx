@@ -56,23 +56,6 @@ export function formatProfileOptionLabel(p: StudioProfileRow, userId?: string | 
   return companyName ? `Company · ${companyName}` : "Company workspace";
 }
 
-function formatCompactProfileLabel(p: StudioProfileRow, userId?: string | null): string {
-  const kind = classifyWorkspaceProfile(p, userId);
-  const name = p.displayName?.trim();
-  const companyName = p.company?.displayName?.trim();
-
-  if (kind === "personal") return name ?? "Personal";
-  if (kind === "company_admin") return companyName ?? "Company";
-  return companyName ?? name ?? "Company";
-}
-
-function profileKindSubtitle(p: StudioProfileRow, userId?: string | null): string {
-  const kind = classifyWorkspaceProfile(p, userId);
-  if (kind === "personal") return "Your personal creator account";
-  if (kind === "company_admin") return "Studio you own — invite & manage team";
-  return "Team workspace — shared company access";
-}
-
 function sortProfiles(profiles: StudioProfileRow[], userId?: string | null): StudioProfileRow[] {
   const rank = (p: StudioProfileRow) => {
     const kind = classifyWorkspaceProfile(p, userId);
@@ -85,8 +68,8 @@ function sortProfiles(profiles: StudioProfileRow[], userId?: string | null): Stu
   );
 }
 
-const chipShellClass =
-  "flex min-w-0 max-w-[7rem] shrink items-center gap-1 rounded-md border border-white/10 bg-white/[0.04] px-1.5 py-1 sm:max-w-[14rem] sm:gap-1.5 sm:rounded-lg sm:px-2 sm:py-1.5 md:max-w-[18rem]";
+const chipClass =
+  "flex min-w-0 max-w-[9rem] items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1.5 text-left sm:max-w-[14rem] md:max-w-[18rem]";
 
 /**
  * Header chip for the active studio workspace. When the user has more than one
@@ -121,12 +104,11 @@ export function CreatorStudioActingLabel() {
   const activeId = data?.activeCreatorStudioProfileId ?? null;
   const activeProfile = profiles.find((p) => p.id === activeId) ?? profiles[0] ?? null;
   const activeLabel =
-    (activeProfile ? formatCompactProfileLabel(activeProfile, userId) : null) ??
+    (activeProfile ? formatProfileOptionLabel(activeProfile, userId) : null) ??
     session?.user?.name ??
     session?.user?.email ??
     "Creator";
-  const activeFullLabel = activeProfile ? formatProfileOptionLabel(activeProfile, userId) : activeLabel;
-  const activeSubtitle = activeProfile ? profileKindSubtitle(activeProfile, userId) : null;
+
   const multiWorkspace = profiles.length > 1;
 
   const onSelectProfile = useCallback(
@@ -162,7 +144,7 @@ export function CreatorStudioActingLabel() {
 
   if (isLoading) {
     return (
-      <div className={`${chipShellClass} text-[11px] text-slate-400 sm:text-xs`}>
+      <div className={`${chipClass} text-[11px] text-slate-400 sm:text-xs`}>
         <UserCircle2 className="h-3.5 w-3.5 shrink-0 text-orange-400 sm:h-4 sm:w-4" />
         <span className="truncate">Loading…</span>
       </div>
@@ -171,9 +153,9 @@ export function CreatorStudioActingLabel() {
 
   if (multiWorkspace) {
     const selectValue = activeId && profiles.some((p) => p.id === activeId) ? activeId : profiles[0]?.id ?? "";
-    const selectTitle = [activeFullLabel, activeSubtitle, switchError].filter(Boolean).join(" — ");
+    const selectTitle = switchError ? `${activeLabel} — ${switchError}` : activeLabel;
     return (
-      <div className={`${chipShellClass} relative`} title={selectTitle}>
+      <div className={`${chipClass} relative`} title={selectTitle}>
         <UserCircle2 className="h-3.5 w-3.5 shrink-0 text-orange-400 sm:h-4 sm:w-4" aria-hidden />
         <select
           id="creator-workspace-select"
@@ -201,10 +183,7 @@ export function CreatorStudioActingLabel() {
   }
 
   return (
-    <div
-      className={chipShellClass}
-      title={[activeFullLabel, activeSubtitle].filter(Boolean).join(" — ")}
-    >
+    <div className={chipClass} title={activeLabel}>
       <UserCircle2 className="h-3.5 w-3.5 shrink-0 text-orange-400 sm:h-4 sm:w-4" aria-hidden />
       <span className="min-w-0 truncate text-[11px] font-medium text-white sm:text-xs">{activeLabel}</span>
     </div>

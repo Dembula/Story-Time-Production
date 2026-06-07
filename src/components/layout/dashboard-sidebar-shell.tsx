@@ -139,23 +139,23 @@ export function DashboardSidebarShell({
       : sidebar ??
         (navSections ? <NavLinks sections={navSections} pathname={pathname} onNavigate={closeSidebar} /> : null);
 
-  const paddedHeader = deviceClass === "mobile" ? "px-3 py-2" : "px-6 py-4 md:px-12";
+  const paddedHeader = deviceClass === "mobile" ? "px-3 py-3" : "px-6 py-4 md:px-12";
   const paddedContent = deviceClass === "mobile" ? "px-3 py-4" : "px-4 py-6 md:px-8";
-  const headerPositionClass = overlayMode ? "relative z-30" : "sticky top-0 z-50";
+  const headerHeightClass = deviceClass === "mobile" ? "top-[3.75rem]" : "top-[4.25rem]";
 
   const showDockedSidebar = !overlayMode && sidebarOpen;
 
   return (
     <div className={`relative min-h-screen bg-background text-foreground ${className}`.trim()}>
       <header
-        className={`border-b border-white/8 bg-background/95 backdrop-blur-xl ${headerPositionClass} ${paddedHeader} ${headerClassName}`}
+        className={`sticky top-0 z-50 border-b border-white/8 bg-background/95 backdrop-blur-xl ${paddedHeader} ${headerClassName}`}
       >
-        <div className="mx-auto flex max-w-7xl items-center gap-1.5 sm:gap-3">
-          <div className="flex min-w-0 shrink-0 items-center gap-1.5 sm:gap-3">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 sm:gap-3">
+          <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
             <button
               type="button"
               onClick={() => setSidebarOpen((v) => !v)}
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] text-slate-300 transition hover:bg-white/[0.08] hover:text-white sm:h-10 sm:w-10"
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
               aria-label={sidebarOpen ? "Close menu" : "Open menu"}
               aria-expanded={sidebarOpen}
             >
@@ -164,15 +164,13 @@ export function DashboardSidebarShell({
             <Link
               href={brandHref}
               onClick={closeSidebar}
-              className="min-w-0 max-w-[5.5rem] truncate text-sm font-semibold text-white sm:max-w-[12rem] sm:text-base md:max-w-none md:text-xl"
+              className="min-w-0 truncate text-sm font-semibold text-white sm:text-base md:text-xl"
             >
               {brandLabel}
             </Link>
           </div>
           {headerEnd ? (
-            <div className="flex min-w-0 flex-1 items-center justify-end gap-1 overflow-hidden sm:gap-2 md:gap-3">
-              {headerEnd}
-            </div>
+            <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">{headerEnd}</div>
           ) : null}
         </div>
       </header>
@@ -184,23 +182,21 @@ export function DashboardSidebarShell({
             aria-label="Close menu"
             onClick={() => setSidebarOpen(false)}
             className={[
-              "fixed inset-0 z-40 bg-black/55 backdrop-blur-[2px] transition-opacity duration-300",
+              `fixed inset-0 ${headerHeightClass} z-40 bg-black/55 backdrop-blur-[2px] transition-opacity duration-300`,
               sidebarOpen ? "opacity-100" : "pointer-events-none opacity-0",
             ].join(" ")}
           />
           <aside
             className={[
-              "fixed inset-y-0 left-0 z-[45] flex w-[min(18rem,88vw)] flex-col border-r border-white/10 bg-black/98 shadow-2xl backdrop-blur-md",
+              `fixed bottom-0 left-0 ${headerHeightClass} z-[45] flex w-[min(18rem,88vw)] flex-col border-r border-white/10 bg-black/98 shadow-2xl backdrop-blur-md`,
               "transition-transform duration-300 ease-out",
               sidebarOpen ? "translate-x-0" : "-translate-x-full pointer-events-none",
             ].join(" ")}
             aria-hidden={!sidebarOpen}
           >
-            <div className="flex-1 overflow-y-auto px-3 py-4 pt-[max(1rem,env(safe-area-inset-top))]">{sidebarBody}</div>
+            <div className="flex-1 overflow-y-auto px-3 py-4">{sidebarBody}</div>
             {sidebarFooter ? (
-              <div className="shrink-0 border-t border-white/8 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-                {sidebarFooter}
-              </div>
+              <div className="shrink-0 border-t border-white/8 p-3">{sidebarFooter}</div>
             ) : null}
           </aside>
         </>

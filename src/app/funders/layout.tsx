@@ -6,7 +6,6 @@ import { signOut, useSession } from "next-auth/react";
 import { Bell, ChevronLeft, Handshake, LayoutDashboard, LogOut, ShieldCheck, WalletCards } from "lucide-react";
 import { DashboardSidebarShell } from "@/components/layout/dashboard-sidebar-shell";
 import { NotificationBell } from "@/components/layout/notification-bell";
-import { WalletBalanceChip } from "@/components/layout/wallet-balance-chip";
 
 const NAV_ITEMS = [
   { href: "/funders", label: "Dashboard", icon: LayoutDashboard },
@@ -44,7 +43,6 @@ export default function FundersLayout({ children }: { children: React.ReactNode 
             <ChevronLeft className="h-3.5 w-3.5" />
             Home
           </Link>
-          <WalletBalanceChip />
           <NotificationBell />
           <button
             onClick={handleSignOut}

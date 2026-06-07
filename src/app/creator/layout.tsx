@@ -8,7 +8,6 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { DashboardSidebarShell } from "@/components/layout/dashboard-sidebar-shell";
 import { NotificationBell } from "@/components/layout/notification-bell";
-import { WalletBalanceChip } from "@/components/layout/wallet-balance-chip";
 import { CreatorPackageGate } from "@/components/creator/creator-package-gate";
 import { CreatorPipelineRouteGate } from "@/components/creator/creator-pipeline-route-gate";
 import { CreatorStudioActingLabel } from "@/components/creator/creator-studio-switcher";
@@ -87,7 +86,6 @@ export default function CreatorLayout({ children }: { children: React.ReactNode 
       headerEnd={
         <>
           <CreatorStudioActingLabel />
-          <WalletBalanceChip />
           <NotificationBell />
           <button
             onClick={handleSignOut}

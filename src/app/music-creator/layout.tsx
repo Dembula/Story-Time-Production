@@ -7,7 +7,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { DashboardSidebarShell, type DashboardNavSection } from "@/components/layout/dashboard-sidebar-shell";
 import { NotificationBell } from "@/components/layout/notification-bell";
-import { WalletBalanceChip } from "@/components/layout/wallet-balance-chip";
 import { CreatorPackageGate } from "@/components/creator/creator-package-gate";
 import { CreatorStudioActingLabel } from "@/components/creator/creator-studio-switcher";
 import { CREATOR_STUDIO_PROFILES_QUERY_KEY } from "@/lib/pricing";
@@ -70,7 +69,6 @@ export default function MusicCreatorLayout({ children }: { children: React.React
       headerEnd={
         <>
           <CreatorStudioActingLabel />
-          <WalletBalanceChip />
           <NotificationBell />
           <button
             onClick={handleSignOut}
