@@ -12,6 +12,14 @@ export function resolveQuickPromptAction(
 ): ModocQuickPromptAction | null {
   if (!projectId) return null;
 
+  if (prompt === "Review my budget for gaps") {
+    return { type: "generate_smart_budget", payload: { projectId } };
+  }
+
+  if (prompt === "Build my budget from the script") {
+    return { type: "generate_smart_budget", payload: { projectId } };
+  }
+
   if (prompt === "Break down my latest script") {
     return { type: "breakdown_full", payload: { projectId } };
   }

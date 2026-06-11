@@ -24,6 +24,17 @@ import {
 } from "@/lib/pricing";
 import { mutationErrorMessage, projectToolFetch, projectToolQueryFn } from "@/lib/project-tool-fetch";
 import { ToolActionError } from "@/components/project-tools/tool-action-error";
+import {
+  ToolSavedViewSheet,
+  ToolViewButton,
+  IdeasSavedViewer,
+  ScriptsSavedViewer,
+  ScriptReviewsViewer,
+  BudgetSavedViewer,
+  ScheduleSavedViewer,
+  BreakdownSavedViewer,
+  TableReadsSavedViewer,
+} from "@/components/project-tools";
 import { buildStandaloneBudgetStarter } from "@/lib/budget-engine";
 import {
   getLocalBudgetDraft,
@@ -334,6 +345,8 @@ function IdeaDevelopmentWorkspace({ projectId, title }: IdeaDevelopmentWorkspace
         genres: savedSnapshot.genres,
       });
 
+  const [ideasViewOpen, setIdeasViewOpen] = useState(false);
+
   const createMutation = useMutation({
     mutationFn: async () => {
       return projectToolFetch(`/api/creator/projects/${projectId}/ideas`, {
@@ -407,6 +420,11 @@ function IdeaDevelopmentWorkspace({ projectId, title }: IdeaDevelopmentWorkspace
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <ToolViewButton
+            onClick={() => setIdeasViewOpen(true)}
+            count={ideas.length}
+            disabled={ideas.length === 0}
+          />
           <Button
             type="button"
             variant="outline"
@@ -426,6 +444,21 @@ function IdeaDevelopmentWorkspace({ projectId, title }: IdeaDevelopmentWorkspace
         </div>
         </div>
       </header>
+
+      <ToolSavedViewSheet
+        open={ideasViewOpen}
+        onClose={() => setIdeasViewOpen(false)}
+        title="Saved ideas"
+        subtitle="Browse loglines, genres, and notes from your idea vault."
+      >
+        <IdeasSavedViewer
+          ideas={ideas}
+          selectedId={selectedId}
+          onSelect={(id) => {
+            setSelectedId(id);
+          }}
+        />
+      </ToolSavedViewSheet>
 
       <ToolActionError message={createError} onDismiss={() => setCreateError("")} />
 
@@ -754,6 +787,7 @@ function ScriptWritingWorkspace({ projectId, title }: ScriptWritingWorkspaceProp
     : 0;
 
   const approxPages = draft?.content ? Math.max(1, Math.round(draft.content.length / 1800)) : 0;
+  const [scriptsViewOpen, setScriptsViewOpen] = useState(false);
   const { data: ideasData } = useQuery({
     enabled: !!hasProject && !!projectId,
     queryKey: ["project-ideas", projectId],
@@ -840,6 +874,11 @@ function ScriptWritingWorkspace({ projectId, title }: ScriptWritingWorkspaceProp
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <ToolViewButton
+            onClick={() => setScriptsViewOpen(true)}
+            count={scripts.length}
+            disabled={scripts.length === 0}
+          />
           <div className="flex flex-col items-end gap-1">
             <span className="text-[11px] text-slate-400">
               {saving ? "Saving..." : dirty ? "Unsaved changes" : "Saved"}
@@ -853,6 +892,24 @@ function ScriptWritingWorkspace({ projectId, title }: ScriptWritingWorkspaceProp
         </div>
         </div>
       </header>
+
+      <ToolSavedViewSheet
+        open={scriptsViewOpen}
+        onClose={() => setScriptsViewOpen(false)}
+        title="Script library"
+        subtitle="Read-only preview of saved screenplays in your library."
+      >
+        <ScriptsSavedViewer
+          scripts={scripts.map((s) => ({
+            id: s.id,
+            title: s.title,
+            type: s.type,
+            content: s.content,
+          }))}
+          selectedId={selectedId}
+          onSelect={setSelectedId}
+        />
+      </ToolSavedViewSheet>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="md:col-span-1 space-y-2">
@@ -1596,6 +1653,8 @@ function ScriptReviewWorkspaceV2({ projectId, title }: ScriptReviewWorkspaceProp
   const [paymentEmail, setPaymentEmail] = useState("");
   const [paymentName, setPaymentName] = useState("");
   const [paymentMessage, setPaymentMessage] = useState<string | null>(null);
+  const [reviewsViewOpen, setReviewsViewOpen] = useState(false);
+  const [reviewsViewTab, setReviewsViewTab] = useState("script");
 
   useEffect(() => {
     setWorkingProjectId(projectId ?? "");
@@ -1871,14 +1930,25 @@ function ScriptReviewWorkspaceV2({ projectId, title }: ScriptReviewWorkspaceProp
   return (
     <div className="space-y-4">
       <header className="storytime-plan-card p-5 md:p-6">
-        <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">
-          Pre-production workspace
-        </p>
-        <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
-        <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
-          Select a project, open script drafts side-by-side with your internal review, and submit
-          a paid executive review when needed.
-        </p>
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div className="min-w-0 flex-1">
+            <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">
+              Pre-production workspace
+            </p>
+            <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
+            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
+              Select a project and draft, write internal notes, and submit for executive review when ready.
+              Use View to read script drafts and all review history without scrolling the workspace.
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <ToolViewButton
+              onClick={() => setReviewsViewOpen(true)}
+              count={internalReviews.length + requests.length}
+              disabled={!hasProject || draftOptions.length === 0}
+            />
+          </div>
+        </div>
       </header>
 
       <section className="storytime-section p-4 md:p-5 space-y-3">
@@ -1923,63 +1993,43 @@ function ScriptReviewWorkspaceV2({ projectId, title }: ScriptReviewWorkspaceProp
           Select a project to start script review.
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          <Card className="creator-glass-panel border-0 bg-transparent text-slate-50 shadow-none">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm">Script preview</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {scriptLoading ? (
-                <Skeleton className="h-80 bg-slate-800/60" />
-              ) : !selectedDraft ? (
-                <p className="text-sm text-slate-500">No script versions found for this project yet.</p>
-              ) : (
-                <div className="rounded-lg border border-slate-700 bg-slate-950/60 p-4">
-                  <p className="mb-2 text-xs text-slate-400">
-                    {selectedDraft.label}
-                  </p>
-                  <div className="max-h-[520px] overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed text-slate-200">
-                    {selectedDraft.content || "This draft is empty."}
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="creator-glass-panel border-0 bg-transparent text-slate-50 shadow-none">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm">Internal review panel</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <textarea
-                rows={20}
-                value={internalDraft}
-                onChange={(e) => {
-                  setInternalDraft(e.target.value);
-                  setInternalDraftDirty(true);
-                }}
-                className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-orange-500"
-                placeholder="Write internal review notes for this script draft..."
-              />
-              <div className="flex flex-wrap justify-between gap-2">
-                <span className="text-[11px] text-slate-500">
-                  {notesSaving ? "Saving..." : internalDraftDirty ? "Unsaved changes" : "Saved"}
-                </span>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline" className="border-slate-600 text-xs text-slate-100" disabled={notesSaving || !internalDraftDirty} onClick={saveDraft}>
-                    Save draft notes
-                  </Button>
-                  <Button size="sm" className="bg-orange-500 text-xs text-white hover:bg-orange-600" disabled={notesSaving || !internalDraft.trim() || !selectedDraft} onClick={addInternalReview}>
-                    Add to internal history
-                  </Button>
-                </div>
+        <Card className="creator-glass-panel border-0 bg-transparent text-slate-50 shadow-none max-w-3xl">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm">Internal review</CardTitle>
+            <p className="text-xs text-slate-500 font-normal mt-1">
+              Draft notes for <span className="text-slate-300">{selectedDraft?.label ?? "selected script"}</span>.
+              Open View for script preview and full review history.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <textarea
+              rows={14}
+              value={internalDraft}
+              onChange={(e) => {
+                setInternalDraft(e.target.value);
+                setInternalDraftDirty(true);
+              }}
+              className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-orange-500 min-h-[280px]"
+              placeholder="Write internal review notes for this script draft..."
+            />
+            <div className="flex flex-wrap justify-between gap-2">
+              <span className="text-[11px] text-slate-500">
+                {notesSaving ? "Saving..." : internalDraftDirty ? "Unsaved changes" : "Saved"}
+              </span>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" className="border-slate-600 text-xs text-slate-100" disabled={notesSaving || !internalDraftDirty} onClick={saveDraft}>
+                  Save draft notes
+                </Button>
+                <Button size="sm" className="bg-orange-500 text-xs text-white hover:bg-orange-600" disabled={notesSaving || !internalDraft.trim() || !selectedDraft} onClick={addInternalReview}>
+                  Add to internal history
+                </Button>
               </div>
-              {notesSaveMessage ? (
-                <p className="text-[11px] text-slate-400">{notesSaveMessage}</p>
-              ) : null}
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+            {notesSaveMessage ? (
+              <p className="text-[11px] text-slate-400">{notesSaveMessage}</p>
+            ) : null}
+          </CardContent>
+        </Card>
       )}
 
       {hasProject && (
@@ -2025,55 +2075,52 @@ function ScriptReviewWorkspaceV2({ projectId, title }: ScriptReviewWorkspaceProp
         </Card>
       )}
 
-      <Card className="creator-glass-panel border-0 bg-transparent text-slate-50 shadow-none">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm">Review history</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-400">Internal reviews</p>
-            {internalReviews.length === 0 ? (
-              <p className="text-xs text-slate-500">No internal reviews recorded yet.</p>
-            ) : (
-              <ul className="space-y-2">
-                {internalReviews.map((r) => (
-                  <li key={r.id} className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
-                    <p className="text-xs font-medium text-slate-200">{r.scriptLabel}</p>
-                    <p className="mt-1 whitespace-pre-wrap text-xs text-slate-300">{r.notes}</p>
-                    <p className="mt-2 text-[11px] text-slate-500">{new Date(r.createdAt).toLocaleString()}</p>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          <div>
-            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-400">Executive reviews</p>
-            {isLoading ? (
-              <p className="text-xs text-slate-500">Loading executive history...</p>
-            ) : requests.length === 0 ? (
-              <p className="text-xs text-slate-500">No executive submissions yet.</p>
-            ) : (
-              <ul className="space-y-2">
-                {requests.map((r) => (
-                  <li key={r.id} className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
-                    <p className="text-xs font-medium text-slate-200">
-                      {(r.scriptVersion?.script?.title ?? scriptTitle) + " · " + (r.scriptVersion?.versionLabel || "Submitted draft")}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-400">{formatZar(r.feeAmount)} · {r.status.replace(/_/g, " ")}</p>
-                    {r.feedbackNotes && <p className="mt-1 whitespace-pre-wrap text-xs text-slate-300">{r.feedbackNotes}</p>}
-                    {r.feedbackUrl && (
-                      <a href={r.feedbackUrl} target="_blank" rel="noreferrer" className="mt-1 inline-block text-xs text-orange-300 underline hover:text-orange-200">
-                        Open executive feedback file
-                      </a>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      <ToolSavedViewSheet
+        open={reviewsViewOpen}
+        onClose={() => setReviewsViewOpen(false)}
+        title="Script & reviews"
+        subtitle={selectedDraft?.label ?? "Drafts and feedback for this project"}
+        tabs={[
+          { id: "script", label: "Script" },
+          { id: "internal", label: "Internal", badge: internalReviews.length },
+          { id: "executive", label: "Executive", badge: requests.length },
+        ]}
+        activeTab={reviewsViewTab}
+        onTabChange={setReviewsViewTab}
+      >
+        {reviewsViewTab === "script" ? (
+          scriptLoading ? (
+            <Skeleton className="h-64 bg-slate-800/60" />
+          ) : (
+            <ScriptReviewsViewer
+              scriptLabel={selectedDraft?.label}
+              scriptContent={selectedDraft?.content}
+              internalReviews={[]}
+              executiveReviews={[]}
+            />
+          )
+        ) : reviewsViewTab === "internal" ? (
+          <ScriptReviewsViewer
+            internalReviews={internalReviews}
+            executiveReviews={[]}
+          />
+        ) : (
+          <ScriptReviewsViewer
+            internalReviews={[]}
+            executiveReviews={requests.map((r) => ({
+              id: r.id,
+              status: r.status,
+              feeAmount: r.feeAmount,
+              submittedAt: r.submittedAt,
+              reviewedAt: r.reviewedAt,
+              feedbackNotes: r.feedbackNotes,
+              feedbackUrl: r.feedbackUrl,
+              scriptTitle: r.scriptVersion?.script?.title ?? scriptTitle,
+              versionLabel: r.scriptVersion?.versionLabel,
+            }))}
+          />
+        )}
+      </ToolSavedViewSheet>
     </div>
   );
 }
@@ -2356,6 +2403,7 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
   });
 
   const [tab, setTab] = useState<BreakdownTab>("scenes");
+  const [breakdownViewOpen, setBreakdownViewOpen] = useState(false);
 
   const [draft, setDraft] = useState<BreakdownPayload | null>(null);
   const [savedSnapshot, setSavedSnapshot] = useState<BreakdownPayload | null>(null);
@@ -2570,7 +2618,15 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
             </p>
           </div>
         <div className="flex items-center gap-2">
-          
+          <ToolViewButton
+            onClick={() => setBreakdownViewOpen(true)}
+            count={
+              (draft.characters?.length ?? 0) +
+              (draft.props?.length ?? 0) +
+              (draft.locations?.length ?? 0) +
+              projectScenesForBreakdown.length
+            }
+          />
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[11px] text-slate-400">
               {saving ? "Saving…" : breakdownDirty ? "Unsaved changes" : "Saved"}
@@ -2601,6 +2657,33 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
         </div>
         </div>
       </header>
+
+      <ToolSavedViewSheet
+        open={breakdownViewOpen}
+        onClose={() => setBreakdownViewOpen(false)}
+        title="Saved breakdown"
+        subtitle="Summary of tagged elements and synced scenes."
+      >
+        <BreakdownSavedViewer
+          summary={{
+            characters: draft.characters?.length ?? 0,
+            props: draft.props?.length ?? 0,
+            locations: draft.locations?.length ?? 0,
+            wardrobe: draft.wardrobe?.length ?? 0,
+            extras: draft.extras?.length ?? 0,
+            vehicles: draft.vehicles?.length ?? 0,
+            stunts: draft.stunts?.length ?? 0,
+            sfx: draft.sfx?.length ?? 0,
+            makeups: draft.makeups?.length ?? 0,
+            scenes: projectScenesForBreakdown.length,
+          }}
+          scenes={projectScenesForBreakdown.map((s) => ({
+            number: s.number,
+            heading: s.heading,
+            summary: s.summary,
+          }))}
+        />
+      </ToolSavedViewSheet>
 
       {breakdownScriptOptions.length > 0 && (
         <div className="rounded-lg border border-slate-800 bg-slate-900/50 px-4 py-3">
@@ -3696,6 +3779,8 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
     });
   }, [draftRows]);
 
+  const [budgetViewOpen, setBudgetViewOpen] = useState(false);
+
   return (
     <div className="space-y-4">
       <header className="storytime-plan-card p-5 md:p-6">
@@ -3719,7 +3804,11 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          
+          <ToolViewButton
+            onClick={() => setBudgetViewOpen(true)}
+            count={budget?.lines?.length ?? 0}
+            disabled={!budget?.lines?.length}
+          />
           {budget && (
             <>
               <span className="text-[11px] text-slate-400">
@@ -3777,6 +3866,29 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
         </div>
         </div>
       </header>
+
+      <ToolSavedViewSheet
+        open={budgetViewOpen}
+        onClose={() => setBudgetViewOpen(false)}
+        title="Saved budget"
+        subtitle="Read-only snapshot of planned lines and department totals."
+      >
+        <BudgetSavedViewer
+          template={budget?.template}
+          totalPlanned={budget?.totalPlanned ?? engine?.dashboard?.estimatedTotal}
+          lines={(budget?.lines ?? []).map((l) => ({
+            department: l.department,
+            name: l.name,
+            quantity: l.quantity,
+            unitCost: l.unitCost,
+            total: l.total,
+          }))}
+          byDepartment={engine?.byDepartment?.map((d) => ({
+            department: d.department,
+            estimated: d.estimated,
+          }))}
+        />
+      </ToolSavedViewSheet>
 
       <ToolActionError message={initError} onDismiss={() => setInitError("")} />
       {budgetLoadError ? (
@@ -4420,6 +4532,7 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
   }, [selectedDay]);
 
   const [scheduleStripView, setScheduleStripView] = useState(false);
+  const [scheduleViewOpen, setScheduleViewOpen] = useState(false);
 
   const createDayMutation = useMutation({
     mutationFn: async () => {
@@ -4778,7 +4891,11 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
             </Button>
           </div>
           <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-            
+            <ToolViewButton
+              onClick={() => setScheduleViewOpen(true)}
+              count={(savedSchedule ?? draftDays ?? []).length}
+              disabled={!(savedSchedule ?? draftDays)?.length}
+            />
             <Button
               size="sm"
               variant="outline"
@@ -4817,6 +4934,26 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
         ) : null}
         </div>
       </header>
+
+      <ToolSavedViewSheet
+        open={scheduleViewOpen}
+        onClose={() => setScheduleViewOpen(false)}
+        title="Production schedule"
+        subtitle="Saved shoot days, call times, locations, and assigned scenes."
+      >
+        <ScheduleSavedViewer
+          days={(savedSchedule ?? draftDays ?? []).map((d) => ({
+            id: d.id,
+            date: typeof d.date === "string" ? d.date : new Date(d.date).toISOString(),
+            unit: d.unit,
+            callTime: d.callTime,
+            wrapTime: d.wrapTime,
+            locationSummary: d.locationSummary,
+            status: d.status,
+            scenes: d.scenes,
+          }))}
+        />
+      </ToolSavedViewSheet>
 
       {hasProject && data && (
         <div className="creator-glass-panel flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
@@ -8658,6 +8795,7 @@ function TableReadsWorkspace({
   });
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) ?? null;
+  const [tableReadsViewOpen, setTableReadsViewOpen] = useState(false);
 
   return (
     <div className="space-y-4">
@@ -8674,7 +8812,11 @@ function TableReadsWorkspace({
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
-            
+            <ToolViewButton
+              onClick={() => setTableReadsViewOpen(true)}
+              count={sessions.length}
+              disabled={sessions.length === 0}
+            />
             <Button
               size="sm"
               className="bg-orange-500 hover:bg-orange-600"
@@ -8687,6 +8829,23 @@ function TableReadsWorkspace({
           </div>
         </div>
       </header>
+
+      <ToolSavedViewSheet
+        open={tableReadsViewOpen}
+        onClose={() => setTableReadsViewOpen(false)}
+        title="Table read sessions"
+        subtitle="Saved sessions, schedules, and notes logs."
+      >
+        <TableReadsSavedViewer
+          sessions={sessions.map((s) => ({
+            id: s.id,
+            name: s.name,
+            scheduledAt: s.scheduledAt,
+            notesLog: s.notesLog,
+            participantCount: s.participants?.length ?? 0,
+          }))}
+        />
+      </ToolSavedViewSheet>
       
       {isLoading ? (
         <Skeleton className="h-48 bg-slate-800/60" />

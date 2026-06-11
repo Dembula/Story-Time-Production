@@ -61,15 +61,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No action in suggestion" }, { status: 400 });
   }
 
+  const {
+    action: _action,
+    scriptTitle,
+    versionLabel: _versionLabel,
+    followUpAction: _followUpAction,
+    url: _url,
+    ...actionPayload
+  } = meta;
+
   const result = await executeModocAction(userId, action, {
+    ...actionPayload,
     projectId: meta.projectId,
-    title: meta.title ?? meta.scriptTitle,
-    description: meta.description,
-    startAt: meta.startAt,
-    endAt: meta.endAt,
-    department: meta.department,
-    priority: meta.priority,
-    assigneeId: meta.assigneeId,
+    title: meta.title ?? scriptTitle,
   });
 
   void recordModocActionFeedback(userId, action, true);

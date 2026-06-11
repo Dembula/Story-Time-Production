@@ -34,12 +34,15 @@ export function inferFollowUpExecuteAction(
     }
   }
 
-  if (/\b(breakdown|script|scenes?|characters?)\b/i.test(text)) {
+  if (/\b(budget|breakdown|script|scenes?|characters?)\b/i.test(text)) {
     const breakdown = reversed.find(
       (a) =>
         a.action === "breakdown_full" ||
         a.action === "breakdown_scenes" ||
-        a.action === "sync_scenes_from_script",
+        a.action === "sync_scenes_from_script" ||
+        a.action === "generate_budget_from_breakdown" ||
+        a.action === "generate_smart_budget" ||
+        a.action === "create_budget",
     );
     if (breakdown) {
       return { type: breakdown.action as ModocActionType, payload: payloadFromRecent(breakdown) };

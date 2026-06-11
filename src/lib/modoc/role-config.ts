@@ -88,7 +88,7 @@ export function getModocRoleProfile(role: string | null | undefined): ModocRoleP
         label: "Virtual Assistant (VA)",
         subtitle: "Your projects · Production · Calendar",
         emptyHint:
-          "Ask anything about your projects, scripts, breakdowns, budgets, schedules, or production workflow. I can run actions like full script breakdowns, create tasks, and schedule calendar events.",
+          "Ask anything about your projects, scripts, breakdowns, budgets, schedules, or production workflow. I can run actions — breakdowns, budgets, tasks, shoot days, casting sync, expenses, calendar events, and more.",
         scope: "creator",
         quickPrompts: CREATOR_PROMPTS,
       };

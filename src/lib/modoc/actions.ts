@@ -4,6 +4,19 @@ import { prisma } from "@/lib/prisma";
 import { ensureProjectAccess } from "@/lib/project-access";
 import { createCreatorCalendarEvent } from "@/lib/creator-command-center-calendar";
 import { executeScriptBreakdown } from "@/lib/modoc/execute-breakdown";
+import {
+  vaAddBudgetLine,
+  vaCreateBudget,
+  vaCreateCastingRole,
+  vaCreateCrewNeed,
+  vaCreateProductionExpense,
+  vaCreateShootDay,
+  vaGenerateBudgetFromBreakdown,
+  vaSyncCastingFromBreakdown,
+  vaUpdateIdeaNotes,
+} from "@/lib/modoc/execute-va-project-tools";
+import { executeExtendedModocAction } from "@/lib/modoc/execute-va-extended-actions";
+import { executePriorityModocAction } from "@/lib/modoc/execute-va-priority-actions";
 import type { ModocActionPayload, ModocActionType } from "@/lib/modoc/action-types";
 
 export type { ModocActionPayload, ModocActionType } from "@/lib/modoc/action-types";
@@ -205,7 +218,66 @@ export async function executeModocAction(
       };
     }
 
-    default:
+    case "create_budget":
+      if (!payload.projectId) {
+        return { ok: false, error: "projectId is required", status: 400 };
+      }
+      return vaCreateBudget(payload.projectId, payload);
+
+    case "generate_budget_from_breakdown":
+      if (!payload.projectId) {
+        return { ok: false, error: "projectId is required", status: 400 };
+      }
+      return vaGenerateBudgetFromBreakdown(payload.projectId, payload);
+
+    case "add_budget_line":
+      if (!payload.projectId) {
+        return { ok: false, error: "projectId is required", status: 400 };
+      }
+      return vaAddBudgetLine(payload.projectId, payload);
+
+    case "create_shoot_day":
+      if (!payload.projectId) {
+        return { ok: false, error: "projectId is required", status: 400 };
+      }
+      return vaCreateShootDay(payload.projectId, payload);
+
+    case "sync_casting_from_breakdown":
+      if (!payload.projectId) {
+        return { ok: false, error: "projectId is required", status: 400 };
+      }
+      return vaSyncCastingFromBreakdown(payload.projectId);
+
+    case "create_casting_role":
+      if (!payload.projectId) {
+        return { ok: false, error: "projectId is required", status: 400 };
+      }
+      return vaCreateCastingRole(payload.projectId, payload);
+
+    case "create_crew_need":
+      if (!payload.projectId) {
+        return { ok: false, error: "projectId is required", status: 400 };
+      }
+      return vaCreateCrewNeed(payload.projectId, payload);
+
+    case "create_production_expense":
+      if (!payload.projectId) {
+        return { ok: false, error: "projectId is required", status: 400 };
+      }
+      return vaCreateProductionExpense(userId, payload.projectId, payload);
+
+    case "update_idea_notes":
+      if (!payload.projectId) {
+        return { ok: false, error: "projectId is required", status: 400 };
+      }
+      return vaUpdateIdeaNotes(payload.projectId, payload);
+
+    default: {
+      const extended = await executeExtendedModocAction(userId, action, payload);
+      if (extended) return extended;
+      const priority = await executePriorityModocAction(userId, action, payload);
+      if (priority) return priority;
       return { ok: false, error: "Unknown action", status: 400 };
+    }
   }
 }

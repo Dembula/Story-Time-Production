@@ -37,6 +37,15 @@ export const MAX_CALENDAR_IN_DB_CONTEXT = 150;
 export const MAX_SHOOT_DAYS_IN_DB_CONTEXT = 100;
 export const MAX_VA_MESSAGES_IN_DB_CONTEXT = 30;
 
+/** Script text injected into VA context (focus project). */
+export const MAX_SCRIPT_CHARS_IN_CONTEXT = 28_000;
+export const MAX_SCRIPT_PREVIEW_CHARS = 1_200;
+export const MAX_SCENES_IN_SCRIPT_CONTEXT = 60;
+export const MAX_CHARACTERS_IN_SCRIPT_CONTEXT = 40;
+
+/** Max user+assistant pairs in a single chat API call. */
+export const MAX_CHAT_TURNS_FOR_MODEL = 12;
+
 /** Calendar lookback for awareness (days). */
 export const CALENDAR_LOOKBACK_DAYS = 30;
 

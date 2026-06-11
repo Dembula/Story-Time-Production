@@ -36,7 +36,7 @@ import {
 } from "@/lib/modoc";
 import type { ModocUserContext } from "@/lib/modoc";
 import { getCreatorAnalytics } from "@/lib/creator-analytics";
-import { streamText, convertToCoreMessages, type UIMessage } from "ai";
+import { streamText, type UIMessage } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { prisma } from "@/lib/prisma";
 import { CREATOR_VA_ROLE } from "@/lib/modoc/creator-va";
@@ -47,11 +47,16 @@ import { buildViewerDatabaseContext, MODOC_VIEWER_INSTRUCTIONS } from "@/lib/mod
 import { buildPlaybookPromptForUser } from "@/lib/modoc/auto-learn";
 import { ingestModocConversationLearning } from "@/lib/modoc/auto-learn";
 import type { ModocActionPayload, ModocActionType } from "@/lib/modoc/action-types";
+import { normalizeModocActionType } from "@/lib/modoc/action-types";
 import { inferFollowUpExecuteAction } from "@/lib/modoc/follow-up-actions";
 import { getModocLearning } from "@/lib/modoc/learning";
 import { getRecentActionLogs, migrateJsonLearningToDb } from "@/lib/modoc/learning-store";
 import { buildExecutedActionPromptBlock, runVaAction } from "@/lib/modoc/run-va-action";
 import { buildVaAwarenessContext } from "@/lib/modoc/va-awareness-context";
+import {
+  getLastUserTextFromRawMessages,
+  prepareModocModelMessages,
+} from "@/lib/modoc/chat-messages";
 import { getAppBaseUrl } from "@/lib/app-url";
 
 /** OpenRouter: one API for 400+ models (OpenAI-compatible endpoint). */
@@ -68,22 +73,6 @@ const openRouter = createOpenAI({
 const MODOC_MODEL = process.env.OPENROUTER_MODOC_MODEL ?? "openai/gpt-4o-mini";
 
 export const maxDuration = 60;
-
-function getLastUserMessageText(
-  rawMessages: UIMessage[],
-): string {
-  for (let i = rawMessages.length - 1; i >= 0; i--) {
-    const message = rawMessages[i];
-    if (message.role !== "user") continue;
-    const content = (message as { content?: unknown }).content;
-    if (typeof content === "string") return content;
-    if (Array.isArray(content)) {
-      const parts = content as Array<{ type?: string; text?: string }>;
-      return parts.find((p) => p.type === "text")?.text ?? "";
-    }
-  }
-  return "";
-}
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -135,19 +124,8 @@ export async function POST(req: Request) {
 
   // Persist the latest user message to the conversation when conversationId and auth are present
   if (conversationId && userId && Array.isArray(rawMessages) && rawMessages.length > 0) {
-    const lastMessage = rawMessages[rawMessages.length - 1];
-    const lastRole = typeof lastMessage === "object" && lastMessage && "role" in lastMessage ? (lastMessage as { role?: string }).role : undefined;
-    const lastContent = (() => {
-      if (!(typeof lastMessage === "object" && lastMessage && "content" in lastMessage)) return "";
-      const contentAny = (lastMessage as unknown as { content?: unknown }).content;
-      if (typeof contentAny === "string") return contentAny;
-      if (Array.isArray(contentAny)) {
-        const parts = contentAny as Array<{ type?: string; text?: string }>;
-        return parts.find((p) => p.type === "text")?.text ?? "";
-      }
-      return "";
-    })();
-    if (lastRole === "user" && lastContent) {
+    const lastContent = getLastUserTextFromRawMessages(rawMessages).trim();
+    if (lastContent) {
       try {
         const conv = await prisma.modocConversation.findFirst({
           where: { id: conversationId, userId },
@@ -202,16 +180,21 @@ export async function POST(req: Request) {
     try {
       const focusProjectId = (pageContext?.projectId as string | undefined) ?? null;
       const [workspaceBlob, databaseBlob, awarenessBlob] = await Promise.all([
-        buildCreatorWorkspaceContext(userId, focusProjectId),
-        buildCreatorDatabaseContext(userId, focusProjectId),
-        buildVaAwarenessContext(userId),
+        buildCreatorWorkspaceContext(userId, focusProjectId).catch(
+          () => "**Creator workspace:** context temporarily unavailable.",
+        ),
+        buildCreatorDatabaseContext(userId, focusProjectId).catch(
+          () => "**Database (creator scope):** context temporarily unavailable.",
+        ),
+        buildVaAwarenessContext(userId).catch(() => ""),
       ]);
       systemPrompt += `
 
 ## Creator workspace context — use this to answer
 
-You are the creator's Virtual Assistant (VA). You have **read-only database access** to this creator's projects, tasks, calendar, scripts, and production data below.
+You are the creator's Virtual Assistant (VA). You have **read-only database access** to this creator's projects, tasks, calendar, **full screenplay text** (for the focus project), scene breakdowns, characters, and production data below.
 Do not reference other users' projects, admin tools, or platform-wide operations outside their creator workspace.
+When the user asks about their script, quote and analyze the **Full screenplay** section below — do not say you lack access if script text is present.
 When suggesting actions, only use project IDs from this list. Cite real database records — never invent IDs.
 
 ${workspaceBlob}
@@ -235,7 +218,7 @@ When you notice a new pattern in how this creator works, adapt your next respons
   if (role === VIEWER_VA_ROLE && (scope === "browse" || path.startsWith("/browse"))) {
     try {
       const focusContentId = (pageContext?.contentId as string | undefined) ?? null;
-      const lastUserText = getLastUserMessageText(rawMessages);
+      const lastUserText = getLastUserTextFromRawMessages(rawMessages);
       const [viewerBlob, playbookBlob] = await Promise.all([
         buildViewerDatabaseContext(userId!, {
           focusContentId,
@@ -1292,65 +1275,95 @@ Suggest performance summary, lessons learned categories, and a final deliverable
     Array.isArray(rawMessages) &&
     rawMessages.length > 0
   ) {
-    const lastUserText = getLastUserMessageText(rawMessages);
-    const learning = await getModocLearning(userId);
-    await migrateJsonLearningToDb(userId, learning);
-    const recentActions = await getRecentActionLogs(userId, 200);
-    const inferred = inferFollowUpExecuteAction(lastUserText, recentActions);
-    if (inferred) {
-      resolvedExecuteAction = { type: inferred.type, payload: inferred.payload };
+    try {
+      const lastUserText = getLastUserTextFromRawMessages(rawMessages);
+      const learning = await getModocLearning(userId);
+      await migrateJsonLearningToDb(userId, learning);
+      const recentActions = await getRecentActionLogs(userId, 200);
+      const inferred = inferFollowUpExecuteAction(lastUserText, recentActions);
+      if (inferred) {
+        resolvedExecuteAction = { type: inferred.type, payload: inferred.payload };
+      }
+    } catch (e) {
+      if (process.env.NODE_ENV === "development") console.error("MODOC follow-up action inference failed:", e);
     }
   }
 
   if (resolvedExecuteAction?.type && userId && sessionRole === CREATOR_VA_ROLE) {
-    const actionType = resolvedExecuteAction.type as ModocActionType;
-    const actionResult = await runVaAction({
-      userId,
-      action: actionType,
-      payload: resolvedExecuteAction.payload ?? {},
-      conversationId,
-    });
+    try {
+      const actionType = normalizeModocActionType(resolvedExecuteAction.type);
+      if (!actionType) {
+        if (process.env.NODE_ENV === "development") {
+          console.error("MODOC unknown executeAction:", resolvedExecuteAction.type);
+        }
+      } else {
+        const focusProjectId = (pageContext?.projectId as string | undefined) ?? undefined;
+        const actionPayload = {
+          ...(resolvedExecuteAction.payload ?? {}),
+          projectId:
+            resolvedExecuteAction.payload?.projectId ?? focusProjectId ?? undefined,
+        };
+        const actionResult = await runVaAction({
+          userId,
+          action: actionType,
+          payload: actionPayload,
+          conversationId,
+        });
 
-    const actionContext = executeAction?.type ? "suggestion" : "follow_up";
-    systemPrompt += buildExecutedActionPromptBlock(actionType, actionResult, actionContext);
+        const actionContext = executeAction?.type ? "suggestion" : "follow_up";
+        systemPrompt += buildExecutedActionPromptBlock(actionType, actionResult, actionContext);
+      }
+    } catch (e) {
+      if (process.env.NODE_ENV === "development") console.error("MODOC action execution failed:", e);
+    }
   }
 
-  const messages =
-    Array.isArray(rawMessages) && rawMessages.length > 0
-      ? convertToCoreMessages(
-          rawMessages as Parameters<typeof convertToCoreMessages>[0]
-        )
-      : [];
+  const lastUserTextForLearning = getLastUserTextFromRawMessages(rawMessages);
 
-  const lastUserTextForLearning = getLastUserMessageText(rawMessages);
+  try {
+    const messages = prepareModocModelMessages(rawMessages);
+    if (messages.length === 0) {
+      return new Response(JSON.stringify({ error: "No valid messages to send." }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
 
-  const result = streamText({
-    model: openRouter(MODOC_MODEL),
-    system: systemPrompt,
-    messages,
-    maxOutputTokens: 4096,
-    temperature: 0.7,
-    onFinish: async ({ text }) => {
-      if (userId && lastUserTextForLearning) {
-        const canLearn =
-          sessionRole === CREATOR_VA_ROLE ||
-          (sessionRole === VIEWER_VA_ROLE && (scope === "browse" || path.startsWith("/browse")));
-        if (!canLearn) return;
-        try {
-          await ingestModocConversationLearning({
-            userId,
-            userMessage: lastUserTextForLearning,
-            assistantMessage: text,
-            conversationId,
-          });
-        } catch (e) {
-          if (process.env.NODE_ENV === "development") {
-            console.error("MODOC auto-learn failed:", e);
+    const result = streamText({
+      model: openRouter(MODOC_MODEL),
+      system: systemPrompt,
+      messages,
+      maxOutputTokens: 4096,
+      temperature: 0.7,
+      onFinish: async ({ text }) => {
+        if (userId && lastUserTextForLearning) {
+          const canLearn =
+            sessionRole === CREATOR_VA_ROLE ||
+            (sessionRole === VIEWER_VA_ROLE && (scope === "browse" || path.startsWith("/browse")));
+          if (!canLearn) return;
+          try {
+            await ingestModocConversationLearning({
+              userId,
+              userMessage: lastUserTextForLearning,
+              assistantMessage: text,
+              conversationId,
+            });
+          } catch (e) {
+            if (process.env.NODE_ENV === "development") {
+              console.error("MODOC auto-learn failed:", e);
+            }
           }
         }
-      }
-    },
-  });
+      },
+    });
 
-  return result.toTextStreamResponse();
+    return result.toTextStreamResponse();
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Chat failed";
+    console.error("MODOC chat stream failed:", e);
+    return new Response(JSON.stringify({ error: message }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
 }

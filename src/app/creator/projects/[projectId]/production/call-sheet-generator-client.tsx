@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Printer, RefreshCw, Share2, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ToolSavedViewSheet, ToolViewButton, CallSheetsSavedViewer } from "@/components/project-tools";
 import { useModocOptional } from "@/components/modoc";
 import { ProductionModocReportModal } from "./production-modoc-modal";
 import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
@@ -396,6 +397,7 @@ function CallSheetPrintBody({
 }
 
 export function CallSheetGenerator({ projectId, title }: { projectId?: string; title: string }) {
+  const router = useRouter();
   const { deviceClass, orientation } = useAdaptiveUi();
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
@@ -439,6 +441,7 @@ export function CallSheetGenerator({ projectId, title }: { projectId?: string; t
   const [notes, setNotes] = useState("");
   const [sheetTitle, setSheetTitle] = useState("");
   const [toast, setToast] = useState<string | null>(null);
+  const [callSheetsViewOpen, setCallSheetsViewOpen] = useState(false);
 
   const selectedDay = shootDays.find((d) => d.id === selectedDayId);
 
@@ -536,9 +539,38 @@ export function CallSheetGenerator({ projectId, title }: { projectId?: string; t
               contracts, and risk items. Save a dated snapshot (versioned per shoot day) for PDF / print and crew links.
             </p>
           </div>
-          
+          <ToolViewButton
+            onClick={() => setCallSheetsViewOpen(true)}
+            count={callSheets.length}
+            disabled={callSheets.length === 0}
+            label="View saved"
+          />
         </header>
       )}
+
+      <ToolSavedViewSheet
+        open={callSheetsViewOpen}
+        onClose={() => setCallSheetsViewOpen(false)}
+        title="Saved call sheets"
+        subtitle="Versioned snapshots per shoot day. Open one to load the full preview."
+      >
+        <CallSheetsSavedViewer
+          sheets={callSheets.map((c) => ({
+            id: c.id,
+            title: c.title,
+            version: c.version,
+            createdAt: c.createdAt,
+            shootDayDate: c.shootDay?.date,
+            notes: c.notes,
+          }))}
+          onOpen={(sheetId) => {
+            setCallSheetsViewOpen(false);
+            if (projectId) {
+              router.push(`/creator/projects/${projectId}/production/call-sheet-generator?view=1&sheetId=${sheetId}`);
+            }
+          }}
+        />
+      </ToolSavedViewSheet>
 
       
 

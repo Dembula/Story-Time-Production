@@ -167,6 +167,7 @@ model User {
   modocPlaybookRules   ModocPlaybookRule[]
   modocActionLogs      ModocActionLog[]
   modocTopicStats      ModocTopicStat[]
+  budgetsLastGenerated ProjectBudget[] @relation("BudgetLastGeneratedBy")
 
   creatorStudioInvitesSent     CreatorStudioTeamInvite[] @relation("CreatorStudioInviteSender")
   creatorStudioInvitesReceived CreatorStudioTeamInvite[] @relation("CreatorStudioInviteRecipientUser")
@@ -742,6 +743,9 @@ model EquipmentListing {
   imageUrl    String?
   contactUrl  String?
   location    String?
+  /// ZAR day rate for budget / marketplace matching (also mirrored in embedded meta on notes)
+  dailyRate         Float?
+  quantityAvailable Int?
   createdAt   DateTime @default(now())
 
   companyId   String?
@@ -951,6 +955,8 @@ model OriginalProject {
   revenueEvents        ProjectRevenueEvent[]
   stakeholderPayouts   StakeholderPayout[]
   calendarEvents     CreatorCalendarEvent[]
+  productionContext  ProjectProductionContext?
+  budgetAssumptions  ProjectBudgetAssumption[]
 
   @@index([status])
 }
@@ -1152,6 +1158,8 @@ model CrewTeamMember {
   photoUrl    String?
   email       String?
   phone       String?
+  /// ZAR day rate when listed on crew marketplace
+  dailyRate   Float?
   sortOrder   Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -1258,6 +1266,8 @@ model CastingTalent {
   pastWork    String?
   reelUrl     String?
   contactEmail String?
+  /// ZAR day rate for casting marketplace / budget assumptions
+  dailyRate   Float?
   sortOrder   Int      @default(0)
   agencyCommissionPercent Float?
   representationType    String?  // EXCLUSIVE, NON_EXCLUSIVE, FREELANCE
@@ -2270,6 +2280,10 @@ model BreakdownLocation {
   description String?
   locationListingId String?
   locationListing   LocationListing? @relation(fields: [locationListingId], references: [id], onDelete: SetNull)
+  /// When/how VA or user linked this breakdown row to a marketplace listing
+  marketplaceLinkedAt   DateTime?
+  marketplaceLinkedBy   String?  // USER, VA
+  marketplaceMatchNote  String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -2378,12 +2392,58 @@ model ProjectBudget {
   template    String   // SHORT_FILM, INDIE_FILM, FEATURE_FILM, TV_EPISODE
   currency    String   @default("ZAR")
   totalPlanned Float   @default(0)
+  /// MANUAL, ENGINE, VA_SMART — how lines were last populated
+  generationSource   String?
+  lastGeneratedAt    DateTime?
+  lastGeneratedById  String?
+  lastGeneratedBy    User?    @relation("BudgetLastGeneratedBy", fields: [lastGeneratedById], references: [id], onDelete: SetNull)
+  inferredRegion     String?
+  estimatedShootDays Int?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   lines       ProjectBudgetLine[]
+  assumptions ProjectBudgetAssumption[]
 
   @@index([projectId])
+  @@index([lastGeneratedById])
+}
+
+/// Cached script/region inference for VA and budget tools (refreshed on smart budget / breakdown).
+model ProjectProductionContext {
+  id                 String   @id @default(cuid())
+  projectId          String   @unique
+  project            OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  primaryCity        String?
+  country            String   @default("South Africa")
+  regionLabel        String?
+  estimatedShootDays Int      @default(1)
+  intSceneCount      Int      @default(0)
+  extSceneCount      Int      @default(0)
+  /// JSON string[] of setting hints from screenplay
+  settingHints       String?
+  updatedAt          DateTime @updatedAt
+  createdAt          DateTime @default(now())
+}
+
+/// Audit trail of VA/marketplace assumptions used when building a project budget.
+model ProjectBudgetAssumption {
+  id         String   @id @default(cuid())
+  projectId  String
+  project    OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  budgetId   String
+  budget     ProjectBudget @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  category   String   // REGION, SHOOT_DAYS, LOCATIONS, CAST, CREW, EQUIPMENT, OTHER
+  label      String
+  detail     String   @db.Text
+  amount     Float?
+  sourceType String   // SCRIPT, MARKETPLACE, DEFAULT, BREAKDOWN, VA
+  sourceId   String?
+  createdAt  DateTime @default(now())
+
+  @@index([projectId])
+  @@index([budgetId])
+  @@index([category])
 }
 
 model ProjectBudgetLine {
@@ -2513,6 +2573,10 @@ model CastingRole {
   breakdownCharacter   BreakdownCharacter? @relation(fields: [breakdownCharacterId], references: [id], onDelete: SetNull)
   name        String
   description String?
+  /// LEAD, SUPPORTING, EXTRA — copied from breakdown when synced
+  importance  String?
+  /// ZAR day rate for budget engine / casting portal
+  dailyRate   Float?
   status      String   @default("OPEN") // OPEN, CAST, ON_HOLD
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -2556,6 +2620,8 @@ model CrewRoleNeed {
   role        String
   seniority   String?
   notes       String?
+  /// ZAR day rate for budget / crew marketplace
+  dailyRate   Float?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -3455,11 +3521,15 @@ model ModocActionLog {
   eventId        String?
   taskIds        Json?
   conversationId String?
+  /// Denormalized for project-scoped VA history queries
+  projectId      String?
   createdAt      DateTime @default(now())
 
   @@index([userId, createdAt])
   @@index([userId, action])
   @@index([conversationId])
+  @@index([projectId])
+  @@index([userId, projectId])
 }
 
 /// Aggregated topic frequency from VA chat (calendar, script, budget, …).

@@ -202,6 +202,10 @@ export async function appendActionLog(userId: string, entry: ModocRecentAction):
       eventId: entry.eventId ?? null,
       taskIds: entry.taskIds ? (entry.taskIds as InputJsonValue) : undefined,
       conversationId: entry.conversationId ?? null,
+      projectId:
+        typeof (entry.payload as { projectId?: string } | undefined)?.projectId === "string"
+          ? (entry.payload as { projectId: string }).projectId
+          : null,
     },
   });
 

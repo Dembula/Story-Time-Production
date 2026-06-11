@@ -241,7 +241,15 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
       setActionMessage(null);
       setCompletedActionKeys(new Set());
       stickToBottomRef.current = true;
-      await loadConversation(id);
+      const msgs = await loadConversation(id);
+      const last = msgs.at(-1);
+      if (last?.role === "assistant") {
+        const parsed = parseModocActionFromText(last.content);
+        if (parsed) {
+          const key = `${last.id}:${parsed.action}:${JSON.stringify(parsed.payload)}`;
+          setCompletedActionKeys(new Set([key]));
+        }
+      }
       requestAnimationFrame(() => scrollToBottom("auto"));
     },
     [loadConversation, scrollToBottom],
@@ -277,10 +285,13 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
     return () => window.removeEventListener("keydown", onKey);
   }, [open, handleClose]);
 
-  const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
-  const pendingAction = lastAssistant ? parseModocActionFromText(getMessageText(lastAssistant)) : null;
+  const lastMessage = messages.at(-1);
+  const pendingAction =
+    lastMessage?.role === "assistant"
+      ? parseModocActionFromText(getMessageText(lastMessage))
+      : null;
   const pendingActionKey = pendingAction
-    ? `${lastAssistant?.id ?? "assistant"}:${pendingAction.action}:${JSON.stringify(pendingAction.payload)}`
+    ? `${lastMessage?.id ?? "assistant"}:${pendingAction.action}:${JSON.stringify(pendingAction.payload)}`
     : null;
 
   const actionKey = useCallback(
@@ -298,6 +309,15 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
       const key = options?.completionKey ?? actionKey(action, payload);
       if (!options?.force && completedActionKeys.has(key)) return;
 
+      const projectMatch = pathname.match(/\/creator\/projects\/([^/]+)/);
+      const resolvedPayload = {
+        ...payload,
+        projectId:
+          (typeof payload.projectId === "string" && payload.projectId) ||
+          projectMatch?.[1] ||
+          undefined,
+      };
+
       setActionRunning(true);
       setActionMessage(null);
       stickToBottomRef.current = true;
@@ -306,7 +326,7 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
         const res = await fetch("/api/modoc/actions", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action, payload, conversationId }),
+          body: JSON.stringify({ action, payload: resolvedPayload, conversationId }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
@@ -319,8 +339,11 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
         } else {
           setCompletedActionKeys((prev) => new Set(prev).add(key));
           const successText = data.message ?? "Done.";
-          if (!options?.viaChat) {
-            setActionMessage(successText);
+          if (options?.viaChat) {
+            appendAssistantMessage(`✓ ${successText}`);
+          } else {
+            setActionMessage(`✓ ${successText}`);
+            window.setTimeout(() => setActionMessage(null), 8000);
           }
           pendingContextRefreshRef.current = true;
         }
@@ -335,7 +358,7 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
         setActionRunning(false);
       }
     },
-    [actionKey, appendAssistantMessage, completedActionKeys, conversationId],
+    [actionKey, appendAssistantMessage, completedActionKeys, conversationId, pathname],
   );
 
   const sendChatAction = useCallback(
@@ -364,24 +387,28 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
     [sendChatAction],
   );
 
-  // Auto-run actions the VA proposes in chat (MODOC_ACTION line).
+  // Auto-run actions the VA proposes in chat (MODOC_ACTION line) — only when idle.
   useEffect(() => {
     if (status !== "ready" || !pendingAction || !pendingActionKey || actionRunning) return;
     if (completedActionKeys.has(pendingActionKey)) return;
-    void runAction(
-      pendingAction.action,
-      pendingAction.payload as Record<string, unknown>,
-      { viaChat: true, completionKey: pendingActionKey },
-    );
+    const timer = window.setTimeout(() => {
+      if (status !== "ready") return;
+      void runAction(
+        pendingAction.action,
+        pendingAction.payload as Record<string, unknown>,
+        { viaChat: true, completionKey: pendingActionKey },
+      );
+    }, 400);
+    return () => window.clearTimeout(timer);
   }, [status, pendingAction, pendingActionKey, actionRunning, runAction, completedActionKeys]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const text = input.trim();
-    if (!text || status === "streaming" || status === "submitted") return;
+    if (!text || status === "streaming" || status === "submitted" || actionRunning) return;
     stickToBottomRef.current = true;
-    setCompletedActionKeys(new Set());
-    append({ role: "user", content: text });
+    setActionMessage(null);
+    void append({ role: "user", content: text });
     setInput("");
   };
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import type { ModocActionPayload, ModocActionType } from "@/lib/modoc/actions";
+import { MODOC_ACTION_TYPES, normalizeModocActionType } from "@/lib/modoc/action-types";
 import { runVaAction } from "@/lib/modoc/run-va-action";
 import { CREATOR_VA_ROLE } from "@/lib/modoc/creator-va";
 
@@ -27,7 +28,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "action is required" }, { status: 400 });
   }
 
-  const action = body.action as ModocActionType;
+  const action = normalizeModocActionType(body.action);
+  if (!action) {
+    return NextResponse.json(
+      {
+        error: `Unknown action "${body.action}". Supported: ${MODOC_ACTION_TYPES.join(", ")}`,
+      },
+      { status: 400 },
+    );
+  }
 
   const result = await runVaAction({
     userId,

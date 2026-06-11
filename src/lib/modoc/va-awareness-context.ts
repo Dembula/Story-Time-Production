@@ -1,14 +1,16 @@
 import { prisma } from "@/lib/prisma";
 import { buildPlaybookPromptForUser } from "./auto-learn";
 import { CALENDAR_LOOKBACK_DAYS, MAX_ACTION_LOG_IN_PROMPT } from "./learning-limits";
-import { getModocLearning, type ModocRecentAction } from "./learning";
+import { getModocLearning, type ModocLearningProfile, type ModocRecentAction } from "./learning";
 import { getRecentActionLogs } from "./learning-store";
 
 export async function buildVaAwarenessContext(userId: string): Promise<string> {
   const lookbackMs = CALENDAR_LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
 
   const [learning, events, recentActions, playbookPrompt] = await Promise.all([
-    getModocLearning(userId),
+    getModocLearning(userId).catch(
+      (): ModocLearningProfile => ({ preferredSuggestions: [] }),
+    ),
     prisma.creatorCalendarEvent.findMany({
       where: {
         ownerUserId: userId,
@@ -18,8 +20,10 @@ export async function buildVaAwarenessContext(userId: string): Promise<string> {
       take: 150,
       select: { id: true, title: true, startAt: true, visibility: true, description: true },
     }),
-    getRecentActionLogs(userId, MAX_ACTION_LOG_IN_PROMPT),
-    buildPlaybookPromptForUser(userId),
+    getRecentActionLogs(userId, MAX_ACTION_LOG_IN_PROMPT).catch(
+      (): ModocRecentAction[] => [],
+    ),
+    buildPlaybookPromptForUser(userId).catch(() => ""),
   ]);
 
   const lines: string[] = [];

@@ -19,8 +19,17 @@ export interface ModocRequestContext {
   pageContext?: Record<string, string | number | boolean | null>;
 }
 
-function getMessageContent(msg: { content?: unknown }): string {
+function getMessageContent(msg: {
+  content?: unknown;
+  parts?: Array<{ type?: string; text?: string }>;
+}): string {
   if (typeof msg.content === "string") return msg.content;
+  if (Array.isArray(msg.parts) && msg.parts.length > 0) {
+    return msg.parts
+      .filter((p) => p.type === "text")
+      .map((p) => p.text ?? "")
+      .join("");
+  }
   if (Array.isArray(msg.content)) {
     const part = msg.content.find((p: { type?: string; text?: string }) => p.type === "text");
     return (part as { text?: string } | undefined)?.text ?? "";
@@ -52,7 +61,9 @@ interface ModocContextValue {
   /** Create a new persisted conversation; use before sending messages to save history */
   createNewConversation: () => Promise<string | null>;
   /** Load a conversation by id (sets messages and conversationId) */
-  loadConversation: (id: string) => Promise<void>;
+  loadConversation: (id: string) => Promise<
+    Array<{ id: string; role: "user" | "assistant" | "system"; content: string }>
+  >;
   /** Clear current conversation id (e.g. start new chat without creating DB row yet) */
   clearConversationId: () => void;
   /** Clear messages and conversation id (fresh chat home screen) */
@@ -79,6 +90,7 @@ const MODOC_CHAT_API = "/api/modoc/chat";
 export function ModocProvider({ children }: { children: ReactNode }) {
   const requestContextRef = useRef<ModocRequestContext>({});
   const conversationIdRef = useRef<string | null>(null);
+  const creatingConversationRef = useRef<Promise<string | null> | null>(null);
   const [conversationId, setConversationIdState] = useState<string | null>(null);
   const [isAvailable] = useState(true);
 
@@ -87,10 +99,16 @@ export function ModocProvider({ children }: { children: ReactNode }) {
     setConversationIdState(id);
   }, []);
 
-  const chat = useChat({
-    api: MODOC_CHAT_API,
-    streamProtocol: "text",
-    experimental_prepareRequestBody: ({ id, messages, requestBody }) => {
+  const prepareRequestBody = useCallback(
+    ({
+      id,
+      messages,
+      requestBody,
+    }: {
+      id: string;
+      messages: unknown[];
+      requestBody?: object;
+    }) => {
       const base = (requestBody ?? {}) as Record<string, unknown>;
       return {
         ...base,
@@ -102,18 +120,34 @@ export function ModocProvider({ children }: { children: ReactNode }) {
         pageContext: requestContextRef.current.pageContext,
       };
     },
-    onFinish: useCallback((message: { role?: string; content?: unknown }) => {
-      const cid = conversationIdRef.current;
-      if (!cid || message.role !== "assistant") return;
-      const content = getMessageContent(message as { content?: unknown });
-      if (!content) return;
-      fetch(`/api/modoc/conversations/${cid}/messages`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: "assistant", content }),
-      }).catch(() => {});
-    }, []),
+    [],
+  );
+
+  const handleChatError = useCallback((err: Error) => {
+    console.error("MODOC chat error:", err);
+  }, []);
+
+  const handleChatFinish = useCallback((message: { role?: string; content?: unknown; parts?: unknown }) => {
+    const cid = conversationIdRef.current;
+    if (!cid || message.role !== "assistant") return;
+    const content = getMessageContent(message as Parameters<typeof getMessageContent>[0]);
+    if (!content) return;
+    fetch(`/api/modoc/conversations/${cid}/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role: "assistant", content }),
+    }).catch(() => {});
+  }, []);
+
+  const chat = useChat({
+    api: MODOC_CHAT_API,
+    streamProtocol: "text",
+    experimental_prepareRequestBody: prepareRequestBody,
+    onError: handleChatError,
+    onFinish: handleChatFinish,
   });
+
+  const { append: chatAppend, setMessages } = chat;
 
   const createNewConversation = useCallback(async (): Promise<string | null> => {
     try {
@@ -137,17 +171,22 @@ export function ModocProvider({ children }: { children: ReactNode }) {
   const append = useCallback<ModocContextValue["append"]>(
     async (message, options) => {
       if (!conversationIdRef.current) {
-        await createNewConversation();
+        if (!creatingConversationRef.current) {
+          creatingConversationRef.current = createNewConversation().finally(() => {
+            creatingConversationRef.current = null;
+          });
+        }
+        await creatingConversationRef.current;
       }
-      return chat.append(message, options);
+      return chatAppend(message, options);
     },
-    [chat.append, createNewConversation],
+    [chatAppend, createNewConversation],
   );
 
   const appendAssistantMessage = useCallback(
     (content: string) => {
       const id = `assistant-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-      chat.setMessages((prev) => [...prev, { id, role: "assistant", content }]);
+      setMessages((prev) => [...prev, { id, role: "assistant", content }]);
       const cid = conversationIdRef.current;
       if (cid && content.trim()) {
         fetch(`/api/modoc/conversations/${cid}/messages`, {
@@ -157,14 +196,14 @@ export function ModocProvider({ children }: { children: ReactNode }) {
         }).catch(() => {});
       }
     },
-    [chat],
+    [setMessages],
   );
 
   const loadConversation = useCallback(
     async (id: string) => {
       try {
         const res = await fetch(`/api/modoc/conversations/${id}`);
-        if (!res.ok) return;
+        if (!res.ok) return [];
         const data = (await res.json()) as {
           messages: Array<{ id: string; role: string; content: string; createdAt: string }>;
         };
@@ -173,13 +212,14 @@ export function ModocProvider({ children }: { children: ReactNode }) {
           role: m.role as "user" | "assistant" | "system",
           content: m.content,
         }));
-        chat.setMessages(msgs);
+        setMessages(msgs);
         setConversationId(id);
+        return msgs;
       } catch {
-        // ignore
+        return [];
       }
     },
-    [chat, setConversationId]
+    [setMessages, setConversationId],
   );
 
   const clearConversationId = useCallback(() => {
@@ -187,9 +227,9 @@ export function ModocProvider({ children }: { children: ReactNode }) {
   }, [setConversationId]);
 
   const resetChat = useCallback(() => {
-    chat.setMessages([]);
+    setMessages([]);
     setConversationId(null);
-  }, [chat, setConversationId]);
+  }, [setMessages, setConversationId]);
 
   const listConversations = useCallback(async () => {
     try {

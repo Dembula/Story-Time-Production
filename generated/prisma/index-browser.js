@@ -510,6 +510,8 @@ exports.Prisma.EquipmentListingScalarFieldEnum = {
   imageUrl: 'imageUrl',
   contactUrl: 'contactUrl',
   location: 'location',
+  dailyRate: 'dailyRate',
+  quantityAvailable: 'quantityAvailable',
   createdAt: 'createdAt',
   companyId: 'companyId'
 };
@@ -722,6 +724,7 @@ exports.Prisma.CrewTeamMemberScalarFieldEnum = {
   photoUrl: 'photoUrl',
   email: 'email',
   phone: 'phone',
+  dailyRate: 'dailyRate',
   sortOrder: 'sortOrder',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt',
@@ -795,6 +798,7 @@ exports.Prisma.CastingTalentScalarFieldEnum = {
   pastWork: 'pastWork',
   reelUrl: 'reelUrl',
   contactEmail: 'contactEmail',
+  dailyRate: 'dailyRate',
   sortOrder: 'sortOrder',
   agencyCommissionPercent: 'agencyCommissionPercent',
   representationType: 'representationType',
@@ -1456,6 +1460,9 @@ exports.Prisma.BreakdownLocationScalarFieldEnum = {
   name: 'name',
   description: 'description',
   locationListingId: 'locationListingId',
+  marketplaceLinkedAt: 'marketplaceLinkedAt',
+  marketplaceLinkedBy: 'marketplaceLinkedBy',
+  marketplaceMatchNote: 'marketplaceMatchNote',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 };
@@ -1526,8 +1533,40 @@ exports.Prisma.ProjectBudgetScalarFieldEnum = {
   template: 'template',
   currency: 'currency',
   totalPlanned: 'totalPlanned',
+  generationSource: 'generationSource',
+  lastGeneratedAt: 'lastGeneratedAt',
+  lastGeneratedById: 'lastGeneratedById',
+  inferredRegion: 'inferredRegion',
+  estimatedShootDays: 'estimatedShootDays',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
+};
+
+exports.Prisma.ProjectProductionContextScalarFieldEnum = {
+  id: 'id',
+  projectId: 'projectId',
+  primaryCity: 'primaryCity',
+  country: 'country',
+  regionLabel: 'regionLabel',
+  estimatedShootDays: 'estimatedShootDays',
+  intSceneCount: 'intSceneCount',
+  extSceneCount: 'extSceneCount',
+  settingHints: 'settingHints',
+  updatedAt: 'updatedAt',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.ProjectBudgetAssumptionScalarFieldEnum = {
+  id: 'id',
+  projectId: 'projectId',
+  budgetId: 'budgetId',
+  category: 'category',
+  label: 'label',
+  detail: 'detail',
+  amount: 'amount',
+  sourceType: 'sourceType',
+  sourceId: 'sourceId',
+  createdAt: 'createdAt'
 };
 
 exports.Prisma.ProjectBudgetLineScalarFieldEnum = {
@@ -1610,6 +1649,8 @@ exports.Prisma.CastingRoleScalarFieldEnum = {
   breakdownCharacterId: 'breakdownCharacterId',
   name: 'name',
   description: 'description',
+  importance: 'importance',
+  dailyRate: 'dailyRate',
   status: 'status',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
@@ -1636,6 +1677,7 @@ exports.Prisma.CrewRoleNeedScalarFieldEnum = {
   role: 'role',
   seniority: 'seniority',
   notes: 'notes',
+  dailyRate: 'dailyRate',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 };
@@ -2214,6 +2256,7 @@ exports.Prisma.ModocActionLogScalarFieldEnum = {
   eventId: 'eventId',
   taskIds: 'taskIds',
   conversationId: 'conversationId',
+  projectId: 'projectId',
   createdAt: 'createdAt'
 };
 
@@ -2514,6 +2557,8 @@ exports.Prisma.ModelName = {
   BreakdownSfx: 'BreakdownSfx',
   BreakdownMakeup: 'BreakdownMakeup',
   ProjectBudget: 'ProjectBudget',
+  ProjectProductionContext: 'ProjectProductionContext',
+  ProjectBudgetAssumption: 'ProjectBudgetAssumption',
   ProjectBudgetLine: 'ProjectBudgetLine',
   ProductionExpense: 'ProductionExpense',
   ShootDay: 'ShootDay',

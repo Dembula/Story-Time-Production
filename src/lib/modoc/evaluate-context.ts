@@ -78,6 +78,23 @@ export async function evaluateModocContext(params: {
       });
     }
 
+    if (hasScript && sceneCount > 0 && charCount > 0) {
+      const budgetCheck = await prisma.projectBudget.findUnique({
+        where: { projectId: project.id },
+        select: { _count: { select: { lines: true } } },
+      });
+      if ((budgetCheck?._count.lines ?? 0) === 0) {
+        suggestions.push({
+          id: `budget-${project.id}`,
+          title: "Build your budget",
+          body: `"${project.title}" has a breakdown ready. I can generate budget lines from your scenes.`,
+          action: "generate_smart_budget",
+          payload: { projectId: project.id },
+          priority: 82,
+        });
+      }
+    }
+
     if (
       project.status !== "IN_PRODUCTION" &&
       charCount > 0 &&
