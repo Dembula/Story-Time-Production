@@ -1,17 +1,17 @@
 import type { Metadata } from "next";
-import { Inter, Outfit } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { getAppBaseUrl } from "@/lib/app-url";
 
-const inter = Inter({
-  subsets: ["latin"],
+const inter = localFont({
+  src: "./fonts/inter-latin.woff2",
   variable: "--font-sans",
   display: "swap",
 });
 
-const outfit = Outfit({
-  subsets: ["latin"],
+const outfit = localFont({
+  src: "./fonts/outfit-latin.woff2",
   variable: "--font-display",
   display: "swap",
 });
@@ -76,7 +76,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark" suppressHydrationWarning>
+    <html lang="en" className="dark" data-scroll-behavior="smooth" suppressHydrationWarning>
       <body
         suppressHydrationWarning
         className={`${inter.variable} ${outfit.variable} min-h-screen bg-background font-sans text-foreground antialiased`}

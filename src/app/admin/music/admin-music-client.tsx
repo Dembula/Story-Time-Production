@@ -8,6 +8,7 @@ import {
   Music, DollarSign, Disc, ChevronDown, ChevronUp, Globe, GraduationCap,
   BookOpen, Target, Briefcase, ExternalLink, BarChart3, TrendingUp, Film,
 } from "lucide-react";
+import { displayCreatorGoals } from "@/lib/creator-profile-goals";
 
 interface Artist {
   id: string; name: string | null; email: string | null;
@@ -103,7 +104,7 @@ export function AdminMusicClient() {
                       {a.bio && <div><p className="text-xs text-slate-500 mb-1">Bio</p><p className="text-sm text-slate-300 leading-relaxed">{a.bio}</p></div>}
                       {a.education && <div><p className="text-xs text-slate-500 mb-1"><GraduationCap className="w-3 h-3 inline" /> Education</p><p className="text-sm text-slate-300">{a.education}</p></div>}
                       {a.previousWork && <div><p className="text-xs text-slate-500 mb-1"><Briefcase className="w-3 h-3 inline" /> Previous Work</p><p className="text-sm text-slate-300">{a.previousWork}</p></div>}
-                      {a.goals && <div><p className="text-xs text-slate-500 mb-1"><Target className="w-3 h-3 inline" /> Goals</p><p className="text-sm text-slate-300">{a.goals}</p></div>}
+                      {displayCreatorGoals(a.goals) ? <div><p className="text-xs text-slate-500 mb-1"><Target className="w-3 h-3 inline" /> Goals</p><p className="text-sm text-slate-300">{displayCreatorGoals(a.goals)}</p></div> : null}
                       {socials && (
                         <div><p className="text-xs text-slate-500 mb-1"><Globe className="w-3 h-3 inline" /> Social</p>
                           <div className="flex flex-wrap gap-2">{Object.entries(socials).map(([k, v]) => <a key={k} href={String(v).startsWith("http") ? String(v) : `https://${v}`} target="_blank" rel="noopener noreferrer" className="text-xs px-2 py-1 rounded bg-slate-700/50 text-pink-400 hover:text-pink-300 flex items-center gap-1"><ExternalLink className="w-3 h-3" />{k}</a>)}</div>

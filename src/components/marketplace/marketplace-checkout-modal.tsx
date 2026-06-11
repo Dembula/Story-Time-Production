@@ -19,7 +19,7 @@ export function MarketplaceCheckoutModal({
       checkoutUrl={checkoutUrl}
       onClose={onClose}
       title={title}
-      subtitle="Pay securely with Stitch to unlock messaging and confirm your booking with the company."
+      subtitle="Pay securely with PayFast to unlock messaging and confirm your booking with the company."
     />
   );
 }

@@ -146,8 +146,6 @@ function minutesBetween(a?: string | null, b?: string | null): number | null {
 export function ProductionControlCenterClient({ projectId, title }: { projectId?: string; title: string }) {
   const { deviceClass, orientation } = useAdaptiveUi();
   const queryClient = useQueryClient();
-  const modoc = useModocOptional();
-  const [modocOpen, setModocOpen] = useState(false);
   const [dayPicker, setDayPicker] = useState<string | null>(null);
   const [incidentOpen, setIncidentOpen] = useState(false);
   const [incTitle, setIncTitle] = useState("");
@@ -274,30 +272,11 @@ export function ProductionControlCenterClient({ projectId, title }: { projectId?
             <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${isFetching ? "animate-spin" : ""}`} />
             Refresh
           </Button>
-          {modoc && (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="border-cyan-500/50 text-cyan-200"
-              onClick={() => setModocOpen(true)}
-            >
-              <Bot className="w-3.5 h-3.5 mr-1.5" />
-              AI brief
-            </Button>
-          )}
+          
         </div>
       </header>
 
-      {modoc && modocOpen && (
-        <ProductionModocReportModal
-          task="production_control_center"
-          reportTitle="Control center brief"
-          prompt="Summarize current shoot-day status, risks, open incidents, and task bottlenecks. Keep bullets short for someone on set."
-          onClose={() => setModocOpen(false)}
-          projectId={projectId}
-        />
-      )}
+      
       {toast && (
         <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-100 flex justify-between gap-2">
           <span>{toast}</span>

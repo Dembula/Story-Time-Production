@@ -10,6 +10,7 @@ import {
 import { initializeCheckout } from "@/lib/payments/billing";
 import { buildPaymentReturnUrl } from "@/lib/payments/return-url";
 import { validateStorageUrlField } from "@/lib/storage-origin";
+import { creatorIsStudentAtUpload } from "@/lib/student-work";
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -94,6 +95,8 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  const isStudentWork = await creatorIsStudentAtUpload(creatorId);
+
   const track = await prisma.musicTrack.create({
     data: {
       title, artistName,
@@ -111,6 +114,7 @@ export async function POST(request: NextRequest) {
       licenseType: licenseType || "SYNC",
       creatorId,
       published: !perUpload,
+      isStudentWork,
     },
   });
 

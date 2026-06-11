@@ -1,15 +1,24 @@
-import { withAuth } from "next-auth/middleware";
+import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { signInUrlForDestination } from "@/lib/auth-sign-in-path";
+import { requiredRoleForProtectedPath } from "@/lib/platform-roles-shared";
+import { userHasPlatformRole } from "@/lib/user-roles-shared";
 
-export default withAuth(
-  function middleware(req) {
-    const role = req.nextauth.token?.role as string | undefined;
-    const portalScope = req.nextauth.token?.portalScope as "VIEWER" | "CREATOR" | "ADMIN" | undefined;
-    const path = req.nextUrl.pathname;
+export async function middleware(req: NextRequest) {
+  const path = req.nextUrl.pathname;
 
-    if (path.startsWith("/creator/join/")) {
-      return NextResponse.next();
-    }
+  if (path.startsWith("/creator/join/")) {
+    return NextResponse.next();
+  }
+
+  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+  if (!token) {
+    return NextResponse.redirect(new URL(signInUrlForDestination(path), req.url));
+  }
+
+  const role = token.role as string | undefined;
+  const portalScope = token.portalScope as "VIEWER" | "CREATOR" | "ADMIN" | undefined;
 
     if (
       path.startsWith("/creator/company") &&
@@ -21,7 +30,20 @@ export default withAuth(
     if (portalScope === "ADMIN" && !path.startsWith("/admin")) {
       return NextResponse.redirect(new URL("/admin", req.url));
     }
-    if (portalScope === "VIEWER" && (path.startsWith("/admin") || path.startsWith("/creator") || path.startsWith("/music-creator") || path.startsWith("/equipment-company") || path.startsWith("/location-owner") || path.startsWith("/crew-team") || path.startsWith("/casting-agency") || path.startsWith("/company") || path.startsWith("/funders") || path.startsWith("/wallet"))) {
+    if (
+      portalScope === "VIEWER" &&
+      (path.startsWith("/admin") ||
+        path.startsWith("/creator") ||
+        path.startsWith("/music-creator") ||
+        path.startsWith("/equipment-company") ||
+        path.startsWith("/location-owner") ||
+        path.startsWith("/crew-team") ||
+        path.startsWith("/casting-agency") ||
+        path.startsWith("/catering-company") ||
+        path.startsWith("/company") ||
+        path.startsWith("/funders") ||
+        path.startsWith("/wallet"))
+    ) {
       return NextResponse.redirect(new URL("/profiles", req.url));
     }
     if (portalScope === "CREATOR" && path.startsWith("/admin")) {
@@ -29,51 +51,51 @@ export default withAuth(
       return NextResponse.redirect(new URL(fallback, req.url));
     }
 
+    const tokenRoles = (token.roles as string[] | undefined) ?? [];
+    const requiredRole = requiredRoleForProtectedPath(path);
+    if (requiredRole && role !== requiredRole && userHasPlatformRole(tokenRoles, requiredRole)) {
+      const switchUrl = new URL("/auth/switch-role", req.url);
+      switchUrl.searchParams.set("role", requiredRole);
+      switchUrl.searchParams.set("callbackUrl", path);
+      return NextResponse.redirect(switchUrl);
+    }
+
     if (path.startsWith("/admin") && role !== "ADMIN") {
       return NextResponse.redirect(new URL("/auth/admin", req.url));
     }
     if (path.startsWith("/creator") && role !== "CONTENT_CREATOR") {
-      return NextResponse.redirect(new URL("/auth/creator/signin", req.url));
+      return NextResponse.redirect(new URL(signInUrlForDestination(path), req.url));
     }
     if (path.startsWith("/music-creator") && role !== "MUSIC_CREATOR") {
-      return NextResponse.redirect(new URL("/auth/creator/signin", req.url));
+      return NextResponse.redirect(new URL(signInUrlForDestination(path), req.url));
     }
     if (path.startsWith("/equipment-company") && role !== "EQUIPMENT_COMPANY") {
-      return NextResponse.redirect(new URL("/auth/creator/signin", req.url));
+      return NextResponse.redirect(new URL(signInUrlForDestination(path), req.url));
     }
     if (path.startsWith("/location-owner") && role !== "LOCATION_OWNER") {
-      return NextResponse.redirect(new URL("/auth/creator/signin", req.url));
+      return NextResponse.redirect(new URL(signInUrlForDestination(path), req.url));
     }
     if (path.startsWith("/crew-team") && role !== "CREW_TEAM") {
-      return NextResponse.redirect(new URL("/auth/creator/signin", req.url));
+      return NextResponse.redirect(new URL(signInUrlForDestination(path), req.url));
     }
     if (path.startsWith("/casting-agency") && role !== "CASTING_AGENCY") {
-      return NextResponse.redirect(new URL("/auth/creator/signin", req.url));
+      return NextResponse.redirect(new URL(signInUrlForDestination(path), req.url));
+    }
+    if (path.startsWith("/catering-company") && role !== "CATERING_COMPANY") {
+      return NextResponse.redirect(new URL(signInUrlForDestination(path), req.url));
     }
     if (path.startsWith("/funders") && role !== "FUNDER") {
-      return NextResponse.redirect(new URL("/auth/creator/signin", req.url));
+      return NextResponse.redirect(new URL(signInUrlForDestination(path), req.url));
     }
     if (path.startsWith("/company/onboarding") && !["CREW_TEAM", "CASTING_AGENCY", "LOCATION_OWNER", "EQUIPMENT_COMPANY", "CATERING_COMPANY"].includes(role ?? "")) {
-      return NextResponse.redirect(new URL("/auth/creator/signin", req.url));
+      return NextResponse.redirect(new URL(signInUrlForDestination(path), req.url));
     }
     if (path.startsWith("/wallet") && role === "SUBSCRIBER") {
       return NextResponse.redirect(new URL("/profiles", req.url));
     }
 
-    return NextResponse.next();
-  },
-  {
-    callbacks: {
-      authorized: ({ token, req }) => {
-        if (req.nextUrl.pathname.startsWith("/creator/join/")) return true;
-        return !!token;
-      },
-    },
-    pages: {
-      signIn: "/auth/signin",
-    },
-  }
-);
+  return NextResponse.next();
+}
 
 export const config = {
   matcher: [
@@ -84,6 +106,7 @@ export const config = {
     "/location-owner/:path*",
     "/crew-team/:path*",
     "/casting-agency/:path*",
+    "/catering-company/:path*",
     "/company/:path*",
     "/funders/:path*",
     "/wallet/:path*",

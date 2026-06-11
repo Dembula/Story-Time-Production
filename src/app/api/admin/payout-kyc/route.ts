@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import type { KycPayload } from "@/lib/payout-kyc";
+import { mergeVerificationDocsIntoKycPayload } from "@/lib/kyc-verification-sync";
 
 async function requireAdmin() {
   const session = await getServerSession(authOptions);
@@ -31,6 +32,7 @@ export async function GET() {
     const docs = p.verifications;
     return {
       ...p,
+      kycData: mergeVerificationDocsIntoKycPayload(p.kycData as KycPayload, docs),
       reviewSummary: {
         totalDocs: docs.length,
         pendingCount: docs.filter((d) => d.status === "PENDING").length,

@@ -15,6 +15,7 @@ import { CheckoutModal } from "@/components/payments/checkout-modal";
 import { CastCrewMemberCard } from "@/components/browse/cast-crew-member-card";
 import { useWatchlist } from "@/hooks/use-watchlist";
 import { startDownload, getDownload } from "@/lib/offline/download-manager";
+import { displayCreatorGoals } from "@/lib/creator-profile-goals";
 
 type Content = {
   id: string;
@@ -26,6 +27,7 @@ type Content = {
   category: string | null;
   year: number | null;
   duration: number | null;
+  isStudentWork?: boolean;
   creator: {
     id: string;
     name: string | null;
@@ -313,9 +315,9 @@ export function ContentDetailClient({
             <p className="mt-3 text-slate-300">
               By{" "}
               <span className="text-orange-500 font-medium">{content.creator.name}</span>
-              {content.creator.isAfdaStudent && (
+              {content.isStudentWork && (
                 <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-teal-500/10 border border-teal-500/20 text-teal-400 text-xs font-medium">
-                  <GraduationCap className="w-3 h-3" /> Student Films
+                  <GraduationCap className="w-3 h-3" /> Student Film
                 </span>
               )}
             </p>
@@ -423,13 +425,16 @@ export function ContentDetailClient({
       </div>
 
       {/* Creator Profile Card */}
-      {content.creator && (content.creator.bio || content.creator.education || content.creator.goals) && (
+      {content.creator && (() => {
+        const creatorGoalsPlain = displayCreatorGoals(content.creator.goals);
+        return content.creator.bio || content.creator.education || creatorGoalsPlain || content.creator.previousWork;
+      })() && (
         <div className="mt-12 p-6 rounded-2xl bg-slate-800/30 border border-slate-700/50">
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
             About the Creator
-            {content.creator.isAfdaStudent && (
+            {content.isStudentWork && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-teal-500/10 border border-teal-500/20 text-teal-400 text-xs font-medium">
-                <GraduationCap className="w-3 h-3" /> Student Films
+                <GraduationCap className="w-3 h-3" /> Student Film
               </span>
             )}
           </h3>
@@ -471,15 +476,15 @@ export function ContentDetailClient({
                     </div>
                   </div>
                 )}
-                {content.creator.goals && (
+                {displayCreatorGoals(content.creator.goals) ? (
                   <div className="flex items-start gap-2">
                     <Target className="w-4 h-4 text-slate-500 mt-0.5 flex-shrink-0" />
                     <div>
                       <p className="text-xs text-slate-500 uppercase tracking-wider">Goals</p>
-                      <p className="text-sm text-slate-300">{content.creator.goals}</p>
+                      <p className="text-sm text-slate-300">{displayCreatorGoals(content.creator.goals)}</p>
                     </div>
                   </div>
-                )}
+                ) : null}
                 {Object.keys(socialLinks).length > 0 && (
                   <div className="flex items-start gap-2">
                     <Globe className="w-4 h-4 text-slate-500 mt-0.5 flex-shrink-0" />

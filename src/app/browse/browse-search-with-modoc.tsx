@@ -5,9 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Bot, Film, Loader2 } from "lucide-react";
-import { ModocViewerPanel } from "@/components/modoc";
-import { useModocOptional } from "@/components/modoc/use-modoc";
+import { Film, Loader2 } from "lucide-react";
 import { useMotion } from "@/components/motion/motion-provider";
 import { viewerDropdownVariants, viewerSprings } from "@/lib/motion/viewer-presets";
 
@@ -54,14 +52,12 @@ const CONTENT_TYPES = [
 
 export function BrowseSearchWithModoc({ defaultSearch = "", type, filter }: Props) {
   const router = useRouter();
-  const [modocOpen, setModocOpen] = useState(false);
   const [query, setQuery] = useState(defaultSearch);
   const [typeFilter, setTypeFilter] = useState(type ?? "");
   const [suggestions, setSuggestions] = useState<SearchHit[]>([]);
   const [loading, setLoading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
-  const modoc = useModocOptional();
   const { prefersReducedMotion } = useMotion();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -276,28 +272,6 @@ export function BrowseSearchWithModoc({ defaultSearch = "", type, filter }: Prop
         </form>
       </div>
 
-      {modoc && (
-        <div className="relative flex items-center justify-center group">
-          <motion.button
-            type="button"
-            onClick={() => setModocOpen(true)}
-            whileHover={prefersReducedMotion ? undefined : { scale: 1.06, y: -2 }}
-            whileTap={prefersReducedMotion ? undefined : { scale: 0.94 }}
-            transition={viewerSprings.chip}
-            className="flex h-12 w-12 items-center justify-center rounded-full border border-cyan-300/30 bg-[radial-gradient(circle_at_20%_20%,rgba(56,189,248,0.85),rgba(251,146,60,0.82))] shadow-[0_10px_30px_rgba(14,165,233,0.35)] hover:shadow-[0_14px_35px_rgba(14,165,233,0.45)]"
-            aria-label="Ask AI"
-          >
-            <Bot className="w-6 h-6 text-white" />
-          </motion.button>
-          <span className="pointer-events-none absolute left-full z-10 ml-3 whitespace-nowrap rounded-xl border border-white/10 bg-black/95 px-3 py-1.5 text-sm font-medium text-white opacity-0 shadow-panel transition-opacity duration-200 group-hover:opacity-100">
-            Ask AI
-          </span>
-        </div>
-      )}
-
-      {modoc && (
-        <ModocViewerPanel open={modocOpen} onClose={() => setModocOpen(false)} />
-      )}
     </div>
   );
 }

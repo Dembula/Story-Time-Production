@@ -5,6 +5,7 @@ import { LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { DashboardSidebarShell, type DashboardNavSection } from "@/components/layout/dashboard-sidebar-shell";
 import { NotificationBell } from "@/components/layout/notification-bell";
+import { PlatformRoleSwitcher } from "@/components/auth/platform-role-switcher";
 
 const navSections: DashboardNavSection[] = [
   {
@@ -73,6 +74,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         }
         headerEnd={
           <>
+            <PlatformRoleSwitcher />
             <NotificationBell />
             <button
               onClick={handleSignOut}

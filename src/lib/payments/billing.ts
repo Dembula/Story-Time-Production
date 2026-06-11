@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { getPaymentGateway } from "@/lib/payments/gateway";
 import { calculatePlatformTransactionFee } from "@/lib/payments/fees";
 import { toGatewaySafeReference } from "@/lib/payments/reference";
+import { PAYMENT_PROVIDER } from "@/lib/payments/config";
 import { appendPaymentRecordToReturnUrl } from "@/lib/payments/return-url";
 const db = prisma as any;
 
@@ -52,7 +53,7 @@ export async function initializeCheckout(args: {
   const paymentRecord = await db.paymentRecord.create({
     data: {
       userId: args.userId,
-      provider: "STITCH",
+      provider: PAYMENT_PROVIDER,
       purpose: args.purpose,
       status: "PENDING",
       amount: args.amount,
@@ -70,7 +71,7 @@ export async function initializeCheckout(args: {
     const checkoutPayload = {
       amount: args.amount,
       currency: "ZAR",
-      reference: toGatewaySafeReference("st", paymentRecord.id),
+      reference: toGatewaySafeReference("pf", paymentRecord.id),
       returnUrl: appendPaymentRecordToReturnUrl(args.returnUrl, paymentRecord.id),
       customer: { email: args.email ?? null, name: args.customerName ?? null },
       metadata: {

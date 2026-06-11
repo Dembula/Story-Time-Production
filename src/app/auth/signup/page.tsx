@@ -6,6 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { ArrowLeft, Shield } from "lucide-react";
 import { useSearchParams } from "next/navigation";
+import { OAuthSignInButtons } from "@/components/auth/oauth-sign-in-buttons";
 
 function SignUpPageInner() {
   const [consentReady, setConsentReady] = useState(false);
@@ -139,29 +140,7 @@ function SignUpPageInner() {
             </button>
               </form>
 
-              <div className="relative my-6">
-            <span className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-white/8" />
-            </span>
-            <span className="relative flex justify-center bg-transparent px-3 text-xs text-slate-500">Or</span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => signIn("google", { callbackUrl: "/profiles" })}
-              className="storytime-panel flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-medium text-slate-300 hover:bg-white/[0.05]"
-            >
-              Google
-            </button>
-            <button
-              type="button"
-              onClick={() => signIn("github", { callbackUrl: "/profiles" })}
-              className="storytime-panel flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-medium text-slate-300 hover:bg-white/[0.05]"
-            >
-              GitHub
-            </button>
-              </div>
+              <OAuthSignInButtons callbackUrl="/onboarding/package" dividerLabel="Or" onError={setError} />
 
               <div className="mt-4 flex items-center gap-2 justify-center text-xs text-slate-500">
                 <Shield className="w-3.5 h-3.5" />

@@ -42,7 +42,7 @@ async function main() {
       where: { transactionType: "incoming_payment", userId: payment.userId ?? undefined },
     });
     const latestEvents = await prisma.gatewayEvent.findMany({
-      where: { provider: "STITCH" },
+      where: { provider: "PAYFAST" },
       orderBy: { createdAt: "desc" },
       take: 3,
       select: { eventType: true, processed: true, createdAt: true },

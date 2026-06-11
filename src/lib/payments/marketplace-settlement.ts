@@ -275,7 +275,7 @@ export async function finalizeMarketplaceWalletPayment(quote: MarketplaceSettlem
   };
 }
 
-/** After Stitch succeeds: move treasury inflow into escrow + platform fee, then mark marketplace row paid. */
+/** After gateway payment succeeds: move treasury inflow into escrow + platform fee, then mark marketplace row paid. */
 export async function finalizeMarketplaceGatewayPayment(paymentRecordId: string) {
   const record = await db.paymentRecord.findUnique({
     where: { id: paymentRecordId },
@@ -288,7 +288,7 @@ export async function finalizeMarketplaceGatewayPayment(paymentRecordId: string)
   const entityType = record.relatedEntityType as MarketplaceEntityType;
   const resolved = await resolveMarketplaceSettlement(entityType, record.relatedEntityId, record.userId);
   if (!resolved.ok) {
-    if (resolved.error === "Already paid") return { ok: true as const, paymentMode: "stitch" as const, alreadyPaid: true };
+    if (resolved.error === "Already paid") return { ok: true as const, paymentMode: "gateway" as const, alreadyPaid: true };
     return { ok: false as const, error: resolved.error };
   }
 
@@ -376,6 +376,6 @@ export async function finalizeMarketplaceGatewayPayment(paymentRecordId: string)
   return {
     ok: true as const,
     transactionId: tx.id,
-    paymentMode: "stitch" as const,
+    paymentMode: "gateway" as const,
   };
 }

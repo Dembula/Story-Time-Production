@@ -1,16 +1,13 @@
 import { prisma } from "@/lib/prisma";
 
-export const VIEWER_ROLES = new Set(["SUBSCRIBER"]);
-export const CREATOR_ROLES = new Set([
-  "CONTENT_CREATOR",
-  "MUSIC_CREATOR",
-  "EQUIPMENT_COMPANY",
-  "LOCATION_OWNER",
-  "CREW_TEAM",
-  "CASTING_AGENCY",
-  "CATERING_COMPANY",
-  "FUNDER",
-]);
+export {
+  ALL_PLATFORM_ROLES,
+  CREATOR_ROLES,
+  ADMIN_ROLES,
+  VIEWER_ROLES,
+  userHasPlatformRole,
+  type PlatformRole,
+} from "@/lib/user-roles-shared";
 
 export async function getUserRoles(userId: string, fallbackRole?: string | null): Promise<Set<string>> {
   const rows = await prisma.userRole.findMany({

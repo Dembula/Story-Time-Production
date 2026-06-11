@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ExternalLink, FileText, Loader2 } from "lucide-react";
+import { isKycStorageRefImage } from "@/lib/kyc-form-documents";
 
 type VerificationDoc = {
   id: string;
@@ -123,7 +124,7 @@ function DocumentPreview({
     }
   }
 
-  const isImage = /\.(jpg|jpeg|png|webp)(\?|$)/i.test(doc.documentUrl);
+  const isImage = isKycStorageRefImage(doc.documentUrl);
 
   return (
     <div className="rounded-lg border border-slate-700 bg-slate-950/80 p-3">
@@ -146,9 +147,22 @@ function DocumentPreview({
           </button>
           <button
             type="button"
-            onClick={async () => {
-              await loadPreview();
-              if (previewUrl) window.open(previewUrl, "_blank", "noopener,noreferrer");
+            onClick={() => {
+              void (async () => {
+                setLoading(true);
+                setError("");
+                try {
+                  const res = await fetch(`${signedUrlPath}?verificationId=${encodeURIComponent(doc.id)}`);
+                  const j = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
+                  if (!res.ok || !j.url) throw new Error(j.error || "Could not load document");
+                  setPreviewUrl(j.url);
+                  window.open(j.url, "_blank", "noopener,noreferrer");
+                } catch (e) {
+                  setError(e instanceof Error ? e.message : "Could not load document");
+                } finally {
+                  setLoading(false);
+                }
+              })();
             }}
             className="inline-flex items-center gap-1 rounded border border-orange-500/40 px-2 py-1 text-xs text-orange-200 hover:bg-orange-500/10"
           >

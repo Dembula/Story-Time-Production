@@ -18,10 +18,8 @@ import {
   FolderKanban,
   Trophy,
   Bookmark,
-  Bot,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useModocOptional, useModoc } from "@/components/modoc";
 import { formatZar } from "@/lib/format-currency-zar";
 
 type RevenueData = {
@@ -86,78 +84,7 @@ const RANGE_LABEL: Record<CreatorAnalyticsPayload["rangeKey"], string> = {
   all: "All time",
 };
 
-function getModocMessageContent(message: { content?: string; parts?: Array<{ type: string; text?: string }> }): string {
-  if (typeof message.content === "string") return message.content;
-  if (Array.isArray(message.parts)) {
-    return message.parts
-      .map((p) => (p.type === "text" ? (p as { text?: string }).text ?? "" : ""))
-      .join("");
-  }
-  return "";
-}
-
-function CreatorAnalyticsModocModal({
-  onClose,
-  prompt,
-}: {
-  onClose: () => void;
-  prompt: string;
-}) {
-  const { append, messages, status, setRequestContext } = useModoc();
-  const appendedRef = useRef(false);
-
-  useEffect(() => {
-    setRequestContext({
-      scope: "creator-analytics",
-      clientContext: "Task: creator_analytics. Analytics report requested.",
-      pageContext: { task: "creator_analytics" },
-    });
-  }, [setRequestContext]);
-
-  useEffect(() => {
-    if (appendedRef.current) return;
-    appendedRef.current = true;
-    append({ role: "user", content: prompt });
-  }, [prompt, append]);
-
-  const lastAssistant = messages.filter((m) => m.role === "assistant").pop();
-  const displayContent = lastAssistant ? getModocMessageContent(lastAssistant) : "";
-
-  return (
-    <>
-      <div className="fixed inset-0 z-40 bg-black/60" aria-hidden onClick={onClose} />
-      <div
-        className="storytime-section fixed left-1/2 top-1/2 z-50 w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 p-6"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-            <Bot className="w-5 h-5 text-cyan-400" />
-            AI analytics report
-          </h3>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg p-2 text-xl leading-none text-slate-400 hover:bg-white/[0.05] hover:text-white"
-          >
-            ×
-          </button>
-        </div>
-        <div className="max-h-[60vh] overflow-y-auto rounded-xl border border-white/8 bg-white/[0.04] p-4 text-sm text-slate-200 whitespace-pre-wrap">
-          {status === "streaming" || status === "submitted" ? (
-            displayContent ? displayContent : <span className="text-slate-400">Generating…</span>
-          ) : (
-            displayContent || "Generating…"
-          )}
-        </div>
-      </div>
-    </>
-  );
-}
-
 export function CreatorAnalyticsClient() {
-  const modoc = useModocOptional();
-  const [modocReportOpen, setModocReportOpen] = useState(false);
   const [revenueData, setRevenueData] = useState<RevenueData | null>(null);
   const [analytics, setAnalytics] = useState<CreatorAnalyticsPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -237,25 +164,7 @@ export function CreatorAnalyticsClient() {
             Performance across your account and movies: revenue, audience, content, projects, and competition.
           </p>
         </div>
-        {modoc && (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="border-cyan-500/50 text-cyan-200 hover:bg-cyan-500/10 text-xs shrink-0"
-            onClick={() => setModocReportOpen(true)}
-          >
-            <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
-            Get AI analytics report
-          </Button>
-        )}
       </div>
-      {modoc && modocReportOpen && (
-        <CreatorAnalyticsModocModal
-          onClose={() => setModocReportOpen(false)}
-          prompt="Using my analytics data in your context, give me a clear report: what do these stats mean, how do they tie together (revenue, views, engagement, content performance, projects), and what are 2–4 actionable next steps I can take?"
-        />
-      )}
 
       <div className="space-y-3">
         <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Payout & revenue period</p>

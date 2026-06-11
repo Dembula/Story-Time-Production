@@ -11,6 +11,7 @@ import { NotificationBell } from "@/components/layout/notification-bell";
 import { CreatorPackageGate } from "@/components/creator/creator-package-gate";
 import { CreatorPipelineRouteGate } from "@/components/creator/creator-pipeline-route-gate";
 import { CreatorStudioActingLabel } from "@/components/creator/creator-studio-switcher";
+import { PlatformRoleSwitcher } from "@/components/auth/platform-role-switcher";
 import { CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY, CREATOR_STUDIO_PROFILES_QUERY_KEY } from "@/lib/pricing";
 import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
 
@@ -85,6 +86,7 @@ export default function CreatorLayout({ children }: { children: React.ReactNode 
       }
       headerEnd={
         <>
+          <PlatformRoleSwitcher />
           <CreatorStudioActingLabel />
           <NotificationBell />
           <button

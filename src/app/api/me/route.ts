@@ -6,6 +6,8 @@ import { compare, hash } from "bcryptjs";
 import { normalizeAvatarImageUrl } from "@/lib/avatar-image-url";
 import { completeViewerAccountOnboarding, isViewerAccountOnboardingComplete } from "@/lib/viewer-account-onboarding";
 import { loadViewerBillingAddress, upsertViewerBillingAddress } from "@/lib/user-settings-persistence";
+import { mergeCreatorGoalsForSave } from "@/lib/creator-profile-goals";
+import { buildPlatformRoleOptions, loadUserPlatformRoles } from "@/lib/platform-roles";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -26,6 +28,8 @@ export async function GET() {
       goals: true,
       previousWork: true,
       isAfdaStudent: true,
+      institutionName: true,
+      studentId: true,
       headline: true,
       location: true,
       website: true,
@@ -50,8 +54,15 @@ export async function GET() {
       ? await loadViewerBillingAddress(session.user.id).catch(() => null)
       : null;
 
+  const activeRole = (session.user as { role?: string }).role ?? user.role;
+  const platformRoles = await loadUserPlatformRoles(session.user.id, activeRole);
+
   return NextResponse.json({
     ...user,
+    activeRole,
+    platformRoles,
+    platformRoleOptions: buildPlatformRoleOptions(platformRoles),
+    multiRole: platformRoles.length > 1,
     address,
   });
 }
@@ -82,6 +93,8 @@ export async function PATCH(req: NextRequest) {
     location,
     website,
     isAfdaStudent,
+    institutionName,
+    studentId,
     image,
     residentialAddress,
     city,
@@ -106,9 +119,24 @@ export async function PATCH(req: NextRequest) {
   if (bio !== undefined) data.bio = bio;
   if (socialLinks !== undefined) data.socialLinks = typeof socialLinks === "string" ? socialLinks : JSON.stringify(socialLinks);
   if (education !== undefined) data.education = education;
-  if (goals !== undefined) data.goals = goals;
+  if (goals !== undefined) {
+    const existing = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { goals: true },
+    });
+    data.goals =
+      typeof goals === "string"
+        ? mergeCreatorGoalsForSave(existing?.goals, goals)
+        : goals;
+  }
   if (previousWork !== undefined) data.previousWork = previousWork;
   if (typeof isAfdaStudent === "boolean") data.isAfdaStudent = isAfdaStudent;
+  if (institutionName !== undefined) {
+    data.institutionName = typeof institutionName === "string" ? institutionName.trim() || null : null;
+  }
+  if (studentId !== undefined) {
+    data.studentId = typeof studentId === "string" ? studentId.trim() || null : null;
+  }
 
   if (email !== undefined) {
     const normalized = typeof email === "string" ? email.trim().toLowerCase() : "";
@@ -155,6 +183,8 @@ export async function PATCH(req: NextRequest) {
     goals: true,
     previousWork: true,
     isAfdaStudent: true,
+    institutionName: true,
+    studentId: true,
     headline: true,
     location: true,
     website: true,

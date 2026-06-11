@@ -3,6 +3,7 @@ import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { CompanySubscriptionClient } from "./subscription-client";
+import { signInUrlForDestination } from "@/lib/auth-sign-in-path";
 
 const COMPANY_DASHBOARDS: Record<string, string> = {
   CREW_TEAM: "/crew-team/dashboard",
@@ -22,7 +23,7 @@ const COMPANY_LABELS: Record<string, string> = {
 
 export default async function CompanySubscriptionOnboardingPage() {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.email) redirect("/auth/signin");
+  if (!session?.user?.email) redirect(signInUrlForDestination("/company/onboarding/subscription"));
 
   const role = (session.user as { role?: string })?.role;
   const companyRoles = ["CREW_TEAM", "CASTING_AGENCY", "LOCATION_OWNER", "EQUIPMENT_COMPANY", "CATERING_COMPANY"];

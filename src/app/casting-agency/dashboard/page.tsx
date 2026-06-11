@@ -2,13 +2,16 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { signInUrlForDestination } from "@/lib/auth-sign-in-path";
 import { CastingDashboardClient } from "./casting-dashboard-client";
 
 export default async function CastingAgencyDashboardPage() {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.email) redirect("/auth/signin");
+  if (!session?.user?.email) redirect(signInUrlForDestination("/casting-agency/dashboard"));
   const role = (session.user as { role?: string })?.role;
-  if (role !== "CASTING_AGENCY" && role !== "ADMIN") redirect("/auth/signin");
+  if (role !== "CASTING_AGENCY" && role !== "ADMIN") {
+    redirect(signInUrlForDestination("/casting-agency/dashboard"));
+  }
   const now = new Date();
 
   const user = await prisma.user.findUnique({

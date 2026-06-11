@@ -23,7 +23,18 @@ interface User {
   _count: { contents: number; musicTracks: number; watchSessions: number; comments: number; ratings: number; activityLogs: number; equipmentListings: number; locationListings: number };
 }
 
-const ROLES = ["SUBSCRIBER", "CONTENT_CREATOR", "MUSIC_CREATOR", "EQUIPMENT_COMPANY", "LOCATION_OWNER", "CREW_TEAM", "CASTING_AGENCY", "ADMIN"];
+const ROLES = [
+  "SUBSCRIBER",
+  "CONTENT_CREATOR",
+  "MUSIC_CREATOR",
+  "EQUIPMENT_COMPANY",
+  "LOCATION_OWNER",
+  "CREW_TEAM",
+  "CASTING_AGENCY",
+  "CATERING_COMPANY",
+  "FUNDER",
+  "ADMIN",
+];
 
 function roleBadge(role: string) {
   const m: Record<string, string> = {
@@ -34,6 +45,8 @@ function roleBadge(role: string) {
     LOCATION_OWNER: "bg-amber-500/20 text-amber-400",
     CREW_TEAM: "bg-teal-500/20 text-teal-400",
     CASTING_AGENCY: "bg-violet-500/20 text-violet-400",
+    CATERING_COMPANY: "bg-orange-500/20 text-orange-300",
+    FUNDER: "bg-cyan-500/20 text-cyan-300",
     SUBSCRIBER: "bg-slate-700 text-slate-400",
   };
   return <span className={`px-2 py-0.5 rounded text-xs font-medium ${m[role] || m.SUBSCRIBER}`}>{role.replace(/_/g, " ")}</span>;

@@ -4,6 +4,7 @@ import { SessionProvider } from "next-auth/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 import { ModocProvider } from "@/components/modoc";
+import { ModocVaShell } from "@/components/modoc/modoc-va-shell";
 import { AdaptiveUiProvider } from "@/components/adaptive/adaptive-provider";
 import { MotionProvider } from "@/components/motion/motion-provider";
 import { MiniPlayer } from "@/components/player/mini-player";
@@ -24,6 +25,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           <MotionProvider>
             <ModocProvider>
               {children}
+              <ModocVaShell />
               <PayoutKycBanner />
               <FunderVerificationBanner />
               <MiniPlayer />

@@ -43,6 +43,13 @@ export function resolveNotificationUrl(
   if (meta.pitchId && meta.projectId) {
     return `/creator/projects/${meta.projectId}/overview`;
   }
+  if (n.type === "VA_SUGGESTION" || n.type === "VA_ACTION_COMPLETE") {
+    if (meta.url && typeof meta.url === "string") return meta.url;
+    if (meta.projectId) {
+      return `/creator/projects/${meta.projectId}/pre-production/script-breakdown`;
+    }
+  }
+
   if (meta.projectId) {
     return `/creator/projects/${meta.projectId}/overview`;
   }
@@ -103,6 +110,7 @@ export function resolveNotificationUrl(
 }
 
 export function notificationActionLabel(n: NotificationItem): string {
+  if (n.type === "VA_ACTION_COMPLETE") return "View result";
   if (n.type.includes("MESSAGE") || n.type.includes("NETWORK")) return "View message";
   if (n.type.includes("INVITE")) return "View invite";
   if (n.type.includes("CONTRACT")) return "View contract";

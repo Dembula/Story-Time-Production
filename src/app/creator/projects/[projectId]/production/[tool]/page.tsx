@@ -230,8 +230,6 @@ function ControlCenter({ projectId, title }: { projectId?: string; title: string
 
 function OnSetTasks({ projectId, title }: { projectId?: string; title: string }) {
   const { deviceClass, orientation } = useAdaptiveUi();
-  const modoc = useModocOptional();
-  const [modocReportOpen, setModocReportOpen] = useState(false);
   const queryClient = useQueryClient();
   const hasProject = !!projectId;
   const { data, isLoading } = useQuery({
@@ -354,28 +352,9 @@ function OnSetTasks({ projectId, title }: { projectId?: string; title: string })
             Kanban for on-set tasks. Create tasks, move them through To do → In progress → Done. Tasks created from Risk, Table Reads, or Dailies can appear here.
           </p>
         </div>
-        {modoc && (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="border-cyan-500/50 text-cyan-200 hover:bg-cyan-500/10 text-xs shrink-0"
-            onClick={() => setModocReportOpen(true)}
-          >
-            <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
-            Get AI on-set task insights
-          </Button>
-        )}
+        
       </header>
-      {modoc && modocReportOpen && (
-        <ProductionModocReportModal
-          task="on_set_tasks"
-          reportTitle="On-set task management"
-          prompt="Use the project tasks and shoot schedule in your context. Suggest task priorities (by department or urgency), how to communicate reminders and updates, and how to reprioritize when the schedule or production requirements change in real time."
-          onClose={() => setModocReportOpen(false)}
-          projectId={projectId ?? undefined}
-        />
-      )}
+      
 
       <ToolActionError message={actionError} onDismiss={() => setActionError("")} />
 
@@ -709,8 +688,6 @@ function Column({
 
 function EquipmentTracking({ projectId, title }: { projectId?: string; title: string }) {
   const { deviceClass, orientation } = useAdaptiveUi();
-  const modoc = useModocOptional();
-  const [modocReportOpen, setModocReportOpen] = useState(false);
   const hasProject = !!projectId;
   const queryClient = useQueryClient();
   const [dayFilter, setDayFilter] = useState("");
@@ -880,46 +857,9 @@ function EquipmentTracking({ projectId, title }: { projectId?: string; title: st
             Live equipment control for production: lifecycle tracking, check-in/out, issue handling, and planned vs actual visibility.
           </p>
         </div>
-        {modoc && (
-          <div className="flex flex-wrap items-center gap-2">
-            {projectId && (
-              <>
-                <Link
-                  href={`/api/creator/projects/${projectId}/equipment-plan/export?format=csv`}
-                  className="inline-flex h-8 items-center rounded-md border border-slate-700 bg-slate-900 px-3 text-[11px] text-slate-200 hover:border-slate-500"
-                >
-                  Export CSV
-                </Link>
-                <Link
-                  href={`/api/creator/projects/${projectId}/equipment-plan/export?format=json`}
-                  className="inline-flex h-8 items-center rounded-md border border-slate-700 bg-slate-900 px-3 text-[11px] text-slate-200 hover:border-slate-500"
-                >
-                  Export JSON
-                </Link>
-              </>
-            )}
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="border-cyan-500/50 text-cyan-200 hover:bg-cyan-500/10 text-xs shrink-0"
-              onClick={() => setModocReportOpen(true)}
-            >
-              <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
-              Get AI equipment tracking insights
-            </Button>
-          </div>
-        )}
+        
       </header>
-      {modoc && modocReportOpen && (
-        <ProductionModocReportModal
-          task="equipment_tracking"
-          reportTitle="Equipment tracking"
-          prompt="Use the planned equipment and shoot days in your context. Suggest how to track usage and availability, manage resources (sign-out, return-by-wrap, damage reporting), and flag any missing gear or quantities needed for upcoming shoot days."
-          onClose={() => setModocReportOpen(false)}
-          projectId={projectId ?? undefined}
-        />
-      )}
+      
 
       {toast && <div className="rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs text-slate-200">{toast}</div>}
 
@@ -1304,8 +1244,6 @@ function EquipmentTracking({ projectId, title }: { projectId?: string; title: st
 
 function ShootProgress({ projectId, title }: { projectId?: string; title: string }) {
   const { deviceClass, orientation } = useAdaptiveUi();
-  const modoc = useModocOptional();
-  const [modocReportOpen, setModocReportOpen] = useState(false);
   const hasProject = !!projectId;
   const queryClient = useQueryClient();
   const [dayFilter, setDayFilter] = useState("");
@@ -1443,29 +1381,10 @@ function ShootProgress({ projectId, title }: { projectId?: string; title: string
               </Link>
             </>
           )}
-          {modoc && (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="border-cyan-500/50 text-cyan-200 hover:bg-cyan-500/10 text-xs shrink-0"
-              onClick={() => setModocReportOpen(true)}
-            >
-              <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
-              Get AI shoot progress insights
-            </Button>
-          )}
+          
         </div>
       </header>
-      {modoc && modocReportOpen && (
-        <ProductionModocReportModal
-          task="shoot_progress"
-          reportTitle="Shoot progress"
-          prompt="Use the live shoot progress board to summarize completion, drift vs plan, delayed scenes, and recommended recovery actions."
-          onClose={() => setModocReportOpen(false)}
-          projectId={projectId ?? undefined}
-        />
-      )}
+      
       {toast && <div className="rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs text-slate-200">{toast}</div>}
 
       <div className={`grid gap-3 ${compactMode ? "" : "md:grid-cols-5"}`}>
@@ -1711,8 +1630,6 @@ function ShootProgress({ projectId, title }: { projectId?: string; title: string
 
 function ContinuityManager({ projectId, title }: { projectId?: string; title: string }) {
   const { deviceClass, orientation } = useAdaptiveUi();
-  const modoc = useModocOptional();
-  const [modocReportOpen, setModocReportOpen] = useState(false);
   const queryClient = useQueryClient();
   const hasProject = !!projectId;
   const [sceneFilter, setSceneFilter] = useState("");
@@ -1887,28 +1804,9 @@ function ContinuityManager({ projectId, title }: { projectId?: string; title: st
             Visual and factual continuity memory across scenes, takes, and shoot days.
           </p>
         </div>
-        {modoc && (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="border-cyan-500/50 text-cyan-200 hover:bg-cyan-500/10 text-xs shrink-0"
-            onClick={() => setModocReportOpen(true)}
-          >
-            <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
-            Get AI continuity insights
-          </Button>
-        )}
+        
       </header>
-      {modoc && modocReportOpen && (
-        <ProductionModocReportModal
-          task="continuity_manager"
-          reportTitle="Continuity manager"
-          prompt="Use the continuity notes and breakdown (props, wardrobes, locations) in your context. Suggest how to track costumes, props, and locations for consistency and recommend checklists to maintain continuity."
-          onClose={() => setModocReportOpen(false)}
-          projectId={projectId ?? undefined}
-        />
-      )}
+      
       {toast && <div className="rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs text-slate-200">{toast}</div>}
 
       <div className="grid gap-3 md:grid-cols-4">
@@ -2119,8 +2017,6 @@ function ContinuityManager({ projectId, title }: { projectId?: string; title: st
 }
 
 function DailiesReview({ projectId, title }: { projectId?: string; title: string }) {
-  const modoc = useModocOptional();
-  const [modocReportOpen, setModocReportOpen] = useState(false);
   const queryClient = useQueryClient();
   const hasProject = !!projectId;
   const { data, isLoading } = useQuery({
@@ -2148,28 +2044,9 @@ function DailiesReview({ projectId, title }: { projectId?: string; title: string
             Dailies batches and review notes.
           </p>
         </div>
-        {modoc && (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="border-cyan-500/50 text-cyan-200 hover:bg-cyan-500/10 text-xs shrink-0"
-            onClick={() => setModocReportOpen(true)}
-          >
-            <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
-            Get AI dailies review insights
-          </Button>
-        )}
+        
       </header>
-      {modoc && modocReportOpen && (
-        <ProductionModocReportModal
-          task="dailies_review"
-          reportTitle="Dailies review"
-          prompt="Use the dailies batches and review notes in your context. Analyze for quality and consistency, and flag any issues that should be addressed before moving into post-production."
-          onClose={() => setModocReportOpen(false)}
-          projectId={projectId ?? undefined}
-        />
-      )}
+      
       {isLoading ? (
         <Skeleton className="h-48 bg-slate-800/60" />
       ) : (
@@ -2208,8 +2085,6 @@ function DailiesReview({ projectId, title }: { projectId?: string; title: string
 
 function ExpenseTracker({ projectId, title }: { projectId?: string; title: string }) {
   const { deviceClass, orientation } = useAdaptiveUi();
-  const modoc = useModocOptional();
-  const [modocReportOpen, setModocReportOpen] = useState(false);
   const queryClient = useQueryClient();
   const hasProject = !!projectId;
   const [toast, setToast] = useState<string | null>(null);
@@ -2435,28 +2310,9 @@ function ExpenseTracker({ projectId, title }: { projectId?: string; title: strin
           <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
           <p className="text-sm text-slate-400 mt-1">Real-time financial control: budget vs actual, burn rate, approvals, and payment tracking.</p>
         </div>
-        {modoc && (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="border-cyan-500/50 text-cyan-200 hover:bg-cyan-500/10 text-xs shrink-0"
-            onClick={() => setModocReportOpen(true)}
-          >
-            <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
-            Get AI expense insights
-          </Button>
-        )}
+        
       </header>
-      {modoc && modocReportOpen && (
-        <ProductionModocReportModal
-          task="production_expense_tracker"
-          reportTitle="Production expense tracker"
-          prompt="Use the expenses and budget data in your context. Help categorize costs, summarize spending by department, and offer insights on budget adherence throughout production."
-          onClose={() => setModocReportOpen(false)}
-          projectId={projectId ?? undefined}
-        />
-      )}
+      
       {toast && <div className="rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs text-slate-200">{toast}</div>}
       {hasProject && projectId && (
         <div className="flex flex-wrap items-center gap-3 text-xs">
@@ -2660,8 +2516,6 @@ function ExpenseTracker({ projectId, title }: { projectId?: string; title: strin
 
 function IncidentReporting({ projectId, title }: { projectId?: string; title: string }) {
   const { deviceClass, orientation } = useAdaptiveUi();
-  const modoc = useModocOptional();
-  const [modocReportOpen, setModocReportOpen] = useState(false);
   const queryClient = useQueryClient();
   const hasProject = !!projectId;
   const [toast, setToast] = useState<string | null>(null);
@@ -2844,28 +2698,9 @@ function IncidentReporting({ projectId, title }: { projectId?: string; title: st
             Log and resolve on-set incidents.
           </p>
         </div>
-        {modoc && (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="border-cyan-500/50 text-cyan-200 hover:bg-cyan-500/10 text-xs shrink-0"
-            onClick={() => setModocReportOpen(true)}
-          >
-            <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
-            Get AI incident analysis
-          </Button>
-        )}
+        
       </header>
-      {modoc && modocReportOpen && (
-        <ProductionModocReportModal
-          task="incident_reporting"
-          reportTitle="Incident reporting"
-          prompt="Use the incidents and schedule in your context. Provide templates and analysis tools to understand the impact of incidents on production schedules and budgets."
-          onClose={() => setModocReportOpen(false)}
-          projectId={projectId ?? undefined}
-        />
-      )}
+      
       {toast ? (
         <div className="rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs text-slate-200">
           {toast}
@@ -3048,8 +2883,6 @@ function IncidentReporting({ projectId, title }: { projectId?: string; title: st
 }
 
 function ProductionWrap({ projectId, title }: { projectId?: string; title: string }) {
-  const modoc = useModocOptional();
-  const [modocReportOpen, setModocReportOpen] = useState(false);
   const queryClient = useQueryClient();
   const hasProject = !!projectId;
   const [toast, setToast] = useState<string | null>(null);
@@ -3115,28 +2948,9 @@ function ProductionWrap({ projectId, title }: { projectId?: string; title: strin
             Confirm principal photography complete and move to Post-Production.
           </p>
         </div>
-        {modoc && (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="border-cyan-500/50 text-cyan-200 hover:bg-cyan-500/10 text-xs shrink-0"
-            onClick={() => setModocReportOpen(true)}
-          >
-            <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
-            Get AI wrap report
-          </Button>
-        )}
+        
       </header>
-      {modoc && modocReportOpen && (
-        <ProductionModocReportModal
-          task="production_wrap"
-          reportTitle="Production wrap"
-          prompt="Use the shoot days, incidents, tasks, and counts in your context. Generate a report on overall performance, document lessons learned, and ensure all final deliverables are accounted for before moving to post."
-          onClose={() => setModocReportOpen(false)}
-          projectId={projectId ?? undefined}
-        />
-      )}
+      
       {toast ? (
         <div className="rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs text-slate-200">{toast}</div>
       ) : null}

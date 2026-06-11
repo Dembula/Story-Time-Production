@@ -41,6 +41,8 @@ import { streamText, convertToCoreMessages, type UIMessage } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { prisma } from "@/lib/prisma";
 import { getViewerProfileAge } from "@/lib/viewer-profiles";
+import { CREATOR_VA_ROLE } from "@/lib/modoc/creator-va";
+import { buildCreatorWorkspaceContext } from "@/lib/modoc/creator-workspace-context";
 
 /** OpenRouter: one API for 400+ models (OpenAI, Claude, Gemini, etc.). Uses OpenAI-compatible endpoint. */
 const openRouter = createOpenAI({
@@ -132,6 +134,8 @@ export async function POST(req: Request) {
       }
     : null;
 
+  const role = userContext?.role ?? (session?.user as { role?: string })?.role;
+
   let systemPrompt = buildModocSystemPrompt({
     platformSummary: "",
     user: userContext,
@@ -139,8 +143,29 @@ export async function POST(req: Request) {
     clientContext,
   });
 
+  // Creator VA: only this creator's projects — never platform-wide data
+  if (role === CREATOR_VA_ROLE && scope === "creator" && userId) {
+    try {
+      const workspaceBlob = await buildCreatorWorkspaceContext(
+        userId,
+        (pageContext?.projectId as string | undefined) ?? null,
+      );
+      systemPrompt += `
+
+## Creator workspace context — use this to answer
+
+You are the creator's Virtual Assistant (VA). You only have access to **this creator's own projects** listed below.
+Do not reference other users' projects, admin tools, or platform-wide operations outside their creator workspace.
+When suggesting actions, only use project IDs from this list.
+
+${workspaceBlob}`;
+    } catch (e) {
+      if (process.env.NODE_ENV === "development") console.error("MODOC creator workspace context failed:", e);
+    }
+  }
+
   // Viewer (browse) scope: inject published catalog + user watch history so MODOC can find movies/scenes and suggest from history
-  if (scope === "browse" || path.startsWith("/browse")) {
+  if (role === "SUBSCRIBER" && (scope === "browse" || path.startsWith("/browse"))) {
     try {
       // Resolve active viewer profile for age filtering and per-profile history
       let profileAge: number | null = null;
@@ -265,7 +290,6 @@ When suggesting a title, tell them they can open it at: /browse/content/[id] (re
   if (task === "creator_analytics") systemPrompt += MODOC_TASK_CREATOR_ANALYTICS;
 
   const projectId = pageContext?.projectId as string | undefined;
-  const role = (session?.user as { role?: string })?.role;
 
   // Context injection for marketplace/planning/planning tasks: project data + platform catalog or project-only context
   if (

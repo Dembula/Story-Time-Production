@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { suggestScriptBreakdownAfterSave } from "@/lib/modoc/proactive";
 
 async function requireProjectMember(projectId: string, req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -146,6 +147,20 @@ export async function PATCH(
         });
       }
     }
+  }
+
+  if (body.content && userId) {
+    const versionCount = await prisma.projectScriptVersion.count({
+      where: { scriptId: script.id },
+    });
+    void suggestScriptBreakdownAfterSave({
+      userId,
+      projectId,
+      scriptTitle: script.title,
+      versionLabel: body.versionLabel ?? null,
+      versionCount,
+      isNewVersion: Boolean(body.createNewVersion),
+    }).catch(() => {});
   }
 
   return NextResponse.json({ ok: true });

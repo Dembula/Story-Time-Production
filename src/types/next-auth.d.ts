@@ -4,6 +4,7 @@ declare module "next-auth" {
   interface User {
     id: string;
     role?: string;
+    roles?: string[];
     portalScope?: "VIEWER" | "CREATOR" | "ADMIN";
     funderVerificationStatus?: "DRAFT" | "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
     payoutKycVerificationStatus?: "DRAFT" | "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
@@ -15,6 +16,7 @@ declare module "next-auth" {
     user: {
       id: string;
       role?: string;
+      roles?: string[];
       portalScope?: "VIEWER" | "CREATOR" | "ADMIN";
       funderVerificationStatus?: "DRAFT" | "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
       payoutKycVerificationStatus?: "DRAFT" | "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
@@ -30,6 +32,7 @@ declare module "next-auth/jwt" {
   interface JWT {
     id?: string;
     role?: string;
+    roles?: string[];
     portalScope?: "VIEWER" | "CREATOR" | "ADMIN";
     funderVerificationStatus?: "DRAFT" | "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
     payoutKycVerificationStatus?: "DRAFT" | "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";

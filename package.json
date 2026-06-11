@@ -31,8 +31,6 @@
     "db:backfill:kyc-docs": "tsx scripts/backfill-kyc-private-refs.ts",
     "db:backfill:wallets": "tsx scripts/backfill-wallets.ts",
     "payments:reconcile": "tsx scripts/reconcile-ledger.ts",
-    "payments:stitch:bootstrap": "node scripts/stitch-bootstrap.mjs",
-    "payments:stitch:smoke": "node scripts/stitch-smoke.mjs",
     "payments:creator-pool:distribute": "tsx scripts/run-creator-pool-distribution.ts",
     "db:studio": "prisma studio",
     "refresh": "prisma generate && node scripts/clear-dev-cache.mjs"
@@ -74,7 +72,6 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "recharts": "^2.14.1",
-    "svix": "^1.92.2",
     "tailwind-merge": "^2.5.4",
     "zustand": "^5.0.2"
   },

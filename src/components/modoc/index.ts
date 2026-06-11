@@ -5,3 +5,6 @@ export { ModocViewerPanel } from "./modoc-viewer-panel";
 export { ModocCreatorPanel } from "./modoc-creator-panel";
 export { ModocFieldPopover } from "./modoc-field-popover";
 export type { ModocFieldContext } from "./modoc-field-popover";
+export { ModocVaShell } from "./modoc-va-shell";
+export { ModocGlobalPanel } from "./modoc-global-panel";
+export { ModocRouteSync } from "./modoc-route-sync";

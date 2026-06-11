@@ -33,7 +33,7 @@ const sections = [
   {
     title: "Payment Processing Disclosure",
     paragraphs: [
-      "All financial transactions on StoryTime are securely processed through licensed payment gateway partners (Stitch).",
+      "All financial transactions on StoryTime are securely processed through licensed payment gateway partners (PayFast).",
       "By making a payment, users accept the payment processor terms. Payment data is handled under industry-standard security controls, and StoryTime does not store sensitive card details.",
       "Processing times, transaction confirmations, and payment disputes are subject to the payment provider's operational policies.",
     ],

@@ -1,5 +1,6 @@
 import { type NextAuthOptions } from "next-auth";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
+import AppleProvider from "next-auth/providers/apple";
 import GoogleProvider from "next-auth/providers/google";
 import GitHubProvider from "next-auth/providers/github";
 import EmailProvider from "next-auth/providers/email";
@@ -9,22 +10,28 @@ import { prisma } from "./prisma";
 import { findUserActiveStudioProfileId, findUserForCredentialsLogin } from "./prisma-user-studio-compat";
 import { sendWelcomeEmail } from "./sendgrid";
 import { CREATOR_ROLES, VIEWER_ROLES, ensureUserRole, getUserRoles } from "./user-roles";
+import { getPortalScopeForRole, resolveRoleSwitch } from "./platform-roles";
 import { getPayoutKycStatus, requiresPayoutKyc, type KycVerificationStatus } from "./payout-kyc";
 import type { FunderVerificationStatus } from "./funder-verification";
 
 type PortalScope = "VIEWER" | "CREATOR" | "ADMIN";
 
 function pickCreatorRole(roles: Set<string>, fallbackRole?: string | null): string | null {
-  if (fallbackRole && CREATOR_ROLES.has(fallbackRole)) return fallbackRole;
-  const ordered = [...roles].filter((r) => CREATOR_ROLES.has(r)).sort();
-  return ordered[0] ?? null;
+  const creatorRoles = [...roles].filter((r) => CREATOR_ROLES.has(r));
+  if (creatorRoles.length === 0) {
+    return fallbackRole && CREATOR_ROLES.has(fallbackRole) ? fallbackRole : null;
+  }
+  if (fallbackRole && creatorRoles.includes(fallbackRole)) return fallbackRole;
+  if (creatorRoles.includes("CONTENT_CREATOR")) return "CONTENT_CREATOR";
+  return creatorRoles.sort()[0] ?? null;
 }
 
-const DEMO_PASSWORD = process.env.DEMO_PASSWORD || "storytime2025";
 const googleClientId = process.env.GOOGLE_CLIENT_ID?.trim() ?? "";
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim() ?? "";
 const githubClientId = process.env.GITHUB_ID?.trim() ?? "";
 const githubClientSecret = process.env.GITHUB_SECRET?.trim() ?? "";
+const appleId = process.env.APPLE_ID?.trim() ?? "";
+const appleSecret = process.env.APPLE_SECRET?.trim() ?? "";
 
 const oauthProviders = [
   ...(googleClientId && googleClientSecret
@@ -40,6 +47,14 @@ const oauthProviders = [
         GitHubProvider({
           clientId: githubClientId,
           clientSecret: githubClientSecret,
+        }),
+      ]
+    : []),
+  ...(appleId && appleSecret
+    ? [
+        AppleProvider({
+          clientId: appleId,
+          clientSecret: appleSecret,
         }),
       ]
     : []),
@@ -60,12 +75,9 @@ export const authOptions: NextAuthOptions = {
         if (!credentials?.email || credentials.password == null) return null;
         const user = await findUserForCredentialsLogin(credentials.email.toLowerCase());
         if (!user) return null;
-        if (user.passwordHash) {
-          const ok = await compare(credentials.password, user.passwordHash);
-          if (!ok) return null;
-        } else {
-          if (credentials.password !== DEMO_PASSWORD) return null;
-        }
+        if (!user.passwordHash) return null;
+        const ok = await compare(credentials.password, user.passwordHash);
+        if (!ok) return null;
         const roles = await getUserRoles(user.id, user.role);
         if (![...roles].some((userRole) => VIEWER_ROLES.has(userRole))) return null;
         const role = "SUBSCRIBER";
@@ -74,6 +86,7 @@ export const authOptions: NextAuthOptions = {
           email: user.email!,
           name: user.name,
           role,
+          roles: [...roles],
           portalScope: "VIEWER" as PortalScope,
           image: user.image,
           activeCreatorStudioProfileId: user.activeCreatorStudioProfileId,
@@ -82,6 +95,7 @@ export const authOptions: NextAuthOptions = {
           email: string;
           name: string | null;
           role: string;
+          roles: string[];
           portalScope: PortalScope;
           image: string | null;
           activeCreatorStudioProfileId: string | null;
@@ -94,17 +108,15 @@ export const authOptions: NextAuthOptions = {
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
+        selectedRole: { label: "Account Type", type: "text" },
       },
       async authorize(credentials) {
         if (!credentials?.email || credentials.password == null) return null;
         const user = await findUserForCredentialsLogin(credentials.email.toLowerCase());
         if (!user) return null;
-        if (user.passwordHash) {
-          const ok = await compare(credentials.password, user.passwordHash);
-          if (!ok) return null;
-        } else {
-          if (credentials.password !== DEMO_PASSWORD) return null;
-        }
+        if (!user.passwordHash) return null;
+        const ok = await compare(credentials.password, user.passwordHash);
+        if (!ok) return null;
         const roles = await getUserRoles(user.id, user.role);
         const selectedRoleRaw = (credentials as Record<string, unknown> | undefined)?.selectedRole;
         const selectedRole = typeof selectedRoleRaw === "string" ? selectedRoleRaw : null;
@@ -112,11 +124,15 @@ export const authOptions: NextAuthOptions = {
           ? selectedRole
           : pickCreatorRole(roles, user.role);
         if (!role) return null;
+        if (user.role !== role) {
+          await prisma.user.update({ where: { id: user.id }, data: { role } });
+        }
         return {
           id: user.id,
           email: user.email!,
           name: user.name,
           role,
+          roles: [...roles],
           portalScope: "CREATOR" as PortalScope,
           image: user.image,
           activeCreatorStudioProfileId: user.activeCreatorStudioProfileId,
@@ -125,6 +141,7 @@ export const authOptions: NextAuthOptions = {
           email: string;
           name: string | null;
           role: string;
+          roles: string[];
           portalScope: PortalScope;
           image: string | null;
           activeCreatorStudioProfileId: string | null;
@@ -142,12 +159,9 @@ export const authOptions: NextAuthOptions = {
         if (!credentials?.email || credentials.password == null) return null;
         const user = await findUserForCredentialsLogin(credentials.email.toLowerCase());
         if (!user) return null;
-        if (user.passwordHash) {
-          const ok = await compare(credentials.password, user.passwordHash);
-          if (!ok) return null;
-        } else {
-          if (credentials.password !== DEMO_PASSWORD) return null;
-        }
+        if (!user.passwordHash) return null;
+        const ok = await compare(credentials.password, user.passwordHash);
+        if (!ok) return null;
         const roles = await getUserRoles(user.id, user.role);
         if (!roles.has("ADMIN")) return null;
         const role = "ADMIN";
@@ -156,6 +170,7 @@ export const authOptions: NextAuthOptions = {
           email: user.email!,
           name: user.name,
           role,
+          roles: [...roles],
           portalScope: "ADMIN" as PortalScope,
           image: user.image,
           activeCreatorStudioProfileId: user.activeCreatorStudioProfileId,
@@ -164,6 +179,7 @@ export const authOptions: NextAuthOptions = {
           email: string;
           name: string | null;
           role: string;
+          roles: string[];
           portalScope: PortalScope;
           image: string | null;
           activeCreatorStudioProfileId: string | null;
@@ -269,7 +285,14 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = user.id;
         token.role = (user as { role?: string }).role;
-        token.portalScope = (user as { portalScope?: PortalScope }).portalScope;
+        token.portalScope =
+          (user as { portalScope?: PortalScope }).portalScope ??
+          getPortalScopeForRole((user as { role?: string }).role);
+        const loginRoles = (user as { roles?: string[] }).roles;
+        token.roles =
+          loginRoles && loginRoles.length > 0
+            ? loginRoles
+            : [...(await getUserRoles(user.id, (user as { role?: string }).role))];
         token.name = user.name ?? null;
         token.email = user.email ?? null;
         token.picture = (user as { image?: string | null }).image ?? null;
@@ -304,9 +327,25 @@ export const authOptions: NextAuthOptions = {
           token.activeCreatorStudioProfileId =
             (s.activeCreatorStudioProfileId as string | null | undefined) ?? null;
         }
-        if ("portalScope" in s) {
+        if ("role" in s && typeof s.role === "string" && token.id) {
+          const outcome = await resolveRoleSwitch(
+            token.id as string,
+            s.role,
+            token.role as string | undefined,
+          );
+          if (outcome.ok) {
+            token.role = outcome.role;
+            token.roles = outcome.roles;
+            token.portalScope = outcome.portalScope;
+            token.funderVerificationStatus = outcome.funderVerificationStatus;
+            token.payoutKycVerificationStatus = outcome.payoutKycVerificationStatus;
+          }
+        } else if ("portalScope" in s) {
           token.portalScope = (s.portalScope as PortalScope | undefined) ?? token.portalScope;
         }
+      }
+      if (token.id && (!token.roles || token.roles.length === 0)) {
+        token.roles = [...(await getUserRoles(token.id as string, token.role as string | undefined))];
       }
       if (token.role === "FUNDER" && !token.funderVerificationStatus && token.id) {
         const profile = await prisma.funderProfile.findUnique({
@@ -326,6 +365,7 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         (session.user as { id?: string }).id = token.id as string;
         (session.user as { role?: string }).role = token.role as string;
+        (session.user as { roles?: string[] }).roles = (token.roles as string[] | undefined) ?? [];
         if (token.name !== undefined) session.user.name = token.name;
         if (token.email !== undefined) session.user.email = token.email;
         if (token.picture !== undefined) session.user.image = token.picture;

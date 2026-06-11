@@ -1,12 +1,9 @@
 # Payments Launch Checklist
 
 ## Credentials and webhooks
-- Configure `STITCH_CLIENT_ID`, `STITCH_CLIENT_SECRET`, `STITCH_API_BASE`, `STITCH_REDIRECT_URL`, and `STITCH_WEBHOOK_SECRET` (Svix signing secret, usually `whsec_...` from Stitch Express webhook registration).
-- Register HTTPS webhook URL: `https://<your-domain>/api/payments/webhooks/stitch`.
-- Production webhooks are signed with **Svix** (`svix-id`, `svix-timestamp`, `svix-signature` headers). Local scripts may use legacy `x-stitch-signature` HMAC for testing.
-- Successful pay-in events must include your **merchant reference** (the `st-...` value we send as `merchantReference`) under `merchantReference` or `reference` in the payload so we can match `GatewayReference`.
-- Redirect URL registered in Stitch must match `STITCH_REDIRECT_URL` (or app-built return URLs). After checkout we append `?pr=<paymentRecordId>` for status polling on `/payments/return`.
-- Run `npm run payments:stitch:smoke` against test credentials; use `npm run payments:stitch:bootstrap` to register redirect + webhook if needed.
+- Configure PayFast merchant credentials (`PAYFAST_MERCHANT_ID`, `PAYFAST_MERCHANT_KEY`, `PAYFAST_PASSPHRASE`) once integration is complete.
+- Register HTTPS ITN/webhook URL: `https://<your-domain>/api/payments/webhooks/payfast`.
+- Return URL after checkout should land on `/payments/return` with `?pr=<paymentRecordId>` for status polling.
 
 ## Database and backfills
 - Run `npx prisma migrate deploy`.
@@ -14,7 +11,6 @@
 - Run `npm run payments:reconcile` and confirm `mismatches=0`.
 
 ## Runtime configuration
-- Keep `STITCH_PAYOUTS_ENABLED=false` until Stitch payout activation is approved.
 - Confirm S3 credentials are set for KYC document upload/signing flows.
 - Ensure `NEXTAUTH_SECRET` and production callback URLs are valid.
 

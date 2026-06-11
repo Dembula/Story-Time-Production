@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { CompanyPackageGate } from "@/components/layout/company-package-gate";
 import { DashboardSidebarShell } from "@/components/layout/dashboard-sidebar-shell";
 import { NotificationBell } from "@/components/layout/notification-bell";
+import { PlatformRoleSwitcher } from "@/components/auth/platform-role-switcher";
 
 const navItems = [
   { href: "/crew-team/dashboard", label: "Dashboard" },
@@ -15,7 +16,6 @@ const navItems = [
   { href: "/crew-team/requests", label: "Request inbox" },
   { href: "/crew-team/profile", label: "Company profile" },
   { href: "/crew-team/wallet", label: "Wallet" },
-  { href: "/browse", label: "View Platform" },
 ];
 
 export default function CrewTeamLayout({ children }: { children: React.ReactNode }) {
@@ -37,6 +37,7 @@ export default function CrewTeamLayout({ children }: { children: React.ReactNode
       }
       headerEnd={
         <>
+          <PlatformRoleSwitcher />
           <NotificationBell />
           <button
             onClick={handleSignOut}

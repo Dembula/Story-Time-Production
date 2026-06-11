@@ -7,6 +7,7 @@ import Image from "next/image";
 import { ArrowLeft, Check, GraduationCap, Shield } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { isStudioTeamJoinCallback, safeCallbackPath } from "@/lib/auth-callback-path";
+import { isStudioCreatorSignupType, signupBioPlaceholder } from "@/lib/creator-signup-fields";
 
 function CreatorSignUpPageInner() {
   const [consentReady, setConsentReady] = useState(false);
@@ -22,6 +23,8 @@ function CreatorSignUpPageInner() {
   const [previousWork, setPreviousWork] = useState("");
   const [password, setPassword] = useState("");
   const [isAfda, setIsAfda] = useState(false);
+  const [institutionName, setInstitutionName] = useState("");
+  const [studentId, setStudentId] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [step, setStep] = useState(1);
@@ -84,6 +87,11 @@ function CreatorSignUpPageInner() {
       setAccountStructure("");
       setTeamSeatCap(2);
     }
+    if (next !== "content" && next !== "music") {
+      setIsAfda(false);
+      setInstitutionName("");
+      setStudentId("");
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -127,7 +135,9 @@ function CreatorSignUpPageInner() {
           education,
           goals,
           previousWork,
-          isAfda,
+          isAfda: isStudioCreatorSignupType(type) ? isAfda : false,
+          institutionName: isStudioCreatorSignupType(type) && isAfda ? institutionName : undefined,
+          studentId: isStudioCreatorSignupType(type) && isAfda ? studentId : undefined,
           actorProfile: creatorType === "casting" ? {
             fullName: actorFullName || undefined,
             ageRange: actorAgeRange || undefined,
@@ -437,37 +447,59 @@ function CreatorSignUpPageInner() {
                 </>
               ) : null}
 
-              <button
-                type="button"
-                onClick={() => setIsAfda((current) => !current)}
-                aria-pressed={isAfda}
-                className={`w-full rounded-2xl border p-4 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 ${
-                  isAfda
-                    ? "border-amber-300 bg-gradient-to-br from-amber-100 via-white to-amber-50"
-                    : "border-slate-200 bg-white/90 hover:border-slate-300 hover:bg-white"
-                }`}
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-3">
-                    <div className={`flex h-11 w-11 items-center justify-center rounded-2xl border ${
-                      isAfda ? "border-amber-300/70 bg-amber-200/50 text-amber-700" : "border-slate-200 bg-slate-100 text-slate-500"
-                    }`}>
-                      <GraduationCap className="h-5 w-5" />
+              {isStudioCreatorSignupType(creatorType) ? (
+                <div className="space-y-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsAfda((current) => !current)}
+                    aria-pressed={isAfda}
+                    className={`w-full rounded-2xl border p-4 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 ${
+                      isAfda
+                        ? "border-amber-300 bg-gradient-to-br from-amber-100 via-white to-amber-50"
+                        : "border-slate-200 bg-white/90 hover:border-slate-300 hover:bg-white"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start gap-3">
+                        <div className={`flex h-11 w-11 items-center justify-center rounded-2xl border ${
+                          isAfda ? "border-amber-300/70 bg-amber-200/50 text-amber-700" : "border-slate-200 bg-slate-100 text-slate-500"
+                        }`}>
+                          <GraduationCap className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-slate-950">
+                            {creatorType === "music" ? "Student musician / composer" : "Student filmmaker"}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            Highlight new uploads in Student Films / Student Music while you are studying. You can turn this off later in My Account.
+                          </p>
+                        </div>
+                      </div>
+                      <div className={`flex h-7 w-7 items-center justify-center rounded-full border ${
+                        isAfda ? "border-amber-400 bg-amber-500 text-white" : "border-slate-300 bg-white text-transparent"
+                      }`}>
+                        <Check className="h-4 w-4" />
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-semibold text-slate-950">Student filmmaker</p>
-                      <p className="mt-1 text-xs text-slate-500">
-                        Turn this on if you want your work highlighted in the Student Films section while you are still studying.
-                      </p>
+                  </button>
+                  {isAfda ? (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <input
+                        value={institutionName}
+                        onChange={(e) => setInstitutionName(e.target.value)}
+                        placeholder="Institution / film school name"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-950 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-amber-400 focus:ring-2 focus:ring-amber-200/80"
+                      />
+                      <input
+                        value={studentId}
+                        onChange={(e) => setStudentId(e.target.value)}
+                        placeholder="Student ID (optional)"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-950 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-amber-400 focus:ring-2 focus:ring-amber-200/80"
+                      />
                     </div>
-                  </div>
-                  <div className={`flex h-7 w-7 items-center justify-center rounded-full border ${
-                    isAfda ? "border-amber-400 bg-amber-500 text-white" : "border-slate-300 bg-white text-transparent"
-                  }`}>
-                    <Check className="h-4 w-4" />
-                  </div>
+                  ) : null}
                 </div>
-              </button>
+              ) : null}
 
               <button
                 type="button"
@@ -502,7 +534,7 @@ function CreatorSignUpPageInner() {
                 <textarea
                   value={bio}
                   onChange={(e) => setBio(e.target.value)}
-                  placeholder="Tell viewers about yourself and your creative work..."
+                  placeholder={signupBioPlaceholder(creatorType || "content")}
                   rows={3}
                   className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-950 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-amber-400 focus:ring-2 focus:ring-amber-200/80"
                 />
@@ -516,34 +548,42 @@ function CreatorSignUpPageInner() {
                   className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-950 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-amber-400 focus:ring-2 focus:ring-amber-200/80"
                 />
               </div>
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">Education</label>
-                <input
-                  value={education}
-                  onChange={(e) => setEducation(e.target.value)}
-                  placeholder="Where you studied / qualifications"
-                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-950 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-amber-400 focus:ring-2 focus:ring-amber-200/80"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">Previous Work</label>
-                <input
-                  value={previousWork}
-                  onChange={(e) => setPreviousWork(e.target.value)}
-                  placeholder="Previous roles, projects, achievements"
-                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-950 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-amber-400 focus:ring-2 focus:ring-amber-200/80"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">Goals & Aspirations</label>
-                <textarea
-                  value={goals}
-                  onChange={(e) => setGoals(e.target.value)}
-                  placeholder="What do you want to achieve as a creator?"
-                  rows={2}
-                  className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-950 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-amber-400 focus:ring-2 focus:ring-amber-200/80"
-                />
-              </div>
+              {isStudioCreatorSignupType(creatorType) ? (
+                <>
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">Education</label>
+                    <input
+                      value={education}
+                      onChange={(e) => setEducation(e.target.value)}
+                      placeholder="Where you studied / qualifications"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-950 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-amber-400 focus:ring-2 focus:ring-amber-200/80"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">Previous work</label>
+                    <input
+                      value={previousWork}
+                      onChange={(e) => setPreviousWork(e.target.value)}
+                      placeholder="Past films, albums, credits, or achievements"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-950 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-amber-400 focus:ring-2 focus:ring-amber-200/80"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">Goals & aspirations</label>
+                    <textarea
+                      value={goals}
+                      onChange={(e) => setGoals(e.target.value)}
+                      placeholder={
+                        creatorType === "music"
+                          ? "What do you want to achieve with your music on Story Time?"
+                          : "What do you want to achieve as a filmmaker on Story Time?"
+                      }
+                      rows={2}
+                      className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-950 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-amber-400 focus:ring-2 focus:ring-amber-200/80"
+                    />
+                  </div>
+                </>
+              ) : null}
               {["equipment", "location", "crew", "casting", "catering", "funder"].includes(creatorType) ? (
                 <>
                   <div className="grid gap-3 sm:grid-cols-2">

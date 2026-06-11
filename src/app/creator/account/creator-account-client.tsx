@@ -2,6 +2,7 @@
 
 import { StoryTimeLoader, StoryTimeLoadingCenter } from "@/components/ui/storytime-loader";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { displayCreatorGoals } from "@/lib/creator-profile-goals";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -175,6 +176,8 @@ export function CreatorAccountClient({ backHref = "/creator/command-center" }: {
   const searchParams = useSearchParams();
   const activeTab = parseAccountTabParam(searchParams.get("tab"));
   const { update: updateSession } = useSession();
+  const goalsRawRef = useRef<string | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [profile, setProfile] = useState({
     name: "",
     bio: "",
@@ -182,6 +185,8 @@ export function CreatorAccountClient({ backHref = "/creator/command-center" }: {
     goals: "",
     previousWork: "",
     isAfdaStudent: false,
+    institutionName: "",
+    studentId: "",
   });
   const [security, setSecurity] = useState({
     email: "",
@@ -240,13 +245,17 @@ export function CreatorAccountClient({ backHref = "/creator/command-center" }: {
       .then((user) => {
         if (cancelled || !user?.email) return;
         setStudioRegistration(deriveStudioRegistration(user));
+        goalsRawRef.current = user.goals ?? null;
+        setUserRole(user.role ?? null);
         setProfile({
           name: user.name ?? "",
           bio: user.bio ?? "",
           education: user.education ?? "",
-          goals: user.goals ?? "",
+          goals: displayCreatorGoals(user.goals),
           previousWork: user.previousWork ?? "",
           isAfdaStudent: Boolean(user.isAfdaStudent),
+          institutionName: user.institutionName ?? "",
+          studentId: user.studentId ?? "",
         });
         setInitialEmail(user.email ?? "");
         setInitialPhone(user.phoneNumber ?? "");
@@ -362,12 +371,18 @@ export function CreatorAccountClient({ backHref = "/creator/command-center" }: {
           goals: profile.goals,
           previousWork: profile.previousWork,
           isAfdaStudent: profile.isAfdaStudent,
+          institutionName: profile.institutionName,
+          studentId: profile.studentId,
         }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         flashError(typeof data.error === "string" ? data.error : "Could not save profile.");
         return;
+      }
+      if (data?.goals !== undefined) {
+        goalsRawRef.current = data.goals ?? null;
+        setProfile((p) => ({ ...p, goals: displayCreatorGoals(data.goals) }));
       }
       if (data?.name != null && updateSession) {
         await updateSession({ name: data.name }).catch(() => {});
@@ -612,7 +627,7 @@ export function CreatorAccountClient({ backHref = "/creator/command-center" }: {
             placeholder="Tell viewers and collaborators about yourself"
           />
         </div>
-        <div className="rounded-xl border border-white/8 bg-white/[0.03] p-4">
+        <div className="rounded-xl border border-white/8 bg-white/[0.03] p-4 space-y-4">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="flex items-start gap-3">
               <div
@@ -625,26 +640,55 @@ export function CreatorAccountClient({ backHref = "/creator/command-center" }: {
                 <GraduationCap className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-sm font-medium text-white">Student label</p>
+                <p className="text-sm font-medium text-white">
+                  {userRole === "MUSIC_CREATOR" ? "Student musician" : "Student creator"}
+                </p>
                 <p className="mt-1 text-sm text-slate-400">
                   {profile.isAfdaStudent
-                    ? "Marked as a student creator for discovery."
-                    : "Not marked as a student creator."}
+                    ? "New uploads are tagged for Student Films / Student Music. Work you already released as a student keeps its student badge."
+                    : "You are not marked as a student. Turn this on while studying to feature new work in student discovery."}
                 </p>
               </div>
             </div>
-            {profile.isAfdaStudent ? (
-              <button
-                type="button"
-                onClick={() => setProfile((p) => ({ ...p, isAfdaStudent: false }))}
-                className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-medium text-slate-200 hover:bg-white/[0.05]"
-              >
-                Remove student label
-              </button>
-            ) : (
-              <span className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-1 text-xs font-medium text-slate-400">Inactive</span>
-            )}
+            <button
+              type="button"
+              onClick={() =>
+                setProfile((p) => ({
+                  ...p,
+                  isAfdaStudent: !p.isAfdaStudent,
+                }))
+              }
+              className={`rounded-xl border px-4 py-2 text-sm font-medium transition ${
+                profile.isAfdaStudent
+                  ? "border-white/10 bg-white/[0.03] text-slate-200 hover:bg-white/[0.05]"
+                  : "border-violet-500/30 bg-violet-500/10 text-violet-200 hover:bg-violet-500/15"
+              }`}
+            >
+              {profile.isAfdaStudent ? "I'm no longer a student" : "I'm currently a student"}
+            </button>
           </div>
+          {profile.isAfdaStudent ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-400">Institution</label>
+                <input
+                  value={profile.institutionName}
+                  onChange={(e) => setProfile((p) => ({ ...p, institutionName: e.target.value }))}
+                  className="storytime-input w-full px-4 py-2.5"
+                  placeholder="Film school, university, conservatory…"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-400">Student ID</label>
+                <input
+                  value={profile.studentId}
+                  onChange={(e) => setProfile((p) => ({ ...p, studentId: e.target.value }))}
+                  className="storytime-input w-full px-4 py-2.5"
+                  placeholder="Optional — for verification if requested"
+                />
+              </div>
+            </div>
+          ) : null}
         </div>
         <div>
           <label className="block text-sm font-medium text-slate-300 mb-1">Education</label>

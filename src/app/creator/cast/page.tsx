@@ -397,7 +397,7 @@ function CreatorCastPageContent() {
       {tab === "my-inquiries" && (
         <div className="space-y-4">
           <p className="text-slate-400 text-sm">
-            After you contact an agency, pay via wallet or Stitch to unlock messaging (platform fee included).
+            After you contact an agency, pay via wallet or PayFast to unlock messaging (platform fee included).
           </p>
           {myInquiries.length === 0 ? (
             <div className="rounded-2xl bg-slate-800/30 border border-slate-700/50 p-12 text-center text-slate-500">No inquiries yet. Use Find Cast to message an agency.</div>

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { VIEWER_PLAN_CONFIG } from "@/lib/viewer-access";
 import { getPaymentGateway } from "@/lib/payments/gateway";
+import { PAYMENT_PROVIDER } from "@/lib/payments/config";
 import { toGatewaySafeReference } from "@/lib/payments/reference";
 
 const db = prisma as any;
@@ -32,7 +33,7 @@ export async function processViewerSubscriptionCharge(subscriptionId: string) {
   const paymentRecord = await db.paymentRecord.create({
     data: {
       userId: subscription.userId,
-      provider: "STITCH",
+      provider: PAYMENT_PROVIDER,
       purpose: "viewer_subscription_renewal",
       status: "PENDING",
       amount,
@@ -50,7 +51,7 @@ export async function processViewerSubscriptionCharge(subscriptionId: string) {
       consentReference: subscription.externalPaymentId,
       amount,
       currency: "ZAR",
-      reference: toGatewaySafeReference("st-renew", paymentRecord.id),
+      reference: toGatewaySafeReference("pf-renew", paymentRecord.id),
     });
 
     await db.gatewayReference.create({

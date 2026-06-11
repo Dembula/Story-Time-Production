@@ -4,12 +4,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { validateIdOrPassportByCountry } from "@/lib/kyc-validation";
+import { applyKycDocumentToPayload } from "@/lib/kyc-form-documents";
+import { KycDocumentUploadField } from "@/components/kyc/kyc-document-upload-field";
 import { payoutKycHomePath } from "@/lib/payout-kyc-shared";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-
-const ACCEPTED_TYPES = ["image/jpeg", "image/png", "application/pdf"];
-const MAX_FILE_SIZE = 12 * 1024 * 1024;
 const STEPS = [
   "Basic Identity",
   "Address Information",
@@ -85,105 +84,6 @@ function maskId(value: string): string {
   return `${"*".repeat(Math.max(0, value.length - 4))}${value.slice(-4)}`;
 }
 
-async function compressImageIfNeeded(file: File): Promise<File> {
-  if (!file.type.startsWith("image/") || file.size < 500 * 1024) return file;
-  const bitmap = await createImageBitmap(file);
-  const canvas = document.createElement("canvas");
-  const ratio = Math.min(1, 1400 / Math.max(bitmap.width, bitmap.height));
-  canvas.width = Math.max(1, Math.floor(bitmap.width * ratio));
-  canvas.height = Math.max(1, Math.floor(bitmap.height * ratio));
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return file;
-  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.82));
-  if (!blob) return file;
-  return new File([blob], file.name.replace(/\.\w+$/, ".jpg"), { type: "image/jpeg" });
-}
-
-async function uploadKycFile(file: File, documentType: string): Promise<string> {
-  if (!ACCEPTED_TYPES.includes(file.type)) throw new Error("Only JPG, PNG, or PDF files are allowed.");
-  if (file.size > MAX_FILE_SIZE) throw new Error("File exceeds 12MB limit.");
-  const prepared = await compressImageIfNeeded(file);
-  const fd = new FormData();
-  fd.append("file", prepared);
-  fd.append("documentType", documentType);
-  const res = await fetch("/api/upload/kyc-document", { method: "POST", body: fd });
-  const body = (await res.json().catch(() => ({}))) as { storageRef?: string; error?: string };
-  if (!res.ok || !body.storageRef) throw new Error(body.error || "Upload failed.");
-  return body.storageRef;
-}
-
-function UploadField({
-  label,
-  documentType,
-  value,
-  busy,
-  onUploaded,
-  onPersistDraft,
-}: {
-  label: string;
-  documentType: string;
-  value: string;
-  busy: boolean;
-  onUploaded: (url: string) => void;
-  onPersistDraft?: () => void;
-}) {
-  const inputRef = useRef<HTMLInputElement | null>(null);
-  const [error, setError] = useState("");
-
-  async function handleFile(file: File | null) {
-    if (!file) return;
-    setError("");
-    try {
-      const url = await uploadKycFile(file, documentType);
-      onUploaded(url);
-      onPersistDraft?.();
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  }
-
-  return (
-    <div>
-      <label className="mb-1 block text-xs font-medium text-slate-300">{label}</label>
-      <div
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={(e) => {
-          e.preventDefault();
-          void handleFile(e.dataTransfer.files?.[0] ?? null);
-        }}
-        className="rounded-xl border border-dashed border-slate-600 bg-slate-900/70 p-4 text-center"
-      >
-        <input
-          ref={inputRef}
-          type="file"
-          className="hidden"
-          accept="image/jpeg,image/png,application/pdf"
-          onChange={(e) => {
-            void handleFile(e.target.files?.[0] ?? null);
-            e.target.value = "";
-          }}
-        />
-        <p className="text-xs text-slate-400">Drag & drop or</p>
-        <button type="button" disabled={busy} onClick={() => inputRef.current?.click()} className="mt-2 rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-black disabled:opacity-60">
-          {busy ? "Uploading..." : "Upload file"}
-        </button>
-        <p className="mt-2 text-[11px] text-slate-500">JPG, PNG, PDF · Max 12MB · Images auto-compressed</p>
-      </div>
-      {error ? <p className="mt-1 text-xs text-red-300">{error}</p> : null}
-      {value ? (
-        <div className="mt-2 flex items-center gap-2 text-xs text-emerald-300">
-          <span>Uploaded</span>
-          <span className="text-slate-400">Stored in private vault</span>
-          <button type="button" className="text-red-300 underline" onClick={() => onUploaded("")}>
-            Remove
-          </button>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 export default function PayoutVerificationPage() {
   const router = useRouter();
   const { data: session } = useSession();
@@ -192,8 +92,17 @@ export default function PayoutVerificationPage() {
   const qc = useQueryClient();
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<KycForm>(EMPTY_FORM);
+  const formRef = useRef(form);
+  formRef.current = form;
   const [error, setError] = useState("");
   const [draftSaved, setDraftSaved] = useState(false);
+
+  function setKycDocument(documentType: string, url: string) {
+    const next = applyKycDocumentToPayload(formRef.current, documentType, url) as KycForm;
+    formRef.current = next;
+    setForm(next);
+    return next;
+  }
 
   const { data } = useQuery({
     queryKey: ["payout-kyc-verification"],
@@ -218,14 +127,14 @@ export default function PayoutVerificationPage() {
   const completion = useMemo(() => Math.round(((step + 1) / STEPS.length) * 100), [step]);
 
   const saveDraft = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (draftForm: KycForm = formRef.current) => {
       const res = await fetch("/api/payout-kyc/verification", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          legalName: form.basicIdentity.fullName,
-          entityType: form.businessVerification.isBusinessApplicant ? "COMPANY" : "INDIVIDUAL",
-          kycData: form,
+          legalName: draftForm.basicIdentity.fullName,
+          entityType: draftForm.businessVerification.isBusinessApplicant ? "COMPANY" : "INDIVIDUAL",
+          kycData: draftForm,
         }),
       });
       const j = await res.json().catch(() => ({}));
@@ -381,10 +290,10 @@ export default function PayoutVerificationPage() {
 
           {step === 2 ? (
             <>
-              <UploadField documentType="ID_FRONT" label="ID Document (Front)" value={form.identityVerification.idFrontUrl} busy={saveDraft.isPending} onUploaded={(url) => setForm((s) => ({ ...s, identityVerification: { ...s.identityVerification, idFrontUrl: url } }))} onPersistDraft={() => saveDraft.mutate()} />
-              <UploadField documentType="ID_BACK" label="ID Document (Back)" value={form.identityVerification.idBackUrl} busy={saveDraft.isPending} onUploaded={(url) => setForm((s) => ({ ...s, identityVerification: { ...s.identityVerification, idBackUrl: url } }))} onPersistDraft={() => saveDraft.mutate()} />
+              <KycDocumentUploadField documentType="ID_FRONT" label="ID Document (Front)" value={form.identityVerification.idFrontUrl} persistBusy={saveDraft.isPending} onUploaded={(url) => setKycDocument("ID_FRONT", url)} onPersistDraft={() => saveDraft.mutateAsync(formRef.current)} />
+              <KycDocumentUploadField documentType="ID_BACK" label="ID Document (Back)" value={form.identityVerification.idBackUrl} persistBusy={saveDraft.isPending} onUploaded={(url) => setKycDocument("ID_BACK", url)} onPersistDraft={() => saveDraft.mutateAsync(formRef.current)} />
               <div className="md:col-span-2">
-                <UploadField documentType="SELFIE" label="Selfie for face verification" value={form.identityVerification.selfieUrl} busy={saveDraft.isPending} onUploaded={(url) => setForm((s) => ({ ...s, identityVerification: { ...s.identityVerification, selfieUrl: url } }))} onPersistDraft={() => saveDraft.mutate()} />
+                <KycDocumentUploadField documentType="SELFIE" label="Selfie for face verification" value={form.identityVerification.selfieUrl} persistBusy={saveDraft.isPending} onUploaded={(url) => setKycDocument("SELFIE", url)} onPersistDraft={() => saveDraft.mutateAsync(formRef.current)} />
               </div>
             </>
           ) : null}
@@ -400,8 +309,8 @@ export default function PayoutVerificationPage() {
                   <input className="rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm" placeholder="Company name" value={form.businessVerification.companyName} onChange={(e) => setForm((s) => ({ ...s, businessVerification: { ...s.businessVerification, companyName: e.target.value } }))} />
                   <input className="rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm" placeholder="Registration number (CIPC)" value={form.businessVerification.registrationNumber} onChange={(e) => setForm((s) => ({ ...s, businessVerification: { ...s.businessVerification, registrationNumber: e.target.value } }))} />
                   <input className="md:col-span-2 rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm" placeholder="Role in company" value={form.businessVerification.roleInCompany} onChange={(e) => setForm((s) => ({ ...s, businessVerification: { ...s.businessVerification, roleInCompany: e.target.value } }))} />
-                  <UploadField documentType="COMPANY_REGISTRATION" label="Registration documents (PDF)" value={form.businessVerification.companyDocsUrl} busy={saveDraft.isPending} onUploaded={(url) => setForm((s) => ({ ...s, businessVerification: { ...s.businessVerification, companyDocsUrl: url } }))} onPersistDraft={() => saveDraft.mutate()} />
-                  <UploadField documentType="PROOF_OF_ADDRESS" label="Proof of address" value={form.businessVerification.proofOfAddressUrl} busy={saveDraft.isPending} onUploaded={(url) => setForm((s) => ({ ...s, businessVerification: { ...s.businessVerification, proofOfAddressUrl: url } }))} onPersistDraft={() => saveDraft.mutate()} />
+                  <KycDocumentUploadField documentType="COMPANY_REGISTRATION" label="Registration documents (PDF)" value={form.businessVerification.companyDocsUrl} persistBusy={saveDraft.isPending} onUploaded={(url) => setKycDocument("COMPANY_REGISTRATION", url)} onPersistDraft={() => saveDraft.mutateAsync(formRef.current)} />
+                  <KycDocumentUploadField documentType="PROOF_OF_ADDRESS" label="Proof of address" value={form.businessVerification.proofOfAddressUrl} persistBusy={saveDraft.isPending} onUploaded={(url) => setKycDocument("PROOF_OF_ADDRESS", url)} onPersistDraft={() => saveDraft.mutateAsync(formRef.current)} />
                 </>
               ) : null}
             </>
@@ -450,7 +359,7 @@ export default function PayoutVerificationPage() {
           </button>
           <button
             type="button"
-            onClick={() => saveDraft.mutate()}
+            onClick={() => saveDraft.mutate(formRef.current)}
             className="rounded border border-slate-700 bg-slate-900 px-4 py-2 text-sm text-slate-200"
           >
             Save & resume later

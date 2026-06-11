@@ -1,15 +1,17 @@
 import type { KycPayload } from "@/lib/payout-kyc";
+import { applyKycDocumentToPayload, isPrivateKycStorageRef, mergeVerificationDocsIntoKycPayload } from "@/lib/kyc-form-documents";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
+
+export { mergeVerificationDocsIntoKycPayload } from "@/lib/kyc-form-documents";
 
 export type KycDocumentRef = {
   documentType: string;
   documentUrl: string;
 };
 
-const PRIVATE_STORAGE_PREFIX = "s3://";
-
 export function isPrivateStorageRef(url?: string | null): url is string {
-  return Boolean(url?.startsWith(PRIVATE_STORAGE_PREFIX));
+  return isPrivateKycStorageRef(url);
 }
 
 /** Collect uploaded vault references from a KYC JSON payload. */
@@ -234,16 +236,24 @@ export async function registerPayoutKycUpload(
   documentType: string,
   storageRef: string,
 ): Promise<void> {
+  const existing = await prisma.payoutKycProfile.findUnique({
+    where: { userId },
+    select: { kycData: true },
+  });
+  const kycData = applyKycDocumentToPayload((existing?.kycData ?? {}) as KycPayload, documentType, storageRef);
+
   const profile = await prisma.payoutKycProfile.upsert({
     where: { userId },
     create: {
       userId,
       accountRole,
-      verificationStatus: "PENDING",
-      kycData: {},
+      verificationStatus: "DRAFT",
+      kycData: kycData as Prisma.InputJsonValue,
       adminReviewRequired: true,
     },
-    update: {},
+    update: {
+      kycData: kycData as Prisma.InputJsonValue,
+    },
   });
   await applyPayoutKycVerifications(profile.id, userId, [{ documentType, documentUrl: storageRef }]);
 }
@@ -253,16 +263,24 @@ export async function registerFunderKycUpload(
   documentType: string,
   storageRef: string,
 ): Promise<void> {
+  const existing = await prisma.funderProfile.findUnique({
+    where: { userId },
+    select: { kycData: true },
+  });
+  const kycData = applyKycDocumentToPayload((existing?.kycData ?? {}) as KycPayload, documentType, storageRef);
+
   const profile = await prisma.funderProfile.upsert({
     where: { userId },
     create: {
       userId,
-      verificationStatus: "PENDING",
-      kycData: {},
+      verificationStatus: "DRAFT",
+      kycData: kycData as Prisma.InputJsonValue,
       limitedAccessEnabled: true,
       adminReviewRequired: true,
     },
-    update: {},
+    update: {
+      kycData: kycData as Prisma.InputJsonValue,
+    },
   });
   await applyFunderKycVerifications(profile.id, userId, [{ documentType, documentUrl: storageRef }]);
 }

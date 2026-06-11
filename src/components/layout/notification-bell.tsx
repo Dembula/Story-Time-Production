@@ -74,6 +74,23 @@ export function NotificationBell() {
     };
   }, [open, buttonEl]);
 
+  const respondToVaSuggestion = async (notificationId: string, accept: boolean) => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/modoc/suggestions/respond", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notificationId, accept }),
+      });
+      await markOneRead(notificationId);
+      if (accept && res.ok) {
+        await refreshPreview();
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const markOneRead = async (id: string) => {
     await fetch("/api/notifications", {
       method: "PATCH",
@@ -167,7 +184,24 @@ export function NotificationBell() {
                             <p className="text-[10px] text-slate-500">
                               {new Date(n.createdAt).toLocaleString()}
                             </p>
-                            {linkUrl ? (
+                            {n.type === "VA_SUGGESTION" ? (
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  className="text-[11px] font-medium text-emerald-300 hover:text-emerald-200"
+                                  onClick={() => void respondToVaSuggestion(n.id, true)}
+                                >
+                                  Yes
+                                </button>
+                                <button
+                                  type="button"
+                                  className="text-[11px] font-medium text-slate-400 hover:text-slate-200"
+                                  onClick={() => void respondToVaSuggestion(n.id, false)}
+                                >
+                                  No
+                                </button>
+                              </div>
+                            ) : linkUrl ? (
                               <button
                                 type="button"
                                 className="text-[11px] font-medium text-orange-300 hover:text-orange-200"

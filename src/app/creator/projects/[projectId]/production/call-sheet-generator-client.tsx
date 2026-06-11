@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bot, Printer, RefreshCw, Share2, Smartphone } from "lucide-react";
+import { Printer, RefreshCw, Share2, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -397,7 +397,6 @@ function CallSheetPrintBody({
 
 export function CallSheetGenerator({ projectId, title }: { projectId?: string; title: string }) {
   const { deviceClass, orientation } = useAdaptiveUi();
-  const modoc = useModocOptional();
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const view = searchParams.get("view") || "";
@@ -405,7 +404,6 @@ export function CallSheetGenerator({ projectId, title }: { projectId?: string; t
   const urlSheetId = searchParams.get("sheetId") || "";
 
   const hasProject = !!projectId;
-  const [modocReportOpen, setModocReportOpen] = useState(false);
   const { data: schedule } = useQuery({
     queryKey: ["project-schedule", projectId],
     queryFn: () => fetch(`/api/creator/projects/${projectId}/schedule`).then((r) => r.json()),
@@ -538,30 +536,11 @@ export function CallSheetGenerator({ projectId, title }: { projectId?: string; t
               contracts, and risk items. Save a dated snapshot (versioned per shoot day) for PDF / print and crew links.
             </p>
           </div>
-          {modoc && (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="border-cyan-500/50 text-cyan-200 hover:bg-cyan-500/10 text-xs shrink-0"
-              onClick={() => setModocReportOpen(true)}
-            >
-              <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
-              AI call sheet help
-            </Button>
-          )}
+          
         </header>
       )}
 
-      {modoc && modocReportOpen && (
-        <ProductionModocReportModal
-          task="call_sheet_generator"
-          reportTitle="Call sheet assistance"
-          prompt="Use the production schedule and existing call sheets in your context. Suggest what to include on each call sheet, a completeness checklist (weather, parking, safety, etc.), and how to automate generation so every shoot day has all relevant details."
-          onClose={() => setModocReportOpen(false)}
-          projectId={projectId}
-        />
-      )}
+      
 
       {toast && (
         <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-100 print:hidden flex justify-between gap-2">

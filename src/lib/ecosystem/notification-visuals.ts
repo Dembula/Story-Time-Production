@@ -19,6 +19,7 @@ export function notificationTypeIcon(type: string): LucideIcon {
   if (t.includes("TEAM") || t.includes("INVITE") || t.includes("COLLAB")) return Users;
   if (t.includes("CAMPAIGN") || t.includes("ANNOUNCE")) return Megaphone;
   if (t.includes("MILESTONE") || t.includes("ACHIEVE")) return Sparkles;
+  if (t.includes("VA_") || t.includes("MODOC")) return Sparkles;
   return Bell;
 }
 

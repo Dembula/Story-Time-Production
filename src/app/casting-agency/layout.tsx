@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { CompanyPackageGate } from "@/components/layout/company-package-gate";
 import { DashboardSidebarShell } from "@/components/layout/dashboard-sidebar-shell";
 import { NotificationBell } from "@/components/layout/notification-bell";
+import { PlatformRoleSwitcher } from "@/components/auth/platform-role-switcher";
 
 const navItems = [
   { href: "/casting-agency/dashboard", label: "Dashboard" },
@@ -18,7 +19,6 @@ const navItems = [
   { href: "/casting-agency/contracts", label: "Contracts" },
   { href: "/casting-agency/wallet", label: "Wallet" },
   { href: "/casting-agency/profile", label: "Agency profile" },
-  { href: "/browse", label: "View Platform" },
 ];
 
 export default function CastingAgencyLayout({ children }: { children: React.ReactNode }) {
@@ -40,6 +40,7 @@ export default function CastingAgencyLayout({ children }: { children: React.Reac
       }
       headerEnd={
         <>
+          <PlatformRoleSwitcher />
           <NotificationBell />
           <button
             onClick={handleSignOut}

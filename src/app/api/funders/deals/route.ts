@@ -184,7 +184,7 @@ export async function POST(req: NextRequest) {
         dealId: existing.id,
         initiatedById: access.userId!,
         amount: body.payment.amount,
-        gatewayProvider: body.payment.gatewayProvider ?? "STITCH_PENDING",
+        gatewayProvider: body.payment.gatewayProvider ?? "PAYFAST_PENDING",
         gatewayReference: body.payment.gatewayReference ?? null,
         metadata: (body.payment.metadata as any) ?? null,
         status: "AUTHORIZED",

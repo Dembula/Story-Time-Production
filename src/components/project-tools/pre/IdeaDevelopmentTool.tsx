@@ -70,9 +70,6 @@ export function IdeaDevelopmentTool({
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
 
-  const modoc = useModocOptional();
-  const [modocFieldOpen, setModocFieldOpen] = useState<"logline" | "idea_notes" | null>(null);
-
   useEffect(() => {
     if (selected) {
       setDraft({
@@ -253,16 +250,7 @@ export function IdeaDevelopmentTool({
                 <div className="space-y-1">
                   <div className="flex items-center justify-between gap-2">
                     <label className="text-xs text-slate-400">Logline</label>
-                    {modoc && (
-                      <button
-                        type="button"
-                        onClick={() => setModocFieldOpen("logline")}
-                        className="text-xs font-medium text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
-                      >
-                        <Bot className="w-3.5 h-3.5" />
-                        Get AI insights
-                      </button>
-                    )}
+                    
                   </div>
                   <textarea
                     value={draft.logline}
@@ -278,16 +266,7 @@ export function IdeaDevelopmentTool({
                 <div className="space-y-1">
                   <div className="flex items-center justify-between gap-2">
                     <label className="text-xs text-slate-400">Idea notes</label>
-                    {modoc && (
-                      <button
-                        type="button"
-                        onClick={() => setModocFieldOpen("idea_notes")}
-                        className="text-xs font-medium text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
-                      >
-                        <Bot className="w-3.5 h-3.5" />
-                        Get AI pointers
-                      </button>
-                    )}
+                    
                   </div>
                   <textarea
                     value={draft.notes}
@@ -368,38 +347,8 @@ export function IdeaDevelopmentTool({
         </div>
       </div>
 
-      {modoc && draft && modocFieldOpen === "logline" && (
-        <ModocFieldPopover
-          open={true}
-          onClose={() => setModocFieldOpen(null)}
-          task="logline"
-          context={{ title: draft.title, logline: draft.logline }}
-          onIncorporate={(text) => {
-            setDraft((d) => (d ? { ...d, logline: text } : null));
-            setDirty(true);
-            setModocFieldOpen(null);
-          }}
-          sectionLabel="logline"
-        />
-      )}
-      {modoc && draft && modocFieldOpen === "idea_notes" && (
-        <ModocFieldPopover
-          open={true}
-          onClose={() => setModocFieldOpen(null)}
-          task="idea_notes"
-          context={{
-            title: draft.title,
-            logline: draft.logline,
-            notesExcerpt: draft.notes.slice(0, 600),
-          }}
-          onIncorporate={(text) => {
-            setDraft((d) => (d ? { ...d, notes: d.notes ? `${d.notes}\n\n${text}` : text } : null));
-            setDirty(true);
-            setModocFieldOpen(null);
-          }}
-          sectionLabel="idea notes"
-        />
-      )}
+      
+      
     </div>
   );
 }

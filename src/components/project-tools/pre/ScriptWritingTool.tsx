@@ -38,10 +38,6 @@ export function ScriptWritingTool({ projectId, title = "Script Writing" }: Scrip
     genres: string | null;
   }>;
   const primaryIdea = projectIdeas[0];
-
-  const modoc = useModocOptional();
-  const [modocScriptOpen, setModocScriptOpen] = useState(false);
-
   const script = data?.script as
     | {
         id: string;
@@ -216,16 +212,7 @@ export function ScriptWritingTool({ projectId, title = "Script Writing" }: Scrip
           </p>
           <div className="flex items-center justify-between gap-2">
             <label className="text-xs text-slate-400">Screenplay</label>
-            {modoc && (
-              <button
-                type="button"
-                onClick={() => setModocScriptOpen(true)}
-                className="text-xs font-medium text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
-              >
-                <Bot className="w-3.5 h-3.5" />
-                Get AI suggestions
-              </button>
-            )}
+            
           </div>
           <textarea
             value={content}
@@ -237,25 +224,7 @@ export function ScriptWritingTool({ projectId, title = "Script Writing" }: Scrip
         </div>
       </div>
 
-      {modoc && modocScriptOpen && (
-        <ModocFieldPopover
-          open={true}
-          onClose={() => setModocScriptOpen(false)}
-          task="script"
-          context={{
-            title: scriptTitle || primaryIdea?.title,
-            logline: primaryIdea?.logline ?? undefined,
-            notesExcerpt: primaryIdea?.notes ? primaryIdea.notes.slice(0, 500) : undefined,
-            scriptExcerpt: content.slice(0, 2500),
-          }}
-          onIncorporate={(text) => {
-            setContent((prev) => (prev ? `${prev}\n\n${text}` : text));
-            setModocScriptOpen(false);
-          }}
-          sectionLabel="script"
-          projectId={projectId}
-        />
-      )}
+      
     </div>
   );
 }

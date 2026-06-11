@@ -7,6 +7,7 @@ import { User } from "lucide-react";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { NotificationBell } from "@/components/layout/notification-bell";
+import { PlatformRoleSwitcher } from "@/components/auth/platform-role-switcher";
 import { ViewerProfileMenu } from "@/components/layout/viewer-profile-menu";
 import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
 
@@ -125,6 +126,7 @@ export function Navbar() {
       </div>
 
       <div className="flex items-center gap-2">
+        {session && <PlatformRoleSwitcher />}
         {session && <NotificationBell />}
 
         {session ? (

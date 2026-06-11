@@ -7,14 +7,14 @@ export default function PaymentPolicyPage() {
       title="Payment Policy"
       summary="StoryTime processes transactions through secure third-party payment infrastructure with pricing transparency, gateway security controls, and dispute governance."
       lastUpdated="April 2026"
-      highlights={["Stitch gateway", "Secure checkout", "Chargeback controls"]}
+      highlights={["PayFast gateway", "Secure checkout", "Chargeback controls"]}
       sections={[
         {
           title: "1. Payment processing",
           content: (
             <>
               <p>
-                All payments on StoryTime are processed through Stitch and other licensed
+                All payments on StoryTime are processed through PayFast and other licensed
                 payment gateway partners. Users are subject to applicable processor terms
                 and banking/card-network rules.
               </p>

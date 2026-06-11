@@ -5,6 +5,7 @@ import { canAccessFunderVerificationApi, requireSessionUser } from "@/lib/funder
 import { validateIdOrPassportByCountry, validateIdOrPassportByCountryIfPresent } from "@/lib/kyc-validation";
 import {
   extractKycDocumentsFromPayload,
+  mergeVerificationDocsIntoKycPayload,
   syncFunderKycVerifications,
   syncUserContactFromKyc,
 } from "@/lib/kyc-verification-sync";
@@ -65,7 +66,16 @@ export async function GET() {
     },
   });
 
-  return NextResponse.json({ profile });
+  if (!profile) {
+    return NextResponse.json({ profile: null });
+  }
+
+  return NextResponse.json({
+    profile: {
+      ...profile,
+      kycData: mergeVerificationDocsIntoKycPayload(profile.kycData as KycPayload, profile.verifications),
+    },
+  });
 }
 
 export async function POST(req: NextRequest) {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { PAYMENT_PROVIDER } from "@/lib/payments/config";
 import { getPaymentGateway } from "@/lib/payments/gateway";
 import { calculatePlatformTransactionFee, splitViewerRevenue } from "@/lib/payments/fees";
 import { toGatewaySafeReference } from "@/lib/payments/reference";
@@ -39,7 +40,7 @@ export async function POST(req: NextRequest) {
   const record = await db.paymentRecord.create({
     data: {
       userId: user.id,
-      provider: "STITCH",
+      provider: PAYMENT_PROVIDER,
       purpose: body.purpose,
       status: "PENDING",
       amount,
@@ -62,7 +63,7 @@ export async function POST(req: NextRequest) {
     checkout = await gateway.createCheckoutSession({
       amount,
       currency: body.currency || "ZAR",
-      reference: toGatewaySafeReference("st", record.id),
+      reference: toGatewaySafeReference("pf", record.id),
       returnUrl: appendPaymentRecordToReturnUrl(body.returnUrl, record.id),
       customer: { email: user.email, name: user.name },
       metadata: {

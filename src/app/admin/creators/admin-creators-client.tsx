@@ -10,6 +10,7 @@ import {
   Play, BarChart3,
 } from "lucide-react";
 import { formatCreatorLicenseSummary } from "@/lib/pricing";
+import { displayCreatorGoals } from "@/lib/creator-profile-goals";
 
 interface Creator {
   id: string; name: string | null; email: string | null; role: string;
@@ -91,7 +92,7 @@ export function AdminCreatorsClient() {
                       {c.bio && <div><p className="text-xs text-slate-500 mb-1">Bio</p><p className="text-sm text-slate-300 leading-relaxed">{c.bio}</p></div>}
                       {c.education && <div><p className="text-xs text-slate-500 mb-1 flex items-center gap-1"><GraduationCap className="w-3 h-3" /> Education</p><p className="text-sm text-slate-300">{c.education}</p></div>}
                       {c.previousWork && <div><p className="text-xs text-slate-500 mb-1 flex items-center gap-1"><Briefcase className="w-3 h-3" /> Previous Work</p><p className="text-sm text-slate-300">{c.previousWork}</p></div>}
-                      {c.goals && <div><p className="text-xs text-slate-500 mb-1 flex items-center gap-1"><Target className="w-3 h-3" /> Goals</p><p className="text-sm text-slate-300">{c.goals}</p></div>}
+                      {displayCreatorGoals(c.goals) ? <div><p className="text-xs text-slate-500 mb-1 flex items-center gap-1"><Target className="w-3 h-3" /> Goals</p><p className="text-sm text-slate-300">{displayCreatorGoals(c.goals)}</p></div> : null}
                       {socials && (
                         <div><p className="text-xs text-slate-500 mb-1 flex items-center gap-1"><Globe className="w-3 h-3" /> Social Links</p>
                           <div className="flex flex-wrap gap-2">{Object.entries(socials).map(([k, v]) => <a key={k} href={String(v).startsWith("http") ? String(v) : `https://${v}`} target="_blank" rel="noopener noreferrer" className="text-xs px-2 py-1 rounded bg-slate-700/50 text-orange-400 hover:text-orange-300 flex items-center gap-1"><ExternalLink className="w-3 h-3" />{k}</a>)}</div>

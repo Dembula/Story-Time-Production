@@ -8,7 +8,6 @@ import {
   Activity,
   ArrowDownToLine,
   BarChart3,
-  Bot,
   Clapperboard,
   DollarSign,
   Download,
@@ -27,7 +26,6 @@ import {
   Wrench,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useModocOptional, useModoc } from "@/components/modoc";
 import type { CreatorCommandCenterPayload } from "@/lib/creator-command-center";
 import { CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY } from "@/lib/pricing";
 import type { CreatorSuiteAccessMap } from "@/lib/creator-suite-access";
@@ -54,63 +52,6 @@ type RevenueData = {
 
 const RANGE_LABEL = { "7d": "Last 7 days", "30d": "Last 30 days", month: "This month", all: "All time" } as const;
 
-function getModocMessageContent(message: { content?: string; parts?: Array<{ type: string; text?: string }> }): string {
-  if (typeof message.content === "string") return message.content;
-  if (Array.isArray(message.parts)) {
-    return message.parts.map((p) => (p.type === "text" ? (p as { text?: string }).text ?? "" : "")).join("");
-  }
-  return "";
-}
-
-function CommandCenterModocModal({ onClose, prompt }: { onClose: () => void; prompt: string }) {
-  const { append, messages, status, setRequestContext } = useModoc();
-  const appendedRef = useRef(false);
-  useEffect(() => {
-    setRequestContext({
-      scope: "creator-analytics",
-      clientContext: "Task: creator_analytics. Command Center intelligence report.",
-      pageContext: { task: "creator_analytics" },
-    });
-  }, [setRequestContext]);
-  useEffect(() => {
-    if (appendedRef.current) return;
-    appendedRef.current = true;
-    append({ role: "user", content: prompt });
-  }, [prompt, append]);
-  const lastAssistant = messages.filter((m) => m.role === "assistant").pop();
-  const displayContent = lastAssistant ? getModocMessageContent(lastAssistant) : "";
-  return (
-    <>
-      <div className="fixed inset-0 z-40 bg-black/60" aria-hidden onClick={onClose} />
-      <div
-        className="storytime-section fixed left-1/2 top-1/2 z-50 w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 p-6"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-            <Bot className="w-5 h-5 text-cyan-400" />
-            Command Center AI brief
-          </h3>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg p-2 text-xl leading-none text-slate-400 hover:bg-white/[0.05] hover:text-white"
-          >
-            ×
-          </button>
-        </div>
-        <div className="max-h-[60vh] overflow-y-auto rounded-xl border border-white/8 bg-white/[0.04] p-4 text-sm text-slate-200 whitespace-pre-wrap">
-          {status === "streaming" || status === "submitted" ? (
-            displayContent ? displayContent : <span className="text-slate-400">Generating…</span>
-          ) : (
-            displayContent || "Generating…"
-          )}
-        </div>
-      </div>
-    </>
-  );
-}
-
 function Section({
   id,
   title,
@@ -134,7 +75,6 @@ function Section({
 }
 
 export function CommandCenterClient() {
-  const modoc = useModocOptional();
   const { data: licensePayload } = useQuery({
     queryKey: [...CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY],
     queryFn: () => fetch("/api/creator/distribution-license").then((r) => r.json()),
@@ -158,7 +98,6 @@ export function CommandCenterClient() {
     }),
     [canSuite],
   );
-  const [modocOpen, setModocOpen] = useState(false);
   const [tab, setTab] = useState<string>("overview");
   const [cc, setCc] = useState<CreatorCommandCenterPayload | null>(null);
   const [revenueData, setRevenueData] = useState<RevenueData | null>(null);
@@ -317,25 +256,7 @@ export function CommandCenterClient() {
             assistance — wired to the same data as scheduling, control center, call sheets, and payouts.
           </p>
         </div>
-        {modoc && (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="border-cyan-500/50 text-cyan-200 hover:bg-cyan-500/10 text-xs shrink-0"
-            onClick={() => setModocOpen(true)}
-          >
-            <Sparkles className="w-3.5 h-3.5 mr-1.5 inline" />
-            AI intelligence brief
-          </Button>
-        )}
       </div>
-      {modoc && modocOpen && (
-        <CommandCenterModocModal
-          onClose={() => setModocOpen(false)}
-          prompt="I am viewing the Story Time Command Center. Using revenue, engagement, content performance, projects, production incidents, call sheets, and AI usage in your context: synthesize priorities, risks, and 4 concrete next actions to grow views and ZAR."
-        />
-      )}
 
       <CommandCenterCalendar />
 
@@ -753,7 +674,7 @@ export function CommandCenterClient() {
       ) : null}
 
       {tabAllowed.ai ? (
-      <Section id="ai" title="AI usage & assistance" icon={Bot}>
+      <Section id="ai" title="AI usage & assistance" icon={Sparkles}>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           <div className="storytime-kpi p-4">
             <p className="text-xs text-slate-400">MODOC conversations ({RANGE_LABEL[range]})</p>

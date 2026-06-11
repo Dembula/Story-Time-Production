@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { enforceSignupRateLimit, rateLimitedResponse } from "@/lib/auth-rate-limit";
 import { prisma } from "@/lib/prisma";
 import { hash } from "bcryptjs";
 import { embedMeta } from "@/lib/marketplace-profile-meta";
@@ -26,6 +27,11 @@ const ROLE_MAP: Record<string, string> = {
 };
 
 export async function POST(request: NextRequest) {
+  const rate = enforceSignupRateLimit(request);
+  if (!rate.allowed) {
+    return rateLimitedResponse(rate.retryAfterSeconds, "Too many registration attempts. Try again later.");
+  }
+
   try {
     const body = await request.json();
     const {
@@ -39,6 +45,8 @@ export async function POST(request: NextRequest) {
       goals,
       previousWork,
       isAfda,
+      institutionName,
+      studentId,
       accountStructure,
       companyName,
       contactEmail,
@@ -61,6 +69,8 @@ export async function POST(request: NextRequest) {
       goals?: string;
       previousWork?: string;
       isAfda?: boolean;
+      institutionName?: string;
+      studentId?: string;
       accountStructure?: "INDIVIDUAL" | "COMPANY";
       companyName?: string;
       contactEmail?: string;
@@ -223,10 +233,15 @@ export async function POST(request: NextRequest) {
                 passwordHash: existing.passwordHash ? undefined : passwordHash,
                 bio: bio?.trim() || null,
                 socialLinks: socialLinks?.trim() || null,
-                education: education?.trim() || null,
-                goals: embedMeta(goals?.trim() || null, goalsMeta),
-                previousWork: previousWork?.trim() || null,
-                isAfdaStudent: Boolean(isAfda),
+                education: isStudioCreator ? education?.trim() || null : null,
+                goals: isStudioCreator
+                  ? embedMeta(goals?.trim() || null, goalsMeta)
+                  : embedMeta(null, goalsMeta),
+                previousWork: isStudioCreator ? previousWork?.trim() || null : null,
+                isAfdaStudent: isStudioCreator && Boolean(isAfda),
+                institutionName:
+                  isStudioCreator && isAfda ? institutionName?.trim() || null : null,
+                studentId: isStudioCreator && isAfda ? studentId?.trim() || null : null,
                 ...(persistStudioColumns
                   ? {
                       creatorAccountStructure: studioAccountStructure,
@@ -243,10 +258,15 @@ export async function POST(request: NextRequest) {
                 passwordHash,
                 bio: bio?.trim() || null,
                 socialLinks: socialLinks?.trim() || null,
-                education: education?.trim() || null,
-                goals: embedMeta(goals?.trim() || null, goalsMeta),
-                previousWork: previousWork?.trim() || null,
-                isAfdaStudent: Boolean(isAfda),
+                education: isStudioCreator ? education?.trim() || null : null,
+                goals: isStudioCreator
+                  ? embedMeta(goals?.trim() || null, goalsMeta)
+                  : embedMeta(null, goalsMeta),
+                previousWork: isStudioCreator ? previousWork?.trim() || null : null,
+                isAfdaStudent: isStudioCreator && Boolean(isAfda),
+                institutionName:
+                  isStudioCreator && isAfda ? institutionName?.trim() || null : null,
+                studentId: isStudioCreator && isAfda ? studentId?.trim() || null : null,
                 ...(persistStudioColumns
                   ? {
                       creatorAccountStructure: studioAccountStructure,

@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { enforceSignupRateLimit, rateLimitedResponse } from "@/lib/auth-rate-limit";
 import { db } from "@/lib/db";
 import { hashPassword, validateEmail, validatePassword } from "@/lib/auth-utils";
 import { sendWelcomeEmail } from "@/lib/sendgrid";
 import { ensureUserRole } from "@/lib/user-roles";
 
 export async function POST(request: NextRequest) {
+  const rate = enforceSignupRateLimit(request);
+  if (!rate.allowed) {
+    return rateLimitedResponse(rate.retryAfterSeconds, "Too many sign-up attempts. Try again later.");
+  }
+
   try {
     const body = (await request.json()) as { email?: string; password?: string; name?: string };
     const email = body.email?.trim().toLowerCase() || "";
@@ -24,19 +30,10 @@ export async function POST(request: NextRequest) {
     });
     let user: { id: string; email: string | null; name: string | null };
     if (existing) {
-      if (!existing.passwordHash) {
-        const passwordHash = await hashPassword(password);
-        user = await db.user.update({
-          where: { id: existing.id },
-          data: { passwordHash },
-          select: { id: true, email: true, name: true },
-        });
-      } else {
-        user = await db.user.findUniqueOrThrow({
-          where: { id: existing.id },
-          select: { id: true, email: true, name: true },
-        });
-      }
+      return NextResponse.json(
+        { error: "An account with this email already exists. Sign in or reset your password." },
+        { status: 409 },
+      );
     } else {
       const passwordHash = await hashPassword(password);
       user = await db.user.create({

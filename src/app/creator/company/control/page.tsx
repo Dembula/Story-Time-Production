@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ensureOwnedStudioCompanyForUser } from "@/lib/creator-studio-company";
+import { signInUrlForDestination } from "@/lib/auth-sign-in-path";
 import Link from "next/link";
 import { CompanyAccountControlClient } from "./company-account-control-client";
 
@@ -11,7 +12,7 @@ export default async function CompanyAccountControlPage() {
   const role = (session?.user as { role?: string })?.role;
   const userId = (session?.user as { id?: string })?.id;
   if (!session || !userId || (role !== "CONTENT_CREATOR" && role !== "MUSIC_CREATOR")) {
-    redirect("/auth/creator/signin");
+    redirect(signInUrlForDestination("/creator/company/control"));
   }
 
   await ensureOwnedStudioCompanyForUser(userId);

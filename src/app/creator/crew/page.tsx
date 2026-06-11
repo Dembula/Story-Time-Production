@@ -328,7 +328,7 @@ function CreatorCrewPageContent() {
 
       {tab === "my-requests" && (
         <div className="space-y-4">
-          <p className="text-slate-400 text-sm">After a crew team accepts your request, pay via wallet or Stitch to unlock messaging.</p>
+          <p className="text-slate-400 text-sm">After a crew team accepts your request, pay via wallet or PayFast to unlock messaging.</p>
           {sentRequests.length === 0 ? (
             <div className="rounded-2xl bg-slate-800/30 border border-slate-700/50 p-12 text-center text-slate-500">No outbound crew requests yet.</div>
           ) : (

@@ -300,7 +300,7 @@ function EquipmentPageContent() {
                     <p className="text-xs text-slate-500 mt-1">{r._count.messages} messages &middot; {new Date(r.createdAt).toLocaleDateString()}</p>
                     {canPay && (
                       <p className="text-xs text-slate-400 mt-2">
-                        Checkout: {formatZar(base)} + fee {formatZar(fee)} = <span className="text-orange-300 font-medium">{formatZar(estTotal)}</span> (wallet or Stitch)
+                        Checkout: {formatZar(base)} + fee {formatZar(fee)} = <span className="text-orange-300 font-medium">{formatZar(estTotal)}</span> (wallet or PayFast)
                       </p>
                     )}
                   </div>

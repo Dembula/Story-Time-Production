@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { enforceSignupRateLimit, rateLimitedResponse } from "@/lib/auth-rate-limit";
 import { prisma } from "@/lib/prisma";
 import { hash } from "bcryptjs";
 import { sendWelcomeEmail } from "@/lib/sendgrid";
@@ -9,6 +10,11 @@ import { ensureUserRole } from "@/lib/user-roles";
  * Used by /auth/signup. Creates user with role SUBSCRIBER and hashed password.
  */
 export async function POST(request: NextRequest) {
+  const rate = enforceSignupRateLimit(request);
+  if (!rate.allowed) {
+    return rateLimitedResponse(rate.retryAfterSeconds, "Too many sign-up attempts. Try again later.");
+  }
+
   try {
     let body: { email?: string; password?: string; name?: string };
     try {
@@ -34,15 +40,10 @@ export async function POST(request: NextRequest) {
       select: { id: true, passwordHash: true, role: true },
     });
     if (existing) {
-      if (!existing.passwordHash) {
-        const passwordHash = await hash(password, 10);
-        await prisma.user.update({
-          where: { id: existing.id },
-          data: { passwordHash },
-        });
-      }
-      await ensureUserRole(existing.id, "SUBSCRIBER");
-      return NextResponse.json({ ok: true }, { status: 200 });
+      return NextResponse.json(
+        { error: "An account with this email already exists. Sign in or reset your password." },
+        { status: 409 },
+      );
     }
 
     const passwordHash = await hash(password, 10);

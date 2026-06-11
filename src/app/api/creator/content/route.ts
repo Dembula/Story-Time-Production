@@ -6,6 +6,7 @@ import { isCreatorLicensePeriodActive, normalizeCreatorLicenseType } from "@/lib
 import { validateStorageUrlField } from "@/lib/storage-origin";
 import { ensureCloudflareStreamPlaybackUrl, extractCloudflareStreamUid } from "@/lib/cloudflare-stream";
 import { setStreamAssetEntity, getStreamStatusesByUids } from "@/lib/stream-asset-store";
+import { creatorIsStudentAtUpload } from "@/lib/student-work";
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -164,6 +165,8 @@ export async function POST(request: NextRequest) {
     })),
   );
 
+  const isStudentWork = await creatorIsStudentAtUpload(creatorId);
+
   const content = await prisma.content.create({
     data: {
       title: body.title,
@@ -188,6 +191,7 @@ export async function POST(request: NextRequest) {
       published: false,
       reviewStatus: body.reviewStatus || "DRAFT",
       submittedAt: body.submittedAt ? new Date(body.submittedAt) : null,
+      isStudentWork,
       creatorId,
       ...(linkedProjectId ? { linkedProjectId } : {}),
     },

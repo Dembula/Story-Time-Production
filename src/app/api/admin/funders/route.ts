@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { mergeVerificationDocsIntoKycPayload } from "@/lib/kyc-verification-sync";
+import type { KycPayload } from "@/lib/payout-kyc";
 import { prisma } from "@/lib/prisma";
 
 async function requireAdmin() {
@@ -31,6 +33,8 @@ export async function GET() {
         preferredMarkets: true,
         preferredRegions: true,
         verificationStatus: true,
+        riskLevel: true,
+        kycData: true,
         limitedAccessEnabled: true,
         adminReviewRequired: true,
         reviewedAt: true,
@@ -50,7 +54,7 @@ export async function GET() {
       const rejectedCount = docs.filter((d) => d.status === "REJECTED").length;
       return {
         ...p,
-        riskLevel: "LOW",
+        kycData: mergeVerificationDocsIntoKycPayload(p.kycData as KycPayload, docs),
         reviewSummary: {
           totalDocs: docs.length,
           pendingCount,

@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { signInUrlForDestination } from "@/lib/auth-sign-in-path";
 import { CreatorAccountClient } from "./creator-account-client";
 
 function AccountPageFallback() {
@@ -18,7 +19,7 @@ export default async function CreatorAccountPage() {
   const session = await getServerSession(authOptions);
   const role = (session?.user as { role?: string })?.role;
   if (!session || (role !== "CONTENT_CREATOR" && role !== "ADMIN")) {
-    redirect("/auth/signin");
+    redirect(signInUrlForDestination("/creator/account"));
   }
 
   return (

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Bot, ChevronDown, ChevronRight, Clapperboard, FileText } from "lucide-react";
+import { ChevronDown, ChevronRight, Clapperboard, FileText } from "lucide-react";
 import { ProjectStageControls } from "../../project-stage-controls";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -392,9 +392,6 @@ function IdeaDevelopmentWorkspace({ projectId, title }: IdeaDevelopmentWorkspace
     },
   });
 
-  const modoc = useModocOptional();
-  const [modocFieldOpen, setModocFieldOpen] = useState<"logline" | "idea_notes" | null>(null);
-
   return (
     <div className="space-y-4">
       <header className="storytime-plan-card p-5 md:p-6">
@@ -537,16 +534,7 @@ function IdeaDevelopmentWorkspace({ projectId, title }: IdeaDevelopmentWorkspace
                 <div className="space-y-1">
                   <div className="flex items-center justify-between gap-2">
                     <label className="text-xs text-slate-400">Logline</label>
-                    {modoc && (
-                      <button
-                        type="button"
-                        onClick={() => setModocFieldOpen("logline")}
-                        className="text-xs font-medium text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
-                      >
-                        <Bot className="w-3.5 h-3.5" />
-                        Get AI insights
-                      </button>
-                    )}
+                    
                   </div>
                   <textarea
                     value={draft.logline}
@@ -559,16 +547,7 @@ function IdeaDevelopmentWorkspace({ projectId, title }: IdeaDevelopmentWorkspace
                 <div className="space-y-1">
                   <div className="flex items-center justify-between gap-2">
                     <label className="text-xs text-slate-400">Idea notes</label>
-                    {modoc && (
-                      <button
-                        type="button"
-                        onClick={() => setModocFieldOpen("idea_notes")}
-                        className="text-xs font-medium text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
-                      >
-                        <Bot className="w-3.5 h-3.5" />
-                        Get AI pointers
-                      </button>
-                    )}
+                    
                   </div>
                   <textarea
                     value={draft.notes}
@@ -620,36 +599,8 @@ function IdeaDevelopmentWorkspace({ projectId, title }: IdeaDevelopmentWorkspace
         </div>
       </div>
 
-      {modoc && draft && modocFieldOpen === "logline" && (
-        <ModocFieldPopover
-          open={true}
-          onClose={() => setModocFieldOpen(null)}
-          task="logline"
-          context={{ title: draft.title, logline: draft.logline }}
-          onIncorporate={(text) => {
-            setDraft((d) => (d ? { ...d, logline: text } : null));
-            setModocFieldOpen(null);
-          }}
-          sectionLabel="logline"
-        />
-      )}
-      {modoc && draft && modocFieldOpen === "idea_notes" && (
-        <ModocFieldPopover
-          open={true}
-          onClose={() => setModocFieldOpen(null)}
-          task="idea_notes"
-          context={{
-            title: draft.title,
-            logline: draft.logline,
-            notesExcerpt: draft.notes.slice(0, 600),
-          }}
-          onIncorporate={(text) => {
-            setDraft((d) => (d ? { ...d, notes: d.notes ? `${d.notes}\n\n${text}` : text } : null));
-            setModocFieldOpen(null);
-          }}
-          sectionLabel="idea notes"
-        />
-      )}
+      
+      
     </div>
   );
 }
@@ -803,10 +754,6 @@ function ScriptWritingWorkspace({ projectId, title }: ScriptWritingWorkspaceProp
     : 0;
 
   const approxPages = draft?.content ? Math.max(1, Math.round(draft.content.length / 1800)) : 0;
-
-  const modoc = useModocOptional();
-  const [modocScriptOpen, setModocScriptOpen] = useState(false);
-
   const { data: ideasData } = useQuery({
     enabled: !!hasProject && !!projectId,
     queryKey: ["project-ideas", projectId],
@@ -991,16 +938,7 @@ function ScriptWritingWorkspace({ projectId, title }: ScriptWritingWorkspaceProp
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-xs text-slate-400">Screenplay</label>
                   <div className="flex flex-wrap items-center gap-2">
-                    {modoc && (
-                      <button
-                        type="button"
-                        onClick={() => setModocScriptOpen(true)}
-                        className="text-xs font-medium text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
-                      >
-                        <Bot className="w-3.5 h-3.5" />
-                        Get AI suggestions
-                      </button>
-                    )}
+                    
                     <span className="text-[10px] text-slate-500">|</span>
                     <div className="flex flex-wrap gap-2 text-[10px] text-slate-300">
                     <button
@@ -1297,281 +1235,12 @@ function ScriptWritingWorkspace({ projectId, title }: ScriptWritingWorkspaceProp
         </Card>
       </section>
 
-      {modoc && draft && modocScriptOpen && (
-        <ModocFieldPopover
-          open={true}
-          onClose={() => setModocScriptOpen(false)}
-          task="script"
-          context={{
-            title: draft.title || primaryIdea?.title,
-            logline: primaryIdea?.logline ?? undefined,
-            notesExcerpt: primaryIdea?.notes ? primaryIdea.notes.slice(0, 500) : undefined,
-            scriptExcerpt: (draft.content || "").slice(0, 2500),
-          }}
-          onIncorporate={(text) => {
-            setDraft((d) => (d ? { ...d, content: d.content ? `${d.content}\n\n${text}` : text } : null));
-            setDirty(true);
-            setModocScriptOpen(false);
-          }}
-          sectionLabel="script"
-          projectId={projectId}
-        />
-      )}
+      
     </div>
   );
 }
 
 // --- Script Review (paid option wired) ---
-
-function getModocMessageContent(message: { content?: string; parts?: Array<{ type: string; text?: string }> }): string {
-  if (typeof message.content === "string") return message.content;
-  if (Array.isArray(message.parts)) {
-    return message.parts
-      .map((p) => (p.type === "text" ? (p as { text?: string }).text ?? "" : ""))
-      .join("");
-  }
-  return "";
-}
-
-interface ModocScriptReviewModalProps {
-  scriptTitle: string;
-  scriptContent: string;
-  onComplete: (reviewText: string) => void;
-  onClose: () => void;
-}
-
-function ModocScriptReviewModal({ scriptTitle, scriptContent, onComplete, onClose }: ModocScriptReviewModalProps) {
-  const { append, messages, status, setRequestContext } = useModoc();
-  const appendedRef = useRef(false);
-  const completedRef = useRef(false);
-
-  useEffect(() => {
-    setRequestContext({
-      scope: "idea-development",
-      clientContext: `Task: script_review. Script title: ${scriptTitle}. Full script review requested.`,
-      pageContext: { task: "script_review" },
-    });
-  }, [scriptTitle, setRequestContext]);
-
-  useEffect(() => {
-    if (appendedRef.current) return;
-    appendedRef.current = true;
-    const excerpt = scriptContent.slice(0, 14000);
-    const prompt = `Please review this screenplay and give structured feedback (story, structure, characters, dialogue, summary).\n\nTitle: ${scriptTitle}\n\nScript content:\n\n${excerpt}`;
-    append({ role: "user", content: prompt });
-  }, [scriptTitle, scriptContent, append]);
-
-  useEffect(() => {
-    if (completedRef.current || status !== "ready" || messages.length === 0) return;
-    const last = messages[messages.length - 1];
-    if (last.role !== "assistant") return;
-    const text = getModocMessageContent(last);
-    if (!text.trim()) return;
-    completedRef.current = true;
-    onComplete(text);
-    onClose();
-  }, [status, messages, onComplete, onClose]);
-
-  const lastAssistant = messages.filter((m) => m.role === "assistant").pop();
-  const displayContent = lastAssistant ? getModocMessageContent(lastAssistant) : "";
-
-  return (
-    <>
-      <div className="fixed inset-0 z-40 bg-black/60" aria-hidden onClick={onClose} />
-      <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-cyan-500/30 bg-slate-900 shadow-xl p-6" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-            <Bot className="w-5 h-5 text-cyan-400" />
-            AI script review — {scriptTitle}
-          </h3>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-white p-2 rounded-lg">×</button>
-        </div>
-        <div className="max-h-[60vh] overflow-y-auto rounded-xl bg-slate-800/60 border border-slate-700 p-4 text-sm text-slate-200 whitespace-pre-wrap">
-          {status === "streaming" || status === "submitted" ? (
-            displayContent ? (
-              displayContent
-            ) : (
-              <span className="text-slate-400">AI is reviewing your script…</span>
-            )
-          ) : (
-            displayContent || "Generating…"
-          )}
-        </div>
-      </div>
-    </>
-  );
-}
-
-const MODOC_REPORT_TASKS = [
-  "script_breakdown",
-  "budget",
-  "schedule",
-  "location_marketplace",
-  "equipment_planning",
-  "casting_portal",
-  "crew_marketplace",
-  "visual_planning",
-  "legal_contracts",
-  "funding_hub",
-  "table_reads",
-  "production_workspace",
-  "risk_insurance",
-  "production_readiness",
-] as const;
-
-interface ModocReportModalProps {
-  task: (typeof MODOC_REPORT_TASKS)[number];
-  reportTitle: string;
-  prompt: string;
-  onClose: () => void;
-  /** When provided (e.g. for script_breakdown), show "Add to breakdown" and call with response text */
-  onApplyToBreakdown?: (responseText: string) => void;
-  /** For marketplace tasks, pass projectId so the API can inject project + platform context */
-  projectId?: string | null;
-}
-
-function ModocReportModal({ task, reportTitle, prompt, onClose, onApplyToBreakdown, projectId }: ModocReportModalProps) {
-  const { append, messages, status, setRequestContext } = useModoc();
-  const appendedRef = useRef(false);
-
-  const scope =
-    task === "location_marketplace"
-      ? "location-marketplace"
-      : task === "equipment_planning"
-        ? "equipment-planning"
-        : task === "casting_portal"
-          ? "casting-portal"
-          : task === "crew_marketplace"
-            ? "crew-marketplace"
-            : task === "visual_planning"
-              ? "visual-planning"
-              : task === "legal_contracts"
-                ? "legal-contracts"
-                : task === "funding_hub"
-                  ? "funding-hub"
-                    : task === "table_reads"
-                      ? "table-reads"
-                      : task === "production_workspace"
-                        ? "production-workspace"
-                        : task === "risk_insurance"
-                          ? "risk-insurance"
-                          : task === "production_readiness"
-                            ? "production-readiness"
-                            : "idea-development";
-
-  useEffect(() => {
-    setRequestContext({
-      scope,
-      clientContext: `Task: ${task}. ${prompt.slice(0, 200)}...`,
-      pageContext: { task, ...(projectId && { projectId }) },
-    });
-  }, [scope, task, prompt, projectId, setRequestContext]);
-
-  useEffect(() => {
-    if (appendedRef.current) return;
-    appendedRef.current = true;
-    append({ role: "user", content: prompt });
-  }, [prompt, append]);
-
-  const lastAssistant = messages.filter((m) => m.role === "assistant").pop();
-  const displayContent = lastAssistant ? getModocMessageContent(lastAssistant) : "";
-  const canApply = task === "script_breakdown" && !!onApplyToBreakdown && !!displayContent.trim() && status !== "streaming" && status !== "submitted";
-
-  return (
-    <>
-      <div className="fixed inset-0 z-40 bg-black/60" aria-hidden onClick={onClose} />
-      <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-cyan-500/30 bg-slate-900 shadow-xl p-6" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-            <Bot className="w-5 h-5 text-cyan-400" />
-            {reportTitle}
-          </h3>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-white p-2 rounded-lg text-xl leading-none">×</button>
-        </div>
-        <div className="max-h-[60vh] overflow-y-auto rounded-xl bg-slate-800/60 border border-slate-700 p-4 text-sm text-slate-200 whitespace-pre-wrap">
-          {status === "streaming" || status === "submitted" ? (
-            displayContent ? displayContent : <span className="text-slate-400">Generating…</span>
-          ) : (
-            displayContent || "Generating…"
-          )}
-        </div>
-        {canApply && (
-          <div className="mt-4 flex justify-end">
-            <Button
-              type="button"
-              size="sm"
-              className="bg-cyan-500 hover:bg-cyan-600 text-white text-xs"
-              onClick={() => onApplyToBreakdown(displayContent)}
-            >
-              Add to breakdown
-            </Button>
-          </div>
-        )}
-      </div>
-    </>
-  );
-}
-
-/** Parse MODOC breakdown response for lines like "CHARACTER: name" or legacy "CHARACTER: a | b | c" */
-function parseModocBreakdownResponse(text: string): Partial<BreakdownPayload> {
-  const result: Partial<BreakdownPayload> = {};
-  const lines = text.split(/\r?\n/);
-  for (const line of lines) {
-    const t = line.trim();
-    if (!t) continue;
-    const charLoose = t.match(/^CHARACTER:\s*(.+)$/i);
-    if (charLoose) {
-      const parts = charLoose[1].split("|").map((s) => s.trim()).filter(Boolean);
-      const name = parts[0] ?? "";
-      if (name) (result.characters = result.characters ?? []).push({ name });
-      continue;
-    }
-    const propMatch = t.match(/^PROP:\s*(.+?)\s*\|\s*(.+)$/i);
-    if (propMatch) {
-      (result.props = result.props ?? []).push({ name: propMatch[1].trim(), description: propMatch[2].trim(), special: false });
-      continue;
-    }
-    const locMatch = t.match(/^LOCATION:\s*(.+?)\s*\|\s*(.+)$/i);
-    if (locMatch) {
-      (result.locations = result.locations ?? []).push({ name: locMatch[1].trim(), description: locMatch[2].trim() });
-      continue;
-    }
-    const wardMatch = t.match(/^WARDROBE:\s*(.+?)\s*\|\s*(.+)$/i);
-    if (wardMatch) {
-      (result.wardrobe = result.wardrobe ?? []).push({ description: wardMatch[1].trim(), character: wardMatch[2].trim() || null });
-      continue;
-    }
-    const extMatch = t.match(/^EXTRAS:\s*(.+?)(?:\s*\|\s*(\d+))?$/i);
-    if (extMatch) {
-      (result.extras = result.extras ?? []).push({ description: extMatch[1].trim(), quantity: extMatch[2] ? parseInt(extMatch[2], 10) || 1 : 1 });
-      continue;
-    }
-    const vehMatch = t.match(/^VEHICLE:\s*(.+?)\s*\|\s*(yes|no|true|false)$/i);
-    if (vehMatch) {
-      (result.vehicles = result.vehicles ?? []).push({ description: vehMatch[1].trim(), stuntRelated: /yes|true/i.test(vehMatch[2]) });
-      continue;
-    }
-    const stuntMatch = t.match(/^STUNT:\s*(.+?)\s*\|\s*(.+)$/i);
-    if (stuntMatch) {
-      (result.stunts = result.stunts ?? []).push({ description: stuntMatch[1].trim(), safetyNotes: stuntMatch[2].trim() || null });
-      continue;
-    }
-    const sfxMatch = t.match(/^SFX:\s*(.+?)\s*\|\s*(yes|no|true|false)$/i);
-    if (sfxMatch) {
-      (result.sfx = result.sfx ?? []).push({ description: sfxMatch[1].trim(), practical: /yes|true/i.test(sfxMatch[2]) });
-      continue;
-    }
-    const makeupMatch = t.match(/^MAKEUP:\s*(.+?)(?:\s*\|\s*(.+))?$/i);
-    if (makeupMatch) {
-      (result.makeups = result.makeups ?? []).push({
-        notes: makeupMatch[1].trim(),
-        character: makeupMatch[2]?.trim() || null,
-      });
-      continue;
-    }
-  }
-  return result;
-}
 
 interface ScriptReviewWorkspaceProps {
   projectId?: string;
@@ -1587,7 +1256,6 @@ function ScriptReviewWorkspace({ projectId, title }: ScriptReviewWorkspaceProps)
   const [notesSaving, setNotesSaving] = useState(false);
   const [notesSaveMessage, setNotesSaveMessage] = useState("");
   const [selectedScriptId, setSelectedScriptId] = useState<string>("");
-  const [modocReviewScriptId, setModocReviewScriptId] = useState<string | null>(null);
   const [modocReviews, setModocReviews] = useState<Array<{ id: string; scriptId: string; scriptTitle: string; reviewText: string; createdAt: string }>>([]);
 
   const { data: scriptsData } = useQuery({
@@ -1599,9 +1267,6 @@ function ScriptReviewWorkspace({ projectId, title }: ScriptReviewWorkspaceProps)
     () => ((scriptsData?.scripts ?? []) as Array<{ id: string; title: string; content?: string; type?: string }>),
     [scriptsData?.scripts],
   );
-
-  const modoc = useModocOptional();
-
   const notesEndpoint = hasProject
     ? `/api/creator/projects/${projectId}/script-review`
     : "/api/creator/script-review/notes";
@@ -1845,35 +1510,7 @@ function ScriptReviewWorkspace({ projectId, title }: ScriptReviewWorkspaceProps)
                 <li>Admins attach feedback directly to this project.</li>
                 <li>You’re notified once feedback is ready.</li>
               </ul>
-              {modoc && projectScripts.length > 0 && (
-                <div className="pt-3 border-t border-slate-700/60 space-y-2">
-                  <p className="font-medium text-slate-200">AI script review</p>
-                  <p className="text-[11px] text-slate-400">Get an AI review of a script (free). Pick the script and run it.</p>
-                  <select
-                    value={selectedScriptId || projectScripts[0]?.id || ""}
-                    onChange={(e) => setSelectedScriptId(e.target.value)}
-                    className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-white outline-none focus:border-cyan-500"
-                  >
-                    {projectScripts.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.title}
-                      </option>
-                    ))}
-                  </select>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full border-cyan-500/50 text-cyan-200 hover:bg-cyan-500/10 text-xs"
-                    onClick={() => {
-                      const script = projectScripts.find((s) => s.id === (selectedScriptId || projectScripts[0]?.id));
-                      if (script) setModocReviewScriptId(script.id);
-                    }}
-                  >
-                    <Bot className="w-3.5 h-3.5 mr-2 inline" />
-                    Get AI review
-                  </Button>
-                </div>
-              )}
+              
               <Button
                 className="w-full bg-orange-500 hover:bg-orange-600 text-white mt-2"
                 disabled={requesting || !hasProject || hasOpenRequest}
@@ -1898,29 +1535,7 @@ function ScriptReviewWorkspace({ projectId, title }: ScriptReviewWorkspaceProps)
         </div>
       </div>
 
-      {modoc && modocReviewScriptId && (() => {
-        const script = projectScripts.find((s) => s.id === modocReviewScriptId);
-        if (!script) return null;
-        return (
-          <ModocScriptReviewModal
-            scriptTitle={script.title}
-            scriptContent={script.content ?? ""}
-            onComplete={(reviewText) => {
-              setModocReviews((prev) => [
-                ...prev,
-                {
-                  id: `modoc-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-                  scriptId: script.id,
-                  scriptTitle: script.title,
-                  reviewText,
-                  createdAt: new Date().toISOString(),
-                },
-              ]);
-            }}
-            onClose={() => setModocReviewScriptId(null)}
-          />
-        );
-      })()}
+      
     </div>
   );
 }
@@ -2638,10 +2253,6 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
     () => parseScenesFromScreenplay(latestProjectScriptContent).length,
     [latestProjectScriptContent],
   );
-
-  const modoc = useModocOptional();
-  const [modocReportOpen, setModocReportOpen] = useState(false);
-
   const syncScenesMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch(`/api/creator/projects/${projectId}/scenes/sync-from-script`, {
@@ -2959,18 +2570,7 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
             </p>
           </div>
         <div className="flex items-center gap-2">
-          {modoc && selectedScript && (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="border-cyan-500/50 text-cyan-200 hover:bg-cyan-500/10 text-xs"
-              onClick={() => setModocReportOpen(true)}
-            >
-              <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
-              Get AI breakdown report
-            </Button>
-          )}
+          
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[11px] text-slate-400">
               {saving ? "Saving…" : breakdownDirty ? "Unsaved changes" : "Saved"}
@@ -3598,59 +3198,7 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
         )}
       </section>
 
-      {modoc && modocReportOpen && selectedScript && (
-        <ModocReportModal
-          task="script_breakdown"
-          reportTitle={`Breakdown report — ${selectedScript.title}`}
-          prompt={`The creator has linked **this script** to the breakdown. Use only this script to generate your report.\n\nScript title: ${selectedScript.title}\n\nGenerate a script breakdown report. Identify and list: scenes (INT/EXT, day/night), characters, props, locations, wardrobe, extras, vehicles, stunts, SFX, makeup and hair. Format as a clear production-ready report with section headers. At the end, list any items the creator can add to their breakdown using exactly one line per item:\nCHARACTER: name\nPROP: name | description\nLOCATION: name | description\nWARDROBE: description | character\nEXTRAS: description | quantity\nVEHICLE: description | stunt (yes/no)\nSTUNT: description | safety notes\nSFX: description | practical (yes/no)\nMAKEUP: notes | character (optional)\n\nCurrent breakdown so far (for context): ${JSON.stringify(draft).slice(0, 1500)}.\n\nScript content:\n\n${(selectedScript.content ?? "").slice(0, 12000)}`}
-          onClose={() => setModocReportOpen(false)}
-          onApplyToBreakdown={(responseText) => {
-            const parsed = parseModocBreakdownResponse(responseText);
-            if (
-              !parsed.characters?.length &&
-              !parsed.props?.length &&
-              !parsed.locations?.length &&
-              !parsed.wardrobe?.length &&
-              !parsed.extras?.length &&
-              !parsed.vehicles?.length &&
-              !parsed.stunts?.length &&
-              !parsed.sfx?.length &&
-              !parsed.makeups?.length
-            ) return;
-            const sid = projectScenesForBreakdown.length > 0 ? activeSceneId || null : null;
-            setDraft((prev) => {
-              if (!prev) return prev;
-              return {
-                ...prev,
-                characters: [
-                  ...(prev.characters ?? []),
-                  ...attachSceneIdToBreakdownRows(parsed.characters ?? [], sid),
-                ],
-                props: [...(prev.props ?? []), ...attachSceneIdToBreakdownRows(parsed.props ?? [], sid)],
-                locations: [
-                  ...(prev.locations ?? []),
-                  ...attachSceneIdToBreakdownRows(parsed.locations ?? [], sid),
-                ],
-                wardrobe: [
-                  ...(prev.wardrobe ?? []),
-                  ...attachSceneIdToBreakdownRows(parsed.wardrobe ?? [], sid),
-                ],
-                extras: [...(prev.extras ?? []), ...attachSceneIdToBreakdownRows(parsed.extras ?? [], sid)],
-                vehicles: [
-                  ...(prev.vehicles ?? []),
-                  ...attachSceneIdToBreakdownRows(parsed.vehicles ?? [], sid),
-                ],
-                stunts: [...(prev.stunts ?? []), ...attachSceneIdToBreakdownRows(parsed.stunts ?? [], sid)],
-                sfx: [...(prev.sfx ?? []), ...attachSceneIdToBreakdownRows(parsed.sfx ?? [], sid)],
-                makeups: [
-                  ...(prev.makeups ?? []),
-                  ...attachSceneIdToBreakdownRows(parsed.makeups ?? [], sid),
-                ],
-              };
-            });
-          }}
-        />
-      )}
+      
     </div>
   );
 }
@@ -3689,10 +3237,6 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
     queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/scenes`),
     enabled: !!hasProject && !!projectId,
   });
-
-  const modoc = useModocOptional();
-  const [modocReportOpen, setModocReportOpen] = useState(false);
-
   const apiBudget = data?.budget as
     | {
         id: string;
@@ -4175,18 +3719,7 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {modoc && budget && (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="border-cyan-500/50 text-cyan-200 hover:bg-cyan-500/10 text-xs"
-              onClick={() => setModocReportOpen(true)}
-            >
-              <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
-              Get AI budget insights
-            </Button>
-          )}
+          
           {budget && (
             <>
               <span className="text-[11px] text-slate-400">
@@ -4253,14 +3786,7 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
       ) : null}
       <ToolActionError message={saveError} onDismiss={() => setSaveError("")} />
 
-      {modoc && budget && modocReportOpen && (
-        <ModocReportModal
-          task="budget"
-          reportTitle="Budget insights"
-          prompt={`Analyze this project's script breakdown and current budget, then suggest department-level estimates and cost-saving measures.\n\nBreakdown summary: ${JSON.stringify(breakdownData ?? {}).slice(0, 2000)}\n\nCurrent budget (template: ${budget.template}, total planned: ${formatZar(total)}):\n${JSON.stringify(draftRows).slice(0, 2500)}\n\nProvide: suggested departments/line items, rough estimate ranges or ratios, and 2–4 concrete cost-saving tips.`}
-          onClose={() => setModocReportOpen(false)}
-        />
-      )}
+      
 
       {hasProject && isLoading ? (
         <Skeleton className="h-64 bg-slate-800/60" />
@@ -4843,10 +4369,6 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
     queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/call-sheets`),
     enabled: hasProject,
   });
-
-  const modoc = useModocOptional();
-  const [modocReportOpen, setModocReportOpen] = useState(false);
-
   const [selectedDayId, setSelectedDayId] = useState<string | null>(null);
   const [draftDays, setDraftDays] = useState<ScheduleResponse["shootDays"] | null>(null);
   const [savedSchedule, setSavedSchedule] = useState<ScheduleResponse["shootDays"] | null>(null);
@@ -5256,18 +4778,7 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
             </Button>
           </div>
           <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-            {modoc && draftDays && draftDays.length > 0 && (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="border-cyan-500/50 text-cyan-200 hover:bg-cyan-500/10 text-[11px]"
-                onClick={() => setModocReportOpen(true)}
-              >
-                <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
-                AI suggestions
-              </Button>
-            )}
+            
             <Button
               size="sm"
               variant="outline"
@@ -5406,14 +4917,7 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
         </div>
       )}
 
-      {modoc && modocReportOpen && draftDays && (
-        <ModocReportModal
-          task="schedule"
-          reportTitle="Schedule suggestions"
-          prompt={`Optimize this production schedule. Consider: grouping scenes by location, cast/crew efficiency, minimizing downtime.\n\nScript: ${data?.script ? `${data.script.title} (${data.script.sceneCount} scenes)` : "none"}.\n\nCurrent schedule:\nShoot days: ${JSON.stringify(draftDays.map((d) => ({ date: d.date, unit: d.unit, callTime: d.callTime, wrapTime: d.wrapTime, locationSummary: d.locationSummary, status: d.status, sceneCount: d.scenes?.length ?? 0 })))}.\n\nAvailable scenes (summary): ${JSON.stringify((data?.scenes ?? []).map((s) => ({ number: s.number, heading: s.heading, pages: s.pageCount, status: s.status })))}.\n\nSuggest: day groupings, scene order, location clustering, and 2–4 tips to maximize efficiency and minimize downtime.`}
-          onClose={() => setModocReportOpen(false)}
-        />
-      )}
+      
 
       {isLoading || !draftDays ? (
         <Skeleton className="h-64 bg-slate-800/60" />
@@ -6092,8 +5596,6 @@ function CastingPortalWorkspace({
 }: { projectId?: string; title: string }) {
   const queryClient = useQueryClient();
   const hasProject = !!projectId;
-  const modoc = useModocOptional();
-  const [modocReportOpen, setModocReportOpen] = useState(false);
   const { data: rolesData, isLoading } = useQuery({
     queryKey: ["project-casting", projectId],
     queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/casting`),
@@ -6309,18 +5811,7 @@ function CastingPortalWorkspace({
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          {modoc && (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="border-cyan-500/50 text-cyan-200 hover:bg-cyan-500/10 text-xs"
-              onClick={() => setModocReportOpen(true)}
-            >
-              <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
-              Get AI casting suggestions
-            </Button>
-          )}
+          
           <Input
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
@@ -6365,15 +5856,7 @@ function CastingPortalWorkspace({
         </div>
         </div>
       </header>
-      {modoc && modocReportOpen && (
-        <ModocReportModal
-          task="casting_portal"
-          reportTitle="Casting suggestions"
-          prompt={`Match actors to our casting roles and suggest audition/communication tips.\n\nCasting roles:\n${rolesContext}\n\nUse the roles and talent provided in your context to suggest actor–role matches and optionally audition scheduling or communication tips.`}
-          onClose={() => setModocReportOpen(false)}
-          projectId={projectId ?? undefined}
-        />
-      )}
+      
       {isLoading ? (
         <Skeleton className="h-48 bg-slate-800/60" />
       ) : (
@@ -6699,8 +6182,6 @@ function CrewMarketplaceWorkspace({
 }: { projectId?: string; title: string }) {
   const queryClient = useQueryClient();
   const hasProject = !!projectId;
-  const modoc = useModocOptional();
-  const [modocReportOpen, setModocReportOpen] = useState(false);
   const [filterCity, setFilterCity] = useState("");
   const [filterCountry, setFilterCountry] = useState("");
   const [filterRole, setFilterRole] = useState("");
@@ -6986,30 +6467,11 @@ function CrewMarketplaceWorkspace({
             </p>
           </div>
           <div className="flex gap-2 flex-wrap">
-            {modoc && (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="border-cyan-500/50 text-cyan-200 hover:bg-cyan-500/10 text-xs"
-                onClick={() => setModocReportOpen(true)}
-              >
-                <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
-                Get AI crew suggestions
-              </Button>
-            )}
+            
           </div>
         </div>
       </header>
-      {modoc && modocReportOpen && (
-        <ModocReportModal
-          task="crew_marketplace"
-          reportTitle="Crew suggestions"
-          prompt={`Match crew teams and members to our crew needs and suggest hiring steps.\n\nCrew needs:\n${needsContext}\n\nUse the crew needs and available teams/members provided in your context to suggest matches and streamline hiring.`}
-          onClose={() => setModocReportOpen(false)}
-          projectId={projectId ?? undefined}
-        />
-      )}
+      
       {portalMessage && (
         <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
           {portalMessage}
@@ -7334,8 +6796,6 @@ function LocationMarketplaceWorkspace({
 }: { projectId?: string; title: string }) {
   const queryClient = useQueryClient();
   const hasProject = !!projectId;
-  const modoc = useModocOptional();
-  const [modocReportOpen, setModocReportOpen] = useState(false);
   const [filterType, setFilterType] = useState("");
   const [filterRegion, setFilterRegion] = useState("");
   const [filterAvailability, setFilterAvailability] = useState("");
@@ -7486,30 +6946,11 @@ function LocationMarketplaceWorkspace({
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
-            {modoc && (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="border-cyan-500/50 text-cyan-200 hover:bg-cyan-500/10 text-xs"
-                onClick={() => setModocReportOpen(true)}
-              >
-                <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
-                Get AI location suggestions
-              </Button>
-            )}
+            
           </div>
         </div>
       </header>
-      {modoc && modocReportOpen && (
-        <ModocReportModal
-          task="location_marketplace"
-          reportTitle="Location scouting"
-          prompt={`Match our breakdown locations to available sites and suggest logistics (accessibility, suitability for filming).\n\nBreakdown locations:\n${locationContext}\n\nUse the location listings and breakdown data provided in your context to suggest matches and logistical notes.`}
-          onClose={() => setModocReportOpen(false)}
-          projectId={projectId ?? undefined}
-        />
-      )}
+      
       {portalMessage && (
         <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
           {portalMessage}
@@ -7655,8 +7096,6 @@ function FundingHubWorkspace({
 }: { projectId?: string; title: string }) {
   const queryClient = useQueryClient();
   const hasProject = !!projectId;
-  const modoc = useModocOptional();
-  const [modocReportOpen, setModocReportOpen] = useState(false);
   const [hubMessage, setHubMessage] = useState("");
   const { data, isLoading } = useQuery({
     queryKey: ["project-funding", projectId],
@@ -8111,30 +7550,11 @@ function FundingHubWorkspace({
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
-            {modoc && (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="border-cyan-500/50 text-cyan-200 hover:bg-cyan-500/10 text-xs"
-                onClick={() => setModocReportOpen(true)}
-              >
-                <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
-                Get AI funding suggestions
-              </Button>
-            )}
+            
           </div>
         </div>
       </header>
-      {modoc && modocReportOpen && (
-        <ModocReportModal
-          task="funding_hub"
-          reportTitle="Funding and proposals"
-          prompt="Identify potential funding sources and investor types for our project, and suggest how to structure a funding proposal. Use the project details (logline, budget, funding status) in your context. Suggest categories (grants, broadcasters, equity, brands, crowdfunding) and key points to include in proposals—do not invent specific fund names unless provided."
-          onClose={() => setModocReportOpen(false)}
-          projectId={projectId ?? undefined}
-        />
-      )}
+      
       {hubMessage ? (
         <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
           {hubMessage}
@@ -8567,8 +7987,6 @@ function PitchDeckWorkspace({
 }: { projectId?: string; title: string }) {
   const queryClient = useQueryClient();
   const hasProject = !!projectId;
-  const modoc = useModocOptional();
-  const [modocReportOpen, setModocReportOpen] = useState(false);
   const { data, isLoading } = useQuery({
     queryKey: ["project-pitch-deck", projectId],
     queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/pitch-deck`),
@@ -8712,33 +8130,14 @@ function PitchDeckWorkspace({
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 md:max-w-xl md:justify-end">
-            {modoc && (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="border-cyan-500/50 text-cyan-200 hover:bg-cyan-500/10 text-xs"
-                onClick={() => setModocReportOpen(true)}
-              >
-                <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
-                Get AI pitch deck help
-              </Button>
-            )}
+            
             <span className="text-xs leading-relaxed text-slate-400">
               Keep this in sync with your script, budget, and funding plan – it&apos;s the version of the story you share with partners.
             </span>
           </div>
         </div>
       </header>
-      {modoc && modocReportOpen && (
-        <ModocReportModal
-          task="pitch_deck"
-          reportTitle="Pitch deck builder"
-          prompt="Help us create or refine our pitch deck. Use the project (title, logline) and current slides in your context. Suggest compelling slide-by-slide content that highlights our project's unique aspects and market potential. Output copy we can paste into our deck."
-          onClose={() => setModocReportOpen(false)}
-          projectId={projectId ?? undefined}
-        />
-      )}
+      
 
       <div className="grid gap-4 md:grid-cols-[240px,minmax(0,1fr)]">
         <div className="creator-glass-panel p-2 space-y-1 max-h-[420px] overflow-y-auto">
@@ -9224,8 +8623,6 @@ function TableReadsWorkspace({
 }: { projectId?: string; title: string }) {
   const queryClient = useQueryClient();
   const hasProject = !!projectId;
-  const modoc = useModocOptional();
-  const [modocReportOpen, setModocReportOpen] = useState(false);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery({
@@ -9277,18 +8674,7 @@ function TableReadsWorkspace({
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
-            {modoc && (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="border-cyan-500/50 text-cyan-200 hover:bg-cyan-500/10 text-xs"
-                onClick={() => setModocReportOpen(true)}
-              >
-                <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
-                Get AI table read insights
-              </Button>
-            )}
+            
             <Button
               size="sm"
               className="bg-orange-500 hover:bg-orange-600"
@@ -9301,15 +8687,7 @@ function TableReadsWorkspace({
           </div>
         </div>
       </header>
-      {modoc && modocReportOpen && (
-        <ModocReportModal
-          task="table_reads"
-          reportTitle="Table read facilitation"
-          prompt="Help us run better table reads. Use the script and table read sessions in your context. Analyze dialogue and character interactions, suggest pacing improvements, and advise on scheduling participants and capturing notes so the team stays aligned."
-          onClose={() => setModocReportOpen(false)}
-          projectId={projectId ?? undefined}
-        />
-      )}
+      
       {isLoading ? (
         <Skeleton className="h-48 bg-slate-800/60" />
       ) : !hasProject ? (
@@ -9366,8 +8744,6 @@ function ProductionWorkspace({
 }: { projectId?: string; title: string }) {
   const queryClient = useQueryClient();
   const hasProject = !!projectId;
-  const modoc = useModocOptional();
-  const [modocReportOpen, setModocReportOpen] = useState(false);
   const [workspaceMessage, setWorkspaceMessage] = useState("");
   const [viewMode, setViewMode] = useState<"board" | "list">("board");
   const [filterDept, setFilterDept] = useState("");
@@ -9653,30 +9029,11 @@ function ProductionWorkspace({
             >
               Sync tasks from all tools
             </Button>
-            {modoc && (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="border-cyan-500/50 text-cyan-200 hover:bg-cyan-500/10 text-xs"
-                onClick={() => setModocReportOpen(true)}
-              >
-                <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
-                Get AI production alignment
-              </Button>
-            )}
+            
           </div>
         </div>
       </header>
-      {modoc && modocReportOpen && (
-        <ModocReportModal
-          task="production_workspace"
-          reportTitle="Production workspace"
-          prompt="Help us keep the production team aligned. Use our tasks and schedule in your context. Suggest how to manage documentation, share schedules and updates, and highlight any gaps (missing tasks, unclear ownership) so everyone stays informed before and during production."
-          onClose={() => setModocReportOpen(false)}
-          projectId={projectId ?? undefined}
-        />
-      )}
+      
       {workspaceMessage && (
         <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
           {workspaceMessage}
@@ -10124,8 +9481,6 @@ function EquipmentPlanningWorkspace({
 }: { projectId?: string; title: string }) {
   const queryClient = useQueryClient();
   const hasProject = !!projectId;
-  const modoc = useModocOptional();
-  const [modocReportOpen, setModocReportOpen] = useState(false);
   const [portalMessage, setPortalMessage] = useState("");
   const [newCategory, setNewCategory] = useState("");
   const [newQuantity, setNewQuantity] = useState("1");
@@ -10277,29 +9632,10 @@ function EquipmentPlanningWorkspace({
               Build robust equipment plans, match listings, and track conflicts in one serious workflow.
             </p>
           </div>
-          {modoc && (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="border-cyan-500/50 text-cyan-200 hover:bg-cyan-500/10 text-xs"
-              onClick={() => setModocReportOpen(true)}
-            >
-              <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
-              Get AI equipment recommendations
-            </Button>
-          )}
+          
         </div>
       </header>
-      {modoc && modocReportOpen && (
-        <ModocReportModal
-          task="equipment_planning"
-          reportTitle="Equipment recommendations"
-          prompt={`Recommend equipment and match our plan to available listings.\n\nCurrent equipment plan:\n${equipmentContext}`}
-          onClose={() => setModocReportOpen(false)}
-          projectId={projectId ?? undefined}
-        />
-      )}
+      
       {portalMessage && (
         <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
           {portalMessage}
@@ -10400,8 +9736,6 @@ function RiskInsuranceWorkspace({
 }: { projectId?: string; title: string }) {
   const queryClient = useQueryClient();
   const hasProject = !!projectId;
-  const modoc = useModocOptional();
-  const [modocReportOpen, setModocReportOpen] = useState(false);
   const [workspaceMessage, setWorkspaceMessage] = useState("");
   const { data, isLoading } = useQuery({
     queryKey: ["project-risk", projectId],
@@ -10625,30 +9959,11 @@ function RiskInsuranceWorkspace({
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
-            {modoc && (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="border-cyan-500/50 text-cyan-200 hover:bg-cyan-500/10 text-xs"
-                onClick={() => setModocReportOpen(true)}
-              >
-                <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
-                Get AI risk assessment
-              </Button>
-            )}
+            
           </div>
         </div>
       </header>
-      {modoc && modocReportOpen && (
-        <ModocReportModal
-          task="risk_insurance"
-          reportTitle="Risk and insurance"
-          prompt="Assess our production risks and suggest insurance and contingency plans. Use our risk checklist and breakdown (stunts, vehicles) in your context. Recommend types of coverage to consider and mitigation steps; frame as points to discuss with our broker or legal counsel."
-          onClose={() => setModocReportOpen(false)}
-          projectId={projectId ?? undefined}
-        />
-      )}
+      
       {workspaceMessage ? (
         <div className="rounded-lg border border-slate-700 bg-slate-900/70 px-3 py-2 text-xs text-slate-300">{workspaceMessage}</div>
       ) : null}
@@ -10923,8 +10238,6 @@ function ProductionReadinessWorkspace({
   title,
 }: { projectId?: string; title: string }) {
   const hasProject = !!projectId;
-  const modoc = useModocOptional();
-  const [modocReportOpen, setModocReportOpen] = useState(false);
   const { data, isLoading } = useQuery({
     queryKey: ["project-readiness", projectId],
     queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/readiness`),
@@ -10958,30 +10271,11 @@ function ProductionReadinessWorkspace({
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
-            {modoc && hasProject && (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="border-cyan-500/50 text-cyan-200 hover:bg-cyan-500/10 text-xs"
-                onClick={() => setModocReportOpen(true)}
-              >
-                <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
-                Get AI readiness assessment
-              </Button>
-            )}
+            
           </div>
         </div>
       </header>
-      {modoc && modocReportOpen && hasProject && (
-        <ModocReportModal
-          task="production_readiness"
-          reportTitle="Production readiness"
-          prompt="Assess our production readiness from the checklist in your context. Summarize what's in place and what's missing, highlight areas that need attention before we shoot, and suggest priorities (e.g. lock cast and crew first, then locations, then equipment) so we can move to production with confidence."
-          onClose={() => setModocReportOpen(false)}
-          projectId={projectId ?? undefined}
-        />
-      )}
+      
       {!hasProject ? (
         <div className="creator-glass-panel p-4 text-sm text-slate-400">
           Link a project above to see the readiness checklist.
@@ -11060,9 +10354,6 @@ function VisualPlanningWorkspace({
   title,
 }: { projectId?: string; title: string }) {
   const hasProject = !!projectId;
-  const modoc = useModocOptional();
-  const [modocReportOpen, setModocReportOpen] = useState(false);
-
   return (
     <div className="space-y-6">
       <header className="storytime-plan-card p-5 md:p-6">
@@ -11078,31 +10369,12 @@ function VisualPlanningWorkspace({
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
-            {modoc && (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="border-cyan-500/50 text-cyan-200 hover:bg-cyan-500/10 text-xs"
-                onClick={() => setModocReportOpen(true)}
-              >
-                <Bot className="w-3.5 h-3.5 mr-1.5 inline" />
-                Get AI visual planning
-              </Button>
-            )}
+            
           </div>
         </div>
       </header>
       {hasProject && projectId ? <VisualPlanningCatalogue projectId={projectId} /> : null}
-      {modoc && modocReportOpen && (
-        <ModocReportModal
-          task="visual_planning"
-          reportTitle="Visual planning and storyboards"
-          prompt="Help us plan visuals for our film. Use the script, scenes, characters, and locations in your context. Suggest: (1) visual storyboard beats for key moments, (2) shot compositions (framing, angles, lens), and (3) camera movements (dolly, pan, handheld, static) that support the story. Be specific to our scenes where possible."
-          onClose={() => setModocReportOpen(false)}
-          projectId={projectId ?? undefined}
-        />
-      )}
+      
     </div>
   );
 }

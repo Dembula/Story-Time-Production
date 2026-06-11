@@ -164,12 +164,12 @@ export default async function BrowsePage({
         take: 16,
       }),
       prisma.content.findMany({
-        where: { ...where, creator: { isAfdaStudent: true } },
+        where: { ...where, isStudentWork: true },
         take: 16,
         include: { _count: { select: { ratings: true } }, creator: { select: { name: true, isAfdaStudent: true } } },
       }),
       prisma.musicTrack.findMany({
-        where: { published: true, creator: { isAfdaStudent: true } },
+        where: { published: true, isStudentWork: true },
         orderBy: { createdAt: "desc" },
         take: 16,
       }),

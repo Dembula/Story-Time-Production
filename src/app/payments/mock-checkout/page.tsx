@@ -20,7 +20,7 @@ function MockCheckoutContent() {
   const params = useSearchParams();
   const redirectUrl = params.get("redirectUrl") || "/";
   const reference = params.get("reference") || "";
-  const provider = (params.get("provider") || "stitch").toUpperCase();
+  const provider = (params.get("provider") || "payfast").toUpperCase();
 
   const successUrl = useMemo(() => appendResult(redirectUrl, "success", reference), [redirectUrl, reference]);
   const failedUrl = useMemo(() => appendResult(redirectUrl, "failed", reference), [redirectUrl, reference]);
@@ -33,7 +33,7 @@ function MockCheckoutContent() {
         </p>
         <h1 className="mt-3 text-2xl font-semibold">Mock {provider} Checkout</h1>
         <p className="mt-2 text-sm text-slate-400">
-          Stitch sandbox failed or is unavailable. This is a safe fallback checkout so testing never opens movie content inside the payment modal.
+          This is a development-only fallback checkout for local payment flow testing.
         </p>
 
         <div className="mt-5 rounded-xl border border-slate-800 bg-slate-950/70 p-4 text-sm">
