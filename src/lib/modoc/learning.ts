@@ -1,4 +1,31 @@
 import { prisma } from "@/lib/prisma";
+import type { InputJsonValue } from "@/lib/prisma-json";
+import { appendActionLog, migrateJsonLearningToDb } from "./learning-store";
+
+export type ModocPlaybookEntry = {
+  id: string;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  /** WHEN condition — self-authored trigger */
+  when: string;
+  /** THEN behavior — self-authored instruction the VA follows */
+  then: string;
+  origin: "pattern_detected" | "action_success" | "explicit";
+  hits: number;
+  confidence: number;
+};
+
+export type ModocRecentAction = {
+  at: string;
+  action: string;
+  payload?: Record<string, unknown>;
+  ok?: boolean;
+  message?: string;
+  eventId?: string;
+  taskIds?: string[];
+  conversationId?: string;
+};
 
 export type ModocLearningProfile = {
   lastGreetingAt?: string;
@@ -6,6 +33,15 @@ export type ModocLearningProfile = {
   declinedActions?: Record<string, number>;
   lastEvaluatedAt?: string;
   preferredSuggestions?: string[];
+  /** Rolling log of VA-executed actions so follow-up chat can redo or adapt. */
+  recentActions?: ModocRecentAction[];
+  /** Self-evolving behavior rules (auto-learned playbook). */
+  playbook?: ModocPlaybookEntry[];
+  /** Topic frequency from chat messages */
+  topicCounts?: Record<string, number>;
+  /** Total chat turns ingested for learning */
+  interactionCount?: number;
+  lastLearnedAt?: string;
 };
 
 function parseExtras(raw: unknown): ModocLearningProfile {
@@ -42,8 +78,8 @@ export async function saveModocLearning(
   const merged = { ...extras, modoc: next };
   await prisma.userPreference.upsert({
     where: { userId },
-    update: { profileExtras: merged },
-    create: { userId, profileExtras: merged },
+    update: { profileExtras: merged as InputJsonValue },
+    create: { userId, profileExtras: merged as InputJsonValue },
   });
   return next;
 }
@@ -62,16 +98,34 @@ export async function recordModocActionFeedback(
   if (accepted) preferred.add(action);
   else if ((bucket[action] ?? 0) > 2) preferred.delete(action);
 
+  const preferredSuggestions = Array.from(preferred).slice(-100);
+
   await saveModocLearning(userId, {
     [key]: bucket,
-    preferredSuggestions: Array.from(preferred),
+    preferredSuggestions,
   });
+}
+
+export async function recordModocActionExecution(
+  userId: string,
+  entry: ModocRecentAction,
+): Promise<void> {
+  const current = await getModocLearning(userId);
+  await migrateJsonLearningToDb(userId, current);
+  await appendActionLog(userId, entry);
 }
 
 export function learningHint(profile: ModocLearningProfile): string | null {
   const accepted = profile.acceptedActions ?? {};
   const top = Object.entries(accepted).sort((a, b) => b[1] - a[1])[0];
-  if (!top) return null;
+  const interactions = profile.interactionCount ?? 0;
+
+  if (!top) {
+    if (interactions > 0) {
+      return `Auto-learning active — ${interactions.toLocaleString()} conversation${interactions === 1 ? "" : "s"} analyzed. I keep improving from every message.`;
+    }
+    return null;
+  }
   const labels: Record<string, string> = {
     breakdown_full: "script breakdowns",
     create_project_task: "creating tasks",
@@ -80,5 +134,9 @@ export function learningHint(profile: ModocLearningProfile): string | null {
     move_to_production: "moving projects to production",
   };
   const label = labels[top[0]] ?? top[0].replace(/_/g, " ");
-  return `I've noticed you often want help with ${label} — I'll keep suggesting those when relevant.`;
+  const base = `I've noticed you often want help with ${label} — I'll keep suggesting those when relevant.`;
+  if (interactions > 0) {
+    return `${base} Auto-learning from ${interactions.toLocaleString()} chats.`;
+  }
+  return base;
 }

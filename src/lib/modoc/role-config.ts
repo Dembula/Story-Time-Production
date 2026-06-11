@@ -14,9 +14,10 @@ const CREATOR_PROMPTS = [
 ];
 
 const VIEWER_PROMPTS = [
-  "Find a film with a chase scene",
+  "Find a film with an emotional chase scene",
   "Suggest something based on what I watched",
-  "What's trending on Story Time?",
+  "What's on my watchlist worth starting tonight?",
+  "Describe a scene — help me find which title it's from",
 ];
 
 const COMPANY_PROMPTS = [
@@ -103,6 +104,8 @@ export function derivePageContext(pathname: string): Record<string, string> {
   if (toolMatch) ctx.tool = toolMatch[1];
 
   if (pathname.startsWith("/browse")) ctx.area = "browse";
+  const contentMatch = pathname.match(/\/browse\/content\/([^/]+)/);
+  if (contentMatch) ctx.contentId = contentMatch[1];
   else if (pathname.includes("/command-center")) ctx.area = "command-center";
   else if (pathname.includes("/pre-production")) ctx.area = "pre-production";
   else if (pathname.includes("/production")) ctx.area = "production";

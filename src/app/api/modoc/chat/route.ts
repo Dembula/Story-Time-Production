@@ -1,5 +1,4 @@
 import { getServerSession } from "next-auth";
-import { cookies } from "next/headers";
 import { authOptions } from "@/lib/auth";
 import {
   buildModocSystemPrompt,
@@ -40,12 +39,19 @@ import { getCreatorAnalytics } from "@/lib/creator-analytics";
 import { streamText, convertToCoreMessages, type UIMessage } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { prisma } from "@/lib/prisma";
-import { getViewerProfileAge } from "@/lib/viewer-profiles";
 import { CREATOR_VA_ROLE } from "@/lib/modoc/creator-va";
+import { VIEWER_VA_ROLE } from "@/lib/modoc/viewer-va";
 import { buildCreatorWorkspaceContext } from "@/lib/modoc/creator-workspace-context";
-import { executeModocAction } from "@/lib/modoc/actions";
-import { recordModocActionFeedback } from "@/lib/modoc/learning";
+import { buildCreatorDatabaseContext } from "@/lib/modoc/va-database-context";
+import { buildViewerDatabaseContext, MODOC_VIEWER_INSTRUCTIONS } from "@/lib/modoc/va-viewer-database-context";
+import { buildPlaybookPromptForUser } from "@/lib/modoc/auto-learn";
+import { ingestModocConversationLearning } from "@/lib/modoc/auto-learn";
 import type { ModocActionPayload, ModocActionType } from "@/lib/modoc/action-types";
+import { inferFollowUpExecuteAction } from "@/lib/modoc/follow-up-actions";
+import { getModocLearning } from "@/lib/modoc/learning";
+import { getRecentActionLogs, migrateJsonLearningToDb } from "@/lib/modoc/learning-store";
+import { buildExecutedActionPromptBlock, runVaAction } from "@/lib/modoc/run-va-action";
+import { buildVaAwarenessContext } from "@/lib/modoc/va-awareness-context";
 import { getAppBaseUrl } from "@/lib/app-url";
 
 /** OpenRouter: one API for 400+ models (OpenAI-compatible endpoint). */
@@ -62,6 +68,22 @@ const openRouter = createOpenAI({
 const MODOC_MODEL = process.env.OPENROUTER_MODOC_MODEL ?? "openai/gpt-4o-mini";
 
 export const maxDuration = 60;
+
+function getLastUserMessageText(
+  rawMessages: UIMessage[],
+): string {
+  for (let i = rawMessages.length - 1; i >= 0; i--) {
+    const message = rawMessages[i];
+    if (message.role !== "user") continue;
+    const content = (message as { content?: unknown }).content;
+    if (typeof content === "string") return content;
+    if (Array.isArray(content)) {
+      const parts = content as Array<{ type?: string; text?: string }>;
+      return parts.find((p) => p.type === "text")?.text ?? "";
+    }
+  }
+  return "";
+}
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -178,106 +200,61 @@ export async function POST(req: Request) {
   // Creator VA: only this creator's projects — never platform-wide data
   if (role === CREATOR_VA_ROLE && scope === "creator" && userId) {
     try {
-      const workspaceBlob = await buildCreatorWorkspaceContext(
-        userId,
-        (pageContext?.projectId as string | undefined) ?? null,
-      );
+      const focusProjectId = (pageContext?.projectId as string | undefined) ?? null;
+      const [workspaceBlob, databaseBlob, awarenessBlob] = await Promise.all([
+        buildCreatorWorkspaceContext(userId, focusProjectId),
+        buildCreatorDatabaseContext(userId, focusProjectId),
+        buildVaAwarenessContext(userId),
+      ]);
       systemPrompt += `
 
 ## Creator workspace context — use this to answer
 
-You are the creator's Virtual Assistant (VA). You only have access to **this creator's own projects** listed below.
+You are the creator's Virtual Assistant (VA). You have **read-only database access** to this creator's projects, tasks, calendar, scripts, and production data below.
 Do not reference other users' projects, admin tools, or platform-wide operations outside their creator workspace.
-When suggesting actions, only use project IDs from this list.
+When suggesting actions, only use project IDs from this list. Cite real database records — never invent IDs.
 
-${workspaceBlob}`;
+${workspaceBlob}
+
+${databaseBlob}
+
+## VA memory, live awareness & auto-learned playbook
+Use this to continue multi-turn conversations, notice when the user deleted something you created, redo tasks when asked, and follow self-authored behavior rules.
+
+${awarenessBlob}
+
+## Continuous self-improvement
+You auto-learn from every conversation. Playbook rules above are self-authored behavior updates — follow them.
+When you notice a new pattern in how this creator works, adapt your next response accordingly.`;
     } catch (e) {
       if (process.env.NODE_ENV === "development") console.error("MODOC creator workspace context failed:", e);
     }
   }
 
-  // Viewer (browse) scope: inject published catalog + user watch history so MODOC can find movies/scenes and suggest from history
-  if (role === "SUBSCRIBER" && (scope === "browse" || path.startsWith("/browse"))) {
+  // Viewer (browse) scope: scene-aware catalogue + watch history + semantic search
+  if (role === VIEWER_VA_ROLE && (scope === "browse" || path.startsWith("/browse"))) {
     try {
-      // Resolve active viewer profile for age filtering and per-profile history
-      let profileAge: number | null = null;
-      let viewerProfileId: string | null = null;
-      if (session?.user?.id) {
-        try {
-          const cookieStore = await cookies();
-          const profileId = cookieStore.get("st_viewer_profile")?.value;
-          if (profileId) {
-            const profile = await prisma.viewerProfile.findFirst({
-              where: { id: profileId, userId: (session.user as { id?: string }).id },
-              select: { id: true, age: true, dateOfBirth: true },
-            });
-            if (profile) {
-              profileAge = getViewerProfileAge(profile);
-              viewerProfileId = profile.id;
-            }
-          }
-        } catch {
-          // If cookies are unavailable for some reason, fall back to account-level behavior
-        }
-      }
-
-      const ageFilter =
-        profileAge != null
-          ? {
-              minAge: {
-                lte: profileAge,
-              },
-            }
-          : {};
-
-      const [catalog, watchHistory] = await Promise.all([
-        prisma.content.findMany({
-          where: { published: true, ...ageFilter },
-          select: { id: true, title: true, description: true, type: true, category: true, tags: true },
-          orderBy: { createdAt: "desc" },
-          take: 400,
+      const focusContentId = (pageContext?.contentId as string | undefined) ?? null;
+      const lastUserText = getLastUserMessageText(rawMessages);
+      const [viewerBlob, playbookBlob] = await Promise.all([
+        buildViewerDatabaseContext(userId!, {
+          focusContentId,
+          userQuery: lastUserText,
         }),
-        session?.user?.id
-          ? prisma.watchSession.findMany({
-              where: {
-                userId: (session.user as { id?: string }).id,
-                ...(viewerProfileId ? { viewerProfileId } : {}),
-              },
-              orderBy: { startedAt: "desc" },
-              take: 50,
-              include: { content: { select: { id: true, title: true, type: true, category: true } } },
-            })
-          : Promise.resolve([]),
+        buildPlaybookPromptForUser(userId!),
       ]);
-      const catalogBlob =
-        catalog.length > 0
-          ? catalog
-              .map(
-                (c) =>
-                  `- id=${c.id} | title="${c.title}" | type=${c.type} | category=${c.category ?? ""} | tags=${c.tags ?? ""} | description=${(c.description ?? "").slice(0, 200)}`
-              )
-              .join("\n")
-          : "(No published titles in catalog)";
-      const historyBlob =
-        watchHistory.length > 0
-          ? watchHistory
-              .map((w) => `${w.content.title} (${w.content.type}${w.content.category ? `, ${w.content.category}` : ""})`)
-              .join("; ")
-          : "(No watch history yet)";
       systemPrompt += `
 
-## Viewer context (browse) — use this to answer
+${MODOC_VIEWER_INSTRUCTIONS}
 
-You have access to the **published Story Time catalog** and (if signed in) this viewer's **watch history**. Use it to:
-1. **Scene/title search**: When the user describes a scene or asks "what movie is X from?", match against the catalog (title, description, tags, category) and suggest titles. We do not have per-scene data; infer from plot/description/tags. Always only suggest titles that appear in the catalog below. Include the content id so they can open /browse/content/[id].
-2. **Suggestions**: Use their watch history to recommend similar titles from the catalog they haven't watched yet.
+${viewerBlob}`;
 
-**Published catalog (only suggest from this list):**
-${catalogBlob}
+      if (playbookBlob.trim()) {
+        systemPrompt += `
 
-**This viewer's recent watch history:** ${historyBlob}
-
-When suggesting a title, tell them they can open it at: /browse/content/[id] (replace [id] with the content id).`;
+## Personalization (learned from past chats)
+${playbookBlob}`;
+      }
     } catch (e) {
       if (process.env.NODE_ENV === "development") console.error("MODOC viewer context fetch failed:", e);
     }
@@ -1307,18 +1284,35 @@ Suggest performance summary, lessons learned categories, and a final deliverable
     }
   }
 
-  if (executeAction?.type && userId && sessionRole === CREATOR_VA_ROLE) {
-    const actionType = executeAction.type as ModocActionType;
-    const actionResult = await executeModocAction(userId, actionType, executeAction.payload ?? {});
-    void recordModocActionFeedback(userId, actionType, actionResult.ok);
+  let resolvedExecuteAction = executeAction;
+  if (
+    !resolvedExecuteAction?.type &&
+    userId &&
+    sessionRole === CREATOR_VA_ROLE &&
+    Array.isArray(rawMessages) &&
+    rawMessages.length > 0
+  ) {
+    const lastUserText = getLastUserMessageText(rawMessages);
+    const learning = await getModocLearning(userId);
+    await migrateJsonLearningToDb(userId, learning);
+    const recentActions = await getRecentActionLogs(userId, 200);
+    const inferred = inferFollowUpExecuteAction(lastUserText, recentActions);
+    if (inferred) {
+      resolvedExecuteAction = { type: inferred.type, payload: inferred.payload };
+    }
+  }
 
-    systemPrompt += `
+  if (resolvedExecuteAction?.type && userId && sessionRole === CREATOR_VA_ROLE) {
+    const actionType = resolvedExecuteAction.type as ModocActionType;
+    const actionResult = await runVaAction({
+      userId,
+      action: actionType,
+      payload: resolvedExecuteAction.payload ?? {},
+      conversationId,
+    });
 
-## Confirmed VA task (already executed)
-The user accepted a suggested task from the Virtual Assistant panel. You already ran "${actionType}" on their behalf.
-Outcome: ${actionResult.ok ? actionResult.message : `Failed: ${actionResult.error}`}
-Respond in 2–4 warm, concise sentences summarizing what was done, what changed in their project, and one sensible next step.
-Do NOT include a MODOC_ACTION line — the work is already complete.`;
+    const actionContext = executeAction?.type ? "suggestion" : "follow_up";
+    systemPrompt += buildExecutedActionPromptBlock(actionType, actionResult, actionContext);
   }
 
   const messages =
@@ -1328,12 +1322,34 @@ Do NOT include a MODOC_ACTION line — the work is already complete.`;
         )
       : [];
 
+  const lastUserTextForLearning = getLastUserMessageText(rawMessages);
+
   const result = streamText({
     model: openRouter(MODOC_MODEL),
     system: systemPrompt,
     messages,
     maxOutputTokens: 4096,
     temperature: 0.7,
+    onFinish: async ({ text }) => {
+      if (userId && lastUserTextForLearning) {
+        const canLearn =
+          sessionRole === CREATOR_VA_ROLE ||
+          (sessionRole === VIEWER_VA_ROLE && (scope === "browse" || path.startsWith("/browse")));
+        if (!canLearn) return;
+        try {
+          await ingestModocConversationLearning({
+            userId,
+            userMessage: lastUserTextForLearning,
+            assistantMessage: text,
+            conversationId,
+          });
+        } catch (e) {
+          if (process.env.NODE_ENV === "development") {
+            console.error("MODOC auto-learn failed:", e);
+          }
+        }
+      }
+    },
   });
 
   return result.toTextStreamResponse();

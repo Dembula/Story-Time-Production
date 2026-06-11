@@ -2190,6 +2190,41 @@ exports.Prisma.ModocConversationScalarFieldEnum = {
   updatedAt: 'updatedAt'
 };
 
+exports.Prisma.ModocPlaybookRuleScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  ruleKey: 'ruleKey',
+  whenText: 'whenText',
+  thenText: 'thenText',
+  origin: 'origin',
+  version: 'version',
+  hits: 'hits',
+  confidence: 'confidence',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.ModocActionLogScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  action: 'action',
+  payload: 'payload',
+  ok: 'ok',
+  message: 'message',
+  eventId: 'eventId',
+  taskIds: 'taskIds',
+  conversationId: 'conversationId',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.ModocTopicStatScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  topic: 'topic',
+  count: 'count',
+  updatedAt: 'updatedAt'
+};
+
 exports.Prisma.ModocMessageScalarFieldEnum = {
   id: 'id',
   conversationId: 'conversationId',
@@ -2533,6 +2568,9 @@ exports.Prisma.ModelName = {
   ProjectWorkspaceLink: 'ProjectWorkspaceLink',
   ProjectToolProgress: 'ProjectToolProgress',
   ModocConversation: 'ModocConversation',
+  ModocPlaybookRule: 'ModocPlaybookRule',
+  ModocActionLog: 'ModocActionLog',
+  ModocTopicStat: 'ModocTopicStat',
   ModocMessage: 'ModocMessage',
   ScriptReviewNote: 'ScriptReviewNote',
   CreatorScript: 'CreatorScript',

@@ -5,7 +5,6 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { ModocGlobalPanel } from "./modoc-global-panel";
-import { ModocRouteSync } from "./modoc-route-sync";
 import { useModocOptional } from "./use-modoc";
 import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
 import { canShowCreatorVa } from "@/lib/modoc/creator-va";
@@ -49,10 +48,10 @@ export function ModocVaShell() {
     refreshPreview();
   }, [refreshPreview]);
 
-  if (!modoc || !available) return <ModocRouteSync />;
+  if (!modoc || !available) return null;
 
   if (!canShowCreatorVa({ sessionStatus, role, pathname })) {
-    return <ModocRouteSync />;
+    return null;
   }
 
   const isMobile = deviceClass === "mobile";
@@ -62,7 +61,6 @@ export function ModocVaShell() {
 
   return (
     <>
-      <ModocRouteSync />
       <button
         type="button"
         onClick={() => setOpen(true)}

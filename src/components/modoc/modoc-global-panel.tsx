@@ -63,6 +63,8 @@ type ModocContext = {
   suggestions: ModocSuggestion[];
   learningHint: string | null;
   unreadVaCount: number;
+  playbookRuleCount?: number;
+  interactionCount?: number;
 };
 
 function getMessageText(message: {
@@ -89,6 +91,7 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
     append,
     status,
     error,
+    conversationId,
     createNewConversation,
     resetChat,
     loadConversation,
@@ -200,7 +203,6 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
     void (async () => {
       setHistoryOpen(false);
       setActionMessage(null);
-      await createNewConversationRef.current();
       await loadContextRef.current();
       requestAnimationFrame(() => scrollToBottom("auto"));
     })();
@@ -215,17 +217,12 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
   }, [open, pathname, loadContext]);
 
   const handleClose = useCallback(() => {
-    resetChat();
     setInput("");
     setActionMessage(null);
     setHistoryOpen(false);
-    setHistoryItems([]);
-    setContext(null);
-    setContextLoading(false);
     setShowScrollDown(false);
-    setCompletedActionKeys(new Set());
     onClose();
-  }, [resetChat, onClose]);
+  }, [onClose]);
 
   const openHistory = useCallback(async () => {
     setHistoryOpen(true);
@@ -242,6 +239,7 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
     async (id: string) => {
       setHistoryOpen(false);
       setActionMessage(null);
+      setCompletedActionKeys(new Set());
       stickToBottomRef.current = true;
       await loadConversation(id);
       requestAnimationFrame(() => scrollToBottom("auto"));
@@ -282,7 +280,7 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
   const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
   const pendingAction = lastAssistant ? parseModocActionFromText(getMessageText(lastAssistant)) : null;
   const pendingActionKey = pendingAction
-    ? `${pendingAction.action}:${JSON.stringify(pendingAction.payload)}`
+    ? `${lastAssistant?.id ?? "assistant"}:${pendingAction.action}:${JSON.stringify(pendingAction.payload)}`
     : null;
 
   const actionKey = useCallback(
@@ -292,9 +290,13 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
   );
 
   const runAction = useCallback(
-    async (action: string, payload: Record<string, unknown>, options?: { viaChat?: boolean }) => {
-      const key = actionKey(action, payload);
-      if (completedActionKeys.has(key)) return;
+    async (
+      action: string,
+      payload: Record<string, unknown>,
+      options?: { viaChat?: boolean; force?: boolean; completionKey?: string },
+    ) => {
+      const key = options?.completionKey ?? actionKey(action, payload);
+      if (!options?.force && completedActionKeys.has(key)) return;
 
       setActionRunning(true);
       setActionMessage(null);
@@ -304,7 +306,7 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
         const res = await fetch("/api/modoc/actions", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action, payload }),
+          body: JSON.stringify({ action, payload, conversationId }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
@@ -333,7 +335,7 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
         setActionRunning(false);
       }
     },
-    [actionKey, appendAssistantMessage, completedActionKeys],
+    [actionKey, appendAssistantMessage, completedActionKeys, conversationId],
   );
 
   const sendChatAction = useCallback(
@@ -369,7 +371,7 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
     void runAction(
       pendingAction.action,
       pendingAction.payload as Record<string, unknown>,
-      { viaChat: true },
+      { viaChat: true, completionKey: pendingActionKey },
     );
   }, [status, pendingAction, pendingActionKey, actionRunning, runAction, completedActionKeys]);
 
@@ -378,6 +380,7 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
     const text = input.trim();
     if (!text || status === "streaming" || status === "submitted") return;
     stickToBottomRef.current = true;
+    setCompletedActionKeys(new Set());
     append({ role: "user", content: text });
     setInput("");
   };
@@ -540,6 +543,15 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
                   </p>
                   {context.learningHint && (
                     <p className="mt-2 text-[11px] text-orange-200/80 italic">{context.learningHint}</p>
+                  )}
+                  {(context.playbookRuleCount ?? 0) > 0 && (
+                    <p className="mt-1.5 text-[10px] text-slate-500">
+                      Auto-learning active · {(context.playbookRuleCount ?? 0).toLocaleString()} behavior rule
+                      {(context.playbookRuleCount ?? 0) === 1 ? "" : "s"}
+                      {(context.interactionCount ?? 0) > 0
+                        ? ` · ${(context.interactionCount ?? 0).toLocaleString()} chats analyzed`
+                        : ""}
+                    </p>
                   )}
                 </div>
               )}

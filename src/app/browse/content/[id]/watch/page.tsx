@@ -46,6 +46,8 @@ export default async function WatchPage({
       language: true,
       creatorId: true,
       minAge: true,
+      ageRating: true,
+      advisory: true,
       duration: true,
       createdAt: true,
     },
@@ -106,6 +108,9 @@ export default async function WatchPage({
         backdropUrl: content.backdropUrl,
         language: content.language,
         type: content.type,
+        ageRating: content.ageRating,
+        minAge: content.minAge ?? 0,
+        advisory: (content.advisory as Record<string, unknown> | null) ?? null,
       }}
       contentDetailUrl={`/browse/content/${content.id}`}
       nextEpisode={nextEpisode}

@@ -32,6 +32,7 @@ import { PlaybackChrome } from "./playback-chrome";
 import { PlaybackMetadataPanel } from "./playback-metadata-panel";
 import { ForensicWatermark } from "./forensic-watermark";
 import { CaptureProtectionBadge } from "./capture-protection-badge";
+import { PlaybackComplianceBadge } from "./playback-compliance-badge";
 import { StoryTimeLoader, StoryTimeLoaderOverlay } from "@/components/ui/storytime-loader";
 import { PlaybackBufferingOverlay } from "./playback-buffering-overlay";
 
@@ -59,6 +60,12 @@ type StorytimeMediaPlayerProps = {
 
   startTime?: number;
 
+  ageRating?: string | null;
+
+  minAge?: number;
+
+  advisory?: Record<string, unknown> | null;
+
   onTimeUpdate?: (currentTime: number, duration: number) => void;
 
   onProgressSave?: (currentTime: number, duration: number) => void;
@@ -82,6 +89,12 @@ export function StorytimeMediaPlayer({
   nextEpisode,
 
   startTime = 0,
+
+  ageRating = null,
+
+  minAge = 0,
+
+  advisory = null,
 
   onTimeUpdate,
 
@@ -483,7 +496,7 @@ export function StorytimeMediaPlayer({
 
       <div
 
-        className={`pointer-events-none absolute left-0 right-0 top-0 z-10 flex items-center justify-between p-4 transition-opacity duration-500 ${
+        className={`pointer-events-none absolute left-0 right-0 top-0 z-10 bg-gradient-to-b from-black/70 to-transparent p-4 transition-opacity duration-500 ${
 
           uiVisible ? "opacity-100" : "opacity-0"
 
@@ -491,21 +504,40 @@ export function StorytimeMediaPlayer({
 
       >
 
-        <button
+        <div className="pointer-events-auto flex items-start justify-between gap-3">
 
-          type="button"
+          <div className="flex min-w-0 flex-col gap-2">
 
-          onClick={leaveWatch}
+            <div className="flex flex-wrap items-center gap-2">
 
-          className="pointer-events-auto rounded-lg border border-white/20 bg-black/50 px-3 py-2 text-sm font-medium text-white backdrop-blur-sm hover:bg-white/10"
+              <button
 
-        >
+                type="button"
 
-          ← Back
+                onClick={leaveWatch}
 
-        </button>
+                className="rounded-lg border border-white/20 bg-black/50 px-3 py-2 text-sm font-medium text-white backdrop-blur-sm hover:bg-white/10"
 
-        <p className="max-w-[50%] truncate text-sm font-medium text-white/90">{title}</p>
+              >
+
+                ← Back
+
+              </button>
+
+              <PlaybackComplianceBadge
+                ageRating={ageRating}
+                minAge={minAge}
+                advisory={advisory}
+                variant="playback"
+              />
+
+            </div>
+
+          </div>
+
+          <p className="max-w-[40%] truncate pt-1 text-sm font-medium text-white/90">{title}</p>
+
+        </div>
 
       </div>
 

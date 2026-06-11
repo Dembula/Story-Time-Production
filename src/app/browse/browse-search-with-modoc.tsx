@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Film, Loader2 } from "lucide-react";
+import { Film, Loader2, Sparkles } from "lucide-react";
 import { useMotion } from "@/components/motion/motion-provider";
 import { viewerDropdownVariants, viewerSprings } from "@/lib/motion/viewer-presets";
 
@@ -272,6 +272,15 @@ export function BrowseSearchWithModoc({ defaultSearch = "", type, filter }: Prop
         </form>
       </div>
 
+      <button
+        type="button"
+        onClick={() => window.dispatchEvent(new CustomEvent("modoc:open-viewer"))}
+        className="viewer-motion-surface viewer-motion-glow flex shrink-0 items-center gap-2 rounded-2xl border border-cyan-400/25 bg-cyan-500/10 px-4 py-3 text-sm font-medium text-cyan-200 shadow-panel backdrop-blur-xl transition hover:border-cyan-400/40 hover:bg-cyan-500/16"
+        title="Ask MODOC — search by scene, mood, or recommendation"
+      >
+        <Sparkles className="h-4 w-4 shrink-0" />
+        <span className="hidden sm:inline">Ask MODOC</span>
+      </button>
     </div>
   );
 }

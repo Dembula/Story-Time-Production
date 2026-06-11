@@ -20,6 +20,7 @@ import {
   Languages,
   ChevronDown,
 } from "lucide-react";
+import { PlaybackComplianceBadge } from "./playback-compliance-badge";
 
 const PLACEHOLDER_VIDEO =
   "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
@@ -48,6 +49,9 @@ type FullscreenPlayerProps = {
   contentDetailUrl: string;
   nextEpisode: { id: string; title: string } | null;
   language?: string | null;
+  ageRating?: string | null;
+  minAge?: number;
+  advisory?: Record<string, unknown> | null;
   onTimeUpdate?: (currentTime: number, duration: number) => void;
 };
 
@@ -58,6 +62,9 @@ export function FullscreenPlayer({
   contentDetailUrl,
   nextEpisode,
   language,
+  ageRating = null,
+  minAge = 0,
+  advisory = null,
   onTimeUpdate,
 }: FullscreenPlayerProps) {
   const router = useRouter();
@@ -352,20 +359,27 @@ export function FullscreenPlayer({
         className={`absolute top-0 left-0 right-0 z-10 p-4 bg-gradient-to-b from-black/80 to-transparent transition-opacity duration-300 ${controlsVisible ? "opacity-100" : "opacity-0 pointer-events-none"}`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between">
-          <button
-            type="button"
-            onClick={leaveWatch}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg text-white/90 hover:bg-white/10 transition-colors touch-manipulation"
-            aria-label="Back to title"
-          >
-            <ArrowLeft className="w-6 h-6" />
-            <span className="text-sm font-medium">Back</span>
-          </button>
-          <h1 className="text-sm font-medium text-white/90 truncate max-w-[50%]">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={leaveWatch}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-white/90 hover:bg-white/10 transition-colors touch-manipulation"
+              aria-label="Back to title"
+            >
+              <ArrowLeft className="w-6 h-6" />
+              <span className="text-sm font-medium">Back</span>
+            </button>
+            <PlaybackComplianceBadge
+              ageRating={ageRating}
+              minAge={minAge}
+              advisory={advisory}
+              variant="playback"
+            />
+          </div>
+          <h1 className="text-sm font-medium text-white/90 truncate max-w-[40%] pt-1">
             {title}
           </h1>
-          <div className="w-20" />
         </div>
       </div>
 

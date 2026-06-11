@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { executeModocAction, type ModocActionPayload, type ModocActionType } from "@/lib/modoc/actions";
-import { recordModocActionFeedback } from "@/lib/modoc/learning";
+import type { ModocActionPayload, ModocActionType } from "@/lib/modoc/actions";
+import { runVaAction } from "@/lib/modoc/run-va-action";
 import { CREATOR_VA_ROLE } from "@/lib/modoc/creator-va";
 
 export async function POST(req: NextRequest) {
@@ -20,6 +20,7 @@ export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => null)) as {
     action?: string;
     payload?: ModocActionPayload;
+    conversationId?: string;
   } | null;
 
   if (!body?.action) {
@@ -28,13 +29,16 @@ export async function POST(req: NextRequest) {
 
   const action = body.action as ModocActionType;
 
-  const result = await executeModocAction(userId, action, body.payload ?? {});
+  const result = await runVaAction({
+    userId,
+    action,
+    payload: body.payload ?? {},
+    conversationId: body.conversationId,
+  });
 
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
-
-  void recordModocActionFeedback(userId, action, true);
 
   return NextResponse.json({ ok: true, message: result.message, data: result.data });
 }

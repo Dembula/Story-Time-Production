@@ -6,8 +6,6 @@ import { signOut, useSession } from "next-auth/react";
 import { Bell, ChevronLeft, Handshake, LayoutDashboard, LogOut, ShieldCheck, WalletCards } from "lucide-react";
 import { DashboardSidebarShell } from "@/components/layout/dashboard-sidebar-shell";
 import { NotificationBell } from "@/components/layout/notification-bell";
-import { PlatformRoleSwitcher } from "@/components/auth/platform-role-switcher";
-
 const NAV_ITEMS = [
   { href: "/funders", label: "Dashboard", icon: LayoutDashboard },
   { href: "/funders/opportunities", label: "Opportunities", icon: Bell },
@@ -37,7 +35,6 @@ export default function FundersLayout({ children }: { children: React.ReactNode 
       }
       headerEnd={
         <>
-          <PlatformRoleSwitcher />
           <Link
             href="/"
             className="hidden items-center gap-1 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs text-slate-300 transition hover:bg-white/[0.08] hover:text-white sm:inline-flex"

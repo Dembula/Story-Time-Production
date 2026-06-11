@@ -6,8 +6,6 @@ import { useRouter } from "next/navigation";
 import { CompanyPackageGate } from "@/components/layout/company-package-gate";
 import { DashboardSidebarShell } from "@/components/layout/dashboard-sidebar-shell";
 import { NotificationBell } from "@/components/layout/notification-bell";
-import { PlatformRoleSwitcher } from "@/components/auth/platform-role-switcher";
-
 const navItems = [
   { href: "/equipment-company/dashboard", label: "Dashboard" },
   { href: "/equipment-company/listings", label: "Fleet & kit" },
@@ -37,7 +35,6 @@ export default function EquipmentCompanyLayout({ children }: { children: React.R
       }
       headerEnd={
         <>
-          <PlatformRoleSwitcher />
           <NotificationBell />
           <button
             onClick={handleSignOut}

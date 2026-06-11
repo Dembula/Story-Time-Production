@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import { PlaybackComplianceBadge } from "@/components/player/playback-compliance-badge";
 
 export function LandingFooter() {
   return (
@@ -18,6 +19,7 @@ export function LandingFooter() {
             <Link href="/auth/creator/signin" className="hover:text-white">Creator Portal</Link>
             <Link href="/auth/admin" className="hover:text-white">Admin</Link>
           </div>
+          <PlaybackComplianceBadge variant="footer" />
         </div>
         <div className="flex flex-wrap gap-2 border-t border-white/8 pt-6 text-xs text-slate-500">
           <Link href="/about" className="rounded-full border border-orange-400/40 bg-orange-500/20 px-3 py-1.5 text-orange-200 transition hover:border-orange-300 hover:bg-orange-500/30 hover:text-orange-100">About Us</Link>

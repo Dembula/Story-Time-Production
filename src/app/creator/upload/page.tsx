@@ -13,6 +13,7 @@ import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
 import { applyPrefillToUploadForm, type ProjectUploadPrefill } from "@/lib/project-upload-prefill";
 import { CheckoutModal } from "@/components/payments/checkout-modal";
 import { MediaDropzone } from "@/components/ecosystem/media-dropzone";
+import { defaultMinAgeForRating } from "@/lib/fpb-compliance";
 
 const TYPES = [
   { value: "MOVIE", label: "Movie", icon: Film, desc: "Feature or short film" },
@@ -235,6 +236,9 @@ function DistributionUploadInner() {
       const missing: string[] = [];
       if (!form.language.trim()) missing.push("Language");
       if (!form.ageRating.trim()) missing.push("Age rating");
+      if (form.ageRating.trim() && minAge <= 0 && form.ageRating !== "G") {
+        missing.push("Minimum viewer age");
+      }
       return missing;
     }
     if (stepId === 6) {
@@ -1046,7 +1050,12 @@ function DistributionUploadInner() {
               </label>
               <select
                 value={form.ageRating}
-                onChange={(e) => updateField("ageRating", e.target.value)}
+                onChange={(e) => {
+                  const rating = e.target.value;
+                  updateField("ageRating", rating);
+                  const derived = defaultMinAgeForRating(rating);
+                  if (derived > 0) setMinAge(derived);
+                }}
                 className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white text-sm focus:border-orange-500 focus:outline-none transition"
               >
                 <option value="">Select rating</option>

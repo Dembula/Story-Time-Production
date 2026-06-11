@@ -30,6 +30,9 @@ type WatchClientProps = {
     backdropUrl: string | null;
     language: string | null;
     type: string | null;
+    ageRating: string | null;
+    minAge: number;
+    advisory: Record<string, unknown> | null;
   };
   contentDetailUrl: string;
   nextEpisode: { id: string; title: string } | null;
@@ -104,6 +107,9 @@ export function WatchClient({
         contentDetailUrl={contentDetailUrl}
         nextEpisode={nextEpisode}
         startTime={startTime}
+        ageRating={content.ageRating}
+        minAge={content.minAge}
+        advisory={content.advisory}
         onTimeUpdate={reportWatchTime}
         onProgressSave={saveProgress}
       />

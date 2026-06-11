@@ -9,7 +9,6 @@ import { DashboardSidebarShell, type DashboardNavSection } from "@/components/la
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { CreatorPackageGate } from "@/components/creator/creator-package-gate";
 import { CreatorStudioActingLabel } from "@/components/creator/creator-studio-switcher";
-import { PlatformRoleSwitcher } from "@/components/auth/platform-role-switcher";
 import { CREATOR_STUDIO_PROFILES_QUERY_KEY } from "@/lib/pricing";
 
 export default function MusicCreatorLayout({ children }: { children: React.ReactNode }) {
@@ -68,7 +67,6 @@ export default function MusicCreatorLayout({ children }: { children: React.React
       }
       headerEnd={
         <>
-          <PlatformRoleSwitcher />
           <CreatorStudioActingLabel />
           <NotificationBell />
           <button
