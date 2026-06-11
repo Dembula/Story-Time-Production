@@ -1357,7 +1357,7 @@ Suggest performance summary, lessons learned categories, and a final deliverable
       },
     });
 
-    return result.toTextStreamResponse();
+    return result.toUIMessageStreamResponse();
   } catch (e) {
     const message = e instanceof Error ? e.message : "Chat failed";
     console.error("MODOC chat stream failed:", e);

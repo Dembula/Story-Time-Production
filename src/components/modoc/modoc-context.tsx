@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { useChat } from "@ai-sdk/react";
-import { TextStreamChatTransport, type UIMessage } from "ai";
+import { DefaultChatTransport, type UIMessage } from "ai";
 
 /** Extra context sent to MODOC with each request so the AI knows where the user is in the app */
 export interface ModocRequestContext {
@@ -93,15 +93,25 @@ export function ModocProvider({ children }: { children: ReactNode }) {
 
   const transport = useMemo(
     () =>
-      new TextStreamChatTransport({
+      new DefaultChatTransport({
         api: MODOC_CHAT_API,
         prepareSendMessagesRequest: ({ id, messages, body }) => {
           const base = (body ?? {}) as Record<string, unknown>;
+          const sanitized = messages
+            .map((m) => ({
+              id: m.id,
+              role: m.role,
+              parts: m.parts.filter(
+                (p): p is { type: "text"; text: string } =>
+                  p.type === "text" && typeof p.text === "string" && p.text.trim().length > 0,
+              ),
+            }))
+            .filter((m) => m.parts.length > 0);
           return {
             body: {
               ...base,
               id,
-              messages,
+              messages: sanitized,
               conversationId: conversationIdRef.current ?? undefined,
               scope: requestContextRef.current.scope,
               clientContext: requestContextRef.current.clientContext,
@@ -113,9 +123,18 @@ export function ModocProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const handleChatFinish = useCallback(({ message }: { message: UIMessage }) => {
+  const handleChatFinish = useCallback(
+    ({
+      message,
+      isError,
+      isAbort,
+    }: {
+      message: UIMessage;
+      isError: boolean;
+      isAbort: boolean;
+    }) => {
     const cid = conversationIdRef.current;
-    if (!cid || message.role !== "assistant") return;
+    if (!cid || message.role !== "assistant" || isError || isAbort) return;
     const content = getModocMessageText(message);
     if (!content) return;
     fetch(`/api/modoc/conversations/${cid}/messages`, {
@@ -123,13 +142,15 @@ export function ModocProvider({ children }: { children: ReactNode }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ role: "assistant", content }),
     }).catch(() => {});
-  }, []);
+  },
+  [],
+  );
 
   const handleChatError = useCallback((err: Error) => {
     console.error("MODOC chat error:", err);
   }, []);
 
-  const { messages, sendMessage, setMessages, status, error } = useChat({
+  const { messages, sendMessage, setMessages, status, error, clearError } = useChat({
     transport,
     onFinish: handleChatFinish,
     onError: handleChatError,
@@ -170,9 +191,10 @@ export function ModocProvider({ children }: { children: ReactNode }) {
       if (message.role !== "user") return;
       const text = message.content.trim();
       if (!text) return;
+      clearError();
       await sendMessage({ text }, { body: options?.body });
     },
-    [ensureConversation, sendMessage],
+    [ensureConversation, sendMessage, clearError],
   );
 
   const appendAssistantMessage = useCallback(

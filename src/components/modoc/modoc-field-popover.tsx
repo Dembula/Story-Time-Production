@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { getModocMessageText } from "./modoc-context";
 import { useModoc } from "./use-modoc";
 import { Bot, X, Sparkles, CheckCircle } from "lucide-react";
 
@@ -52,14 +53,8 @@ function extractIncorporateText(task: string, fullMessage: string): string {
   return fullMessage.trim();
 }
 
-function getMessageContent(message: { content?: string; parts?: Array<{ type: string; text?: string }> }): string {
-  if (typeof message.content === "string") return message.content;
-  if (Array.isArray(message.parts)) {
-    return message.parts
-      .map((p) => (p.type === "text" ? (p as { text?: string }).text ?? "" : ""))
-      .join("");
-  }
-  return "";
+function getMessageContent(message: Parameters<typeof getModocMessageText>[0]): string {
+  return getModocMessageText(message);
 }
 
 export function ModocFieldPopover({

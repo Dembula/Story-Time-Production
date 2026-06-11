@@ -7,7 +7,7 @@ import { ModocContext } from "./modoc-context";
  * Hook to access MODOC (Machine Orchestrating Digital Operations for Creation)
  * from any component. Use in client components only.
  *
- * - messages, sendMessage, status, error: chat state and actions
+ * - messages, append, status, error: chat state and actions
  * - setScope / setClientContext / setPageContext: tell MODOC where the user is
  * - setRequestContext: set scope + clientContext + pageContext in one call
  */

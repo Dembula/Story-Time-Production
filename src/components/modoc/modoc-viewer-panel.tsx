@@ -258,6 +258,11 @@ export function ModocViewerPanel({
     [append, status],
   );
 
+  const lastMessage = messages.at(-1);
+  const showThinking =
+    status === "submitted" ||
+    (status === "streaming" && !getMessageText(lastMessage ?? {}));
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     sendMessage(input);
@@ -458,6 +463,7 @@ export function ModocViewerPanel({
                 {messages.map((message) => {
                   const isUser = message.role === "user";
                   const text = getMessageText(message);
+                  if (!isUser && !text.trim()) return null;
                   return (
                     <motion.div
                       key={message.id}
@@ -481,7 +487,7 @@ export function ModocViewerPanel({
                   );
                 })}
 
-                {(status === "streaming" || status === "submitted") && (
+                {showThinking && (
                   <div className="flex justify-start">
                     <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
                       <div className="flex gap-1">
@@ -496,7 +502,9 @@ export function ModocViewerPanel({
 
                 {error && (
                   <p className="text-center text-sm text-red-400">
-                    Something went wrong. Check your connection and try again.
+                    {error.message?.includes("503") || error.message?.toLowerCase().includes("configured")
+                      ? "AI assistant is not configured. Set OPENROUTER_API_KEY in your environment."
+                      : error.message || "Something went wrong. Check your connection and try again."}
                   </p>
                 )}
               </div>

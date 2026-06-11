@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useModoc } from "./use-modoc";
+import { getModocMessageText } from "./modoc-context";
 import { Bot, X, Send, Sparkles } from "lucide-react";
 
 type CreatorTool = "idea-development" | "script-writing";
@@ -40,7 +41,7 @@ export function ModocCreatorPanel({
   currentContext,
   initialPrompt,
 }: ModocCreatorPanelProps) {
-  const { messages, append, status, setRequestContext } = useModoc();
+  const { messages, append, status, error, setRequestContext } = useModoc();
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const labels = TOOL_LABELS[tool];
@@ -75,6 +76,11 @@ export function ModocCreatorPanel({
   };
 
   if (!open) return null;
+
+  const lastMessage = messages.at(-1);
+  const showThinking =
+    status === "submitted" ||
+    (status === "streaming" && !getModocMessageText(lastMessage ?? {}));
 
   return (
     <>
@@ -121,6 +127,8 @@ export function ModocCreatorPanel({
           )}
           {messages.map((message) => {
             const isUser = message.role === "user";
+            const text = getModocMessageText(message);
+            if (!isUser && !text.trim()) return null;
             return (
               <div
                 key={message.id}
@@ -134,20 +142,20 @@ export function ModocCreatorPanel({
                   }`}
                 >
                   <div className="text-[15px] leading-relaxed whitespace-pre-wrap break-words">
-                    {message.parts?.map((part, i) => {
-                      if (part.type === "text") {
-                        return (
-                          <span key={i}>{(part as { text?: string }).text ?? ""}</span>
-                        );
-                      }
-                      return null;
-                    })}
+                    {text}
                   </div>
                 </div>
               </div>
             );
           })}
-          {(status === "streaming" || status === "submitted") && (
+          {error && (
+            <div className="rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+              {error.message?.includes("503") || error.message?.toLowerCase().includes("configured")
+                ? "AI assistant is not configured. Set OPENROUTER_API_KEY in your environment."
+                : error.message || "Something went wrong. Try again."}
+            </div>
+          )}
+          {showThinking && (
             <div className="flex justify-start">
               <div className="rounded-2xl px-5 py-4 bg-slate-800/60 border border-slate-700/60 flex items-center gap-3">
                 <div className="flex gap-1">

@@ -1,5 +1,6 @@
 import { convertToModelMessages, type UIMessage } from "ai";
 import type { ModelMessage } from "ai";
+import { stripModocActionLines } from "./action-types";
 import { MAX_CHAT_TURNS_FOR_MODEL } from "./learning-limits";
 
 function extractTextFromMessage(msg: Record<string, unknown>): string {
@@ -19,7 +20,37 @@ function extractTextFromMessage(msg: Record<string, unknown>): string {
   return "";
 }
 
-/** Normalize client messages (content and/or parts) for AI SDK v5 conversion. */
+/** Merge back-to-back assistant turns into one model message. */
+function mergeConsecutiveAssistantMessages(messages: UIMessage[]): UIMessage[] {
+  const merged: UIMessage[] = [];
+
+  for (const message of messages) {
+    const prev = merged.at(-1);
+    if (message.role === "assistant" && prev?.role === "assistant") {
+      const prevText =
+        prev.parts
+          ?.filter((p): p is { type: "text"; text: string } => p.type === "text")
+          .map((p) => p.text)
+          .join("\n\n") ?? "";
+      const nextText =
+        message.parts
+          ?.filter((p): p is { type: "text"; text: string } => p.type === "text")
+          .map((p) => p.text)
+          .join("\n\n") ?? "";
+      const combined = [prevText, nextText].filter(Boolean).join("\n\n");
+      merged[merged.length - 1] = {
+        ...prev,
+        parts: combined ? [{ type: "text", text: combined }] : [],
+      };
+      continue;
+    }
+    merged.push(message);
+  }
+
+  return merged;
+}
+
+/** Normalize client messages (content and/or parts) for AI SDK conversion. */
 export function normalizeToUiMessages(rawMessages: unknown[]): UIMessage[] {
   const normalized: UIMessage[] = [];
 
@@ -31,37 +62,20 @@ export function normalizeToUiMessages(rawMessages: unknown[]): UIMessage[] {
     if (role !== "user" && role !== "assistant" && role !== "system") continue;
 
     const id = typeof msg.id === "string" ? msg.id : `modoc-msg-${i}`;
-    const partsRaw = msg.parts;
-    const text = extractTextFromMessage(msg).trim();
-
-    if (Array.isArray(partsRaw) && partsRaw.length > 0) {
-      const parts = partsRaw
-        .map((part) => {
-          if (!part || typeof part !== "object") return null;
-          const p = part as { type?: string; text?: string };
-          if (p.type === "text" && typeof p.text === "string" && p.text.trim()) {
-            return { type: "text" as const, text: p.text };
-          }
-          return null;
-        })
-        .filter(Boolean) as Array<{ type: "text"; text: string }>;
-
-      if (parts.length > 0) {
-        normalized.push({ id, role, parts } as UIMessage);
-        continue;
-      }
+    let text = extractTextFromMessage(msg).trim();
+    if (role === "assistant") {
+      text = stripModocActionLines(text);
     }
+    if (!text) continue;
 
-    if (text) {
-      normalized.push({
-        id,
-        role,
-        parts: [{ type: "text", text }],
-      } as UIMessage);
-    }
+    normalized.push({
+      id,
+      role,
+      parts: [{ type: "text", text }],
+    } as UIMessage);
   }
 
-  return normalized;
+  return mergeConsecutiveAssistantMessages(normalized);
 }
 
 /** Trim to recent turns so follow-up requests stay within token limits. */
@@ -93,7 +107,6 @@ export async function prepareModocModelMessages(rawMessages: unknown[]): Promise
   try {
     return await convertToModelMessages(ui);
   } catch {
-    // Last-resort: text-only fallback
     return ui.map((m) => {
       const text = m.parts
         ?.filter((p): p is { type: "text"; text: string } => p.type === "text")

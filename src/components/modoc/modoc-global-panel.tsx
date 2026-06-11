@@ -12,7 +12,7 @@ import { useModoc } from "./use-modoc";
 import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
 import { useMotion } from "@/components/motion/motion-provider";
 import { getModocRoleProfile } from "@/lib/modoc/role-config";
-import { parseModocActionFromText, type ModocActionType } from "@/lib/modoc/action-types";
+import { parseModocActionFromText, stripModocActionLines, type ModocActionType } from "@/lib/modoc/action-types";
 import { buildModocGreeting } from "@/lib/modoc/greeting";
 import { resolveQuickPromptAction } from "@/lib/modoc/quick-prompt-actions";
 import { getModocMessageText } from "./modoc-context";
@@ -101,6 +101,8 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
   const [showScrollDown, setShowScrollDown] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
+  const statusRef = useRef(status);
+  statusRef.current = status;
   const openInitializedRef = useRef(false);
   const lastPathnameRef = useRef(pathname);
   const createNewConversationRef = useRef(createNewConversation);
@@ -383,7 +385,7 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
     if (status !== "ready" || !pendingAction || !pendingActionKey || actionRunning) return;
     if (completedActionKeys.has(pendingActionKey)) return;
     const timer = window.setTimeout(() => {
-      if (status !== "ready") return;
+      if (statusRef.current !== "ready") return;
       void runAction(
         pendingAction.action,
         pendingAction.payload as Record<string, unknown>,
@@ -413,6 +415,10 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
     }
     void sendChatAction(prompt);
   };
+
+  const showThinking =
+    status === "submitted" ||
+    (status === "streaming" && !getMessageText(messages.at(-1) ?? {}));
 
   if (!mounted) return null;
 
@@ -624,7 +630,8 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
               {messages.map((message) => {
                 const isUser = message.role === "user";
                 const text = getMessageText(message);
-                const displayText = text.replace(/MODOC_ACTION:\s*\{[\s\S]*?\}/g, "").trim();
+                const displayText = stripModocActionLines(text);
+                if (!isUser && !displayText) return null;
 
                 return (
                   <div key={message.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
@@ -674,7 +681,7 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
                   </div>
                 )}
 
-              {(status === "streaming" || status === "submitted") && (
+              {showThinking && (
                 <div className="flex justify-start">
                   <div className="flex items-center gap-2 rounded-2xl border border-slate-700/50 bg-slate-800/60 px-3 py-2">
                     <Sparkles className="h-3.5 w-3.5 text-orange-400 animate-pulse" />

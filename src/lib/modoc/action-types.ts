@@ -279,15 +279,73 @@ export function normalizeModocActionType(raw: string): ModocActionType | null {
   return ACTION_ALIASES[key] ?? null;
 }
 
+/** Extract a JSON object with balanced braces starting at `startIndex`. */
+export function extractBalancedJsonObject(text: string, startIndex: number): string | null {
+  if (text[startIndex] !== "{") return null;
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  for (let i = startIndex; i < text.length; i++) {
+    const ch = text[i];
+    if (escape) {
+      escape = false;
+      continue;
+    }
+    if (ch === "\\" && inString) {
+      escape = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (ch === "{") depth++;
+    else if (ch === "}") {
+      depth--;
+      if (depth === 0) return text.slice(startIndex, i + 1);
+    }
+  }
+  return null;
+}
+
+function extractModocActionJson(text: string): string | null {
+  const marker = "MODOC_ACTION:";
+  const idx = text.indexOf(marker);
+  if (idx === -1) return null;
+  const rest = text.slice(idx + marker.length);
+  const braceStart = rest.search(/\{/);
+  if (braceStart === -1) return null;
+  return extractBalancedJsonObject(rest, braceStart);
+}
+
+/** Remove MODOC_ACTION JSON blocks from assistant text shown in chat UI. */
+export function stripModocActionLines(text: string): string {
+  let result = text;
+  const marker = "MODOC_ACTION:";
+  for (;;) {
+    const idx = result.indexOf(marker);
+    if (idx === -1) break;
+    const rest = result.slice(idx + marker.length);
+    const braceStart = rest.search(/\{/);
+    if (braceStart === -1) break;
+    const jsonStr = extractBalancedJsonObject(rest, braceStart);
+    if (!jsonStr) break;
+    const end = idx + marker.length + braceStart + jsonStr.length;
+    result = `${result.slice(0, idx)}${result.slice(end)}`;
+  }
+  return result.trim();
+}
+
 /** Parse MODOC_ACTION lines from assistant text */
 export function parseModocActionFromText(text: string): {
   action: ModocActionType;
   payload: ModocActionPayload;
 } | null {
-  const match = text.match(/MODOC_ACTION:\s*(\{[\s\S]*?\})/);
-  if (!match) return null;
+  const jsonStr = extractModocActionJson(text);
+  if (!jsonStr) return null;
   try {
-    const parsed = JSON.parse(match[1]) as { type?: string } & ModocActionPayload;
+    const parsed = JSON.parse(jsonStr) as { type?: string } & ModocActionPayload;
     if (!parsed.type) return null;
     const action = normalizeModocActionType(parsed.type);
     if (!action) return null;

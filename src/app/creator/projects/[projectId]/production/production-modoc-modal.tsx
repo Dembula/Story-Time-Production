@@ -3,19 +3,7 @@
 import { useEffect, useRef } from "react";
 import { Bot } from "lucide-react";
 import { useModoc } from "@/components/modoc";
-
-export function getModocMessageContent(message: {
-  content?: string;
-  parts?: Array<{ type: string; text?: string }>;
-}): string {
-  if (typeof message.content === "string") return message.content;
-  if (Array.isArray(message.parts)) {
-    return message.parts
-      .map((p) => (p.type === "text" ? (p as { text?: string }).text ?? "" : ""))
-      .join("");
-  }
-  return "";
-}
+import { getModocMessageText } from "@/components/modoc/modoc-context";
 
 const PRODUCTION_MODOC_TASKS = [
   "production_control_center",
@@ -84,7 +72,10 @@ export function ProductionModocReportModal({
   }, [prompt, append]);
 
   const lastAssistant = messages.filter((m) => m.role === "assistant").pop();
-  const displayContent = lastAssistant ? getModocMessageContent(lastAssistant) : "";
+  const displayContent = lastAssistant ? getModocMessageText(lastAssistant) : "";
+  const showThinking =
+    status === "submitted" ||
+    (status === "streaming" && !displayContent.trim());
 
   return (
     <>
@@ -107,10 +98,10 @@ export function ProductionModocReportModal({
           </button>
         </div>
         <div className="max-h-[60vh] overflow-y-auto rounded-xl bg-slate-800/60 border border-slate-700 p-4 text-sm text-slate-200 whitespace-pre-wrap">
-          {status === "streaming" || status === "submitted" ? (
-            displayContent ? displayContent : <span className="text-slate-400">Generating…</span>
+          {showThinking && !displayContent.trim() ? (
+            <span className="text-slate-400">Generating…</span>
           ) : (
-            displayContent || "Generating…"
+            displayContent || "No response yet."
           )}
         </div>
       </div>
