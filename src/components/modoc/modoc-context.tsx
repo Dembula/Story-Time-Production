@@ -57,6 +57,8 @@ interface ModocContextValue {
   clearConversationId: () => void;
   /** Clear messages and conversation id (fresh chat home screen) */
   resetChat: () => void;
+  /** Append an assistant message to the thread (e.g. after a direct action completes). */
+  appendAssistantMessage: (content: string) => void;
   /** List persisted conversations for history UI */
   listConversations: () => Promise<
     Array<{
@@ -132,6 +134,32 @@ export function ModocProvider({ children }: { children: ReactNode }) {
     }
   }, [setConversationId]);
 
+  const append = useCallback<ModocContextValue["append"]>(
+    async (message, options) => {
+      if (!conversationIdRef.current) {
+        await createNewConversation();
+      }
+      return chat.append(message, options);
+    },
+    [chat.append, createNewConversation],
+  );
+
+  const appendAssistantMessage = useCallback(
+    (content: string) => {
+      const id = `assistant-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+      chat.setMessages((prev) => [...prev, { id, role: "assistant", content }]);
+      const cid = conversationIdRef.current;
+      if (cid && content.trim()) {
+        fetch(`/api/modoc/conversations/${cid}/messages`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ role: "assistant", content }),
+        }).catch(() => {});
+      }
+    },
+    [chat],
+  );
+
   const loadConversation = useCallback(
     async (id: string) => {
       try {
@@ -205,7 +233,7 @@ export function ModocProvider({ children }: { children: ReactNode }) {
 
   const value: ModocContextValue = {
     messages: chat.messages,
-    append: chat.append,
+    append,
     status: chat.status,
     error: chat.error,
     isAvailable,
@@ -218,6 +246,7 @@ export function ModocProvider({ children }: { children: ReactNode }) {
     loadConversation,
     clearConversationId,
     resetChat,
+    appendAssistantMessage,
     listConversations,
   };
 

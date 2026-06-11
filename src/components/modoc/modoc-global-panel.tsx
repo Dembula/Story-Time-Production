@@ -7,12 +7,14 @@ import Image from "next/image";
 import { useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Send, X, Zap, Loader2, Sparkles, History, MessageSquarePlus, ChevronLeft } from "lucide-react";
+import { Send, X, Loader2, Sparkles, History, MessageSquarePlus, ChevronLeft } from "lucide-react";
 import { useModoc } from "./use-modoc";
 import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
 import { useMotion } from "@/components/motion/motion-provider";
 import { getModocRoleProfile } from "@/lib/modoc/role-config";
-import { parseModocActionFromText } from "@/lib/modoc/action-types";
+import { parseModocActionFromText, type ModocActionType } from "@/lib/modoc/action-types";
+import { buildModocGreeting } from "@/lib/modoc/greeting";
+import { resolveQuickPromptAction } from "@/lib/modoc/quick-prompt-actions";
 
 type ModocConversationSummary = {
   id: string;
@@ -50,7 +52,7 @@ type ModocSuggestion = {
   id: string;
   title: string;
   body: string;
-  action: string;
+  action: ModocActionType;
   payload: Record<string, string | undefined>;
 };
 
@@ -91,6 +93,7 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
     resetChat,
     loadConversation,
     listConversations,
+    appendAssistantMessage,
   } = useModoc();
   const [input, setInput] = useState("");
   const [mounted, setMounted] = useState(false);
@@ -101,7 +104,15 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyItems, setHistoryItems] = useState<ModocConversationSummary[]>([]);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const [showScrollDown, setShowScrollDown] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const stickToBottomRef = useRef(true);
+  const openInitializedRef = useRef(false);
+  const lastPathnameRef = useRef(pathname);
+  const createNewConversationRef = useRef(createNewConversation);
+  const loadContextRef = useRef<() => Promise<void>>(async () => {});
+  const [completedActionKeys, setCompletedActionKeys] = useState<Set<string>>(() => new Set());
+  const pendingContextRefreshRef = useRef(false);
   const { deviceClass } = useAdaptiveUi();
   const { prefersReducedMotion } = useMotion();
   const isMobile = deviceClass === "mobile";
@@ -114,27 +125,94 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
       const res = await fetch(`/api/modoc/context${qs}`);
       if (res.ok) {
         setContext(await res.json());
+      } else {
+        setContext((prev) =>
+          prev ?? {
+            greeting: buildModocGreeting(session?.user?.name),
+            isNewSessionToday: true,
+            selfAwareIntro: profile.emptyHint,
+            suggestions: [],
+            learningHint: null,
+            unreadVaCount: 0,
+          },
+        );
       }
+    } catch {
+      setContext((prev) =>
+        prev ?? {
+          greeting: buildModocGreeting(session?.user?.name),
+          isNewSessionToday: true,
+          selfAwareIntro: profile.emptyHint,
+          suggestions: [],
+          learningHint: null,
+          unreadVaCount: 0,
+        },
+      );
     } finally {
       setContextLoading(false);
     }
-  }, [pathname]);
+  }, [pathname, profile.emptyHint, session?.user?.name]);
+
+  createNewConversationRef.current = createNewConversation;
+  loadContextRef.current = loadContext;
 
   useEffect(() => setMounted(true), []);
+
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior });
+  }, []);
+
+  const handleMessagesScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const atBottom = distanceFromBottom < 64;
+    stickToBottomRef.current = atBottom;
+    setShowScrollDown(!atBottom && el.scrollHeight > el.clientHeight + 80);
+  }, []);
 
   const startFreshChat = useCallback(async () => {
     resetChat();
     setInput("");
     setActionMessage(null);
     setHistoryOpen(false);
+    setCompletedActionKeys(new Set());
+    stickToBottomRef.current = true;
     await createNewConversation();
     await loadContext();
-  }, [resetChat, createNewConversation, loadContext]);
+    requestAnimationFrame(() => scrollToBottom("auto"));
+  }, [resetChat, createNewConversation, loadContext, scrollToBottom]);
 
+  // Initialize once when the panel opens — do not re-run when route/context callbacks change.
   useEffect(() => {
-    if (!open) return;
-    void startFreshChat();
-  }, [open, startFreshChat]);
+    if (!open) {
+      openInitializedRef.current = false;
+      lastPathnameRef.current = pathname;
+      return;
+    }
+    if (openInitializedRef.current) return;
+    openInitializedRef.current = true;
+    lastPathnameRef.current = pathname;
+    stickToBottomRef.current = true;
+
+    void (async () => {
+      setHistoryOpen(false);
+      setActionMessage(null);
+      await createNewConversationRef.current();
+      await loadContextRef.current();
+      requestAnimationFrame(() => scrollToBottom("auto"));
+    })();
+  }, [open, scrollToBottom]);
+
+  // Refresh workspace context when navigating while the panel stays open.
+  useEffect(() => {
+    if (!open || !openInitializedRef.current) return;
+    if (lastPathnameRef.current === pathname) return;
+    lastPathnameRef.current = pathname;
+    void loadContext();
+  }, [open, pathname, loadContext]);
 
   const handleClose = useCallback(() => {
     resetChat();
@@ -142,6 +220,10 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
     setActionMessage(null);
     setHistoryOpen(false);
     setHistoryItems([]);
+    setContext(null);
+    setContextLoading(false);
+    setShowScrollDown(false);
+    setCompletedActionKeys(new Set());
     onClose();
   }, [resetChat, onClose]);
 
@@ -160,14 +242,33 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
     async (id: string) => {
       setHistoryOpen(false);
       setActionMessage(null);
+      stickToBottomRef.current = true;
       await loadConversation(id);
+      requestAnimationFrame(() => scrollToBottom("auto"));
     },
-    [loadConversation],
+    [loadConversation, scrollToBottom],
   );
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: prefersReducedMotion ? "auto" : "smooth" });
-  }, [messages, actionMessage, context, prefersReducedMotion]);
+    if (!stickToBottomRef.current) return;
+    scrollToBottom(prefersReducedMotion ? "auto" : "smooth");
+  }, [messages, actionMessage, status, scrollToBottom, prefersReducedMotion]);
+
+  useEffect(() => {
+    if (status === "ready" && pendingContextRefreshRef.current) {
+      pendingContextRefreshRef.current = false;
+      void loadContext();
+    }
+  }, [status, loadContext]);
+
+  useEffect(() => {
+    if (!open) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -180,11 +281,25 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
 
   const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
   const pendingAction = lastAssistant ? parseModocActionFromText(getMessageText(lastAssistant)) : null;
+  const pendingActionKey = pendingAction
+    ? `${pendingAction.action}:${JSON.stringify(pendingAction.payload)}`
+    : null;
+
+  const actionKey = useCallback(
+    (action: string, payload: Record<string, unknown>) =>
+      `${action}:${JSON.stringify(payload)}`,
+    [],
+  );
 
   const runAction = useCallback(
-    async (action: string, payload: Record<string, unknown>) => {
+    async (action: string, payload: Record<string, unknown>, options?: { viaChat?: boolean }) => {
+      const key = actionKey(action, payload);
+      if (completedActionKeys.has(key)) return;
+
       setActionRunning(true);
       setActionMessage(null);
+      stickToBottomRef.current = true;
+
       try {
         const res = await fetch("/api/modoc/actions", {
           method: "POST",
@@ -193,37 +308,97 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          setActionMessage(data.error ?? "Action failed");
+          const errorText = data.error ?? "Action failed";
+          if (options?.viaChat) {
+            appendAssistantMessage(`I couldn't complete that: ${errorText}`);
+          } else {
+            setActionMessage(errorText);
+          }
         } else {
-          setActionMessage(data.message ?? "Done.");
-          void loadContext();
+          setCompletedActionKeys((prev) => new Set(prev).add(key));
+          const successText = data.message ?? "Done.";
+          if (!options?.viaChat) {
+            setActionMessage(successText);
+          }
+          pendingContextRefreshRef.current = true;
         }
       } catch {
-        setActionMessage("Could not run action. Try again.");
+        const errorText = "Could not run action. Try again.";
+        if (options?.viaChat) {
+          appendAssistantMessage(errorText);
+        } else {
+          setActionMessage(errorText);
+        }
       } finally {
         setActionRunning(false);
       }
     },
-    [loadContext],
+    [actionKey, appendAssistantMessage, completedActionKeys],
   );
+
+  const sendChatAction = useCallback(
+    async (
+      userText: string,
+      executeAction?: { type: ModocActionType; payload: Record<string, string | undefined> },
+    ) => {
+      if (status === "streaming" || status === "submitted" || actionRunning) return;
+      stickToBottomRef.current = true;
+      pendingContextRefreshRef.current = true;
+      await append(
+        { role: "user", content: userText },
+        executeAction ? { body: { executeAction } } : undefined,
+      );
+    },
+    [append, status, actionRunning],
+  );
+
+  const handleSuggestionClick = useCallback(
+    (s: ModocSuggestion) => {
+      void sendChatAction(`Yes — ${s.title}. ${s.body}`, {
+        type: s.action,
+        payload: s.payload,
+      });
+    },
+    [sendChatAction],
+  );
+
+  // Auto-run actions the VA proposes in chat (MODOC_ACTION line).
+  useEffect(() => {
+    if (status !== "ready" || !pendingAction || !pendingActionKey || actionRunning) return;
+    if (completedActionKeys.has(pendingActionKey)) return;
+    void runAction(
+      pendingAction.action,
+      pendingAction.payload as Record<string, unknown>,
+      { viaChat: true },
+    );
+  }, [status, pendingAction, pendingActionKey, actionRunning, runAction, completedActionKeys]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const text = input.trim();
     if (!text || status === "streaming" || status === "submitted") return;
+    stickToBottomRef.current = true;
     append({ role: "user", content: text });
     setInput("");
   };
 
   const handleQuickPrompt = (prompt: string) => {
-    if (status === "streaming" || status === "submitted") return;
-    append({ role: "user", content: prompt });
+    const projectMatch = pathname.match(/\/creator\/projects\/([^/]+)/);
+    const projectId = projectMatch?.[1];
+    const mappedAction = resolveQuickPromptAction(prompt, projectId);
+    if (mappedAction) {
+      void sendChatAction(prompt, mappedAction);
+      return;
+    }
+    void sendChatAction(prompt);
   };
 
   if (!mounted) return null;
 
   const panelWidth = isMobile ? "100%" : "min(420px, calc(100vw - 2rem))";
   const showGreeting = messages.length === 0 && context;
+
+  const panelHeight = isMobile ? "85vh" : "min(640px, calc(100vh - 6rem))";
 
   return createPortal(
     <AnimatePresence>
@@ -244,7 +419,8 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
             className="fixed z-[1995] flex flex-col overflow-hidden border border-orange-500/25 bg-gradient-to-b from-slate-950 via-slate-950 to-black shadow-2xl shadow-orange-500/15"
             style={{
               width: panelWidth,
-              maxHeight: isMobile ? "85vh" : "min(640px, calc(100vh - 6rem))",
+              height: panelHeight,
+              maxHeight: panelHeight,
               bottom: isMobile ? 0 : "5.5rem",
               right: isMobile ? 0 : "1.25rem",
               borderRadius: isMobile ? "1.25rem 1.25rem 0 0" : "1.25rem",
@@ -314,7 +490,12 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
               </div>
             </header>
 
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 space-y-3">
+            <div
+              ref={scrollRef}
+              onScroll={handleMessagesScroll}
+              className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 py-3 space-y-3"
+              aria-label="Virtual Assistant conversation"
+            >
               {historyOpen ? (
                 <>
                   {historyLoading && (
@@ -363,8 +544,15 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
                 </div>
               )}
 
-              {contextLoading && messages.length === 0 && (
-                <p className="text-center text-xs text-slate-500">Loading your workspace context…</p>
+              {contextLoading && !context && messages.length === 0 && (
+                <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
+                  <Loader2 className="h-5 w-5 animate-spin text-orange-400/80" />
+                  <p className="text-xs text-slate-500">Loading your workspace context…</p>
+                </div>
+              )}
+
+              {contextLoading && context && messages.length === 0 && (
+                <p className="text-center text-[10px] text-slate-600">Updating workspace context…</p>
               )}
 
               {showGreeting && context.suggestions.length > 0 && (
@@ -376,8 +564,8 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
                     <button
                       key={s.id}
                       type="button"
-                      disabled={actionRunning}
-                      onClick={() => void runAction(s.action, s.payload)}
+                      disabled={actionRunning || status === "streaming" || status === "submitted"}
+                      onClick={() => handleSuggestionClick(s)}
                       className="w-full rounded-xl border border-orange-500/20 bg-orange-500/5 px-3 py-2.5 text-left transition hover:bg-orange-500/10 disabled:opacity-50"
                     >
                       <p className="text-xs font-medium text-white">{s.title}</p>
@@ -393,8 +581,9 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
                     <button
                       key={p}
                       type="button"
+                      disabled={actionRunning || status === "streaming" || status === "submitted"}
                       onClick={() => handleQuickPrompt(p)}
-                      className="rounded-full border border-orange-500/25 bg-orange-500/8 px-3 py-1.5 text-[11px] text-orange-100 hover:bg-orange-500/15"
+                      className="rounded-full border border-orange-500/25 bg-orange-500/8 px-3 py-1.5 text-[11px] text-orange-100 hover:bg-orange-500/15 disabled:opacity-50"
                     >
                       {p}
                     </button>
@@ -444,23 +633,16 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
                 </div>
               )}
 
-              {pendingAction && status === "ready" && (
-                <button
-                  type="button"
-                  disabled={actionRunning}
-                  onClick={() =>
-                    void runAction(pendingAction.action, pendingAction.payload as Record<string, unknown>)
-                  }
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
-                >
-                  {actionRunning ? (
+              {pendingAction &&
+                status === "ready" &&
+                pendingActionKey &&
+                !completedActionKeys.has(pendingActionKey) &&
+                actionRunning && (
+                  <div className="flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-sm text-emerald-100">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Zap className="h-4 w-4" />
-                  )}
-                  Run: {pendingAction.action.replace(/_/g, " ")}
-                </button>
-              )}
+                    Running: {pendingAction.action.replace(/_/g, " ")}…
+                  </div>
+                )}
 
               {(status === "streaming" || status === "submitted") && (
                 <div className="flex justify-start">
@@ -470,7 +652,6 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
                   </div>
                 </div>
               )}
-              <div ref={bottomRef} />
                 </>
               )}
             </div>
@@ -478,9 +659,22 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
             {!historyOpen && (
             <form
               onSubmit={handleSubmit}
-              className="shrink-0 border-t border-orange-500/10 px-3 py-3"
+              className="relative shrink-0 border-t border-orange-500/10 px-3 py-3"
               style={{ paddingBottom: isMobile ? "max(0.75rem, env(safe-area-inset-bottom))" : undefined }}
             >
+              {showScrollDown && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    stickToBottomRef.current = true;
+                    scrollToBottom(prefersReducedMotion ? "auto" : "smooth");
+                    setShowScrollDown(false);
+                  }}
+                  className="absolute -top-10 left-1/2 z-10 -translate-x-1/2 rounded-full border border-slate-600/80 bg-slate-900/95 px-3 py-1 text-[11px] text-slate-300 shadow-lg hover:border-orange-500/40 hover:text-white"
+                >
+                  ↓ Latest messages
+                </button>
+              )}
               <div className="flex gap-2">
                 <input
                   type="text"

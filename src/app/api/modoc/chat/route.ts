@@ -43,6 +43,9 @@ import { prisma } from "@/lib/prisma";
 import { getViewerProfileAge } from "@/lib/viewer-profiles";
 import { CREATOR_VA_ROLE } from "@/lib/modoc/creator-va";
 import { buildCreatorWorkspaceContext } from "@/lib/modoc/creator-workspace-context";
+import { executeModocAction } from "@/lib/modoc/actions";
+import { recordModocActionFeedback } from "@/lib/modoc/learning";
+import type { ModocActionPayload, ModocActionType } from "@/lib/modoc/action-types";
 import { getAppBaseUrl } from "@/lib/app-url";
 
 /** OpenRouter: one API for 400+ models (OpenAI-compatible endpoint). */
@@ -71,6 +74,7 @@ export async function POST(req: Request) {
     scope?: string;
     pageContext?: Record<string, string | number | boolean | null>;
     conversationId?: string;
+    executeAction?: { type: string; payload?: ModocActionPayload };
   } = {};
   try {
     body = await req.json();
@@ -81,7 +85,14 @@ export async function POST(req: Request) {
     });
   }
 
-  const { messages: rawMessages = [], clientContext, scope, pageContext, conversationId } = body;
+  const {
+    messages: rawMessages = [],
+    clientContext,
+    scope,
+    pageContext,
+    conversationId,
+    executeAction,
+  } = body;
 
   if (!session?.user) {
     return new Response(JSON.stringify({ error: "Sign in to use the Virtual Assistant." }), {
@@ -1294,6 +1305,20 @@ Suggest performance summary, lessons learned categories, and a final deliverable
     } catch (e) {
       if (process.env.NODE_ENV === "development") console.error("MODOC marketplace context fetch failed:", e);
     }
+  }
+
+  if (executeAction?.type && userId && sessionRole === CREATOR_VA_ROLE) {
+    const actionType = executeAction.type as ModocActionType;
+    const actionResult = await executeModocAction(userId, actionType, executeAction.payload ?? {});
+    void recordModocActionFeedback(userId, actionType, actionResult.ok);
+
+    systemPrompt += `
+
+## Confirmed VA task (already executed)
+The user accepted a suggested task from the Virtual Assistant panel. You already ran "${actionType}" on their behalf.
+Outcome: ${actionResult.ok ? actionResult.message : `Failed: ${actionResult.error}`}
+Respond in 2–4 warm, concise sentences summarizing what was done, what changed in their project, and one sensible next step.
+Do NOT include a MODOC_ACTION line — the work is already complete.`;
   }
 
   const messages =
