@@ -2,7 +2,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
+import { prismaJsonNull, type InputJsonValue } from "@/lib/prisma-json";
 
 /** POST: Create a new MODOC conversation (requires auth). */
 export async function POST(req: Request) {
@@ -25,7 +25,7 @@ export async function POST(req: Request) {
   }
 
   const pageContextValue =
-    body.pageContext != null ? (body.pageContext as Prisma.InputJsonValue) : (Prisma.JsonNull as any);
+    body.pageContext != null ? (body.pageContext as InputJsonValue) : prismaJsonNull;
 
   const conversation = await prisma.modocConversation.create({
     data: {

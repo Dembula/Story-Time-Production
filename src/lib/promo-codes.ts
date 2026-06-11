@@ -1,5 +1,6 @@
 import { prisma } from "./prisma";
-import { Prisma } from "@prisma/client";
+import { Prisma } from "../../generated/prisma";
+import type { InputJsonValue } from "./prisma-json";
 
 export type PromoContext = "VIEWER_SUBSCRIPTION" | "CREATOR_LICENSE";
 
@@ -37,7 +38,7 @@ type RedeemPromoInput = {
   referenceId?: string | null;
   discountAmount?: number | null;
   resultingPlan?: string | null;
-  metadata?: Prisma.InputJsonValue;
+  metadata?: InputJsonValue;
 };
 
 export async function redeemPromoCode(input: RedeemPromoInput) {

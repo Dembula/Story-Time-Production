@@ -1,7 +1,7 @@
 import type { KycPayload } from "@/lib/payout-kyc";
 import { applyKycDocumentToPayload, isPrivateKycStorageRef, mergeVerificationDocsIntoKycPayload } from "@/lib/kyc-form-documents";
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
+import type { InputJsonValue } from "@/lib/prisma-json";
 
 export { mergeVerificationDocsIntoKycPayload } from "@/lib/kyc-form-documents";
 
@@ -248,11 +248,11 @@ export async function registerPayoutKycUpload(
       userId,
       accountRole,
       verificationStatus: "DRAFT",
-      kycData: kycData as Prisma.InputJsonValue,
+      kycData: kycData as InputJsonValue,
       adminReviewRequired: true,
     },
     update: {
-      kycData: kycData as Prisma.InputJsonValue,
+      kycData: kycData as InputJsonValue,
     },
   });
   await applyPayoutKycVerifications(profile.id, userId, [{ documentType, documentUrl: storageRef }]);
@@ -274,12 +274,12 @@ export async function registerFunderKycUpload(
     create: {
       userId,
       verificationStatus: "DRAFT",
-      kycData: kycData as Prisma.InputJsonValue,
+      kycData: kycData as InputJsonValue,
       limitedAccessEnabled: true,
       adminReviewRequired: true,
     },
     update: {
-      kycData: kycData as Prisma.InputJsonValue,
+      kycData: kycData as InputJsonValue,
     },
   });
   await applyFunderKycVerifications(profile.id, userId, [{ documentType, documentUrl: storageRef }]);

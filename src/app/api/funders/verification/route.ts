@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
+import type { InputJsonValue } from "@/lib/prisma-json";
 import { prisma } from "@/lib/prisma";
 import { canAccessFunderVerificationApi, requireSessionUser } from "@/lib/funders";
 import { validateIdOrPassportByCountry, validateIdOrPassportByCountryIfPresent } from "@/lib/kyc-validation";
@@ -135,7 +135,7 @@ export async function POST(req: NextRequest) {
         preferredStages: JSON.stringify(body.preferredStages ?? []),
         preferredMarkets: JSON.stringify(body.preferredMarkets ?? []),
         preferredRegions: JSON.stringify(body.preferredRegions ?? []),
-        kycData: (body.kycData ?? {}) as Prisma.InputJsonValue,
+        kycData: (body.kycData ?? {}) as InputJsonValue,
         verificationStatus: "PENDING",
         riskLevel: parseRiskLevel(body.kycData ?? {}),
         submittedAt: new Date(),
@@ -151,7 +151,7 @@ export async function POST(req: NextRequest) {
         preferredStages: JSON.stringify(body.preferredStages ?? []),
         preferredMarkets: JSON.stringify(body.preferredMarkets ?? []),
         preferredRegions: JSON.stringify(body.preferredRegions ?? []),
-        kycData: (body.kycData ?? {}) as Prisma.InputJsonValue,
+        kycData: (body.kycData ?? {}) as InputJsonValue,
         verificationStatus: "PENDING",
         riskLevel: parseRiskLevel(body.kycData ?? {}),
         submittedAt: new Date(),
@@ -219,14 +219,14 @@ export async function PATCH(req: NextRequest) {
         entityType: body.entityType?.trim() || "INDIVIDUAL",
         verificationStatus: "DRAFT",
         riskLevel: parseRiskLevel(kycPayload),
-        kycData: kycPayload as Prisma.InputJsonValue,
+        kycData: kycPayload as InputJsonValue,
         limitedAccessEnabled: true,
         adminReviewRequired: true,
       },
       update: {
         legalName,
         entityType: body.entityType?.trim() || undefined,
-        kycData: kycPayload as Prisma.InputJsonValue,
+        kycData: kycPayload as InputJsonValue,
         riskLevel: parseRiskLevel(kycPayload),
         ...draftStatusUpdate,
       },

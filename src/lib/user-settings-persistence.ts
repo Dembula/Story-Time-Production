@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import type { InputJsonValue } from "@/lib/prisma-json";
 import { prisma } from "@/lib/prisma";
 
 export type BillingAddressPayload = {
@@ -20,7 +20,7 @@ export async function upsertViewerBillingAddress(userId: string, address: Billin
 
   const pref = await prisma.userPreference.findUnique({ where: { userId } });
   const currentExtras = (pref?.profileExtras ?? {}) as Record<string, unknown>;
-  const nextExtras = { ...currentExtras, accountAddress: normalized } as Prisma.InputJsonValue;
+  const nextExtras = { ...currentExtras, accountAddress: normalized } as InputJsonValue;
 
   if (pref) {
     await prisma.userPreference.update({

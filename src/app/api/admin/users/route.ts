@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
+import { prismaJsonNull } from "@/lib/prisma-json";
 import { ensureUserRole, replaceUserRoles } from "@/lib/user-roles";
 import { hash } from "bcryptjs";
 
@@ -51,7 +51,7 @@ export async function PATCH(req: NextRequest) {
         action: "USER_ROLE_CHANGE",
         entityType: "User",
         entityId: userId,
-        oldValue: before ? { role: before.role } : (Prisma.JsonNull as any),
+        oldValue: before ? { role: before.role } : (prismaJsonNull),
         newValue: { role: updated.role, roles: updatedRoles.map((r) => r.role) },
       },
     });
@@ -70,7 +70,7 @@ export async function PATCH(req: NextRequest) {
         action: "USER_ROLE_SET",
         entityType: "User",
         entityId: userId,
-        oldValue: before ? { role: before.role } : (Prisma.JsonNull as any),
+        oldValue: before ? { role: before.role } : (prismaJsonNull),
         newValue: { role: updated.role, roles: finalRoles },
       },
     });
@@ -95,7 +95,7 @@ export async function PATCH(req: NextRequest) {
         action: "USER_EMAIL_UPDATE",
         entityType: "User",
         entityId: userId,
-        oldValue: before ? { email: before.email } : (Prisma.JsonNull as any),
+        oldValue: before ? { email: before.email } : (prismaJsonNull),
         newValue: { email: updated.email },
       },
     });
@@ -117,7 +117,7 @@ export async function PATCH(req: NextRequest) {
         action: "USER_PASSWORD_RESET",
         entityType: "User",
         entityId: userId,
-        oldValue: Prisma.JsonNull as any,
+        oldValue: prismaJsonNull,
         newValue: { changedByAdmin: true },
       },
     });
@@ -156,7 +156,7 @@ export async function PATCH(req: NextRequest) {
         entityId: userId,
         oldValue: before
           ? { creatorAccountStructure: before.creatorAccountStructure, creatorTeamSeatCap: before.creatorTeamSeatCap }
-          : (Prisma.JsonNull as any),
+          : (prismaJsonNull),
         newValue: { creatorAccountStructure: updated.creatorAccountStructure, creatorTeamSeatCap: updated.creatorTeamSeatCap },
       },
     });
@@ -172,7 +172,7 @@ export async function PATCH(req: NextRequest) {
         action: "USER_NAME_UPDATE",
         entityType: "User",
         entityId: userId,
-        oldValue: before ? { name: before.name } : (Prisma.JsonNull as any),
+        oldValue: before ? { name: before.name } : (prismaJsonNull),
         newValue: { name: updated.name },
       },
     });
@@ -188,8 +188,8 @@ export async function PATCH(req: NextRequest) {
         action: "USER_DELETE",
         entityType: "User",
         entityId: userId,
-        oldValue: before ? { email: before.email, role: before.role } : (Prisma.JsonNull as any),
-        newValue: Prisma.JsonNull as any,
+        oldValue: before ? { email: before.email, role: before.role } : (prismaJsonNull),
+        newValue: prismaJsonNull,
       },
     });
     return NextResponse.json({ success: true });

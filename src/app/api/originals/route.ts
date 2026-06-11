@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
+import type { InputJsonValue } from "@/lib/prisma-json";
+import type { Prisma } from "../../../../generated/prisma";
 import { notifyUser } from "@/lib/notify-user";
 import { buildAppUrl } from "@/lib/app-url";
 import { validateStorageUrlField } from "@/lib/storage-origin";
@@ -243,7 +244,7 @@ export async function POST(req: NextRequest) {
       type: "SUBMITTED",
       at: new Date().toISOString(),
       note: "Submission created",
-    } satisfies Prisma.InputJsonValue;
+    } satisfies InputJsonValue;
 
     const currentData = {
       title: title.trim(),
@@ -291,7 +292,7 @@ export async function POST(req: NextRequest) {
           submissionTimeline: [
             ...previousTimeline,
             { type: "RESUBMITTED", at: new Date().toISOString(), note: "Creator resubmitted updated materials." },
-          ] as Prisma.InputJsonValue,
+          ] as InputJsonValue,
         },
       });
     } else {
@@ -320,7 +321,7 @@ export async function POST(req: NextRequest) {
             submissionTimeline: [
               ...previousTimeline,
               { type: "RESUBMITTED", at: new Date().toISOString(), note: "Auto-linked resubmission after changes requested." },
-            ] as Prisma.InputJsonValue,
+            ] as InputJsonValue,
           },
         });
       } else {
@@ -328,7 +329,7 @@ export async function POST(req: NextRequest) {
           data: {
             ...currentData,
             creatorId: session.user.id,
-            submissionTimeline: [timelineEntry] as Prisma.InputJsonValue,
+            submissionTimeline: [timelineEntry] as InputJsonValue,
           },
         });
       }
@@ -416,7 +417,7 @@ export async function POST(req: NextRequest) {
               teamReadiness: parsedRubric.teamReadiness,
               weightedScore,
               updatedAt: new Date().toISOString(),
-            } as Prisma.InputJsonValue,
+            } as InputJsonValue,
             reviewWeightedScore: weightedScore,
             reviewReasonCodes: normalizedReasonCodes.join(","),
             submissionTimeline: [
@@ -431,7 +432,7 @@ export async function POST(req: NextRequest) {
                 weightedScore,
                 adminId,
               },
-            ] as Prisma.InputJsonValue,
+            ] as InputJsonValue,
           },
           include: {
             creator: { select: { id: true, name: true, email: true } },
@@ -484,7 +485,7 @@ export async function POST(req: NextRequest) {
             adminNote: result.adminNote,
             weightedScore,
             reasonCodes: normalizedReasonCodes,
-          } as Prisma.InputJsonValue,
+          } as InputJsonValue,
         },
       });
     }

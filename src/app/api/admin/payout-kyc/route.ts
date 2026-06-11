@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import type { InputJsonValue } from "@/lib/prisma-json";
 import type { KycPayload } from "@/lib/payout-kyc";
 import { mergeVerificationDocsIntoKycPayload } from "@/lib/kyc-verification-sync";
 
@@ -124,8 +124,8 @@ export async function PATCH(req: NextRequest) {
         action: "PAYOUT_KYC_REVIEW",
         entityType: "PayoutKycProfile",
         entityId: profile.id,
-        oldValue: { verificationStatus: profile.verificationStatus } as Prisma.InputJsonValue,
-        newValue: { verificationStatus: body.status, note: body.note ?? null } as Prisma.InputJsonValue,
+        oldValue: { verificationStatus: profile.verificationStatus } as InputJsonValue,
+        newValue: { verificationStatus: body.status, note: body.note ?? null } as InputJsonValue,
       },
     });
 

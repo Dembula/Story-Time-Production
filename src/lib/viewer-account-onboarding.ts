@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import type { InputJsonValue } from "@/lib/prisma-json";
 import { prisma } from "@/lib/prisma";
 
 export type ViewerAccountOnboardingPayload = {
@@ -89,7 +89,7 @@ export async function saveViewerAccountOnboardingDraft(
 
     const pref = await tx.userPreference.findUnique({ where: { userId } });
     const currentExtras = (pref?.profileExtras ?? {}) as Record<string, unknown>;
-    const nextExtras = { ...currentExtras, accountAddress: address } as Prisma.InputJsonValue;
+    const nextExtras = { ...currentExtras, accountAddress: address } as InputJsonValue;
 
     if (pref) {
       await tx.userPreference.update({
@@ -145,7 +145,7 @@ export async function completeViewerAccountOnboarding(
 
     const pref = await tx.userPreference.findUnique({ where: { userId } });
     const currentExtras = (pref?.profileExtras ?? {}) as Record<string, unknown>;
-    const nextExtras = { ...currentExtras, accountAddress: address } as Prisma.InputJsonValue;
+    const nextExtras = { ...currentExtras, accountAddress: address } as InputJsonValue;
 
     if (pref) {
       await tx.userPreference.update({

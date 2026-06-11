@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
+import type { InputJsonValue } from "@/lib/prisma-json";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -129,7 +129,7 @@ export async function POST(req: NextRequest) {
         accountRole: access.role!,
         entityType: body.entityType?.trim() || "INDIVIDUAL",
         legalName,
-        kycData: (body.kycData ?? {}) as Prisma.InputJsonValue,
+        kycData: (body.kycData ?? {}) as InputJsonValue,
         verificationStatus: "PENDING",
         riskLevel: parsePayoutKycRiskLevel(body.kycData ?? {}),
         submittedAt: new Date(),
@@ -138,7 +138,7 @@ export async function POST(req: NextRequest) {
       update: {
         entityType: body.entityType?.trim() || undefined,
         legalName,
-        kycData: (body.kycData ?? {}) as Prisma.InputJsonValue,
+        kycData: (body.kycData ?? {}) as InputJsonValue,
         verificationStatus: "PENDING",
         riskLevel: parsePayoutKycRiskLevel(body.kycData ?? {}),
         submittedAt: new Date(),
@@ -204,13 +204,13 @@ export async function PATCH(req: NextRequest) {
         entityType: body.entityType?.trim() || "INDIVIDUAL",
         verificationStatus: "DRAFT",
         riskLevel: parsePayoutKycRiskLevel(kycPayload),
-        kycData: kycPayload as Prisma.InputJsonValue,
+        kycData: kycPayload as InputJsonValue,
         adminReviewRequired: true,
       },
       update: {
         legalName,
         entityType: body.entityType?.trim() || undefined,
-        kycData: kycPayload as Prisma.InputJsonValue,
+        kycData: kycPayload as InputJsonValue,
         riskLevel: parsePayoutKycRiskLevel(kycPayload),
         ...draftStatusUpdate,
       },
