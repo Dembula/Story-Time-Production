@@ -49,7 +49,38 @@ export type ModocActionType =
   | "sync_production_workspace_tasks"
   | "add_music_selection"
   | "create_footage_asset"
-  | "submit_distribution";
+  | "submit_distribution"
+  | "update_script_content"
+  | "append_script_content"
+  | "update_budget_line"
+  | "delete_budget_line"
+  | "update_shoot_day"
+  | "delete_shoot_day"
+  | "update_casting_role"
+  | "delete_casting_role"
+  | "update_crew_need"
+  | "delete_crew_need"
+  | "update_equipment_plan_item"
+  | "delete_equipment_plan_item"
+  | "update_breakdown_location"
+  | "delete_breakdown_location"
+  | "update_production_expense"
+  | "delete_production_expense"
+  | "update_incident_report"
+  | "resolve_incident_report"
+  | "delete_incident_report"
+  | "update_continuity_note"
+  | "delete_continuity_note"
+  | "delete_dailies_batch"
+  | "delete_project_idea"
+  | "update_table_read_session"
+  | "delete_table_read_session"
+  | "delete_music_selection"
+  | "delete_footage_asset"
+  | "update_risk_checklist_item"
+  | "delete_risk_checklist_item"
+  | "create_visual_asset"
+  | "delete_visual_asset";
 
 export type ModocActionPayload = {
   projectId?: string;
@@ -106,6 +137,10 @@ export type ModocActionPayload = {
   endDate?: string;
   dueDate?: string;
   eventId?: string;
+  content?: string;
+  lineId?: string;
+  imageUrl?: string;
+  resolved?: boolean;
 };
 
 /** All actions the VA can execute — used for validation and prompts. */
@@ -161,6 +196,37 @@ export const MODOC_ACTION_TYPES: ModocActionType[] = [
   "add_music_selection",
   "create_footage_asset",
   "submit_distribution",
+  "update_script_content",
+  "append_script_content",
+  "update_budget_line",
+  "delete_budget_line",
+  "update_shoot_day",
+  "delete_shoot_day",
+  "update_casting_role",
+  "delete_casting_role",
+  "update_crew_need",
+  "delete_crew_need",
+  "update_equipment_plan_item",
+  "delete_equipment_plan_item",
+  "update_breakdown_location",
+  "delete_breakdown_location",
+  "update_production_expense",
+  "delete_production_expense",
+  "update_incident_report",
+  "resolve_incident_report",
+  "delete_incident_report",
+  "update_continuity_note",
+  "delete_continuity_note",
+  "delete_dailies_batch",
+  "delete_project_idea",
+  "update_table_read_session",
+  "delete_table_read_session",
+  "delete_music_selection",
+  "delete_footage_asset",
+  "update_risk_checklist_item",
+  "delete_risk_checklist_item",
+  "create_visual_asset",
+  "delete_visual_asset",
 ];
 
 const ACTION_ALIASES: Record<string, ModocActionType> = {
@@ -288,6 +354,51 @@ const ACTION_ALIASES: Record<string, ModocActionType> = {
   footage_asset: "create_footage_asset",
   distribution_submit: "submit_distribution",
   submit_for_distribution: "submit_distribution",
+
+  // Script & field fill
+  update_script: "update_script_content",
+  save_script: "update_script_content",
+  append_script: "append_script_content",
+  write_script: "update_script_content",
+
+  // Budget CRUD
+  edit_budget_line: "update_budget_line",
+  remove_budget_line: "delete_budget_line",
+
+  // Schedule CRUD
+  edit_shoot_day: "update_shoot_day",
+  remove_shoot_day: "delete_shoot_day",
+
+  // Casting / crew CRUD
+  edit_casting_role: "update_casting_role",
+  remove_casting_role: "delete_casting_role",
+  edit_crew_need: "update_crew_need",
+  remove_crew_need: "delete_crew_need",
+
+  // Equipment & locations
+  edit_equipment: "update_equipment_plan_item",
+  remove_equipment: "delete_equipment_plan_item",
+  edit_location: "update_breakdown_location",
+  remove_location: "delete_breakdown_location",
+
+  // Production ops CRUD
+  edit_expense: "update_production_expense",
+  remove_expense: "delete_production_expense",
+  edit_incident: "update_incident_report",
+  resolve_incident: "resolve_incident_report",
+  remove_incident: "delete_incident_report",
+  edit_continuity: "update_continuity_note",
+  remove_continuity: "delete_continuity_note",
+  remove_dailies: "delete_dailies_batch",
+  delete_idea: "delete_project_idea",
+  edit_table_read: "update_table_read_session",
+  remove_table_read: "delete_table_read_session",
+  remove_music: "delete_music_selection",
+  remove_footage: "delete_footage_asset",
+  edit_risk_item: "update_risk_checklist_item",
+  remove_risk_item: "delete_risk_checklist_item",
+  add_visual: "create_visual_asset",
+  remove_visual: "delete_visual_asset",
 };
 
 export function normalizeModocActionType(raw: string): ModocActionType | null {

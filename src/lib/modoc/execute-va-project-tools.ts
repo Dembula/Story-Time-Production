@@ -502,6 +502,15 @@ export async function vaUpdateIdeaNotes(
   return {
     ok: true,
     message: "Idea development notes saved.",
-    data: { projectId },
+    data: {
+      projectId,
+      fillFields: {
+        tool: "idea-development",
+        ...(payload.logline !== undefined ? { logline: payload.logline } : {}),
+        ...(payload.notes !== undefined ? { notes: payload.notes } : {}),
+        ...(payload.genres !== undefined ? { genres: payload.genres } : {}),
+        ...(payload.title !== undefined ? { title: payload.title } : {}),
+      },
+    },
   };
 }

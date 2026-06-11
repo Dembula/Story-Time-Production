@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ModocFieldPopover } from "@/components/modoc";
 import { useModocOptional } from "@/components/modoc/use-modoc";
+import { useModocToolRefresh } from "@/components/modoc/use-modoc-tool-refresh";
 import { parseScenesFromScreenplay } from "@/lib/scene-parser";
 
 export interface ScriptWritingToolProps {
@@ -118,6 +119,28 @@ export function ScriptWritingTool({ projectId, title = "Script Writing" }: Scrip
 
   const detectedSceneCount = useMemo(() => parseScenesFromScreenplay(content).length, [content]);
 
+  const modoc = useModocOptional();
+  const [scriptPopoverOpen, setScriptPopoverOpen] = useState(false);
+
+  useModocToolRefresh({
+    queryKeys: projectId ? ["project-script", "project-scenes"] : [],
+    onFieldFill: (detail) => {
+      if (detail.tool !== "script-writing" || !detail.fields.content) return;
+      setContent((prev) =>
+        detail.fields.mode === "append" ? `${prev.trimEnd()}\n\n${detail.fields.content}` : detail.fields.content,
+      );
+    },
+  });
+
+  useEffect(() => {
+    if (!modoc || !projectId) return;
+    modoc.setRequestContext({
+      scope: "script-writing",
+      clientContext: `Script Writing for project ${projectId}.`,
+      pageContext: { tool: "script-writing", projectId },
+    });
+  }, [modoc, projectId]);
+
   if (!projectId) {
     return (
       <div className="space-y-4">
@@ -212,7 +235,13 @@ export function ScriptWritingTool({ projectId, title = "Script Writing" }: Scrip
           </p>
           <div className="flex items-center justify-between gap-2">
             <label className="text-xs text-slate-400">Screenplay</label>
-            
+            <button
+              type="button"
+              onClick={() => setScriptPopoverOpen(true)}
+              className="inline-flex items-center gap-1 rounded-md border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-[10px] text-cyan-200 hover:bg-cyan-500/20"
+            >
+              <Bot className="h-3 w-3" /> VA help
+            </button>
           </div>
           <textarea
             value={content}
@@ -224,7 +253,24 @@ export function ScriptWritingTool({ projectId, title = "Script Writing" }: Scrip
         </div>
       </div>
 
-      
+      {scriptPopoverOpen && (
+        <ModocFieldPopover
+          open
+          onClose={() => setScriptPopoverOpen(false)}
+          task="script"
+          sectionLabel="screenplay"
+          projectId={projectId}
+          context={{
+            title: scriptTitle || primaryIdea?.title,
+            logline: primaryIdea?.logline ?? undefined,
+            scriptExcerpt: content.slice(0, 4000),
+          }}
+          onIncorporate={(text) => {
+            setContent((prev) => (prev.trim() ? `${prev.trimEnd()}\n\n${text}` : text));
+            setScriptPopoverOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 }

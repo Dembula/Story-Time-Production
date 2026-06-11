@@ -9,3 +9,4 @@ export type { ModocFieldContext } from "./modoc-field-popover";
 export { ModocVaShell } from "./modoc-va-shell";
 export { ModocGlobalPanel } from "./modoc-global-panel";
 export { ModocRouteSync } from "./modoc-route-sync";
+export { useModocToolRefresh } from "./use-modoc-tool-refresh";

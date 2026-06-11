@@ -16,9 +16,9 @@ import { parseModocActionFromText, stripModocActionLines, type ModocActionType }
 import { buildModocGreeting } from "@/lib/modoc/greeting";
 import { resolveQuickPromptAction } from "@/lib/modoc/quick-prompt-actions";
 import {
-  CALENDAR_RELATED_ACTIONS,
-  notifyCommandCenterCalendarChanged,
-} from "@/lib/modoc/modoc-calendar-sync";
+  notifyModocFieldFill,
+  notifyModocToolsChanged,
+} from "@/lib/modoc/modoc-tool-sync";
 import { getModocMessageText } from "./modoc-context";
 
 type ModocConversationSummary = {
@@ -262,7 +262,7 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
       pendingContextRefreshRef.current = false;
       void loadContext();
       if (pathname.includes("/command-center")) {
-        notifyCommandCenterCalendarChanged();
+        notifyModocToolsChanged("create_calendar_event");
       }
     }
   }, [status, loadContext, pathname]);
@@ -346,8 +346,14 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
             window.setTimeout(() => setActionMessage(null), 8000);
           }
           pendingContextRefreshRef.current = true;
-          if (CALENDAR_RELATED_ACTIONS.has(action)) {
-            notifyCommandCenterCalendarChanged();
+          notifyModocToolsChanged(action);
+          const fillFields = data.data?.fillFields as Record<string, string> | undefined;
+          if (fillFields && typeof fillFields === "object") {
+            notifyModocFieldFill({
+              tool: fillFields.tool ?? "unknown",
+              projectId: typeof resolvedPayload.projectId === "string" ? resolvedPayload.projectId : undefined,
+              fields: fillFields,
+            });
           }
         }
       } catch {
@@ -376,8 +382,8 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
         { role: "user", content: userText },
         executeAction ? { body: { executeAction } } : undefined,
       );
-      if (executeAction && CALENDAR_RELATED_ACTIONS.has(executeAction.type)) {
-        notifyCommandCenterCalendarChanged();
+      if (executeAction) {
+        notifyModocToolsChanged(executeAction.type);
       }
     },
     [append, status, actionRunning],

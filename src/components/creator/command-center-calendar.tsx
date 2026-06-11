@@ -476,8 +476,12 @@ export function CommandCenterCalendar() {
     const handler = () => {
       void queryClient.invalidateQueries({ queryKey: COMMAND_CENTER_CALENDAR_QUERY_KEY });
     };
+    window.addEventListener("modoc:tools-changed", handler);
     window.addEventListener("modoc:calendar-changed", handler);
-    return () => window.removeEventListener("modoc:calendar-changed", handler);
+    return () => {
+      window.removeEventListener("modoc:tools-changed", handler);
+      window.removeEventListener("modoc:calendar-changed", handler);
+    };
   }, [queryClient]);
 
   const monthLabel = month.toLocaleDateString(undefined, { month: "long", year: "numeric" });

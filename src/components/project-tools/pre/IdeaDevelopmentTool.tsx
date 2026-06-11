@@ -7,6 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ModocFieldPopover } from "@/components/modoc";
 import { useModocOptional } from "@/components/modoc/use-modoc";
+import { useModocToolRefresh } from "@/components/modoc/use-modoc-tool-refresh";
 
 export interface IdeaDevelopmentToolProps {
   projectId?: string;
@@ -155,6 +156,39 @@ export function IdeaDevelopmentTool({
     },
   });
 
+  const modoc = useModocOptional();
+  const [fieldPopover, setFieldPopover] = useState<{
+    task: "logline" | "idea_notes";
+    sectionLabel: string;
+  } | null>(null);
+
+  useModocToolRefresh({
+    queryKeys: hasProject ? ["project-ideas"] : ["creator-ideas"],
+    onFieldFill: (detail) => {
+      if (detail.tool !== "idea-development") return;
+      setDraft((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          ...(detail.fields.logline ? { logline: detail.fields.logline } : {}),
+          ...(detail.fields.notes ? { notes: detail.fields.notes } : {}),
+          ...(detail.fields.genres ? { genres: detail.fields.genres } : {}),
+          ...(detail.fields.title ? { title: detail.fields.title } : {}),
+        };
+      });
+      setDirty(true);
+    },
+  });
+
+  useEffect(() => {
+    if (!modoc || !projectId) return;
+    modoc.setRequestContext({
+      scope: "idea-development",
+      clientContext: `Idea Development for project ${projectId}.`,
+      pageContext: { tool: "idea-development", projectId },
+    });
+  }, [modoc, projectId]);
+
   return (
     <div className="space-y-4">
       <header className="flex items-center justify-between gap-3">
@@ -250,7 +284,13 @@ export function IdeaDevelopmentTool({
                 <div className="space-y-1">
                   <div className="flex items-center justify-between gap-2">
                     <label className="text-xs text-slate-400">Logline</label>
-                    
+                    <button
+                      type="button"
+                      onClick={() => setFieldPopover({ task: "logline", sectionLabel: "logline" })}
+                      className="inline-flex items-center gap-1 rounded-md border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-[10px] text-cyan-200 hover:bg-cyan-500/20"
+                    >
+                      <Bot className="h-3 w-3" /> VA help
+                    </button>
                   </div>
                   <textarea
                     value={draft.logline}
@@ -266,7 +306,13 @@ export function IdeaDevelopmentTool({
                 <div className="space-y-1">
                   <div className="flex items-center justify-between gap-2">
                     <label className="text-xs text-slate-400">Idea notes</label>
-                    
+                    <button
+                      type="button"
+                      onClick={() => setFieldPopover({ task: "idea_notes", sectionLabel: "idea notes" })}
+                      className="inline-flex items-center gap-1 rounded-md border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-[10px] text-cyan-200 hover:bg-cyan-500/20"
+                    >
+                      <Bot className="h-3 w-3" /> VA help
+                    </button>
                   </div>
                   <textarea
                     value={draft.notes}
@@ -347,8 +393,29 @@ export function IdeaDevelopmentTool({
         </div>
       </div>
 
-      
-      
+      {fieldPopover && draft && (
+        <ModocFieldPopover
+          open
+          onClose={() => setFieldPopover(null)}
+          task={fieldPopover.task}
+          sectionLabel={fieldPopover.sectionLabel}
+          projectId={projectId}
+          context={{
+            title: draft.title,
+            logline: draft.logline,
+            notesExcerpt: draft.notes,
+          }}
+          onIncorporate={(text) => {
+            if (fieldPopover.task === "logline") {
+              setDraft({ ...draft, logline: text });
+            } else {
+              setDraft({ ...draft, notes: draft.notes ? `${draft.notes}\n\n${text}` : text });
+            }
+            setDirty(true);
+            setFieldPopover(null);
+          }}
+        />
+      )}
     </div>
   );
 }
