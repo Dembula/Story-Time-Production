@@ -80,7 +80,16 @@ export type ModocActionType =
   | "update_risk_checklist_item"
   | "delete_risk_checklist_item"
   | "create_visual_asset"
-  | "delete_visual_asset";
+  | "delete_visual_asset"
+  | "incorporate_breakdown_items"
+  | "create_contract"
+  | "send_contract"
+  | "update_contract"
+  | "delete_contract"
+  | "create_post_review"
+  | "add_post_review_note"
+  | "update_post_review"
+  | "delete_post_review";
 
 export type ModocActionPayload = {
   projectId?: string;
@@ -141,6 +150,11 @@ export type ModocActionPayload = {
   lineId?: string;
   imageUrl?: string;
   resolved?: boolean;
+  contractId?: string;
+  reviewId?: string;
+  cutAssetId?: string;
+  resourceType?: string;
+  resourceId?: string;
 };
 
 /** All actions the VA can execute — used for validation and prompts. */
@@ -227,6 +241,15 @@ export const MODOC_ACTION_TYPES: ModocActionType[] = [
   "delete_risk_checklist_item",
   "create_visual_asset",
   "delete_visual_asset",
+  "incorporate_breakdown_items",
+  "create_contract",
+  "send_contract",
+  "update_contract",
+  "delete_contract",
+  "create_post_review",
+  "add_post_review_note",
+  "update_post_review",
+  "delete_post_review",
 ];
 
 const ACTION_ALIASES: Record<string, ModocActionType> = {
@@ -399,6 +422,24 @@ const ACTION_ALIASES: Record<string, ModocActionType> = {
   remove_risk_item: "delete_risk_checklist_item",
   add_visual: "create_visual_asset",
   remove_visual: "delete_visual_asset",
+
+  // Breakdown chat incorporate
+  add_to_breakdown: "incorporate_breakdown_items",
+  incorporate_breakdown: "incorporate_breakdown_items",
+
+  // Legal & contracts
+  new_contract: "create_contract",
+  draft_contract: "create_contract",
+  contract_send: "send_contract",
+  edit_contract: "update_contract",
+  remove_contract: "delete_contract",
+
+  // Editing studio reviews
+  new_review: "create_post_review",
+  post_review: "create_post_review",
+  review_note: "add_post_review_note",
+  edit_review: "update_post_review",
+  remove_review: "delete_post_review",
 };
 
 export function normalizeModocActionType(raw: string): ModocActionType | null {

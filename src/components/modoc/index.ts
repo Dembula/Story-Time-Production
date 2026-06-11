@@ -10,3 +10,4 @@ export { ModocVaShell } from "./modoc-va-shell";
 export { ModocGlobalPanel } from "./modoc-global-panel";
 export { ModocRouteSync } from "./modoc-route-sync";
 export { useModocToolRefresh } from "./use-modoc-tool-refresh";
+export { ModocBreakdownIncorporateBar } from "./modoc-breakdown-incorporate-bar";

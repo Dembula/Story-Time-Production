@@ -22,6 +22,7 @@ import {
 } from "@/lib/modoc/execute-va-project-tools";
 import { executeExtendedModocAction } from "@/lib/modoc/execute-va-extended-actions";
 import { executeVaCrudAction } from "@/lib/modoc/execute-va-crud";
+import { executeVaLegalPostAction } from "@/lib/modoc/execute-va-legal-post";
 import { executePriorityModocAction } from "@/lib/modoc/execute-va-priority-actions";
 import type { ModocActionPayload, ModocActionType } from "@/lib/modoc/action-types";
 
@@ -459,6 +460,8 @@ export async function executeModocAction(
       return vaUpdateIdeaNotes(payload.projectId, payload);
 
     default: {
+      const legalPost = await executeVaLegalPostAction(userId, action, payload);
+      if (legalPost) return legalPost;
       const crud = await executeVaCrudAction(userId, action, payload);
       if (crud) return crud;
       const extended = await executeExtendedModocAction(userId, action, payload);

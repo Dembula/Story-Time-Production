@@ -17,6 +17,7 @@ import {
   MODOC_TASK_CREW_MARKETPLACE,
   MODOC_TASK_VISUAL_PLANNING,
   MODOC_TASK_LEGAL_CONTRACTS,
+  MODOC_TASK_EDITING_STUDIO,
   MODOC_TASK_FUNDING_HUB,
   MODOC_TASK_TABLE_READS,
   MODOC_TASK_PRODUCTION_WORKSPACE,
@@ -264,6 +265,7 @@ ${playbookBlob}`;
   if (task === "crew_marketplace") systemPrompt += MODOC_TASK_CREW_MARKETPLACE;
   if (task === "visual_planning") systemPrompt += MODOC_TASK_VISUAL_PLANNING;
   if (task === "legal_contracts") systemPrompt += MODOC_TASK_LEGAL_CONTRACTS;
+  if (task === "editing_studio") systemPrompt += MODOC_TASK_EDITING_STUDIO;
   if (task === "funding_hub") systemPrompt += MODOC_TASK_FUNDING_HUB;
   if (task === "table_reads") systemPrompt += MODOC_TASK_TABLE_READS;
   if (task === "production_workspace") systemPrompt += MODOC_TASK_PRODUCTION_WORKSPACE;
@@ -291,6 +293,7 @@ ${playbookBlob}`;
     task === "crew_marketplace" ||
     task === "visual_planning" ||
     task === "legal_contracts" ||
+    task === "editing_studio" ||
     task === "funding_hub" ||
     task === "table_reads" ||
     task === "production_workspace" ||
@@ -605,6 +608,47 @@ Suggest visual storyboards, shot compositions, and camera movements/angles based
 ${contractsBlob}
 
 Analyze for compliance with industry standards; highlight important terms and potential issues. Frame as points to review with legal counsel.`;
+      }
+
+      if (task === "editing_studio" && project) {
+        const [reviews, edits] = await Promise.all([
+          prisma.postProductionReview.findMany({
+            where: { projectId: project.id },
+            orderBy: { createdAt: "desc" },
+            take: 10,
+            include: { notes: { orderBy: { createdAt: "desc" }, take: 5 }, cutAsset: true },
+          }),
+          prisma.footageAsset.findMany({
+            where: { projectId: project.id, type: "EDIT" },
+            orderBy: { createdAt: "desc" },
+            take: 10,
+            select: { id: true, label: true, fileUrl: true },
+          }),
+        ]);
+        const reviewsBlob =
+          reviews.length > 0
+            ? reviews
+                .map(
+                  (r) =>
+                    `--- Review ${r.id} | status: ${r.status} | cut: ${r.cutAsset?.label ?? r.cutAssetId ?? "—"}\nNotes:\n${r.notes.map((n) => `  · ${n.body.slice(0, 400)}`).join("\n") || "  (none)"}`,
+                )
+                .join("\n\n")
+            : "(No review sessions yet)";
+        const editsBlob =
+          edits.length > 0
+            ? edits.map((e) => `- ${e.id}: ${e.label ?? "Edit"} · ${e.fileUrl}`).join("\n")
+            : "(No edit assets yet)";
+        systemPrompt += `
+
+## Editing studio context — use this to answer
+
+**Edit assets (cutAssetId for new reviews):**
+${editsBlob}
+
+**Review sessions:**
+${reviewsBlob}
+
+Summarize feedback, suggest editorial next steps, and use create_post_review / add_post_review_note actions when the user asks to log or update reviews.`;
       }
 
       if (task === "funding_hub" && project) {

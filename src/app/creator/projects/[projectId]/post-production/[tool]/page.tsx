@@ -11,6 +11,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { FootageIngestion } from "@/components/project-tools/post/PostProductionWidgets";
 import { DistributionToolPanel } from "@/components/project-tools/post/DistributionToolPanel";
 import { projectToolQueryFn } from "@/lib/project-tool-fetch";
+import { useModocToolRefresh } from "@/components/modoc/use-modoc-tool-refresh";
+import { queryKeysForProjectTool } from "@/lib/modoc/project-tool-query-keys";
 
 interface PostProductionToolPageProps {
   params: Promise<{ projectId: string; tool: string }>;
@@ -129,6 +131,8 @@ export default function PostProductionToolPage({ params }: PostProductionToolPag
   const projectId = resolved?.projectId ?? "";
   const tool = resolved?.tool ?? "";
   const title = LABELS[tool] ?? "Post-Production Workspace";
+
+  useModocToolRefresh({ queryKeys: queryKeysForProjectTool(tool) });
 
   if (tool === "footage-ingestion") return <FootageIngestion projectId={projectId} title={title} />;
   if (tool === "editing-studio") return <EditingStudio projectId={projectId} title={title} />;

@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useModocOptional, useModoc } from "@/components/modoc";
+import { useModocToolRefresh } from "@/components/modoc/use-modoc-tool-refresh";
+import { queryKeysForProjectTool } from "@/lib/modoc/project-tool-query-keys";
 import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
 import { useProjectSchedule, useProjectCallSheets } from "@/hooks/useCreatorProjectData";
 import { ProductionModocReportModal } from "../production-modoc-modal";
@@ -63,6 +65,8 @@ export default function ProductionToolPage({ params }: ProductionToolPageProps) 
   const tool = resolved?.tool ?? "";
   const title = LABELS[tool] ?? "Production Workspace";
   const hasProject = !!projectId;
+
+  useModocToolRefresh({ queryKeys: queryKeysForProjectTool(tool) });
 
   if (tool === "control-center") {
     return (

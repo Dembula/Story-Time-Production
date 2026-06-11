@@ -76,6 +76,15 @@ const ACTION_QUERY_KEYS: Partial<Record<ModocActionType, string[]>> = {
   move_to_production: ["creator-command-center", "project-status"],
   update_project_phase: ["creator-command-center", "project-status"],
   update_funding_details: ["project-funding"],
+  incorporate_breakdown_items: ["project-breakdown"],
+  create_contract: ["project-contracts"],
+  send_contract: ["project-contracts"],
+  update_contract: ["project-contracts"],
+  delete_contract: ["project-contracts"],
+  create_post_review: ["project-reviews"],
+  add_post_review_note: ["project-reviews"],
+  update_post_review: ["project-reviews"],
+  delete_post_review: ["project-reviews"],
 };
 
 export const CALENDAR_RELATED_ACTIONS = new Set<ModocActionType>([

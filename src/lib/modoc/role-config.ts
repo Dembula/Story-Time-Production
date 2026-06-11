@@ -111,5 +111,42 @@ export function derivePageContext(pathname: string): Record<string, string> {
   else if (pathname.includes("/production")) ctx.area = "production";
   else if (pathname.includes("/post-production")) ctx.area = "post-production";
 
+  const task = toolSlugToModocTask(ctx.tool);
+  if (task) ctx.task = task;
+
   return ctx;
+}
+
+/** Maps creator tool URL slugs to MODOC chat task ids (underscore form). */
+export function toolSlugToModocTask(tool: string | undefined): string | undefined {
+  if (!tool) return undefined;
+  const map: Record<string, string> = {
+    "script-review": "script_review",
+    "script-breakdown": "script_breakdown",
+    "budget-builder": "budget",
+    "production-scheduling": "schedule",
+    "casting-portal": "casting_portal",
+    "crew-marketplace": "crew_marketplace",
+    "location-marketplace": "location_marketplace",
+    "visual-planning": "visual_planning",
+    "legal-contracts": "legal_contracts",
+    "funding-hub": "funding_hub",
+    "table-reads": "table_reads",
+    "production-workspace": "production_workspace",
+    "equipment-planning": "equipment_planning",
+    "risk-insurance": "risk_insurance",
+    "production-readiness": "production_readiness",
+    "control-center": "production_control_center",
+    "call-sheet-generator": "call_sheet_generator",
+    "on-set-tasks": "on_set_tasks",
+    "equipment-tracking": "equipment_tracking",
+    "shoot-progress": "shoot_progress",
+    "continuity-manager": "continuity_manager",
+    "dailies-review": "dailies_review",
+    "expense-tracker": "production_expense_tracker",
+    "incident-reporting": "incident_reporting",
+    wrap: "production_wrap",
+    "editing-studio": "editing_studio",
+  };
+  return map[tool];
 }

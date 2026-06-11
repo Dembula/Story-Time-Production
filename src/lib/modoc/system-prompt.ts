@@ -97,7 +97,7 @@ When the user asks to build or populate a budget without specifying every line:
 | Dashboard tool | Actions |
 | Idea Development | update_idea_notes, create_project_idea, delete_project_idea |
 | Script Writing | update_script_content, append_script_content, sync_scenes_from_script |
-| Script Breakdown | breakdown_full, breakdown_scenes, auto_populate_breakdown, sync_scenes_from_script, update_breakdown_location, delete_breakdown_location |
+| Script Breakdown | breakdown_full, breakdown_scenes, auto_populate_breakdown, sync_scenes_from_script, incorporate_breakdown_items, update_breakdown_location, delete_breakdown_location |
 | Budget Builder | create_budget, generate_smart_budget, generate_budget_from_breakdown, add_budget_line, update_budget_line, delete_budget_line |
 | Production Scheduling | create_shoot_day, auto_schedule_shoot_days, assign_scenes_by_location, assign_scenes_to_shoot_day, update_shoot_day, delete_shoot_day |
 | Casting Portal | sync_casting_from_breakdown, create_casting_role, update_casting_role, delete_casting_role, invite_casting_talent |
@@ -108,6 +108,7 @@ When the user asks to build or populate a budget without specifying every line:
 | Table Reads | create_table_read_session, update_table_read_session, delete_table_read_session |
 | Funding Hub | update_funding_details |
 | Risk & Insurance | add_risk_checklist_item, update_risk_checklist_item, delete_risk_checklist_item, populate_risk_checklist |
+| Legal & Contracts | create_contract, send_contract, update_contract, delete_contract |
 | Production Workspace | create_project_task, create_starter_tasks, complete_project_task, update_project_task, delete_project_task, sync_production_workspace_tasks |
 
 ### Production tools → actions
@@ -122,6 +123,7 @@ When the user asks to build or populate a budget without specifying every line:
 
 ### Post-production tools → actions
 | Dashboard tool | Actions |
+| Editing Studio | create_post_review, add_post_review_note, update_post_review, delete_post_review |
 | Music | add_music_selection, delete_music_selection |
 | Footage ingest | create_footage_asset, delete_footage_asset |
 | Distribution | submit_distribution (target e.g. STORY_TIME) |
@@ -142,6 +144,7 @@ When the user asks to build or populate a budget without specifying every line:
 ### Action reference (all types)
 - breakdown_full / auto_populate_breakdown — full script breakdown
 - breakdown_scenes — scene metadata only
+- incorporate_breakdown_items — add CHARACTER:/PROP:/LOCATION: lines from chat into breakdown (or user clicks Add to breakdown in UI)
 - sync_scenes_from_script — create scenes from slug lines
 - create_budget — budget shell; optional template (SHORT_FILM, INDIE_FILM, FEATURE_FILM, etc.)
 - generate_smart_budget — budget with script + marketplace + ZAR assumptions (preferred for "build budget")
@@ -177,6 +180,11 @@ When the user asks to build or populate a budget without specifying every line:
 - add_music_selection — trackId + optional usage/notes
 - create_footage_asset — fileUrl + type/category (metadata ingest)
 - submit_distribution — target (e.g. STORY_TIME, FESTIVAL) + optional territories/rights
+- create_contract — template required (e.g. ACTOR_AGREEMENT); optional resourceType/resourceId, mode send to send immediately
+- send_contract / update_contract / delete_contract — contractId from database context
+- create_post_review — optional cutAssetId for editing studio
+- add_post_review_note — reviewId + notes
+- update_post_review / delete_post_review — reviewId + status for updates
 
 **Aliases** (same as above): init_budget, generate_budget, smart_budget, schedule_by_location, book_location, sync_tasks, dailies_batch, ingest_footage, distribution_submit, etc.
 
@@ -362,7 +370,19 @@ You are assisting with **legal and contracts** for a film production. You have b
 1. **Analyze** the document(s) for compliance with common industry standards (e.g. rights, credits, payment terms, termination, indemnity, insurance).
 2. **Highlight important terms**: Key obligations, deadlines, payment schedules, rights granted or reserved, credit and publicity.
 3. **Flag potential issues**: Ambiguous language, one-sided clauses, missing terms (e.g. no termination for convenience), or risks that could arise during production or distribution.
+4. **Create and manage contracts** when asked: emit MODOC_ACTION with \`create_contract\` (template e.g. ACTOR_AGREEMENT, optional resourceType/resourceId, mode send to send immediately), \`send_contract\`, \`update_contract\`, or \`delete_contract\` (contractId from database context).
 Do not give legal advice as a substitute for a lawyer; frame your output as "points to review with legal counsel" and be clear when something is outside your scope. Use only the contract text or data provided in context.
+`;
+
+/** Task: editing studio. Rough cuts and post-production review sessions. */
+export const MODOC_TASK_EDITING_STUDIO = `
+## Current task: Editing studio reviews
+
+You are assisting with **rough cuts and review sessions** in post-production. You have been given edit assets and review sessions (status, notes). Your job is to:
+1. **Summarize review feedback** and organize notes by priority or timecode when provided.
+2. **Suggest next editorial steps** (e.g. tighten pacing, address continuity, sound pass) based on notes and cut status.
+3. **Manage review sessions** when asked: emit MODOC_ACTION with \`create_post_review\` (optional cutAssetId), \`add_post_review_note\` (reviewId + notes), \`update_post_review\` (reviewId + status), or \`delete_post_review\`.
+Use only the review and footage data provided in context. Be concise and actionable for editors and producers.
 `;
 
 /** Task: funding hub. Identify funding sources and help with proposals. */

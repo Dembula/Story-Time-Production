@@ -11,6 +11,9 @@ import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ModocFieldPopover } from "@/components/modoc";
+import { ModocBreakdownIncorporateBar } from "@/components/modoc/modoc-breakdown-incorporate-bar";
+import { useModocToolRefresh } from "@/components/modoc/use-modoc-tool-refresh";
+import { queryKeysForProjectTool } from "@/lib/modoc/project-tool-query-keys";
 import { useModoc, useModocOptional } from "@/components/modoc/use-modoc";
 import { parseScenesFromScreenplay } from "@/lib/scene-parser";
 import { parseSluglineMeta } from "@/lib/slugline-meta";
@@ -96,6 +99,8 @@ export default function PreProductionToolPage({ params }: PreProductionToolPageP
   const tool = resolved?.tool ?? "";
   const title = LABELS[tool] ?? "Pre-Production Workspace";
   const hasProject = !!projectId;
+
+  useModocToolRefresh({ queryKeys: queryKeysForProjectTool(tool) });
 
   if (tool === "idea-development") {
     return (
@@ -2702,6 +2707,10 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
           </select>
           <p className="text-[11px] text-slate-500 mt-1">AI will use the selected script to detect elements and can auto-fill the breakdown when you click &quot;Add to breakdown&quot;.</p>
         </div>
+      )}
+
+      {hasProject && projectId && (
+        <ModocBreakdownIncorporateBar projectId={projectId} sceneId={activeSceneId || null} />
       )}
 
       <div className="flex flex-wrap gap-2 text-xs">
