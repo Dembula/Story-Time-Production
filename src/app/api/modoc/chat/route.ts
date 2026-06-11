@@ -1330,7 +1330,8 @@ Suggest performance summary, lessons learned categories, and a final deliverable
     }
 
     const result = streamText({
-      model: openRouter(MODOC_MODEL),
+      // OpenRouter only reliably supports multi-turn history via Chat Completions, not Responses API.
+      model: openRouter.chat(MODOC_MODEL),
       system: systemPrompt,
       messages,
       maxOutputTokens: 4096,

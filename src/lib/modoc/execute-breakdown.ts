@@ -68,7 +68,7 @@ export async function executeScriptBreakdown(
 
   let rawText: string;
   try {
-    const model = openRouter(MODOC_MODEL);
+    const model = openRouter.chat(MODOC_MODEL);
     const { text } = await generateText({
       model,
       maxOutputTokens: 16_000,
