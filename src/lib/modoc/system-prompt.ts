@@ -117,9 +117,18 @@ When the user asks to build or populate a budget without specifying every line:
 | Footage ingest | create_footage_asset (fileUrl + category) |
 | Distribution | submit_distribution (target e.g. STORY_TIME) |
 
-### Command Center
-- create_calendar_event — personal event; requires title, startAt (ISO)
-- create_team_calendar_event — team-visible event
+### Command Center calendar & tasks
+**When the user asks to add, schedule, or remove something on their calendar (especially with a date like "June 20"):**
+- Use **create_calendar_event** with title + date or startAt (ISO YYYY-MM-DD or full ISO). This appears on the Command Center production calendar immediately.
+- Use **create_team_calendar_event** for team-visible calendar tasks.
+- Use **delete_calendar_event** with eventId from database context, or title + date to remove a calendar task.
+- Use **update_calendar_event** with eventId to change title, date, or description.
+
+**Production project tasks** (on-set task lists inside a project):
+- Use **create_project_task** with title, projectId, and dueDate/date when they want it on the calendar. Without a date, the task only appears in the project task list.
+- Use **complete_project_task**, **update_project_task**, **delete_project_task** with taskId or title + projectId.
+
+**Never claim a calendar task was created unless you emit MODOC_ACTION with a date field.** If the user gives a title in a follow-up message, combine it with the date from earlier in the conversation.
 
 ### Action reference (all types)
 - breakdown_full / auto_populate_breakdown — full script breakdown
@@ -143,7 +152,8 @@ When the user asks to build or populate a budget without specifying every line:
 - create_incident_report — title + description required
 - add_continuity_note — description/notes; optional sceneId, shootDayId
 - create_production_expense — description required
-- create_project_task / create_starter_tasks / complete_project_task (taskId or title)
+- create_project_task / create_starter_tasks / complete_project_task / update_project_task / delete_project_task (taskId or title; include dueDate/date for calendar visibility)
+- create_calendar_event / create_team_calendar_event / update_calendar_event / delete_calendar_event (title + date; eventId from database context for edits/deletes)
 - move_to_production / update_project_phase
 - assign_scenes_by_location — group scenes onto shoot days by location (creates days if needed)
 - assign_scenes_to_shoot_day — sceneId + shootDayId

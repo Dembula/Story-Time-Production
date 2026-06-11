@@ -15,6 +15,10 @@ import { getModocRoleProfile } from "@/lib/modoc/role-config";
 import { parseModocActionFromText, stripModocActionLines, type ModocActionType } from "@/lib/modoc/action-types";
 import { buildModocGreeting } from "@/lib/modoc/greeting";
 import { resolveQuickPromptAction } from "@/lib/modoc/quick-prompt-actions";
+import {
+  CALENDAR_RELATED_ACTIONS,
+  notifyCommandCenterCalendarChanged,
+} from "@/lib/modoc/modoc-calendar-sync";
 import { getModocMessageText } from "./modoc-context";
 
 type ModocConversationSummary = {
@@ -257,8 +261,11 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
     if (status === "ready" && pendingContextRefreshRef.current) {
       pendingContextRefreshRef.current = false;
       void loadContext();
+      if (pathname.includes("/command-center")) {
+        notifyCommandCenterCalendarChanged();
+      }
     }
-  }, [status, loadContext]);
+  }, [status, loadContext, pathname]);
 
   useEffect(() => {
     if (!open) return;
@@ -339,6 +346,9 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
             window.setTimeout(() => setActionMessage(null), 8000);
           }
           pendingContextRefreshRef.current = true;
+          if (CALENDAR_RELATED_ACTIONS.has(action)) {
+            notifyCommandCenterCalendarChanged();
+          }
         }
       } catch {
         const errorText = "Could not run action. Try again.";
@@ -366,6 +376,9 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
         { role: "user", content: userText },
         executeAction ? { body: { executeAction } } : undefined,
       );
+      if (executeAction && CALENDAR_RELATED_ACTIONS.has(executeAction.type)) {
+        notifyCommandCenterCalendarChanged();
+      }
     },
     [append, status, actionRunning],
   );

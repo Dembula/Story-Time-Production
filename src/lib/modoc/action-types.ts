@@ -5,7 +5,11 @@ export type ModocActionType =
   | "auto_populate_breakdown"
   | "create_calendar_event"
   | "create_team_calendar_event"
+  | "update_calendar_event"
+  | "delete_calendar_event"
   | "create_project_task"
+  | "update_project_task"
+  | "delete_project_task"
   | "create_starter_tasks"
   | "complete_project_task"
   | "move_to_production"
@@ -100,6 +104,8 @@ export type ModocActionPayload = {
   message?: string;
   startDate?: string;
   endDate?: string;
+  dueDate?: string;
+  eventId?: string;
 };
 
 /** All actions the VA can execute — used for validation and prompts. */
@@ -110,7 +116,11 @@ export const MODOC_ACTION_TYPES: ModocActionType[] = [
   "auto_populate_breakdown",
   "create_calendar_event",
   "create_team_calendar_event",
+  "update_calendar_event",
+  "delete_calendar_event",
   "create_project_task",
+  "update_project_task",
+  "delete_project_task",
   "create_starter_tasks",
   "complete_project_task",
   "move_to_production",
@@ -205,8 +215,17 @@ const ACTION_ALIASES: Record<string, ModocActionType> = {
   // Tasks & calendar
   create_task: "create_project_task",
   add_task: "create_project_task",
+  schedule_task: "create_calendar_event",
+  calendar_task: "create_calendar_event",
+  add_calendar_task: "create_calendar_event",
   complete_task: "complete_project_task",
   mark_task_done: "complete_project_task",
+  delete_task: "delete_project_task",
+  remove_task: "delete_project_task",
+  delete_event: "delete_calendar_event",
+  remove_calendar_event: "delete_calendar_event",
+  update_event: "update_calendar_event",
+  update_task: "update_project_task",
   starter_tasks: "create_starter_tasks",
   on_set_tasks: "create_starter_tasks",
 

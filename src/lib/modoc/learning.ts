@@ -131,6 +131,8 @@ export function learningHint(profile: ModocLearningProfile): string | null {
     create_project_task: "creating tasks",
     create_calendar_event: "scheduling calendar events",
     create_team_calendar_event: "team calendar events",
+    delete_calendar_event: "removing calendar tasks",
+    delete_project_task: "deleting tasks",
     move_to_production: "moving projects to production",
   };
   const label = labels[top[0]] ?? top[0].replace(/_/g, " ");

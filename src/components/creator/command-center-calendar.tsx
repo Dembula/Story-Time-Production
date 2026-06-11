@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -470,6 +470,14 @@ export function CommandCenterCalendar() {
 
   const onSaved = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: COMMAND_CENTER_CALENDAR_QUERY_KEY });
+  }, [queryClient]);
+
+  useEffect(() => {
+    const handler = () => {
+      void queryClient.invalidateQueries({ queryKey: COMMAND_CENTER_CALENDAR_QUERY_KEY });
+    };
+    window.addEventListener("modoc:calendar-changed", handler);
+    return () => window.removeEventListener("modoc:calendar-changed", handler);
   }, [queryClient]);
 
   const monthLabel = month.toLocaleDateString(undefined, { month: "long", year: "numeric" });
