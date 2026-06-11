@@ -17,6 +17,7 @@ import {
   Loader2,
   ChevronDown,
 } from "lucide-react";
+import { getModocMessageText } from "./modoc-context";
 import { useModoc } from "./use-modoc";
 import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
 import { useMotion } from "@/components/motion/motion-provider";
@@ -50,18 +51,8 @@ type ViewerContext = {
   unreadVaCount: number;
 };
 
-function getMessageText(message: {
-  content?: string;
-  parts?: Array<{ type: string; text?: string }>;
-}): string {
-  if (typeof message.content === "string") return message.content;
-  if (message.parts?.length) {
-    return message.parts
-      .filter((p) => p.type === "text")
-      .map((p) => p.text ?? "")
-      .join("");
-  }
-  return "";
+function getMessageText(message: Parameters<typeof getModocMessageText>[0]): string {
+  return getModocMessageText(message);
 }
 
 function formatConversationWhen(iso: string): string {

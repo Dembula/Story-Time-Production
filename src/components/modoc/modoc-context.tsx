@@ -3,11 +3,13 @@
 import {
   createContext,
   useCallback,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
 } from "react";
 import { useChat } from "@ai-sdk/react";
+import { TextStreamChatTransport, type UIMessage } from "ai";
 
 /** Extra context sent to MODOC with each request so the AI knows where the user is in the app */
 export interface ModocRequestContext {
@@ -19,58 +21,48 @@ export interface ModocRequestContext {
   pageContext?: Record<string, string | number | boolean | null>;
 }
 
-function getMessageContent(msg: {
+export function getModocMessageText(message: {
   content?: unknown;
   parts?: Array<{ type?: string; text?: string }>;
 }): string {
-  if (typeof msg.content === "string") return msg.content;
-  if (Array.isArray(msg.parts) && msg.parts.length > 0) {
-    return msg.parts
+  if (Array.isArray(message.parts) && message.parts.length > 0) {
+    return message.parts
       .filter((p) => p.type === "text")
       .map((p) => p.text ?? "")
       .join("");
   }
-  if (Array.isArray(msg.content)) {
-    const part = msg.content.find((p: { type?: string; text?: string }) => p.type === "text");
-    return (part as { text?: string } | undefined)?.text ?? "";
+  if (typeof message.content === "string") return message.content;
+  if (Array.isArray(message.content)) {
+    return (message.content as Array<{ type?: string; text?: string }>)
+      .filter((p) => p.type === "text")
+      .map((p) => p.text ?? "")
+      .join("");
   }
   return "";
 }
 
 interface ModocContextValue {
-  /** Current conversation messages */
-  messages: ReturnType<typeof useChat>["messages"];
-  /** Append a user message (text string or CreateMessage). Triggers MODOC reply. */
-  append: ReturnType<typeof useChat>["append"];
-  /** Status: "ready" | "streaming" | "submitted" | "error" */
-  status: ReturnType<typeof useChat>["status"];
-  /** Error from the last request, if any */
-  error: ReturnType<typeof useChat>["error"];
-  /** Whether MODOC is available (API configured) */
+  messages: UIMessage[];
+  /** Append a user message and trigger a VA reply (compat wrapper around sendMessage). */
+  append: (
+    message: { role: string; content: string },
+    options?: { body?: object },
+  ) => Promise<void>;
+  status: "submitted" | "streaming" | "ready" | "error";
+  error: Error | undefined;
   isAvailable: boolean;
-  /** Current conversation id (when persisting to DB); null for ephemeral chats */
   conversationId: string | null;
-  /** Set scope sent with the next request (e.g. "admin", "creator") */
   setScope: (scope: string | undefined) => void;
-  /** Set client context string (e.g. "On the script review page") */
   setClientContext: (clientContext: string | undefined) => void;
-  /** Set page context object (e.g. { projectId, projectName }) */
   setPageContext: (pageContext: Record<string, string | number | boolean | null> | undefined) => void;
-  /** One-shot: set all request context at once */
   setRequestContext: (ctx: ModocRequestContext) => void;
-  /** Create a new persisted conversation; use before sending messages to save history */
   createNewConversation: () => Promise<string | null>;
-  /** Load a conversation by id (sets messages and conversationId) */
   loadConversation: (id: string) => Promise<
     Array<{ id: string; role: "user" | "assistant" | "system"; content: string }>
   >;
-  /** Clear current conversation id (e.g. start new chat without creating DB row yet) */
   clearConversationId: () => void;
-  /** Clear messages and conversation id (fresh chat home screen) */
   resetChat: () => void;
-  /** Append an assistant message to the thread (e.g. after a direct action completes). */
   appendAssistantMessage: (content: string) => void;
-  /** List persisted conversations for history UI */
   listConversations: () => Promise<
     Array<{
       id: string;
@@ -99,38 +91,32 @@ export function ModocProvider({ children }: { children: ReactNode }) {
     setConversationIdState(id);
   }, []);
 
-  const prepareRequestBody = useCallback(
-    ({
-      id,
-      messages,
-      requestBody,
-    }: {
-      id: string;
-      messages: unknown[];
-      requestBody?: object;
-    }) => {
-      const base = (requestBody ?? {}) as Record<string, unknown>;
-      return {
-        ...base,
-        id,
-        messages,
-        conversationId: conversationIdRef.current ?? undefined,
-        scope: requestContextRef.current.scope,
-        clientContext: requestContextRef.current.clientContext,
-        pageContext: requestContextRef.current.pageContext,
-      };
-    },
+  const transport = useMemo(
+    () =>
+      new TextStreamChatTransport({
+        api: MODOC_CHAT_API,
+        prepareSendMessagesRequest: ({ id, messages, body }) => {
+          const base = (body ?? {}) as Record<string, unknown>;
+          return {
+            body: {
+              ...base,
+              id,
+              messages,
+              conversationId: conversationIdRef.current ?? undefined,
+              scope: requestContextRef.current.scope,
+              clientContext: requestContextRef.current.clientContext,
+              pageContext: requestContextRef.current.pageContext,
+            },
+          };
+        },
+      }),
     [],
   );
 
-  const handleChatError = useCallback((err: Error) => {
-    console.error("MODOC chat error:", err);
-  }, []);
-
-  const handleChatFinish = useCallback((message: { role?: string; content?: unknown; parts?: unknown }) => {
+  const handleChatFinish = useCallback(({ message }: { message: UIMessage }) => {
     const cid = conversationIdRef.current;
     if (!cid || message.role !== "assistant") return;
-    const content = getMessageContent(message as Parameters<typeof getMessageContent>[0]);
+    const content = getModocMessageText(message);
     if (!content) return;
     fetch(`/api/modoc/conversations/${cid}/messages`, {
       method: "POST",
@@ -139,15 +125,15 @@ export function ModocProvider({ children }: { children: ReactNode }) {
     }).catch(() => {});
   }, []);
 
-  const chat = useChat({
-    api: MODOC_CHAT_API,
-    streamProtocol: "text",
-    experimental_prepareRequestBody: prepareRequestBody,
-    onError: handleChatError,
-    onFinish: handleChatFinish,
-  });
+  const handleChatError = useCallback((err: Error) => {
+    console.error("MODOC chat error:", err);
+  }, []);
 
-  const { append: chatAppend, setMessages } = chat;
+  const { messages, sendMessage, setMessages, status, error } = useChat({
+    transport,
+    onFinish: handleChatFinish,
+    onError: handleChatError,
+  });
 
   const createNewConversation = useCallback(async (): Promise<string | null> => {
     try {
@@ -168,31 +154,46 @@ export function ModocProvider({ children }: { children: ReactNode }) {
     }
   }, [setConversationId]);
 
+  const ensureConversation = useCallback(async () => {
+    if (conversationIdRef.current) return;
+    if (!creatingConversationRef.current) {
+      creatingConversationRef.current = createNewConversation().finally(() => {
+        creatingConversationRef.current = null;
+      });
+    }
+    await creatingConversationRef.current;
+  }, [createNewConversation]);
+
   const append = useCallback<ModocContextValue["append"]>(
     async (message, options) => {
-      if (!conversationIdRef.current) {
-        if (!creatingConversationRef.current) {
-          creatingConversationRef.current = createNewConversation().finally(() => {
-            creatingConversationRef.current = null;
-          });
-        }
-        await creatingConversationRef.current;
-      }
-      return chatAppend(message, options);
+      await ensureConversation();
+      if (message.role !== "user") return;
+      const text = message.content.trim();
+      if (!text) return;
+      await sendMessage({ text }, { body: options?.body });
     },
-    [chatAppend, createNewConversation],
+    [ensureConversation, sendMessage],
   );
 
   const appendAssistantMessage = useCallback(
     (content: string) => {
+      const trimmed = content.trim();
+      if (!trimmed) return;
       const id = `assistant-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-      setMessages((prev) => [...prev, { id, role: "assistant", content }]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id,
+          role: "assistant",
+          parts: [{ type: "text", text: trimmed }],
+        },
+      ]);
       const cid = conversationIdRef.current;
-      if (cid && content.trim()) {
+      if (cid) {
         fetch(`/api/modoc/conversations/${cid}/messages`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ role: "assistant", content }),
+          body: JSON.stringify({ role: "assistant", content: trimmed }),
         }).catch(() => {});
       }
     },
@@ -207,14 +208,19 @@ export function ModocProvider({ children }: { children: ReactNode }) {
         const data = (await res.json()) as {
           messages: Array<{ id: string; role: string; content: string; createdAt: string }>;
         };
-        const msgs = (data.messages ?? []).map((m) => ({
+        const legacy = data.messages ?? [];
+        const msgs: UIMessage[] = legacy.map((m) => ({
+          id: m.id,
+          role: m.role as "user" | "assistant" | "system",
+          parts: [{ type: "text" as const, text: m.content }],
+        }));
+        setMessages(msgs);
+        setConversationId(id);
+        return legacy.map((m) => ({
           id: m.id,
           role: m.role as "user" | "assistant" | "system",
           content: m.content,
         }));
-        setMessages(msgs);
-        setConversationId(id);
-        return msgs;
       } catch {
         return [];
       }
@@ -260,7 +266,7 @@ export function ModocProvider({ children }: { children: ReactNode }) {
     (pageContext: Record<string, string | number | boolean | null> | undefined) => {
       requestContextRef.current.pageContext = pageContext;
     },
-    []
+    [],
   );
 
   const setRequestContext = useCallback((ctx: ModocRequestContext) => {
@@ -272,10 +278,10 @@ export function ModocProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value: ModocContextValue = {
-    messages: chat.messages,
+    messages,
     append,
-    status: chat.status,
-    error: chat.error,
+    status,
+    error,
     isAvailable,
     conversationId,
     setScope,
@@ -290,9 +296,7 @@ export function ModocProvider({ children }: { children: ReactNode }) {
     listConversations,
   };
 
-  return (
-    <ModocContext.Provider value={value}>{children}</ModocContext.Provider>
-  );
+  return <ModocContext.Provider value={value}>{children}</ModocContext.Provider>;
 }
 
 export { ModocContext };

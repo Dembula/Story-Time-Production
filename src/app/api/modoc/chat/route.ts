@@ -1321,7 +1321,7 @@ Suggest performance summary, lessons learned categories, and a final deliverable
   const lastUserTextForLearning = getLastUserTextFromRawMessages(rawMessages);
 
   try {
-    const messages = prepareModocModelMessages(rawMessages);
+    const messages = await prepareModocModelMessages(rawMessages);
     if (messages.length === 0) {
       return new Response(JSON.stringify({ error: "No valid messages to send." }), {
         status: 400,

@@ -1,4 +1,4 @@
-import { convertToCoreMessages, type UIMessage } from "ai";
+import { convertToModelMessages, type UIMessage } from "ai";
 import type { ModelMessage } from "ai";
 import { MAX_CHAT_TURNS_FOR_MODEL } from "./learning-limits";
 
@@ -87,11 +87,11 @@ export function getLastUserTextFromRawMessages(rawMessages: unknown[]): string {
 }
 
 /** Safe conversion for MODOC chat — never throws on legacy message shapes. */
-export function prepareModocModelMessages(rawMessages: unknown[]): ModelMessage[] {
+export async function prepareModocModelMessages(rawMessages: unknown[]): Promise<ModelMessage[]> {
   const ui = trimMessagesForModel(normalizeToUiMessages(rawMessages));
   if (ui.length === 0) return [];
   try {
-    return convertToCoreMessages(ui);
+    return await convertToModelMessages(ui);
   } catch {
     // Last-resort: text-only fallback
     return ui.map((m) => {

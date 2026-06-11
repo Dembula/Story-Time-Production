@@ -15,6 +15,7 @@ import { getModocRoleProfile } from "@/lib/modoc/role-config";
 import { parseModocActionFromText, type ModocActionType } from "@/lib/modoc/action-types";
 import { buildModocGreeting } from "@/lib/modoc/greeting";
 import { resolveQuickPromptAction } from "@/lib/modoc/quick-prompt-actions";
+import { getModocMessageText } from "./modoc-context";
 
 type ModocConversationSummary = {
   id: string;
@@ -67,18 +68,8 @@ type ModocContext = {
   interactionCount?: number;
 };
 
-function getMessageText(message: {
-  content?: string;
-  parts?: Array<{ type: string; text?: string }>;
-}): string {
-  if (typeof message.content === "string") return message.content;
-  if (message.parts?.length) {
-    return message.parts
-      .filter((p) => p.type === "text")
-      .map((p) => p.text ?? "")
-      .join("");
-  }
-  return "";
+function getMessageText(message: Parameters<typeof getModocMessageText>[0]): string {
+  return getModocMessageText(message);
 }
 
 export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
