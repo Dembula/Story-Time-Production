@@ -7,12 +7,44 @@ import Image from "next/image";
 import { useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Send, X, Zap, Loader2, Sparkles } from "lucide-react";
+import { Send, X, Zap, Loader2, Sparkles, History, MessageSquarePlus, ChevronLeft } from "lucide-react";
 import { useModoc } from "./use-modoc";
 import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
 import { useMotion } from "@/components/motion/motion-provider";
 import { getModocRoleProfile } from "@/lib/modoc/role-config";
 import { parseModocActionFromText } from "@/lib/modoc/action-types";
+
+type ModocConversationSummary = {
+  id: string;
+  scope: string | null;
+  pageContext: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+  messageCount: number;
+};
+
+function formatConversationLabel(conversation: ModocConversationSummary): string {
+  const ctx = conversation.pageContext;
+  const projectId = typeof ctx?.projectId === "string" ? ctx.projectId : null;
+  const tool = typeof ctx?.tool === "string" ? ctx.tool.replace(/-/g, " ") : null;
+  if (tool) return tool;
+  if (projectId) return `Project chat · ${projectId.slice(0, 8)}…`;
+  if (conversation.messageCount > 0) return `${conversation.messageCount} message${conversation.messageCount === 1 ? "" : "s"}`;
+  return "Chat";
+}
+
+function formatConversationWhen(iso: string): string {
+  const date = new Date(iso);
+  const now = new Date();
+  const sameDay =
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate();
+  if (sameDay) {
+    return date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  }
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
 
 type ModocSuggestion = {
   id: string;
@@ -50,13 +82,25 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
   const pathname = usePathname();
   const role = (session?.user as { role?: string } | undefined)?.role;
   const profile = getModocRoleProfile(role);
-  const { messages, append, status, createNewConversation } = useModoc();
+  const {
+    messages,
+    append,
+    status,
+    error,
+    createNewConversation,
+    resetChat,
+    loadConversation,
+    listConversations,
+  } = useModoc();
   const [input, setInput] = useState("");
   const [mounted, setMounted] = useState(false);
   const [actionRunning, setActionRunning] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [context, setContext] = useState<ModocContext | null>(null);
   const [contextLoading, setContextLoading] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyItems, setHistoryItems] = useState<ModocConversationSummary[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const { deviceClass } = useAdaptiveUi();
   const { prefersReducedMotion } = useMotion();
@@ -78,11 +122,48 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
 
   useEffect(() => setMounted(true), []);
 
+  const startFreshChat = useCallback(async () => {
+    resetChat();
+    setInput("");
+    setActionMessage(null);
+    setHistoryOpen(false);
+    await createNewConversation();
+    await loadContext();
+  }, [resetChat, createNewConversation, loadContext]);
+
   useEffect(() => {
     if (!open) return;
-    void createNewConversation();
-    void loadContext();
-  }, [open, createNewConversation, loadContext]);
+    void startFreshChat();
+  }, [open, startFreshChat]);
+
+  const handleClose = useCallback(() => {
+    resetChat();
+    setInput("");
+    setActionMessage(null);
+    setHistoryOpen(false);
+    setHistoryItems([]);
+    onClose();
+  }, [resetChat, onClose]);
+
+  const openHistory = useCallback(async () => {
+    setHistoryOpen(true);
+    setHistoryLoading(true);
+    try {
+      const items = await listConversations();
+      setHistoryItems(items.filter((item) => item.messageCount > 0));
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [listConversations]);
+
+  const resumeConversation = useCallback(
+    async (id: string) => {
+      setHistoryOpen(false);
+      setActionMessage(null);
+      await loadConversation(id);
+    },
+    [loadConversation],
+  );
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: prefersReducedMotion ? "auto" : "smooth" });
@@ -91,11 +172,11 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") handleClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  }, [open, handleClose]);
 
   const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
   const pendingAction = lastAssistant ? parseModocActionFromText(getMessageText(lastAssistant)) : null;
@@ -153,7 +234,7 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
             initial={prefersReducedMotion ? false : { opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={prefersReducedMotion ? undefined : { opacity: 0 }}
-            onClick={onClose}
+            onClick={handleClose}
             aria-hidden
           />
           <motion.div
@@ -176,27 +257,100 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
           >
             <header className="flex shrink-0 items-center justify-between border-b border-orange-500/15 bg-orange-500/5 px-4 py-3">
               <div className="flex min-w-0 items-center gap-3">
-                <div className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-orange-400/30 bg-orange-500/20">
-                  <Image src="/modoc-va-logo.png" alt="" width={40} height={40} className="object-cover" />
-                </div>
+                {historyOpen ? (
+                  <button
+                    type="button"
+                    onClick={() => setHistoryOpen(false)}
+                    className="rounded-xl p-2 text-slate-400 hover:bg-white/5 hover:text-white"
+                    aria-label="Back to chat"
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
+                ) : (
+                  <div className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-orange-400/30 bg-orange-500/20">
+                    <Image src="/modoc-va-logo.png" alt="" width={40} height={40} className="object-cover" />
+                  </div>
+                )}
                 <div className="min-w-0">
                   <h2 id="modoc-va-title" className="truncate text-sm font-semibold text-white">
-                    {profile.label}
+                    {historyOpen ? "Chat history" : profile.label}
                   </h2>
-                  <p className="truncate text-[11px] text-orange-200/70">{profile.subtitle}</p>
+                  <p className="truncate text-[11px] text-orange-200/70">
+                    {historyOpen ? "Previous VA conversations and tasks" : profile.subtitle}
+                  </p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded-xl p-2 text-slate-400 hover:bg-white/5 hover:text-white"
-                aria-label="Close Virtual Assistant"
-              >
-                <X className="h-5 w-5" />
-              </button>
+              <div className="flex items-center gap-1">
+                {!historyOpen && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => void openHistory()}
+                      className="rounded-xl p-2 text-slate-400 hover:bg-white/5 hover:text-white"
+                      aria-label="Chat history"
+                      title="Chat history"
+                    >
+                      <History className="h-5 w-5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void startFreshChat()}
+                      className="rounded-xl p-2 text-slate-400 hover:bg-white/5 hover:text-white"
+                      aria-label="New chat"
+                      title="New chat"
+                    >
+                      <MessageSquarePlus className="h-5 w-5" />
+                    </button>
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  className="rounded-xl p-2 text-slate-400 hover:bg-white/5 hover:text-white"
+                  aria-label="Close Virtual Assistant"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
             </header>
 
             <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 space-y-3">
+              {historyOpen ? (
+                <>
+                  {historyLoading && (
+                    <p className="text-center text-xs text-slate-500">Loading chat history…</p>
+                  )}
+                  {!historyLoading && historyItems.length === 0 && (
+                    <p className="text-center text-sm text-slate-400">No previous chats yet. Start a conversation and it will appear here.</p>
+                  )}
+                  {!historyLoading &&
+                    historyItems.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => void resumeConversation(item.id)}
+                        className="flex w-full items-start justify-between gap-3 rounded-xl border border-slate-700/60 bg-slate-900/50 px-3 py-2.5 text-left transition hover:border-orange-500/30 hover:bg-orange-500/5"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-white">{formatConversationLabel(item)}</p>
+                          <p className="mt-0.5 text-[11px] text-slate-400">
+                            {item.messageCount} message{item.messageCount === 1 ? "" : "s"}
+                            {item.scope ? ` · ${item.scope}` : ""}
+                          </p>
+                        </div>
+                        <span className="shrink-0 text-[11px] text-slate-500">{formatConversationWhen(item.updatedAt)}</span>
+                      </button>
+                    ))}
+                </>
+              ) : (
+                <>
+              {error && (
+                <div className="rounded-xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+                  {error.message?.includes("503") || error.message?.toLowerCase().includes("configured")
+                    ? "AI assistant is not configured. Set OPENROUTER_API_KEY in your environment."
+                    : error.message || "Something went wrong. Try again."}
+                </div>
+              )}
               {showGreeting && (
                 <div className="rounded-2xl border border-orange-500/20 bg-gradient-to-br from-orange-500/10 to-transparent px-4 py-3">
                   <p className="text-base font-semibold text-white">{context.greeting}</p>
@@ -270,7 +424,7 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
                                 key={i}
                                 href={part}
                                 className="mt-1 inline-flex rounded-lg border border-orange-400/30 bg-orange-500/12 px-2 py-0.5 text-xs text-orange-200 hover:bg-orange-500/20"
-                                onClick={onClose}
+                                onClick={handleClose}
                               >
                                 View title →
                               </Link>
@@ -317,8 +471,11 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
                 </div>
               )}
               <div ref={bottomRef} />
+                </>
+              )}
             </div>
 
+            {!historyOpen && (
             <form
               onSubmit={handleSubmit}
               className="shrink-0 border-t border-orange-500/10 px-3 py-3"
@@ -342,6 +499,7 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
                 </button>
               </div>
             </form>
+            )}
           </motion.div>
         </>
       ) : null}

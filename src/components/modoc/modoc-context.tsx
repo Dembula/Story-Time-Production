@@ -55,6 +55,19 @@ interface ModocContextValue {
   loadConversation: (id: string) => Promise<void>;
   /** Clear current conversation id (e.g. start new chat without creating DB row yet) */
   clearConversationId: () => void;
+  /** Clear messages and conversation id (fresh chat home screen) */
+  resetChat: () => void;
+  /** List persisted conversations for history UI */
+  listConversations: () => Promise<
+    Array<{
+      id: string;
+      scope: string | null;
+      pageContext: Record<string, unknown> | null;
+      createdAt: string;
+      updatedAt: string;
+      messageCount: number;
+    }>
+  >;
 }
 
 const ModocContext = createContext<ModocContextValue | null>(null);
@@ -74,6 +87,7 @@ export function ModocProvider({ children }: { children: ReactNode }) {
 
   const chat = useChat({
     api: MODOC_CHAT_API,
+    streamProtocol: "text",
     experimental_prepareRequestBody: ({ id, messages, requestBody }) => {
       const base = (requestBody ?? {}) as Record<string, unknown>;
       return {
@@ -144,6 +158,28 @@ export function ModocProvider({ children }: { children: ReactNode }) {
     setConversationId(null);
   }, [setConversationId]);
 
+  const resetChat = useCallback(() => {
+    chat.setMessages([]);
+    setConversationId(null);
+  }, [chat, setConversationId]);
+
+  const listConversations = useCallback(async () => {
+    try {
+      const res = await fetch("/api/modoc/conversations");
+      if (!res.ok) return [];
+      return (await res.json()) as Array<{
+        id: string;
+        scope: string | null;
+        pageContext: Record<string, unknown> | null;
+        createdAt: string;
+        updatedAt: string;
+        messageCount: number;
+      }>;
+    } catch {
+      return [];
+    }
+  }, []);
+
   const setScope = useCallback((scope: string | undefined) => {
     requestContextRef.current.scope = scope;
   }, []);
@@ -181,6 +217,8 @@ export function ModocProvider({ children }: { children: ReactNode }) {
     createNewConversation,
     loadConversation,
     clearConversationId,
+    resetChat,
+    listConversations,
   };
 
   return (

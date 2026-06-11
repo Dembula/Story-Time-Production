@@ -43,11 +43,16 @@ import { prisma } from "@/lib/prisma";
 import { getViewerProfileAge } from "@/lib/viewer-profiles";
 import { CREATOR_VA_ROLE } from "@/lib/modoc/creator-va";
 import { buildCreatorWorkspaceContext } from "@/lib/modoc/creator-workspace-context";
+import { getAppBaseUrl } from "@/lib/app-url";
 
-/** OpenRouter: one API for 400+ models (OpenAI, Claude, Gemini, etc.). Uses OpenAI-compatible endpoint. */
+/** OpenRouter: one API for 400+ models (OpenAI-compatible endpoint). */
 const openRouter = createOpenAI({
   apiKey: process.env.OPENROUTER_API_KEY ?? "",
   baseURL: "https://openrouter.ai/api/v1",
+  headers: {
+    "HTTP-Referer": getAppBaseUrl() || "https://story-time.online",
+    "X-Title": "Story Time Virtual Assistant",
+  },
 });
 
 /** Default MODOC model; override with OPENROUTER_MODOC_MODEL (e.g. anthropic/claude-3.5-sonnet, google/gemini-2.0-flash). */
@@ -77,7 +82,23 @@ export async function POST(req: Request) {
   }
 
   const { messages: rawMessages = [], clientContext, scope, pageContext, conversationId } = body;
-  const userId = (session?.user as { id?: string })?.id;
+
+  if (!session?.user) {
+    return new Response(JSON.stringify({ error: "Sign in to use the Virtual Assistant." }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  const userId = (session.user as { id?: string })?.id;
+  const sessionRole = (session.user as { role?: string })?.role;
+
+  if ((scope === "creator" || sessionRole === CREATOR_VA_ROLE) && sessionRole !== CREATOR_VA_ROLE && sessionRole !== "ADMIN") {
+    return new Response(
+      JSON.stringify({ error: "Switch to your Content Creator profile to use the Virtual Assistant." }),
+      { status: 403, headers: { "Content-Type": "application/json" } },
+    );
+  }
 
   // Persist the latest user message to the conversation when conversationId and auth are present
   if (conversationId && userId && Array.isArray(rawMessages) && rawMessages.length > 0) {
