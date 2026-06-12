@@ -15,9 +15,9 @@ MODOC uses [OpenRouter](https://openrouter.ai) so you can use 400+ models (OpenA
    ```env
    OPENROUTER_MODOC_MODEL=openai/gpt-4o-mini
    OPENROUTER_MODOC_CREATIVE_MODEL=anthropic/claude-3.5-sonnet
-   OPENROUTER_MODOC_EXTRACTION_MODEL=google/gemini-2.5-flash-preview-05-20
+   OPENROUTER_MODOC_EXTRACTION_MODEL=google/gemini-2.5-flash
    OPENROUTER_MODOC_LOGIC_MODEL=openai/gpt-4o
-   OPENROUTER_MODOC_CHAT_MODEL=google/gemini-2.5-flash-preview-05-20
+   OPENROUTER_MODOC_CHAT_MODEL=google/gemini-2.5-flash
    ```
 
    Only `OPENROUTER_API_KEY` is required. The `*_MODEL` vars are OpenRouter model IDs (slugs), not extra keys. MODOC falls back through a chain if a model fails.

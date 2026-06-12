@@ -71,8 +71,10 @@ export {
   streamModocWithFallback,
   modelsForTask,
   primaryModocModel,
+  normalizeOpenRouterModelId,
   type ModocTaskKind,
 } from "./model-router";
+export { OPENROUTER_DEFAULT_MODELS } from "./openrouter-models";
 export {
   appendSessionIntel,
   getLatestSessionIntel,

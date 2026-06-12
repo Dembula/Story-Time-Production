@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { modelsForTask } from "@/lib/modoc/model-router";
+import { modelsForTask, normalizeOpenRouterModelId } from "@/lib/modoc/model-router";
 
 export async function GET() {
   const configured = Boolean(process.env.OPENROUTER_API_KEY);
@@ -16,10 +16,18 @@ export async function GET() {
         }
       : null,
     envOverrides: {
-      creative: process.env.OPENROUTER_MODOC_CREATIVE_MODEL ?? null,
-      extraction: process.env.OPENROUTER_MODOC_EXTRACTION_MODEL ?? null,
-      logic: process.env.OPENROUTER_MODOC_LOGIC_MODEL ?? null,
-      chat: process.env.OPENROUTER_MODOC_CHAT_MODEL ?? null,
+      creative: process.env.OPENROUTER_MODOC_CREATIVE_MODEL
+        ? normalizeOpenRouterModelId(process.env.OPENROUTER_MODOC_CREATIVE_MODEL)
+        : null,
+      extraction: process.env.OPENROUTER_MODOC_EXTRACTION_MODEL
+        ? normalizeOpenRouterModelId(process.env.OPENROUTER_MODOC_EXTRACTION_MODEL)
+        : null,
+      logic: process.env.OPENROUTER_MODOC_LOGIC_MODEL
+        ? normalizeOpenRouterModelId(process.env.OPENROUTER_MODOC_LOGIC_MODEL)
+        : null,
+      chat: process.env.OPENROUTER_MODOC_CHAT_MODEL
+        ? normalizeOpenRouterModelId(process.env.OPENROUTER_MODOC_CHAT_MODEL)
+        : null,
     },
   });
 }

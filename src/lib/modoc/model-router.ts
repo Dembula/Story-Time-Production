@@ -2,6 +2,11 @@ import "server-only";
 
 import { createOpenAI } from "@ai-sdk/openai";
 import { streamText, type ModelMessage } from "ai";
+import {
+  normalizeOpenRouterModelId,
+  OPENROUTER_DEFAULT_MODELS,
+  resolveModelChain,
+} from "./openrouter-models";
 
 export type ModocTaskKind =
   | "creative"
@@ -15,42 +20,20 @@ const openRouter = createOpenAI({
   baseURL: "https://openrouter.ai/api/v1",
 });
 
-const MODEL_ENV: Record<ModocTaskKind, string[]> = {
-  creative: [
-    process.env.OPENROUTER_MODOC_CREATIVE_MODEL,
+function chainFor(kind: ModocTaskKind): string[] {
+  const env = [
+    kind === "creative" ? process.env.OPENROUTER_MODOC_CREATIVE_MODEL : undefined,
+    kind === "extraction" ? process.env.OPENROUTER_MODOC_EXTRACTION_MODEL : undefined,
+    kind === "logic" ? process.env.OPENROUTER_MODOC_LOGIC_MODEL : undefined,
+    kind === "chat" ? process.env.OPENROUTER_MODOC_CHAT_MODEL : undefined,
     process.env.OPENROUTER_MODOC_MODEL,
-    "anthropic/claude-3.5-sonnet",
-    "anthropic/claude-sonnet-4",
-    "openai/gpt-4o",
-    "openai/gpt-4o-mini",
-  ].filter(Boolean) as string[],
-  extraction: [
-    process.env.OPENROUTER_MODOC_EXTRACTION_MODEL,
-    process.env.OPENROUTER_MODOC_MODEL,
-    "google/gemini-2.5-flash-preview-05-20",
-    "openai/gpt-4o-mini",
-    "google/gemini-2.0-flash-001",
-    "openai/gpt-4o",
-  ].filter(Boolean) as string[],
-  logic: [
-    process.env.OPENROUTER_MODOC_LOGIC_MODEL,
-    process.env.OPENROUTER_MODOC_MODEL,
-    "openai/gpt-4o",
-    "anthropic/claude-3.5-sonnet",
-    "openai/gpt-4o-mini",
-  ].filter(Boolean) as string[],
-  chat: [
-    process.env.OPENROUTER_MODOC_CHAT_MODEL,
-    process.env.OPENROUTER_MODOC_MODEL,
-    "google/gemini-2.5-flash-preview-05-20",
-    "openai/gpt-4o-mini",
-    "anthropic/claude-3.5-sonnet",
-  ].filter(Boolean) as string[],
-  default: [
-    process.env.OPENROUTER_MODOC_MODEL ?? "openai/gpt-4o-mini",
-    "google/gemini-2.5-flash-preview-05-20",
-  ],
-};
+  ];
+  const fallbacks =
+    kind === "default"
+      ? OPENROUTER_DEFAULT_MODELS.default
+      : OPENROUTER_DEFAULT_MODELS[kind];
+  return resolveModelChain(env, fallbacks);
+}
 
 const EXTRACTION_TASKS = new Set([
   "script_breakdown",
@@ -106,8 +89,8 @@ export function resolveModocTaskKind(params: {
 }
 
 export function modelsForTask(kind: ModocTaskKind): string[] {
-  const list = MODEL_ENV[kind].length ? MODEL_ENV[kind] : MODEL_ENV.default;
-  return [...new Set(list)];
+  const list = chainFor(kind);
+  return list.length > 0 ? list : chainFor("default");
 }
 
 /** Primary model id for a task kind (non-streaming calls e.g. breakdown extraction). */
@@ -158,3 +141,5 @@ export async function streamModocWithFallback(params: StreamModocParams) {
   }
   throw lastError instanceof Error ? lastError : new Error("All MODOC models failed");
 }
+
+export { normalizeOpenRouterModelId };
