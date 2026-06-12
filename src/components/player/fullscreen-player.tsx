@@ -21,26 +21,13 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { PlaybackComplianceBadge } from "./playback-compliance-badge";
+import { computeIsMobileLikeClient } from "@/lib/player/mobile-detect";
 
 const PLACEHOLDER_VIDEO =
   "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
 
 const SEEK_SECONDS = 10;
 const CONTROLS_HIDE_MS = 3000;
-
-function computeIsMobileLikeClient(): boolean {
-  if (typeof window === "undefined") return false;
-  const ua = window.navigator.userAgent || "";
-  const platform = window.navigator.platform || "";
-  const isIOS =
-    /iPad|iPhone|iPod/i.test(ua) ||
-    (platform === "MacIntel" &&
-      typeof window.navigator.maxTouchPoints === "number" &&
-      window.navigator.maxTouchPoints > 1);
-  const coarse =
-    typeof window.matchMedia === "function" ? window.matchMedia("(pointer: coarse)").matches : false;
-  return isIOS || coarse || window.innerWidth < 900;
-}
 
 type FullscreenPlayerProps = {
   src: string;

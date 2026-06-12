@@ -22,6 +22,7 @@ export function BrowseMobileNav() {
   const pathname = usePathname();
 
   if (deviceClass !== "mobile") return null;
+  if (pathname.includes("/watch")) return null;
 
   return (
     <motion.nav

@@ -13,7 +13,6 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { useSession } from "next-auth/react";
 import {
   MediaPlayer,
   MediaProvider,
@@ -32,12 +31,11 @@ import {
 } from "@/lib/stream-playback-protection";
 import { usePlaybackSession } from "@/lib/playback/session-store";
 import { buildHlsDrmConfig } from "@/lib/content-capture-protection";
-import { useCaptureProtectedPlayback } from "@/hooks/use-capture-protected-playback";
 import { PlaybackChrome } from "./playback-chrome";
 import { PlaybackMetadataPanel } from "./playback-metadata-panel";
-import { ForensicWatermark } from "./forensic-watermark";
-import { CaptureProtectionBadge } from "./capture-protection-badge";
 import { PlaybackComplianceBadge } from "./playback-compliance-badge";
+import { NetflixMobileControls } from "./netflix-mobile-controls";
+import { computeIsMobileLikeClient } from "@/lib/player/mobile-detect";
 import { StoryTimeLoader, StoryTimeLoaderOverlay } from "@/components/ui/storytime-loader";
 import { PlaybackBufferingOverlay } from "./playback-buffering-overlay";
 import { PLAYBACK_COMMAND_EVENT, type PlaybackCommand } from "@/lib/input/platform-events";
@@ -128,16 +126,13 @@ export function StorytimeMediaPlayer({
   const [duration, setDuration] = useState(0);
   const [introSkipped, setIntroSkipped] = useState(false);
   const [nextCountdown, setNextCountdown] = useState<number | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isMobileLike, setIsMobileLike] = useState(computeIsMobileLikeClient);
+  const orientationLockedRef = useRef(false);
+  const leaveWatchFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const leaveWatchPopStateRef = useRef<(() => void) | null>(null);
 
   const setAmbientUiVisible = usePlaybackSession((s) => s.setAmbientUiVisible);
-  const { data: session } = useSession();
-  const capture = useCaptureProtectedPlayback({ contentId, playerRef });
-
-  const watermarkLabel = useMemo(() => {
-    const userId = session?.user?.id;
-    const token = userId ? userId.slice(-8) : contentId.slice(-8);
-    return `STORYTIME ${token.toUpperCase()}`;
-  }, [session?.user?.id, contentId]);
 
 
 
@@ -268,11 +263,69 @@ export function StorytimeMediaPlayer({
 
 
 
+  const exitContainerFullscreen = useCallback(() => {
+    if (typeof document === "undefined") return;
+    if (document.fullscreenElement && typeof document.exitFullscreen === "function") {
+      void document.exitFullscreen().catch(() => {});
+    }
+    const doc = document as Document & {
+      webkitFullscreenElement?: Element | null;
+      webkitExitFullscreen?: () => void;
+    };
+    if (doc.webkitFullscreenElement && typeof doc.webkitExitFullscreen === "function") {
+      try {
+        doc.webkitExitFullscreen();
+      } catch {
+        // no-op
+      }
+    }
+  }, []);
+
   const leaveWatch = useCallback(() => {
+    exitContainerFullscreen();
 
-    router.replace(contentDetailUrl);
+    if (typeof window === "undefined") {
+      router.replace(contentDetailUrl);
+      return;
+    }
 
-  }, [contentDetailUrl, router]);
+    if (leaveWatchFallbackTimerRef.current) {
+      clearTimeout(leaveWatchFallbackTimerRef.current);
+      leaveWatchFallbackTimerRef.current = null;
+    }
+    if (leaveWatchPopStateRef.current) {
+      window.removeEventListener("popstate", leaveWatchPopStateRef.current);
+      leaveWatchPopStateRef.current = null;
+    }
+
+    const pathBefore = window.location.pathname;
+    if (!pathBefore.includes("/watch")) {
+      router.replace(contentDetailUrl);
+      return;
+    }
+
+    const onPopState = () => {
+      if (leaveWatchFallbackTimerRef.current) {
+        clearTimeout(leaveWatchFallbackTimerRef.current);
+        leaveWatchFallbackTimerRef.current = null;
+      }
+      window.removeEventListener("popstate", onPopState);
+      leaveWatchPopStateRef.current = null;
+    };
+    leaveWatchPopStateRef.current = onPopState;
+    window.addEventListener("popstate", onPopState);
+
+    router.back();
+
+    leaveWatchFallbackTimerRef.current = setTimeout(() => {
+      leaveWatchFallbackTimerRef.current = null;
+      window.removeEventListener("popstate", onPopState);
+      leaveWatchPopStateRef.current = null;
+      if (window.location.pathname === pathBefore) {
+        router.replace(contentDetailUrl);
+      }
+    }, 700);
+  }, [contentDetailUrl, exitContainerFullscreen, router]);
 
 
 
@@ -353,7 +406,7 @@ export function StorytimeMediaPlayer({
   }, []);
 
   const toggleFullscreen = useCallback(async () => {
-    const root = playerRef.current?.el?.closest(".capture-protected-player") as HTMLElement | null;
+    const root = playerRef.current?.el?.closest(".storytime-watch-player") as HTMLElement | null;
     if (!root) return;
     try {
       if (document.fullscreenElement) await document.exitFullscreen();
@@ -361,6 +414,94 @@ export function StorytimeMediaPlayer({
     } catch {
       // unsupported or denied
     }
+  }, []);
+
+  const togglePlayPause = useCallback(() => {
+    const player = playerRef.current;
+    if (!player) return;
+    if (player.paused) void player.play();
+    else player.pause();
+    resetIdleTimer();
+  }, [resetIdleTimer]);
+
+  const seekBack = useCallback(() => {
+    const player = playerRef.current;
+    if (!player) return;
+    player.currentTime = Math.max(0, player.currentTime - 10);
+    setCurrentTime(player.currentTime);
+    resetIdleTimer();
+  }, [resetIdleTimer]);
+
+  const seekForward = useCallback(() => {
+    const player = playerRef.current;
+    if (!player) return;
+    player.currentTime = Math.min(player.duration || player.currentTime + 10, player.currentTime + 10);
+    setCurrentTime(player.currentTime);
+    resetIdleTimer();
+  }, [resetIdleTimer]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const syncMobile = () => setIsMobileLike(computeIsMobileLikeClient());
+    syncMobile();
+    window.addEventListener("resize", syncMobile);
+    return () => window.removeEventListener("resize", syncMobile);
+  }, []);
+
+  useEffect(() => {
+    if (isMobileLike || typeof document === "undefined") return;
+    const enterFullscreen = () => {
+      const root = document.querySelector(".storytime-watch-player") as HTMLElement | null;
+      if (!root || document.fullscreenElement) return;
+      const requestFs =
+        root.requestFullscreen?.bind(root) ??
+        (root as unknown as { webkitRequestFullscreen?: () => Promise<void> | void })
+          .webkitRequestFullscreen?.bind(root);
+      if (!requestFs) return;
+      void Promise.resolve(requestFs()).catch(() => {});
+    };
+    const timer = window.setTimeout(enterFullscreen, 80);
+    return () => window.clearTimeout(timer);
+  }, [isMobileLike, source?.src]);
+
+  useEffect(() => {
+    if (!isMobileLike) return;
+    const lockLandscape = async () => {
+      if (typeof window === "undefined") return;
+      const orientationApi = window.screen?.orientation as
+        | (ScreenOrientation & {
+            lock?: (orientation: "landscape" | "landscape-primary" | "landscape-secondary") => Promise<void>;
+          })
+        | undefined;
+      if (!orientationApi?.lock) return;
+      try {
+        await orientationApi.lock("landscape");
+        orientationLockedRef.current = true;
+      } catch {
+        // Requires user gesture on some browsers.
+      }
+    };
+    if (isPlaying) void lockLandscape();
+  }, [isMobileLike, isPlaying]);
+
+  useEffect(() => {
+    return () => {
+      if (leaveWatchFallbackTimerRef.current) {
+        clearTimeout(leaveWatchFallbackTimerRef.current);
+      }
+      if (typeof window !== "undefined" && leaveWatchPopStateRef.current) {
+        window.removeEventListener("popstate", leaveWatchPopStateRef.current);
+      }
+      if (typeof window === "undefined") return;
+      const orientationApi = window.screen?.orientation as (ScreenOrientation & { unlock?: () => void }) | undefined;
+      if (orientationLockedRef.current && orientationApi?.unlock) {
+        try {
+          orientationApi.unlock();
+        } catch {
+          // no-op
+        }
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -428,7 +569,7 @@ export function StorytimeMediaPlayer({
 
   if (waitingForSignedBundle) {
     return (
-      <div className="relative fixed inset-0 z-50 bg-black" data-input-scope="player">
+      <div className="relative fixed inset-0 z-[100] bg-black" data-input-scope="player">
         {poster ? (
           <Image src={poster} alt="" fill priority className="object-contain opacity-40" sizes="100vw" unoptimized={poster.startsWith("http")} />
         ) : null}
@@ -446,7 +587,7 @@ export function StorytimeMediaPlayer({
 
     return (
 
-      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black p-8 text-center">
+      <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black p-8 text-center">
 
         <p className="mb-4 text-lg font-medium text-white">Video unavailable</p>
 
@@ -483,19 +624,20 @@ export function StorytimeMediaPlayer({
 
 
 
-  return (
+  const enrichment = bundle?.enrichment as { moodTags?: string[]; atmosphere?: string | null } | undefined;
 
+  return (
     <div
-      className="capture-protected-player fixed inset-0 z-50 bg-black"
+      className="storytime-watch-player fixed inset-0 z-[100] bg-black"
       data-input-scope="player"
       onMouseMove={resetIdleTimer}
       onTouchStart={resetIdleTimer}
+      onClick={resetIdleTimer}
       onKeyDown={resetIdleTimer}
-      onContextMenu={(e) => e.preventDefault()}
     >
       <MediaPlayer
         ref={playerRef}
-        className="h-full w-full"
+        className="h-full w-full [&_video]:object-contain"
         title={title}
         src={{ src: source.src, type: source.type as "application/x-mpegurl" | "video/mp4" }}
         poster={poster || undefined}
@@ -504,200 +646,139 @@ export function StorytimeMediaPlayer({
         load="eager"
         onHlsInstance={applyHlsDrmConfig}
         onLoadedData={applyStartTime}
-
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
         onDurationChange={() => {
           applyStartTime();
           const player = playerRef.current;
           if (player) setDuration(player.duration);
         }}
-
         onTimeUpdate={() => {
-
           const player = playerRef.current;
-
           if (!player) return;
-
           const t = player.currentTime;
-
           const d = player.duration;
-
           setCurrentTime(t);
-
           onTimeUpdate?.(t, d);
-
           if (nextEpisode && d > 0 && d - t <= 15 && d - t > 0.5) {
             setNextCountdown(Math.ceil(d - t));
           } else {
             setNextCountdown(null);
           }
-
           const pos = Math.floor(t);
-
           if (onProgressSave && pos - lastSavedRef.current >= 10) {
-
             lastSavedRef.current = pos;
-
             onProgressSave(t, d);
-
           }
-
         }}
-
         onEnd={() => {
-
           const player = playerRef.current;
-
           if (player && onProgressSave) {
-
             onProgressSave(player.currentTime, player.duration);
-
           }
-
           if (nextEpisode) {
-
             router.push(nextEpisode.href ?? `/browse/content/${nextEpisode.id}/watch`);
-
           }
-
         }}
-
       >
-
         <MediaProvider />
-
         <PlaybackBufferingOverlay />
-
-        <DefaultVideoLayout icons={defaultLayoutIcons} />
+        {!isMobileLike ? <DefaultVideoLayout icons={defaultLayoutIcons} /> : null}
       </MediaPlayer>
 
-      <ForensicWatermark
-        label={watermarkLabel}
-        visible={capture.active && capture.watermarkEnabled}
-      />
-      <CaptureProtectionBadge
-        active={capture.active}
-        drmConfigured={capture.drmConfigured || Boolean(bundle?.captureProtection?.drmConfigured)}
-        screenCaptured={capture.screenCaptured}
-        signedUrl={Boolean(bundle?.playbackProtection?.signedUrl)}
-      />
-
-
-
-      <div
-
-        className={`pointer-events-none absolute left-0 right-0 top-0 z-10 bg-gradient-to-b from-black/70 to-transparent p-4 transition-opacity duration-500 ${
-
-          uiVisible ? "opacity-100" : "opacity-0"
-
-        }`}
-
-      >
-
-        <div className="pointer-events-auto flex items-start justify-between gap-3">
-
-          <div className="flex min-w-0 flex-col gap-2">
-
-            <div className="flex flex-wrap items-center gap-2">
-
-              <button
-
-                type="button"
-
-                onClick={leaveWatch}
-
-                className="rounded-lg border border-white/20 bg-black/50 px-3 py-2 text-sm font-medium text-white backdrop-blur-sm hover:bg-white/10"
-
-              >
-
-                ← Back
-
-              </button>
-
-              <PlaybackComplianceBadge
-                ageRating={ageRating}
-                minAge={minAge}
-                advisory={advisory}
-                variant="playback"
-              />
-
+      {isMobileLike ? (
+        <NetflixMobileControls
+          visible={uiVisible}
+          title={title}
+          ageRating={ageRating}
+          minAge={minAge}
+          advisory={advisory}
+          moodTags={enrichment?.moodTags}
+          atmosphere={enrichment?.atmosphere}
+          isPlaying={isPlaying}
+          currentTime={currentTime}
+          duration={duration}
+          onClose={leaveWatch}
+          onTogglePlay={togglePlayPause}
+          onSeekBack={seekBack}
+          onSeekForward={seekForward}
+          onSeek={seekTo}
+          showSkipIntro={showSkipIntro}
+          onSkipIntro={skipIntro}
+        />
+      ) : (
+        <>
+          <div
+            className={`pointer-events-none absolute left-0 right-0 top-0 z-10 bg-gradient-to-b from-black/70 to-transparent p-4 transition-opacity duration-500 ${
+              uiVisible ? "opacity-100" : "opacity-0"
+            }`}
+          >
+            <div className="pointer-events-auto flex items-start justify-between gap-3">
+              <div className="flex min-w-0 flex-col gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={leaveWatch}
+                    className="rounded-lg border border-white/20 bg-black/50 px-3 py-2 text-sm font-medium text-white backdrop-blur-sm hover:bg-white/10"
+                  >
+                    ← Back
+                  </button>
+                  <PlaybackComplianceBadge
+                    ageRating={ageRating}
+                    minAge={minAge}
+                    advisory={advisory}
+                    variant="playback"
+                  />
+                </div>
+              </div>
+              <p className="max-w-[40%] truncate pt-1 text-sm font-medium text-white/90">{title}</p>
             </div>
-
           </div>
 
-          <p className="max-w-[40%] truncate pt-1 text-sm font-medium text-white/90">{title}</p>
+          <PlaybackChrome
+            visible={uiVisible}
+            title={title}
+            showSkipIntro={showSkipIntro}
+            onSkipIntro={skipIntro}
+            onPiP={enterPiP}
+            pipSupported={typeof document !== "undefined" && document.pictureInPictureEnabled}
+            metadataOpen={metadataOpen}
+            onToggleMetadata={() => setMetadataOpen((v) => !v)}
+            currentSceneLabel={activeScene?.summary ?? activeScene?.mood ?? null}
+          />
 
-        </div>
+          <PlaybackMetadataPanel
+            open={metadataOpen}
+            onClose={() => setMetadataOpen(false)}
+            moodTags={enrichment?.moodTags}
+            atmosphere={enrichment?.atmosphere}
+            scenes={scenes}
+            currentTime={currentTime}
+            onSeek={seekTo}
+          />
 
-      </div>
-
-
-
-      <PlaybackChrome
-
-        visible={uiVisible}
-
-        title={title}
-
-        showSkipIntro={showSkipIntro}
-
-        onSkipIntro={skipIntro}
-
-        onPiP={enterPiP}
-
-        pipSupported={typeof document !== "undefined" && document.pictureInPictureEnabled}
-
-        metadataOpen={metadataOpen}
-
-        onToggleMetadata={() => setMetadataOpen((v) => !v)}
-
-        currentSceneLabel={activeScene?.summary ?? activeScene?.mood ?? null}
-
-      />
-
-
-
-      <PlaybackMetadataPanel
-
-        open={metadataOpen}
-
-        onClose={() => setMetadataOpen(false)}
-
-        moodTags={bundle?.enrichment?.moodTags}
-
-        atmosphere={bundle?.enrichment?.atmosphere}
-
-        scenes={scenes}
-
-        currentTime={currentTime}
-
-        onSeek={seekTo}
-
-      />
-
-
-
-      {nextEpisode && uiVisible && (
-        <div className="pointer-events-none absolute bottom-36 left-0 right-0 z-10 flex justify-center p-4">
-          <Link
-            href={nextEpisode.href ?? `/browse/content/${nextEpisode.id}/watch`}
-            className="pointer-events-auto flex items-center gap-3 rounded-xl border border-white/10 bg-black/70 px-6 py-3 text-sm font-semibold text-white shadow-2xl backdrop-blur-md transition hover:bg-black/85"
-          >
-            {nextCountdown != null ? (
-              <>
-                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-500 text-xs font-bold">
-                  {nextCountdown}
-                </span>
-                Up next: {nextEpisode.title}
-              </>
-            ) : (
-              <>Up next: {nextEpisode.title}</>
-            )}
-          </Link>
-        </div>
+          {nextEpisode && uiVisible ? (
+            <div className="pointer-events-none absolute bottom-36 left-0 right-0 z-10 flex justify-center p-4">
+              <Link
+                href={nextEpisode.href ?? `/browse/content/${nextEpisode.id}/watch`}
+                className="pointer-events-auto flex items-center gap-3 rounded-xl border border-white/10 bg-black/70 px-6 py-3 text-sm font-semibold text-white shadow-2xl backdrop-blur-md transition hover:bg-black/85"
+              >
+                {nextCountdown != null ? (
+                  <>
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-500 text-xs font-bold">
+                      {nextCountdown}
+                    </span>
+                    Up next: {nextEpisode.title}
+                  </>
+                ) : (
+                  <>Up next: {nextEpisode.title}</>
+                )}
+              </Link>
+            </div>
+          ) : null}
+        </>
       )}
-
     </div>
-
   );
 
 }

@@ -78,6 +78,8 @@ export function Navbar() {
   const compactNav = deviceClass === "mobile";
   const tvMode = deviceClass === "tv";
 
+  if (pathname.includes("/watch")) return null;
+
   function navLinkClass(href: string) {
     const active =
       href === "/browse"
