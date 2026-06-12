@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { VIEWER_MODELS, VIEWER_PLAN_CONFIG } from "@/lib/viewer-access";
+import {
+  VIEWER_MODELS,
+  VIEWER_PLAN_CONFIG,
+  hasBlockingActiveSubscription,
+  subscriptionNeedsReactivation,
+} from "@/lib/viewer-access";
 import { computeDiscountedAmount, redeemPromoCode, resolvePromoCode } from "@/lib/promo-codes";
 import { initializeCheckout } from "@/lib/payments/billing";
 import { getPaymentGateway } from "@/lib/payments/gateway";
@@ -94,7 +99,10 @@ export async function POST(req: Request) {
       }
     | null = null;
 
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } });
+  const user = await prisma.user.findUnique({
+    where: { email: session.user.email },
+    select: { id: true, email: true, name: true, accountOnboardingCompletedAt: true },
+  });
   if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
   const existing = await prisma.viewerSubscription.findFirst({
@@ -102,45 +110,148 @@ export async function POST(req: Request) {
     orderBy: { createdAt: "desc" },
   });
 
-  if (existing?.status === "PAST_DUE") {
-    let checkoutUrl: string | null = null;
-    const pendingPlanConfig =
-      VIEWER_PLAN_CONFIG[existing.plan as keyof typeof VIEWER_PLAN_CONFIG] ?? VIEWER_PLAN_CONFIG.BASE_1;
+  if (existing && hasBlockingActiveSubscription(existing)) {
+    return NextResponse.json({
+      subscription: existing,
+      profileId: null,
+      redirectTo: "/browse",
+      message: "Already have an active subscription",
+    });
+  }
+
+  const reactivating = Boolean(existing && subscriptionNeedsReactivation(existing));
+  const postTrialReturnPath = user.accountOnboardingCompletedAt ? "/browse" : "/profiles";
+
+  if (reactivating && existing) {
+    if (selectedViewerModel === VIEWER_MODELS.PPV) {
+      const updated = await prisma.viewerSubscription.update({
+        where: { id: existing.id },
+        data: {
+          viewerModel: VIEWER_MODELS.PPV,
+          plan: "PPV_FILM",
+          status: "ACTIVE",
+          trialEndsAt: null,
+          deviceCount: 1,
+          profileLimit: 1,
+          billingEmail: user.email,
+          lastPaymentStatus: "SUCCEEDED",
+          lastPaymentError: null,
+          lastPaymentAt: new Date(),
+        },
+      });
+      return NextResponse.json({
+        subscription: updated,
+        profileId: null,
+        redirectTo: postTrialReturnPath,
+        requiresPayment: false,
+        reactivated: true,
+        message: "PPV access restored. Choose a title and pay when you are ready to watch.",
+      });
+    }
+
+    const now = new Date();
+    const basePrice: number = planConfig.price;
+    let finalPrice: number = basePrice;
+
+    if (typeof body.promoCode === "string" && body.promoCode.trim()) {
+      const promoResult = await resolvePromoCode(body.promoCode, "VIEWER_SUBSCRIPTION");
+      if ("error" in promoResult) {
+        return NextResponse.json({ error: promoResult.error }, { status: 400 });
+      }
+      const alreadyUsed = await prisma.promoCodeRedemption.findUnique({
+        where: {
+          promoCodeId_userId_context: {
+            promoCodeId: promoResult.promo.id,
+            userId: user.id,
+            context: "VIEWER_SUBSCRIPTION",
+          },
+        },
+        select: { id: true },
+      });
+      if (alreadyUsed) {
+        return NextResponse.json({ error: "Promo code already used for this account." }, { status: 400 });
+      }
+      finalPrice = computeDiscountedAmount(basePrice, promoResult.promo);
+      appliedPromo = {
+        id: promoResult.promo.id,
+        code: promoResult.promo.code,
+        kind: promoResult.promo.kind,
+        amount: promoResult.promo.amount ?? null,
+      };
+    }
+
+    const subscription = await prisma.viewerSubscription.update({
+      where: { id: existing.id },
+      data: {
+        viewerModel: VIEWER_MODELS.SUBSCRIPTION,
+        plan: planType,
+        status: "PAST_DUE",
+        trialEndsAt: null,
+        deviceCount: planConfig.deviceCount,
+        profileLimit: planConfig.profileLimit,
+        billingEmail: user.email,
+        lastPaymentStatus: "PENDING",
+        lastPaymentError: null,
+        currentPeriodEnd: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
+      },
+    });
+
+    if (appliedPromo) {
+      const redemption = await redeemPromoCode({
+        promoCodeId: appliedPromo.id,
+        userId: user.id,
+        context: "VIEWER_SUBSCRIPTION",
+        referenceId: subscription.id,
+        discountAmount: Math.max(0, basePrice - finalPrice),
+        resultingPlan: planType,
+        metadata: { basePrice, finalPrice, reactivation: true },
+      });
+      if (!redemption.ok) {
+        return NextResponse.json({ error: promoFailureMessage(redemption.reason) }, { status: 400 });
+      }
+    }
+
     try {
       const checkout = await initializeCheckout({
         userId: user.id,
         email: user.email,
         customerName: user.name,
-        amount: pendingPlanConfig.price,
+        amount: finalPrice,
         purpose: "viewer_subscription",
         referenceType: "ViewerSubscription",
-        referenceId: existing.id,
-        returnUrl: buildPaymentReturnUrl("/profiles", "viewer_subscription"),
-        metadata: { planType: existing.plan, resume: true },
+        referenceId: subscription.id,
+        returnUrl: buildPaymentReturnUrl(postTrialReturnPath, "viewer_subscription_reactivate"),
+        metadata: { planType, reactivation: true },
       });
-      checkoutUrl = checkout.checkout.checkoutUrl;
-    } catch {
-      checkoutUrl = null;
+
+      return NextResponse.json({
+        subscription,
+        profileId: null,
+        redirectTo: postTrialReturnPath,
+        requiresPayment: false,
+        deferCheckout: true,
+        checkoutUrl: checkout.checkout.checkoutUrl,
+        reactivated: true,
+        pricing: {
+          basePrice,
+          finalPrice,
+          promoCode: appliedPromo?.code ?? null,
+          discountAmount: Math.max(0, basePrice - finalPrice),
+        },
+        message: "Complete payment to restart your subscription.",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to initialize checkout.";
+      await prisma.viewerSubscription.update({
+        where: { id: subscription.id },
+        data: {
+          status: "PAST_DUE",
+          lastPaymentStatus: "FAILED",
+          lastPaymentError: message,
+        },
+      });
+      return NextResponse.json({ error: message }, { status: 502 });
     }
-
-    return NextResponse.json({
-      subscription: existing,
-      profileId: null,
-      redirectTo: "/onboarding/account",
-      requiresPayment: false,
-      deferCheckout: Boolean(checkoutUrl),
-      checkoutUrl,
-      message: "Continue onboarding to finish your subscription setup.",
-    });
-  }
-
-  if (existing && (existing.status === "TRIAL_ACTIVE" || existing.status === "ACTIVE")) {
-    return NextResponse.json({
-      subscription: existing,
-      profileId: null,
-      redirectTo: "/onboarding/account",
-      message: "Already have an active subscription",
-    });
   }
 
   if (selectedViewerModel === VIEWER_MODELS.PPV) {
@@ -268,7 +379,7 @@ export async function POST(req: Request) {
         purpose: "viewer_subscription",
         referenceType: "ViewerSubscription",
         referenceId: subscription.id,
-        returnUrl: buildPaymentReturnUrl("/profiles", "viewer_subscription"),
+        returnUrl: buildPaymentReturnUrl("/onboarding/account", "viewer_subscription"),
         metadata: { planType },
       });
       checkoutUrl = checkout.checkout.checkoutUrl;

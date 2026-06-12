@@ -84,12 +84,16 @@ const PPV_PLAN = {
 
 type ViewerModel = "SUBSCRIPTION" | "PPV";
 
-export function PackageClient() {
+type PackageClientProps = {
+  reactivationMode?: boolean;
+};
+
+export function PackageClient({ reactivationMode = false }: PackageClientProps) {
   const router = useRouter();
   const [viewerModel, setViewerModel] = useState<ViewerModel>("SUBSCRIPTION");
   const [selected, setSelected] = useState<string>("BASE_1");
   const [expanded, setExpanded] = useState<string | null>("BASE_1");
-  const [startTrial, setStartTrial] = useState(true);
+  const [startTrial, setStartTrial] = useState(!reactivationMode);
   const [promoCode, setPromoCode] = useState("");
   const [promoMessage, setPromoMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -99,6 +103,9 @@ export function PackageClient() {
   const [redirectAfterCheckout, setRedirectAfterCheckout] = useState("/onboarding/account");
 
   const selectedPlan = PLANS.find((plan) => plan.id === selected) ?? PLANS[0];
+
+  const checkoutMandatory =
+    reactivationMode || (viewerModel === "SUBSCRIPTION" && !startTrial);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -112,7 +119,7 @@ export function PackageClient() {
         body: JSON.stringify({
           viewerModel,
           plan: viewerModel === "SUBSCRIPTION" ? selected : PPV_PLAN.id,
-          startTrial: viewerModel === "SUBSCRIPTION" ? startTrial : false,
+          startTrial: viewerModel === "SUBSCRIPTION" && !reactivationMode ? startTrial : false,
           promoCode: viewerModel === "SUBSCRIPTION" ? promoCode : undefined,
         }),
       });
@@ -124,6 +131,10 @@ export function PackageClient() {
 
       if (data?.deferCheckout && typeof data?.checkoutUrl === "string" && data.checkoutUrl) {
         sessionStorage.setItem("st_pending_viewer_checkout", data.checkoutUrl);
+        setCheckoutUrl(data.checkoutUrl);
+        setRedirectAfterCheckout(typeof data?.redirectTo === "string" ? data.redirectTo : "/onboarding/account");
+        setCheckoutOpen(true);
+        return;
       }
 
       if (data?.requiresPayment) {
@@ -162,8 +173,13 @@ export function PackageClient() {
       <CheckoutModal
         open={checkoutOpen}
         checkoutUrl={checkoutUrl}
-        title="Complete viewer subscription payment"
-        subtitle="Finish secure payment to activate your package."
+        dismissible={!checkoutMandatory}
+        title={reactivationMode ? "Complete subscription payment" : "Complete viewer subscription payment"}
+        subtitle={
+          reactivationMode
+            ? "Finish payment to restart your subscription and resume watching."
+            : "Finish secure payment to activate your package."
+        }
         onClose={() => setCheckoutOpen(false)}
       />
       <div className="grid gap-4 md:grid-cols-3">
@@ -410,7 +426,9 @@ export function PackageClient() {
           <p className="text-sm font-medium text-slate-300">What you get</p>
           <p className="mt-2 text-sm text-slate-400">
             {viewerModel === "SUBSCRIPTION"
-              ? "Access to all films, series, shows, podcasts, and music. Start with a 7-day free trial with no charge until it ends."
+              ? reactivationMode
+                ? "Full catalogue access resumes as soon as payment is confirmed."
+                : "Access to all films, series, shows, podcasts, and music. Start with a 7-day free trial with no charge until it ends."
               : "Create one viewer profile first, then browse the catalogue and pay only when you unlock an eligible title."}
           </p>
           <div className="mt-5 space-y-3 text-sm text-slate-300">
@@ -430,7 +448,7 @@ export function PackageClient() {
         </div>
       </div>
 
-      {viewerModel === "SUBSCRIPTION" ? (
+      {viewerModel === "SUBSCRIPTION" && !reactivationMode ? (
         <div className="storytime-section p-6">
           <p className="text-sm font-medium text-slate-300">Billing start</p>
           <p className="mt-2 text-sm text-slate-400">
@@ -527,10 +545,14 @@ export function PackageClient() {
       >
         {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
         {viewerModel === "SUBSCRIPTION"
-          ? startTrial
-            ? "Start 7-day free trial"
-            : "Pay now"
-          : "Continue with PPV"}
+          ? reactivationMode
+            ? "Activate subscription"
+            : startTrial
+              ? "Start 7-day free trial"
+              : "Pay now"
+          : reactivationMode
+            ? "Switch to PPV"
+            : "Continue with PPV"}
       </button>
 
     </form>

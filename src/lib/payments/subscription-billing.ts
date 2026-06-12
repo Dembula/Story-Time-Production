@@ -27,6 +27,15 @@ export async function processViewerSubscriptionCharge(subscriptionId: string) {
     return { ok: false as const, reason: "not_subscription_model" };
   }
   if (!subscription.externalPaymentId) {
+    await db.viewerSubscription.update({
+      where: { id: subscriptionId },
+      data: {
+        status: "PAST_DUE",
+        lastPaymentStatus: "FAILED",
+        lastPaymentError: "Add a payment method to continue after your trial.",
+        lastPaymentAt: new Date(),
+      },
+    });
     return { ok: false as const, reason: "missing_card_consent" };
   }
 

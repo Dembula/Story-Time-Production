@@ -3,6 +3,11 @@
 import { ChevronLeft, ChevronRight, Music } from "lucide-react";
 import Image from "next/image";
 import { useRef } from "react";
+import {
+  browseMusicCardClass,
+  browseMusicCardImageSizes,
+  browseRowGapClass,
+} from "@/lib/browse-card-layout";
 
 type MusicTrack = {
   id: string;
@@ -58,20 +63,20 @@ export function MusicRow({
       </div>
       <div
         ref={scrollRef}
-        className="flex gap-4 overflow-x-auto scrollbar-hide scroll-smooth pb-2"
+        className={`flex overflow-x-auto scrollbar-hide scroll-smooth pb-2 ${browseRowGapClass}`}
       >
         {tracks.map((track) => (
           <div
             key={track.id}
-            className="group/card w-44 flex-shrink-0 overflow-hidden rounded-2xl border border-white/8 bg-card/85 shadow-media hover:-translate-y-1 hover:border-white/14"
+            className={`group/card overflow-hidden rounded-xl border border-white/8 bg-card/85 shadow-media hover:-translate-y-1 hover:border-white/14 sm:rounded-2xl ${browseMusicCardClass}`}
           >
-            <div className="relative aspect-square overflow-hidden rounded-t-2xl bg-slate-900">
+            <div className="relative aspect-square overflow-hidden rounded-t-xl bg-slate-900 sm:rounded-t-2xl">
               {track.coverUrl ? (
                 <Image
                   src={track.coverUrl}
                   alt={track.title}
                   fill
-                  sizes="(max-width: 768px) 35vw, 176px"
+                  sizes={browseMusicCardImageSizes}
                   className="h-full w-full object-cover transition duration-300 group-hover/card:scale-[1.04] group-hover/card:brightness-110"
                 />
               ) : (
@@ -80,9 +85,9 @@ export function MusicRow({
                 </div>
               )}
             </div>
-            <div className="p-3">
-              <p className="truncate text-sm font-medium text-white group-hover/card:text-orange-100">{track.title}</p>
-              <p className="truncate text-xs text-slate-400">{track.artistName}</p>
+            <div className="p-2 sm:p-3">
+              <p className="truncate text-xs font-medium text-white sm:text-sm group-hover/card:text-orange-100">{track.title}</p>
+              <p className="truncate text-[11px] text-slate-400 sm:text-xs">{track.artistName}</p>
               {track.genre && (
                 <p className="mt-0.5 text-xs text-slate-500">{track.genre}</p>
               )}

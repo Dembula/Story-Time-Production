@@ -35,6 +35,7 @@ export async function applyPaymentRecordSettlementEffects(paymentRecord: {
       where: { id: paymentRecord.relatedEntityId },
       data: {
         status: "ACTIVE",
+        trialEndsAt: null,
         currentPeriodEnd: nextPeriodEnd,
         lastPaymentStatus: "SUCCEEDED",
         lastPaymentAt: now,

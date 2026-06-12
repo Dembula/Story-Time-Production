@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2, User, Mail, Phone, MapPin } from "lucide-react";
 
-export function AccountSetupClient() {
+export function AccountSetupClient({ allowAccountDeferral = true }: { allowAccountDeferral?: boolean }) {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -187,53 +187,59 @@ export function AccountSetupClient() {
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           Save and continue
         </button>
-        <button
-          type="button"
-          disabled={saving}
-          onClick={async () => {
-            setError("");
-            setSaving(true);
-            try {
-              const res = await fetch("/api/viewer/account/onboarding", {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(form),
-              });
-              const data = await res.json().catch(() => ({}));
-              if (!res.ok) throw new Error(data.error || "Could not save account details");
-              document.cookie = "st_onboarding_deferred=1; path=/; max-age=2592000; SameSite=Lax";
-              router.push("/profiles");
-              router.refresh();
-            } catch (err) {
-              setError(err instanceof Error ? err.message : "Save failed");
-            } finally {
-              setSaving(false);
-            }
-          }}
-          className="text-sm text-slate-400 hover:text-white disabled:opacity-50"
-        >
-          Save progress for later
-        </button>
-        <button
-          type="button"
-          disabled={saving}
-          onClick={() => {
-            document.cookie = "st_onboarding_deferred=1; path=/; max-age=2592000; SameSite=Lax";
-            router.push("/profiles");
-            router.refresh();
-          }}
-          className="text-sm text-slate-500 hover:text-white disabled:opacity-50"
-        >
-          Skip for now — create a profile first
-        </button>
+        {allowAccountDeferral ? (
+          <>
+            <button
+              type="button"
+              disabled={saving}
+              onClick={async () => {
+                setError("");
+                setSaving(true);
+                try {
+                  const res = await fetch("/api/viewer/account/onboarding", {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(form),
+                  });
+                  const data = await res.json().catch(() => ({}));
+                  if (!res.ok) throw new Error(data.error || "Could not save account details");
+                  document.cookie = "st_onboarding_deferred=1; path=/; max-age=2592000; SameSite=Lax";
+                  router.push("/profiles");
+                  router.refresh();
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : "Save failed");
+                } finally {
+                  setSaving(false);
+                }
+              }}
+              className="text-sm text-slate-400 hover:text-white disabled:opacity-50"
+            >
+              Save progress for later
+            </button>
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => {
+                document.cookie = "st_onboarding_deferred=1; path=/; max-age=2592000; SameSite=Lax";
+                router.push("/profiles");
+                router.refresh();
+              }}
+              className="text-sm text-slate-500 hover:text-white disabled:opacity-50"
+            >
+              Skip for now — create a profile first
+            </button>
+          </>
+        ) : null}
       </div>
-      <p className="text-xs text-slate-500">
-        You can finish email, phone, and billing address anytime in{" "}
-        <Link href="/browse/settings" className="text-orange-300/90 hover:text-orange-200">
-          Account settings
-        </Link>{" "}
-        after choosing a profile.
-      </p>
+      {allowAccountDeferral ? (
+        <p className="text-xs text-slate-500">
+          You can finish email, phone, and billing address anytime in{" "}
+          <Link href="/onboarding/account" className="text-orange-300/90 hover:text-orange-200">
+            Account setup
+          </Link>{" "}
+          after choosing a profile.
+        </p>
+      ) : null}
     </form>
   );
 }

@@ -13,6 +13,12 @@ import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
 import { Skeleton } from "@/components/ui/skeleton";
 import { resolveTrailerSources } from "@/lib/playback-sources";
 import { getDisplayPosterUrl, getStreamThumbnailGifUrl } from "@/lib/content-media-urls";
+import {
+  browsePosterCardClass,
+  browsePosterCardImageSizes,
+  browsePosterCardSkeletonClass,
+  browseRowGapClass,
+} from "@/lib/browse-card-layout";
 
 export type ContentItem = {
   id: string;
@@ -73,7 +79,7 @@ function ContentCard({
   }, []);
 
   return (
-    <motion.div className="group/card w-52 shrink-0 snap-start" {...hoverMotion}>
+    <motion.div className={`group/card ${browsePosterCardClass}`} {...hoverMotion}>
     <Link
       href={`/browse/content/${item.id}`}
       className="block"
@@ -82,13 +88,13 @@ function ContentCard({
       onFocus={onEnter}
       onBlur={onLeave}
     >
-      <div className="relative aspect-[2/3] overflow-hidden rounded-2xl border border-white/8 bg-card shadow-media">
+      <div className="relative aspect-[2/3] overflow-hidden rounded-xl border border-white/8 bg-card shadow-media sm:rounded-2xl">
         {imageUrl ? (
           <Image
             src={imageUrl}
             alt={item.title}
             fill
-            sizes="(max-width: 768px) 40vw, 208px"
+            sizes={browsePosterCardImageSizes}
             className={`h-full w-full object-cover transition duration-500 ${
               hovering && (trailer || hoverGif) ? "opacity-0" : "opacity-100"
             } group-hover/card:scale-[1.04] group-hover/card:brightness-110`}
@@ -134,8 +140,8 @@ function ContentCard({
           </div>
         ) : null}
       </div>
-      <p className="mt-3 truncate text-sm font-medium text-white group-hover/card:text-orange-100">{item.title}</p>
-      {item.category && <p className="truncate text-xs text-slate-400">{item.category}</p>}
+      <p className="mt-2 truncate text-xs font-medium text-white sm:mt-3 sm:text-sm group-hover/card:text-orange-100">{item.title}</p>
+      {item.category && <p className="truncate text-[11px] text-slate-400 sm:text-xs">{item.category}</p>}
     </Link>
     </motion.div>
   );
@@ -173,9 +179,9 @@ export function ContentRow({
           <h2 className="text-xl font-semibold text-white">{title}</h2>
           {subtitle && <p className="mt-1 text-sm text-slate-400">{subtitle}</p>}
         </div>
-        <div className="flex gap-4 overflow-hidden">
+        <div className={`flex overflow-hidden ${browseRowGapClass}`}>
           {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-72 w-48 shrink-0 rounded-2xl bg-white/[0.06]" />
+            <Skeleton key={i} className={`${browsePosterCardSkeletonClass} bg-white/[0.06]`} />
           ))}
         </div>
       </div>
@@ -185,11 +191,11 @@ export function ContentRow({
   if (!contents?.length) return null;
 
   return (
-    <div className="group/row mb-14">
-      <div className="mb-5 flex items-end justify-between">
+    <div className="group/row mb-10 sm:mb-14">
+      <div className="mb-3 flex items-end justify-between sm:mb-5">
         <div>
-          <h2 className="font-display text-xl font-semibold text-white">{title}</h2>
-          {subtitle && <p className="mt-1 text-sm text-slate-400">{subtitle}</p>}
+          <h2 className="font-display text-lg font-semibold text-white sm:text-xl">{title}</h2>
+          {subtitle && <p className="mt-0.5 text-xs text-slate-400 sm:mt-1 sm:text-sm">{subtitle}</p>}
         </div>
         <div className="flex gap-2 opacity-100 transition md:opacity-0 md:group-hover/row:opacity-100">
           <motion.button
@@ -215,7 +221,7 @@ export function ContentRow({
       <div
         ref={scrollRef}
         data-spatial-nav="row"
-        className="flex snap-x snap-mandatory gap-5 overflow-x-auto scroll-smooth pb-2 scrollbar-hide [-webkit-overflow-scrolling:touch]"
+        className={`flex snap-x snap-mandatory overflow-x-auto scroll-smooth pb-2 scrollbar-hide [-webkit-overflow-scrolling:touch] ${browseRowGapClass}`}
       >
         {contents.map((item) => (
           <ContentCard key={item.id} item={item} ppvMode={ppvMode} />

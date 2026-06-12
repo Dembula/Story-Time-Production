@@ -7,6 +7,12 @@ import Image from "next/image";
 import { ChevronLeft, ChevronRight, Play } from "lucide-react";
 import { useRef } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  browsePosterCardClass,
+  browsePosterCardImageSizes,
+  browsePosterCardSkeletonClass,
+  browseRowGapClass,
+} from "@/lib/browse-card-layout";
 
 type ContinueItem = {
   id: string;
@@ -38,9 +44,9 @@ function ContinueWatchingRowInner() {
     return (
       <div className="mb-12">
         <Skeleton className="mb-4 h-7 w-48 bg-white/[0.06]" />
-        <div className="flex gap-4 overflow-hidden">
+        <div className={`flex overflow-hidden ${browseRowGapClass}`}>
           {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-72 w-52 shrink-0 rounded-2xl bg-white/[0.06]" />
+            <Skeleton key={i} className={`${browsePosterCardSkeletonClass} bg-white/[0.06]`} />
           ))}
         </div>
       </div>
@@ -81,20 +87,20 @@ function ContinueWatchingRowInner() {
           </button>
         </div>
       </div>
-      <div ref={scrollRef} className="flex gap-4 overflow-x-auto scroll-smooth pb-2 scrollbar-hide">
+      <div ref={scrollRef} className={`flex overflow-x-auto scroll-smooth pb-2 scrollbar-hide ${browseRowGapClass}`}>
         {items.map((item) => (
           <Link
             key={item.id}
             href={`/browse/content/${item.id}/watch`}
-            className="group/card block w-52 shrink-0"
+            className={`group/card block ${browsePosterCardClass}`}
           >
-            <div className="relative aspect-[2/3] overflow-hidden rounded-2xl border border-white/8 bg-card shadow-media">
+            <div className="relative aspect-[2/3] overflow-hidden rounded-xl border border-white/8 bg-card shadow-media sm:rounded-2xl">
               {item.posterUrl || item.backdropUrl ? (
                 <Image
                   src={item.posterUrl || item.backdropUrl || ""}
                   alt={item.title}
                   fill
-                  sizes="208px"
+                  sizes={browsePosterCardImageSizes}
                   className="object-cover transition duration-300 group-hover/card:scale-[1.04]"
                 />
               ) : (
@@ -112,7 +118,7 @@ function ContinueWatchingRowInner() {
                 />
               </div>
             </div>
-            <p className="mt-3 truncate text-sm font-medium text-white">{item.title}</p>
+            <p className="mt-2 truncate text-xs font-medium text-white sm:mt-3 sm:text-sm">{item.title}</p>
             {item.progressPercent > 0 && (
               <p className="text-xs text-slate-400">{item.progressPercent}% watched</p>
             )}

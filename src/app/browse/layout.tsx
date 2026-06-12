@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { SubscriptionExpiredModal } from "./subscription-expired-modal";
 import { ViewerSuggestionsTrigger } from "./viewer-suggestions-trigger";
 import { cookies } from "next/headers";
-import { getLatestViewerSubscription, getViewerModel, isViewerSubscriptionExpired } from "@/lib/viewer-access";
+import { getLatestViewerSubscription, getViewerModel, isViewerSubscriptionExpired, subscriptionPaymentRequired } from "@/lib/viewer-access";
 import { isViewerAccountOnboardingComplete } from "@/lib/viewer-account-onboarding";
 import { isViewerProfilePinUnlocked } from "@/lib/viewer-profile-access";
 
@@ -35,6 +35,9 @@ export default async function BrowseLayout({
       const sub = user?.id ? await getLatestViewerSubscription(user.id) : null;
       if (!sub) {
         redirect("/onboarding/package");
+      }
+      if (getViewerModel(sub) === "SUBSCRIPTION" && subscriptionPaymentRequired(sub)) {
+        redirect("/profiles?payment=required");
       }
       const cookieStore = await cookies();
       const onboardingDeferred = cookieStore.get("st_onboarding_deferred")?.value === "1";

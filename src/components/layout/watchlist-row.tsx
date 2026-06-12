@@ -8,6 +8,12 @@ import { ChevronLeft, ChevronRight, Bookmark } from "lucide-react";
 import { useRef } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getDisplayPosterUrl } from "@/lib/content-media-urls";
+import {
+  browsePosterCardClass,
+  browsePosterCardImageSizes,
+  browsePosterCardSkeletonClass,
+  browseRowGapClass,
+} from "@/lib/browse-card-layout";
 
 type WatchlistItem = {
   content: {
@@ -42,9 +48,9 @@ function WatchlistRowInner() {
     return (
       <div className="mb-14">
         <Skeleton className="mb-4 h-7 w-40 bg-white/[0.06]" />
-        <div className="flex gap-4 overflow-hidden">
+        <div className={`flex overflow-hidden ${browseRowGapClass}`}>
           {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-72 w-52 shrink-0 rounded-2xl bg-white/[0.06]" />
+            <Skeleton key={i} className={`${browsePosterCardSkeletonClass} bg-white/[0.06]`} />
           ))}
         </div>
       </div>
@@ -84,7 +90,7 @@ function WatchlistRowInner() {
       </div>
       <div
         ref={scrollRef}
-        className="flex snap-x snap-mandatory gap-5 overflow-x-auto scroll-smooth pb-2 scrollbar-hide"
+        className={`flex snap-x snap-mandatory overflow-x-auto scroll-smooth pb-2 scrollbar-hide ${browseRowGapClass}`}
       >
         {items.slice(0, 12).map(({ content: c }) => {
           const poster = getDisplayPosterUrl(c) ?? c.posterUrl;
@@ -92,18 +98,18 @@ function WatchlistRowInner() {
             <Link
               key={c.id}
               href={`/browse/content/${c.id}`}
-              className="group/card w-52 shrink-0 snap-start"
+              className={`group/card ${browsePosterCardClass}`}
             >
-              <div className="relative aspect-[2/3] overflow-hidden rounded-2xl border border-white/8 bg-card shadow-media transition duration-300 group-hover/card:scale-[1.03] group-hover/card:shadow-[var(--cin-depth-1)]">
+              <div className="relative aspect-[2/3] overflow-hidden rounded-xl border border-white/8 bg-card shadow-media transition duration-300 group-hover/card:scale-[1.03] group-hover/card:shadow-[var(--cin-depth-1)] sm:rounded-2xl">
                 {poster ? (
-                  <Image src={poster} alt={c.title} fill sizes="208px" className="object-cover" />
+                  <Image src={poster} alt={c.title} fill sizes={browsePosterCardImageSizes} className="object-cover" />
                 ) : (
                   <div className="flex h-full items-center justify-center bg-slate-900">
                     <Bookmark className="h-8 w-8 text-slate-600" />
                   </div>
                 )}
               </div>
-              <p className="mt-3 truncate text-sm font-medium text-white">{c.title}</p>
+              <p className="mt-2 truncate text-xs font-medium text-white sm:mt-3 sm:text-sm">{c.title}</p>
             </Link>
           );
         })}

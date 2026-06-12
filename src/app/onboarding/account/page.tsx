@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isViewerAccountOnboardingComplete } from "@/lib/viewer-account-onboarding";
+import { getLatestViewerSubscription, subscriptionPaymentRequired } from "@/lib/viewer-access";
 import { AccountSetupClient } from "./account-setup-client";
 
 export default async function AccountSetupPage() {
@@ -18,10 +19,17 @@ export default async function AccountSetupPage() {
   });
   if (user && isViewerAccountOnboardingComplete(user)) redirect("/profiles");
 
+  const subscription = await getLatestViewerSubscription(session.user.id);
+  if (subscription && subscriptionPaymentRequired(subscription)) {
+    redirect("/profiles?payment=required");
+  }
+
+  const allowAccountDeferral = !subscription || !subscriptionPaymentRequired(subscription);
+
   return (
     <div className="min-h-screen bg-background px-6 py-12 text-slate-100">
       <div className="mx-auto max-w-2xl">
-        <AccountSetupClient />
+        <AccountSetupClient allowAccountDeferral={allowAccountDeferral} />
       </div>
     </div>
   );

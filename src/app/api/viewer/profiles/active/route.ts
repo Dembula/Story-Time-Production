@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { cookies } from "next/headers";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getLatestViewerSubscription, subscriptionPaymentRequired } from "@/lib/viewer-access";
 import { getViewerProfileAge } from "@/lib/viewer-profiles";
 import { verifyProfilePin } from "@/lib/viewer-profile-pin";
 import {
@@ -67,6 +68,14 @@ export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => null)) as { profileId?: string; pin?: string } | null;
   const profileId = body?.profileId?.trim();
   if (!profileId) return NextResponse.json({ error: "profileId is required" }, { status: 400 });
+
+  const subscription = await getLatestViewerSubscription(session.user.id);
+  if (subscriptionPaymentRequired(subscription)) {
+    return NextResponse.json(
+      { error: "Complete your subscription payment before entering the catalogue.", paymentRequired: true },
+      { status: 402 },
+    );
+  }
 
   const profile = await prisma.viewerProfile.findFirst({
     where: { id: profileId, userId: session.user.id },

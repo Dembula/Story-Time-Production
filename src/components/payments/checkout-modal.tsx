@@ -8,6 +8,7 @@ type CheckoutModalProps = {
   checkoutUrl: string;
   title?: string;
   subtitle?: string;
+  dismissible?: boolean;
   onClose: () => void;
 };
 
@@ -20,6 +21,7 @@ export function CheckoutModal({
   checkoutUrl,
   title = "Secure checkout",
   subtitle = "Complete your payment securely, then return to continue.",
+  dismissible = true,
   onClose,
 }: CheckoutModalProps) {
   const demo = isDemoCheckoutUrl(checkoutUrl);
@@ -58,7 +60,8 @@ export function CheckoutModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-white/10 bg-white/[0.03] p-2 text-slate-300 hover:bg-white/[0.08] hover:text-white"
+            disabled={!dismissible}
+            className="rounded-lg border border-white/10 bg-white/[0.03] p-2 text-slate-300 hover:bg-white/[0.08] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
             aria-label="Close checkout"
           >
             <X className="h-4 w-4" />
@@ -89,13 +92,17 @@ export function CheckoutModal({
             Open in a new secure tab <ExternalLink className="h-4 w-4" />
           </a>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg border border-white/10 px-4 py-2 text-sm text-slate-300 hover:bg-white/[0.08] hover:text-white"
-            >
-              Continue later
-            </button>
+            {dismissible ? (
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-lg border border-white/10 px-4 py-2 text-sm text-slate-300 hover:bg-white/[0.08] hover:text-white"
+              >
+                Continue later
+              </button>
+            ) : (
+              <p className="text-xs text-slate-500">Payment is required to continue onboarding.</p>
+            )}
           </div>
         </div>
       </div>

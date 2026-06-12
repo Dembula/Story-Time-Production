@@ -232,7 +232,7 @@ export function ProfilesClient({
         <div className="rounded-xl border border-orange-400/30 bg-orange-500/10 p-4 text-sm text-orange-100 shadow-panel">
           <p className="font-medium text-white">Subscription payment required</p>
           <p className="mt-1 text-orange-100/90">
-            Finish secure payment to activate your plan, then choose a profile to enter the catalogue.
+            Complete secure payment to activate your plan. You cannot enter the catalogue until payment is confirmed.
           </p>
           <button
             type="button"
@@ -269,17 +269,17 @@ export function ProfilesClient({
         </div>
       )}
 
-      {accountDetailsIncomplete ? (
+      {accountDetailsIncomplete && !paymentPending ? (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/12 bg-black px-4 py-3 shadow-panel">
           <p className="text-sm text-slate-300">
             Account details (email, phone, billing address) are not complete yet.
           </p>
           <Link
-            href="/browse/settings"
+            href="/onboarding/account"
             className="inline-flex items-center gap-2 rounded-lg border border-orange-400/30 bg-orange-500/10 px-3 py-2 text-sm font-medium text-orange-200 hover:bg-orange-500/15"
           >
             <Settings className="h-4 w-4" />
-            Complete in settings
+            Complete account setup
           </Link>
         </div>
       ) : null}
@@ -310,8 +310,8 @@ export function ProfilesClient({
             key={p.id}
             type="button"
             onClick={() => requestProfile(p)}
-            disabled={loading !== null}
-            className="storytime-section group p-5 text-left hover:-translate-y-1 hover:bg-white/[0.04]"
+            disabled={loading !== null || paymentPending}
+            className="storytime-section group p-5 text-left hover:-translate-y-1 hover:bg-white/[0.04] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">

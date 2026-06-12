@@ -91,7 +91,7 @@ export default async function BrowseSearchPage({ searchParams }: Props) {
 
   return (
     <div className="min-h-[60vh] pb-16">
-      <div className="mx-auto max-w-[1800px] px-4 md:px-12">
+      <div className="mx-auto max-w-[1800px] px-4 sm:px-6 md:px-12">
         <BrowseSearchWithModoc defaultSearch={q} type={type} filter={filter} sticky />
 
         {!q && (

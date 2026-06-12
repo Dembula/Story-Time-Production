@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ProfilesClient } from "./profiles-client";
-import { getLatestViewerSubscription, getViewerDeviceCount, getViewerModel, getViewerProfileLimit } from "@/lib/viewer-access";
+import { getLatestViewerSubscription, getViewerDeviceCount, getViewerModel, getViewerProfileLimit, subscriptionPaymentRequired } from "@/lib/viewer-access";
 import { getViewerProfileAge } from "@/lib/viewer-profiles";
 import { isViewerAccountOnboardingComplete } from "@/lib/viewer-account-onboarding";
 import { isViewerProfilePinUnlocked } from "@/lib/viewer-profile-access";
@@ -29,13 +29,15 @@ export default async function ProfilesPage({
   });
   const cookieStore = await cookies();
   const onboardingDeferred = cookieStore.get("st_onboarding_deferred")?.value === "1";
-  const accountDetailsIncomplete = Boolean(userRecord && !isViewerAccountOnboardingComplete(userRecord));
-  if (accountDetailsIncomplete && !onboardingDeferred) {
-    redirect("/onboarding/account");
-  }
 
   const subscription = await getLatestViewerSubscription(session.user.id);
   if (!subscription) redirect("/onboarding/package");
+
+  const paymentRequired = subscriptionPaymentRequired(subscription);
+  const accountDetailsIncomplete = Boolean(userRecord && !isViewerAccountOnboardingComplete(userRecord));
+  if (accountDetailsIncomplete && !onboardingDeferred && !paymentRequired) {
+    redirect("/onboarding/account");
+  }
 
   const params = searchParams ? await searchParams : {};
   const verifyRequested = params.verify === "1";

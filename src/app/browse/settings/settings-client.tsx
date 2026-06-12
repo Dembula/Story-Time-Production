@@ -183,7 +183,6 @@ export function SettingsClient() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Failed to update account");
-      document.cookie = "st_onboarding_deferred=1; path=/; max-age=2592000; SameSite=Lax";
       if (data.billingAddress) {
         const addr = data.billingAddress as {
           residentialAddress?: string;
