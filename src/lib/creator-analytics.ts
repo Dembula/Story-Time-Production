@@ -43,6 +43,8 @@ export type CreatorAnalytics = {
     id: string;
     title: string;
     type: string;
+    reviewStatus: string;
+    seasonCount: number;
     views: number;
     watchTimeSeconds: number;
     comments: number;
@@ -97,12 +99,14 @@ export async function getCreatorAnalytics(
         id: true,
         title: true,
         type: true,
+        reviewStatus: true,
         _count: {
           select: {
             watchSessions: true,
             comments: true,
             ratings: true,
             watchlist: true,
+            seasons: true,
           },
         },
       },
@@ -157,6 +161,8 @@ export async function getCreatorAnalytics(
         id: c.id,
         title: c.title,
         type: c.type,
+        reviewStatus: c.reviewStatus,
+        seasonCount: c._count.seasons,
         views: c._count.watchSessions,
         watchTimeSeconds: wt._sum.durationSeconds ?? 0,
         comments: c._count.comments,

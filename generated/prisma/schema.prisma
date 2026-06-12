@@ -474,8 +474,41 @@ model Content {
   enrichment            ContentEnrichment?
   scenes                ContentScene[]
   subtitles             ContentSubtitle[]
+  seasons               ContentSeason[]
 
   @@index([linkedProjectId])
+}
+
+model ContentSeason {
+  id           String           @id @default(cuid())
+  contentId    String
+  content      Content          @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  seasonNumber Int
+  title        String?
+  published    Boolean          @default(true)
+  episodes     ContentEpisode[]
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@unique([contentId, seasonNumber])
+  @@index([contentId])
+}
+
+model ContentEpisode {
+  id            String        @id @default(cuid())
+  seasonId      String
+  season        ContentSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  episodeNumber Int
+  title         String
+  description   String?
+  videoUrl      String?
+  thumbnailUrl  String?
+  duration      Int?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@unique([seasonId, episodeNumber])
+  @@index([seasonId])
 }
 
 /// AI + semantic metadata for catalogue titles (embeddings, mood, scenes).

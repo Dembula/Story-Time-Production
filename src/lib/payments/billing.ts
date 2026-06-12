@@ -104,6 +104,11 @@ export async function initializeCheckout(args: {
     throw new Error(`Unable to initialize checkout: ${message}`);
   }
 
+  await db.paymentRecord.update({
+    where: { id: paymentRecord.id },
+    data: { provider: checkout.provider },
+  });
+
   await db.gatewayReference.create({
     data: {
       provider: checkout.provider,

@@ -307,6 +307,36 @@ html[data-input-mode="remote"] a[role="button"] {
   min-height: 48px;
 }
 
+html[data-gamepad-connected="true"] a:focus-visible,
+html[data-gamepad-connected="true"] button:focus-visible,
+html[data-gamepad-connected="true"] [tabindex]:focus-visible {
+  box-shadow:
+    0 0 0 2px rgba(255, 210, 140, 0.9),
+    0 0 0 8px rgba(255, 140, 0, 0.28);
+  outline: none;
+}
+
+html[data-pointer-fine="true"] a,
+html[data-pointer-fine="true"] button,
+html[data-pointer-fine="true"] [role="button"] {
+  cursor: pointer;
+}
+
+html[data-pointer-coarse="true"] button,
+html[data-pointer-coarse="true"] a[href] {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+html[data-pointer-coarse="true"] .adaptive-interactive {
+  touch-action: manipulation;
+}
+
+html[data-input-mode="mouse"] [data-spatial-nav="row"] a:focus-visible {
+  box-shadow: 0 0 0 2px rgba(251, 146, 60, 0.55);
+  outline: none;
+}
+
 html[data-device-class="mobile"][data-orientation="portrait"] .adaptive-scroll-x {
   overflow-x: auto;
   scroll-snap-type: x proximity;

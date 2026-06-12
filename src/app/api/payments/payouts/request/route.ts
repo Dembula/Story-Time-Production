@@ -67,7 +67,8 @@ export async function POST(req: NextRequest) {
       currency: "ZAR",
       provider: payout.provider,
       providerReference: payout.externalRef,
-      status: payout.status === "PROCESSING" ? "PROCESSING" : "FAILED",
+      status:
+        payout.status === "PROCESSING" || payout.status === "COMPLETED" ? "PROCESSING" : "FAILED",
     },
   });
 

@@ -1,3 +1,9 @@
+import {
+  getPaymentGatewayMode,
+  isDemoPaymentsMode,
+  isPayFastConfigured,
+} from "@/lib/payments/config";
+import { createDemoGateway } from "@/lib/payments/providers/demo";
 import { createUnconfiguredGateway } from "@/lib/payments/providers/unconfigured";
 
 export type GatewayCheckoutRequest = {
@@ -45,5 +51,14 @@ export interface PaymentGatewayAdapter {
 }
 
 export function getPaymentGateway(): PaymentGatewayAdapter {
+  if (isPayFastConfigured()) {
+    // Live PayFast adapter ships when merchant credentials are configured.
+    return createUnconfiguredGateway();
+  }
+  if (isDemoPaymentsMode()) {
+    return createDemoGateway();
+  }
   return createUnconfiguredGateway();
 }
+
+export { getPaymentGatewayMode, isDemoPaymentsMode, isPayFastConfigured };

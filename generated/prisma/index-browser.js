@@ -327,6 +327,29 @@ exports.Prisma.ContentScalarFieldEnum = {
   linkedProjectId: 'linkedProjectId'
 };
 
+exports.Prisma.ContentSeasonScalarFieldEnum = {
+  id: 'id',
+  contentId: 'contentId',
+  seasonNumber: 'seasonNumber',
+  title: 'title',
+  published: 'published',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.ContentEpisodeScalarFieldEnum = {
+  id: 'id',
+  seasonId: 'seasonId',
+  episodeNumber: 'episodeNumber',
+  title: 'title',
+  description: 'description',
+  videoUrl: 'videoUrl',
+  thumbnailUrl: 'thumbnailUrl',
+  duration: 'duration',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
 exports.Prisma.ContentEnrichmentScalarFieldEnum = {
   id: 'id',
   contentId: 'contentId',
@@ -2478,6 +2501,8 @@ exports.Prisma.ModelName = {
   AdminRequest: 'AdminRequest',
   AdminAccessApplication: 'AdminAccessApplication',
   Content: 'Content',
+  ContentSeason: 'ContentSeason',
+  ContentEpisode: 'ContentEpisode',
   ContentEnrichment: 'ContentEnrichment',
   ContentScene: 'ContentScene',
   ContentSubtitle: 'ContentSubtitle',

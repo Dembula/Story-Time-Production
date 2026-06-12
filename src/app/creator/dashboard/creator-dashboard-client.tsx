@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Film, Eye, Users, Clock, DollarSign, Star, MessageSquare, TrendingUp, Wrench, Megaphone, CheckCircle, XCircle, AlertTriangle, FileText, Send, Trophy, Store } from "lucide-react";
+import { Film, Eye, Users, Clock, DollarSign, Star, MessageSquare, TrendingUp, Wrench, Megaphone, CheckCircle, XCircle, AlertTriangle, FileText, Send, Trophy, Store, PlusCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -12,6 +12,8 @@ import {
   normalizeCreatorLicenseType,
 } from "@/lib/pricing";
 import { formatZar } from "@/lib/format-currency-zar";
+import { isLongFormType } from "@/lib/content-types";
+import { hasPendingSeasonReview, pendingSeasonLabels } from "@/lib/content-season-review";
 
 export function CreatorDashboardClient() {
   const { data: stats, isLoading } = useQuery({
@@ -54,6 +56,10 @@ export function CreatorDashboardClient() {
     ? (allRatings.reduce((s: number, r: { score: number }) => s + r.score, 0) / allRatings.length).toFixed(1)
     : "—";
 
+  const seasonReviewPendingCount = (contents as { type: string; reviewStatus?: string; published?: boolean; seasons?: { seasonNumber: number; title: string | null; published: boolean }[] }[] | undefined)?.filter((c) =>
+    hasPendingSeasonReview(c.type, c.reviewStatus ?? "DRAFT", Boolean(c.published), c.seasons ?? []),
+  ).length ?? 0;
+
   return (
     <div className="p-8 max-w-7xl mx-auto">
       <div className="mb-10">
@@ -70,6 +76,19 @@ export function CreatorDashboardClient() {
         <p className="mt-2 text-slate-300/78">
           Track your content performance, audience engagement, and revenue. Data that Netflix would never show you.
         </p>
+        {seasonReviewPendingCount > 0 && (
+          <div className="mt-4 flex items-start gap-3 rounded-xl border border-amber-400/25 bg-amber-500/10 px-4 py-3">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
+            <div>
+              <p className="text-sm font-medium text-amber-100">
+                {seasonReviewPendingCount} season{seasonReviewPendingCount !== 1 ? "s" : ""} pending review
+              </p>
+              <p className="mt-0.5 text-xs text-amber-200/75">
+                New seasons stay hidden from viewers until approved. Your series remains live in the catalogue.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* KPI Cards */}
@@ -199,14 +218,20 @@ export function CreatorDashboardClient() {
           id: string; title: string; type: string;
           reviewStatus?: string; reviewNote?: string | null;
           submittedAt?: string | null; published?: boolean;
+          seasons?: { seasonNumber: number; title: string | null; published: boolean }[];
           _count?: { watchSessions: number; ratings: number; comments: number };
           ratings?: { score: number }[];
         };
-        const pendingItems = (contents as ContentWithReview[] | undefined)?.filter((c) => c.reviewStatus === "PENDING") ?? [];
+        const seasonPendingReview = (contents as ContentWithReview[] | undefined)?.filter((c) =>
+          hasPendingSeasonReview(c.type, c.reviewStatus ?? "DRAFT", Boolean(c.published), c.seasons ?? []),
+        ) ?? [];
+        const pendingItems = (contents as ContentWithReview[] | undefined)?.filter((c) =>
+          c.reviewStatus === "PENDING" && !hasPendingSeasonReview(c.type, c.reviewStatus, Boolean(c.published), c.seasons ?? []),
+        ) ?? [];
         const drafts = (contents as ContentWithReview[] | undefined)?.filter((c) => c.reviewStatus === "DRAFT") ?? [];
         const changesRequested = (contents as ContentWithReview[] | undefined)?.filter((c) => c.reviewStatus === "CHANGES_REQUESTED") ?? [];
         const rejected = (contents as ContentWithReview[] | undefined)?.filter((c) => c.reviewStatus === "REJECTED") ?? [];
-        const needsAttention = [...pendingItems, ...changesRequested, ...rejected, ...drafts];
+        const needsAttention = [...seasonPendingReview, ...pendingItems, ...changesRequested, ...rejected, ...drafts];
 
         const statusIcon = (s: string) => {
           if (s === "PENDING") return <Clock className="w-4 h-4 text-yellow-400" />;
@@ -242,11 +267,22 @@ export function CreatorDashboardClient() {
                   <div className="flex items-start gap-3">
                     {statusIcon(c.reviewStatus || "DRAFT")}
                     <div>
-                      <div className="flex items-center gap-2 mb-0.5">
+                      <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                         <p className="font-medium text-white">{c.title}</p>
-                        {statusLabel(c.reviewStatus || "DRAFT")}
+                        {hasPendingSeasonReview(c.type, c.reviewStatus ?? "DRAFT", Boolean(c.published), c.seasons ?? []) ? (
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-amber-500/15 text-amber-300 border border-amber-400/25">
+                            Season pending review
+                          </span>
+                        ) : (
+                          statusLabel(c.reviewStatus || "DRAFT")
+                        )}
                       </div>
                       <p className="text-xs text-slate-500">{c.type}{c.submittedAt ? ` · Submitted ${new Date(c.submittedAt).toLocaleDateString()}` : " · Not yet submitted"}</p>
+                      {hasPendingSeasonReview(c.type, c.reviewStatus ?? "DRAFT", Boolean(c.published), c.seasons ?? []) && (
+                        <p className="mt-1 text-xs text-amber-200/80">
+                          {pendingSeasonLabels(c.seasons ?? []).join(", ")} awaiting admin approval. Your show stays live.
+                        </p>
+                      )}
                       {c.reviewNote && (
                         <div className="mt-2 rounded-xl border border-orange-400/18 bg-orange-500/6 p-2">
                           <p className="text-xs text-orange-400 font-medium">Admin feedback:</p>
@@ -292,7 +328,8 @@ export function CreatorDashboardClient() {
                 type: string;
                 reviewStatus?: string;
                 published?: boolean;
-                _count?: { watchSessions: number; ratings: number; comments: number };
+                seasons?: { seasonNumber: number; title: string | null; published: boolean }[];
+                _count?: { watchSessions: number; ratings: number; comments: number; seasons?: number };
                 ratings?: { score: number }[];
               }) => {
                 const avgRating =
@@ -300,6 +337,7 @@ export function CreatorDashboardClient() {
                     ? (c.ratings.reduce((s: number, r: { score: number }) => s + r.score, 0) / c.ratings.length).toFixed(1)
                     : "—";
                 const rs = c.reviewStatus || "APPROVED";
+                const seasonPending = hasPendingSeasonReview(c.type, rs, Boolean(c.published), c.seasons ?? []);
                 const statusCls: Record<string, string> = {
                   DRAFT: "bg-slate-500/10 text-slate-400",
                   PENDING: "bg-yellow-500/10 text-yellow-400",
@@ -308,15 +346,31 @@ export function CreatorDashboardClient() {
                   CHANGES_REQUESTED: "bg-orange-500/10 text-orange-400",
                 };
                 return (
-                  <div key={c.id} className="flex items-center justify-between rounded-xl border border-white/8 bg-white/[0.035] p-4 hover:bg-white/[0.05]">
-                    <div>
-                      <div className="flex items-center gap-2 mb-0.5">
+                  <div key={c.id} className="flex flex-col gap-3 rounded-xl border border-white/8 bg-white/[0.035] p-4 hover:bg-white/[0.05] sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 mb-0.5">
                         <p className="font-medium text-white">{c.title}</p>
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusCls[rs] || statusCls.DRAFT}`}>
-                          {rs === "APPROVED" ? "Published" : rs === "CHANGES_REQUESTED" ? "Changes Req." : rs.charAt(0) + rs.slice(1).toLowerCase()}
-                        </span>
+                        {seasonPending ? (
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-amber-500/15 text-amber-300 border border-amber-400/25">
+                            Season pending review
+                          </span>
+                        ) : (
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusCls[rs] || statusCls.DRAFT}`}>
+                            {rs === "APPROVED" ? "Published" : rs === "CHANGES_REQUESTED" ? "Changes Req." : rs.charAt(0) + rs.slice(1).toLowerCase()}
+                          </span>
+                        )}
                       </div>
-                      <p className="text-sm text-slate-500">{c.type}</p>
+                      <p className="text-sm text-slate-500">
+                        {c.type}
+                        {c._count?.seasons
+                          ? ` · ${c._count.seasons} season${c._count.seasons !== 1 ? "s" : ""}`
+                          : ""}
+                      </p>
+                      {seasonPending && (
+                        <p className="mt-1 text-xs text-amber-200/75">
+                          {pendingSeasonLabels(c.seasons ?? []).join(", ")} in review
+                        </p>
+                      )}
                       <div className="flex gap-4 mt-1.5 text-xs text-slate-500">
                         <span className="flex items-center gap-1"><Star className="w-3 h-3 text-yellow-500" /> {avgRating}</span>
                         <span>{c._count?.ratings ?? 0} ratings</span>
@@ -324,9 +378,18 @@ export function CreatorDashboardClient() {
                         <span className="flex items-center gap-1"><TrendingUp className="w-3 h-3" /> {c._count?.watchSessions ?? 0} views</span>
                       </div>
                     </div>
-                    <Link href={`/browse/content/${c.id}`}>
-                      <Button variant="outline" size="sm">View</Button>
-                    </Link>
+                    <div className="flex shrink-0 flex-wrap items-center gap-2">
+                      {isLongFormType(c.type) && rs === "APPROVED" && !seasonPending && (
+                        <Link href={`/creator/upload/season?contentId=${c.id}`}>
+                          <Button size="sm" variant="outline" className="gap-1.5 border-orange-400/30 text-orange-200 hover:bg-orange-500/10">
+                            <PlusCircle className="h-3.5 w-3.5" /> New Season
+                          </Button>
+                        </Link>
+                      )}
+                      <Link href={`/browse/content/${c.id}`}>
+                        <Button variant="outline" size="sm">View</Button>
+                      </Link>
+                    </div>
                   </div>
                 );
               })}

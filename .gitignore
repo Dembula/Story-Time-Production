@@ -8,3 +8,5 @@ prisma/dev.db-journal
 .DS_Store
 .vercel
 .env*.local
+tsconfig.tsbuildinfo
+generated/prisma/*.tmp*

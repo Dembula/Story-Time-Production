@@ -47,7 +47,7 @@ type FullscreenPlayerProps = {
   poster?: string | null;
   title: string;
   contentDetailUrl: string;
-  nextEpisode: { id: string; title: string } | null;
+  nextEpisode: { id: string; title: string; href?: string } | null;
   language?: string | null;
   ageRating?: string | null;
   minAge?: number;
@@ -445,7 +445,7 @@ export function FullscreenPlayer({
             </button>
             {nextEpisode && (
               <Link
-                href={`/browse/content/${nextEpisode.id}/watch`}
+                href={nextEpisode.href ?? `/browse/content/${nextEpisode.id}/watch`}
                 className="flex items-center gap-2 px-5 py-3 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-medium transition-colors touch-manipulation"
               >
                 <SkipForward className="w-5 h-5" />
@@ -532,7 +532,7 @@ export function FullscreenPlayer({
             </button>
             {nextEpisode && (
               <Link
-                href={`/browse/content/${nextEpisode.id}/watch`}
+                href={nextEpisode.href ?? `/browse/content/${nextEpisode.id}/watch`}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/20 hover:bg-white/30 text-white text-sm font-medium transition-colors touch-manipulation"
               >
                 <SkipForward className="w-5 h-5" />

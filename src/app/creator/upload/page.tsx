@@ -14,12 +14,16 @@ import { applyPrefillToUploadForm, type ProjectUploadPrefill } from "@/lib/proje
 import { CheckoutModal } from "@/components/payments/checkout-modal";
 import { MediaDropzone } from "@/components/ecosystem/media-dropzone";
 import { defaultMinAgeForRating } from "@/lib/fpb-compliance";
+import { isLongFormType } from "@/lib/content-types";
+import { SeriesEpisodesUpload, buildSeasonsPayload, type EpisodeDraft } from "@/components/creator/series-episodes-upload";
 
 const TYPES = [
   { value: "MOVIE", label: "Movie", icon: Film, desc: "Feature or short film" },
-  { value: "SERIES", label: "Series", icon: Tv, desc: "Multi-episode series" },
+  { value: "DOCUMENTARY", label: "Documentary", icon: Film, desc: "Feature or episodic documentary" },
+  { value: "SHORT_FILM", label: "Short Film", icon: Film, desc: "Short-form narrative or experimental" },
+  { value: "SERIES", label: "Series", icon: Tv, desc: "Multi-episode scripted series" },
   { value: "SHOW", label: "Show", icon: Star, desc: "Live show, variety, or reality" },
-  { value: "PODCAST", label: "Podcast", icon: Music, desc: "Audio or video podcast" },
+  { value: "PODCAST", label: "Podcast", icon: Music, desc: "Audio or video podcast series" },
 ];
 
 const GENRES = [
@@ -173,6 +177,30 @@ function DistributionUploadInner() {
   const [uploadingBackdrop, setUploadingBackdrop] = useState(false);
   const [uploadingScript, setUploadingScript] = useState(false);
   const [uploadingBtsIndex, setUploadingBtsIndex] = useState<number | null>(null);
+  const [seasonCount, setSeasonCount] = useState(1);
+  const [episodesPerSeason, setEpisodesPerSeason] = useState<number[]>([6]);
+  const [episodeDrafts, setEpisodeDrafts] = useState<EpisodeDraft[]>([]);
+  const longFormUpload = isLongFormType(form.type);
+
+  useEffect(() => {
+    if (longFormUpload && episodeDrafts.length === 0) {
+      const initial: EpisodeDraft[] = [];
+      for (let s = 1; s <= seasonCount; s++) {
+        const count = episodesPerSeason[s - 1] ?? 6;
+        for (let e = 1; e <= count; e++) {
+          initial.push({
+            seasonNumber: s,
+            episodeNumber: e,
+            title: `Episode ${e}`,
+            description: "",
+            videoUrl: "",
+            duration: "",
+          });
+        }
+      }
+      setEpisodeDrafts(initial);
+    }
+  }, [longFormUpload, seasonCount, episodesPerSeason, episodeDrafts.length]);
 
   function toggleGenre(g: string) {
     setSelectedGenres((prev) =>
@@ -219,7 +247,17 @@ function DistributionUploadInner() {
   function canAdvance(): boolean {
     if (step === 1) return !!form.type;
     if (step === 2) return !!form.title && !!form.description;
-    if (step === 3) return !!form.videoUrl;
+    if (step === 3) {
+      if (longFormUpload) {
+        return (
+          !!form.backdropUrl &&
+          !!form.posterUrl &&
+          episodeDrafts.length > 0 &&
+          episodeDrafts.every((e) => e.videoUrl.trim())
+        );
+      }
+      return !!form.videoUrl;
+    }
     return true;
   }
 
@@ -231,7 +269,16 @@ function DistributionUploadInner() {
       if (!form.description.trim()) missing.push("Synopsis");
       return missing;
     }
-    if (stepId === 3) return form.videoUrl.trim() ? [] : ["Main video upload"];
+    if (stepId === 3) {
+      if (longFormUpload) {
+        const missing: string[] = [];
+        if (!form.backdropUrl.trim()) missing.push("Backdrop image (used on the title page)");
+        if (!form.posterUrl.trim()) missing.push("Poster (used in browse catalogue)");
+        if (!episodeDrafts.every((e) => e.videoUrl.trim())) missing.push("All episode videos");
+        return missing;
+      }
+      return form.videoUrl.trim() ? [] : ["Main video upload"];
+    }
     if (stepId === 4) {
       const missing: string[] = [];
       if (!form.language.trim()) missing.push("Language");
@@ -325,6 +372,9 @@ function DistributionUploadInner() {
         minAge,
         advisory: advisoryPayload,
         ...(linkedProject ? { linkedProjectId: linkedProject.id } : {}),
+        ...(longFormUpload && episodeDrafts.length > 0
+          ? { seasons: buildSeasonsPayload(episodeDrafts), episodes: episodeDrafts.length, videoUrl: null }
+          : {}),
       };
 
       const res = await fetch("/api/creator/content", {
@@ -671,11 +721,13 @@ function DistributionUploadInner() {
         <div className="space-y-6">
           <h2 className="text-xl font-semibold text-white">Media & Assets</h2>
           <p className="text-sm text-slate-400">
-            Upload your master video, BTS clips, poster, backdrop, and script (PDF) using the file pickers below. Optional
-            fields let you paste a direct https link instead if the file already lives on your own storage or a CDN.
+            {longFormUpload
+              ? "Upload catalogue poster, a cinematic backdrop for the title page, optional trailer, and all season episodes below."
+              : "Upload your master video, BTS clips, poster, backdrop, and script (PDF) using the file pickers below."}
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div className="space-y-4">
+              {!longFormUpload && (
               <MediaDropzone
                 label="Main Video *"
                 hint="Recommended: final delivery master in MP4 (H.264/H.265), 1080p or higher. Resumable direct upload for large files."
@@ -697,6 +749,7 @@ function DistributionUploadInner() {
                   />
                 </details>
               </MediaDropzone>
+              )}
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-1.5">Trailer (optional)</label>
                 <div className="space-y-2">
@@ -739,7 +792,7 @@ function DistributionUploadInner() {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-1.5 flex items-center gap-1.5">
-                  <ImageIcon className="w-4 h-4 text-orange-400" /> Poster image
+                  <ImageIcon className="w-4 h-4 text-orange-400" /> Poster image {longFormUpload ? "*" : ""}
                 </label>
                 <div className="space-y-2">
                   <input
@@ -774,12 +827,12 @@ function DistributionUploadInner() {
                     />
                   </details>
                   <p className="text-xs text-slate-500">
-                    Recommended: 2:3 ratio, at least 500×750px, no key art cropping.
+                    Used in the browse catalogue (2:3 ratio, min 500×750px).
                   </p>
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1.5">Backdrop / banner image</label>
+                <label className="block text-sm font-medium text-slate-300 mb-1.5">Backdrop / banner image {longFormUpload ? "*" : ""}</label>
                 <div className="space-y-2">
                   <input
                     type="file"
@@ -1012,6 +1065,18 @@ function DistributionUploadInner() {
               ))}
             </div>
           </div>
+
+          {longFormUpload && (
+            <SeriesEpisodesUpload
+              seasonCount={seasonCount}
+              episodesPerSeason={episodesPerSeason}
+              episodes={episodeDrafts}
+              onSeasonCountChange={setSeasonCount}
+              onEpisodesPerSeasonChange={setEpisodesPerSeason}
+              onEpisodesChange={setEpisodeDrafts}
+              onError={setError}
+            />
+          )}
         </div>
       )}
 
@@ -1342,6 +1407,8 @@ function DistributionUploadInner() {
         </div>
       )}
 
+            </div>
+
       {/* Navigation */}
       <div className="flex items-center justify-between mt-10 pt-6 border-t border-slate-700/50">
         <div>
@@ -1394,8 +1461,6 @@ function DistributionUploadInner() {
           )}
         </div>
       </div>
-
-            </div>
           </div>
         </div>
       </div>

@@ -8,13 +8,16 @@ import { getServerCaptureProtectionConfig } from "@/lib/content-capture-protecti
 import {
   buildSignedCloudflarePlaybackSource,
 } from "@/lib/cloudflare-stream-signed-url";
+import { isLongFormType } from "@/lib/content-types";
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
+    const episodeId = req.nextUrl.searchParams.get("episodeId")?.trim() || null;
+
     const content = await prisma.content.findFirst({
       where: { id, published: true },
       select: {
@@ -26,6 +29,16 @@ export async function GET(
         backdropUrl: true,
         duration: true,
         type: true,
+        seasons: {
+          where: { published: true },
+          orderBy: { seasonNumber: "asc" },
+          select: {
+            episodes: {
+              orderBy: { episodeNumber: "asc" },
+              select: { id: true, videoUrl: true, duration: true },
+            },
+          },
+        },
         enrichment: {
           select: {
             status: true,
@@ -56,8 +69,28 @@ export async function GET(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    const signedPlayback = await buildSignedCloudflarePlaybackSource(content.videoUrl);
-    const playback = signedPlayback ?? resolvePlaybackSources(content.videoUrl);
+    let videoUrl = content.videoUrl;
+    let duration = content.duration;
+
+    if (episodeId) {
+      const episode = content.seasons
+        .flatMap((s) => s.episodes)
+        .find((e) => e.id === episodeId);
+      if (!episode?.videoUrl) {
+        return NextResponse.json({ error: "Episode not found" }, { status: 404 });
+      }
+      videoUrl = episode.videoUrl;
+      duration = episode.duration ?? duration;
+    } else if (!videoUrl && isLongFormType(content.type)) {
+      const firstEpisode = content.seasons.flatMap((s) => s.episodes).find((e) => e.videoUrl);
+      if (firstEpisode?.videoUrl) {
+        videoUrl = firstEpisode.videoUrl;
+        duration = firstEpisode.duration ?? duration;
+      }
+    }
+
+    const signedPlayback = await buildSignedCloudflarePlaybackSource(videoUrl);
+    const playback = signedPlayback ?? resolvePlaybackSources(videoUrl);
     const posterUrl = getDisplayPosterUrl(content);
     const captureProtection = getServerCaptureProtectionConfig();
     const session = await getServerSession(authOptions);
@@ -73,7 +106,7 @@ export async function GET(
           authenticatedViewer: Boolean(session?.user?.id),
         },
         posterUrl,
-        duration: content.duration,
+        duration,
         enrichment: content.enrichment,
         scenes: content.scenes,
         subtitles: content.subtitles,

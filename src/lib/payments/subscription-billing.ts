@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { VIEWER_PLAN_CONFIG } from "@/lib/viewer-access";
 import { getPaymentGateway } from "@/lib/payments/gateway";
+import { completeGatewayPayment } from "@/lib/payments/complete-gateway-payment";
 import { PAYMENT_PROVIDER } from "@/lib/payments/config";
 import { toGatewaySafeReference } from "@/lib/payments/reference";
 
@@ -76,22 +77,7 @@ export async function processViewerSubscriptionCharge(subscriptionId: string) {
       return { ok: false as const, reason: "charge_not_completed" };
     }
 
-    const now = new Date();
-    const base = subscription.currentPeriodEnd && subscription.currentPeriodEnd > now ? subscription.currentPeriodEnd : now;
-    await db.paymentRecord.update({
-      where: { id: paymentRecord.id },
-      data: { status: "SUCCEEDED", paidAt: now },
-    });
-    await db.viewerSubscription.update({
-      where: { id: subscription.id },
-      data: {
-        status: "ACTIVE",
-        currentPeriodEnd: add30Days(base),
-        lastPaymentStatus: "SUCCEEDED",
-        lastPaymentAt: now,
-        lastPaymentError: null,
-      },
-    });
+    await completeGatewayPayment(paymentRecord.id, { reference: charge.externalRef });
     return { ok: true as const };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Automatic charge failed.";

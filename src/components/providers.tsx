@@ -8,6 +8,7 @@ import { ModocRouteSync } from "@/components/modoc/modoc-route-sync";
 import { ModocVaShell } from "@/components/modoc/modoc-va-shell";
 import { ModocViewerShell } from "@/components/modoc/modoc-viewer-shell";
 import { AdaptiveUiProvider } from "@/components/adaptive/adaptive-provider";
+import { PlatformInputProvider } from "@/components/input/platform-input-provider";
 import { MotionProvider } from "@/components/motion/motion-provider";
 import { MiniPlayer } from "@/components/player/mini-player";
 import { SessionTelemetry } from "@/components/session-telemetry";
@@ -24,17 +25,19 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <ProductAnalytics />
       <QueryClientProvider client={queryClient}>
         <AdaptiveUiProvider>
-          <MotionProvider>
-            <ModocProvider>
-              {children}
-              <ModocRouteSync />
-              <ModocVaShell />
-              <ModocViewerShell />
-              <PayoutKycBanner />
-              <FunderVerificationBanner />
-              <MiniPlayer />
-            </ModocProvider>
-          </MotionProvider>
+          <PlatformInputProvider>
+            <MotionProvider>
+              <ModocProvider>
+                {children}
+                <ModocRouteSync />
+                <ModocVaShell />
+                <ModocViewerShell />
+                <PayoutKycBanner />
+                <FunderVerificationBanner />
+                <MiniPlayer />
+              </ModocProvider>
+            </MotionProvider>
+          </PlatformInputProvider>
         </AdaptiveUiProvider>
       </QueryClientProvider>
     </SessionProvider>

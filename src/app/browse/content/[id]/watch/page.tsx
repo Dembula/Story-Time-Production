@@ -7,13 +7,19 @@ import { redirect } from "next/navigation";
 import { WatchClient } from "./watch-client";
 import { getViewerPlaybackState } from "@/lib/viewer-access";
 import { getViewerProfileAge } from "@/lib/viewer-profiles";
+import { isLongFormType } from "@/lib/content-types";
 
 export default async function WatchPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ episode?: string; trailer?: string }>;
 }) {
   const { id } = await params;
+  const { episode: episodeId, trailer } = await searchParams;
+  const isTrailer = trailer === "1";
+
   const session = await getServerSession(authOptions);
   const role = (session?.user as { role?: string })?.role;
 
@@ -40,6 +46,7 @@ export default async function WatchPage({
       id: true,
       title: true,
       videoUrl: true,
+      trailerUrl: true,
       posterUrl: true,
       backdropUrl: true,
       type: true,
@@ -50,10 +57,38 @@ export default async function WatchPage({
       advisory: true,
       duration: true,
       createdAt: true,
+      seasons: {
+        where: { published: true },
+        orderBy: { seasonNumber: "asc" },
+        include: { episodes: { orderBy: { episodeNumber: "asc" } } },
+      },
     },
   });
 
-  if (!content || !content.videoUrl) notFound();
+  if (!content) notFound();
+
+  let videoUrl = isTrailer ? content.trailerUrl : content.videoUrl;
+  let displayTitle = content.title;
+  let episodeDuration = content.duration;
+  let progressContentId = content.id;
+
+  if (!isTrailer && episodeId) {
+    const episode = content.seasons.flatMap((s) => s.episodes).find((e) => e.id === episodeId);
+    if (!episode?.videoUrl) notFound();
+    videoUrl = episode.videoUrl;
+    displayTitle = `${content.title} · ${episode.title}`;
+    episodeDuration = episode.duration;
+    progressContentId = content.id;
+  } else if (!isTrailer && isLongFormType(content.type) && !content.videoUrl) {
+    const firstEp = content.seasons.flatMap((s) => s.episodes).find((e) => e.videoUrl);
+    if (firstEp) {
+      videoUrl = firstEp.videoUrl;
+      displayTitle = `${content.title} · ${firstEp.title}`;
+      episodeDuration = firstEp.duration;
+    }
+  }
+
+  if (!videoUrl) notFound();
 
   const playback = await getViewerPlaybackState(session.user.id, content.id);
   if (!playback.subscription) {
@@ -66,33 +101,33 @@ export default async function WatchPage({
     redirect(`/browse/content/${id}`);
   }
 
-  // Next episode: same creator, same type (e.g. Series), published, after this by createdAt
-  const isSeriesLike = /series|show|anthology/i.test(content.type || "");
-  let nextEpisode: { id: string; title: string } | null = null;
-  if (isSeriesLike) {
-    const next = await prisma.content.findFirst({
-      where: {
-        creatorId: content.creatorId,
-        published: true,
-        id: { not: content.id },
-        videoUrl: { not: null },
-        createdAt: { gt: content.createdAt },
-      },
-      orderBy: { createdAt: "asc" },
-      select: { id: true, title: true },
-    });
-    if (next) nextEpisode = { id: next.id, title: next.title };
+  let nextEpisode: { id: string; title: string; href: string } | null = null;
+  if (!isTrailer && isLongFormType(content.type)) {
+    const allEpisodes = content.seasons.flatMap((s) =>
+      s.episodes.map((e) => ({ ...e, seasonNumber: s.seasonNumber })),
+    );
+    const currentIdx = episodeId
+      ? allEpisodes.findIndex((e) => e.id === episodeId)
+      : allEpisodes.findIndex((e) => e.videoUrl === videoUrl);
+    const next = currentIdx >= 0 ? allEpisodes[currentIdx + 1] : allEpisodes[0];
+    if (next?.videoUrl) {
+      nextEpisode = {
+        id: next.id,
+        title: next.title,
+        href: `/browse/content/${content.id}/watch?episode=${next.id}`,
+      };
+    }
   }
 
   let startTime = 0;
   const progress = await prisma.watchProgress.findUnique({
     where: {
-      viewerProfileId_contentId: { viewerProfileId: profileId, contentId: content.id },
+      viewerProfileId_contentId: { viewerProfileId: profileId, contentId: progressContentId },
     },
     select: { positionSeconds: true, durationSeconds: true },
   });
   if (progress && progress.positionSeconds >= 30) {
-    const dur = progress.durationSeconds ?? content.duration ?? null;
+    const dur = progress.durationSeconds ?? episodeDuration ?? null;
     if (!dur || progress.positionSeconds / dur < 0.92) {
       startTime = progress.positionSeconds;
     }
@@ -102,8 +137,8 @@ export default async function WatchPage({
     <WatchClient
       content={{
         id: content.id,
-        title: content.title,
-        videoUrl: content.videoUrl,
+        title: displayTitle,
+        videoUrl,
         posterUrl: content.posterUrl,
         backdropUrl: content.backdropUrl,
         language: content.language,
@@ -113,8 +148,9 @@ export default async function WatchPage({
         advisory: (content.advisory as Record<string, unknown> | null) ?? null,
       }}
       contentDetailUrl={`/browse/content/${content.id}`}
-      nextEpisode={nextEpisode}
+      nextEpisode={nextEpisode ? { id: nextEpisode.id, title: nextEpisode.title, href: nextEpisode.href } : null}
       startTime={startTime}
+      episodeId={!isTrailer && episodeId ? episodeId : null}
     />
   );
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getPaymentGatewayMode } from "@/lib/payments/config";
 
 const db = prisma as any;
 
@@ -29,5 +30,6 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     ok: true,
     payment,
+    gatewayMode: getPaymentGatewayMode(),
   });
 }

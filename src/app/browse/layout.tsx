@@ -60,7 +60,7 @@ export default async function BrowseLayout({
   return (
     <div className="min-h-screen bg-background text-foreground" data-browse-chrome>
       <Navbar />
-      <main className="pb-20 pt-16 md:pb-0">{children}</main>
+      <main className="pb-20 pt-16 md:pb-0" data-spatial-nav-root>{children}</main>
       <BrowseMobileNav />
       <SubscriptionExpiredModal show={subscriptionExpired} />
       {session?.user && <ViewerSuggestionsTrigger />}

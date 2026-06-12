@@ -10,6 +10,7 @@ import "@vidstack/react/player/styles/default/layouts/video.css";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
@@ -22,8 +23,12 @@ import { DefaultVideoLayout, defaultLayoutIcons } from "@vidstack/react/player/l
 import { resolvePlaybackSources, type PlaybackSource } from "@/lib/playback-sources";
 import { warmPlaybackManifest } from "@/lib/prefetch";
 import {
+  fetchPlaybackBundle,
+  playbackBundleQueryKey,
+  PLAYBACK_BUNDLE_STALE_MS,
+} from "@/lib/prefetch/playback";
+import {
   isStreamSignedPlaybackClientEnabled,
-  SIGNED_PLAYBACK_STALE_MS,
 } from "@/lib/stream-playback-protection";
 import { usePlaybackSession } from "@/lib/playback/session-store";
 import { buildHlsDrmConfig } from "@/lib/content-capture-protection";
@@ -35,6 +40,7 @@ import { CaptureProtectionBadge } from "./capture-protection-badge";
 import { PlaybackComplianceBadge } from "./playback-compliance-badge";
 import { StoryTimeLoader, StoryTimeLoaderOverlay } from "@/components/ui/storytime-loader";
 import { PlaybackBufferingOverlay } from "./playback-buffering-overlay";
+import { PLAYBACK_COMMAND_EVENT, type PlaybackCommand } from "@/lib/input/platform-events";
 
 
 
@@ -56,7 +62,7 @@ type StorytimeMediaPlayerProps = {
 
   contentDetailUrl: string;
 
-  nextEpisode: { id: string; title: string } | null;
+  nextEpisode: { id: string; title: string; href?: string } | null;
 
   startTime?: number;
 
@@ -69,6 +75,8 @@ type StorytimeMediaPlayerProps = {
   onTimeUpdate?: (currentTime: number, duration: number) => void;
 
   onProgressSave?: (currentTime: number, duration: number) => void;
+
+  episodeId?: string | null;
 
 };
 
@@ -99,6 +107,8 @@ export function StorytimeMediaPlayer({
   onTimeUpdate,
 
   onProgressSave,
+
+  episodeId = null,
 
 }: StorytimeMediaPlayerProps) {
 
@@ -136,15 +146,11 @@ export function StorytimeMediaPlayer({
 
   const { data: bundle, isLoading: bundleLoading, isError: bundleError } = useQuery({
 
-    queryKey: ["playback-bundle", contentId],
+    queryKey: playbackBundleQueryKey(contentId, episodeId),
 
-    queryFn: async () => {
-      const r = await fetch(`/api/content/${contentId}/playback-bundle`);
-      if (!r.ok) throw new Error("playback bundle unavailable");
-      return r.json();
-    },
+    queryFn: () => fetchPlaybackBundle(contentId, episodeId),
 
-    staleTime: signedPlaybackRequired ? SIGNED_PLAYBACK_STALE_MS : 60_000,
+    staleTime: signedPlaybackRequired ? PLAYBACK_BUNDLE_STALE_MS : 60_000,
     refetchOnWindowFocus: signedPlaybackRequired,
 
   });
@@ -157,7 +163,8 @@ export function StorytimeMediaPlayer({
   }, [bundle?.playback, fallbackSource, signedPlaybackRequired]);
 
   const missingSource = !source;
-  const waitingForSignedBundle = signedPlaybackRequired && bundleLoading && !source;
+  const waitingForSignedBundle =
+    signedPlaybackRequired && bundleLoading && !source && !bundle;
 
 
 
@@ -218,9 +225,12 @@ export function StorytimeMediaPlayer({
     if (manifestUrl) warmPlaybackManifest(manifestUrl);
 
     if (nextEpisode?.id) {
-      void fetch(`/api/content/${nextEpisode.id}/playback-bundle`, { priority: "low" } as RequestInit);
+      const nextEpisodeId = nextEpisode.href?.includes("episode=")
+        ? new URL(nextEpisode.href, "https://storytime.local").searchParams.get("episode")
+        : null;
+      void fetchPlaybackBundle(contentId, nextEpisodeId);
     }
-  }, [videoUrl, nextEpisode?.id, bundle?.playback, signedPlaybackRequired]);
+  }, [videoUrl, nextEpisode?.id, nextEpisode?.href, contentId, bundle?.playback, signedPlaybackRequired]);
 
 
 
@@ -342,16 +352,93 @@ export function StorytimeMediaPlayer({
 
   }, []);
 
+  const toggleFullscreen = useCallback(async () => {
+    const root = playerRef.current?.el?.closest(".capture-protected-player") as HTMLElement | null;
+    if (!root) return;
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await root.requestFullscreen();
+    } catch {
+      // unsupported or denied
+    }
+  }, []);
+
+  useEffect(() => {
+    const onPlaybackCommand = (event: Event) => {
+      const action = (event as CustomEvent<{ action: PlaybackCommand }>).detail?.action;
+      const player = playerRef.current;
+      const video = player?.el?.querySelector("video") as HTMLVideoElement | null;
+      if (!action || !player) return;
+
+      switch (action) {
+        case "play_pause":
+          if (player.paused) void player.play();
+          else player.pause();
+          resetIdleTimer();
+          break;
+        case "seek_back":
+          player.currentTime = Math.max(0, player.currentTime - 10);
+          resetIdleTimer();
+          break;
+        case "seek_forward":
+          player.currentTime = Math.min(player.duration || player.currentTime + 10, player.currentTime + 10);
+          resetIdleTimer();
+          break;
+        case "seek_back_large":
+          player.currentTime = Math.max(0, player.currentTime - 30);
+          resetIdleTimer();
+          break;
+        case "seek_forward_large":
+          player.currentTime = Math.min(player.duration || player.currentTime + 30, player.currentTime + 30);
+          resetIdleTimer();
+          break;
+        case "volume_up":
+          if (video) {
+            video.muted = false;
+            video.volume = Math.min(1, video.volume + 0.05);
+          }
+          resetIdleTimer();
+          break;
+        case "volume_down":
+          if (video) {
+            video.muted = false;
+            video.volume = Math.max(0, video.volume - 0.05);
+          }
+          resetIdleTimer();
+          break;
+        case "mute_toggle":
+          if (video) video.muted = !video.muted;
+          resetIdleTimer();
+          break;
+        case "fullscreen_toggle":
+          void toggleFullscreen();
+          resetIdleTimer();
+          break;
+        case "exit":
+          leaveWatch();
+          break;
+      }
+    };
+
+    window.addEventListener(PLAYBACK_COMMAND_EVENT, onPlaybackCommand);
+    return () => window.removeEventListener(PLAYBACK_COMMAND_EVENT, onPlaybackCommand);
+  }, [leaveWatch, resetIdleTimer, toggleFullscreen]);
+
 
 
   if (waitingForSignedBundle) {
     return (
-      <StoryTimeLoaderOverlay mode="viewport">
-        <div className="flex flex-col items-center text-center">
-          <StoryTimeLoader size="md" />
-          <p className="mt-4 text-sm text-slate-300/90">Securing playback…</p>
-        </div>
-      </StoryTimeLoaderOverlay>
+      <div className="relative fixed inset-0 z-50 bg-black" data-input-scope="player">
+        {poster ? (
+          <Image src={poster} alt="" fill priority className="object-contain opacity-40" sizes="100vw" unoptimized={poster.startsWith("http")} />
+        ) : null}
+        <StoryTimeLoaderOverlay mode="viewport">
+          <div className="flex flex-col items-center text-center">
+            <StoryTimeLoader size="md" />
+            <p className="mt-4 text-sm text-slate-300/90">Starting playback…</p>
+          </div>
+        </StoryTimeLoaderOverlay>
+      </div>
     );
   }
 
@@ -400,6 +487,7 @@ export function StorytimeMediaPlayer({
 
     <div
       className="capture-protected-player fixed inset-0 z-50 bg-black"
+      data-input-scope="player"
       onMouseMove={resetIdleTimer}
       onTouchStart={resetIdleTimer}
       onKeyDown={resetIdleTimer}
@@ -413,6 +501,7 @@ export function StorytimeMediaPlayer({
         poster={poster || undefined}
         playsInline
         autoPlay
+        load="eager"
         onHlsInstance={applyHlsDrmConfig}
         onLoadedData={applyStartTime}
 
@@ -466,7 +555,7 @@ export function StorytimeMediaPlayer({
 
           if (nextEpisode) {
 
-            router.push(`/browse/content/${nextEpisode.id}/watch`);
+            router.push(nextEpisode.href ?? `/browse/content/${nextEpisode.id}/watch`);
 
           }
 
@@ -590,7 +679,7 @@ export function StorytimeMediaPlayer({
       {nextEpisode && uiVisible && (
         <div className="pointer-events-none absolute bottom-36 left-0 right-0 z-10 flex justify-center p-4">
           <Link
-            href={`/browse/content/${nextEpisode.id}/watch`}
+            href={nextEpisode.href ?? `/browse/content/${nextEpisode.id}/watch`}
             className="pointer-events-auto flex items-center gap-3 rounded-xl border border-white/10 bg-black/70 px-6 py-3 text-sm font-semibold text-white shadow-2xl backdrop-blur-md transition hover:bg-black/85"
           >
             {nextCountdown != null ? (

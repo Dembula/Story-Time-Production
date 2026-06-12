@@ -11,6 +11,10 @@ type CheckoutModalProps = {
   onClose: () => void;
 };
 
+function isDemoCheckoutUrl(url: string) {
+  return url.includes("/payments/demo-checkout") || url.includes("/payments/mock-checkout");
+}
+
 export function CheckoutModal({
   open,
   checkoutUrl,
@@ -18,13 +22,15 @@ export function CheckoutModal({
   subtitle = "Complete your payment securely, then return to continue.",
   onClose,
 }: CheckoutModalProps) {
+  const demo = isDemoCheckoutUrl(checkoutUrl);
+
   useEffect(() => {
     if (!open || !checkoutUrl || typeof window === "undefined") return;
     const timeout = window.setTimeout(() => {
       window.location.assign(checkoutUrl);
-    }, 350);
+    }, demo ? 600 : 350);
     return () => window.clearTimeout(timeout);
-  }, [open, checkoutUrl]);
+  }, [open, checkoutUrl, demo]);
 
   if (!open) return null;
 
@@ -33,11 +39,21 @@ export function CheckoutModal({
       <div className="w-full max-w-5xl overflow-hidden rounded-2xl border border-white/10 bg-slate-950 shadow-2xl">
         <div className="flex items-start justify-between border-b border-white/10 px-5 py-4">
           <div>
-            <p className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide text-emerald-200">
-              <ShieldCheck className="h-3.5 w-3.5" /> Storytime secure pay
+            <p
+              className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide ${
+                demo
+                  ? "border-amber-400/25 bg-amber-500/10 text-amber-200"
+                  : "border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
+              }`}
+            >
+              <ShieldCheck className="h-3.5 w-3.5" /> {demo ? "Demo checkout" : "Storytime secure pay"}
             </p>
             <h3 className="mt-2 text-lg font-semibold text-white">{title}</h3>
-            <p className="mt-1 text-sm text-slate-400">{subtitle}</p>
+            <p className="mt-1 text-sm text-slate-400">
+              {demo
+                ? "PayFast is not live yet — you will complete a simulated payment (no real charge)."
+                : subtitle}
+            </p>
           </div>
           <button
             type="button"
@@ -52,9 +68,13 @@ export function CheckoutModal({
         <div className="flex h-[68vh] min-h-[460px] w-full items-center justify-center bg-slate-900 p-8">
           <div className="max-w-md text-center">
             <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-2 border-orange-400 border-t-transparent" />
-            <p className="text-base font-semibold text-white">Redirecting to secure bank checkout...</p>
+            <p className="text-base font-semibold text-white">
+              {demo ? "Opening demo checkout…" : "Redirecting to secure bank checkout..."}
+            </p>
             <p className="mt-2 text-sm text-slate-400">
-              Do not close this window. You will be returned automatically after payment.
+              {demo
+                ? "Tap Pay now on the next screen to unlock your purchase instantly."
+                : "Do not close this window. You will be returned automatically after payment."}
             </p>
           </div>
         </div>

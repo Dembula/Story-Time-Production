@@ -8,6 +8,7 @@ import { sanitizeReviewFeedback } from "@/lib/review-feedback";
 import { buildAppUrl } from "@/lib/app-url";
 import { extractCloudflareStreamUid, isCloudflareStreamUrl } from "@/lib/cloudflare-stream";
 import { getStreamStatusesByUids } from "@/lib/stream-asset-store";
+import { isSeasonOnlyCatalogueUpdate } from "@/lib/content-season-review";
 
 function reviewDetailUrl(contentId: string) {
   return `/creator/catalogue/reviews/${contentId}`;
@@ -49,6 +50,12 @@ export async function PATCH(req: NextRequest) {
   const feedbackList = sanitizeReviewFeedback(rawFeedback, before.linkedProjectId);
   const feedbackForDb =
     feedbackList === null ? prismaDbNull : (feedbackList as InputJsonValue);
+
+  const seasonRows = await prisma.contentSeason.findMany({
+    where: { contentId },
+    select: { id: true, seasonNumber: true, title: true, published: true },
+  });
+  const seasonOnlyUpdate = isSeasonOnlyCatalogueUpdate(before.published, seasonRows);
 
   const baseAudit = {
     adminUserId: adminId,
@@ -107,6 +114,10 @@ export async function PATCH(req: NextRequest) {
         reviewedAt: now,
       },
     });
+    await prisma.contentSeason.updateMany({
+      where: seasonOnlyUpdate ? { contentId, published: false } : { contentId },
+      data: { published: true },
+    });
     await prisma.adminAuditLog.create({
       data: {
         ...baseAudit,
@@ -116,13 +127,53 @@ export async function PATCH(req: NextRequest) {
     });
     await notify(
       "APPROVE",
-      "Your catalogue title was approved",
-      `"${before.title}" is approved and published on the catalogue.`,
+      seasonOnlyUpdate ? "New season approved" : "Your catalogue title was approved",
+      seasonOnlyUpdate
+        ? `A new season for "${before.title}" is approved and now visible to viewers.`
+        : `"${before.title}" is approved and published on the catalogue.`,
     );
     return NextResponse.json(updated);
   }
 
   if (action === "REJECT") {
+    if (seasonOnlyUpdate) {
+      const pendingIds = seasonRows.filter((s) => !s.published).map((s) => s.id);
+      await prisma.contentSeason.deleteMany({ where: { id: { in: pendingIds } } });
+      const totalEpisodes = await prisma.contentEpisode.count({
+        where: { season: { contentId } },
+      });
+      const updated = await prisma.content.update({
+        where: { id: contentId },
+        data: {
+          reviewStatus: "APPROVED",
+          published: true,
+          reviewNote:
+            reviewNote ||
+            "The new season was not approved. Your series remains live; you may submit a revised season.",
+          reviewFeedback: feedbackForDb,
+          reviewedAt: now,
+          episodes: totalEpisodes,
+        },
+      });
+      await prisma.adminAuditLog.create({
+        data: {
+          ...baseAudit,
+          action: "CONTENT_REVIEW_REJECT",
+          newValue: {
+            reviewStatus: updated.reviewStatus,
+            reviewNote: updated.reviewNote,
+            seasonOnlyUpdate: true,
+          } as InputJsonValue,
+        },
+      });
+      await notify(
+        "REJECT",
+        "New season not approved",
+        `The new season for "${before.title}" was not approved. The series stays live on the catalogue.`,
+      );
+      return NextResponse.json(updated);
+    }
+
     const updated = await prisma.content.update({
       where: { id: contentId },
       data: {
@@ -156,8 +207,12 @@ export async function PATCH(req: NextRequest) {
       where: { id: contentId },
       data: {
         reviewStatus: "CHANGES_REQUESTED",
-        published: false,
-        reviewNote: reviewNote || "Please address the noted issues and resubmit.",
+        published: seasonOnlyUpdate ? true : false,
+        reviewNote:
+          reviewNote ||
+          (seasonOnlyUpdate
+            ? "Please update the new season and resubmit."
+            : "Please address the noted issues and resubmit."),
         reviewFeedback: feedbackForDb,
         reviewedAt: now,
       },
@@ -174,8 +229,10 @@ export async function PATCH(req: NextRequest) {
     });
     await notify(
       "REQUEST_CHANGES",
-      "Changes requested on your catalogue submission",
-      `Please update "${before.title}" and resubmit. We added guidance in your review page.`,
+      seasonOnlyUpdate ? "Changes requested on new season" : "Changes requested on your catalogue submission",
+      seasonOnlyUpdate
+        ? `Please update the new season for "${before.title}" and resubmit. The series stays live on the catalogue.`
+        : `Please update "${before.title}" and resubmit. We added guidance in your review page.`,
     );
     return NextResponse.json(updated);
   }

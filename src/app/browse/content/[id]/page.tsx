@@ -6,13 +6,19 @@ import { cookies } from "next/headers";
 import { ContentDetailClient } from "./content-detail-client";
 import { getViewerPlaybackState, isPpvEligibleContent } from "@/lib/viewer-access";
 import { getViewerProfileAge } from "@/lib/viewer-profiles";
+import type { SeasonItem } from "@/components/browse/content-episodes-section";
 
 export default async function ContentDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ play?: string }>;
 }) {
   const { id } = await params;
+  const { play } = await searchParams;
+  const autoPlay = play === "1";
+
   const session = await getServerSession(authOptions);
   let subscriptionExpired = false;
   let profileAge: number | null = null;
@@ -63,6 +69,13 @@ export default async function ContentDetailPage({
         },
       },
       crewMembers: { orderBy: { createdAt: "asc" } },
+      seasons: {
+        where: { published: true },
+        orderBy: { seasonNumber: "asc" },
+        include: {
+          episodes: { orderBy: { episodeNumber: "asc" } },
+        },
+      },
     },
   });
 
@@ -92,10 +105,27 @@ export default async function ContentDetailPage({
     select: { id: true, title: true, posterUrl: true, type: true, year: true },
   });
 
+  const seasons: SeasonItem[] = content.seasons.map((s) => ({
+    id: s.id,
+    seasonNumber: s.seasonNumber,
+    title: s.title,
+    episodes: s.episodes.map((e) => ({
+      id: e.id,
+      episodeNumber: e.episodeNumber,
+      title: e.title,
+      description: e.description,
+      videoUrl: e.videoUrl,
+      thumbnailUrl: e.thumbnailUrl,
+      duration: e.duration,
+    })),
+  }));
+
   return (
     <ContentDetailClient
       content={{
         ...content,
+        createdAt: content.createdAt.toISOString(),
+        submittedAt: content.submittedAt?.toISOString() ?? null,
         ratingStats: {
           average: avgRating._avg.score ?? 0,
           count: avgRating._count,
@@ -104,6 +134,8 @@ export default async function ContentDetailPage({
         soundtrack: content.syncDeals.map((sd) => sd.musicTrack),
         crewMembers: content.crewMembers,
       }}
+      seasons={seasons}
+      autoPlay={autoPlay}
       subscriptionExpired={subscriptionExpired}
       ageRestricted={ageRestricted}
       contentMinAge={minAge}

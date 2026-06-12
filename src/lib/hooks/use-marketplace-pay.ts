@@ -22,7 +22,7 @@ export function useMarketplacePay(options?: { onPaid?: (transactionId: string) =
     for (let i = 0; i < 24; i += 1) {
       const res = await fetch(`/api/payments/status?paymentRecordId=${encodeURIComponent(paymentRecordId)}`);
       const data = await res.json().catch(() => null);
-      if (data?.status === "SUCCEEDED") return true;
+      if (data?.payment?.status === "SUCCEEDED") return true;
       await new Promise((r) => setTimeout(r, 1500));
     }
     return false;

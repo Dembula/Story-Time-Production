@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useSession, signOut } from "next-auth/react";
-import { User } from "lucide-react";
+import { User, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { NotificationBell } from "@/components/layout/notification-bell";
@@ -113,11 +113,11 @@ export function Navbar() {
           </span>
         </Link>
         <div className={`${compactNav ? "hidden" : "hidden md:flex"} gap-6 xl:gap-7`}>
-          <Link href="/browse" className={navLinkClass("/browse")}>
+          <Link href="/browse" className={`${navLinkClass("/browse")} adaptive-interactive rounded-md px-1`}>
             Home
           </Link>
           {CONTENT_TYPES.map((t) => (
-            <Link key={t.value} href={t.href} className={navLinkClass(t.href)}>
+            <Link key={t.value} href={t.href} className={`${navLinkClass(t.href)} adaptive-interactive rounded-md px-1`}>
               {t.label}
             </Link>
           ))}
@@ -125,6 +125,17 @@ export function Navbar() {
       </div>
 
       <div className="flex items-center gap-2">
+        {!compactNav && (
+          <Link
+            href="/browse/search"
+            className={`hidden md:inline-flex adaptive-interactive items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-medium transition hover:border-white/16 hover:bg-white/[0.07] ${
+              pathname.startsWith("/browse/search") ? "text-white" : "text-slate-300 hover:text-white"
+            }`}
+          >
+            <Search className="h-4 w-4" />
+            Search
+          </Link>
+        )}
         {session && <NotificationBell />}
 
         {session ? (

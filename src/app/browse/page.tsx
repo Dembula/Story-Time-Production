@@ -3,17 +3,15 @@ import { ContentRow } from "@/components/layout/content-row";
 import { MusicRow } from "@/components/layout/music-row";
 import { RecommendationsRow } from "@/components/layout/recommendations-row";
 import { ContinueWatchingRow } from "@/components/layout/continue-watching-row";
-import { WatchlistRow } from "@/components/layout/watchlist-row";
 import { MoodBrowseRow } from "@/components/layout/mood-browse-row";
-import { BrowseSearchWithModoc } from "@/app/browse/browse-search-with-modoc";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { cookies } from "next/headers";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { getViewerProfileAge } from "@/lib/viewer-profiles";
 import { VIEWER_MODELS } from "@/lib/viewer-access";
-import { rankSearchResults } from "@/lib/browse-search";
 import { getDisplayPosterUrl } from "@/lib/content-media-urls";
 
 /** Personalized rows still fetch client-side; catalogue can revalidate when not searching. */
@@ -28,6 +26,13 @@ export default async function BrowsePage({
   const type = params.type;
   const search = params.search;
   const filter = params.filter;
+
+  if (search?.trim()) {
+    const qs = new URLSearchParams({ q: search.trim() });
+    if (type) qs.set("type", type);
+    if (filter) qs.set("filter", filter);
+    redirect(`/browse/search?${qs.toString()}`);
+  }
 
   let profileAge: number | null = null;
   const session = await getServerSession(authOptions);
@@ -57,15 +62,6 @@ export default async function BrowsePage({
 
   const where: Record<string, unknown> = { published: true, ...ageFilter };
   if (type) where.type = type;
-  if (search) {
-    const searchTerm = search.trim();
-    where.OR = [
-      { title: { contains: searchTerm, mode: "insensitive" as const } },
-      { description: { contains: searchTerm, mode: "insensitive" as const } },
-      { category: { contains: searchTerm, mode: "insensitive" as const } },
-      { tags: { contains: searchTerm, mode: "insensitive" as const } },
-    ];
-  }
 
   type ContentWithCount = Awaited<ReturnType<typeof prisma.content.findMany<{ include: { _count: { select: { ratings: true } } } }>>>[number];
   type MostPopularItem = ContentWithCount & { _avgRating: number; ratings: { score: number }[] };
@@ -196,22 +192,6 @@ export default async function BrowsePage({
     }
   }
 
-  if (search?.trim() && !loadError) {
-    try {
-      const searchPool = await prisma.content.findMany({
-        where,
-        take: 48,
-        include: {
-          _count: { select: { ratings: true } },
-          creator: { select: { name: true } },
-        },
-      });
-      trending = rankSearchResults(searchPool, search).slice(0, 16);
-    } catch {
-      // keep default trending from parallel fetch
-    }
-  }
-
   const withPoster = <T extends { posterUrl: string | null; backdropUrl?: string | null; videoUrl?: string | null; trailerUrl?: string | null }>(
     items: T[],
   ) =>
@@ -247,26 +227,9 @@ export default async function BrowsePage({
           </div>
         </div>
       )}
-      <div className="max-w-[1800px] mx-auto px-4 pt-4 md:px-12 md:pt-6">
-        <BrowseSearchWithModoc defaultSearch={search} type={type} filter={filter} />
-      </div>
       <Hero content={heroContent} />
 
       <div className="max-w-[1800px] mx-auto px-6 md:px-12 -mt-16 relative z-10">
-        {search && (
-          <div className="storytime-panel mb-8 rounded-2xl p-4">
-            <p className="text-slate-300">
-              Showing results for{" "}
-              <span className="font-semibold text-white">&quot;{search}&quot;</span>
-              {allCount > 0 && (
-                <span className="text-slate-400 ml-2">
-                  — {allCount} title{allCount !== 1 ? "s" : ""} found
-                </span>
-              )}
-            </p>
-          </div>
-        )}
-
         {type && (
           <div className="mb-6">
             <h2 className="text-2xl font-semibold text-white capitalize">
@@ -335,10 +298,9 @@ export default async function BrowsePage({
           </>
         )}
 
-        {!type && !search && !filter && (
+        {!type && !filter && (
           <>
             <ContinueWatchingRow />
-            <WatchlistRow />
             <RecommendationsRow />
             <MoodBrowseRow />
             {mostPopular.length > 0 && (
@@ -441,38 +403,26 @@ export default async function BrowsePage({
           </>
         )}
 
-        {(type || search) && !filter && (
-          <>
-            {type && !search && (
-              <ContentRow
-                title={type === "MOVIE" ? "Movies" : type === "SERIES" ? "Series" : type === "SHOW" ? "Shows" : type === "PODCAST" ? "Podcasts" : type}
-                subtitle={
-                  type === "MOVIE"
-                    ? "Feature films and documentaries"
-                    : type === "SERIES"
-                      ? "Binge-worthy shows"
-                      : type === "SHOW"
-                        ? "Variety and entertainment"
-                        : type === "PODCAST"
-                          ? "Conversations and stories"
-                          : `All ${type.toLowerCase()}`
-                }
-                contents={trending}
-                ppvMode={isPpvViewer}
-              />
-            )}
-            {search && trending.length > 0 && (
-              <ContentRow
-                title="Search results"
-                subtitle={`${allCount} title${allCount !== 1 ? "s" : ""} found`}
-                contents={trending}
-                ppvMode={isPpvViewer}
-              />
-            )}
-          </>
+        {type && !filter && (
+          <ContentRow
+            title={type === "MOVIE" ? "Movies" : type === "SERIES" ? "Series" : type === "SHOW" ? "Shows" : type === "PODCAST" ? "Podcasts" : type}
+            subtitle={
+              type === "MOVIE"
+                ? "Feature films and documentaries"
+                : type === "SERIES"
+                  ? "Binge-worthy shows"
+                  : type === "SHOW"
+                    ? "Variety and entertainment"
+                    : type === "PODCAST"
+                      ? "Conversations and stories"
+                      : `All ${type.toLowerCase()}`
+            }
+            contents={trending}
+            ppvMode={isPpvViewer}
+          />
         )}
 
-        {allCount === 0 && !search && (
+        {allCount === 0 && (
           <div className="py-24 text-center">
             <h2 className="text-2xl font-semibold text-white mb-4">
               No content yet
@@ -486,20 +436,6 @@ export default async function BrowsePage({
               className="inline-flex rounded-xl viewer-btn-primary px-6 py-3 font-semibold transition hover:-translate-y-0.5"
             >
               Create Account
-            </Link>
-          </div>
-        )}
-
-        {allCount === 0 && search && (
-          <div className="py-16 text-center">
-            <p className="text-slate-400">
-              No results matched your search. Try different keywords.
-            </p>
-            <Link
-              href="/browse"
-              className="mt-4 inline-block font-medium text-orange-300 hover:text-orange-200"
-            >
-              Clear search
             </Link>
           </div>
         )}

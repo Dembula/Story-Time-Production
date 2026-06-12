@@ -13,6 +13,27 @@ function PaymentsReturnContent() {
   const paymentRecordId = params.get("pr") || "";
   const [resolvedStatus, setResolvedStatus] = useState(status);
 
+  // Belt-and-suspenders: if user lands with success but DB still pending, try demo complete once.
+  useEffect(() => {
+    if (status !== "success" || !paymentRecordId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/payments/demo/complete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ paymentRecordId }),
+        });
+        if (!cancelled && res.ok) setResolvedStatus("success");
+      } catch {
+        // polling below will handle live gateway flows
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [status, paymentRecordId]);
+
   useEffect(() => {
     if (!paymentRecordId) return;
     let cancelled = false;
@@ -71,7 +92,7 @@ function PaymentsReturnContent() {
     <main className="min-h-screen bg-slate-950 px-4 py-10 text-slate-100">
       <div className="mx-auto max-w-lg rounded-2xl border border-white/10 bg-slate-900/70 p-6 shadow-2xl">
         <p className="inline-flex rounded-full border border-orange-400/30 bg-orange-500/10 px-3 py-1 text-xs font-semibold tracking-wide text-orange-200">
-          Payment gateway
+          {resolvedStatus === "success" ? "Payment confirmed" : "Payment gateway"}
         </p>
         <h1 className="mt-3 text-2xl font-semibold">{heading}</h1>
         <p className="mt-2 text-sm text-slate-400">{message}</p>

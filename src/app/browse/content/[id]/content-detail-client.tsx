@@ -1,32 +1,45 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Play, Plus, Lock, GraduationCap, Globe, BookOpen, Target, Briefcase, Music, Users as UsersIcon, X, AlertTriangle, Film, Download, Check } from "lucide-react";
+import { Play, Lock, GraduationCap, Globe, BookOpen, Target, Briefcase, Music, Users as UsersIcon, X, Film } from "lucide-react";
 import { BtsSection } from "@/components/player/bts-section";
 import { CommentsSection } from "@/components/player/comments-section";
 import { RatingsSection } from "@/components/player/ratings-section";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BackButton } from "@/components/layout/back-button";
+import { ContentDetailHero } from "@/components/browse/content-detail-hero";
+import { ContentInfoModal } from "@/components/browse/content-info-modal";
+import { ContentEpisodesSection, type SeasonItem } from "@/components/browse/content-episodes-section";
+import { isLongFormType } from "@/lib/content-types";
 import { CheckoutModal } from "@/components/payments/checkout-modal";
 import { CastCrewMemberCard } from "@/components/browse/cast-crew-member-card";
 import { useWatchlist } from "@/hooks/use-watchlist";
+import { usePlaybackPrefetch } from "@/hooks/use-playback-prefetch";
 import { startDownload, getDownload } from "@/lib/offline/download-manager";
 import { displayCreatorGoals } from "@/lib/creator-profile-goals";
+import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
 
 type Content = {
   id: string;
   title: string;
   description: string | null;
+  type: string;
   posterUrl: string | null;
   backdropUrl: string | null;
   videoUrl: string | null;
+  trailerUrl: string | null;
   category: string | null;
+  tags: string | null;
+  language: string | null;
+  country: string | null;
   year: number | null;
   duration: number | null;
+  episodes: number | null;
+  createdAt: string;
+  submittedAt: string | null;
   isStudentWork?: boolean;
   creator: {
     id: string;
@@ -51,6 +64,8 @@ type Content = {
 
 export function ContentDetailClient({
   content,
+  seasons = [],
+  autoPlay = false,
   subscriptionExpired = false,
   ageRestricted = false,
   contentMinAge = 0,
@@ -67,17 +82,24 @@ export function ContentDetailClient({
   hasActivePpvAccess?: boolean;
   hasPlaybackAccess?: boolean;
   ppvEligible?: boolean;
+  seasons?: SeasonItem[];
+  autoPlay?: boolean;
 }) {
   const router = useRouter();
   const { data: session } = useSession();
+  const { deviceClass } = useAdaptiveUi();
+  const isMobile = deviceClass === "mobile";
+  const isTv = deviceClass === "tv";
   const [showSubscriptionEndedModal, setShowSubscriptionEndedModal] = useState(false);
   const [showPpvModal, setShowPpvModal] = useState(false);
   const [ppvLoading, setPpvLoading] = useState(false);
   const [ppvError, setPpvError] = useState("");
   const [ppvCheckoutUrl, setPpvCheckoutUrl] = useState("");
   const [ppvCheckoutOpen, setPpvCheckoutOpen] = useState(false);
+  const [showInfoModal, setShowInfoModal] = useState(false);
   const isSubscriber = (session?.user as { role?: string } | undefined)?.role === "SUBSCRIBER";
   const { inList, toggle: toggleWatchlist } = useWatchlist(content.id);
+  const preparePlayback = usePlaybackPrefetch();
   const [downloadState, setDownloadState] = useState<string | null>(null);
 
   useEffect(() => {
@@ -100,6 +122,41 @@ export function ContentDetailClient({
   };
   const canPlay = isSubscriber && hasPlaybackAccess && !ageRestricted;
   const canPurchasePpv = isSubscriber && viewerModel === "PPV" && ppvEligible && !hasActivePpvAccess && !ageRestricted;
+  const isLongForm = isLongFormType(content.type);
+  const firstEpisode = seasons.flatMap((s) => s.episodes).find((e) => e.videoUrl);
+  const playTarget = isLongForm && firstEpisode
+    ? `/browse/content/${content.id}/watch?episode=${firstEpisode.id}`
+    : `/browse/content/${content.id}/watch`;
+  const playLabel = isLongForm ? "Play First Episode" : "Play";
+
+  const warmPlayback = useCallback(() => {
+    const episodeVideo = firstEpisode?.videoUrl ?? content.videoUrl;
+    preparePlayback({
+      contentId: content.id,
+      watchHref: playTarget,
+      videoUrl: episodeVideo,
+      episodeId: firstEpisode?.id ?? null,
+    });
+  }, [preparePlayback, content.id, content.videoUrl, playTarget, firstEpisode?.id, firstEpisode?.videoUrl]);
+
+  useEffect(() => {
+    if (!canPlay) return;
+    warmPlayback();
+  }, [canPlay, warmPlayback]);
+
+  function handlePlay() {
+    if (canPlay) {
+      warmPlayback();
+      router.push(playTarget);
+      return;
+    }
+    if (canPurchasePpv) setShowPpvModal(true);
+    else if (subscriptionExpired) setShowSubscriptionEndedModal(true);
+  }
+
+  function handleLockedPlay() {
+    handlePlay();
+  }
 
   let socialLinks: Record<string, string> = {};
   try {
@@ -145,7 +202,38 @@ export function ContentDetailClient({
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-6 pb-16">
+    <div
+      className={`mx-auto w-full ${
+        isTv
+          ? "adaptive-tv-surface max-w-[1800px] px-8 pb-16 md:px-12"
+          : isMobile
+            ? "max-w-6xl px-0 pb-[calc(5.5rem+env(safe-area-inset-bottom))]"
+            : "max-w-6xl px-4 pb-16 md:px-6"
+      }`}
+    >
+      <ContentInfoModal
+        open={showInfoModal}
+        onClose={() => setShowInfoModal(false)}
+        content={{
+          title: content.title,
+          type: content.type,
+          category: content.category,
+          description: content.description,
+          year: content.year,
+          duration: content.duration,
+          language: content.language,
+          country: content.country,
+          ageRating: content.ageRating ?? null,
+          minAge: content.minAge,
+          advisory: content.advisory as Record<string, boolean | string> | null,
+          tags: content.tags,
+          createdAt: content.createdAt,
+          submittedAt: content.submittedAt,
+          creatorName: content.creator?.name ?? null,
+          isStudentWork: content.isStudentWork,
+          episodes: content.episodes,
+        }}
+      />
       <CheckoutModal
         open={ppvCheckoutOpen}
         checkoutUrl={ppvCheckoutUrl}
@@ -222,206 +310,96 @@ export function ContentDetailClient({
           </div>
         </div>
       )}
-      <div className="pt-20">
-        <BackButton fallback="/browse" />
-      </div>
+      <ContentDetailHero
+        contentId={content.id}
+        title={content.title}
+        type={content.type}
+        category={content.category}
+        year={content.year}
+        duration={content.duration}
+        description={content.description}
+        backdropUrl={content.backdropUrl}
+        trailerUrl={content.trailerUrl}
+        autoPlay={autoPlay}
+        canPlay={canPlay && !ageRestricted}
+        inList={inList}
+        onToggleList={toggleWatchlist}
+        onInfoOpen={() => setShowInfoModal(true)}
+        onPlay={handlePlay}
+        onLockedPlay={handleLockedPlay}
+        playLabel={playLabel}
+        playHref={playTarget}
+        onPreparePlay={warmPlayback}
+        hasDownload={Boolean(content.videoUrl && !isLongForm)}
+        downloadState={downloadState}
+        onDownload={handleDownload}
+        isSubscriber={Boolean(isSubscriber)}
+      />
 
-      <div className="relative -mx-6 h-[45vh] min-h-[320px]">
-        {(content.backdropUrl || content.posterUrl) ? (
-          <Image
-            src={content.backdropUrl || content.posterUrl || ""}
-            alt=""
-            fill
-            sizes="100vw"
-            priority
-            className="w-full h-full object-cover"
-          />
-        ) : (
-          <div className="w-full h-full bg-slate-800" />
+      <div className={`${isMobile ? "px-4" : ""} ${isTv ? "mt-10" : "mt-8"} px-1`}>
+        {ageRestricted && isSubscriber && (
+          <div className="mb-8 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100">
+            This title isn&apos;t available for your profile (age {contentMinAge}+).{" "}
+            <Link href="/profiles" className="font-medium underline hover:text-white">Switch profile</Link>
+          </div>
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent" />
-      </div>
 
-      <div className="flex flex-col md:flex-row gap-8 -mt-36 relative z-10 px-2">
-        <div className="flex-shrink-0">
-          <div className="w-48 md:w-64 aspect-[2/3] rounded-xl overflow-hidden bg-slate-800 shadow-2xl border border-slate-700/50">
-            {content.posterUrl ? (
-              <Image
-                src={content.posterUrl}
-                alt={content.title}
-                fill
-                sizes="(max-width: 768px) 50vw, 256px"
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-slate-500">No poster</div>
-            )}
-          </div>
-        </div>
-        <div className="flex-1">
-          <h1 className="text-4xl md:text-5xl font-semibold text-white">{content.title}</h1>
-          <div className="mt-2 flex flex-wrap gap-3 text-slate-400 text-sm items-center">
-            {content.category && <span>{content.category}</span>}
-            {content.year && <span>{content.year}</span>}
-            {content.duration && <span>{Math.floor(content.duration / 60)}h {content.duration % 60}m</span>}
-            {(content.minAge != null && content.minAge > 0) && (
-              <span className="px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs font-medium">
-                Age {content.minAge}+
-              </span>
-            )}
-            {content.ageRating && (
-              <span className="px-2 py-0.5 rounded bg-slate-700/50 text-slate-300 text-xs">{content.ageRating}</span>
-            )}
-            {content.ratingStats && content.ratingStats.count > 0 && (
-              <span className="flex items-center gap-1 text-orange-400 font-medium">
-                ★ {content.ratingStats.average.toFixed(1)} ({content.ratingStats.count} ratings)
-              </span>
-            )}
-          </div>
-          {(() => {
-            const adv = content.advisory as Record<string, boolean | string> | undefined | null;
-            if (!adv || typeof adv !== "object") return null;
-            const labels: Record<string, string> = {
-              violence: "Violence",
-              language: "Strong language",
-              sex: "Sexual content",
-              nudity: "Nudity",
-              drugs: "Drug/substance use",
-              selfHarm: "Self-harm",
-              horror: "Horror",
-              discrimination: "Discrimination",
-            };
-            const active = Object.entries(adv)
-              .filter(([k, v]) => k !== "themes" && v === true)
-              .map(([k]) => labels[k] || k);
-            const themes = typeof adv.themes === "string" ? adv.themes.trim() : "";
-            if (active.length === 0 && !themes) return null;
-            return (
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-                <span className="text-xs text-slate-500">Content advisories:</span>
-                {active.map((label) => (
-                  <span key={label} className="px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-200 text-xs">
-                    {label}
-                  </span>
-                ))}
-                {themes && (
-                  <span className="text-slate-400 text-xs">{themes}</span>
-                )}
-              </div>
-            );
-          })()}
-          {content.creator?.name && (
-            <p className="mt-3 text-slate-300">
-              By{" "}
-              <span className="text-orange-500 font-medium">{content.creator.name}</span>
-              {content.isStudentWork && (
-                <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-teal-500/10 border border-teal-500/20 text-teal-400 text-xs font-medium">
-                  <GraduationCap className="w-3 h-3" /> Student Film
+        {content.trailerUrl && (
+          <section className={`${isTv ? "mb-12" : "mb-10"}`}>
+            <h2 className={`mb-3 font-display font-semibold text-white ${isTv ? "text-2xl" : "text-lg"}`}>Trailers</h2>
+            <Link
+              href={`/browse/content/${content.id}/watch?trailer=1`}
+              className={`group relative block aspect-video overflow-hidden rounded-xl border border-white/10 bg-slate-900 ${
+                isMobile ? "w-full" : "max-w-md"
+              } ${isTv ? "max-w-xl rounded-2xl" : ""}`}
+            >
+              {content.backdropUrl ? (
+                <Image src={content.backdropUrl} alt="" fill sizes="400px" className="object-cover opacity-80 transition group-hover:opacity-100" />
+              ) : null}
+              <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white/90">
+                  <Play className="h-5 w-5 fill-slate-900 text-slate-900" />
                 </span>
-              )}
-            </p>
-          )}
-          {viewerModel === "PPV" && hasActivePpvAccess && (
-            <div className="mt-4 inline-flex rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-300">
-              Unlocked on this PPV account
-            </div>
-          )}
-          {content.description && (
-            <p className="mt-4 text-slate-400 max-w-2xl leading-relaxed">{content.description}</p>
-          )}
-          <div className="mt-8 flex flex-wrap gap-4">
-            {isSubscriber ? (
-              <>
-                {ageRestricted ? (
-                  <div className="flex items-center gap-2 px-8 py-3.5 rounded-lg bg-slate-700/50 text-slate-400 border border-slate-600 cursor-not-allowed">
-                    <Lock className="w-5 h-5" /> Not available for this profile (age {contentMinAge}+)
-                  </div>
-                ) : canPlay ? (
-                  <Link
-                    href={`/browse/content/${content.id}/watch`}
-                    className="flex items-center gap-2 px-8 py-3.5 rounded-lg bg-white text-slate-900 font-semibold hover:bg-slate-100 transition"
-                  >
-                    <Play className="w-5 h-5 fill-current" /> Play
-                  </Link>
-                ) : canPurchasePpv ? (
-                  <button
-                    type="button"
-                    onClick={() => setShowPpvModal(true)}
-                    className="flex items-center gap-2 rounded-lg viewer-btn-primary px-8 py-3.5 font-semibold transition"
-                  >
-                    <Lock className="h-5 w-5" /> Pay now
-                  </button>
-                ) : viewerModel === "PPV" && !ppvEligible ? (
-                  <Link
-                    href="/browse/account/renew"
-                    className="flex items-center gap-2 rounded-lg bg-white px-8 py-3.5 font-semibold text-slate-900 transition hover:bg-slate-100"
-                  >
-                    <Lock className="h-5 w-5" /> Subscribe to watch
-                  </Link>
-                ) : subscriptionExpired ? (
-                  <button
-                    type="button"
-                    onClick={() => setShowSubscriptionEndedModal(true)}
-                    className="flex items-center gap-2 px-8 py-3.5 rounded-lg bg-white text-slate-900 font-semibold hover:bg-slate-100 transition"
-                  >
-                    <Play className="w-5 h-5 fill-current" /> Play
-                  </button>
-                ) : viewerModel === "PPV" ? (
-                  <button
-                    type="button"
-                    className="flex cursor-not-allowed items-center gap-2 rounded-lg bg-slate-700/50 px-8 py-3.5 font-semibold text-slate-400 border border-slate-600"
-                  >
-                    <Lock className="h-5 w-5" /> Pay per eligible title only
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="flex cursor-not-allowed items-center gap-2 rounded-lg bg-slate-700/50 px-8 py-3.5 font-semibold text-slate-400 border border-slate-600"
-                  >
-                    <Lock className="h-5 w-5" /> Unavailable right now
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => void toggleWatchlist()}
-                  className={`flex items-center gap-2 rounded-lg border px-8 py-3.5 font-semibold transition ${
-                    inList
-                      ? "border-orange-400/40 bg-orange-500/15 text-orange-100"
-                      : "border-slate-600 bg-slate-700/50 text-white hover:bg-slate-600/50"
-                  }`}
-                >
-                  {inList ? <Check className="h-5 w-5" /> : <Plus className="w-5 h-5" />}
-                  {inList ? "In My List" : "My List"}
-                </button>
-                {content.videoUrl && (
-                  <button
-                    type="button"
-                    onClick={() => void handleDownload()}
-                    disabled={downloadState === "downloading" || downloadState === "completed"}
-                    className="flex items-center gap-2 rounded-lg border border-slate-600 bg-slate-800/50 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-slate-700/50 disabled:opacity-60"
-                  >
-                    <Download className="h-5 w-5" />
-                    {downloadState === "completed"
-                      ? "Downloaded"
-                      : downloadState === "downloading"
-                        ? "Downloading…"
-                        : "Download"}
-                  </button>
-                )}
-              </>
-            ) : (
-              <>
-                <Link href="/auth/signup" className="flex items-center gap-2 px-8 py-3.5 rounded-lg viewer-btn-primary font-semibold transition">
-                  <Lock className="w-5 h-5" /> Sign up to watch
-                </Link>
-                <Link href="/auth/signin" className="flex items-center gap-2 px-8 py-3.5 rounded-lg bg-slate-700/50 text-white font-semibold hover:bg-slate-600/50 transition border border-slate-600">
-                  Sign In
-                </Link>
-              </>
-            )}
+              </div>
+              <span className="absolute bottom-3 left-3 text-sm font-medium text-white">Official Trailer</span>
+            </Link>
+          </section>
+        )}
+
+        {isLongForm && seasons.length > 0 && (
+          <ContentEpisodesSection
+            contentId={content.id}
+            seasons={seasons}
+            canPlay={canPlay && !ageRestricted}
+            onLockedPlay={handleLockedPlay}
+          />
+        )}
+
+        {!isSubscriber && (
+          <div className="mb-10 flex flex-wrap gap-3">
+            <Link href="/auth/signup" className="flex items-center gap-2 rounded-xl viewer-btn-primary px-6 py-3 font-semibold transition">
+              <Lock className="h-5 w-5" /> Sign up to watch
+            </Link>
+            <Link href="/auth/signin" className="flex items-center gap-2 rounded-xl border border-slate-600 bg-slate-800/50 px-6 py-3 font-semibold text-white transition hover:bg-slate-700/50">
+              Sign In
+            </Link>
           </div>
-        </div>
+        )}
+
+        {viewerModel === "PPV" && hasActivePpvAccess && (
+          <div className="mb-6 inline-flex rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-300">
+            Unlocked on this PPV account
+          </div>
+        )}
+
+        {content.creator?.name && (
+          <p className="mb-8 text-sm text-slate-400">
+            By <span className="font-medium text-orange-400">{content.creator.name}</span>
+            {content.ratingStats && content.ratingStats.count > 0 && (
+              <span className="ml-3 text-orange-300">★ {content.ratingStats.average.toFixed(1)}</span>
+            )}
+          </p>
+        )}
       </div>
 
       {/* Creator Profile Card */}

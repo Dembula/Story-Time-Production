@@ -31,6 +31,7 @@ import { CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY } from "@/lib/pricing";
 import type { CreatorSuiteAccessMap } from "@/lib/creator-suite-access";
 import { PAYEE_DASHBOARD_REFETCH_MS } from "@/lib/dashboard-refresh";
 import { formatZar } from "@/lib/format-currency-zar";
+import { isLongFormType } from "@/lib/content-types";
 import { OpsMetricCard, OpsQuickActions } from "@/components/ecosystem/ops-shell";
 import { CommandCenterCalendar } from "@/components/creator/command-center-calendar";
 
@@ -531,12 +532,15 @@ export function CommandCenterClient() {
                   <th className="px-3 py-2">Watch time</th>
                   <th className="px-3 py-2">Engagement score</th>
                   <th className="px-3 py-2">Est. RPV</th>
+                  <th className="px-3 py-2">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {contentList.map((c) => {
                   const score = c.views + c.comments * 5 + c.ratings * 3 + c.watchlistAdds * 4;
                   const rpv = c.views > 0 ? (win.amount * (c.views / Math.max(1, win.totalViews))) / c.views : 0;
+                  const showNewSeason =
+                    isLongFormType(c.type) && c.reviewStatus === "APPROVED";
                   return (
                     <tr key={c.id} className="border-b border-white/6">
                       <td className="px-3 py-2 text-white font-medium max-w-[200px] truncate">{c.title}</td>
@@ -544,6 +548,18 @@ export function CommandCenterClient() {
                       <td className="px-3 py-2">{Math.floor(c.watchTimeSeconds / 60)}m</td>
                       <td className="px-3 py-2 text-cyan-200">{score.toLocaleString()}</td>
                       <td className="px-3 py-2">{formatZar(rpv, { maximumFractionDigits: 4 })}</td>
+                      <td className="px-3 py-2">
+                        {showNewSeason ? (
+                          <Link
+                            href={`/creator/upload/season?contentId=${c.id}`}
+                            className="text-xs font-medium text-orange-300 hover:text-orange-200"
+                          >
+                            New Season
+                          </Link>
+                        ) : (
+                          <span className="text-xs text-slate-600">—</span>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}

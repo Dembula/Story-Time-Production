@@ -55,9 +55,13 @@ export async function GET(request: NextRequest) {
   const contents = await prisma.content.findMany({
     where: { creatorId },
     include: {
-      _count: { select: { watchSessions: true, ratings: true, comments: true } },
+      _count: { select: { watchSessions: true, ratings: true, comments: true, seasons: true } },
       ratings: { select: { score: true } },
       linkedProject: { select: { id: true, title: true } },
+      seasons: {
+        orderBy: { seasonNumber: "asc" },
+        select: { id: true, seasonNumber: true, title: true, published: true },
+      },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -91,6 +95,13 @@ export async function POST(request: NextRequest) {
 
   if (!body.title || !body.type) {
     return NextResponse.json({ error: "title and type required" }, { status: 400 });
+  }
+  const isLongForm = ["SERIES", "SHOW", "PODCAST"].includes(String(body.type));
+  if (!isLongForm && !body.videoUrl) {
+    return NextResponse.json({ error: "videoUrl required for this content type" }, { status: 400 });
+  }
+  if (isLongForm && !Array.isArray(body.seasons)) {
+    return NextResponse.json({ error: "seasons and episodes required for series content" }, { status: 400 });
   }
   for (const [field, value] of [
     ["posterUrl", body.posterUrl],
@@ -148,7 +159,7 @@ export async function POST(request: NextRequest) {
     linkedProjectId = pid;
   }
 
-  const videoUrl = body.videoUrl || null;
+  const videoUrl = isLongForm && Array.isArray(body.seasons) ? null : (body.videoUrl || null);
   const trailerUrl = body.trailerUrl || null;
   const btsVideosInput = Array.isArray(body.btsVideos) ? body.btsVideos : [];
   const btsVideosPrepared = btsVideosInput.map((b: { videoUrl?: unknown; title?: unknown; thumbnail?: unknown; sortOrder?: unknown }) => ({
@@ -193,6 +204,44 @@ export async function POST(request: NextRequest) {
       if (c.name && c.role) {
         await prisma.crewMember.create({
           data: { name: c.name, role: c.role, contentId: content.id },
+        });
+      }
+    }
+  }
+
+  if (Array.isArray(body.seasons) && body.seasons.length > 0) {
+    for (const season of body.seasons as Array<{
+      seasonNumber: number;
+      title?: string;
+      episodes: Array<{
+        episodeNumber: number;
+        title: string;
+        description?: string | null;
+        videoUrl?: string;
+        duration?: number | null;
+      }>;
+    }>) {
+      const createdSeason = await prisma.contentSeason.create({
+        data: {
+          contentId: content.id,
+          seasonNumber: season.seasonNumber,
+          title: season.title ?? null,
+          published: false,
+        },
+      });
+      for (const ep of season.episodes ?? []) {
+        if (!ep.videoUrl) continue;
+        const videoErr = validateStorageUrlField(ep.videoUrl, "episodes.videoUrl", { allowNull: false });
+        if (videoErr) return NextResponse.json({ error: videoErr }, { status: 400 });
+        await prisma.contentEpisode.create({
+          data: {
+            seasonId: createdSeason.id,
+            episodeNumber: ep.episodeNumber,
+            title: ep.title,
+            description: ep.description ?? null,
+            videoUrl: ep.videoUrl,
+            duration: ep.duration ?? null,
+          },
         });
       }
     }

@@ -28,7 +28,8 @@ function breakpointFromWidth(width: number): DeviceBreakpoint {
 }
 
 function isLikelyTv(width: number, ua: string): boolean {
-  const tvUa = /(smart-tv|smarttv|hbbtv|googletv|appletv|netcast|viera|tizen|webos|roku|aftt|xbox|playstation)/i;
+  const tvUa =
+    /(smart-tv|smarttv|hbbtv|googletv|appletv|netcast|viera|tizen|webos|web0s|roku|aftt|xbox|playstation|bravia|firetv|fire tv|crkey|chromecast|freebox|nettv|philips|sharp|sony|tv safari)/i;
   return width >= 1921 || tvUa.test(ua);
 }
 
@@ -96,52 +97,12 @@ export function AdaptiveUiProvider({ children }: { children: React.ReactNode }) 
     html.dataset.breakpoint = state.breakpoint;
     html.dataset.inputMode = state.inputMode;
     html.dataset.orientation = state.orientation;
+
+    const fine = window.matchMedia("(pointer: fine)").matches;
+    const coarse = window.matchMedia("(pointer: coarse)").matches;
+    html.dataset.pointerFine = fine ? "true" : "false";
+    html.dataset.pointerCoarse = coarse ? "true" : "false";
   }, [state]);
-
-  useEffect(() => {
-    if (state.inputMode !== "remote") return;
-
-    const isEditableTarget = (el: HTMLElement | null) => {
-      if (!el) return false;
-      const tag = el.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
-      return el.isContentEditable;
-    };
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      const key = event.key;
-      if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(key)) return;
-
-      const active = document.activeElement as HTMLElement | null;
-      if (isEditableTarget(active)) return;
-
-      const nodes = Array.from(
-        document.querySelectorAll<HTMLElement>(
-          'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])',
-        ),
-      ).filter((el) => {
-        const style = window.getComputedStyle(el);
-        const visible = style.visibility !== "hidden" && style.display !== "none";
-        return visible && el.offsetParent !== null;
-      });
-
-      if (nodes.length === 0) return;
-      const currentIndex = active ? nodes.indexOf(active) : -1;
-      const forward = key === "ArrowRight" || key === "ArrowDown";
-      let nextIndex = currentIndex;
-      if (nextIndex === -1) nextIndex = 0;
-      else nextIndex = forward ? Math.min(nodes.length - 1, nextIndex + 1) : Math.max(0, nextIndex - 1);
-      const next = nodes[nextIndex];
-      if (!next) return;
-
-      event.preventDefault();
-      next.focus();
-      next.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [state.inputMode]);
 
   const value = useMemo(() => state, [state]);
   return <AdaptiveUiContext.Provider value={value}>{children}</AdaptiveUiContext.Provider>;

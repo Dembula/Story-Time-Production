@@ -19,7 +19,11 @@ export function MarketplaceCheckoutModal({
       checkoutUrl={checkoutUrl}
       onClose={onClose}
       title={title}
-      subtitle="Pay securely with PayFast to unlock messaging and confirm your booking with the company."
+      subtitle={
+        checkoutUrl.includes("/payments/demo-checkout")
+          ? "Demo checkout — confirm your booking with a simulated payment (no real charge)."
+          : "Pay securely with PayFast to unlock messaging and confirm your booking with the company."
+      }
     />
   );
 }

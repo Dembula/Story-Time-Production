@@ -214,6 +214,7 @@ export function ContentRow({
       </div>
       <div
         ref={scrollRef}
+        data-spatial-nav="row"
         className="flex snap-x snap-mandatory gap-5 overflow-x-auto scroll-smooth pb-2 scrollbar-hide [-webkit-overflow-scrolling:touch]"
       >
         {contents.map((item) => (

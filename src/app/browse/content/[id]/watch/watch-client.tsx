@@ -1,25 +1,8 @@
 "use client";
 
 import { useCallback, useRef } from "react";
-import dynamic from "next/dynamic";
+import { StorytimeMediaPlayer } from "@/components/player/storytime-media-player";
 import { WatchPlayerErrorBoundary } from "@/components/player/watch-player-error-boundary";
-
-const StorytimeMediaPlayer = dynamic(
-  () =>
-    import("@/components/player/storytime-media-player").then((m) => ({
-      default: m.StorytimeMediaPlayer,
-    })),
-  { ssr: false, loading: () => <WatchPageSkeleton /> },
-);
-
-function WatchPageSkeleton() {
-  return (
-    <div className="fixed inset-0 z-50 flex animate-pulse flex-col bg-black">
-      <div className="h-14 bg-white/5" />
-      <div className="flex-1 bg-white/[0.03]" />
-    </div>
-  );
-}
 
 type WatchClientProps = {
   content: {
@@ -35,8 +18,9 @@ type WatchClientProps = {
     advisory: Record<string, unknown> | null;
   };
   contentDetailUrl: string;
-  nextEpisode: { id: string; title: string } | null;
+  nextEpisode: { id: string; title: string; href?: string } | null;
   startTime?: number;
+  episodeId?: string | null;
 };
 
 export function WatchClient({
@@ -44,6 +28,7 @@ export function WatchClient({
   contentDetailUrl,
   nextEpisode,
   startTime = 0,
+  episodeId = null,
 }: WatchClientProps) {
   const lastReportedRef = useRef(0);
   const lastSavedRef = useRef(0);
@@ -101,6 +86,7 @@ export function WatchClient({
     >
       <StorytimeMediaPlayer
         contentId={content.id}
+        episodeId={episodeId}
         videoUrl={content.videoUrl}
         poster={content.posterUrl || content.backdropUrl}
         title={content.title}
