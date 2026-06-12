@@ -1,7 +1,7 @@
 import "server-only";
 
-import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import type { InputJsonValue } from "@/lib/prisma-json";
 import { ensureProjectAccess } from "@/lib/project-access";
 import type { ModocActionPayload, ModocActionType } from "./action-types";
 import type { ModocActionResult } from "./actions";
@@ -370,7 +370,7 @@ async function vaUpdateShootProgress(
   await prisma.shootDayControlBoard.update({
     where: { shootDayId: shootDay.id },
     data: {
-      sceneProgress: { ...sceneProgress, [link.id]: next } as Prisma.InputJsonValue,
+      sceneProgress: { ...sceneProgress, [link.id]: next } as InputJsonValue,
     },
   });
 
