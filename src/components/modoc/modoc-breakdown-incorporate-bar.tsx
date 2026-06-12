@@ -11,6 +11,7 @@ import {
   countBreakdownPatchItems,
   parseBreakdownSuggestions,
 } from "@/lib/modoc/parse-breakdown-suggestions";
+import { projectToolFetch } from "@/lib/project-tool-fetch";
 
 type ModocBreakdownIncorporateBarProps = {
   projectId: string;
@@ -50,15 +51,11 @@ export function ModocBreakdownIncorporateBar({ projectId, sceneId }: ModocBreakd
     setIncorporating(true);
     setMessage(null);
     try {
-      const res = await fetch(`/api/creator/projects/${projectId}/breakdown`, {
+      await projectToolFetch(`/api/creator/projects/${projectId}/breakdown`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(patchBody),
       });
-      if (!res.ok) {
-        const err = (await res.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(err?.error ?? "Failed to add breakdown items");
-      }
       await queryClient.invalidateQueries({ queryKey: ["project-breakdown", projectId] });
       if (messageId) setDismissedForId(messageId);
       setMessage(`Added ${itemCount} item${itemCount === 1 ? "" : "s"} to breakdown.`);

@@ -37,8 +37,7 @@ import {
 } from "@/lib/modoc";
 import type { ModocUserContext } from "@/lib/modoc";
 import { getCreatorAnalytics } from "@/lib/creator-analytics";
-import { streamText, type UIMessage } from "ai";
-import { createOpenAI } from "@ai-sdk/openai";
+import type { UIMessage } from "ai";
 import { prisma } from "@/lib/prisma";
 import { CREATOR_VA_ROLE } from "@/lib/modoc/creator-va";
 import { VIEWER_VA_ROLE } from "@/lib/modoc/viewer-va";
@@ -58,20 +57,12 @@ import {
   getLastUserTextFromRawMessages,
   prepareModocModelMessages,
 } from "@/lib/modoc/chat-messages";
-import { getAppBaseUrl } from "@/lib/app-url";
-
-/** OpenRouter: one API for 400+ models (OpenAI-compatible endpoint). */
-const openRouter = createOpenAI({
-  apiKey: process.env.OPENROUTER_API_KEY ?? "",
-  baseURL: "https://openrouter.ai/api/v1",
-  headers: {
-    "HTTP-Referer": getAppBaseUrl() || "https://story-time.online",
-    "X-Title": "Story Time Virtual Assistant",
-  },
-});
-
-/** Default MODOC model; override with OPENROUTER_MODOC_MODEL (e.g. anthropic/claude-3.5-sonnet, google/gemini-2.0-flash). */
-const MODOC_MODEL = process.env.OPENROUTER_MODOC_MODEL ?? "openai/gpt-4o-mini";
+import { buildProductionGraph } from "@/lib/modoc/production-graph";
+import { assembleModocMemory } from "@/lib/modoc/modoc-memory";
+import { buildSlicedContext } from "@/lib/modoc/context-slicer";
+import { resolveModocTaskKind, streamModocWithFallback } from "@/lib/modoc/model-router";
+import { parseModocIntelFromText } from "@/lib/modoc/response-protocol";
+import { buildModocSessionIntel, persistModocSessionIntel } from "@/lib/modoc/learning-loop";
 
 export const maxDuration = 60;
 
@@ -180,36 +171,64 @@ export async function POST(req: Request) {
   if (role === CREATOR_VA_ROLE && scope === "creator" && userId) {
     try {
       const focusProjectId = (pageContext?.projectId as string | undefined) ?? null;
-      const [workspaceBlob, databaseBlob, awarenessBlob] = await Promise.all([
-        buildCreatorWorkspaceContext(userId, focusProjectId).catch(
-          () => "**Creator workspace:** context temporarily unavailable.",
-        ),
-        buildCreatorDatabaseContext(userId, focusProjectId).catch(
-          () => "**Database (creator scope):** context temporarily unavailable.",
-        ),
-        buildVaAwarenessContext(userId).catch(() => ""),
-      ]);
+      const toolSlug = (pageContext?.tool as string | undefined) ?? undefined;
+      const taskSlug = (pageContext?.task as string | undefined) ?? undefined;
+      const lastUserText = getLastUserTextFromRawMessages(rawMessages);
+
+      const graph =
+        focusProjectId != null
+          ? await buildProductionGraph(userId, focusProjectId).catch(() => null)
+          : null;
+
+      const [workspaceBlob, databaseBlob, awarenessBlob, memory, slicedContext] =
+        await Promise.all([
+          buildCreatorWorkspaceContext(userId, focusProjectId).catch(
+            () => "**Creator workspace:** context temporarily unavailable.",
+          ),
+          buildCreatorDatabaseContext(userId, focusProjectId).catch(
+            () => "**Database (creator scope):** context temporarily unavailable.",
+          ),
+          buildVaAwarenessContext(userId).catch(() => ""),
+          assembleModocMemory({
+            userId,
+            projectId: focusProjectId,
+            graph,
+            pageContext: pageContext as Record<string, unknown> | undefined,
+            recentUserMessages: [lastUserText].filter(Boolean),
+          }),
+          focusProjectId
+            ? buildSlicedContext({
+                userId,
+                projectId: focusProjectId,
+                tool: toolSlug,
+                task: taskSlug,
+              }).catch(() => "")
+            : Promise.resolve(""),
+        ]);
+
       systemPrompt += `
 
-## Creator workspace context — use this to answer
+## MODOC production intelligence — creator scope
 
-You are the creator's Virtual Assistant (VA). You have **read-only database access** to this creator's projects, tasks, calendar, **full screenplay text** (for the focus project), scene breakdowns, characters, and production data below.
-Do not reference other users' projects, admin tools, or platform-wide operations outside their creator workspace.
-When the user asks about their script, quote and analyze the **Full screenplay** section below — do not say you lack access if script text is present.
-When suggesting actions, only use project IDs from this list. Cite real database records — never invent IDs.
+You operate on **structured state first**. The production graph and memory layers below are authoritative.
+Supplement with database detail only when the graph lacks specificity.
 
+${memory.promptBlock}
+
+${slicedContext ? `\n${slicedContext}\n` : ""}
+
+## Creator workspace (summary)
 ${workspaceBlob}
 
+## Database detail (secondary — use graph ids)
 ${databaseBlob}
 
-## VA memory, live awareness & auto-learned playbook
-Use this to continue multi-turn conversations, notice when the user deleted something you created, redo tasks when asked, and follow self-authored behavior rules.
-
+## Live awareness & playbook
 ${awarenessBlob}
 
-## Continuous self-improvement
-You auto-learn from every conversation. Playbook rules above are self-authored behavior updates — follow them.
-When you notice a new pattern in how this creator works, adapt your next response accordingly.`;
+## Runtime adaptation
+Behavioral memory tracks action acceptance and success rates. Prefer actions with high success probability for this creator.
+Proactive suggestions require readiness confidence ≥ 0.75 unless behavioral memory strongly prefers an action.`;
     } catch (e) {
       if (process.env.NODE_ENV === "development") console.error("MODOC creator workspace context failed:", e);
     }
@@ -1373,34 +1392,68 @@ Suggest performance summary, lessons learned categories, and a final deliverable
       });
     }
 
-    const result = streamText({
-      // OpenRouter only reliably supports multi-turn history via Chat Completions, not Responses API.
-      model: openRouter.chat(MODOC_MODEL),
+    const taskKind = resolveModocTaskKind({
+      task: (pageContext?.task as string | undefined) ?? undefined,
+      tool: (pageContext?.tool as string | undefined) ?? undefined,
+      lastUserText: lastUserTextForLearning,
+    });
+
+    const focusProjectId = (pageContext?.projectId as string | undefined) ?? null;
+    const graphForIntel =
+      focusProjectId && userId
+        ? await buildProductionGraph(userId, focusProjectId).catch(() => null)
+        : null;
+
+    const { result, modelUsed } = await streamModocWithFallback({
       system: systemPrompt,
       messages,
-      maxOutputTokens: 4096,
-      temperature: 0.7,
-      onFinish: async ({ text }) => {
+      taskKind,
+      onFinish: async ({ text, modelUsed: used }) => {
         if (userId && lastUserTextForLearning) {
           const canLearn =
             sessionRole === CREATOR_VA_ROLE ||
             (sessionRole === VIEWER_VA_ROLE && (scope === "browse" || path.startsWith("/browse")));
-          if (!canLearn) return;
-          try {
-            await ingestModocConversationLearning({
-              userId,
-              userMessage: lastUserTextForLearning,
-              assistantMessage: text,
-              conversationId,
-            });
-          } catch (e) {
-            if (process.env.NODE_ENV === "development") {
-              console.error("MODOC auto-learn failed:", e);
+          if (canLearn) {
+            try {
+              await ingestModocConversationLearning({
+                userId,
+                userMessage: lastUserTextForLearning,
+                assistantMessage: text,
+                conversationId,
+              });
+            } catch (e) {
+              if (process.env.NODE_ENV === "development") {
+                console.error("MODOC auto-learn failed:", e);
+              }
+            }
+          }
+
+          if (sessionRole === CREATOR_VA_ROLE) {
+            try {
+              const intelBlock = parseModocIntelFromText(text);
+              const sessionIntel = await buildModocSessionIntel({
+                userId,
+                userIntent: lastUserTextForLearning,
+                graph: graphForIntel,
+                intelBlock,
+                modelUsed: used,
+                conversationId: conversationId ?? undefined,
+                projectId: focusProjectId,
+              });
+              await persistModocSessionIntel(userId, sessionIntel);
+            } catch (e) {
+              if (process.env.NODE_ENV === "development") {
+                console.error("MODOC session intel failed:", e);
+              }
             }
           }
         }
       },
     });
+
+    if (process.env.NODE_ENV === "development") {
+      console.info(`MODOC routed to ${modelUsed} (${taskKind})`);
+    }
 
     return result.toUIMessageStreamResponse();
   } catch (e) {

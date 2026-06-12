@@ -16,6 +16,7 @@ import {
   ChevronLeft,
   Loader2,
   ChevronDown,
+  Trash2,
 } from "lucide-react";
 import { getModocMessageText } from "./modoc-context";
 import { useModoc } from "./use-modoc";
@@ -88,6 +89,7 @@ export function ModocViewerPanel({
     resetChat,
     loadConversation,
     listConversations,
+    deleteConversation,
     createNewConversation,
   } = useModoc();
 
@@ -237,6 +239,16 @@ export function ModocViewerPanel({
     }
   }, [listConversations]);
 
+  const removeConversation = useCallback(
+    async (id: string) => {
+      const ok = await deleteConversation(id);
+      if (ok) {
+        setHistoryItems((prev) => prev.filter((item) => item.id !== id));
+      }
+    },
+    [deleteConversation],
+  );
+
   const resumeConversation = useCallback(
     async (id: string) => {
       setHistoryOpen(false);
@@ -380,17 +392,30 @@ export function ModocViewerPanel({
               )}
               {!historyLoading &&
                 historyItems.map((item) => (
-                  <button
+                  <div
                     key={item.id}
-                    type="button"
-                    onClick={() => void resumeConversation(item.id)}
-                    className="viewer-motion-surface mb-2 flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-left hover:bg-white/[0.06]"
+                    className="viewer-motion-surface mb-2 flex w-full items-stretch rounded-xl border border-white/10 bg-white/[0.03] hover:bg-white/[0.06]"
                   >
-                    <span className="text-sm text-white">
-                      {item.messageCount} message{item.messageCount === 1 ? "" : "s"}
-                    </span>
-                    <span className="text-xs text-slate-500">{formatConversationWhen(item.updatedAt)}</span>
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => void resumeConversation(item.id)}
+                      className="flex min-w-0 flex-1 items-center justify-between px-4 py-3 text-left"
+                    >
+                      <span className="text-sm text-white">
+                        {item.messageCount} message{item.messageCount === 1 ? "" : "s"}
+                      </span>
+                      <span className="text-xs text-slate-500">{formatConversationWhen(item.updatedAt)}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void removeConversation(item.id)}
+                      className="shrink-0 px-3 text-slate-500 hover:text-red-300"
+                      aria-label="Delete chat"
+                      title="Delete chat"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
                 ))}
             </div>
           ) : (

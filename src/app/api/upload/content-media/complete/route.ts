@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { after } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import {
@@ -6,10 +7,13 @@ import {
   contentMediaKeyBelongsToUser,
   resolveContentTypeForUpload,
 } from "@/lib/content-media-shared";
-import { finalizeContentMediaUpload } from "@/lib/content-media-post-upload";
+import {
+  buildContentMediaFinalizePayload,
+  ingestVideoStreamForContentMedia,
+} from "@/lib/content-media-post-upload";
 
 export const runtime = "nodejs";
-export const maxDuration = 300;
+export const maxDuration = 30;
 
 export async function POST(request: NextRequest) {
   try {
@@ -42,11 +46,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unsupported content type." }, { status: 400 });
     }
 
-    const payload = await finalizeContentMediaUpload({
-      key,
-      contentType,
-      fileNameForMeta: nameHint,
-    });
+    const payload = buildContentMediaFinalizePayload({ key, contentType });
+
+    if (contentType.startsWith("video/")) {
+      after(async () => {
+        await ingestVideoStreamForContentMedia({
+          sourceUrl: payload.sourceUrl,
+          contentType,
+          fileNameForMeta: nameHint,
+        });
+      });
+    }
 
     return NextResponse.json(payload, { status: 201 });
   } catch (err) {

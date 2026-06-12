@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { after } from "next/server";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -8,11 +9,14 @@ import {
   contentMediaMaxUploadBytes,
   resolveContentTypeForUpload,
 } from "@/lib/content-media-shared";
-import { finalizeContentMediaUpload } from "@/lib/content-media-post-upload";
+import {
+  buildContentMediaFinalizePayload,
+  ingestVideoStreamForContentMedia,
+} from "@/lib/content-media-post-upload";
 import { createContentMediaS3Client } from "@/lib/content-media-s3";
 
 export const runtime = "nodejs";
-export const maxDuration = 120;
+export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   try {
@@ -81,11 +85,17 @@ export async function POST(request: NextRequest) {
       }),
     );
 
-    const payload = await finalizeContentMediaUpload({
-      key,
-      contentType,
-      fileNameForMeta: file.name,
-    });
+    const payload = buildContentMediaFinalizePayload({ key, contentType });
+
+    if (contentType.startsWith("video/")) {
+      after(async () => {
+        await ingestVideoStreamForContentMedia({
+          sourceUrl: payload.sourceUrl,
+          contentType,
+          fileNameForMeta: file.name,
+        });
+      });
+    }
 
     return NextResponse.json(payload, { status: 201 });
   } catch (err) {

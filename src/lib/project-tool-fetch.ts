@@ -29,6 +29,26 @@ export async function projectToolFetch<T = Record<string, unknown>>(
     throw new ProjectToolFetchError(msg, res.status);
   }
 
+  if (typeof window !== "undefined") {
+    const method = (init?.method ?? "GET").toUpperCase();
+    if (["POST", "PATCH", "PUT", "DELETE"].includes(method)) {
+      void import("@/lib/modoc/infer-tool-activity")
+        .then(({ inferToolActivityFromMutation }) => {
+          const activity = inferToolActivityFromMutation(
+            input,
+            init,
+            json as Record<string, unknown>,
+          );
+          if (activity) {
+            return import("@/lib/modoc/modoc-activity-sync").then(({ notifyModocToolActivity }) =>
+              notifyModocToolActivity(activity),
+            );
+          }
+        })
+        .catch(() => {});
+    }
+  }
+
   return json;
 }
 

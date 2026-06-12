@@ -12,6 +12,16 @@ export const runtime = "nodejs";
 const ALLOWED_MIME_TYPES = new Set(["application/pdf", "image/jpeg", "image/png"]);
 const MAX_BYTES = 12 * 1024 * 1024;
 
+function resolveKycContentType(file: Pick<File, "name" | "type">): string {
+  const raw = (file.type || "").trim().toLowerCase();
+  if (raw && ALLOWED_MIME_TYPES.has(raw)) return raw;
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+  if (ext === "pdf") return "application/pdf";
+  if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
+  if (ext === "png") return "image/png";
+  return raw || "application/octet-stream";
+}
+
 const storage = getStorageConfig();
 const s3Client = new S3Client({
   region: storage.region || undefined,
@@ -63,7 +73,8 @@ export async function POST(request: NextRequest) {
     if (!(file instanceof File)) {
       return NextResponse.json({ error: "Missing file field in form-data" }, { status: 400 });
     }
-    if (!ALLOWED_MIME_TYPES.has(file.type)) {
+    const contentType = resolveKycContentType(file);
+    if (!ALLOWED_MIME_TYPES.has(contentType)) {
       return NextResponse.json({ error: "Only JPG, PNG, and PDF are allowed." }, { status: 400 });
     }
     if (file.size <= 0 || file.size > MAX_BYTES) {
@@ -88,7 +99,7 @@ export async function POST(request: NextRequest) {
         Bucket: bucket,
         Key: key,
         Body: buffer,
-        ContentType: file.type || "application/octet-stream",
+        ContentType: contentType,
       }),
     );
 
@@ -101,7 +112,7 @@ export async function POST(request: NextRequest) {
         entityType: "User",
         entityId: user.id!,
         oldValue: null as any,
-        newValue: { storageRef, mimeType: file.type, size: file.size, documentType: documentType || null },
+        newValue: { storageRef, mimeType: contentType, size: file.size, documentType: documentType || null },
       },
     });
 

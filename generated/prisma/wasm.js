@@ -2268,6 +2268,21 @@ exports.Prisma.ModocTopicStatScalarFieldEnum = {
   updatedAt: 'updatedAt'
 };
 
+exports.Prisma.ModocSessionIntelScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  conversationId: 'conversationId',
+  projectId: 'projectId',
+  userIntent: 'userIntent',
+  actionSuccessRateEstimate: 'actionSuccessRateEstimate',
+  suggestionAcceptanceRate: 'suggestionAcceptanceRate',
+  missingContextFlags: 'missingContextFlags',
+  nextBestAction: 'nextBestAction',
+  nextBestActionScore: 'nextBestActionScore',
+  modelUsed: 'modelUsed',
+  createdAt: 'createdAt'
+};
+
 exports.Prisma.ModocMessageScalarFieldEnum = {
   id: 'id',
   conversationId: 'conversationId',
@@ -2616,6 +2631,7 @@ exports.Prisma.ModelName = {
   ModocPlaybookRule: 'ModocPlaybookRule',
   ModocActionLog: 'ModocActionLog',
   ModocTopicStat: 'ModocTopicStat',
+  ModocSessionIntel: 'ModocSessionIntel',
   ModocMessage: 'ModocMessage',
   ScriptReviewNote: 'ScriptReviewNote',
   CreatorScript: 'CreatorScript',

@@ -25,29 +25,8 @@ import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
 
 type StudioKind = "INDIVIDUAL" | "COMPANY" | null;
 
-/** Default cap aligned with `ACCOUNT_UPLOAD_MAX_FILE_SIZE_MB` server default (25). Larger or AV-heavy files use content-media. */
-const ACCOUNT_DOC_DEFAULT_MAX_BYTES = 25 * 1024 * 1024;
-
-async function postUploadForm(route: "/api/upload/account-document" | "/api/upload/content-media", file: File): Promise<string> {
-  if (route === "/api/upload/content-media") {
-    return uploadContentMediaViaApi(file);
-  }
-  const fd = new FormData();
-  fd.append("file", file);
-  const res = await fetch(route, { method: "POST", body: fd });
-  const j = (await res.json().catch(() => ({}))) as { error?: string; publicUrl?: string };
-  if (!res.ok) throw new Error(typeof j.error === "string" ? j.error : "Upload failed");
-  if (!j.publicUrl) throw new Error("No file URL returned");
-  return j.publicUrl;
-}
-
 async function uploadVaultFile(file: File): Promise<string> {
-  const useContentMedia =
-    file.type.startsWith("video/") || file.type.startsWith("audio/") || file.size > ACCOUNT_DOC_DEFAULT_MAX_BYTES;
-  if (useContentMedia) {
-    return postUploadForm("/api/upload/content-media", file);
-  }
-  return postUploadForm("/api/upload/account-document", file);
+  return uploadContentMediaViaApi(file);
 }
 
 function SectionCard({

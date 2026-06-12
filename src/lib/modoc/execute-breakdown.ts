@@ -1,6 +1,7 @@
 import { generateText } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { prisma } from "@/lib/prisma";
+import { modelsForTask, primaryModocModel } from "@/lib/modoc/model-router";
 import {
   AI_SCRIPT_BREAKDOWN_SYSTEM,
   buildAiScriptBreakdownUserPrompt,
@@ -15,7 +16,7 @@ const openRouter = createOpenAI({
   baseURL: "https://openrouter.ai/api/v1",
 });
 
-const MODOC_MODEL = process.env.OPENROUTER_MODOC_MODEL ?? "openai/gpt-4o-mini";
+const BREAKDOWN_MODELS = modelsForTask("extraction");
 const SCRIPT_CHAR_LIMIT = 120_000;
 
 export type BreakdownMode = "full" | "scenes";
@@ -66,24 +67,34 @@ export async function executeScriptBreakdown(
     };
   }
 
-  let rawText: string;
-  try {
-    const model = openRouter.chat(MODOC_MODEL);
-    const { text } = await generateText({
-      model,
-      maxOutputTokens: 16_000,
-      temperature: 0.2,
-      messages: [
-        { role: "system", content: AI_SCRIPT_BREAKDOWN_SYSTEM },
-        {
-          role: "user",
-          content: buildAiScriptBreakdownUserPrompt(screenplay.title, screenplay.content),
-        },
-      ],
-    });
-    rawText = text;
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "Model request failed";
+  let rawText: string | undefined;
+  let lastError: unknown;
+  const models = BREAKDOWN_MODELS.length > 0 ? BREAKDOWN_MODELS : [primaryModocModel("extraction")];
+  for (const modelId of models) {
+    try {
+      const { text } = await generateText({
+        model: openRouter.chat(modelId),
+        maxOutputTokens: 16_000,
+        temperature: 0.2,
+        messages: [
+          { role: "system", content: AI_SCRIPT_BREAKDOWN_SYSTEM },
+          {
+            role: "user",
+            content: buildAiScriptBreakdownUserPrompt(screenplay.title, screenplay.content),
+          },
+        ],
+      });
+      rawText = text;
+      break;
+    } catch (e) {
+      lastError = e;
+      if (process.env.NODE_ENV === "development") {
+        console.warn(`MODOC breakdown model ${modelId} failed, trying fallback…`, e);
+      }
+    }
+  }
+  if (!rawText) {
+    const msg = lastError instanceof Error ? lastError.message : "All breakdown models failed";
     return { ok: false, error: msg, status: 502 };
   }
 

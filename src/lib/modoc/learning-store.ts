@@ -280,3 +280,83 @@ export async function getTopTopicStats(
 export async function getTopicStatCount(userId: string): Promise<number> {
   return prisma.modocTopicStat.count({ where: { userId } });
 }
+
+const MAX_SESSION_INTEL_ROWS = 200;
+
+export type StoredModocSessionIntel = {
+  at: string;
+  userIntent?: string;
+  action_success_rate_estimate: number;
+  suggestion_acceptance_rate: number;
+  missing_context_flags: string[];
+  next_best_action_priority: string | null;
+  next_best_action_score: number;
+  modelUsed?: string;
+  conversationId?: string;
+  projectId?: string;
+};
+
+export async function appendSessionIntel(
+  userId: string,
+  intel: StoredModocSessionIntel,
+): Promise<void> {
+  await prisma.modocSessionIntel.create({
+    data: {
+      userId,
+      conversationId: intel.conversationId ?? null,
+      projectId: intel.projectId ?? null,
+      userIntent: intel.userIntent ?? null,
+      actionSuccessRateEstimate: intel.action_success_rate_estimate,
+      suggestionAcceptanceRate: intel.suggestion_acceptance_rate,
+      missingContextFlags: intel.missing_context_flags as InputJsonValue,
+      nextBestAction: intel.next_best_action_priority,
+      nextBestActionScore: intel.next_best_action_score,
+      modelUsed: intel.modelUsed ?? null,
+    },
+  });
+
+  const count = await prisma.modocSessionIntel.count({ where: { userId } });
+  if (count <= MAX_SESSION_INTEL_ROWS) return;
+
+  const toRemove = count - MAX_SESSION_INTEL_ROWS;
+  const oldest = await prisma.modocSessionIntel.findMany({
+    where: { userId },
+    orderBy: { createdAt: "asc" },
+    take: toRemove,
+    select: { id: true },
+  });
+  if (oldest.length > 0) {
+    await prisma.modocSessionIntel.deleteMany({ where: { id: { in: oldest.map((r) => r.id) } } });
+  }
+}
+
+export async function getLatestSessionIntel(
+  userId: string,
+  projectId?: string | null,
+): Promise<StoredModocSessionIntel | null> {
+  const row = await prisma.modocSessionIntel.findFirst({
+    where: {
+      userId,
+      ...(projectId ? { projectId } : {}),
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!row) return null;
+
+  const flags = Array.isArray(row.missingContextFlags)
+    ? (row.missingContextFlags as string[])
+    : [];
+
+  return {
+    at: row.createdAt.toISOString(),
+    userIntent: row.userIntent ?? undefined,
+    action_success_rate_estimate: row.actionSuccessRateEstimate,
+    suggestion_acceptance_rate: row.suggestionAcceptanceRate,
+    missing_context_flags: flags,
+    next_best_action_priority: row.nextBestAction,
+    next_best_action_score: row.nextBestActionScore,
+    modelUsed: row.modelUsed ?? undefined,
+    conversationId: row.conversationId ?? undefined,
+    projectId: row.projectId ?? undefined,
+  };
+}

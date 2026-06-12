@@ -114,7 +114,10 @@ export type ModocFieldFillDetail = {
   fields: Record<string, string>;
 };
 
-export function notifyModocToolsChanged(action: string) {
+export function notifyModocToolsChanged(
+  action: string,
+  _options?: { projectId?: string; resultMessage?: string },
+) {
   if (typeof window === "undefined") return;
   window.dispatchEvent(
     new CustomEvent("modoc:tools-changed", {

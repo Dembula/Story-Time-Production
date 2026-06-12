@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { after } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { validateStorageUrlList } from "@/lib/storage-origin";
-import { ensureCloudflareStreamPlaybackUrl } from "@/lib/cloudflare-stream";
+import { ensureVideoIngested } from "@/lib/stream-ingest-link";
 
 const CONTINUITY_META_START = "[ST_CONTINUITY_META]";
 const CONTINUITY_META_END = "[/ST_CONTINUITY_META]";
@@ -332,14 +333,7 @@ export async function POST(
       : Array.isArray(body.photoUrls)
         ? body.photoUrls.filter(Boolean)
         : [];
-  const normalizedPhotoUrls = await Promise.all(
-    photoUrls.map((url) =>
-      VIDEO_EXT_RE.test(url)
-        ? ensureCloudflareStreamPlaybackUrl(url, { area: "continuity", projectId })
-        : Promise.resolve(url),
-    ),
-  );
-  const safePhotoUrls = normalizedPhotoUrls.filter((url): url is string => Boolean(url));
+  const safePhotoUrls = photoUrls.filter((url): url is string => Boolean(url));
   const photoErr = validateStorageUrlList(safePhotoUrls, "photoUrls");
   if (photoErr) return NextResponse.json({ error: photoErr }, { status: 400 });
   const mergedMeta: ContinuityMeta = {
@@ -366,6 +360,15 @@ export async function POST(
       createdById: userId,
     },
   });
+
+  const videoUrls = safePhotoUrls.filter((url) => VIDEO_EXT_RE.test(url));
+  if (videoUrls.length > 0) {
+    after(async () => {
+      await Promise.all(
+        videoUrls.map((url) => ensureVideoIngested(url, { area: "continuity", projectId })),
+      );
+    });
+  }
 
   return NextResponse.json({ note }, { status: 201 });
 }
@@ -408,14 +411,7 @@ export async function PATCH(
       : typeof body.photoUrls === "string"
         ? parseMediaString(body.photoUrls)
         : (body.photoUrls ?? []).filter(Boolean);
-  const normalizedNextUrls = await Promise.all(
-    nextUrls.map((url) =>
-      VIDEO_EXT_RE.test(url)
-        ? ensureCloudflareStreamPlaybackUrl(url, { area: "continuity", projectId })
-        : Promise.resolve(url),
-    ),
-  );
-  const safeNextUrls = normalizedNextUrls.filter((url): url is string => Boolean(url));
+  const safeNextUrls = nextUrls.filter((url): url is string => Boolean(url));
   if (body.photoUrls !== undefined) {
     const photoErr = validateStorageUrlList(safeNextUrls, "photoUrls");
     if (photoErr) return NextResponse.json({ error: photoErr }, { status: 400 });
@@ -440,6 +436,17 @@ export async function PATCH(
       ...(body.photoUrls !== undefined ? { photoUrls: toJsonMedia(safeNextUrls) } : {}),
     },
   });
+
+  if (body.photoUrls !== undefined) {
+    const videoUrls = safeNextUrls.filter((url) => VIDEO_EXT_RE.test(url));
+    if (videoUrls.length > 0) {
+      after(async () => {
+        await Promise.all(
+          videoUrls.map((url) => ensureVideoIngested(url, { area: "continuity", projectId })),
+        );
+      });
+    }
+  }
 
   return NextResponse.json({ note });
 }

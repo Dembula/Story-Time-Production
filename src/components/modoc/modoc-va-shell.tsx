@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -14,6 +14,9 @@ type ModocContextPreview = {
   isNewSessionToday?: boolean;
 };
 
+const ATTENTION_PULSES = 3;
+const PULSE_GAP_MS = 700;
+
 /** Creator Virtual Assistant (MODOC backend) — FAB + slide-over panel in /creator only. */
 export function ModocVaShell() {
   const pathname = usePathname();
@@ -24,6 +27,10 @@ export function ModocVaShell() {
   const [open, setOpen] = useState(false);
   const [available, setAvailable] = useState(false);
   const [preview, setPreview] = useState<ModocContextPreview>({});
+  const [throbActive, setThrobActive] = useState(false);
+  const pulseRunRef = useRef(0);
+  const openRef = useRef(open);
+  openRef.current = open;
 
   const refreshPreview = useCallback(() => {
     if (sessionStatus !== "authenticated") return;
@@ -48,6 +55,31 @@ export function ModocVaShell() {
     refreshPreview();
   }, [refreshPreview]);
 
+  // Triple throb when creator saves in a tool; dismiss nudge if ignored.
+  useEffect(() => {
+    if (!modoc?.attentionPulseKey) return;
+    const runId = ++pulseRunRef.current;
+    let pulseIndex = 0;
+
+    const runPulse = () => {
+      if (pulseRunRef.current !== runId) return;
+      if (openRef.current) return;
+      if (pulseIndex >= ATTENTION_PULSES) {
+        setThrobActive(false);
+        modoc.dismissActivityNudge();
+        return;
+      }
+      setThrobActive(true);
+      pulseIndex += 1;
+      window.setTimeout(() => {
+        setThrobActive(false);
+        window.setTimeout(runPulse, PULSE_GAP_MS);
+      }, 550);
+    };
+
+    runPulse();
+  }, [modoc?.attentionPulseKey, modoc]);
+
   if (!modoc || !available) return null;
 
   if (!canShowCreatorVa({ sessionStatus, role, pathname })) {
@@ -57,14 +89,21 @@ export function ModocVaShell() {
   const isMobile = deviceClass === "mobile";
   const fabSize = isMobile ? 52 : 58;
   const unread = preview.unreadVaCount ?? 0;
-  const pulse = preview.isNewSessionToday && !open;
+  const pulse = preview.isNewSessionToday && !open && !throbActive;
+
+  const handleOpen = () => {
+    modoc.consumeActivityNudge();
+    setThrobActive(false);
+    pulseRunRef.current += 1;
+    setOpen(true);
+  };
 
   return (
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
-        className={`fixed z-[1980] flex items-center justify-center overflow-hidden rounded-full border-2 border-orange-400/40 bg-gradient-to-br from-orange-500 via-orange-500 to-orange-600 shadow-lg shadow-orange-500/40 transition hover:scale-105 hover:shadow-orange-500/50 active:scale-95 ${pulse ? "animate-pulse" : ""}`}
+        onClick={handleOpen}
+        className={`fixed z-[1980] flex items-center justify-center overflow-hidden rounded-full border-2 border-orange-400/40 bg-gradient-to-br from-orange-500 via-orange-500 to-orange-600 shadow-lg shadow-orange-500/40 transition hover:scale-105 hover:shadow-orange-500/50 active:scale-95 ${pulse ? "animate-pulse" : ""} ${throbActive ? "modoc-va-throb" : ""}`}
         style={{
           width: fabSize,
           height: fabSize,
@@ -92,6 +131,7 @@ export function ModocVaShell() {
         open={open}
         onClose={() => {
           setOpen(false);
+          modoc.clearOpeningActivityNudge();
           refreshPreview();
         }}
       />

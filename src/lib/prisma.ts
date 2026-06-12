@@ -40,6 +40,12 @@ const REQUIRED_PRISMA_DELEGATES = [
   "breakdownCharacter",
   "castingRole",
   "crewRoleNeed",
+  "modocConversation",
+  "modocMessage",
+  "modocPlaybookRule",
+  "modocActionLog",
+  "modocTopicStat",
+  "modocSessionIntel",
 ] as const;
 function prismaSingletonIsStale(client: unknown): boolean {
   if (typeof window !== "undefined") return false;

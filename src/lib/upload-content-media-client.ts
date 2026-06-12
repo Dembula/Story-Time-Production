@@ -76,44 +76,37 @@ async function xhrPutWithProgress(
   });
 }
 
-/**
- * Uploads a file through `/api/upload/content-media`.
- * Files larger than {@link CONTENT_MEDIA_DIRECT_UPLOAD_MAX_BYTES} use a presigned S3 PUT
- * so uploads work on Vercel (serverless body limit ~4.5MB).
- */
-export async function uploadContentMediaViaApi(
-  file: File,
-  options?: { onProgress?: (pct: number) => void },
-): Promise<string> {
-  const data = await uploadContentMediaViaApiFull(file, options);
-  return data.publicUrl;
+function isPresignUnavailableError(message: string): boolean {
+  return /credentials are required|not configured|could not start upload/i.test(message);
 }
 
-export async function uploadContentMediaViaApiFull(
+async function uploadContentMediaViaServerProxy(
   file: File,
-  options?: { onProgress?: (pct: number) => void },
+  onProgress?: (pct: number) => void,
 ): Promise<ContentMediaFinalizePayload> {
-  const onProgress = options?.onProgress;
-  if (file.size <= CONTENT_MEDIA_DIRECT_UPLOAD_MAX_BYTES) {
-    onProgress?.(8);
-    const formData = new FormData();
-    formData.append("file", file);
-    const res = await fetchWithRetry("/api/upload/content-media", {
-      method: "POST",
-      body: formData,
-    });
-    onProgress?.(85);
-    const data = (await res.json().catch(() => ({}))) as Partial<ContentMediaFinalizePayload> & { error?: string };
-    if (!res.ok) {
-      throw new Error(typeof data.error === "string" ? data.error : "Upload failed");
-    }
-    if (!data.publicUrl) {
-      throw new Error("Upload did not return a file URL");
-    }
-    onProgress?.(100);
-    return data as ContentMediaFinalizePayload;
+  onProgress?.(8);
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetchWithRetry("/api/upload/content-media", {
+    method: "POST",
+    body: formData,
+  });
+  onProgress?.(85);
+  const data = (await res.json().catch(() => ({}))) as Partial<ContentMediaFinalizePayload> & { error?: string };
+  if (!res.ok) {
+    throw new Error(typeof data.error === "string" ? data.error : "Upload failed");
   }
+  if (!data.publicUrl) {
+    throw new Error("Upload did not return a file URL");
+  }
+  onProgress?.(100);
+  return data as ContentMediaFinalizePayload;
+}
 
+async function uploadContentMediaViaPresignedPut(
+  file: File,
+  onProgress?: (pct: number) => void,
+): Promise<ContentMediaFinalizePayload> {
   onProgress?.(2);
   const presignRes = await fetchWithRetry("/api/upload/content-media/presign", {
     method: "POST",
@@ -177,4 +170,33 @@ export async function uploadContentMediaViaApiFull(
   }
   onProgress?.(100);
   return completeData as ContentMediaFinalizePayload;
+}
+
+/**
+ * Uploads a file through `/api/upload/content-media`.
+ * Uses presigned direct-to-S3 PUT for all sizes (fastest path). Small files fall back to
+ * server proxy only when presigned uploads are unavailable (missing S3 credentials).
+ */
+export async function uploadContentMediaViaApi(
+  file: File,
+  options?: { onProgress?: (pct: number) => void },
+): Promise<string> {
+  const data = await uploadContentMediaViaApiFull(file, options);
+  return data.publicUrl;
+}
+
+export async function uploadContentMediaViaApiFull(
+  file: File,
+  options?: { onProgress?: (pct: number) => void },
+): Promise<ContentMediaFinalizePayload> {
+  const onProgress = options?.onProgress;
+  try {
+    return await uploadContentMediaViaPresignedPut(file, onProgress);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "";
+    if (file.size <= CONTENT_MEDIA_DIRECT_UPLOAD_MAX_BYTES && isPresignUnavailableError(message)) {
+      return uploadContentMediaViaServerProxy(file, onProgress);
+    }
+    throw err;
+  }
 }

@@ -24,14 +24,11 @@ function normalizePublicBaseUrl(bucket: string): string {
   return `https://${raw.replace(/\/$/, "")}`;
 }
 
-/**
- * After the object exists in S3, build public URLs and optionally start Cloudflare Stream ingest for video.
- */
-export async function finalizeContentMediaUpload(options: {
+/** Fast path: build S3 URLs only (no Stream ingest). */
+export function buildContentMediaFinalizePayload(options: {
   key: string;
   contentType: string;
-  fileNameForMeta?: string;
-}): Promise<ContentMediaFinalizePayload> {
+}): ContentMediaFinalizePayload {
   const storage = getStorageConfig();
   const bucket = storage.bucket;
   if (!bucket) {
@@ -40,49 +37,62 @@ export async function finalizeContentMediaUpload(options: {
 
   const baseUrl = normalizePublicBaseUrl(bucket);
   const sourceUrl = `${baseUrl}/${options.key.split("/").map(encodeURIComponent).join("/")}`;
-  let publicUrl = sourceUrl;
-  let streamUid: string | null = null;
-  let streamStatus: string | null = null;
-  let streamPlaybackUrl: string | null = null;
-  let streamIframeUrl: string | null = null;
-  let streamHlsUrl: string | null = null;
-
-  if (options.contentType.startsWith("video/")) {
-    try {
-      const stream = await ingestToCloudflareStreamFromUrl(sourceUrl, {
-        source: "storytime-upload",
-        fileName: options.fileNameForMeta ?? options.key.split("/").pop() ?? "video",
-        mime: options.contentType,
-      });
-      publicUrl = stream.mp4Url;
-      streamUid = stream.uid;
-      streamStatus = stream.state;
-      streamPlaybackUrl = stream.mp4Url;
-      streamIframeUrl = stream.iframeUrl;
-      streamHlsUrl = stream.hlsUrl;
-      await upsertStreamAsset({
-        uid: stream.uid,
-        sourceUrl,
-        playbackUrl: stream.mp4Url,
-        hlsUrl: stream.hlsUrl,
-        iframeUrl: stream.iframeUrl,
-        status: stream.state,
-      });
-    } catch (streamErr) {
-      console.error("Cloudflare Stream ingestion failed; falling back to S3 URL:", streamErr);
-    }
-  }
 
   return {
     ok: true,
     bucket,
     path: options.key,
-    publicUrl,
+    publicUrl: sourceUrl,
     sourceUrl,
-    streamUid,
-    streamStatus,
-    streamPlaybackUrl,
-    streamIframeUrl,
-    streamHlsUrl,
+    streamUid: null,
+    streamStatus: null,
+    streamPlaybackUrl: null,
+    streamIframeUrl: null,
+    streamHlsUrl: null,
   };
+}
+
+/** Ingest a video from S3 into Cloudflare Stream (run in background via `after()`). */
+export async function ingestVideoStreamForContentMedia(options: {
+  sourceUrl: string;
+  contentType: string;
+  fileNameForMeta?: string;
+}): Promise<void> {
+  if (!options.contentType.startsWith("video/")) return;
+
+  try {
+    const stream = await ingestToCloudflareStreamFromUrl(options.sourceUrl, {
+      source: "storytime-upload",
+      fileName: options.fileNameForMeta ?? "video",
+      mime: options.contentType,
+    });
+    await upsertStreamAsset({
+      uid: stream.uid,
+      sourceUrl: options.sourceUrl,
+      playbackUrl: stream.mp4Url,
+      hlsUrl: stream.hlsUrl,
+      iframeUrl: stream.iframeUrl,
+      status: stream.state,
+    });
+  } catch (streamErr) {
+    console.error("Cloudflare Stream ingestion failed; S3 URL remains available:", streamErr);
+  }
+}
+
+/**
+ * After the object exists in S3, build public URLs and optionally start Cloudflare Stream ingest for video.
+ * @deprecated Prefer `buildContentMediaFinalizePayload` + background `ingestVideoStreamForContentMedia`.
+ */
+export async function finalizeContentMediaUpload(options: {
+  key: string;
+  contentType: string;
+  fileNameForMeta?: string;
+}): Promise<ContentMediaFinalizePayload> {
+  const payload = buildContentMediaFinalizePayload(options);
+  await ingestVideoStreamForContentMedia({
+    sourceUrl: payload.sourceUrl,
+    contentType: options.contentType,
+    fileNameForMeta: options.fileNameForMeta ?? options.key.split("/").pop() ?? "video",
+  });
+  return payload;
 }

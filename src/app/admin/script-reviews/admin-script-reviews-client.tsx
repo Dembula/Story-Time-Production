@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { FileText, CheckCircle2, Clock, AlertTriangle, ArrowRight, Upload, Loader2 } from "lucide-react";
 import { formatZar } from "@/lib/format-currency-zar";
 import { EXECUTIVE_SCRIPT_REVIEW_FEE_ZAR } from "@/lib/pricing";
+import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
 
 type Request = {
   id: string;
@@ -268,18 +269,11 @@ export function AdminScriptReviewsClient() {
                             if (!file) return;
                             setUploadingFeedback(true);
                             try {
-                              const fd = new FormData();
-                              fd.append("file", file);
-                              const res = await fetch("/api/upload/account-document", {
-                                method: "POST",
-                                body: fd,
-                              });
-                              const json = (await res.json().catch(() => ({}))) as { publicUrl?: string; error?: string };
-                              if (res.ok && json.publicUrl) setLocalFeedbackUrl(json.publicUrl);
-                              else if (json.error) {
-                                // eslint-disable-next-line no-alert
-                                alert(json.error);
-                              }
+                              const publicUrl = await uploadContentMediaViaApi(file);
+                              setLocalFeedbackUrl(publicUrl);
+                            } catch (err) {
+                              // eslint-disable-next-line no-alert
+                              alert(err instanceof Error ? err.message : "Upload failed");
                             } finally {
                               setUploadingFeedback(false);
                             }

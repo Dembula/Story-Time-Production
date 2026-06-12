@@ -7,12 +7,16 @@ import Image from "next/image";
 import { useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Send, X, Loader2, Sparkles, History, MessageSquarePlus, ChevronLeft } from "lucide-react";
+import { Send, X, Loader2, Sparkles, History, MessageSquarePlus, ChevronLeft, Trash2 } from "lucide-react";
 import { useModoc } from "./use-modoc";
 import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
 import { useMotion } from "@/components/motion/motion-provider";
 import { getModocRoleProfile } from "@/lib/modoc/role-config";
-import { parseModocActionFromText, stripModocActionLines, type ModocActionType } from "@/lib/modoc/action-types";
+import { parseModocActionFromText, type ModocActionType } from "@/lib/modoc/action-types";
+import {
+  parseModocSuggestFromText,
+  stripModocMachineBlocks,
+} from "@/lib/modoc/response-protocol";
 import { buildModocGreeting } from "@/lib/modoc/greeting";
 import { resolveQuickPromptAction } from "@/lib/modoc/quick-prompt-actions";
 import {
@@ -20,6 +24,7 @@ import {
   notifyModocToolsChanged,
 } from "@/lib/modoc/modoc-tool-sync";
 import { getModocMessageText } from "./modoc-context";
+import type { ModocActivityNudge } from "@/lib/modoc/build-activity-nudge";
 
 type ModocConversationSummary = {
   id: string;
@@ -91,7 +96,11 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
     resetChat,
     loadConversation,
     listConversations,
+    deleteConversation,
     appendAssistantMessage,
+    openingActivityNudge,
+    clearOpeningActivityNudge,
+    setRequestContext,
   } = useModoc();
   const [input, setInput] = useState("");
   const [mounted, setMounted] = useState(false);
@@ -112,6 +121,14 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
   const createNewConversationRef = useRef(createNewConversation);
   const loadContextRef = useRef<() => Promise<void>>(async () => {});
   const [completedActionKeys, setCompletedActionKeys] = useState<Set<string>>(() => new Set());
+  const [safetySuggest, setSafetySuggest] = useState<{
+    action: string;
+    payload: Record<string, unknown>;
+    reason: string;
+    completionKey: string;
+  } | null>(null);
+  const [activityBanner, setActivityBanner] = useState<ModocActivityNudge | null>(null);
+  const activityHandledRef = useRef<string | null>(null);
   const pendingContextRefreshRef = useRef(false);
   const { deviceClass } = useAdaptiveUi();
   const { prefersReducedMotion } = useMotion();
@@ -178,18 +195,21 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
     setInput("");
     setActionMessage(null);
     setHistoryOpen(false);
+    setActivityBanner(null);
+    clearOpeningActivityNudge();
     setCompletedActionKeys(new Set());
     stickToBottomRef.current = true;
     await createNewConversation();
     await loadContext();
     requestAnimationFrame(() => scrollToBottom("auto"));
-  }, [resetChat, createNewConversation, loadContext, scrollToBottom]);
+  }, [resetChat, createNewConversation, loadContext, scrollToBottom, clearOpeningActivityNudge]);
 
   // Initialize once when the panel opens — do not re-run when route/context callbacks change.
   useEffect(() => {
     if (!open) {
       openInitializedRef.current = false;
       lastPathnameRef.current = pathname;
+      activityHandledRef.current = null;
       return;
     }
     if (openInitializedRef.current) return;
@@ -205,6 +225,47 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
     })();
   }, [open, scrollToBottom]);
 
+  // Proactive awareness: creator opened VA after a tool-save pulse.
+  useEffect(() => {
+    if (!open || !openingActivityNudge) return;
+    const key = `${openingActivityNudge.activity.at}:${openingActivityNudge.activity.summary}`;
+    if (activityHandledRef.current === key) return;
+    activityHandledRef.current = key;
+
+    const nudge = openingActivityNudge;
+    setActivityBanner(nudge);
+
+    const projectMatch = pathname.match(/\/creator\/projects\/([^/]+)/);
+    const projectId = nudge.activity.projectId ?? projectMatch?.[1];
+    setRequestContext({
+      scope: "creator",
+      clientContext: nudge.contextBlock,
+      pageContext: {
+        tool: nudge.activity.tool,
+        ...(projectId ? { projectId } : {}),
+        recentToolActivity: "true",
+        activitySummary: nudge.activity.summary,
+        activityTool: nudge.activity.tool,
+        activityLikelyIncomplete: nudge.likelyIncomplete ? "true" : "false",
+        ...(nudge.workflow.escalateAction
+          ? { suggestedEscalateAction: nudge.workflow.escalateAction }
+          : {}),
+        ...(nudge.workflow.nextTool ? { suggestedNextTool: nudge.workflow.nextTool } : {}),
+      },
+    });
+
+    if (messages.length === 0) {
+      appendAssistantMessage(nudge.greeting);
+    }
+  }, [
+    open,
+    openingActivityNudge,
+    pathname,
+    setRequestContext,
+    appendAssistantMessage,
+    messages.length,
+  ]);
+
   // Refresh workspace context when navigating while the panel stays open.
   useEffect(() => {
     if (!open || !openInitializedRef.current) return;
@@ -218,8 +279,10 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
     setActionMessage(null);
     setHistoryOpen(false);
     setShowScrollDown(false);
+    setActivityBanner(null);
+    clearOpeningActivityNudge();
     onClose();
-  }, [onClose]);
+  }, [onClose, clearOpeningActivityNudge]);
 
   const openHistory = useCallback(async () => {
     setHistoryOpen(true);
@@ -231,6 +294,16 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
       setHistoryLoading(false);
     }
   }, [listConversations]);
+
+  const removeConversation = useCallback(
+    async (id: string) => {
+      const ok = await deleteConversation(id);
+      if (ok) {
+        setHistoryItems((prev) => prev.filter((item) => item.id !== id));
+      }
+    },
+    [deleteConversation],
+  );
 
   const resumeConversation = useCallback(
     async (id: string) => {
@@ -286,13 +359,17 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
   }, [open, handleClose]);
 
   const lastMessage = messages.at(-1);
-  const pendingAction =
-    lastMessage?.role === "assistant"
-      ? parseModocActionFromText(getMessageText(lastMessage))
-      : null;
+  const lastAssistantText =
+    lastMessage?.role === "assistant" ? getMessageText(lastMessage) : "";
+  const pendingAction = lastAssistantText ? parseModocActionFromText(lastAssistantText) : null;
+  const pendingSuggest = lastAssistantText ? parseModocSuggestFromText(lastAssistantText) : null;
   const pendingActionKey = pendingAction
     ? `${lastMessage?.id ?? "assistant"}:${pendingAction.action}:${JSON.stringify(pendingAction.payload)}`
     : null;
+  const pendingSuggestKey =
+    pendingSuggest && typeof pendingSuggest.type === "string"
+      ? `${lastMessage?.id ?? "assistant"}:suggest:${pendingSuggest.type}:${JSON.stringify(pendingSuggest)}`
+      : null;
 
   const actionKey = useCallback(
     (action: string, payload: Record<string, unknown>) =>
@@ -304,7 +381,12 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
     async (
       action: string,
       payload: Record<string, unknown>,
-      options?: { viaChat?: boolean; force?: boolean; completionKey?: string },
+      options?: {
+        viaChat?: boolean;
+        force?: boolean;
+        completionKey?: string;
+        confirmDestructive?: boolean;
+      },
     ) => {
       const key = options?.completionKey ?? actionKey(action, payload);
       if (!options?.force && completedActionKeys.has(key)) return;
@@ -320,18 +402,36 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
 
       setActionRunning(true);
       setActionMessage(null);
+      setSafetySuggest(null);
       stickToBottomRef.current = true;
 
       try {
         const res = await fetch("/api/modoc/actions", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action, payload: resolvedPayload, conversationId }),
+          body: JSON.stringify({
+            action,
+            payload: resolvedPayload,
+            conversationId,
+            confirmDestructive: options?.confirmDestructive === true,
+          }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
           const errorText = data.error ?? "Action failed";
-          if (options?.viaChat) {
+          if (data.suggest && data.data?.action) {
+            setSafetySuggest({
+              action: String(data.data.action),
+              payload: (data.data.payload as Record<string, unknown>) ?? resolvedPayload,
+              reason: String(data.data.reason ?? errorText),
+              completionKey: key,
+            });
+            if (options?.viaChat) {
+              appendAssistantMessage(
+                `This needs your confirmation before I run it: ${data.data.reason ?? errorText}`,
+              );
+            }
+          } else if (options?.viaChat) {
             appendAssistantMessage(`I couldn't complete that: ${errorText}`);
           } else {
             setActionMessage(errorText);
@@ -346,7 +446,11 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
             window.setTimeout(() => setActionMessage(null), 8000);
           }
           pendingContextRefreshRef.current = true;
-          notifyModocToolsChanged(action);
+          notifyModocToolsChanged(action, {
+            projectId:
+              typeof resolvedPayload.projectId === "string" ? resolvedPayload.projectId : undefined,
+            resultMessage: successText,
+          });
           const fillFields = data.data?.fillFields as Record<string, string> | undefined;
           if (fillFields && typeof fillFields === "object") {
             notifyModocFieldFill({
@@ -399,9 +503,31 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
     [sendChatAction],
   );
 
+  const confirmSafetySuggest = useCallback(() => {
+    if (!safetySuggest) return;
+    void runAction(safetySuggest.action, safetySuggest.payload, {
+      force: true,
+      confirmDestructive: true,
+      completionKey: safetySuggest.completionKey,
+      viaChat: true,
+    });
+  }, [runAction, safetySuggest]);
+
+  const confirmChatSuggest = useCallback(() => {
+    if (!pendingSuggest || typeof pendingSuggest.type !== "string" || !pendingSuggestKey) return;
+    const { type, ...rest } = pendingSuggest;
+    void runAction(type, rest as Record<string, unknown>, {
+      force: true,
+      confirmDestructive: true,
+      completionKey: pendingSuggestKey,
+      viaChat: true,
+    });
+  }, [pendingSuggest, pendingSuggestKey, runAction]);
+
   // Auto-run actions the VA proposes in chat (MODOC_ACTION line) — only when idle.
   useEffect(() => {
     if (status !== "ready" || !pendingAction || !pendingActionKey || actionRunning) return;
+    if (pendingSuggest) return;
     if (completedActionKeys.has(pendingActionKey)) return;
     const timer = window.setTimeout(() => {
       if (statusRef.current !== "ready") return;
@@ -412,7 +538,7 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
       );
     }, 400);
     return () => window.clearTimeout(timer);
-  }, [status, pendingAction, pendingActionKey, actionRunning, runAction, completedActionKeys]);
+  }, [status, pendingAction, pendingActionKey, pendingSuggest, actionRunning, runAction, completedActionKeys]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -552,21 +678,34 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
                   )}
                   {!historyLoading &&
                     historyItems.map((item) => (
-                      <button
+                      <div
                         key={item.id}
-                        type="button"
-                        onClick={() => void resumeConversation(item.id)}
-                        className="flex w-full items-start justify-between gap-3 rounded-xl border border-slate-700/60 bg-slate-900/50 px-3 py-2.5 text-left transition hover:border-orange-500/30 hover:bg-orange-500/5"
+                        className="flex items-stretch gap-1 rounded-xl border border-slate-700/60 bg-slate-900/50 transition hover:border-orange-500/30 hover:bg-orange-500/5"
                       >
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-medium text-white">{formatConversationLabel(item)}</p>
-                          <p className="mt-0.5 text-[11px] text-slate-400">
-                            {item.messageCount} message{item.messageCount === 1 ? "" : "s"}
-                            {item.scope ? ` · ${item.scope}` : ""}
-                          </p>
-                        </div>
-                        <span className="shrink-0 text-[11px] text-slate-500">{formatConversationWhen(item.updatedAt)}</span>
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => void resumeConversation(item.id)}
+                          className="flex min-w-0 flex-1 items-start justify-between gap-3 px-3 py-2.5 text-left"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium text-white">{formatConversationLabel(item)}</p>
+                            <p className="mt-0.5 text-[11px] text-slate-400">
+                              {item.messageCount} message{item.messageCount === 1 ? "" : "s"}
+                              {item.scope ? ` · ${item.scope}` : ""}
+                            </p>
+                          </div>
+                          <span className="shrink-0 text-[11px] text-slate-500">{formatConversationWhen(item.updatedAt)}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void removeConversation(item.id)}
+                          className="shrink-0 rounded-r-xl px-2.5 text-slate-500 hover:bg-red-500/10 hover:text-red-300"
+                          aria-label="Delete chat"
+                          title="Delete chat"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                     ))}
                 </>
               ) : (
@@ -578,6 +717,24 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
                     : error.message || "Something went wrong. Try again."}
                 </div>
               )}
+              {activityBanner && (
+                <div className="rounded-2xl border border-cyan-500/30 bg-gradient-to-br from-cyan-500/10 to-transparent px-4 py-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-cyan-300/90">
+                    I noticed your recent save
+                  </p>
+                  <p className="mt-1 text-sm leading-relaxed text-slate-200">{activityBanner.greeting}</p>
+                  {activityBanner.nextToolHref && activityBanner.workflow.nextLabel ? (
+                    <Link
+                      href={activityBanner.nextToolHref}
+                      className="mt-2 inline-flex text-xs text-cyan-300 hover:text-cyan-200 underline"
+                      onClick={() => setActivityBanner(null)}
+                    >
+                      Open {activityBanner.workflow.nextLabel} →
+                    </Link>
+                  ) : null}
+                </div>
+              )}
+
               {showGreeting && (
                 <div className="rounded-2xl border border-orange-500/20 bg-gradient-to-br from-orange-500/10 to-transparent px-4 py-3">
                   <p className="text-base font-semibold text-white">{context.greeting}</p>
@@ -649,7 +806,7 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
               {messages.map((message) => {
                 const isUser = message.role === "user";
                 const text = getMessageText(message);
-                const displayText = stripModocActionLines(text);
+                const displayText = stripModocMachineBlocks(text);
                 if (!isUser && !displayText) return null;
 
                 return (
@@ -688,6 +845,47 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
                   {actionMessage}
                 </div>
               )}
+
+              {safetySuggest && !actionRunning && (
+                <div className="rounded-2xl border border-amber-500/30 bg-amber-500/8 px-4 py-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-300/90">
+                    Confirmation required
+                  </p>
+                  <p className="mt-1 text-sm leading-relaxed text-slate-200">{safetySuggest.reason}</p>
+                  <button
+                    type="button"
+                    disabled={actionRunning}
+                    onClick={confirmSafetySuggest}
+                    className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/15 px-3 py-1.5 text-xs font-medium text-amber-100 hover:bg-amber-500/25 disabled:opacity-50"
+                  >
+                    Confirm: {safetySuggest.action.replace(/_/g, " ")}
+                  </button>
+                </div>
+              )}
+
+              {pendingSuggest &&
+                pendingSuggestKey &&
+                !completedActionKeys.has(pendingSuggestKey) &&
+                !safetySuggest &&
+                status === "ready" &&
+                !actionRunning && (
+                  <div className="rounded-2xl border border-cyan-500/25 bg-cyan-500/8 px-4 py-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-cyan-300/90">
+                      Suggested action
+                    </p>
+                    {typeof pendingSuggest.reason === "string" && pendingSuggest.reason ? (
+                      <p className="mt-1 text-sm leading-relaxed text-slate-200">{pendingSuggest.reason}</p>
+                    ) : null}
+                    <button
+                      type="button"
+                      disabled={actionRunning}
+                      onClick={confirmChatSuggest}
+                      className="mt-2 rounded-lg border border-cyan-500/40 bg-cyan-500/15 px-3 py-1.5 text-xs font-medium text-cyan-100 hover:bg-cyan-500/25 disabled:opacity-50"
+                    >
+                      Run: {String(pendingSuggest.type).replace(/_/g, " ")}
+                    </button>
+                  </div>
+                )}
 
               {pendingAction &&
                 status === "ready" &&

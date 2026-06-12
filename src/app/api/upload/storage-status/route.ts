@@ -19,7 +19,9 @@ export async function GET() {
     region: storage.region || null,
     publicBaseUrl: publicBase || null,
     allowedOrigins: getAllowedStorageBaseUrls(),
+    /** Legacy server-proxy limit; client prefers presigned direct upload for all sizes. */
     directUploadMaxMb: 4,
     presignAvailable: configured,
+    directToStorage: configured,
   });
 }

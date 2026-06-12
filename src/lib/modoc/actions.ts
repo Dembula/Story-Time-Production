@@ -29,7 +29,7 @@ import type { ModocActionPayload, ModocActionType } from "@/lib/modoc/action-typ
 export type { ModocActionPayload, ModocActionType } from "@/lib/modoc/action-types";
 export type ModocActionResult =
   | { ok: true; message: string; data?: Record<string, unknown> }
-  | { ok: false; error: string; status: number };
+  | { ok: false; error: string; status: number; data?: Record<string, unknown> };
 
 export async function executeModocAction(
   userId: string,

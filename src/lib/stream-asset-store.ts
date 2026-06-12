@@ -55,6 +55,18 @@ export async function setStreamAssetEntity(uid: string, entityType: string, enti
   `;
 }
 
+export async function findStreamAssetUidBySourceUrl(sourceUrl: string): Promise<string | null> {
+  const trimmed = sourceUrl.trim();
+  if (!trimmed) return null;
+  const rows = (await prisma.$queryRaw`
+    SELECT "uid"
+    FROM "StreamAsset"
+    WHERE "sourceUrl" = ${trimmed}
+    LIMIT 1
+  `) as Array<{ uid: string }>;
+  return rows[0]?.uid ?? null;
+}
+
 export async function getStreamStatusesByUids(uids: string[]) {
   if (uids.length === 0) return new Map<string, { status: string | null; playbackUrl: string | null }>();
   const rows = (await prisma.$queryRaw`

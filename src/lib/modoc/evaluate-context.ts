@@ -2,6 +2,12 @@ import { prisma } from "@/lib/prisma";
 import type { ModocActionType } from "@/lib/modoc/action-types";
 import type { ModocLearningProfile } from "@/lib/modoc/learning";
 import { getModocLearning } from "@/lib/modoc/learning";
+import { getLatestSessionIntel } from "@/lib/modoc/learning-store";
+import { buildProductionGraph } from "@/lib/modoc/production-graph";
+import { scoreActionPriority } from "@/lib/modoc/modoc-memory";
+
+/** Proactive nudges require readiness confidence ≥ this unless user strongly prefers the action. */
+const PROACTIVE_CONFIDENCE_THRESHOLD = 0.75;
 
 export type ModocInlineSuggestion = {
   id: string;
@@ -161,8 +167,72 @@ export async function evaluateModocContext(params: {
     });
   }
 
+  if (params.projectId) {
+    const graph = await buildProductionGraph(params.userId, params.projectId).catch(() => null);
+    if (graph) {
+      const rates: Record<string, number> = {};
+      for (const signal of graph.readiness) {
+        if (signal.satisfied || !signal.suggestedAction) continue;
+        const action = signal.suggestedAction as ModocActionType;
+        const preferredBoost = (learning.preferredSuggestions ?? []).includes(action);
+        const passesThreshold =
+          signal.confidence >= PROACTIVE_CONFIDENCE_THRESHOLD || preferredBoost;
+        if (!passesThreshold) continue;
+
+        const score = Math.round(
+          signal.confidence * 100 +
+            scoreActionPriority(action, learning, rates) * 20,
+        );
+        const existing = suggestions.find((s) => s.action === action);
+        if (existing) {
+          existing.priority = Math.max(existing.priority, score);
+        } else {
+          suggestions.push({
+            id: `graph-${graph.projectId}-${signal.id}`,
+            title: signal.label,
+            body: `Readiness signal for "${graph.projectTitle}" (${Math.round(signal.confidence * 100)}% confidence).`,
+            action,
+            payload: { projectId: graph.projectId },
+            priority: score,
+          });
+        }
+      }
+    }
+  }
+
+  const sessionIntel = params.projectId
+    ? await getLatestSessionIntel(params.userId, params.projectId).catch(() => null)
+    : learning.lastSessionIntel
+      ? {
+          next_best_action_priority: learning.lastSessionIntel.next_best_action_priority,
+          next_best_action_score: learning.lastSessionIntel.next_best_action_score,
+        }
+      : null;
+
+  if (sessionIntel?.next_best_action_priority) {
+    const action = sessionIntel.next_best_action_priority as ModocActionType;
+    const existing = suggestions.find((s) => s.action === action);
+    const intelBoost = Math.round((sessionIntel.next_best_action_score ?? 0.8) * 100);
+    if (existing) {
+      existing.priority = Math.max(existing.priority, intelBoost);
+    } else if (params.projectId) {
+      suggestions.push({
+        id: `intel-${params.projectId}-${action}`,
+        title: "Recommended next step",
+        body: "Based on your recent VA session and production graph readiness.",
+        action,
+        payload: { projectId: params.projectId },
+        priority: intelBoost,
+      });
+    }
+  }
+
   const preferred = new Set(learning.preferredSuggestions ?? []);
   return suggestions
+    .filter((s) => {
+      if (!s.id.startsWith("graph-")) return true;
+      return s.priority >= PROACTIVE_CONFIDENCE_THRESHOLD * 100 || preferred.has(s.action);
+    })
     .sort((a, b) => {
       const boostA = preferred.has(a.action) ? 15 : 0;
       const boostB = preferred.has(b.action) ? 15 : 0;

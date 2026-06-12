@@ -167,6 +167,7 @@ model User {
   modocPlaybookRules   ModocPlaybookRule[]
   modocActionLogs      ModocActionLog[]
   modocTopicStats      ModocTopicStat[]
+  modocSessionIntel    ModocSessionIntel[]
   budgetsLastGenerated ProjectBudget[] @relation("BudgetLastGeneratedBy")
 
   creatorStudioInvitesSent     CreatorStudioTeamInvite[] @relation("CreatorStudioInviteSender")
@@ -3544,6 +3545,27 @@ model ModocTopicStat {
   @@unique([userId, topic])
   @@index([userId])
   @@index([userId, count])
+}
+
+/// Per-turn session intelligence from MODOC (drives next-best-action ranking).
+model ModocSessionIntel {
+  id                        String   @id @default(cuid())
+  userId                    String
+  user                      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversationId            String?
+  projectId                 String?
+  userIntent                String?  @db.Text
+  actionSuccessRateEstimate Float
+  suggestionAcceptanceRate  Float
+  missingContextFlags       Json
+  nextBestAction            String?
+  nextBestActionScore       Float    @default(0)
+  modelUsed                 String?
+  createdAt                 DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([userId, projectId])
+  @@index([conversationId])
 }
 
 /// Single message in a MODOC conversation (user or assistant).

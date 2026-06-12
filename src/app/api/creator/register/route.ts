@@ -4,7 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { hash } from "bcryptjs";
 import { embedMeta } from "@/lib/marketplace-profile-meta";
 import { validateStorageUrlField, validateStorageUrlList } from "@/lib/storage-origin";
-import { ensureCloudflareStreamPlaybackUrl } from "@/lib/cloudflare-stream";
+import { after } from "next/server";
+import { ensureVideoIngested } from "@/lib/stream-ingest-link";
 import { sendWelcomeEmail } from "@/lib/sendgrid";
 import {
   isMissingCreatorStudioInfrastructure,
@@ -158,11 +159,8 @@ export async function POST(request: NextRequest) {
     if (actorPhotoErr) return NextResponse.json({ error: actorPhotoErr }, { status: 400 });
     const locationPhotosErr = validateStorageUrlList(normalizedLocationPhotos, "locationProfile.photos");
     if (locationPhotosErr) return NextResponse.json({ error: locationPhotosErr }, { status: 400 });
-    const normalizedActorShowreel = await ensureCloudflareStreamPlaybackUrl(normalizedActorProfile?.showreel ?? null, {
-      area: "creator-register-showreel",
-      creatorType: type,
-    });
-    const actorShowreelErr = validateStorageUrlField(normalizedActorShowreel, "actorProfile.showreel");
+    const actorShowreel = normalizedActorProfile?.showreel ?? null;
+    const actorShowreelErr = validateStorageUrlField(actorShowreel, "actorProfile.showreel");
     if (actorShowreelErr) return NextResponse.json({ error: actorShowreelErr }, { status: 400 });
 
     const existing = await prisma.user.findUnique({
@@ -385,7 +383,7 @@ export async function POST(request: NextRequest) {
               gender: actorProfile.gender?.trim() || null,
               skills: (actorProfile.skills ?? []).join(", ") || null,
               pastWork: actorProfile.pastWork?.trim() || null,
-              reelUrl: normalizedActorShowreel || null,
+              reelUrl: actorShowreel || null,
               contactEmail: actorProfile.contactInfo?.trim() || normalizedContactEmail || null,
               cvUrl: null,
               sortOrder: 0,
@@ -598,6 +596,15 @@ export async function POST(request: NextRequest) {
       });
     } catch (emailError) {
       console.error("Creator welcome email send failed:", emailError);
+    }
+
+    if (actorShowreel) {
+      after(async () => {
+        await ensureVideoIngested(actorShowreel, {
+          area: "creator-register-showreel",
+          creatorType: type,
+        });
+      });
     }
 
     return NextResponse.json({ ok: true });

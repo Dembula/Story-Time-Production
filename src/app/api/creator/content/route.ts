@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { after } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isCreatorLicensePeriodActive, normalizeCreatorLicenseType } from "@/lib/pricing";
 import { validateStorageUrlField } from "@/lib/storage-origin";
-import { ensureCloudflareStreamPlaybackUrl, extractCloudflareStreamUid } from "@/lib/cloudflare-stream";
-import { setStreamAssetEntity, getStreamStatusesByUids } from "@/lib/stream-asset-store";
+import { extractCloudflareStreamUid } from "@/lib/cloudflare-stream";
+import { getStreamStatusesByUids } from "@/lib/stream-asset-store";
+import { linkOrIngestStreamForUrl } from "@/lib/stream-ingest-link";
 import { creatorIsStudentAtUpload } from "@/lib/student-work";
 
 export async function GET(request: NextRequest) {
@@ -146,24 +148,13 @@ export async function POST(request: NextRequest) {
     linkedProjectId = pid;
   }
 
-  const videoUrl = await ensureCloudflareStreamPlaybackUrl(body.videoUrl || null, {
-    area: "content-video",
-    creatorId,
-  });
-  const trailerUrl = await ensureCloudflareStreamPlaybackUrl(body.trailerUrl || null, {
-    area: "content-trailer",
-    creatorId,
-  });
+  const videoUrl = body.videoUrl || null;
+  const trailerUrl = body.trailerUrl || null;
   const btsVideosInput = Array.isArray(body.btsVideos) ? body.btsVideos : [];
-  const btsVideosPrepared = await Promise.all(
-    btsVideosInput.map(async (b: any) => ({
-      ...b,
-      videoUrl: await ensureCloudflareStreamPlaybackUrl(b?.videoUrl ?? null, {
-        area: "content-bts",
-        creatorId,
-      }),
-    })),
-  );
+  const btsVideosPrepared = btsVideosInput.map((b: { videoUrl?: unknown; title?: unknown; thumbnail?: unknown; sortOrder?: unknown }) => ({
+    ...b,
+    videoUrl: typeof b?.videoUrl === "string" ? b.videoUrl : null,
+  }));
 
   const isStudentWork = await creatorIsStudentAtUpload(creatorId);
 
@@ -197,11 +188,6 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  for (const streamUrl of [videoUrl, trailerUrl]) {
-    const uid = extractCloudflareStreamUid(streamUrl);
-    if (uid) await setStreamAssetEntity(uid, "Content", content.id);
-  }
-
   if (body.crew && Array.isArray(body.crew)) {
     for (const c of body.crew) {
       if (c.name && c.role) {
@@ -212,6 +198,7 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  let createdBts: Array<{ id: string; videoUrl: string | null }> = [];
   if (btsVideosPrepared.length > 0) {
     for (const clip of btsVideosPrepared as Array<{ videoUrl?: unknown; thumbnail?: unknown }>) {
       const videoErr = validateStorageUrlField(clip.videoUrl, "btsVideos.videoUrl", { allowNull: false });
@@ -219,10 +206,10 @@ export async function POST(request: NextRequest) {
       const thumbErr = validateStorageUrlField(clip.thumbnail, "btsVideos.thumbnail");
       if (thumbErr) return NextResponse.json({ error: thumbErr }, { status: 400 });
     }
-    const valid = btsVideosPrepared.filter((b: any) => b.title && b.videoUrl);
+    const valid = btsVideosPrepared.filter((b: { title?: unknown; videoUrl?: unknown }) => b.title && b.videoUrl);
     if (valid.length > 0) {
-      await prisma.$transaction(
-        valid.map((b: any, index: number) =>
+      createdBts = await prisma.$transaction(
+        valid.map((b: { title: string; videoUrl: string; thumbnail?: string | null; sortOrder?: number }, index: number) =>
           prisma.btsVideo.create({
             data: {
               title: b.title,
@@ -234,12 +221,39 @@ export async function POST(request: NextRequest) {
           }),
         ),
       );
-      for (const b of valid) {
-        const uid = extractCloudflareStreamUid(b.videoUrl ?? null);
-        if (uid) await setStreamAssetEntity(uid, "Content", content.id);
-      }
     }
   }
+
+  after(async () => {
+    const tasks: Promise<void>[] = [];
+    if (videoUrl) {
+      tasks.push(
+        linkOrIngestStreamForUrl(videoUrl, "Content", content.id, {
+          area: "content-video",
+          creatorId,
+        }),
+      );
+    }
+    if (trailerUrl) {
+      tasks.push(
+        linkOrIngestStreamForUrl(trailerUrl, "Content", content.id, {
+          area: "content-trailer",
+          creatorId,
+        }),
+      );
+    }
+    for (const b of createdBts) {
+      if (b.videoUrl) {
+        tasks.push(
+          linkOrIngestStreamForUrl(b.videoUrl, "BtsVideo", b.id, {
+            area: "content-bts",
+            creatorId,
+          }),
+        );
+      }
+    }
+    await Promise.all(tasks);
+  });
 
   return NextResponse.json(content);
 }

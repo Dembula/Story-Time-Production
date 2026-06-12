@@ -42,6 +42,16 @@ export type ModocLearningProfile = {
   /** Total chat turns ingested for learning */
   interactionCount?: number;
   lastLearnedAt?: string;
+  /** Latest session intel snapshot for fast prompt injection */
+  lastSessionIntel?: {
+    at: string;
+    next_best_action_priority: string | null;
+    next_best_action_score: number;
+    missing_context_flags: string[];
+    action_success_rate_estimate: number;
+    suggestion_acceptance_rate: number;
+    modelUsed?: string;
+  };
 };
 
 function parseExtras(raw: unknown): ModocLearningProfile {

@@ -2,50 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { ALLOWED_CONTENT_MEDIA_MIME_TYPES, resolveContentTypeForUpload } from "@/lib/content-media-shared";
 import { getStorageConfig } from "@/lib/storage-config";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 
 const DEFAULT_MAX_MB = 25;
-
-const ALLOWED_MIME_TYPES = new Set([
-  "application/pdf",
-  "image/avif",
-  "image/gif",
-  "image/heic",
-  "image/heif",
-  "image/jpeg",
-  "image/jpg",
-  "image/png",
-  "image/webp",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "text/plain",
-  "video/3gpp",
-  "video/3gpp2",
-  "video/avi",
-  "video/hevc",
-  "video/h265",
-  "video/mpeg",
-  "video/mp2t",
-  "video/x-m4v",
-  "video/x-msvideo",
-  "video/x-ms-wmv",
-  "video/mp4",
-  "video/quicktime",
-  "video/webm",
-  "video/x-matroska",
-  "audio/mpeg",
-  "audio/mp3",
-  "audio/wav",
-  "audio/x-wav",
-  "audio/flac",
-  "audio/aac",
-  "audio/mp4",
-  "audio/ogg",
-  "audio/webm",
-]);
 
 const storage = getStorageConfig();
 
@@ -111,7 +74,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing file field in form-data" }, { status: 400 });
     }
 
-    if (!ALLOWED_MIME_TYPES.has(file.type)) {
+    const contentType = resolveContentTypeForUpload(file);
+    if (!ALLOWED_CONTENT_MEDIA_MIME_TYPES.has(contentType)) {
       return NextResponse.json(
         {
           error:
@@ -148,7 +112,7 @@ export async function POST(request: NextRequest) {
         Bucket: bucket,
         Key: key,
         Body: buffer,
-        ContentType: file.type || "application/octet-stream",
+        ContentType: contentType,
       }),
     );
 
@@ -163,7 +127,7 @@ export async function POST(request: NextRequest) {
           entityType: "User",
           entityId: userId,
           oldValue: null as any,
-          newValue: { role, path: key, mimeType: file.type, size: file.size },
+          newValue: { role, path: key, mimeType: contentType, size: file.size },
         },
       });
     } catch {

@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { after } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { embedMeta, parseEmbeddedMeta } from "@/lib/marketplace-profile-meta";
 import { validateStorageUrlList } from "@/lib/storage-origin";
-import { ensureCloudflareStreamPlaybackUrl } from "@/lib/cloudflare-stream";
+import { ensureVideoIngested, isLikelyVideoStorageUrl } from "@/lib/stream-ingest-link";
 
 async function ensureIncidentAccess(projectId: string) {
   const session = await getServerSession(authOptions);
@@ -386,18 +387,8 @@ export async function POST(
   if (!body?.title || !body.description) {
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
   }
-  const normalizedMediaUrls = await Promise.all(
-    (body.mediaUrls ?? []).map((url) =>
-      ensureCloudflareStreamPlaybackUrl(url, { area: "incidents-media", projectId }),
-    ),
-  );
-  const safeMediaUrls = normalizedMediaUrls.filter((url): url is string => Boolean(url));
-  const normalizedVideoUrls = await Promise.all(
-    (body.videoUrls ?? []).map((url) =>
-      ensureCloudflareStreamPlaybackUrl(url, { area: "incidents-video", projectId }),
-    ),
-  );
-  const safeVideoUrls = normalizedVideoUrls.filter((url): url is string => Boolean(url));
+  const safeMediaUrls = (body.mediaUrls ?? []).filter((url): url is string => Boolean(url));
+  const safeVideoUrls = (body.videoUrls ?? []).filter((url): url is string => Boolean(url));
   const mediaErr = validateStorageUrlList(safeMediaUrls, "mediaUrls");
   if (mediaErr) return NextResponse.json({ error: mediaErr }, { status: 400 });
   const videoErr = validateStorageUrlList(safeVideoUrls, "videoUrls");
@@ -506,6 +497,15 @@ export async function POST(
     });
   }
 
+  const ingestUrls = [...safeMediaUrls, ...safeVideoUrls].filter(isLikelyVideoStorageUrl);
+  if (ingestUrls.length > 0) {
+    after(async () => {
+      await Promise.all(
+        ingestUrls.map((url) => ensureVideoIngested(url, { area: "incidents-video", projectId })),
+      );
+    });
+  }
+
   return NextResponse.json({ incident }, { status: 201 });
 }
 
@@ -550,18 +550,10 @@ export async function PATCH(
     return NextResponse.json({ error: "Missing id" }, { status: 400 });
   }
   const normalizedPatchMediaUrls = body.mediaUrls !== undefined
-    ? (await Promise.all(
-        body.mediaUrls.map((url) =>
-          ensureCloudflareStreamPlaybackUrl(url, { area: "incidents-media", projectId }),
-        ),
-      )).filter((url): url is string => Boolean(url))
+    ? body.mediaUrls.filter((url): url is string => Boolean(url))
     : undefined;
   const normalizedPatchVideoUrls = body.videoUrls !== undefined
-    ? (await Promise.all(
-        body.videoUrls.map((url) =>
-          ensureCloudflareStreamPlaybackUrl(url, { area: "incidents-video", projectId }),
-        ),
-      )).filter((url): url is string => Boolean(url))
+    ? body.videoUrls.filter((url): url is string => Boolean(url))
     : undefined;
   if (body.mediaUrls !== undefined) {
     const mediaErr = validateStorageUrlList(normalizedPatchMediaUrls, "mediaUrls");
@@ -648,6 +640,20 @@ export async function PATCH(
           }),
     },
   });
+
+  if (body.mediaUrls !== undefined || body.videoUrls !== undefined) {
+    const ingestUrls = [
+      ...(normalizedPatchMediaUrls ?? []),
+      ...(normalizedPatchVideoUrls ?? []),
+    ].filter(isLikelyVideoStorageUrl);
+    if (ingestUrls.length > 0) {
+      after(async () => {
+        await Promise.all(
+          ingestUrls.map((url) => ensureVideoIngested(url, { area: "incidents-video", projectId })),
+        );
+      });
+    }
+  }
 
   return NextResponse.json({ incident: updated });
 }

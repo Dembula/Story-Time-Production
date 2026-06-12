@@ -22,6 +22,7 @@ export async function POST(req: NextRequest) {
     action?: string;
     payload?: ModocActionPayload;
     conversationId?: string;
+    confirmDestructive?: boolean;
   } | null;
 
   if (!body?.action) {
@@ -43,10 +44,14 @@ export async function POST(req: NextRequest) {
     action,
     payload: body.payload ?? {},
     conversationId: body.conversationId,
+    confirmDestructive: body.confirmDestructive === true,
   });
 
   if (!result.ok) {
-    return NextResponse.json({ error: result.error }, { status: result.status });
+    return NextResponse.json(
+      { error: result.error, suggest: result.data?.suggest === true, data: result.data },
+      { status: result.status },
+    );
   }
 
   return NextResponse.json({ ok: true, message: result.message, data: result.data });

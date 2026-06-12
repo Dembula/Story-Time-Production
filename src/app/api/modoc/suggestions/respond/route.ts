@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { executeModocAction, type ModocActionType } from "@/lib/modoc/actions";
+import type { ModocActionType } from "@/lib/modoc/actions";
 import type { ModocActionPayload } from "@/lib/modoc/action-types";
 import { recordModocActionFeedback } from "@/lib/modoc/learning";
+import { runVaAction } from "@/lib/modoc/run-va-action";
 import { notifyUser } from "@/lib/notify-user";
 
 type SuggestionMeta = ModocActionPayload & {
@@ -25,6 +26,7 @@ export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => null)) as {
     notificationId?: string;
     accept?: boolean;
+    confirmDestructive?: boolean;
   } | null;
 
   if (!body?.notificationId) {
@@ -45,14 +47,13 @@ export async function POST(req: NextRequest) {
     meta = {};
   }
 
-  await prisma.notification.update({
-    where: { id: notification.id },
-    data: { read: true },
-  });
-
   const action = meta.action as ModocActionType | undefined;
 
   if (!body.accept) {
+    await prisma.notification.update({
+      where: { id: notification.id },
+      data: { read: true },
+    });
     if (action) void recordModocActionFeedback(userId, action, false);
     return NextResponse.json({ ok: true, declined: true });
   }
@@ -70,15 +71,34 @@ export async function POST(req: NextRequest) {
     ...actionPayload
   } = meta;
 
-  const result = await executeModocAction(userId, action, {
-    ...actionPayload,
-    projectId: meta.projectId,
-    title: meta.title ?? scriptTitle,
+  const result = await runVaAction({
+    userId,
+    action,
+    payload: {
+      ...actionPayload,
+      projectId: meta.projectId,
+      title: meta.title ?? scriptTitle,
+    },
+    confirmDestructive: body.confirmDestructive === true,
   });
 
-  void recordModocActionFeedback(userId, action, true);
+  void recordModocActionFeedback(userId, action, result.ok);
 
   if (!result.ok) {
+    if (result.status === 409 && result.data?.suggest && !body.confirmDestructive) {
+      return NextResponse.json(
+        {
+          error: result.error,
+          suggest: true,
+          data: result.data,
+        },
+        { status: 409 },
+      );
+    }
+    await prisma.notification.update({
+      where: { id: notification.id },
+      data: { read: true },
+    });
     await notifyUser({
       userId,
       type: "VA_ACTION_FAILED",
@@ -89,9 +109,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
 
+  await prisma.notification.update({
+    where: { id: notification.id },
+    data: { read: true },
+  });
+
   if (meta.followUpAction === "breakdown_full" && meta.projectId) {
-    const followUp = await executeModocAction(userId, "breakdown_full", {
-      projectId: meta.projectId,
+    const followUp = await runVaAction({
+      userId,
+      action: "breakdown_full",
+      payload: { projectId: meta.projectId },
     });
     if (followUp.ok) {
       await notifyUser({

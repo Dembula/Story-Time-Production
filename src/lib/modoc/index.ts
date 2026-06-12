@@ -6,6 +6,7 @@
 export {
   buildModocSystemPrompt,
   MODOC_IDENTITY,
+  MODOC_OS_PRINCIPLES,
   PLATFORM_SUMMARY,
   MODOC_IDEA_DEVELOPMENT_INSTRUCTIONS,
   MODOC_SCRIPT_WRITING_INSTRUCTIONS,
@@ -46,3 +47,37 @@ export type {
   ModocPlatformContext,
   ModocUserContext,
 } from "./types";
+export {
+  buildProductionGraph,
+  formatProductionGraphForPrompt,
+  isDestructiveModocAction,
+  type ProductionGraph,
+  type ProductionGraphNode,
+  type ProductionGraphEdge,
+  type ReadinessSignal,
+} from "./production-graph";
+export { assembleModocMemory, type ModocMemoryLayers } from "./modoc-memory";
+export {
+  MODOC_RESPONSE_PROTOCOL,
+  parseModocSuggestFromText,
+  parseModocIntelFromText,
+  stripModocMachineBlocks,
+  stripModocProtocolLines,
+  type ModocSuggestBlock,
+  type ModocIntelBlock,
+} from "./response-protocol";
+export {
+  resolveModocTaskKind,
+  streamModocWithFallback,
+  modelsForTask,
+  primaryModocModel,
+  type ModocTaskKind,
+} from "./model-router";
+export {
+  appendSessionIntel,
+  getLatestSessionIntel,
+  type StoredModocSessionIntel,
+} from "./learning-store";
+export { validateModocActionSafety } from "./action-safety";
+export { buildModocSessionIntel, persistModocSessionIntel } from "./learning-loop";
+export { buildSlicedContext } from "./context-slicer";

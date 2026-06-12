@@ -43,3 +43,30 @@ export async function GET(
     })),
   });
 }
+
+/** DELETE: Remove a MODOC conversation and its messages. */
+export async function DELETE(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const userId = (session.user as { id?: string })?.id;
+  if (!userId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { id } = await params;
+  const conversation = await prisma.modocConversation.findFirst({
+    where: { id, userId },
+    select: { id: true },
+  });
+  if (!conversation) {
+    return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
+  }
+
+  await prisma.modocConversation.delete({ where: { id } });
+  return NextResponse.json({ ok: true });
+}

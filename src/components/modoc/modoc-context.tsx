@@ -3,11 +3,14 @@
 import {
   createContext,
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
   type ReactNode,
 } from "react";
+import type { ModocActivityNudge } from "@/lib/modoc/build-activity-nudge";
+import { MODOC_TOOL_ACTIVITY_EVENT } from "@/lib/modoc/modoc-activity-sync";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 
@@ -73,6 +76,14 @@ interface ModocContextValue {
       messageCount: number;
     }>
   >;
+  deleteConversation: (id: string) => Promise<boolean>;
+  /** Increments when a new tool-activity nudge should pulse the VA FAB (3×). */
+  attentionPulseKey: number;
+  /** Nudge shown when creator opens VA after a pulse; null if ignored. */
+  openingActivityNudge: ModocActivityNudge | null;
+  consumeActivityNudge: () => ModocActivityNudge | null;
+  dismissActivityNudge: () => void;
+  clearOpeningActivityNudge: () => void;
 }
 
 const ModocContext = createContext<ModocContextValue | null>(null);
@@ -85,6 +96,10 @@ export function ModocProvider({ children }: { children: ReactNode }) {
   const creatingConversationRef = useRef<Promise<string | null> | null>(null);
   const [conversationId, setConversationIdState] = useState<string | null>(null);
   const [isAvailable] = useState(true);
+  const pendingNudgeRef = useRef<ModocActivityNudge | null>(null);
+  const lastAttentionPulseAtRef = useRef(0);
+  const [attentionPulseKey, setAttentionPulseKey] = useState(0);
+  const [openingActivityNudge, setOpeningActivityNudge] = useState<ModocActivityNudge | null>(null);
 
   const setConversationId = useCallback((id: string | null) => {
     conversationIdRef.current = id;
@@ -276,6 +291,22 @@ export function ModocProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const deleteConversation = useCallback(
+    async (id: string) => {
+      try {
+        const res = await fetch(`/api/modoc/conversations/${id}`, { method: "DELETE" });
+        if (!res.ok) return false;
+        if (conversationId === id) {
+          resetChat();
+        }
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [conversationId, resetChat],
+  );
+
   const setScope = useCallback((scope: string | undefined) => {
     requestContextRef.current.scope = scope;
   }, []);
@@ -299,6 +330,36 @@ export function ModocProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const dismissActivityNudge = useCallback(() => {
+    pendingNudgeRef.current = null;
+  }, []);
+
+  const consumeActivityNudge = useCallback((): ModocActivityNudge | null => {
+    const nudge = pendingNudgeRef.current;
+    pendingNudgeRef.current = null;
+    if (nudge) setOpeningActivityNudge(nudge);
+    return nudge;
+  }, []);
+
+  const clearOpeningActivityNudge = useCallback(() => {
+    setOpeningActivityNudge(null);
+  }, []);
+
+  useEffect(() => {
+    const onActivity = (e: Event) => {
+      const nudge = (e as CustomEvent<ModocActivityNudge>).detail;
+      if (!nudge) return;
+      pendingNudgeRef.current = nudge;
+      const now = Date.now();
+      if (now - lastAttentionPulseAtRef.current > 4000) {
+        lastAttentionPulseAtRef.current = now;
+        setAttentionPulseKey((k) => k + 1);
+      }
+    };
+    window.addEventListener(MODOC_TOOL_ACTIVITY_EVENT, onActivity);
+    return () => window.removeEventListener(MODOC_TOOL_ACTIVITY_EVENT, onActivity);
+  }, []);
+
   const value: ModocContextValue = {
     messages,
     append,
@@ -316,6 +377,12 @@ export function ModocProvider({ children }: { children: ReactNode }) {
     resetChat,
     appendAssistantMessage,
     listConversations,
+    deleteConversation,
+    attentionPulseKey,
+    openingActivityNudge,
+    consumeActivityNudge,
+    dismissActivityNudge,
+    clearOpeningActivityNudge,
   };
 
   return <ModocContext.Provider value={value}>{children}</ModocContext.Provider>;

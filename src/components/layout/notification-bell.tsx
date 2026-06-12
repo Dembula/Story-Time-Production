@@ -77,11 +77,21 @@ export function NotificationBell() {
   const respondToVaSuggestion = async (notificationId: string, accept: boolean) => {
     setLoading(true);
     try {
-      const res = await fetch("/api/modoc/suggestions/respond", {
+      let res = await fetch("/api/modoc/suggestions/respond", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ notificationId, accept }),
       });
+      if (accept && res.status === 409) {
+        const data = await res.json().catch(() => ({}));
+        if (data.suggest) {
+          res = await fetch("/api/modoc/suggestions/respond", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ notificationId, accept: true, confirmDestructive: true }),
+          });
+        }
+      }
       await markOneRead(notificationId);
       if (accept && res.ok) {
         await refreshPreview();
