@@ -4,6 +4,7 @@ export type CaptureProtectionConfig = {
   enabled: boolean;
   mode: CaptureProtectionMode;
   drmLicenseUrl: string | null;
+  fairPlayCertificateUrl: string | null;
   drmAuthToken: string | null;
   watermarkEnabled: boolean;
 };
@@ -34,6 +35,7 @@ export function getServerCaptureProtectionConfig(): CaptureProtectionConfig {
     enabled,
     mode,
     drmLicenseUrl: process.env.STORYTIME_DRM_LICENSE_URL?.trim() || null,
+    fairPlayCertificateUrl: process.env.STORYTIME_DRM_FAIRPLAY_CERT_URL?.trim() || null,
     drmAuthToken: process.env.STORYTIME_DRM_AUTH_TOKEN?.trim() || null,
     watermarkEnabled: process.env.CAPTURE_WATERMARK_ENABLED !== "false",
   };

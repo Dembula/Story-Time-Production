@@ -13,6 +13,7 @@ import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
 import { Skeleton } from "@/components/ui/skeleton";
 import { resolveTrailerSources } from "@/lib/playback-sources";
 import { getDisplayPosterUrl, getStreamThumbnailGifUrl } from "@/lib/content-media-urls";
+import { isStreamSignedPlaybackClientEnabled } from "@/lib/stream-playback-protection";
 import {
   browsePosterCardClass,
   browsePosterCardImageSizes,
@@ -44,7 +45,8 @@ function ContentCard({
   const prefetch = useContentPrefetch();
   const { intensity, prefersReducedMotion } = useMotion();
   const { deviceClass } = useAdaptiveUi();
-  const trailer = resolveTrailerSources(item.trailerUrl);
+  const signedPlaybackRequired = isStreamSignedPlaybackClientEnabled();
+  const trailer = signedPlaybackRequired ? null : resolveTrailerSources(item.trailerUrl);
   const imageUrl = getDisplayPosterUrl(item);
   const hoverGif = !trailer ? getStreamThumbnailGifUrl(item.videoUrl ?? item.trailerUrl) : null;
   const hoverMotion = prefersReducedMotion

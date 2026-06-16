@@ -6,6 +6,8 @@ import { getDisplayPosterUrl } from "@/lib/content-media-urls";
 import { getServerCaptureProtectionConfig } from "@/lib/content-capture-protection";
 import { isLongFormType } from "@/lib/content-types";
 import { resolveServerPlaybackSource } from "@/lib/server-playback-sources";
+import { getViewerPlaybackState } from "@/lib/viewer-access";
+import { getViewerProfileAge } from "@/lib/viewer-profiles";
 
 export async function GET(
   req: NextRequest,
@@ -15,6 +17,7 @@ export async function GET(
     const { id } = await params;
     const episodeId = req.nextUrl.searchParams.get("episodeId")?.trim() || null;
     const isTrailer = req.nextUrl.searchParams.get("trailer") === "1";
+    const session = await getServerSession(authOptions);
 
     const content = await prisma.content.findFirst({
       where: { id, published: true },
@@ -27,6 +30,7 @@ export async function GET(
         backdropUrl: true,
         duration: true,
         type: true,
+        minAge: true,
         seasons: {
           where: { published: true },
           orderBy: { seasonNumber: "asc" },
@@ -68,6 +72,31 @@ export async function GET(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
+    if (!isTrailer) {
+      const role = (session?.user as { role?: string } | undefined)?.role;
+      if (!session?.user?.id || role !== "SUBSCRIBER") {
+        return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+      }
+
+      const profileId = req.cookies.get("st_viewer_profile")?.value;
+      if (!profileId) {
+        return NextResponse.json({ error: "Viewer profile required" }, { status: 403 });
+      }
+
+      const [playbackState, profile] = await Promise.all([
+        getViewerPlaybackState(session.user.id, content.id),
+        prisma.viewerProfile.findFirst({
+          where: { id: profileId, userId: session.user.id },
+          select: { age: true, dateOfBirth: true },
+        }),
+      ]);
+
+      const profileAge = profile ? getViewerProfileAge(profile) : null;
+      if (!playbackState.canPlayContent || !profile || (profileAge != null && content.minAge > profileAge)) {
+        return NextResponse.json({ error: "Playback not allowed" }, { status: 403 });
+      }
+    }
+
     let videoUrl = isTrailer ? content.trailerUrl : content.videoUrl;
     let duration = isTrailer ? null : content.duration;
 
@@ -91,7 +120,6 @@ export async function GET(
     const playback = await resolveServerPlaybackSource(videoUrl);
     const posterUrl = getDisplayPosterUrl(content);
     const captureProtection = getServerCaptureProtectionConfig();
-    const session = await getServerSession(authOptions);
 
     return NextResponse.json(
       {
@@ -114,6 +142,9 @@ export async function GET(
           watermarkEnabled: captureProtection.watermarkEnabled,
           drmConfigured: Boolean(captureProtection.drmLicenseUrl),
           drmLicensePath: captureProtection.drmLicenseUrl ? "/api/content/drm-license" : null,
+          drmFairPlayCertificatePath: captureProtection.fairPlayCertificateUrl
+            ? "/api/content/drm-fairplay-cert"
+            : null,
         },
       },
       {

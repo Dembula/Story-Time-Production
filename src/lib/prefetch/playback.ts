@@ -27,6 +27,13 @@ export async function fetchPlaybackBundle(
   return res.json();
 }
 
+function warmPlaybackBundleManifest(bundle: unknown) {
+  const playback = (bundle as { playback?: { src?: unknown } } | null)?.playback;
+  if (typeof playback?.src === "string") {
+    warmPlaybackManifest(playback.src);
+  }
+}
+
 const warmedWatchRoutes = new Set<string>();
 let playerModuleWarm = false;
 
@@ -74,13 +81,15 @@ export function preparePlaybackStart({
   warmPlaybackManifest(videoUrl);
 
   if (queryClient) {
-    void queryClient.prefetchQuery({
+    void queryClient.fetchQuery({
       queryKey: playbackBundleQueryKey(contentId, episodeId, { trailer }),
       queryFn: () => fetchPlaybackBundle(contentId, episodeId, { trailer }),
       staleTime: PLAYBACK_BUNDLE_STALE_MS,
-    });
+    }).then(warmPlaybackBundleManifest).catch(() => {});
   } else {
-    void fetchPlaybackBundle(contentId, episodeId, { trailer }).catch(() => {});
+    void fetchPlaybackBundle(contentId, episodeId, { trailer })
+      .then(warmPlaybackBundleManifest)
+      .catch(() => {});
   }
 }
 

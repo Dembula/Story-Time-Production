@@ -1,6 +1,24 @@
 import type { CaptureProtectionConfig } from "./config";
 
 type HlsConfig = Record<string, unknown>;
+const ROBUSTNESS_LADDER = ["HW_SECURE_ALL", "HW_SECURE_DECODE", "SW_SECURE_DECODE", "SW_SECURE_CRYPTO", ""] as const;
+
+function withRobustness(
+  supportedConfigurations: MediaKeySystemConfiguration[],
+  robustness: (typeof ROBUSTNESS_LADDER)[number],
+): MediaKeySystemConfiguration[] {
+  return supportedConfigurations.map((entry) => ({
+    ...entry,
+    videoCapabilities: entry.videoCapabilities?.map((cap) => ({
+      ...cap,
+      robustness: robustness || undefined,
+    })),
+    audioCapabilities: entry.audioCapabilities?.map((cap) => ({
+      ...cap,
+      robustness: robustness || undefined,
+    })),
+  }));
+}
 
 /**
  * hls.js DRM configuration for Widevine / PlayReady / FairPlay.
@@ -30,11 +48,12 @@ export function buildHlsDrmConfig(config: CaptureProtectionConfig): HlsConfig | 
       },
       "com.microsoft.playready": {
         licenseUrl,
-        videoRobustness: "HW_SECURE_ALL",
-        audioRobustness: "HW_SECURE_ALL",
+        videoRobustness: "HW_SECURE_DECODE",
+        audioRobustness: "HW_SECURE_DECODE",
       },
       "com.apple.fps": {
         licenseUrl,
+        serverCertificateUrl: config.fairPlayCertificateUrl ?? undefined,
       },
     },
     licenseXhrSetup: (xhr: XMLHttpRequest) => {
@@ -42,22 +61,27 @@ export function buildHlsDrmConfig(config: CaptureProtectionConfig): HlsConfig | 
         xhr.setRequestHeader("Authorization", `Bearer ${authToken}`);
       }
     },
-    requestMediaKeySystemAccessFunc: (
+    requestMediaKeySystemAccessFunc: async (
       keySystem: string,
       supportedConfigurations: MediaKeySystemConfiguration[],
     ) => {
-      const configs = supportedConfigurations.map((entry) => ({
-        ...entry,
-        videoCapabilities: entry.videoCapabilities?.map((cap) => ({
-          ...cap,
-          robustness: cap.robustness ?? "HW_SECURE_ALL",
-        })),
-        audioCapabilities: entry.audioCapabilities?.map((cap) => ({
-          ...cap,
-          robustness: cap.robustness ?? "HW_SECURE_ALL",
-        })),
-      }));
-      return navigator.requestMediaKeySystemAccess(keySystem, configs);
+      if (keySystem === "com.apple.fps") {
+        return navigator.requestMediaKeySystemAccess(keySystem, supportedConfigurations);
+      }
+
+      let lastError: unknown = null;
+      for (const robustness of ROBUSTNESS_LADDER) {
+        try {
+          return await navigator.requestMediaKeySystemAccess(
+            keySystem,
+            withRobustness(supportedConfigurations, robustness),
+          );
+        } catch (error) {
+          lastError = error;
+        }
+      }
+
+      throw lastError instanceof Error ? lastError : new Error(`DRM key system unavailable: ${keySystem}`);
     },
   };
 }

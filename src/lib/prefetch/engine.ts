@@ -1,4 +1,5 @@
 import { extractCloudflareStreamUid } from "@/lib/cloudflare-stream";
+import { isStreamSignedPlaybackClientEnabled } from "@/lib/stream-playback-protection";
 
 const warmedManifests = new Set<string>();
 const warmedOrigins = new Set<string>();
@@ -34,6 +35,7 @@ export function warmPlaybackManifest(videoUrl: string | null | undefined) {
   const manifest = resolveManifestUrl(url);
   warmMediaOrigin(manifest ?? url);
   if (!manifest || warmedManifests.has(manifest)) return;
+  if (isStreamSignedPlaybackClientEnabled() && !isLikelySignedCloudflareManifest(manifest)) return;
   warmedManifests.add(manifest);
 
   const link = document.createElement("link");
@@ -52,6 +54,17 @@ function resolveManifestUrl(videoUrl: string): string | null {
   if (/\.m3u8(\?|$)/i.test(videoUrl)) return videoUrl;
   const uid = extractCloudflareStreamUid(videoUrl);
   return uid ? `https://videodelivery.net/${uid}/manifest/video.m3u8` : null;
+}
+
+function isLikelySignedCloudflareManifest(manifestUrl: string): boolean {
+  try {
+    const url = new URL(manifestUrl);
+    if (!/(videodelivery\.net|cloudflarestream\.com)$/i.test(url.hostname)) return true;
+    const tokenOrUid = url.pathname.split("/").filter(Boolean)[0] ?? "";
+    return tokenOrUid.split(".").length >= 3;
+  } catch {
+    return false;
+  }
 }
 
 function warmMediaOrigin(url: string) {
