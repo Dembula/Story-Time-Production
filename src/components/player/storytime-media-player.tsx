@@ -13,6 +13,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
+import { Play } from "lucide-react";
 import {
   MediaPlayer,
   MediaProvider,
@@ -35,7 +36,7 @@ import { PlaybackChrome } from "./playback-chrome";
 import { PlaybackMetadataPanel } from "./playback-metadata-panel";
 import { PlaybackComplianceBadge } from "./playback-compliance-badge";
 import { NetflixMobileControls } from "./netflix-mobile-controls";
-import { computeIsMobileLikeClient } from "@/lib/player/mobile-detect";
+import { computePlaybackDeviceProfileClient } from "@/lib/player/mobile-detect";
 import { StoryTimeLoader, StoryTimeLoaderOverlay } from "@/components/ui/storytime-loader";
 import { PlaybackBufferingOverlay } from "./playback-buffering-overlay";
 import { PLAYBACK_COMMAND_EVENT, type PlaybackCommand } from "@/lib/input/platform-events";
@@ -137,12 +138,15 @@ export function StorytimeMediaPlayer({
   const [introSkipped, setIntroSkipped] = useState(false);
   const [nextCountdown, setNextCountdown] = useState<number | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [isMobileLike, setIsMobileLike] = useState(computeIsMobileLikeClient);
+  const [deviceProfile, setDeviceProfile] = useState(computePlaybackDeviceProfileClient);
+  const [playbackStartBlocked, setPlaybackStartBlocked] = useState(false);
+  const [userStartRequested, setUserStartRequested] = useState(false);
   const orientationLockedRef = useRef(false);
   const leaveWatchFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const leaveWatchPopStateRef = useRef<(() => void) | null>(null);
 
   const setAmbientUiVisible = usePlaybackSession((s) => s.setAmbientUiVisible);
+  const isMobileLike = deviceProfile.isMobileLike;
 
 
 
@@ -416,18 +420,38 @@ export function StorytimeMediaPlayer({
 
   }, []);
 
-  const requestNativeFullscreen = useCallback(async () => {
-    const root = playerRef.current?.el?.closest(".storytime-watch-player") as HTMLElement | null;
-    const video = playerRef.current?.el?.querySelector("video") as
+  const getVideoElement = useCallback(() => {
+    return playerRef.current?.el?.querySelector("video") as
       | (HTMLVideoElement & {
           webkitEnterFullscreen?: () => void;
           webkitDisplayingFullscreen?: boolean;
           webkitSupportsFullscreen?: boolean;
         })
       | null;
+  }, []);
+
+  const configureVideoForDevice = useCallback(() => {
+    const video = getVideoElement();
+    if (!video) return null;
+    if (deviceProfile.playsInline) {
+      video.setAttribute("playsinline", "");
+      video.setAttribute("webkit-playsinline", "");
+      video.playsInline = true;
+    } else {
+      video.removeAttribute("playsinline");
+      video.removeAttribute("webkit-playsinline");
+      video.playsInline = false;
+    }
+    video.preload = "auto";
+    return video;
+  }, [deviceProfile.playsInline, getVideoElement]);
+
+  const requestNativeFullscreen = useCallback(async () => {
+    const root = playerRef.current?.el?.closest(".storytime-watch-player") as HTMLElement | null;
+    const video = configureVideoForDevice();
     if (!root && !video) return;
     try {
-      if (isMobileLike && video?.webkitEnterFullscreen && !video.webkitDisplayingFullscreen) {
+      if (deviceProfile.isIOS && video?.webkitEnterFullscreen && !video.webkitDisplayingFullscreen) {
         video.webkitEnterFullscreen();
         return;
       }
@@ -435,7 +459,7 @@ export function StorytimeMediaPlayer({
         await document.exitFullscreen();
         return;
       }
-      if (video?.requestFullscreen && isMobileLike) {
+      if (video?.requestFullscreen && deviceProfile.prefersNativeFullscreen) {
         await video.requestFullscreen();
         return;
       }
@@ -445,23 +469,37 @@ export function StorytimeMediaPlayer({
     } catch {
       // unsupported or denied
     }
-  }, [isMobileLike]);
+  }, [configureVideoForDevice, deviceProfile.isIOS, deviceProfile.prefersNativeFullscreen]);
 
   const toggleFullscreen = useCallback(async () => {
     await requestNativeFullscreen();
   }, [requestNativeFullscreen]);
 
+  const startPlaybackFromGesture = useCallback(async () => {
+    const player = playerRef.current;
+    if (!player) return;
+    setUserStartRequested(true);
+    setPlaybackStartBlocked(false);
+    configureVideoForDevice();
+    try {
+      await player.play();
+      await requestNativeFullscreen();
+    } catch {
+      setPlaybackStartBlocked(true);
+    }
+    resetIdleTimer();
+  }, [configureVideoForDevice, requestNativeFullscreen, resetIdleTimer]);
+
   const togglePlayPause = useCallback(() => {
     const player = playerRef.current;
     if (!player) return;
     if (player.paused) {
-      void player.play();
-      if (isMobileLike) void requestNativeFullscreen();
+      void startPlaybackFromGesture();
     } else {
       player.pause();
     }
     resetIdleTimer();
-  }, [isMobileLike, requestNativeFullscreen, resetIdleTimer]);
+  }, [resetIdleTimer, startPlaybackFromGesture]);
 
   const seekBack = useCallback(() => {
     const player = playerRef.current;
@@ -481,11 +519,28 @@ export function StorytimeMediaPlayer({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const syncMobile = () => setIsMobileLike(computeIsMobileLikeClient());
-    syncMobile();
-    window.addEventListener("resize", syncMobile);
-    return () => window.removeEventListener("resize", syncMobile);
+    const syncDeviceProfile = () => setDeviceProfile(computePlaybackDeviceProfileClient());
+    syncDeviceProfile();
+    window.addEventListener("resize", syncDeviceProfile);
+    window.addEventListener("orientationchange", syncDeviceProfile);
+    return () => {
+      window.removeEventListener("resize", syncDeviceProfile);
+      window.removeEventListener("orientationchange", syncDeviceProfile);
+    };
   }, []);
+
+  useEffect(() => {
+    if (!source || isPlaying || userStartRequested) return;
+    if (!deviceProfile.prefersNativeFullscreen && deviceProfile.canAutoplayAudible) return;
+    const timer = window.setTimeout(() => setPlaybackStartBlocked(true), 350);
+    return () => window.clearTimeout(timer);
+  }, [
+    deviceProfile.canAutoplayAudible,
+    deviceProfile.prefersNativeFullscreen,
+    isPlaying,
+    source,
+    userStartRequested,
+  ]);
 
   useEffect(() => {
     if (isMobileLike || typeof document === "undefined") return;
@@ -552,7 +607,7 @@ export function StorytimeMediaPlayer({
 
       switch (action) {
         case "play_pause":
-          if (player.paused) void player.play();
+          if (player.paused) void startPlaybackFromGesture();
           else player.pause();
           resetIdleTimer();
           break;
@@ -602,7 +657,7 @@ export function StorytimeMediaPlayer({
 
     window.addEventListener(PLAYBACK_COMMAND_EVENT, onPlaybackCommand);
     return () => window.removeEventListener(PLAYBACK_COMMAND_EVENT, onPlaybackCommand);
-  }, [leaveWatch, resetIdleTimer, toggleFullscreen]);
+  }, [leaveWatch, resetIdleTimer, startPlaybackFromGesture, toggleFullscreen]);
 
 
 
@@ -660,6 +715,10 @@ export function StorytimeMediaPlayer({
 
   const showSkipIntro =
     !introSkipped && currentTime < INTRO_SKIP_SECONDS && duration > INTRO_SKIP_SECONDS + 30;
+  const showStartOverlay =
+    playbackStartBlocked &&
+    !isPlaying &&
+    (deviceProfile.prefersNativeFullscreen || !deviceProfile.canAutoplayAudible);
 
 
 
@@ -681,7 +740,7 @@ export function StorytimeMediaPlayer({
 
   return (
     <div
-    className="storytime-watch-player fixed inset-0 z-[100] h-[100dvh] w-screen bg-black"
+      className="storytime-watch-player fixed inset-0 z-[100] h-[100dvh] w-screen bg-black"
       data-input-scope="player"
       onMouseMove={resetIdleTimer}
       onTouchStart={resetIdleTimer}
@@ -694,12 +753,18 @@ export function StorytimeMediaPlayer({
         title={title}
         src={{ src: source.src, type: source.type as "application/x-mpegurl" | "video/mp4" }}
         poster={poster || undefined}
-        playsInline
-        autoPlay
+        playsInline={deviceProfile.playsInline}
+        autoPlay={deviceProfile.canAutoplayAudible}
         load="eager"
         onHlsInstance={applyHlsDrmConfig}
-        onLoadedData={applyStartTime}
-        onPlay={() => setIsPlaying(true)}
+        onLoadedData={() => {
+          configureVideoForDevice();
+          applyStartTime();
+        }}
+        onPlay={() => {
+          setIsPlaying(true);
+          setPlaybackStartBlocked(false);
+        }}
         onPause={() => setIsPlaying(false)}
         onDurationChange={() => {
           applyStartTime();
@@ -738,6 +803,30 @@ export function StorytimeMediaPlayer({
         <PlaybackBufferingOverlay />
         {!isMobileLike ? <DefaultVideoLayout icons={defaultLayoutIcons} /> : null}
       </MediaPlayer>
+
+      {showStartOverlay ? (
+        <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/65 px-6 text-center backdrop-blur-sm">
+          <div className="max-w-sm rounded-3xl border border-white/10 bg-slate-950/85 p-6 shadow-2xl">
+            <button
+              type="button"
+              onClick={startPlaybackFromGesture}
+              className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white text-slate-950 shadow-[0_12px_40px_rgba(255,255,255,0.25)] transition active:scale-95"
+              aria-label="Start playback"
+            >
+              <Play className="ml-1 h-9 w-9 fill-slate-950" />
+            </button>
+            <p className="mt-5 text-base font-semibold text-white">Start watching</p>
+            <p className="mt-2 text-sm leading-relaxed text-slate-300">{deviceProfile.startHint}</p>
+            <p className="mt-3 text-xs text-slate-500">
+              {deviceProfile.family === "ios"
+                ? "Optimized for Safari, iPhone, and iPad native playback."
+                : deviceProfile.family === "android"
+                  ? "Optimized for Chrome, Samsung Internet, and Android full-screen playback."
+                  : "Optimized for this device."}
+            </p>
+          </div>
+        </div>
+      ) : null}
 
       {isMobileLike ? (
         <NetflixMobileControls

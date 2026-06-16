@@ -1,6 +1,7 @@
 import { extractCloudflareStreamUid } from "@/lib/cloudflare-stream";
 
 const warmedManifests = new Set<string>();
+const warmedOrigins = new Set<string>();
 const warmedRoutes = new Set<string>();
 const warmedMetadata = new Map<string, number>();
 
@@ -26,12 +27,14 @@ export function prefetchBrowseRoute(href: string, router?: { prefetch: (url: str
 
 /** Warm HLS manifest in browser cache via low-priority fetch. */
 export function warmPlaybackManifest(videoUrl: string | null | undefined) {
-  const uid = extractCloudflareStreamUid(videoUrl ?? undefined);
-  const manifest = uid ? `https://videodelivery.net/${uid}/manifest/video.m3u8` : null;
+  if (typeof window === "undefined") return;
+  const url = videoUrl?.trim();
+  if (!url) return;
+
+  const manifest = resolveManifestUrl(url);
+  warmMediaOrigin(manifest ?? url);
   if (!manifest || warmedManifests.has(manifest)) return;
   warmedManifests.add(manifest);
-
-  if (typeof window === "undefined") return;
 
   const link = document.createElement("link");
   link.rel = "prefetch";
@@ -43,6 +46,31 @@ export function warmPlaybackManifest(videoUrl: string | null | undefined) {
   void fetch(manifest, { method: "GET", mode: "cors", credentials: "omit" }).catch(() => {
     warmedManifests.delete(manifest);
   });
+}
+
+function resolveManifestUrl(videoUrl: string): string | null {
+  if (/\.m3u8(\?|$)/i.test(videoUrl)) return videoUrl;
+  const uid = extractCloudflareStreamUid(videoUrl);
+  return uid ? `https://videodelivery.net/${uid}/manifest/video.m3u8` : null;
+}
+
+function warmMediaOrigin(url: string) {
+  let origin: string;
+  try {
+    origin = new URL(url).origin;
+  } catch {
+    return;
+  }
+  if (warmedOrigins.has(origin)) return;
+  warmedOrigins.add(origin);
+
+  for (const rel of ["preconnect", "dns-prefetch"] as const) {
+    const link = document.createElement("link");
+    link.rel = rel;
+    link.href = origin;
+    link.crossOrigin = "anonymous";
+    document.head.appendChild(link);
+  }
 }
 
 /** Preload poster / thumbnail image. */
