@@ -26,6 +26,19 @@ async function main() {
   const ws = process.env.CLOUDFLARE_STREAM_WEBHOOK_SECRET?.trim() ?? "";
   const cfg = getCloudflareStreamConfig();
 
+  const signedUrlsEnabled = process.env.CLOUDFLARE_STREAM_SIGNED_URLS === "true";
+  const signingKeyConfigured = !!(
+    process.env.CLOUDFLARE_STREAM_SIGNING_KEY_ID?.trim() &&
+    (process.env.CLOUDFLARE_STREAM_SIGNING_KEY_PEM?.trim() ||
+      process.env.CLOUDFLARE_STREAM_SIGNING_KEY_JWK?.trim())
+  );
+  const drmMode = process.env.CAPTURE_PROTECTION_MODE === "drm";
+  const drmLicenseSet = !!process.env.STORYTIME_DRM_LICENSE_URL?.trim();
+  const fairplayCertSet = !!(
+    process.env.STORYTIME_FAIRPLAY_CERT_URL?.trim() ||
+    process.env.STORYTIME_FAIRPLAY_CERT_BASE64?.trim()
+  );
+
   const checks: Record<string, boolean | string> = {
     streamConfigOk: !!cfg,
     accountIdSet: !!process.env.CLOUDFLARE_ACCOUNT_ID?.trim(),
@@ -34,7 +47,16 @@ async function main() {
     webhookSecretSet: !!ws,
     webhookSecretValidFormat: /^[a-f0-9]{32,64}$/i.test(ws) && !/^https?:/i.test(ws),
     storagePublicUrlSet: !!process.env.STORAGE_PUBLIC_BASE_URL?.trim(),
+    storageCredsSet: !!(
+      process.env.STORAGE_ACCESS_KEY_ID?.trim() && process.env.STORAGE_SECRET_ACCESS_KEY?.trim()
+    ),
     databaseUrlSet: !!process.env.DATABASE_URL?.trim(),
+    // Informational DRM readiness (not required for basic playback):
+    signedPlaybackEnabled: signedUrlsEnabled,
+    signedPlaybackKeyConfigured: !signedUrlsEnabled || signingKeyConfigured,
+    drmModeEnabled: drmMode,
+    drmLicenseConfigured: !drmMode || drmLicenseSet,
+    fairplayCertConfigured: !drmMode || fairplayCertSet,
   };
 
   if (cfg) {
