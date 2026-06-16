@@ -849,7 +849,7 @@ export function StorytimeMediaPlayer({
               src={subtitle.vttUrl}
               kind="subtitles"
               label={subtitle.label}
-              srclang={subtitle.language}
+              lang={subtitle.language}
               default={subtitle.isDefault}
             />
           ))}

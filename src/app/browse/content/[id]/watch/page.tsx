@@ -127,7 +127,7 @@ export default async function WatchPage({
   if (!isTrailer) {
     const progress = await prisma.watchProgress.findUnique({
       where: {
-        viewerProfileId_contentId: { viewerProfileId: profileId, contentId: progressContentId },
+        viewerProfileId_contentId: { viewerProfileId: profileId!, contentId: progressContentId },
       },
       select: { positionSeconds: true, durationSeconds: true },
     });
