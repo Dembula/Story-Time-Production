@@ -16,6 +16,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   MediaPlayer,
   MediaProvider,
+  Track,
   type MediaPlayerInstance,
 } from "@vidstack/react";
 import { DefaultVideoLayout, defaultLayoutIcons } from "@vidstack/react/player/layouts/default";
@@ -30,7 +31,7 @@ import {
   isStreamSignedPlaybackClientEnabled,
 } from "@/lib/stream-playback-protection";
 import { usePlaybackSession } from "@/lib/playback/session-store";
-import { buildHlsDrmConfig } from "@/lib/content-capture-protection";
+import { attachFairPlay, buildHlsDrmConfig, isFairPlaySupported } from "@/lib/content-capture-protection";
 import { PlaybackChrome } from "./playback-chrome";
 import { PlaybackMetadataPanel } from "./playback-metadata-panel";
 import { PlaybackComplianceBadge } from "./playback-compliance-badge";
@@ -159,6 +160,10 @@ export function StorytimeMediaPlayer({
 
     staleTime: signedPlaybackRequired ? PLAYBACK_BUNDLE_STALE_MS : 60_000,
     refetchOnWindowFocus: signedPlaybackRequired,
+    // While a freshly uploaded film is still transcoding, poll until it's playable
+    // so the player switches to adaptive HLS automatically (no manual reload).
+    refetchInterval: (query) =>
+      (query.state.data as { processing?: boolean } | undefined)?.processing ? 5000 : false,
 
   });
 
@@ -200,29 +205,120 @@ export function StorytimeMediaPlayer({
   );
   const activeSceneActors = actorList(activeScene?.actors).slice(0, 5);
 
-  const applyHlsDrmConfig = useCallback(
+  const subtitleTracks = (
+    (bundle?.subtitles ?? []) as Array<{
+      id: string;
+      language: string | null;
+      label: string | null;
+      vttUrl: string | null;
+      isDefault: boolean;
+    }>
+  ).filter((track): track is typeof track & { vttUrl: string } => Boolean(track.vttUrl));
+
+  const captureProtection = bundle?.captureProtection as
+    | {
+        drmConfigured?: boolean;
+        drmLicensePath?: string | null;
+        fairplayConfigured?: boolean;
+        fairplayCertificatePath?: string | null;
+      }
+    | undefined;
+  const fairplayCleanupRef = useRef<(() => void) | null>(null);
+
+  const absoluteUrl = useCallback((path: string) => {
+    if (typeof window === "undefined") return path;
+    return path.startsWith("http") ? path : `${window.location.origin}${path}`;
+  }, []);
+
+  // hls.js engines (Chrome/Firefox/Android, Smart TVs): apply Widevine/PlayReady DRM,
+  // tune for instant start, and recover from transient errors instead of failing hard.
+  const configureHlsInstance = useCallback(
     (instance: unknown) => {
-      const protection = bundle?.captureProtection as
-        | { drmConfigured?: boolean; drmLicensePath?: string | null }
-        | undefined;
-      if (!protection?.drmConfigured || !protection?.drmLicensePath) return;
-      const hls = instance as { config?: Record<string, unknown> } | null;
-      if (!hls?.config) return;
-      const licenseUrl =
-        typeof window !== "undefined"
-          ? `${window.location.origin}${protection.drmLicensePath}`
-          : protection.drmLicensePath;
-      const drmConfig = buildHlsDrmConfig({
-        enabled: true,
-        mode: "drm",
-        drmLicenseUrl: licenseUrl,
-        drmAuthToken: null,
-        watermarkEnabled: true,
-      });
-      if (drmConfig) Object.assign(hls.config, drmConfig);
+      const hls = instance as {
+        config?: Record<string, unknown>;
+        on?: (event: string, cb: (event: unknown, data: unknown) => void) => void;
+        recoverMediaError?: () => void;
+        startLoad?: () => void;
+      } | null;
+      if (!hls) return;
+
+      if (hls.config) {
+        Object.assign(hls.config, {
+          startLevel: -1,
+          startFragPrefetch: true,
+          maxBufferLength: 30,
+          maxMaxBufferLength: 600,
+          backBufferLength: 30,
+          lowLatencyMode: false,
+        });
+
+        if (captureProtection?.drmConfigured && captureProtection.drmLicensePath) {
+          const drmConfig = buildHlsDrmConfig({
+            enabled: true,
+            mode: "drm",
+            drmLicenseUrl: absoluteUrl(captureProtection.drmLicensePath),
+            drmAuthToken: null,
+            fairplayCertificateUrl: captureProtection.fairplayCertificatePath
+              ? absoluteUrl(captureProtection.fairplayCertificatePath)
+              : null,
+            fairplayCertificateBase64: null,
+            watermarkEnabled: true,
+          });
+          if (drmConfig) Object.assign(hls.config, drmConfig);
+        }
+      }
+
+      if (typeof hls.on === "function") {
+        hls.on("hlsError", (_event, data) => {
+          const info = data as { fatal?: boolean; type?: string } | undefined;
+          if (!info?.fatal) return;
+          try {
+            if (info.type === "mediaError" && hls.recoverMediaError) {
+              hls.recoverMediaError();
+            } else if (info.type === "networkError" && hls.startLoad) {
+              hls.startLoad();
+            }
+          } catch {
+            // Surface to the error boundary only if recovery itself throws.
+          }
+        });
+      }
     },
-    [bundle?.captureProtection],
+    [absoluteUrl, captureProtection],
   );
+
+  // Native HLS engines (Safari / iOS / tvOS): wire Apple FairPlay directly onto the
+  // <video> element — hls.js never loads there, so this is the FairPlay path.
+  const handleProviderChange = useCallback(
+    (provider: unknown) => {
+      fairplayCleanupRef.current?.();
+      fairplayCleanupRef.current = null;
+
+      const adapter = provider as { type?: string; video?: HTMLVideoElement | null } | null;
+      if (!adapter || adapter.type !== "video" || !adapter.video) return;
+      if (
+        !captureProtection?.fairplayConfigured ||
+        !captureProtection.fairplayCertificatePath ||
+        !captureProtection.drmLicensePath ||
+        !isFairPlaySupported()
+      ) {
+        return;
+      }
+
+      fairplayCleanupRef.current = attachFairPlay(adapter.video, {
+        certificateUrl: absoluteUrl(captureProtection.fairplayCertificatePath),
+        licenseUrl: absoluteUrl(captureProtection.drmLicensePath),
+      });
+    },
+    [absoluteUrl, captureProtection],
+  );
+
+  useEffect(() => {
+    return () => {
+      fairplayCleanupRef.current?.();
+      fairplayCleanupRef.current = null;
+    };
+  }, []);
 
 
 
@@ -685,6 +781,43 @@ export function StorytimeMediaPlayer({
     );
   }
 
+  const stillProcessing =
+    Boolean((bundle as { processing?: boolean } | undefined)?.processing) && !source;
+
+  if (stillProcessing) {
+    return (
+      <div className="relative fixed inset-0 z-[100] bg-black" data-input-scope="player">
+        {poster ? (
+          <Image
+            src={poster}
+            alt=""
+            fill
+            priority
+            className="object-contain opacity-40"
+            sizes="100vw"
+            unoptimized={poster.startsWith("http")}
+          />
+        ) : null}
+        <StoryTimeLoaderOverlay mode="viewport">
+          <div className="flex max-w-md flex-col items-center text-center">
+            <StoryTimeLoader size="md" />
+            <p className="mt-4 text-base font-medium text-white">Preparing your film…</p>
+            <p className="mt-2 text-sm text-slate-300/90">
+              This title is finishing high-quality processing. It will start automatically in a
+              moment — or head back and try again shortly.
+            </p>
+            <Link
+              href={contentDetailUrl}
+              className="mt-6 rounded-lg border border-white/20 px-4 py-2 text-sm font-medium text-white hover:bg-white/10"
+            >
+              Back to details
+            </Link>
+          </div>
+        </StoryTimeLoaderOverlay>
+      </div>
+    );
+  }
+
   if (missingSource || !source) {
 
     return (
@@ -760,7 +893,9 @@ export function StorytimeMediaPlayer({
         playsInline={deviceProfile.playsInline}
         autoPlay={deviceProfile.canAutoplayAudible}
         load="eager"
-        onHlsInstance={applyHlsDrmConfig}
+        crossOrigin
+        onHlsInstance={configureHlsInstance}
+        onProviderChange={handleProviderChange}
         onLoadedData={() => {
           configureVideoForDevice();
           applyStartTime();
@@ -803,6 +938,16 @@ export function StorytimeMediaPlayer({
         }}
       >
         <MediaProvider />
+        {subtitleTracks.map((track) => (
+          <Track
+            key={track.id}
+            src={track.vttUrl}
+            kind="subtitles"
+            label={track.label ?? track.language ?? "Subtitles"}
+            language={track.language ?? undefined}
+            default={track.isDefault}
+          />
+        ))}
         <PlaybackBufferingOverlay />
         {!isMobileLike ? <DefaultVideoLayout icons={defaultLayoutIcons} /> : null}
       </MediaPlayer>
