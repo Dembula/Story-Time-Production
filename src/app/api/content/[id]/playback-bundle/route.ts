@@ -9,7 +9,6 @@ import {
   resolveServerPlaybackSource,
 } from "@/lib/server-playback-sources";
 import { requiresSignedStreamPlayback } from "@/lib/cloudflare-stream-signed-url";
-import { ensureVideoIngested } from "@/lib/stream-ingest-link";
 import {
   buildHlsManifestProxyUrl,
   resolvePublishedContentVideoUrl,
@@ -18,6 +17,7 @@ import type { PlaybackSource } from "@/lib/playback-sources";
 import { contentHasScriptSource } from "@/lib/ai-metadata/content-script-source";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function GET(
   req: NextRequest,
@@ -112,6 +112,7 @@ export async function GET(
     if (isS3FallbackPlayback(upstreamPlayback) && videoUrl) {
       after(async () => {
         try {
+          const { ensureVideoIngested } = await import("@/lib/stream-ingest-link");
           await ensureVideoIngested(videoUrl, { area: "playback-recovery", contentId: id });
         } catch (err) {
           console.error("playback-bundle stream recovery ingest failed:", err);

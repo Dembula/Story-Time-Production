@@ -21,7 +21,6 @@ import {
   type MediaProviderAdapter,
 } from "@vidstack/react";
 import { DefaultVideoLayout, defaultLayoutIcons } from "@vidstack/react/player/layouts/default";
-import { extractCloudflareStreamUid, isCloudflareStreamUrl } from "@/lib/cloudflare-stream";
 import { resolvePlaybackSources, isHlsPlaybackSource, requiresStreamPlaybackBundle, type PlaybackSource } from "@/lib/playback-sources";
 import { warmPlaybackManifest } from "@/lib/prefetch";
 import {
@@ -40,9 +39,11 @@ import { PlaybackComplianceBadge } from "./playback-compliance-badge";
 import { NetflixMobileControls } from "./netflix-mobile-controls";
 import { PictureInPicture2, SkipForward, Sparkles } from "lucide-react";
 import { computePlaybackDeviceProfileClient } from "@/lib/player/mobile-detect";
-import { configureVidstackHlsProvider, guardVideoElementFromNativeHls, isHlsJsSupported, usesInBrowserHlsEngine } from "@/lib/player/vidstack-hls";
+import { configureVidstackHlsProvider, isHlsJsSupported, usesInBrowserHlsEngine } from "@/lib/player/vidstack-hls";
 import { configureAppleNativePlayer, usesAppleNativePlayer } from "@/lib/player/native-player-guard";
 import { consumePlaybackPlayIntent } from "@/lib/player/play-intent";
+import { createVidstackPlaybackHandle, type StorytimePlaybackHandle } from "@/lib/player/watch-playback-handle";
+import { StorytimeDesktopHlsPlayer } from "./storytime-desktop-hls-player";
 import {
   findActiveScene,
   formatActiveSceneLabel,
@@ -129,6 +130,7 @@ export function StorytimeMediaPlayer({
   const router = useRouter();
 
   const playerRef = useRef<MediaPlayerInstance>(null);
+  const desktopPlaybackRef = useRef<StorytimePlaybackHandle>(null);
 
   const lastSavedRef = useRef(0);
 
@@ -162,7 +164,7 @@ export function StorytimeMediaPlayer({
   const fallbackSource = useMemo(() => {
     const trimmed = videoUrl?.trim();
     if (!trimmed) return null;
-    if (isCloudflareStreamUrl(trimmed) || extractCloudflareStreamUid(trimmed)) return null;
+    if (requiresStreamPlaybackBundle(trimmed)) return null;
     return resolvePlaybackSources(trimmed);
   }, [videoUrl]);
 
@@ -174,6 +176,7 @@ export function StorytimeMediaPlayer({
 
     staleTime: clientSignedPlaybackRequired ? PLAYBACK_BUNDLE_STALE_MS : 60_000,
     refetchOnWindowFocus: clientSignedPlaybackRequired,
+    retry: 2,
     refetchInterval: (query) => {
       const intel = (query.state.data as { sceneIntelligence?: { pending?: boolean } } | undefined)
         ?.sceneIntelligence;
@@ -200,14 +203,20 @@ export function StorytimeMediaPlayer({
 
   const missingSource = !source;
   const needsHlsJs = isHlsPlaybackSource(source);
-  const hlsJsUnsupported = needsHlsJs && !isHlsJsSupported();
+  const usesBrowserHls = usesInBrowserHlsEngine();
+  const hlsJsUnsupported = needsHlsJs && usesBrowserHls && !isHlsJsSupported();
   const waitingForPlaybackBundle =
     requiresPlaybackBundle && bundleLoading && !source;
 
-  const hlsEngineReady = !needsHlsJs || isHlsJsSupported();
-  const waitingForHlsEngine = needsHlsJs && !hlsEngineReady;
-  const blockAutoplayUntilHls =
-    needsHlsJs && usesInBrowserHlsEngine() && !hlsInstanceReady;
+  const useDirectDesktopHls = usesBrowserHls && needsHlsJs && Boolean(source?.src);
+  const waitingForHlsEngine = useDirectDesktopHls && !hlsInstanceReady;
+  const blockAutoplayUntilHls = useDirectDesktopHls && !hlsInstanceReady;
+  const showTouchStyleControls = useTouchControls || useDirectDesktopHls;
+
+  const getPlayback = useCallback((): StorytimePlaybackHandle | null => {
+    if (useDirectDesktopHls) return desktopPlaybackRef.current;
+    return createVidstackPlaybackHandle(playerRef.current);
+  }, [useDirectDesktopHls]);
 
 
 
@@ -274,10 +283,34 @@ export function StorytimeMediaPlayer({
     setHlsInstanceReady(false);
   }, [source?.src, source?.type]);
 
-  useEffect(() => {
-    const video = playerRef.current?.el?.querySelector("video") as HTMLVideoElement | null;
-    return guardVideoElementFromNativeHls(video);
-  }, [source?.src, hlsInstanceReady]);
+  const handleDesktopTimeUpdate = useCallback(() => {
+    const player = getPlayback();
+    if (!player) return;
+    const t = player.currentTime;
+    const d = player.duration;
+    setCurrentTime(t);
+    onTimeUpdate?.(t, d);
+    if (nextEpisode && d > 0 && d - t <= 15 && d - t > 0.5) {
+      setNextCountdown(Math.ceil(d - t));
+    } else {
+      setNextCountdown(null);
+    }
+    const pos = Math.floor(t);
+    if (onProgressSave && pos - lastSavedRef.current >= 10) {
+      lastSavedRef.current = pos;
+      onProgressSave(t, d);
+    }
+  }, [getPlayback, nextEpisode, onProgressSave, onTimeUpdate]);
+
+  const handleDesktopEnded = useCallback(() => {
+    const player = getPlayback();
+    if (player && onProgressSave) {
+      onProgressSave(player.currentTime, player.duration);
+    }
+    if (nextEpisode) {
+      router.push(nextEpisode.href ?? `/browse/content/${nextEpisode.id}/watch`);
+    }
+  }, [getPlayback, nextEpisode, onProgressSave, router]);
 
 
 
@@ -329,57 +362,55 @@ export function StorytimeMediaPlayer({
 
   const applyStartTime = useCallback(() => {
 
-    const player = playerRef.current;
+    const player = getPlayback();
 
     if (!player || startTime <= 0) return;
 
     if (player.duration > 0 && startTime < player.duration - 5) {
 
-      player.currentTime = startTime;
+      player.setCurrentTime(startTime);
 
       setCurrentTime(startTime);
 
     }
 
-  }, [startTime]);
+  }, [getPlayback, startTime]);
 
 
 
   const skipIntro = useCallback(() => {
 
-    const player = playerRef.current;
+    const player = getPlayback();
 
     if (!player) return;
 
-    player.currentTime = INTRO_SKIP_SECONDS;
+    player.setCurrentTime(INTRO_SKIP_SECONDS);
 
     setCurrentTime(INTRO_SKIP_SECONDS);
 
     setIntroSkipped(true);
 
-  }, []);
+  }, [getPlayback]);
 
 
 
   const seekTo = useCallback((seconds: number) => {
 
-    const player = playerRef.current;
+    const player = getPlayback();
 
     if (!player) return;
 
-    player.currentTime = seconds;
+    player.setCurrentTime(seconds);
 
     setCurrentTime(seconds);
 
-  }, []);
+  }, [getPlayback]);
 
 
 
   const enterPiP = useCallback(async () => {
 
-    const el = playerRef.current?.el;
-
-    const video = el?.querySelector("video");
+    const video = getPlayback()?.getVideoElement();
 
     if (!video || !document.pictureInPictureEnabled) return;
 
@@ -401,17 +432,17 @@ export function StorytimeMediaPlayer({
 
     }
 
-  }, []);
+  }, [getPlayback]);
 
   const getVideoElement = useCallback(() => {
-    return playerRef.current?.el?.querySelector("video") as
+    return getPlayback()?.getVideoElement() as
       | (HTMLVideoElement & {
           webkitEnterFullscreen?: () => void;
           webkitDisplayingFullscreen?: boolean;
           webkitSupportsFullscreen?: boolean;
         })
       | null;
-  }, []);
+  }, [getPlayback]);
 
   const leaveWatch = useCallback(() => {
     if (leavingWatchRef.current) return;
@@ -419,14 +450,14 @@ export function StorytimeMediaPlayer({
 
     void leaveWatchRoute(router, contentDetailUrl, {
       pause: () => {
-        playerRef.current?.pause();
+        getPlayback()?.pause();
       },
       container: watchShellRef.current,
       video: getVideoElement(),
     }).finally(() => {
       leavingWatchRef.current = false;
     });
-  }, [contentDetailUrl, getVideoElement, router]);
+  }, [contentDetailUrl, getPlayback, getVideoElement, router]);
 
   const handleClosePlayer = useCallback(
     (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -468,7 +499,7 @@ export function StorytimeMediaPlayer({
   }, []);
 
   const requestNativeFullscreen = useCallback(async () => {
-    const root = playerRef.current?.el?.closest(".storytime-watch-player") as HTMLElement | null;
+    const root = watchShellRef.current;
     configureVideoForDevice();
     if (!root) return;
     try {
@@ -487,7 +518,7 @@ export function StorytimeMediaPlayer({
   }, [requestNativeFullscreen]);
 
   const startPlaybackFromGesture = useCallback(async () => {
-    const player = playerRef.current;
+    const player = getPlayback();
     if (!player) return;
     setUserStartRequested(true);
     configureVideoForDevice();
@@ -497,14 +528,14 @@ export function StorytimeMediaPlayer({
       // Browser policy may still require interaction with native controls.
     }
     resetIdleTimer();
-  }, [configureVideoForDevice, resetIdleTimer]);
+  }, [configureVideoForDevice, getPlayback, resetIdleTimer]);
 
   useEffect(() => {
     if (!source || isPlaying || blockAutoplayUntilHls) return;
     if (!userStartRequested && !deviceProfile.canAutoplayAudible) return;
 
     const start = () => {
-      const player = playerRef.current;
+      const player = getPlayback();
       if (!player) return;
       configureVideoForDevice();
       void player.play().catch(() => {});
@@ -521,13 +552,14 @@ export function StorytimeMediaPlayer({
     blockAutoplayUntilHls,
     configureVideoForDevice,
     deviceProfile.canAutoplayAudible,
+    getPlayback,
     isPlaying,
     source,
     userStartRequested,
   ]);
 
   const togglePlayPause = useCallback(() => {
-    const player = playerRef.current;
+    const player = getPlayback();
     if (!player) return;
     if (player.paused) {
       void startPlaybackFromGesture();
@@ -535,23 +567,23 @@ export function StorytimeMediaPlayer({
       player.pause();
     }
     resetIdleTimer();
-  }, [resetIdleTimer, startPlaybackFromGesture]);
+  }, [getPlayback, resetIdleTimer, startPlaybackFromGesture]);
 
   const seekBack = useCallback(() => {
-    const player = playerRef.current;
+    const player = getPlayback();
     if (!player) return;
-    player.currentTime = Math.max(0, player.currentTime - 10);
+    player.setCurrentTime(Math.max(0, player.currentTime - 10));
     setCurrentTime(player.currentTime);
     resetIdleTimer();
-  }, [resetIdleTimer]);
+  }, [getPlayback, resetIdleTimer]);
 
   const seekForward = useCallback(() => {
-    const player = playerRef.current;
+    const player = getPlayback();
     if (!player) return;
-    player.currentTime = Math.min(player.duration || player.currentTime + 10, player.currentTime + 10);
+    player.setCurrentTime(Math.min(player.duration || player.currentTime + 10, player.currentTime + 10));
     setCurrentTime(player.currentTime);
     resetIdleTimer();
-  }, [resetIdleTimer]);
+  }, [getPlayback, resetIdleTimer]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -602,8 +634,8 @@ export function StorytimeMediaPlayer({
   useEffect(() => {
     const onPlaybackCommand = (event: Event) => {
       const action = (event as CustomEvent<{ action: PlaybackCommand }>).detail?.action;
-      const player = playerRef.current;
-      const video = player?.el?.querySelector("video") as HTMLVideoElement | null;
+      const player = getPlayback();
+      const video = player?.getVideoElement() ?? null;
       if (!action || !player) return;
 
       switch (action) {
@@ -613,19 +645,19 @@ export function StorytimeMediaPlayer({
           resetIdleTimer();
           break;
         case "seek_back":
-          player.currentTime = Math.max(0, player.currentTime - 10);
+          player.setCurrentTime(Math.max(0, player.currentTime - 10));
           resetIdleTimer();
           break;
         case "seek_forward":
-          player.currentTime = Math.min(player.duration || player.currentTime + 10, player.currentTime + 10);
+          player.setCurrentTime(Math.min(player.duration || player.currentTime + 10, player.currentTime + 10));
           resetIdleTimer();
           break;
         case "seek_back_large":
-          player.currentTime = Math.max(0, player.currentTime - 30);
+          player.setCurrentTime(Math.max(0, player.currentTime - 30));
           resetIdleTimer();
           break;
         case "seek_forward_large":
-          player.currentTime = Math.min(player.duration || player.currentTime + 30, player.currentTime + 30);
+          player.setCurrentTime(Math.min(player.duration || player.currentTime + 30, player.currentTime + 30));
           resetIdleTimer();
           break;
         case "volume_up":
@@ -658,7 +690,7 @@ export function StorytimeMediaPlayer({
 
     window.addEventListener(PLAYBACK_COMMAND_EVENT, onPlaybackCommand);
     return () => window.removeEventListener(PLAYBACK_COMMAND_EVENT, onPlaybackCommand);
-  }, [leaveWatch, resetIdleTimer, startPlaybackFromGesture, toggleFullscreen]);
+  }, [getPlayback, leaveWatch, resetIdleTimer, startPlaybackFromGesture, toggleFullscreen]);
 
 
 
@@ -797,6 +829,29 @@ export function StorytimeMediaPlayer({
       onClick={resetIdleTimer}
       onKeyDown={resetIdleTimer}
     >
+      {useDirectDesktopHls ? (
+        <StorytimeDesktopHlsPlayer
+          ref={desktopPlaybackRef}
+          src={source.src}
+          poster={poster || undefined}
+          className="h-full w-full"
+          autoPlay={deviceProfile.canAutoplayAudible && !blockAutoplayUntilHls}
+          onHlsReady={() => {
+            setHlsInstanceReady(true);
+            applyStartTime();
+          }}
+          onError={() => setHlsLoadFailed(true)}
+          onPlay={() => setIsPlaying(true)}
+          onPause={() => setIsPlaying(false)}
+          onDurationChange={() => {
+            applyStartTime();
+            const player = getPlayback();
+            if (player) setDuration(player.duration);
+          }}
+          onTimeUpdate={handleDesktopTimeUpdate}
+          onEnded={handleDesktopEnded}
+        />
+      ) : (
       <MediaPlayer
         ref={playerRef}
         className="storytime-vidstack-player h-full w-full [&_video]:object-contain"
@@ -804,7 +859,7 @@ export function StorytimeMediaPlayer({
         src={{ src: source.src, type: source.type as "application/x-mpegurl" | "video/mp4" }}
         poster={poster || undefined}
         playsInline={true}
-        preferNativeHLS={deviceProfile.isIOS}
+        preferNativeHLS={usesAppleNativePlayer()}
         autoPlay={deviceProfile.canAutoplayAudible && !blockAutoplayUntilHls}
         load="idle"
         onProviderChange={handleProviderChange}
@@ -816,6 +871,7 @@ export function StorytimeMediaPlayer({
         }}
         onCanPlay={() => {
           configureVideoForDevice();
+          if (!usesInBrowserHlsEngine()) setHlsInstanceReady(true);
         }}
         onPlay={() => {
           setIsPlaying(true);
@@ -823,41 +879,21 @@ export function StorytimeMediaPlayer({
         onPause={() => setIsPlaying(false)}
         onDurationChange={() => {
           applyStartTime();
-          const player = playerRef.current;
+          const player = getPlayback();
           if (player) setDuration(player.duration);
         }}
         onTimeUpdate={() => {
-          const player = playerRef.current;
-          if (!player) return;
-          const t = player.currentTime;
-          const d = player.duration;
-          setCurrentTime(t);
-          onTimeUpdate?.(t, d);
-          if (nextEpisode && d > 0 && d - t <= 15 && d - t > 0.5) {
-            setNextCountdown(Math.ceil(d - t));
-          } else {
-            setNextCountdown(null);
-          }
-          const pos = Math.floor(t);
-          if (onProgressSave && pos - lastSavedRef.current >= 10) {
-            lastSavedRef.current = pos;
-            onProgressSave(t, d);
-          }
+          handleDesktopTimeUpdate();
         }}
         onEnd={() => {
-          const player = playerRef.current;
-          if (player && onProgressSave) {
-            onProgressSave(player.currentTime, player.duration);
-          }
-          if (nextEpisode) {
-            router.push(nextEpisode.href ?? `/browse/content/${nextEpisode.id}/watch`);
-          }
+          handleDesktopEnded();
         }}
       >
         <MediaProvider />
         <PlaybackBufferingOverlay />
-        {!useTouchControls ? <DefaultVideoLayout icons={defaultLayoutIcons} /> : null}
+        {!showTouchStyleControls ? <DefaultVideoLayout icons={defaultLayoutIcons} /> : null}
       </MediaPlayer>
+      )}
 
       {!useTouchControls && !isTrailer && activeSceneLabel && uiVisible ? (
         <div className="pointer-events-none absolute bottom-24 left-4 z-20 max-w-md">
@@ -874,7 +910,7 @@ export function StorytimeMediaPlayer({
         </div>
       ) : null}
 
-      {useTouchControls ? (
+      {showTouchStyleControls ? (
         <NetflixMobileControls
           visible={uiVisible}
           title={title}
