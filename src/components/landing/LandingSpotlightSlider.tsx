@@ -82,7 +82,7 @@ export function LandingSpotlightSlider() {
         {items.map((item, index) => (
           <Link
             key={item.id}
-            href={`/browse/content/${item.id}`}
+            href={`/browse/content/${item.id}?from=discover`}
             data-spotlight-card
             className="group relative w-[7.25rem] shrink-0 snap-start sm:w-[8.5rem]"
           >

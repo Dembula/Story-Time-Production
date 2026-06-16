@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { SubscriptionExpiredModal } from "./subscription-expired-modal";
 import { ViewerSuggestionsTrigger } from "./viewer-suggestions-trigger";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { getLatestViewerSubscription, getViewerModel, isViewerSubscriptionExpired, subscriptionPaymentRequired } from "@/lib/viewer-access";
 import { isViewerAccountOnboardingComplete } from "@/lib/viewer-account-onboarding";
 import { isViewerProfilePinUnlocked } from "@/lib/viewer-profile-access";
@@ -19,8 +19,10 @@ export default async function BrowseLayout({
   const session = await getServerSession(authOptions);
   const role = (session?.user as { role?: string })?.role;
   let subscriptionExpired = false;
+  const headerList = await headers();
+  const isPublicContentDetail = headerList.get("x-browse-public-detail") === "1";
 
-  if (session?.user?.email && role === "SUBSCRIBER") {
+  if (session?.user?.email && role === "SUBSCRIBER" && !isPublicContentDetail) {
     try {
       const user = await prisma.user.findUnique({
         where: { email: session.user.email },

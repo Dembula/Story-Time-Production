@@ -149,7 +149,7 @@ export function StorytimeMediaPlayer({
 
 
 
-  const signedPlaybackRequired = isStreamSignedPlaybackClientEnabled();
+  const clientSignedPlaybackRequired = isStreamSignedPlaybackClientEnabled();
   const fallbackSource = useMemo(() => resolvePlaybackSources(videoUrl), [videoUrl]);
 
   const { data: bundle, isLoading: bundleLoading, isError: bundleError } = useQuery({
@@ -158,10 +158,14 @@ export function StorytimeMediaPlayer({
 
     queryFn: () => fetchPlaybackBundle(contentId, episodeId, { trailer: isTrailer }),
 
-    staleTime: signedPlaybackRequired ? PLAYBACK_BUNDLE_STALE_MS : 60_000,
-    refetchOnWindowFocus: signedPlaybackRequired,
+    staleTime: clientSignedPlaybackRequired ? PLAYBACK_BUNDLE_STALE_MS : 60_000,
+    refetchOnWindowFocus: clientSignedPlaybackRequired,
 
   });
+
+  const signedPlaybackRequired =
+    clientSignedPlaybackRequired ||
+    Boolean((bundle?.playbackProtection as { signedUrl?: boolean } | undefined)?.signedUrl);
 
   const source = useMemo((): PlaybackSource | null => {
     const bundlePlayback = bundle?.playback as PlaybackSource | undefined;

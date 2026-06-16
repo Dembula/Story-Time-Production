@@ -44,11 +44,13 @@ export function extractCloudflareStreamUid(url: string | null | undefined): stri
     const u = new URL(value);
     if (/videodelivery\.net/i.test(u.hostname)) {
       const first = u.pathname.split("/").filter(Boolean)[0];
-      return first || null;
+      if (!first || first.split(".").length >= 3) return null;
+      return first;
     }
     if (/cloudflarestream\.com/i.test(u.hostname)) {
       const first = u.pathname.split("/").filter(Boolean)[0];
-      return first || null;
+      if (!first || first.split(".").length >= 3) return null;
+      return first;
     }
     return null;
   } catch {

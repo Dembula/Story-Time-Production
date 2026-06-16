@@ -23,22 +23,24 @@ export default async function WatchPage({
   const session = await getServerSession(authOptions);
   const role = (session?.user as { role?: string })?.role;
 
-  if (!session?.user?.id || role !== "SUBSCRIBER") {
+  if (!isTrailer && (!session?.user?.id || role !== "SUBSCRIBER")) {
     redirect(`/browse/content/${id}`);
   }
 
   const cookieStore = await cookies();
   const profileId = cookieStore.get("st_viewer_profile")?.value;
-  if (!profileId) {
+  if (!isTrailer && !profileId) {
     redirect("/profiles");
   }
 
   let profileAge: number | null = null;
-  const profile = await prisma.viewerProfile.findFirst({
-    where: { id: profileId, userId: session.user.id },
-    select: { age: true, dateOfBirth: true },
-  });
-  if (profile) profileAge = getViewerProfileAge(profile);
+  if (!isTrailer && profileId) {
+    const profile = await prisma.viewerProfile.findFirst({
+      where: { id: profileId, userId: session!.user!.id },
+      select: { age: true, dateOfBirth: true },
+    });
+    if (profile) profileAge = getViewerProfileAge(profile);
+  }
 
   const content = await prisma.content.findUnique({
     where: { id, published: true },
@@ -90,15 +92,17 @@ export default async function WatchPage({
 
   if (!videoUrl) notFound();
 
-  const playback = await getViewerPlaybackState(session.user.id, content.id);
-  if (!playback.subscription) {
-    redirect("/onboarding/package");
-  }
+  if (!isTrailer) {
+    const playback = await getViewerPlaybackState(session!.user!.id, content.id);
+    if (!playback.subscription) {
+      redirect("/onboarding/package");
+    }
 
-  const minAge = content.minAge ?? 0;
-  const ageRestricted = profileAge != null && minAge > profileAge;
-  if (ageRestricted || !playback.canPlayContent) {
-    redirect(`/browse/content/${id}`);
+    const minAge = content.minAge ?? 0;
+    const ageRestricted = profileAge != null && minAge > profileAge;
+    if (ageRestricted || !playback.canPlayContent) {
+      redirect(`/browse/content/${id}`);
+    }
   }
 
   let nextEpisode: { id: string; title: string; href: string } | null = null;
@@ -120,7 +124,7 @@ export default async function WatchPage({
   }
 
   let startTime = 0;
-  if (!isTrailer) {
+  if (!isTrailer && profileId) {
     const progress = await prisma.watchProgress.findUnique({
       where: {
         viewerProfileId_contentId: { viewerProfileId: profileId, contentId: progressContentId },

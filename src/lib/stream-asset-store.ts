@@ -70,6 +70,20 @@ export async function findStreamAssetUidBySourceUrl(sourceUrl: string): Promise<
   return asset?.uid ?? null;
 }
 
+export async function findStreamAssetByUid(
+  uid: string,
+): Promise<StreamAssetPlaybackCandidate | null> {
+  const trimmed = uid.trim();
+  if (!trimmed) return null;
+  const rows = (await prisma.$queryRaw`
+    SELECT "uid", "sourceUrl", "status", "playbackUrl", "hlsUrl", "iframeUrl"
+    FROM "StreamAsset"
+    WHERE "uid" = ${trimmed}
+    LIMIT 1
+  `) as StreamAssetPlaybackCandidate[];
+  return rows[0] ?? null;
+}
+
 export async function findStreamAssetBySourceUrl(
   sourceUrl: string,
 ): Promise<StreamAssetPlaybackCandidate | null> {

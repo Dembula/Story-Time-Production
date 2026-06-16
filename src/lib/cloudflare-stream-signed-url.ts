@@ -36,12 +36,15 @@ function decodeSigningPem(): string | null {
 }
 
 export function isCloudflareSignedPlaybackEnabled(): boolean {
-  return process.env.CLOUDFLARE_STREAM_SIGNED_URLS === "true";
+  const flag = process.env.CLOUDFLARE_STREAM_SIGNED_URLS?.trim().toLowerCase();
+  if (flag === "true") return true;
+  if (flag === "false") return false;
+  return Boolean(process.env.CLOUDFLARE_STREAM_SIGNING_KEY_ID?.trim());
 }
 
-function buildSignedHlsUrl(token: string, customerSubdomain?: string): string {
-  const base = customerSubdomain?.replace(/\/+$/, "") || "https://videodelivery.net";
-  return `${base}/${token}/manifest/video.m3u8`;
+/** Signed manifests must use videodelivery.net — customer subdomains redirect-loop with JWT tokens. */
+function buildSignedHlsUrl(token: string): string {
+  return `https://videodelivery.net/${token}/manifest/video.m3u8`;
 }
 
 export function signCloudflareStreamTokenLocally(
@@ -136,11 +139,6 @@ export async function buildSignedCloudflarePlaybackSource(
   const uid = extractCloudflareStreamUid(url);
   if (!uid) return null;
 
-  const cfg = getCloudflareStreamConfig();
-  const subdomain =
-    cfg?.customerSubdomain ??
-    (isCloudflareStreamUrl(url) ? deriveSubdomainFromStreamUrl(url) : "https://videodelivery.net");
-
   const token =
     signCloudflareStreamTokenLocally(uid, { ttlSeconds: options?.ttlSeconds, downloadable: false }) ??
     (await fetchCloudflareStreamTokenFromApi(uid, { ttlSeconds: options?.ttlSeconds, downloadable: false }));
@@ -148,7 +146,7 @@ export async function buildSignedCloudflarePlaybackSource(
   if (!token) return null;
 
   return {
-    src: buildSignedHlsUrl(token, subdomain),
+    src: buildSignedHlsUrl(token),
     type: "application/x-mpegurl",
   };
 }

@@ -8,6 +8,15 @@ import { userHasPlatformRole } from "@/lib/user-roles-shared";
 export async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
 
+  // Title detail pages are browsable without completing viewer onboarding.
+  if (/^\/browse\/content\/[^/]+$/.test(path)) {
+    const requestHeaders = new Headers(req.headers);
+    requestHeaders.set("x-browse-public-detail", "1");
+    return NextResponse.next({
+      request: { headers: requestHeaders },
+    });
+  }
+
   if (path.startsWith("/creator/join/")) {
     return NextResponse.next();
   }
@@ -99,6 +108,7 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
+    "/browse/content/:id",
     "/creator/:path*",
     "/music-creator/:path*",
     "/admin/:path*",

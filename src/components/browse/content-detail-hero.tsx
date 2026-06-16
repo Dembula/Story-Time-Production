@@ -34,6 +34,7 @@ type Props = {
   downloadState?: string | null;
   onDownload?: () => void;
   isSubscriber: boolean;
+  backHref?: string;
 };
 
 function formatRuntime(minutes: number | null) {
@@ -69,6 +70,7 @@ export function ContentDetailHero({
   downloadState,
   onDownload,
   isSubscriber,
+  backHref = "/browse",
 }: Props) {
   const router = useRouter();
   const { deviceClass, orientation, inputMode } = useAdaptiveUi();
@@ -158,7 +160,7 @@ export function ContentDetailHero({
           } ${isTv ? "px-8 pt-6" : ""}`}
         >
           <Link
-            href="/browse"
+            href={backHref}
             className={`flex items-center justify-center rounded-full border border-white/15 bg-black/45 text-white backdrop-blur-md transition hover:bg-black/65 ${focusRing} ${
               isTv ? "h-14 w-14" : "h-10 w-10 sm:h-11 sm:w-11"
             }`}

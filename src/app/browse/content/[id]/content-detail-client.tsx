@@ -75,6 +75,7 @@ export function ContentDetailClient({
   hasActivePpvAccess = false,
   hasPlaybackAccess = false,
   ppvEligible = false,
+  fromDiscover = false,
 }: {
   content: Content;
   subscriptionExpired?: boolean;
@@ -86,6 +87,7 @@ export function ContentDetailClient({
   ppvEligible?: boolean;
   seasons?: SeasonItem[];
   autoPlay?: boolean;
+  fromDiscover?: boolean;
 }) {
   const router = useRouter();
   const { data: session } = useSession();
@@ -132,6 +134,9 @@ export function ContentDetailClient({
     : `/browse/content/${content.id}/watch`;
   const trailerTarget = `/browse/content/${content.id}/watch?trailer=1`;
   const playLabel = isLongForm ? "Play First Episode" : "Play";
+  const detailPath = `/browse/content/${content.id}`;
+  const signupCallback = encodeURIComponent(fromDiscover ? `${detailPath}?from=discover` : detailPath);
+  const backHref = fromDiscover && !isSubscriber ? "/" : "/browse";
   const displayBackdropUrl = getDisplayBackdropUrl({
     backdropUrl: content.backdropUrl,
     posterUrl: content.posterUrl,
@@ -356,6 +361,7 @@ export function ContentDetailClient({
         downloadState={downloadState}
         onDownload={handleDownload}
         isSubscriber={Boolean(isSubscriber)}
+        backHref={backHref}
       />
 
       <div className={`${isMobile ? "px-4" : ""} ${isTv ? "mt-10" : "mt-8"} px-1`}>
@@ -399,12 +405,12 @@ export function ContentDetailClient({
           />
         )}
 
-        {!isSubscriber && (
+        {!isSubscriber && !fromDiscover && (
           <div className="mb-10 flex flex-wrap gap-3">
-            <Link href="/auth/signup" className="flex items-center gap-2 rounded-xl viewer-btn-primary px-6 py-3 font-semibold transition">
+            <Link href={`/auth/signup?callbackUrl=${signupCallback}`} className="flex items-center gap-2 rounded-xl viewer-btn-primary px-6 py-3 font-semibold transition">
               <Lock className="h-5 w-5" /> Sign up to watch
             </Link>
-            <Link href="/auth/signin" className="flex items-center gap-2 rounded-xl border border-slate-600 bg-slate-800/50 px-6 py-3 font-semibold text-white transition hover:bg-slate-700/50">
+            <Link href={`/auth/signin?callbackUrl=${signupCallback}`} className="flex items-center gap-2 rounded-xl border border-slate-600 bg-slate-800/50 px-6 py-3 font-semibold text-white transition hover:bg-slate-700/50">
               Sign In
             </Link>
           </div>
@@ -682,7 +688,7 @@ export function ContentDetailClient({
         </div>
       )}
 
-      {!isSubscriber && (
+      {!isSubscriber && !fromDiscover && (
         <div className="mt-10 rounded-xl overflow-hidden border border-slate-700/50 bg-slate-900/50">
           <div className="aspect-video relative flex items-center justify-center">
             {(content.posterUrl || content.backdropUrl) && (
@@ -703,10 +709,32 @@ export function ContentDetailClient({
               <p className="text-slate-400 max-w-md mx-auto mb-8">
                 Create a free account to stream all content.
               </p>
-              <Link href="/auth/signup" className="inline-flex px-8 py-3.5 rounded-lg viewer-btn-primary font-semibold transition">
+              <Link href={`/auth/signup?callbackUrl=${signupCallback}`} className="inline-flex px-8 py-3.5 rounded-lg viewer-btn-primary font-semibold transition">
                 Sign Up Free
               </Link>
             </div>
+          </div>
+        </div>
+      )}
+
+      {!isSubscriber && fromDiscover && (
+        <div className="mt-10 rounded-2xl border border-white/10 bg-white/[0.03] px-6 py-8 text-center">
+          <p className="text-sm text-slate-400">
+            Explore the full catalogue after you create a free viewer account.
+          </p>
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+            <Link
+              href={`/auth/signup?callbackUrl=${signupCallback}`}
+              className="inline-flex rounded-xl viewer-btn-primary px-6 py-3 text-sm font-semibold transition"
+            >
+              Sign up free
+            </Link>
+            <Link
+              href={`/auth/signin?callbackUrl=${signupCallback}`}
+              className="inline-flex rounded-xl border border-slate-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-800/50"
+            >
+              Sign in
+            </Link>
           </div>
         </div>
       )}

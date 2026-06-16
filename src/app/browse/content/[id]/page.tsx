@@ -13,11 +13,12 @@ export default async function ContentDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ play?: string }>;
+  searchParams: Promise<{ play?: string; from?: string }>;
 }) {
   const { id } = await params;
-  const { play } = await searchParams;
+  const { play, from } = await searchParams;
   const autoPlay = play === "1";
+  const fromDiscover = from === "discover";
 
   const session = await getServerSession(authOptions);
   let subscriptionExpired = false;
@@ -143,6 +144,7 @@ export default async function ContentDetailPage({
       hasActivePpvAccess={hasActivePpvAccess}
       hasPlaybackAccess={hasPlaybackAccess}
       ppvEligible={isPpvEligibleContent(content.type)}
+      fromDiscover={fromDiscover}
     />
   );
 }
