@@ -5,7 +5,30 @@ import { prisma } from "@/lib/prisma";
 import { getDisplayPosterUrl } from "@/lib/content-media-urls";
 import { getServerCaptureProtectionConfig } from "@/lib/content-capture-protection";
 import { isLongFormType } from "@/lib/content-types";
-import { resolveServerPlaybackSource } from "@/lib/server-playback-sources";
+import { resolvePlaybackBundle } from "@/lib/playback/source-bundle";
+import { buildDrmClientHint, resolveDrmEndpoints } from "@/lib/playback/drm";
+
+type SubtitleTrack = {
+  id: string;
+  language: string;
+  label: string;
+  vttUrl: string;
+  isDefault: boolean;
+};
+
+function buildSubtitleTracks(subtitles: SubtitleTrack[] | undefined) {
+  if (!subtitles?.length) return [];
+  // Guarantee exactly one default track so the player has a deterministic startup choice.
+  const hasDefault = subtitles.some((s) => s.isDefault);
+  return subtitles.map((track, index) => ({
+    id: track.id,
+    src: track.vttUrl,
+    language: track.language,
+    label: track.label || track.language.toUpperCase(),
+    kind: "subtitles" as const,
+    default: track.isDefault || (!hasDefault && index === 0 && track.language === "en"),
+  }));
+}
 
 export async function GET(
   req: NextRequest,
@@ -88,20 +111,34 @@ export async function GET(
       }
     }
 
-    const playback = await resolveServerPlaybackSource(videoUrl);
-    const posterUrl = getDisplayPosterUrl(content);
+    const bundle = await resolvePlaybackBundle(videoUrl);
+    const playback = bundle?.primary ?? null;
+    const posterUrl = getDisplayPosterUrl(content) ?? bundle?.previews.posterUrl ?? null;
     const captureProtection = getServerCaptureProtectionConfig();
+    const drmSummary = resolveDrmEndpoints(videoUrl);
+    const drmClient = buildDrmClientHint(drmSummary);
     const session = await getServerSession(authOptions);
 
     return NextResponse.json(
       {
         id: content.id,
         title: content.title,
+        // Keep `playback` shaped exactly as before for back-compat with the existing player.
         playback,
+        playbackBundle: bundle
+          ? {
+              formats: bundle.formats,
+              streamUid: bundle.streamUid,
+              signed: bundle.signed,
+              previews: bundle.previews,
+            }
+          : null,
+        tracks: buildSubtitleTracks(content.subtitles),
         playbackProtection: {
-          signedUrl: Boolean(playback?.src.includes("/manifest/video.m3u8") && playback.src.includes(".")),
+          signedUrl: bundle?.signed ?? false,
           expiresHintSeconds: 4 * 60 * 60,
           authenticatedViewer: Boolean(session?.user?.id),
+          drm: drmClient,
         },
         posterUrl,
         duration,
@@ -112,8 +149,10 @@ export async function GET(
           enabled: captureProtection.enabled,
           mode: captureProtection.mode,
           watermarkEnabled: captureProtection.watermarkEnabled,
-          drmConfigured: Boolean(captureProtection.drmLicenseUrl),
-          drmLicensePath: captureProtection.drmLicenseUrl ? "/api/content/drm-license" : null,
+          drmConfigured: drmClient.enabled,
+          drmSystems: drmClient.systems,
+          drmLicensePath: drmClient.proxy.licensePath,
+          fairplayCertPath: drmClient.proxy.fairplayCertPath,
         },
       },
       {

@@ -5,7 +5,11 @@ import {
   isCloudflareStreamUrl,
 } from "@/lib/cloudflare-stream";
 
-export type PlaybackMimeType = "application/x-mpegurl" | "video/mp4";
+export type PlaybackMimeType =
+  | "application/x-mpegurl"
+  | "application/vnd.apple.mpegurl"
+  | "application/dash+xml"
+  | "video/mp4";
 
 export type PlaybackSource = {
   src: string;

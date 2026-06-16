@@ -25,7 +25,7 @@ export function prefetchBrowseRoute(href: string, router?: { prefetch: (url: str
   }
 }
 
-/** Warm HLS manifest in browser cache via low-priority fetch. */
+/** Warm HLS manifest + first variant in browser cache so the player paints frame 1 immediately. */
 export function warmPlaybackManifest(videoUrl: string | null | undefined) {
   if (typeof window === "undefined") return;
   const url = videoUrl?.trim();
@@ -43,9 +43,46 @@ export function warmPlaybackManifest(videoUrl: string | null | undefined) {
   link.crossOrigin = "anonymous";
   document.head.appendChild(link);
 
-  void fetch(manifest, { method: "GET", mode: "cors", credentials: "omit" }).catch(() => {
-    warmedManifests.delete(manifest);
-  });
+  void fetch(manifest, { method: "GET", mode: "cors", credentials: "omit" })
+    .then(async (res) => {
+      if (!res.ok) {
+        warmedManifests.delete(manifest);
+        return;
+      }
+      const text = await res.text().catch(() => "");
+      const childManifest = pickFirstVariantManifest(manifest, text);
+      if (!childManifest || warmedManifests.has(childManifest)) return;
+      warmedManifests.add(childManifest);
+      void fetch(childManifest, { method: "GET", mode: "cors", credentials: "omit" }).catch(() => {
+        warmedManifests.delete(childManifest);
+      });
+    })
+    .catch(() => {
+      warmedManifests.delete(manifest);
+    });
+}
+
+function pickFirstVariantManifest(parentUrl: string, manifestText: string): string | null {
+  if (!manifestText.includes("#EXT-X-STREAM-INF")) return null;
+  const lines = manifestText.split(/\r?\n/);
+  let parent: URL;
+  try {
+    parent = new URL(parentUrl);
+  } catch {
+    return null;
+  }
+  for (let i = 0; i < lines.length - 1; i += 1) {
+    const tag = lines[i]?.trim();
+    if (!tag?.startsWith("#EXT-X-STREAM-INF")) continue;
+    const ref = lines[i + 1]?.trim();
+    if (!ref || ref.startsWith("#")) continue;
+    try {
+      return new URL(ref, parent).toString();
+    } catch {
+      return null;
+    }
+  }
+  return null;
 }
 
 function resolveManifestUrl(videoUrl: string): string | null {

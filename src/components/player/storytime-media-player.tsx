@@ -19,6 +19,7 @@ import {
   type MediaPlayerInstance,
 } from "@vidstack/react";
 import { DefaultVideoLayout, defaultLayoutIcons } from "@vidstack/react/player/layouts/default";
+import { Track } from "@vidstack/react";
 import { resolvePlaybackSources, type PlaybackSource } from "@/lib/playback-sources";
 import { warmPlaybackManifest } from "@/lib/prefetch";
 import {
@@ -30,7 +31,12 @@ import {
   isStreamSignedPlaybackClientEnabled,
 } from "@/lib/stream-playback-protection";
 import { usePlaybackSession } from "@/lib/playback/session-store";
-import { buildHlsDrmConfig } from "@/lib/content-capture-protection";
+import {
+  applyProductionHlsConfig,
+  buildClientDrmConfig,
+  mergeHlsConfig,
+} from "@/lib/playback/client-drm";
+import type { DrmClientHint } from "@/lib/playback/drm";
 import { PlaybackChrome } from "./playback-chrome";
 import { PlaybackMetadataPanel } from "./playback-metadata-panel";
 import { PlaybackComplianceBadge } from "./playback-compliance-badge";
@@ -200,28 +206,27 @@ export function StorytimeMediaPlayer({
   );
   const activeSceneActors = actorList(activeScene?.actors).slice(0, 5);
 
-  const applyHlsDrmConfig = useCallback(
+  const drmHint = (bundle?.playbackProtection as { drm?: DrmClientHint } | undefined)?.drm ?? null;
+  const subtitleTracks = (bundle?.tracks ?? []) as Array<{
+    id: string;
+    src: string;
+    language: string;
+    label: string;
+    kind: "subtitles";
+    default: boolean;
+  }>;
+
+  const applyHlsConfig = useCallback(
     (instance: unknown) => {
-      const protection = bundle?.captureProtection as
-        | { drmConfigured?: boolean; drmLicensePath?: string | null }
-        | undefined;
-      if (!protection?.drmConfigured || !protection?.drmLicensePath) return;
-      const hls = instance as { config?: Record<string, unknown> } | null;
-      if (!hls?.config) return;
-      const licenseUrl =
-        typeof window !== "undefined"
-          ? `${window.location.origin}${protection.drmLicensePath}`
-          : protection.drmLicensePath;
-      const drmConfig = buildHlsDrmConfig({
-        enabled: true,
-        mode: "drm",
-        drmLicenseUrl: licenseUrl,
-        drmAuthToken: null,
-        watermarkEnabled: true,
+      applyProductionHlsConfig(instance);
+      const drmConfig = buildClientDrmConfig({
+        drm: drmHint,
+        contentId,
+        videoUrl,
       });
-      if (drmConfig) Object.assign(hls.config, drmConfig);
+      if (drmConfig) mergeHlsConfig(instance, drmConfig);
     },
-    [bundle?.captureProtection],
+    [drmHint, contentId, videoUrl],
   );
 
 
@@ -760,7 +765,8 @@ export function StorytimeMediaPlayer({
         playsInline={deviceProfile.playsInline}
         autoPlay={deviceProfile.canAutoplayAudible}
         load="eager"
-        onHlsInstance={applyHlsDrmConfig}
+        crossOrigin
+        onHlsInstance={applyHlsConfig}
         onLoadedData={() => {
           configureVideoForDevice();
           applyStartTime();
@@ -803,6 +809,16 @@ export function StorytimeMediaPlayer({
         }}
       >
         <MediaProvider />
+        {subtitleTracks.map((track) => (
+          <Track
+            key={track.id}
+            src={track.src}
+            kind={track.kind}
+            label={track.label}
+            language={track.language}
+            default={track.default}
+          />
+        ))}
         <PlaybackBufferingOverlay />
         {!isMobileLike ? <DefaultVideoLayout icons={defaultLayoutIcons} /> : null}
       </MediaPlayer>
