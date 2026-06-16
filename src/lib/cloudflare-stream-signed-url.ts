@@ -124,6 +124,16 @@ export async function fetchCloudflareStreamTokenFromApi(
   return payload.result.token;
 }
 
+async function signTokenFor(
+  uid: string,
+  options?: { ttlSeconds?: number },
+): Promise<string | null> {
+  return (
+    signCloudflareStreamTokenLocally(uid, { ttlSeconds: options?.ttlSeconds, downloadable: false }) ??
+    (await fetchCloudflareStreamTokenFromApi(uid, { ttlSeconds: options?.ttlSeconds, downloadable: false }))
+  );
+}
+
 export async function buildSignedCloudflarePlaybackSource(
   videoUrl: string | null | undefined,
   options?: { ttlSeconds?: number },
@@ -136,21 +146,46 @@ export async function buildSignedCloudflarePlaybackSource(
   const uid = extractCloudflareStreamUid(url);
   if (!uid) return null;
 
-  const cfg = getCloudflareStreamConfig();
-  const subdomain =
-    cfg?.customerSubdomain ??
-    (isCloudflareStreamUrl(url) ? deriveSubdomainFromStreamUrl(url) : "https://videodelivery.net");
-
-  const token =
-    signCloudflareStreamTokenLocally(uid, { ttlSeconds: options?.ttlSeconds, downloadable: false }) ??
-    (await fetchCloudflareStreamTokenFromApi(uid, { ttlSeconds: options?.ttlSeconds, downloadable: false }));
-
+  const subdomain = resolveSubdomain(url);
+  const token = await signTokenFor(uid, options);
   if (!token) return null;
 
   return {
     src: buildSignedHlsUrl(token, subdomain),
     type: "application/x-mpegurl",
   };
+}
+
+/** Signed HLS primary + signed DASH alternate (single token covers both manifests). */
+export async function buildSignedCloudflarePlaybackSourceSet(
+  videoUrl: string | null | undefined,
+  options?: { ttlSeconds?: number },
+): Promise<{ primary: PlaybackSource; alternates: PlaybackSource[] } | null> {
+  if (!isCloudflareSignedPlaybackEnabled()) return null;
+
+  const url = videoUrl?.trim();
+  if (!url) return null;
+
+  const uid = extractCloudflareStreamUid(url);
+  if (!uid) return null;
+
+  const subdomain = resolveSubdomain(url);
+  const token = await signTokenFor(uid, options);
+  if (!token) return null;
+
+  const base = subdomain.replace(/\/+$/, "") || "https://videodelivery.net";
+  return {
+    primary: { src: `${base}/${token}/manifest/video.m3u8`, type: "application/x-mpegurl" },
+    alternates: [{ src: `${base}/${token}/manifest/video.mpd`, type: "application/dash+xml" }],
+  };
+}
+
+function resolveSubdomain(url: string): string {
+  const cfg = getCloudflareStreamConfig();
+  return (
+    cfg?.customerSubdomain ??
+    (isCloudflareStreamUrl(url) ? deriveSubdomainFromStreamUrl(url) : "https://videodelivery.net")
+  );
 }
 
 function deriveSubdomainFromStreamUrl(url: string): string {

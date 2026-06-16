@@ -3,9 +3,13 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getDisplayPosterUrl } from "@/lib/content-media-urls";
-import { getServerCaptureProtectionConfig } from "@/lib/content-capture-protection";
+import {
+  getServerCaptureProtectionConfig,
+  isServerDrmConfigured,
+} from "@/lib/content-capture-protection";
+import { buildClientDrmDescriptor } from "@/lib/content-capture-protection/server-descriptor";
 import { isLongFormType } from "@/lib/content-types";
-import { resolveServerPlaybackSource } from "@/lib/server-playback-sources";
+import { resolveServerPlaybackSourceSet } from "@/lib/server-playback-sources";
 
 export async function GET(
   req: NextRequest,
@@ -88,21 +92,30 @@ export async function GET(
       }
     }
 
-    const playback = await resolveServerPlaybackSource(videoUrl);
+    const sourceSet = await resolveServerPlaybackSourceSet(videoUrl);
+    const playback = sourceSet?.primary ?? null;
     const posterUrl = getDisplayPosterUrl(content);
     const captureProtection = getServerCaptureProtectionConfig();
+    const drmConfigured = isServerDrmConfigured(captureProtection);
+    const drm = buildClientDrmDescriptor(
+      { contentId: content.id, episodeId, isTrailer },
+      captureProtection,
+    );
     const session = await getServerSession(authOptions);
+    const signedPlaybackActive = process.env.CLOUDFLARE_STREAM_SIGNED_URLS === "true";
 
     return NextResponse.json(
       {
         id: content.id,
         title: content.title,
         playback,
+        playbackAlternates: sourceSet?.alternates ?? [],
         playbackProtection: {
-          signedUrl: Boolean(playback?.src.includes("/manifest/video.m3u8") && playback.src.includes(".")),
+          signedUrl: Boolean(signedPlaybackActive && playback),
           expiresHintSeconds: 4 * 60 * 60,
           authenticatedViewer: Boolean(session?.user?.id),
         },
+        drm,
         posterUrl,
         duration,
         enrichment: isTrailer ? null : content.enrichment,
@@ -112,8 +125,8 @@ export async function GET(
           enabled: captureProtection.enabled,
           mode: captureProtection.mode,
           watermarkEnabled: captureProtection.watermarkEnabled,
-          drmConfigured: Boolean(captureProtection.drmLicenseUrl),
-          drmLicensePath: captureProtection.drmLicenseUrl ? "/api/content/drm-license" : null,
+          drmConfigured,
+          drmLicensePath: drmConfigured ? "/api/content/drm-license" : null,
         },
       },
       {

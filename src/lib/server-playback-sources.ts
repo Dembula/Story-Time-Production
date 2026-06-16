@@ -1,6 +1,14 @@
-import { buildSignedCloudflarePlaybackSource } from "@/lib/cloudflare-stream-signed-url";
+import {
+  buildSignedCloudflarePlaybackSource,
+  buildSignedCloudflarePlaybackSourceSet,
+} from "@/lib/cloudflare-stream-signed-url";
 import { isCloudflareStreamUrl } from "@/lib/cloudflare-stream";
-import { resolvePlaybackSources, type PlaybackSource } from "@/lib/playback-sources";
+import {
+  resolvePlaybackSources,
+  resolvePlaybackSourceSet,
+  type PlaybackSource,
+  type PlaybackSourceSet,
+} from "@/lib/playback-sources";
 import { findStreamAssetBySourceUrl } from "@/lib/stream-asset-store";
 
 const READY_STREAM_STATES = new Set(["ready", "live", "completed", "success"]);
@@ -36,4 +44,33 @@ export async function resolveServerPlaybackSource(
   }
 
   return resolvePlaybackSources(url);
+}
+
+/**
+ * Server-only multi-format source resolver. Returns a signed HLS primary plus a
+ * signed DASH alternate when signed playback is enabled, otherwise the public
+ * Stream/S3 source set.
+ */
+export async function resolveServerPlaybackSourceSet(
+  videoUrl: string | null | undefined,
+): Promise<PlaybackSourceSet | null> {
+  const url = videoUrl?.trim();
+  if (!url) return null;
+
+  const signedDirect = await buildSignedCloudflarePlaybackSourceSet(url);
+  if (signedDirect) return signedDirect;
+
+  if (!isCloudflareStreamUrl(url)) {
+    const asset = await findStreamAssetBySourceUrl(url);
+    const streamUrl = isReadyStreamState(asset?.status)
+      ? asset?.hlsUrl ?? asset?.playbackUrl
+      : null;
+    if (streamUrl) {
+      const signedAsset = await buildSignedCloudflarePlaybackSourceSet(streamUrl);
+      if (signedAsset) return signedAsset;
+      return resolvePlaybackSourceSet(streamUrl);
+    }
+  }
+
+  return resolvePlaybackSourceSet(url);
 }

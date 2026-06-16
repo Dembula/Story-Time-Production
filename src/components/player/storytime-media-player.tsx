@@ -16,7 +16,9 @@ import { useQuery } from "@tanstack/react-query";
 import {
   MediaPlayer,
   MediaProvider,
+  isHLSProvider,
   type MediaPlayerInstance,
+  type MediaProviderAdapter,
 } from "@vidstack/react";
 import { DefaultVideoLayout, defaultLayoutIcons } from "@vidstack/react/player/layouts/default";
 import { resolvePlaybackSources, type PlaybackSource } from "@/lib/playback-sources";
@@ -30,7 +32,13 @@ import {
   isStreamSignedPlaybackClientEnabled,
 } from "@/lib/stream-playback-protection";
 import { usePlaybackSession } from "@/lib/playback/session-store";
-import { buildHlsDrmConfig } from "@/lib/content-capture-protection";
+import {
+  buildHlsDrmConfig,
+  resolveDrmCapability,
+  attachNativeFairplay,
+  fairplaySetupFromDescriptor,
+  type PlaybackDrmDescriptor,
+} from "@/lib/content-capture-protection";
 import { PlaybackChrome } from "./playback-chrome";
 import { PlaybackMetadataPanel } from "./playback-metadata-panel";
 import { PlaybackComplianceBadge } from "./playback-compliance-badge";
@@ -200,29 +208,47 @@ export function StorytimeMediaPlayer({
   );
   const activeSceneActors = actorList(activeScene?.actors).slice(0, 5);
 
-  const applyHlsDrmConfig = useCallback(
-    (instance: unknown) => {
-      const protection = bundle?.captureProtection as
-        | { drmConfigured?: boolean; drmLicensePath?: string | null }
-        | undefined;
-      if (!protection?.drmConfigured || !protection?.drmLicensePath) return;
-      const hls = instance as { config?: Record<string, unknown> } | null;
-      if (!hls?.config) return;
-      const licenseUrl =
-        typeof window !== "undefined"
-          ? `${window.location.origin}${protection.drmLicensePath}`
-          : protection.drmLicensePath;
-      const drmConfig = buildHlsDrmConfig({
-        enabled: true,
-        mode: "drm",
-        drmLicenseUrl: licenseUrl,
-        drmAuthToken: null,
-        watermarkEnabled: true,
-      });
-      if (drmConfig) Object.assign(hls.config, drmConfig);
+  const drmDescriptor = (bundle?.drm as PlaybackDrmDescriptor | undefined) ?? null;
+  const drmCapability = useMemo(() => resolveDrmCapability(drmDescriptor), [drmDescriptor]);
+
+  // hls.js EME config (Widevine / PlayReady, plus FairPlay on non-Safari hls.js).
+  // Configured via `onProviderChange` so it is applied BEFORE the hls.js instance
+  // is constructed — mutating `hls.config` afterwards never enables EME.
+  const hlsDrmConfig = useMemo(() => buildHlsDrmConfig(drmDescriptor), [drmDescriptor]);
+
+  const fairplayDetachRef = useRef<(() => void) | null>(null);
+
+  const onProviderChange = useCallback(
+    (provider: MediaProviderAdapter | null) => {
+      // hls.js path: apply EME config before the instance is constructed.
+      if (provider && isHLSProvider(provider) && hlsDrmConfig) {
+        provider.config = { ...provider.config, ...hlsDrmConfig };
+      }
+
+      // Native Apple FairPlay path (Safari/iOS/iPadOS play HLS natively, not via hls.js).
+      fairplayDetachRef.current?.();
+      fairplayDetachRef.current = null;
+      if (provider && !isHLSProvider(provider) && drmCapability.usesNativeFairplay) {
+        const setup = fairplaySetupFromDescriptor(drmDescriptor);
+        const media = (provider as { media?: HTMLMediaElement }).media;
+        if (setup && media instanceof HTMLVideoElement) {
+          fairplayDetachRef.current = attachNativeFairplay(media, {
+            licenseUrl: setup.licenseUrl,
+            certificateUrl: setup.certificateUrl,
+            onError: (err) => console.error("FairPlay error:", err),
+          });
+        }
+      }
     },
-    [bundle?.captureProtection],
+    [drmCapability.usesNativeFairplay, drmDescriptor, hlsDrmConfig],
   );
+
+  useEffect(() => {
+    return () => {
+      fairplayDetachRef.current?.();
+      fairplayDetachRef.current = null;
+    };
+  }, []);
 
 
 
@@ -760,7 +786,7 @@ export function StorytimeMediaPlayer({
         playsInline={deviceProfile.playsInline}
         autoPlay={deviceProfile.canAutoplayAudible}
         load="eager"
-        onHlsInstance={applyHlsDrmConfig}
+        onProviderChange={onProviderChange}
         onLoadedData={() => {
           configureVideoForDevice();
           applyStartTime();
