@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -10,6 +10,7 @@ import { isCloudflareStreamUrl } from "@/lib/cloudflare-stream";
 import { getStreamAssetsByUrls } from "@/lib/stream-asset-store";
 import { isLikelyVideoStorageUrl } from "@/lib/stream-ingest-link";
 import { isSeasonOnlyCatalogueUpdate } from "@/lib/content-season-review";
+import { ensureSceneIntelligence } from "@/lib/ai-metadata/ensure-scene-intelligence";
 
 function reviewDetailUrl(contentId: string) {
   return `/creator/catalogue/reviews/${contentId}`;
@@ -152,6 +153,15 @@ export async function PATCH(req: NextRequest) {
         ? `A new season for "${before.title}" is approved and now visible to viewers.`
         : `"${before.title}" is approved and published on the catalogue.`,
     );
+    if (!seasonOnlyUpdate) {
+      after(async () => {
+        try {
+          await ensureSceneIntelligence(contentId);
+        } catch (err) {
+          console.error("scene intelligence on approve failed:", err);
+        }
+      });
+    }
     return NextResponse.json(updated);
   }
 

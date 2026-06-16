@@ -15,6 +15,8 @@ import {
   resolvePublishedContentVideoUrl,
 } from "@/lib/playback-content-url";
 import type { PlaybackSource } from "@/lib/playback-sources";
+import { ensureSceneIntelligence } from "@/lib/ai-metadata/ensure-scene-intelligence";
+import { contentHasScriptSource } from "@/lib/ai-metadata/resolve-content-script";
 
 export async function GET(
   req: NextRequest,
@@ -49,6 +51,9 @@ export async function GET(
             },
           },
         },
+        linkedProjectId: true,
+        scriptUrl: true,
+        tags: true,
         enrichment: {
           select: {
             status: true,
@@ -60,7 +65,7 @@ export async function GET(
         },
         scenes: {
           orderBy: { startSeconds: "asc" },
-          take: 24,
+          take: 64,
           select: {
             id: true,
             startSeconds: true,
@@ -114,6 +119,26 @@ export async function GET(
     const captureProtection = getServerCaptureProtectionConfig();
     const session = await getServerSession(authOptions);
 
+    const hasScriptSource = contentHasScriptSource(content);
+    const sceneCount = content.scenes.length;
+    const enrichmentStatus = content.enrichment?.status ?? null;
+    const intelligencePending =
+      !isTrailer &&
+      sceneCount === 0 &&
+      hasScriptSource &&
+      enrichmentStatus !== "PROCESSING" &&
+      Boolean(process.env.OPENAI_API_KEY?.trim());
+
+    if (intelligencePending) {
+      after(async () => {
+        try {
+          await ensureSceneIntelligence(id);
+        } catch (err) {
+          console.error("playback-bundle scene intelligence enqueue failed:", err);
+        }
+      });
+    }
+
     return NextResponse.json(
       {
         id: content.id,
@@ -129,6 +154,14 @@ export async function GET(
         duration,
         enrichment: isTrailer ? null : content.enrichment,
         scenes: isTrailer ? [] : content.scenes,
+        sceneIntelligence: isTrailer
+          ? null
+          : {
+              status: enrichmentStatus,
+              sceneCount,
+              hasScriptSource,
+              pending: intelligencePending || enrichmentStatus === "PROCESSING",
+            },
         subtitles: isTrailer ? [] : content.subtitles,
         captureProtection: {
           enabled: captureProtection.enabled,

@@ -1,8 +1,22 @@
 import "server-only";
 
 import { parseScenesFromScreenplay } from "@/lib/scene-parser";
+import type { ContentScriptSource } from "./resolve-content-script";
 import type { EnrichmentResult } from "./types";
 import { persistEnrichmentResult } from "./persist-enrichment";
+
+const MAX_SCREENPLAY_CHARS = 100_000;
+
+function truncateScreenplay(text: string): { text: string; truncated: boolean } {
+  const normalized = text.replace(/\r\n/g, "\n").trim();
+  if (normalized.length <= MAX_SCREENPLAY_CHARS) {
+    return { text: normalized, truncated: false };
+  }
+  return {
+    text: `${normalized.slice(0, MAX_SCREENPLAY_CHARS)}\n\n[…screenplay truncated for analysis…]`,
+    truncated: true,
+  };
+}
 
 function buildScriptPlaybackPrompt(input: {
   title: string;
@@ -61,14 +75,18 @@ export async function enrichContentFromScript(
     duration: number | null;
     screenplay: string;
     scriptLabel: string;
+    scriptSource: ContentScriptSource;
     castNames?: string[];
+    truncated?: boolean;
   },
 ): Promise<EnrichmentResult | null> {
   const key = process.env.OPENAI_API_KEY?.trim();
   if (!key) return null;
 
+  const { text: screenplay, truncated: truncatedFurther } = truncateScreenplay(input.screenplay);
   const durationSeconds = input.duration != null ? input.duration * 60 : null;
   const castNames = input.castNames ?? [];
+  const truncated = Boolean(input.truncated || truncatedFurther);
 
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -91,7 +109,7 @@ export async function enrichContentFromScript(
           content: buildScriptPlaybackPrompt({
             title: input.title,
             durationSeconds,
-            screenplay: input.screenplay,
+            screenplay,
             castNames,
           }),
         },
@@ -112,5 +130,12 @@ export async function enrichContentFromScript(
     parsed,
     sceneSource: "script",
     scriptLabel: input.scriptLabel,
+    scriptAnalysis: {
+      used: true,
+      sourceType: input.scriptSource,
+      truncated,
+      error: null,
+      label: input.scriptLabel,
+    },
   });
 }

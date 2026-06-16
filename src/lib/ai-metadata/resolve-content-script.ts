@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { parsePlatformScriptVersionId } from "@/lib/content-catalogue-tags";
 import { resolveScriptText } from "@/lib/modoc/va-script-text";
 import { fetchScriptTextFromUrl } from "@/lib/ai-metadata/extract-script-document";
+import { extractScriptTextFromUrl } from "@/lib/ai-metadata/script-text";
 
 export type ContentScriptSource = "platform-version" | "linked-project" | "uploaded-document";
 
@@ -11,6 +12,7 @@ export type ResolvedContentScript = {
   source: ContentScriptSource;
   text: string;
   label: string;
+  truncated?: boolean;
 };
 
 /** Resolve screenplay text for catalogue playback intelligence (platform, linked project, or upload). */
@@ -74,11 +76,21 @@ export async function resolveContentScriptText(contentId: string): Promise<Resol
 
   const scriptUrl = content.scriptUrl?.trim();
   if (scriptUrl) {
-    const text = await fetchScriptTextFromUrl(scriptUrl);
-    if (text) {
+    const extracted = await extractScriptTextFromUrl(scriptUrl);
+    if (extracted?.text?.trim()) {
       return {
         source: "uploaded-document",
-        text,
+        text: extracted.text.trim(),
+        label: content.title,
+        truncated: extracted.truncated,
+      };
+    }
+
+    const plainText = await fetchScriptTextFromUrl(scriptUrl);
+    if (plainText) {
+      return {
+        source: "uploaded-document",
+        text: plainText,
         label: content.title,
       };
     }

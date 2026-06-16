@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolvePublishedContentVideoUrl } from "@/lib/playback-content-url";
+import { rewriteHlsManifestForProxy } from "@/lib/playback-manifest-rewrite";
 import { resolveServerPlaybackSource } from "@/lib/server-playback-sources";
 
 export async function GET(
@@ -37,7 +38,7 @@ export async function GET(
       return new NextResponse("Upstream manifest unavailable", { status: 502 });
     }
 
-    const body = await upstream.text();
+    const body = rewriteHlsManifestForProxy(await upstream.text(), playback.src);
     return new NextResponse(body, {
       status: 200,
       headers: {

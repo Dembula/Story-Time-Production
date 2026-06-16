@@ -17,10 +17,11 @@ import {
   MediaPlayer,
   MediaProvider,
   type MediaPlayerInstance,
+  type MediaProviderAdapter,
 } from "@vidstack/react";
 import { DefaultVideoLayout, defaultLayoutIcons } from "@vidstack/react/player/layouts/default";
 import { extractCloudflareStreamUid, isCloudflareStreamUrl } from "@/lib/cloudflare-stream";
-import { resolvePlaybackSources, type PlaybackSource } from "@/lib/playback-sources";
+import { resolvePlaybackSources, isHlsPlaybackSource, type PlaybackSource } from "@/lib/playback-sources";
 import { warmPlaybackManifest } from "@/lib/prefetch";
 import {
   fetchPlaybackBundle,
@@ -38,6 +39,12 @@ import { PlaybackComplianceBadge } from "./playback-compliance-badge";
 import { NetflixMobileControls } from "./netflix-mobile-controls";
 import { PictureInPicture2, SkipForward, Sparkles } from "lucide-react";
 import { computePlaybackDeviceProfileClient } from "@/lib/player/mobile-detect";
+import { configureVidstackHlsProvider, isHlsJsSupported } from "@/lib/player/vidstack-hls";
+import {
+  findActiveScene,
+  formatActiveSceneLabel,
+  parseSceneActors,
+} from "@/lib/player/scene-intelligence";
 import { leaveWatchRoute } from "@/lib/player/leave-watch";
 import { StoryTimeLoader, StoryTimeLoaderOverlay } from "@/components/ui/storytime-loader";
 import { PlaybackBufferingOverlay } from "./playback-buffering-overlay";
@@ -48,13 +55,6 @@ import { PLAYBACK_COMMAND_EVENT, type PlaybackCommand } from "@/lib/input/platfo
 const INTRO_SKIP_SECONDS = 90;
 
 const IDLE_HIDE_MS = 3200;
-
-
-function actorList(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.map((item) => String(item).trim()).filter(Boolean)
-    : [];
-}
 
 
 type StorytimeMediaPlayerProps = {
@@ -140,6 +140,7 @@ export function StorytimeMediaPlayer({
   const [introSkipped, setIntroSkipped] = useState(false);
   const [nextCountdown, setNextCountdown] = useState<number | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [hlsLoadFailed, setHlsLoadFailed] = useState(false);
   const [deviceProfile, setDeviceProfile] = useState(computePlaybackDeviceProfileClient);
   const [userStartRequested, setUserStartRequested] = useState(false);
   const orientationLockedRef = useRef(false);
@@ -168,6 +169,12 @@ export function StorytimeMediaPlayer({
 
     staleTime: clientSignedPlaybackRequired ? PLAYBACK_BUNDLE_STALE_MS : 60_000,
     refetchOnWindowFocus: clientSignedPlaybackRequired,
+    refetchInterval: (query) => {
+      const intel = (query.state.data as { sceneIntelligence?: { pending?: boolean } } | undefined)
+        ?.sceneIntelligence;
+      if (intel?.pending) return 6_000;
+      return false;
+    },
 
   });
 
@@ -183,6 +190,8 @@ export function StorytimeMediaPlayer({
   }, [bundle?.playback, fallbackSource, signedPlaybackRequired]);
 
   const missingSource = !source;
+  const needsHlsJs = isHlsPlaybackSource(source);
+  const hlsJsUnsupported = needsHlsJs && !isHlsJsSupported();
   const waitingForSignedBundle =
     signedPlaybackRequired && bundleLoading && !source && !bundle;
 
@@ -206,12 +215,12 @@ export function StorytimeMediaPlayer({
 
 
 
-  const activeScene = scenes.find(
-
-    (s) => currentTime >= s.startSeconds && currentTime < s.endSeconds,
-
+  const activeScene = findActiveScene(scenes, currentTime);
+  const activeSceneActors = parseSceneActors(activeScene?.actors).slice(0, 6);
+  const activeSceneLabel = formatActiveSceneLabel(activeScene);
+  const sceneIntelligencePending = Boolean(
+    (bundle as { sceneIntelligence?: { pending?: boolean } } | undefined)?.sceneIntelligence?.pending,
   );
-  const activeSceneActors = actorList(activeScene?.actors).slice(0, 5);
 
   const applyHlsDrmConfig = useCallback(
     (instance: unknown) => {
@@ -236,6 +245,18 @@ export function StorytimeMediaPlayer({
     },
     [bundle?.captureProtection],
   );
+
+  const handleProviderChange = useCallback((provider: MediaProviderAdapter | null) => {
+    configureVidstackHlsProvider(provider);
+  }, []);
+
+  const handleHlsLibLoadError = useCallback(() => {
+    setHlsLoadFailed(true);
+  }, []);
+
+  useEffect(() => {
+    setHlsLoadFailed(false);
+  }, [source?.src, source?.type]);
 
 
 
@@ -614,6 +635,25 @@ export function StorytimeMediaPlayer({
     );
   }
 
+  if (hlsJsUnsupported || hlsLoadFailed) {
+    return (
+      <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black p-8 text-center">
+        <p className="mb-4 text-lg font-medium text-white">Playback not supported in this browser</p>
+        <p className="mb-6 max-w-md text-sm text-slate-400">
+          {hlsLoadFailed
+            ? "Video playback could not start in the browser. Try refreshing, or use Chrome or Edge on desktop."
+            : "This browser cannot play adaptive streams. Please use Chrome, Edge, or Firefox on desktop, or Safari on Apple devices."}
+        </p>
+        <Link
+          href={contentDetailUrl}
+          className="rounded-lg border border-white/20 px-4 py-2 text-sm font-medium text-white hover:bg-white/10"
+        >
+          Back to details
+        </Link>
+      </div>
+    );
+  }
+
   if (missingSource || !source) {
 
     return (
@@ -659,17 +699,34 @@ export function StorytimeMediaPlayer({
     | {
         moodTags?: string[];
         atmosphere?: string | null;
+        pacing?: string | null;
         narrativeJson?: {
+          summary?: string | null;
           scriptAnalysis?: {
             used?: boolean;
             sourceType?: string | null;
             truncated?: boolean;
             error?: string | null;
+            label?: string | null;
           } | null;
+          sceneSource?: string | null;
+          scriptLabel?: string | null;
         } | null;
       }
     | undefined;
-  const scriptAnalysis = enrichment?.narrativeJson?.scriptAnalysis ?? null;
+  const narrativeJson = enrichment?.narrativeJson;
+  const scriptAnalysis =
+    narrativeJson?.scriptAnalysis ??
+    (narrativeJson?.sceneSource
+      ? {
+          used: narrativeJson.sceneSource !== "catalogue",
+          sourceType: narrativeJson.sceneSource,
+          label: narrativeJson.scriptLabel ?? null,
+        }
+      : null);
+  const narrativeSummary =
+    typeof narrativeJson?.summary === "string" ? narrativeJson.summary : null;
+  const hasSceneIntelligence = scenes.length > 0 || sceneIntelligencePending;
 
   return (
     <div
@@ -688,8 +745,11 @@ export function StorytimeMediaPlayer({
         src={{ src: source.src, type: source.type as "application/x-mpegurl" | "video/mp4" }}
         poster={poster || undefined}
         playsInline={true}
+        preferNativeHLS={false}
         autoPlay={deviceProfile.canAutoplayAudible}
         load="eager"
+        onProviderChange={handleProviderChange}
+        onHlsLibLoadError={handleHlsLibLoadError}
         onHlsInstance={applyHlsDrmConfig}
         onLoadedData={() => {
           configureVideoForDevice();
@@ -739,6 +799,21 @@ export function StorytimeMediaPlayer({
         <PlaybackBufferingOverlay />
         {!useTouchControls ? <DefaultVideoLayout icons={defaultLayoutIcons} /> : null}
       </MediaPlayer>
+
+      {!useTouchControls && !isTrailer && activeSceneLabel && uiVisible ? (
+        <div className="pointer-events-none absolute bottom-24 left-4 z-20 max-w-md">
+          <div className="rounded-xl border border-white/10 bg-black/55 px-3 py-2 backdrop-blur-md">
+            {activeSceneActors.length > 0 ? (
+              <p className="text-[11px] font-semibold text-orange-200">
+                On screen: {activeSceneActors.join(", ")}
+              </p>
+            ) : null}
+            {activeScene?.summary ? (
+              <p className="mt-0.5 line-clamp-2 text-[11px] text-white/85">{activeScene.summary}</p>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
 
       {useTouchControls ? (
         <NetflixMobileControls
@@ -797,7 +872,8 @@ export function StorytimeMediaPlayer({
                   <button
                     type="button"
                     onClick={() => setMetadataOpen((v) => !v)}
-                    className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold backdrop-blur-md ${
+                    disabled={!hasSceneIntelligence}
+                    className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold backdrop-blur-md disabled:cursor-not-allowed disabled:opacity-40 ${
                       metadataOpen
                         ? "border-orange-400/40 bg-orange-500/20 text-orange-100"
                         : "border-white/15 bg-black/50 text-white hover:bg-white/10"
@@ -827,7 +903,10 @@ export function StorytimeMediaPlayer({
               onClose={() => setMetadataOpen(false)}
               moodTags={enrichment?.moodTags}
               atmosphere={enrichment?.atmosphere}
+              pacing={enrichment?.pacing}
+              narrativeSummary={narrativeSummary}
               scriptAnalysis={scriptAnalysis}
+              sceneIntelligencePending={sceneIntelligencePending}
               scenes={scenes}
               currentTime={currentTime}
               onSeek={seekTo}

@@ -54,7 +54,7 @@ export function computePlaybackDeviceProfileClient(): PlaybackDeviceProfile {
       : false;
   const isMobileLike = isIOS || isAndroid || coarse || window.innerWidth < 900;
   const useTouchControls =
-    isIOS || isAndroid || (isMobileLike && coarse && window.innerWidth < 768);
+    isIOS || isAndroid || (isMobileLike && coarse && window.innerWidth < 640);
 
   const browser: PlaybackDeviceProfile["browser"] = /SamsungBrowser/i.test(ua)
     ? "samsung"

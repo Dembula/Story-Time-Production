@@ -49,3 +49,13 @@ function deriveSubdomainFromStreamUrl(url: string): string {
 export function resolveTrailerSources(trailerUrl: string | null | undefined): PlaybackSource | null {
   return resolvePlaybackSources(trailerUrl);
 }
+
+/** HLS must play through hls.js in the browser — never assign to a native `<video src>`. */
+export function isHlsPlaybackSource(source: PlaybackSource | null | undefined): boolean {
+  return source?.type === "application/x-mpegurl";
+}
+
+/** Sources safe for native `<video>` (MP4 only). */
+export function isNativeVideoSafeSource(source: PlaybackSource | null | undefined): boolean {
+  return Boolean(source?.src && source.type === "video/mp4");
+}

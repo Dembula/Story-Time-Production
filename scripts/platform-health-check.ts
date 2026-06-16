@@ -44,12 +44,22 @@ async function main() {
     failures.push("database connection failed");
   }
 
-  const tables = ["WatchProgress", "StreamAsset", "ProjectToolProgress", "ContentEnrichment"] as const;
-  for (const table of tables) {
+  const tables = [
+    { model: "WatchProgress", table: "WatchProgress" },
+    { model: "StreamAsset", table: "StreamAsset" },
+    { model: "ProjectToolProgress", table: "ProjectToolProgress" },
+    { model: "ContentEnrichment", table: "ContentEnrichment" },
+    { model: "ContentScene", table: "ContentScene" },
+    { model: "ContentSubtitle", table: "ContentSubtitle" },
+    { model: "PasswordResetToken", table: "password_reset_tokens" },
+    { model: "AnalyticsEvent", table: "analytics_events" },
+    { model: "OpsIncident", table: "ops_incidents" },
+  ] as const;
+  for (const { model, table } of tables) {
     try {
       await prisma.$queryRawUnsafe(`SELECT 1 FROM "${table}" LIMIT 1`);
     } catch {
-      failures.push(`missing or inaccessible table: ${table} (run prisma migrate deploy)`);
+      failures.push(`missing or inaccessible table: ${model} (${table}) — run npm run db:migrate:deploy`);
     }
   }
 

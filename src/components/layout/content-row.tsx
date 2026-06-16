@@ -11,7 +11,7 @@ import { viewerHoverLiftProps } from "@/lib/motion/viewer-presets";
 import { useMotion } from "@/components/motion/motion-provider";
 import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
 import { Skeleton } from "@/components/ui/skeleton";
-import { resolveTrailerSources } from "@/lib/playback-sources";
+import { isNativeVideoSafeSource, resolveTrailerSources } from "@/lib/playback-sources";
 import { getDisplayPosterUrl, getStreamThumbnailGifUrl } from "@/lib/content-media-urls";
 import {
   browsePosterCardClass,
@@ -45,8 +45,11 @@ function ContentCard({
   const { intensity, prefersReducedMotion } = useMotion();
   const { deviceClass } = useAdaptiveUi();
   const trailer = resolveTrailerSources(item.trailerUrl);
+  const trailerVideo = isNativeVideoSafeSource(trailer) ? trailer : null;
   const imageUrl = getDisplayPosterUrl(item);
-  const hoverGif = !trailer ? getStreamThumbnailGifUrl(item.videoUrl ?? item.trailerUrl) : null;
+  const hoverGif = !trailerVideo
+    ? getStreamThumbnailGifUrl(item.videoUrl ?? item.trailerUrl)
+    : null;
   const hoverMotion = prefersReducedMotion
     ? {}
     : deviceClass === "mobile"
@@ -62,11 +65,11 @@ function ContentCard({
     });
     setHovering(true);
     const v = videoRef.current;
-    if (!v || !trailer) return;
-    v.src = trailer.src;
+    if (!v || !trailerVideo) return;
+    v.src = trailerVideo.src;
     v.currentTime = 0;
     void v.play().catch(() => {});
-  }, [trailer, prefetch, item.id, item.videoUrl, item.trailerUrl, imageUrl]);
+  }, [trailerVideo, prefetch, item.id, item.videoUrl, item.trailerUrl, imageUrl]);
 
   const onLeave = useCallback(() => {
     setHovering(false);
@@ -96,14 +99,14 @@ function ContentCard({
             fill
             sizes={browsePosterCardImageSizes}
             className={`h-full w-full object-cover transition duration-500 ${
-              hovering && (trailer || hoverGif) ? "opacity-0" : "opacity-100"
+              hovering && (trailerVideo || hoverGif) ? "opacity-0" : "opacity-100"
             } group-hover/card:scale-[1.04] group-hover/card:brightness-110`}
             unoptimized={Boolean(hoverGif && imageUrl?.includes(".gif"))}
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-sm text-slate-500">No image</div>
         )}
-        {hoverGif && hovering && !trailer ? (
+        {hoverGif && hovering && !trailerVideo ? (
           // eslint-disable-next-line @next/next/no-img-element -- animated Cloudflare GIF preview
           <img
             src={hoverGif}
@@ -111,10 +114,10 @@ function ContentCard({
             className="absolute inset-0 h-full w-full object-cover"
           />
         ) : null}
-        {trailer && hovering ? (
+        {trailerVideo && hovering ? (
           <video
             ref={videoRef}
-            src={trailer.src}
+            src={trailerVideo.src}
             className="absolute inset-0 h-full w-full object-cover"
             muted
             playsInline

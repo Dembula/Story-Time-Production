@@ -6,6 +6,14 @@ import type { EnrichmentResult, SceneSegment } from "./types";
 
 export type SceneIntelligenceSource = "script" | "project" | "catalogue";
 
+export type ScriptAnalysisMeta = {
+  used: boolean;
+  sourceType: string | null;
+  truncated?: boolean;
+  error?: string | null;
+  label?: string | null;
+};
+
 export async function persistEnrichmentResult(
   contentId: string,
   input: {
@@ -14,6 +22,7 @@ export async function persistEnrichmentResult(
     parsed: EnrichmentResult;
     sceneSource: SceneIntelligenceSource;
     scriptLabel?: string | null;
+    scriptAnalysis?: ScriptAnalysisMeta | null;
   },
 ): Promise<EnrichmentResult> {
   const embedInput = [
@@ -45,6 +54,13 @@ export async function persistEnrichmentResult(
         summary: input.parsed.narrativeSummary,
         sceneSource: input.sceneSource,
         scriptLabel: input.scriptLabel ?? null,
+        scriptAnalysis: input.scriptAnalysis ?? {
+          used: input.sceneSource === "script",
+          sourceType: input.sceneSource === "script" ? "script" : input.sceneSource,
+          truncated: false,
+          error: null,
+          label: input.scriptLabel ?? null,
+        },
       },
       dialogueIndex: input.parsed.dialogueIndex ?? [],
       embedding,
