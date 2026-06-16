@@ -1,4 +1,5 @@
 import { extractCloudflareStreamUid } from "@/lib/cloudflare-stream";
+import { isStreamSignedPlaybackClientEnabled } from "@/lib/stream-playback-protection";
 
 const warmedManifests = new Set<string>();
 const warmedOrigins = new Set<string>();
@@ -30,6 +31,7 @@ export function warmPlaybackManifest(videoUrl: string | null | undefined) {
   if (typeof window === "undefined") return;
   const url = videoUrl?.trim();
   if (!url) return;
+  if (url.startsWith("blob:")) return;
 
   const manifest = resolveManifestUrl(url);
   warmMediaOrigin(manifest ?? url);
@@ -88,7 +90,7 @@ export async function warmContentMetadata(contentId: string): Promise<void> {
 
   warmedMetadata.set(contentId, Date.now());
   try {
-    await fetch(`/api/content/${contentId}/playback-bundle`, { priority: "low" } as RequestInit);
+    await fetch(`/api/content/${contentId}`, { priority: "low" } as RequestInit);
   } catch {
     warmedMetadata.delete(contentId);
   }
@@ -101,10 +103,13 @@ export function prefetchOnContentHover(
 ) {
   const detailHref = `/browse/content/${payload.contentId}`;
   const watchHref = `/browse/content/${payload.contentId}/watch`;
+  const previewUrl =
+    payload.trailerUrl ??
+    (isStreamSignedPlaybackClientEnabled() ? null : payload.videoUrl);
 
   prefetchBrowseRoute(detailHref, router);
   warmThumbnail(payload.posterUrl);
-  warmPlaybackManifest(payload.trailerUrl ?? payload.videoUrl);
+  warmPlaybackManifest(previewUrl);
   void warmContentMetadata(payload.contentId);
 
   if (payload.videoUrl) {

@@ -15,7 +15,7 @@ export function CaptureProtectionBadge({
   screenCaptured,
   signedUrl,
 }: CaptureProtectionBadgeProps) {
-  if (!active && !screenCaptured) return null;
+  if (!active && !screenCaptured && !signedUrl) return null;
 
   let message = "Protection on — all watch sessions";
   if (screenCaptured) {

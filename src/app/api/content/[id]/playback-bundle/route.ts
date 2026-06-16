@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+import { cookies } from "next/headers";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getDisplayPosterUrl } from "@/lib/content-media-urls";
 import { getServerCaptureProtectionConfig } from "@/lib/content-capture-protection";
 import { isLongFormType } from "@/lib/content-types";
+import { isCloudflareSignedPlaybackEnabled } from "@/lib/cloudflare-stream-signed-url";
 import { resolveServerPlaybackSource } from "@/lib/server-playback-sources";
+import { VIEWER_PROFILE_COOKIE } from "@/lib/viewer-profile-cookies";
+import { getViewerProfileAge } from "@/lib/viewer-profiles";
+import { getViewerPlaybackState } from "@/lib/viewer-access";
 
 export async function GET(
   req: NextRequest,
@@ -21,6 +26,7 @@ export async function GET(
       select: {
         id: true,
         title: true,
+        minAge: true,
         videoUrl: true,
         trailerUrl: true,
         posterUrl: true,
@@ -68,6 +74,40 @@ export async function GET(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
+    const session = await getServerSession(authOptions);
+    const sessionUser = session?.user as { id?: string; role?: string } | undefined;
+
+    if (!isTrailer) {
+      if (!sessionUser?.id || sessionUser.role !== "SUBSCRIBER") {
+        return NextResponse.json({ error: "Playback requires an active subscriber session" }, { status: 401 });
+      }
+
+      const cookieStore = await cookies();
+      const profileId = cookieStore.get(VIEWER_PROFILE_COOKIE)?.value;
+      if (!profileId) {
+        return NextResponse.json({ error: "Viewer profile required" }, { status: 428 });
+      }
+
+      const [profile, playbackState] = await Promise.all([
+        prisma.viewerProfile.findFirst({
+          where: { id: profileId, userId: sessionUser.id },
+          select: { age: true, dateOfBirth: true },
+        }),
+        getViewerPlaybackState(sessionUser.id, content.id),
+      ]);
+
+      if (!playbackState.subscription) {
+        return NextResponse.json({ error: "Subscription required" }, { status: 403 });
+      }
+
+      const profileAge = getViewerProfileAge(profile);
+      const minAge = content.minAge ?? 0;
+      const ageRestricted = profileAge != null && minAge > profileAge;
+      if (ageRestricted || !playbackState.canPlayContent) {
+        return NextResponse.json({ error: "You are not allowed to play this title" }, { status: 403 });
+      }
+    }
+
     let videoUrl = isTrailer ? content.trailerUrl : content.videoUrl;
     let duration = isTrailer ? null : content.duration;
 
@@ -91,7 +131,10 @@ export async function GET(
     const playback = await resolveServerPlaybackSource(videoUrl);
     const posterUrl = getDisplayPosterUrl(content);
     const captureProtection = getServerCaptureProtectionConfig();
-    const session = await getServerSession(authOptions);
+    const signedPlayback =
+      isCloudflareSignedPlaybackEnabled() &&
+      playback?.type === "application/x-mpegurl" &&
+      playback.src.includes("/manifest/video.m3u8");
 
     return NextResponse.json(
       {
@@ -99,9 +142,9 @@ export async function GET(
         title: content.title,
         playback,
         playbackProtection: {
-          signedUrl: Boolean(playback?.src.includes("/manifest/video.m3u8") && playback.src.includes(".")),
+          signedUrl: signedPlayback,
           expiresHintSeconds: 4 * 60 * 60,
-          authenticatedViewer: Boolean(session?.user?.id),
+          authenticatedViewer: Boolean(sessionUser?.id),
         },
         posterUrl,
         duration,

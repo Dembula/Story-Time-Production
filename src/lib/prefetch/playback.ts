@@ -1,7 +1,52 @@
 import type { QueryClient } from "@tanstack/react-query";
+import type { PlaybackSource } from "@/lib/playback-sources";
+import {
+  isStreamSignedPlaybackClientEnabled,
+  SIGNED_PLAYBACK_STALE_MS,
+} from "@/lib/stream-playback-protection";
 import { warmPlaybackManifest } from "./engine";
 
 export const PLAYBACK_BUNDLE_STALE_MS = 3 * 60 * 60 * 1000;
+
+export type PlaybackBundleScene = {
+  id: string;
+  startSeconds: number;
+  endSeconds: number;
+  summary: string | null;
+  mood: string | null;
+  actors: unknown;
+};
+
+export type PlaybackBundleSubtitle = {
+  id: string;
+  language: string;
+  label: string;
+  vttUrl: string;
+  isDefault: boolean;
+};
+
+export type PlaybackBundle = {
+  id: string;
+  title: string;
+  playback: PlaybackSource | null;
+  playbackProtection: {
+    signedUrl: boolean;
+    expiresHintSeconds: number;
+    authenticatedViewer: boolean;
+  };
+  posterUrl: string | null;
+  duration: number | null;
+  enrichment: unknown | null;
+  scenes: PlaybackBundleScene[];
+  subtitles: PlaybackBundleSubtitle[];
+  captureProtection: {
+    enabled: boolean;
+    mode: "standard" | "drm";
+    watermarkEnabled: boolean;
+    drmConfigured: boolean;
+    drmLicensePath: string | null;
+  };
+};
 
 export function playbackBundleQueryKey(
   contentId: string,
@@ -15,7 +60,7 @@ export async function fetchPlaybackBundle(
   contentId: string,
   episodeId?: string | null,
   options?: { trailer?: boolean },
-) {
+): Promise<PlaybackBundle> {
   const params = new URLSearchParams();
   if (episodeId) params.set("episodeId", episodeId);
   if (options?.trailer) params.set("trailer", "1");
@@ -69,19 +114,31 @@ export function preparePlaybackStart({
   queryClient,
   router,
 }: PreparePlaybackOptions) {
+  const signedPlaybackRequired = isStreamSignedPlaybackClientEnabled();
   preloadPlayerModule();
   prefetchWatchRoute(watchHref, router);
-  warmPlaybackManifest(videoUrl);
-
-  if (queryClient) {
-    void queryClient.prefetchQuery({
-      queryKey: playbackBundleQueryKey(contentId, episodeId, { trailer }),
-      queryFn: () => fetchPlaybackBundle(contentId, episodeId, { trailer }),
-      staleTime: PLAYBACK_BUNDLE_STALE_MS,
-    });
-  } else {
-    void fetchPlaybackBundle(contentId, episodeId, { trailer }).catch(() => {});
+  if (!signedPlaybackRequired) {
+    warmPlaybackManifest(videoUrl);
   }
+
+  const loadBundle = () => {
+    if (queryClient) {
+      return queryClient.fetchQuery({
+        queryKey: playbackBundleQueryKey(contentId, episodeId, { trailer }),
+        queryFn: () => fetchPlaybackBundle(contentId, episodeId, { trailer }),
+        staleTime: signedPlaybackRequired ? SIGNED_PLAYBACK_STALE_MS : PLAYBACK_BUNDLE_STALE_MS,
+      });
+    }
+
+    return fetchPlaybackBundle(contentId, episodeId, { trailer });
+  };
+
+  void loadBundle()
+    .then((bundle) => {
+      const manifestUrl = bundle.playback?.src ?? (signedPlaybackRequired ? null : videoUrl ?? null);
+      if (manifestUrl) warmPlaybackManifest(manifestUrl);
+    })
+    .catch(() => {});
 }
 
 export function parseEpisodeIdFromWatchHref(watchHref: string): string | null {

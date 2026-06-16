@@ -4,7 +4,7 @@ import { Component, type ReactNode } from "react";
 import Link from "next/link";
 
 type WatchPlayerErrorBoundaryProps = {
-  src: string;
+  fallbackSrc?: string | null;
   poster?: string | null;
   title: string;
   contentDetailUrl: string;
@@ -31,7 +31,7 @@ export class WatchPlayerErrorBoundary extends Component<
 
   render() {
     const { hasError } = this.state;
-    const { src, poster, title, contentDetailUrl, children } = this.props;
+    const { fallbackSrc, poster, title, contentDetailUrl, children } = this.props;
 
     if (!hasError) return children;
 
@@ -47,14 +47,23 @@ export class WatchPlayerErrorBoundary extends Component<
           </Link>
         </div>
         <div className="flex-1 p-4 pb-8">
-          <video
-            src={src}
-            poster={poster || undefined}
-            controls
-            playsInline
-            autoPlay
-            className="h-full w-full rounded-lg bg-black object-contain"
-          />
+          {fallbackSrc ? (
+            <video
+              src={fallbackSrc}
+              poster={poster || undefined}
+              controls
+              playsInline
+              autoPlay
+              className="h-full w-full rounded-lg bg-black object-contain"
+            />
+          ) : (
+            <div className="flex h-full flex-col items-center justify-center rounded-lg border border-white/10 bg-white/[0.02] p-6 text-center">
+              <p className="text-base font-medium text-white">Playback recovered safely</p>
+              <p className="mt-2 max-w-md text-sm text-slate-400">
+                The protected player hit a runtime error, so the unsafe fallback stream was blocked. Go back and try playback again.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     );

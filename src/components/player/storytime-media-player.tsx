@@ -16,6 +16,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   MediaPlayer,
   MediaProvider,
+  Track,
   type MediaPlayerInstance,
 } from "@vidstack/react";
 import { DefaultVideoLayout, defaultLayoutIcons } from "@vidstack/react/player/layouts/default";
@@ -23,6 +24,9 @@ import { resolvePlaybackSources, type PlaybackSource } from "@/lib/playback-sour
 import { warmPlaybackManifest } from "@/lib/prefetch";
 import {
   fetchPlaybackBundle,
+  type PlaybackBundle,
+  type PlaybackBundleScene,
+  type PlaybackBundleSubtitle,
   playbackBundleQueryKey,
   PLAYBACK_BUNDLE_STALE_MS,
 } from "@/lib/prefetch/playback";
@@ -39,6 +43,8 @@ import { computePlaybackDeviceProfileClient } from "@/lib/player/mobile-detect";
 import { StoryTimeLoader, StoryTimeLoaderOverlay } from "@/components/ui/storytime-loader";
 import { PlaybackBufferingOverlay } from "./playback-buffering-overlay";
 import { PLAYBACK_COMMAND_EVENT, type PlaybackCommand } from "@/lib/input/platform-events";
+import { useCaptureProtectedPlayback } from "@/hooks/use-capture-protected-playback";
+import { CaptureProtectionBadge } from "./capture-protection-badge";
 
 
 
@@ -84,6 +90,12 @@ type StorytimeMediaPlayerProps = {
 
   isTrailer?: boolean;
 
+  offlineMode?: boolean;
+
+  offlinePlaybackUrl?: string | null;
+
+  offlineResolved?: boolean;
+
 };
 
 
@@ -118,6 +130,12 @@ export function StorytimeMediaPlayer({
 
   isTrailer = false,
 
+  offlineMode = false,
+
+  offlinePlaybackUrl = null,
+
+  offlineResolved = true,
+
 }: StorytimeMediaPlayerProps) {
 
   const router = useRouter();
@@ -150,8 +168,12 @@ export function StorytimeMediaPlayer({
 
   const signedPlaybackRequired = isStreamSignedPlaybackClientEnabled();
   const fallbackSource = useMemo(() => resolvePlaybackSources(videoUrl), [videoUrl]);
+  const offlineSource = useMemo(
+    () => (offlinePlaybackUrl ? resolvePlaybackSources(offlinePlaybackUrl) : null),
+    [offlinePlaybackUrl],
+  );
 
-  const { data: bundle, isLoading: bundleLoading, isError: bundleError } = useQuery({
+  const { data: bundle, isLoading: bundleLoading, isError: bundleError } = useQuery<PlaybackBundle>({
 
     queryKey: playbackBundleQueryKey(contentId, episodeId, { trailer: isTrailer }),
 
@@ -159,37 +181,30 @@ export function StorytimeMediaPlayer({
 
     staleTime: signedPlaybackRequired ? PLAYBACK_BUNDLE_STALE_MS : 60_000,
     refetchOnWindowFocus: signedPlaybackRequired,
+    enabled: !offlineMode,
 
   });
 
   const source = useMemo((): PlaybackSource | null => {
-    const bundlePlayback = bundle?.playback as PlaybackSource | undefined;
+    if (offlineMode) return offlineSource;
+    const bundlePlayback = bundle?.playback;
     if (bundlePlayback?.src && bundlePlayback?.type) return bundlePlayback;
     if (signedPlaybackRequired) return null;
     return fallbackSource;
-  }, [bundle?.playback, fallbackSource, signedPlaybackRequired]);
+  }, [bundle?.playback, fallbackSource, offlineMode, offlineSource, signedPlaybackRequired]);
 
-  const missingSource = !source;
+  const missingSource = offlineMode ? offlineResolved && !source : !source;
+  const waitingForOfflineSource = offlineMode && !offlineResolved;
   const waitingForSignedBundle =
-    signedPlaybackRequired && bundleLoading && !source && !bundle;
+    !offlineMode && signedPlaybackRequired && bundleLoading && !source && !bundle;
 
-
-
-  const scenes = (bundle?.scenes ?? []) as Array<{
-
-    id: string;
-
-    startSeconds: number;
-
-    endSeconds: number;
-
-    summary: string | null;
-
-    mood: string | null;
-
-    actors: unknown;
-
-  }>;
+  const captureState = useCaptureProtectedPlayback({
+    contentId,
+    playerRef,
+    enabled: !offlineMode && !isTrailer,
+  });
+  const scenes: PlaybackBundleScene[] = bundle?.scenes ?? [];
+  const subtitleTracks: PlaybackBundleSubtitle[] = bundle?.subtitles ?? [];
 
 
 
@@ -202,9 +217,7 @@ export function StorytimeMediaPlayer({
 
   const applyHlsDrmConfig = useCallback(
     (instance: unknown) => {
-      const protection = bundle?.captureProtection as
-        | { drmConfigured?: boolean; drmLicensePath?: string | null }
-        | undefined;
+      const protection = bundle?.captureProtection;
       if (!protection?.drmConfigured || !protection?.drmLicensePath) return;
       const hls = instance as { config?: Record<string, unknown> } | null;
       if (!hls?.config) return;
@@ -227,18 +240,20 @@ export function StorytimeMediaPlayer({
 
 
   useEffect(() => {
-    const manifestUrl =
-      (bundle?.playback as PlaybackSource | undefined)?.src ??
-      (signedPlaybackRequired ? null : videoUrl);
+    const manifestUrl = !offlineMode ? source?.src ?? null : null;
     if (manifestUrl) warmPlaybackManifest(manifestUrl);
 
-    if (nextEpisode?.id) {
+    if (!offlineMode && nextEpisode?.id) {
       const nextEpisodeId = nextEpisode.href?.includes("episode=")
         ? new URL(nextEpisode.href, "https://storytime.local").searchParams.get("episode")
         : null;
-      void fetchPlaybackBundle(contentId, nextEpisodeId);
+      void fetchPlaybackBundle(contentId, nextEpisodeId)
+        .then((nextBundle) => {
+          if (nextBundle.playback?.src) warmPlaybackManifest(nextBundle.playback.src);
+        })
+        .catch(() => {});
     }
-  }, [videoUrl, nextEpisode?.id, nextEpisode?.href, contentId, bundle?.playback, signedPlaybackRequired]);
+  }, [contentId, nextEpisode?.href, nextEpisode?.id, offlineMode, source?.src]);
 
 
 
@@ -669,7 +684,7 @@ export function StorytimeMediaPlayer({
 
 
 
-  if (waitingForSignedBundle) {
+  if (waitingForOfflineSource || waitingForSignedBundle) {
     return (
       <div className="relative fixed inset-0 z-[100] bg-black" data-input-scope="player">
         {poster ? (
@@ -678,7 +693,9 @@ export function StorytimeMediaPlayer({
         <StoryTimeLoaderOverlay mode="viewport">
           <div className="flex flex-col items-center text-center">
             <StoryTimeLoader size="md" />
-            <p className="mt-4 text-sm text-slate-300/90">Starting playback…</p>
+            <p className="mt-4 text-sm text-slate-300/90">
+              {waitingForOfflineSource ? "Preparing offline playback…" : "Starting playback…"}
+            </p>
           </div>
         </StoryTimeLoaderOverlay>
       </div>
@@ -695,7 +712,9 @@ export function StorytimeMediaPlayer({
 
         <p className="mb-6 max-w-md text-sm text-slate-400">
 
-          {bundleError && signedPlaybackRequired
+          {offlineMode
+            ? "This title has not finished downloading on this device yet."
+            : bundleError && signedPlaybackRequired
             ? "Signed playback could not be established. Check your connection and try again."
             : "This title does not have a playable video yet. Try again later or choose another title."}
 
@@ -741,6 +760,9 @@ export function StorytimeMediaPlayer({
       }
     | undefined;
   const scriptAnalysis = enrichment?.narrativeJson?.scriptAnalysis ?? null;
+  const signedPlaybackActive = offlineMode
+    ? false
+    : bundle?.playbackProtection.signedUrl ?? signedPlaybackRequired;
 
   return (
     <div
@@ -760,7 +782,7 @@ export function StorytimeMediaPlayer({
         playsInline={deviceProfile.playsInline}
         autoPlay={deviceProfile.canAutoplayAudible}
         load="eager"
-        onHlsInstance={applyHlsDrmConfig}
+        onHlsInstance={offlineMode ? undefined : applyHlsDrmConfig}
         onLoadedData={() => {
           configureVideoForDevice();
           applyStartTime();
@@ -802,10 +824,27 @@ export function StorytimeMediaPlayer({
           }
         }}
       >
-        <MediaProvider />
+        <MediaProvider>
+          {subtitleTracks.map((track) => (
+            <Track
+              key={track.id}
+              src={track.vttUrl}
+              kind="subtitles"
+              label={track.label || track.language}
+              lang={track.language}
+              default={track.isDefault}
+            />
+          ))}
+        </MediaProvider>
         <PlaybackBufferingOverlay />
         {!isMobileLike ? <DefaultVideoLayout icons={defaultLayoutIcons} /> : null}
       </MediaPlayer>
+      <CaptureProtectionBadge
+        active={captureState.active}
+        drmConfigured={captureState.drmConfigured}
+        screenCaptured={captureState.screenCaptured}
+        signedUrl={signedPlaybackActive}
+      />
 
       {isMobileLike ? (
         <NetflixMobileControls

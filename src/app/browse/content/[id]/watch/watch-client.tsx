@@ -1,8 +1,10 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { StorytimeMediaPlayer } from "@/components/player/storytime-media-player";
 import { WatchPlayerErrorBoundary } from "@/components/player/watch-player-error-boundary";
+import { getOfflinePlaybackUrl } from "@/lib/offline/download-manager";
+import { isStreamSignedPlaybackClientEnabled } from "@/lib/stream-playback-protection";
 
 type WatchClientProps = {
   content: {
@@ -22,6 +24,7 @@ type WatchClientProps = {
   startTime?: number;
   episodeId?: string | null;
   isTrailer?: boolean;
+  offlineMode?: boolean;
 };
 
 export function WatchClient({
@@ -31,9 +34,49 @@ export function WatchClient({
   startTime = 0,
   episodeId = null,
   isTrailer = false,
+  offlineMode = false,
 }: WatchClientProps) {
   const lastReportedRef = useRef(0);
   const lastSavedRef = useRef(0);
+  const [offlinePlaybackUrl, setOfflinePlaybackUrl] = useState<string | null>(null);
+  const [offlineResolved, setOfflineResolved] = useState(!offlineMode);
+
+  useEffect(() => {
+    if (!offlineMode) {
+      setOfflineResolved(true);
+      setOfflinePlaybackUrl(null);
+      return;
+    }
+
+    let revokedUrl: string | null = null;
+    let cancelled = false;
+    setOfflineResolved(false);
+    setOfflinePlaybackUrl(null);
+
+    void getOfflinePlaybackUrl(content.id)
+      .then((url) => {
+        if (cancelled) {
+          if (url) URL.revokeObjectURL(url);
+          return;
+        }
+        revokedUrl = url;
+        setOfflinePlaybackUrl(url);
+      })
+      .finally(() => {
+        if (!cancelled) setOfflineResolved(true);
+      });
+
+    return () => {
+      cancelled = true;
+      if (revokedUrl) URL.revokeObjectURL(revokedUrl);
+    };
+  }, [content.id, offlineMode]);
+
+  const safeFallbackSrc = offlineMode
+    ? offlinePlaybackUrl
+    : isStreamSignedPlaybackClientEnabled()
+      ? null
+      : content.videoUrl;
 
   const reportWatchTime = useCallback(
     async (currentTime: number, _duration: number) => {
@@ -83,7 +126,7 @@ export function WatchClient({
 
   return (
     <WatchPlayerErrorBoundary
-      src={content.videoUrl}
+      fallbackSrc={safeFallbackSrc}
       poster={content.posterUrl || content.backdropUrl}
       title={content.title}
       contentDetailUrl={contentDetailUrl}
@@ -103,6 +146,9 @@ export function WatchClient({
         onTimeUpdate={isTrailer ? undefined : reportWatchTime}
         onProgressSave={isTrailer ? undefined : saveProgress}
         isTrailer={isTrailer}
+        offlineMode={offlineMode}
+        offlinePlaybackUrl={offlinePlaybackUrl}
+        offlineResolved={offlineResolved}
       />
     </WatchPlayerErrorBoundary>
   );
