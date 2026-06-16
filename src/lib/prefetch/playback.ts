@@ -71,16 +71,28 @@ export function preparePlaybackStart({
 }: PreparePlaybackOptions) {
   preloadPlayerModule();
   prefetchWatchRoute(watchHref, router);
-  warmPlaybackManifest(videoUrl);
 
+  const warmFromBundle = (bundle: unknown) => {
+    const resolved = (bundle as { playback?: { src?: string | null } | null } | null)?.playback?.src?.trim();
+    warmPlaybackManifest(resolved || videoUrl);
+  };
   if (queryClient) {
-    void queryClient.prefetchQuery({
-      queryKey: playbackBundleQueryKey(contentId, episodeId, { trailer }),
-      queryFn: () => fetchPlaybackBundle(contentId, episodeId, { trailer }),
-      staleTime: PLAYBACK_BUNDLE_STALE_MS,
-    });
+    void queryClient
+      .fetchQuery({
+        queryKey: playbackBundleQueryKey(contentId, episodeId, { trailer }),
+        queryFn: () => fetchPlaybackBundle(contentId, episodeId, { trailer }),
+        staleTime: PLAYBACK_BUNDLE_STALE_MS,
+      })
+      .then(warmFromBundle)
+      .catch(() => {
+        warmPlaybackManifest(videoUrl);
+      });
   } else {
-    void fetchPlaybackBundle(contentId, episodeId, { trailer }).catch(() => {});
+    void fetchPlaybackBundle(contentId, episodeId, { trailer })
+      .then(warmFromBundle)
+      .catch(() => {
+        warmPlaybackManifest(videoUrl);
+      });
   }
 }
 

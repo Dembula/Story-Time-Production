@@ -79,6 +79,9 @@ On card hover (before click):
 | Scene metadata overlay | `PlaybackMetadataPanel` + enrichment scenes |
 | Seamless next | Auto-navigate on `onEnd` + prefetch next bundle |
 | Mini player shell | `usePlaybackSession` + `MiniPlayer` (expand to floating video) |
+| Signed playback resilience | Playback bundle refreshes periodically for long sessions |
+| Capture-safe overlays | Badge + forensic watermark on protected sessions |
+| Subtitle baseline | VTT tracks from bundle are mounted in main player |
 
 **Future:** Recap skip via scene tags; hover scrub previews via sprite sheets from Stream.
 
@@ -152,11 +155,31 @@ OPENAI_API_KEY=... npx tsx -e "import { enrichContentById } from './src/lib/ai-m
 These are **architected but not fully built** (require infra beyond app code):
 
 - Edge CDN adaptive ladder / multi-bitrate switching UI
-- DRM (Widevine/FairPlay)
-- Offline downloads
+- Full DRM lifecycle (license + cert + encrypted packaging) for Widevine/FairPlay/PlayReady
+- DRM-compatible offline licenses (not clear MP4 cache)
 - Live streaming
 - Dedicated GPU workers for frame-level actor detection
 - Vector DB at billion-scale
 - TV native apps
 
 The current codebase provides **modular seams** so each can plug in without rewriting browse or player surfaces.
+
+## 11. Cross-platform compatibility checklist (current + required next)
+
+### Implemented now
+
+- HLS primary playback with signed URL support.
+- DASH-capable source typing with device-aware fallback selection.
+- Signed-manifest aware prefetch path (uses playback bundle source).
+- Client-side refresh loop for expiring signed playback tokens.
+- Subtitle tracks attached in the primary player path.
+- Capture protection overlays wired into production player chrome.
+
+### Still required for Netflix/Amazon-grade parity
+
+- Native Apple FairPlay certificate/SPC/CKC flow for Safari/iOS (hardware path).
+- End-to-end encrypted packaging and key rotation (CMAF/HLS/DASH DRM).
+- Multi-audio track packaging and player language selection.
+- Real quality/rendition controls and QoE telemetry (startup time, rebuffer ratio).
+- Durable ingest/transcode orchestration (queue + retries + dead-letter handling).
+- Studio-grade asset QC before publish (codec, loudness, black frame, corruption checks).

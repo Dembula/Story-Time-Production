@@ -14,11 +14,12 @@ export default async function WatchPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ episode?: string; trailer?: string }>;
+  searchParams: Promise<{ episode?: string; trailer?: string; offline?: string }>;
 }) {
   const { id } = await params;
-  const { episode: episodeId, trailer } = await searchParams;
+  const { episode: episodeId, trailer, offline } = await searchParams;
   const isTrailer = trailer === "1";
+  const offlineRequested = offline === "1";
 
   const session = await getServerSession(authOptions);
   const role = (session?.user as { role?: string })?.role;
@@ -154,6 +155,7 @@ export default async function WatchPage({
       startTime={startTime}
       episodeId={!isTrailer && episodeId ? episodeId : null}
       isTrailer={isTrailer}
+      offlineRequested={offlineRequested}
     />
   );
 }

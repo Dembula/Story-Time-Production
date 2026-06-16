@@ -39,18 +39,26 @@ import { computePlaybackDeviceProfileClient } from "@/lib/player/mobile-detect";
 import { StoryTimeLoader, StoryTimeLoaderOverlay } from "@/components/ui/storytime-loader";
 import { PlaybackBufferingOverlay } from "./playback-buffering-overlay";
 import { PLAYBACK_COMMAND_EVENT, type PlaybackCommand } from "@/lib/input/platform-events";
+import { useCaptureProtectedPlayback } from "@/hooks/use-capture-protected-playback";
+import { CaptureProtectionBadge } from "./capture-protection-badge";
+import { ForensicWatermark } from "./forensic-watermark";
 
 
 
 const INTRO_SKIP_SECONDS = 90;
 
 const IDLE_HIDE_MS = 3200;
+const SIGNED_BUNDLE_REFRESH_MS = 45 * 60 * 1000;
 
 
 function actorList(value: unknown): string[] {
   return Array.isArray(value)
     ? value.map((item) => String(item).trim()).filter(Boolean)
     : [];
+}
+
+function shouldPreferDashPlayback(profile: ReturnType<typeof computePlaybackDeviceProfileClient>): boolean {
+  return !profile.isIOS && (profile.browser === "edge" || profile.isTvLike);
 }
 
 
@@ -83,6 +91,7 @@ type StorytimeMediaPlayerProps = {
   episodeId?: string | null;
 
   isTrailer?: boolean;
+  sourceOverride?: PlaybackSource | null;
 
 };
 
@@ -117,6 +126,7 @@ export function StorytimeMediaPlayer({
   episodeId = null,
 
   isTrailer = false,
+  sourceOverride = null,
 
 }: StorytimeMediaPlayerProps) {
 
@@ -142,16 +152,28 @@ export function StorytimeMediaPlayer({
   const orientationLockedRef = useRef(false);
   const leaveWatchFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const leaveWatchPopStateRef = useRef<(() => void) | null>(null);
+  const signedRefreshRef = useRef(0);
 
   const setAmbientUiVisible = usePlaybackSession((s) => s.setAmbientUiVisible);
   const isMobileLike = deviceProfile.isMobileLike;
 
 
 
-  const signedPlaybackRequired = isStreamSignedPlaybackClientEnabled();
-  const fallbackSource = useMemo(() => resolvePlaybackSources(videoUrl), [videoUrl]);
+  const signedPlaybackRequired = isStreamSignedPlaybackClientEnabled() && !sourceOverride;
+  const fallbackSource = useMemo(
+    () =>
+      resolvePlaybackSources(videoUrl, {
+        preferDash: shouldPreferDashPlayback(deviceProfile),
+      }),
+    [deviceProfile, videoUrl],
+  );
 
-  const { data: bundle, isLoading: bundleLoading, isError: bundleError } = useQuery({
+  const {
+    data: bundle,
+    isLoading: bundleLoading,
+    isError: bundleError,
+    refetch: refetchBundle,
+  } = useQuery({
 
     queryKey: playbackBundleQueryKey(contentId, episodeId, { trailer: isTrailer }),
 
@@ -159,15 +181,27 @@ export function StorytimeMediaPlayer({
 
     staleTime: signedPlaybackRequired ? PLAYBACK_BUNDLE_STALE_MS : 60_000,
     refetchOnWindowFocus: signedPlaybackRequired,
+    refetchInterval: signedPlaybackRequired ? SIGNED_BUNDLE_REFRESH_MS : false,
+    refetchIntervalInBackground: signedPlaybackRequired,
+    enabled: !sourceOverride,
 
   });
 
+  const refreshSignedBundle = useCallback(() => {
+    if (!signedPlaybackRequired) return;
+    const now = Date.now();
+    if (now - signedRefreshRef.current < 5_000) return;
+    signedRefreshRef.current = now;
+    void refetchBundle();
+  }, [refetchBundle, signedPlaybackRequired]);
+
   const source = useMemo((): PlaybackSource | null => {
+    if (sourceOverride) return sourceOverride;
     const bundlePlayback = bundle?.playback as PlaybackSource | undefined;
     if (bundlePlayback?.src && bundlePlayback?.type) return bundlePlayback;
     if (signedPlaybackRequired) return null;
     return fallbackSource;
-  }, [bundle?.playback, fallbackSource, signedPlaybackRequired]);
+  }, [bundle?.playback, fallbackSource, signedPlaybackRequired, sourceOverride]);
 
   const missingSource = !source;
   const waitingForSignedBundle =
@@ -199,9 +233,29 @@ export function StorytimeMediaPlayer({
 
   );
   const activeSceneActors = actorList(activeScene?.actors).slice(0, 5);
+  const subtitleTracks = useMemo(
+    () =>
+      ((bundle?.subtitles ?? []) as Array<{
+        id?: string;
+        language?: string | null;
+        label?: string | null;
+        vttUrl?: string | null;
+        isDefault?: boolean;
+      }>).filter((track) => Boolean(track.vttUrl)),
+    [bundle?.subtitles],
+  );
+  const captureProtection = useCaptureProtectedPlayback({
+    contentId,
+    playerRef,
+    enabled: !isTrailer && Boolean(bundle?.captureProtection?.enabled ?? true),
+  });
+  const watermarkLabel =
+    (bundle?.captureProtection as { watermarkLabel?: string | null } | undefined)?.watermarkLabel ??
+    `storytime-${contentId.slice(0, 8)}`;
 
   const applyHlsDrmConfig = useCallback(
     (instance: unknown) => {
+      if (deviceProfile.isIOS || source?.type !== "application/x-mpegurl") return;
       const protection = bundle?.captureProtection as
         | { drmConfigured?: boolean; drmLicensePath?: string | null }
         | undefined;
@@ -221,13 +275,14 @@ export function StorytimeMediaPlayer({
       });
       if (drmConfig) Object.assign(hls.config, drmConfig);
     },
-    [bundle?.captureProtection],
+    [bundle?.captureProtection, deviceProfile.isIOS, source?.type],
   );
 
 
 
   useEffect(() => {
     const manifestUrl =
+      sourceOverride?.src ??
       (bundle?.playback as PlaybackSource | undefined)?.src ??
       (signedPlaybackRequired ? null : videoUrl);
     if (manifestUrl) warmPlaybackManifest(manifestUrl);
@@ -238,7 +293,7 @@ export function StorytimeMediaPlayer({
         : null;
       void fetchPlaybackBundle(contentId, nextEpisodeId);
     }
-  }, [videoUrl, nextEpisode?.id, nextEpisode?.href, contentId, bundle?.playback, signedPlaybackRequired]);
+  }, [videoUrl, nextEpisode?.id, nextEpisode?.href, contentId, bundle?.playback, signedPlaybackRequired, sourceOverride?.src]);
 
 
 
@@ -755,12 +810,14 @@ export function StorytimeMediaPlayer({
         ref={playerRef}
         className="h-full w-full [&_video]:object-contain"
         title={title}
-        src={{ src: source.src, type: source.type as "application/x-mpegurl" | "video/mp4" }}
+        src={{ src: source.src, type: source.type }}
         poster={poster || undefined}
         playsInline={deviceProfile.playsInline}
         autoPlay={deviceProfile.canAutoplayAudible}
         load="eager"
+        crossOrigin="anonymous"
         onHlsInstance={applyHlsDrmConfig}
+        onError={refreshSignedBundle}
         onLoadedData={() => {
           configureVideoForDevice();
           applyStartTime();
@@ -802,10 +859,31 @@ export function StorytimeMediaPlayer({
           }
         }}
       >
-        <MediaProvider />
+        <MediaProvider>
+          {subtitleTracks.map((track) => (
+            <track
+              key={track.id ?? `${track.vttUrl}`}
+              kind="subtitles"
+              src={track.vttUrl ?? undefined}
+              srcLang={(track.language ?? "").toLowerCase() || undefined}
+              label={track.label ?? track.language ?? "Subtitles"}
+              default={Boolean(track.isDefault)}
+            />
+          ))}
+        </MediaProvider>
         <PlaybackBufferingOverlay />
         {!isMobileLike ? <DefaultVideoLayout icons={defaultLayoutIcons} /> : null}
       </MediaPlayer>
+      <CaptureProtectionBadge
+        active={captureProtection.active}
+        drmConfigured={captureProtection.drmConfigured}
+        screenCaptured={captureProtection.screenCaptured}
+        signedUrl={Boolean(bundle?.playbackProtection?.signedUrl)}
+      />
+      <ForensicWatermark
+        label={watermarkLabel}
+        visible={captureProtection.active && captureProtection.watermarkEnabled}
+      />
 
       {isMobileLike ? (
         <NetflixMobileControls

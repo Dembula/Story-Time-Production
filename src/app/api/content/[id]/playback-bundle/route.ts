@@ -7,6 +7,16 @@ import { getServerCaptureProtectionConfig } from "@/lib/content-capture-protecti
 import { isLongFormType } from "@/lib/content-types";
 import { resolveServerPlaybackSource } from "@/lib/server-playback-sources";
 
+function isLikelySignedManifest(src: string | null | undefined): boolean {
+  if (!src || !/manifest\/video\.m3u8/i.test(src)) return false;
+  try {
+    const firstPathPart = new URL(src).pathname.split("/").filter(Boolean)[0] ?? "";
+    return firstPathPart.includes(".");
+  } catch {
+    return false;
+  }
+}
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -92,6 +102,9 @@ export async function GET(
     const posterUrl = getDisplayPosterUrl(content);
     const captureProtection = getServerCaptureProtectionConfig();
     const session = await getServerSession(authOptions);
+    const viewerTag = session?.user?.id
+      ? `viewer-${String(session.user.id).slice(0, 8)}`
+      : "viewer-anon";
 
     return NextResponse.json(
       {
@@ -99,7 +112,7 @@ export async function GET(
         title: content.title,
         playback,
         playbackProtection: {
-          signedUrl: Boolean(playback?.src.includes("/manifest/video.m3u8") && playback.src.includes(".")),
+          signedUrl: isLikelySignedManifest(playback?.src),
           expiresHintSeconds: 4 * 60 * 60,
           authenticatedViewer: Boolean(session?.user?.id),
         },
@@ -114,6 +127,7 @@ export async function GET(
           watermarkEnabled: captureProtection.watermarkEnabled,
           drmConfigured: Boolean(captureProtection.drmLicenseUrl),
           drmLicensePath: captureProtection.drmLicenseUrl ? "/api/content/drm-license" : null,
+          watermarkLabel: `storytime-${content.id.slice(0, 6)}-${viewerTag}`,
         },
       },
       {

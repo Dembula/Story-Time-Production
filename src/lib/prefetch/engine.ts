@@ -14,6 +14,10 @@ type PrefetchPayload = {
   posterUrl?: string | null;
 };
 
+type WarmedPlaybackBundle = {
+  playback?: { src?: string | null } | null;
+};
+
 /** Speculative route prefetch (Next.js router). */
 export function prefetchBrowseRoute(href: string, router?: { prefetch: (url: string) => void }) {
   if (warmedRoutes.has(href) || !router) return;
@@ -82,15 +86,20 @@ export function warmThumbnail(url: string | null | undefined) {
 }
 
 /** Fetch lightweight metadata for instant detail overlay. */
-export async function warmContentMetadata(contentId: string): Promise<void> {
+export async function warmContentMetadata(contentId: string): Promise<WarmedPlaybackBundle | null> {
   const last = warmedMetadata.get(contentId);
-  if (last && Date.now() - last < METADATA_TTL_MS) return;
+  if (last && Date.now() - last < METADATA_TTL_MS) return null;
 
   warmedMetadata.set(contentId, Date.now());
   try {
-    await fetch(`/api/content/${contentId}/playback-bundle`, { priority: "low" } as RequestInit);
+    const res = await fetch(`/api/content/${contentId}/playback-bundle`, {
+      priority: "low",
+    } as RequestInit);
+    if (!res.ok) throw new Error("metadata prefetch failed");
+    return (await res.json()) as WarmedPlaybackBundle;
   } catch {
     warmedMetadata.delete(contentId);
+    return null;
   }
 }
 
@@ -104,8 +113,14 @@ export function prefetchOnContentHover(
 
   prefetchBrowseRoute(detailHref, router);
   warmThumbnail(payload.posterUrl);
-  warmPlaybackManifest(payload.trailerUrl ?? payload.videoUrl);
-  void warmContentMetadata(payload.contentId);
+  void warmContentMetadata(payload.contentId)
+    .then((bundle) => {
+      const resolved = bundle?.playback?.src?.trim();
+      warmPlaybackManifest(resolved || payload.trailerUrl || payload.videoUrl);
+    })
+    .catch(() => {
+      warmPlaybackManifest(payload.trailerUrl ?? payload.videoUrl);
+    });
 
   if (payload.videoUrl) {
     prefetchBrowseRoute(watchHref, router);

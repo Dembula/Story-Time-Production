@@ -5,15 +5,26 @@ import {
   isCloudflareStreamUrl,
 } from "@/lib/cloudflare-stream";
 
-export type PlaybackMimeType = "application/x-mpegurl" | "video/mp4";
+export type PlaybackMimeType = "application/x-mpegurl" | "application/dash+xml" | "video/mp4";
 
 export type PlaybackSource = {
   src: string;
   type: PlaybackMimeType;
 };
 
-/** Resolve a stored video URL into the best source for Vidstack (HLS when Cloudflare Stream). */
-export function resolvePlaybackSources(videoUrl: string | null | undefined): PlaybackSource | null {
+export type PlaybackSourceOptions = {
+  /**
+   * DASH-first devices (for example some Edge/TV environments) can prefer MPD
+   * when the source supports it.
+   */
+  preferDash?: boolean;
+};
+
+/** Resolve a stored video URL into the best playback source for the current device profile. */
+export function resolvePlaybackSources(
+  videoUrl: string | null | undefined,
+  options?: PlaybackSourceOptions,
+): PlaybackSource | null {
   const url = videoUrl?.trim();
   if (!url) return null;
 
@@ -24,9 +35,15 @@ export function resolvePlaybackSources(videoUrl: string | null | undefined): Pla
       cfg?.customerSubdomain ??
       (isCloudflareStreamUrl(url) ? deriveSubdomainFromStreamUrl(url) : "");
     const urls = buildCloudflarePlaybackUrls(uid, subdomain || "https://videodelivery.net");
+    if (options?.preferDash) {
+      return { src: urls.dashUrl, type: "application/dash+xml" };
+    }
     return { src: urls.hlsUrl, type: "application/x-mpegurl" };
   }
 
+  if (/\.mpd(\?|$)/i.test(url)) {
+    return { src: url, type: "application/dash+xml" };
+  }
   if (/\.m3u8(\?|$)/i.test(url)) {
     return { src: url, type: "application/x-mpegurl" };
   }
