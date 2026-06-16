@@ -3,6 +3,8 @@ import { resolvePublishedContentVideoUrl } from "@/lib/playback-content-url";
 import { rewriteHlsManifestForProxy } from "@/lib/playback-manifest-rewrite";
 import { resolveServerPlaybackSource } from "@/lib/server-playback-sources";
 
+export const runtime = "nodejs";
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },

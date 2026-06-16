@@ -182,6 +182,14 @@ export function StorytimeMediaPlayer({
     clientSignedPlaybackRequired ||
     Boolean((bundle?.playbackProtection as { signedUrl?: boolean } | undefined)?.signedUrl);
 
+  const requiresPlaybackBundle = useMemo(() => {
+    const trimmed = videoUrl?.trim();
+    return (
+      signedPlaybackRequired ||
+      Boolean(trimmed && (isCloudflareStreamUrl(trimmed) || extractCloudflareStreamUid(trimmed)))
+    );
+  }, [signedPlaybackRequired, videoUrl]);
+
   const source = useMemo((): PlaybackSource | null => {
     const bundlePlayback = bundle?.playback as PlaybackSource | undefined;
     if (bundlePlayback?.src && bundlePlayback?.type) return bundlePlayback;
@@ -192,8 +200,8 @@ export function StorytimeMediaPlayer({
   const missingSource = !source;
   const needsHlsJs = isHlsPlaybackSource(source);
   const hlsJsUnsupported = needsHlsJs && !isHlsJsSupported();
-  const waitingForSignedBundle =
-    signedPlaybackRequired && bundleLoading && !source && !bundle;
+  const waitingForPlaybackBundle =
+    requiresPlaybackBundle && bundleLoading && !bundle?.playback;
 
 
 
@@ -619,7 +627,7 @@ export function StorytimeMediaPlayer({
 
 
 
-  if (waitingForSignedBundle) {
+  if (waitingForPlaybackBundle) {
     return (
       <div className="relative fixed inset-0 z-[100] bg-black" data-input-scope="player">
         {poster ? (
@@ -664,7 +672,7 @@ export function StorytimeMediaPlayer({
 
         <p className="mb-6 max-w-md text-sm text-slate-400">
 
-          {bundleError && signedPlaybackRequired
+          {bundleError && requiresPlaybackBundle
             ? "Signed playback could not be established. Check your connection and try again."
             : "This title does not have a playable video yet. Try again later or choose another title."}
 
@@ -747,7 +755,7 @@ export function StorytimeMediaPlayer({
         playsInline={true}
         preferNativeHLS={false}
         autoPlay={deviceProfile.canAutoplayAudible}
-        load="eager"
+        load="idle"
         onProviderChange={handleProviderChange}
         onHlsLibLoadError={handleHlsLibLoadError}
         onHlsInstance={applyHlsDrmConfig}

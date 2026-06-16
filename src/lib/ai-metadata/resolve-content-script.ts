@@ -6,6 +6,8 @@ import { resolveScriptText } from "@/lib/modoc/va-script-text";
 import { fetchScriptTextFromUrl } from "@/lib/ai-metadata/extract-script-document";
 import { extractScriptTextFromUrl } from "@/lib/ai-metadata/script-text";
 
+export { contentHasScriptSource } from "@/lib/ai-metadata/content-script-source";
+
 export type ContentScriptSource = "platform-version" | "linked-project" | "uploaded-document";
 
 export type ResolvedContentScript = {
@@ -97,16 +99,4 @@ export async function resolveContentScriptText(contentId: string): Promise<Resol
   }
 
   return null;
-}
-
-export function contentHasScriptSource(input: {
-  scriptUrl?: string | null;
-  tags?: string | null;
-  linkedProjectId?: string | null;
-}): boolean {
-  return Boolean(
-    input.scriptUrl?.trim() ||
-      input.linkedProjectId?.trim() ||
-      parsePlatformScriptVersionId(input.tags),
-  );
 }

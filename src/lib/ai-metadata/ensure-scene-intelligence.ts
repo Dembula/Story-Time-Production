@@ -2,7 +2,7 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import { enrichContentById } from "./enrich-content";
-import { contentHasScriptSource } from "./resolve-content-script";
+import { contentHasScriptSource } from "./content-script-source";
 
 /** Queue AI scene intelligence when a title has script sources but no scene rows yet. */
 export async function ensureSceneIntelligence(contentId: string): Promise<void> {

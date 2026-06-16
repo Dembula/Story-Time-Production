@@ -105,36 +105,41 @@ export async function fetchCloudflareStreamTokenFromApi(
   const api = getCloudflareStreamApiCredentials();
   if (!api) return null;
 
-  const exp = Math.floor(Date.now() / 1000) + Math.max(300, options?.ttlSeconds ?? DEFAULT_TTL_SECONDS);
-  const body: Record<string, unknown> = { exp };
-  if (options?.downloadable === false) body.downloadable = false;
+  try {
+    const exp = Math.floor(Date.now() / 1000) + Math.max(300, options?.ttlSeconds ?? DEFAULT_TTL_SECONDS);
+    const body: Record<string, unknown> = { exp };
+    if (options?.downloadable === false) body.downloadable = false;
 
-  const res = await fetch(
-    `https://api.cloudflare.com/client/v4/accounts/${api.accountId}/stream/${videoUid}/token`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${api.apiToken}`,
-        "Content-Type": "application/json",
+    const res = await fetch(
+      `https://api.cloudflare.com/client/v4/accounts/${api.accountId}/stream/${videoUid}/token`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${api.apiToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+        cache: "no-store",
       },
-      body: JSON.stringify(body),
-      cache: "no-store",
-    },
-  );
+    );
 
-  const payload = (await res.json().catch(() => ({}))) as {
-    success?: boolean;
-    result?: { token?: string };
-    errors?: Array<{ message?: string }>;
-  };
+    const payload = (await res.json().catch(() => ({}))) as {
+      success?: boolean;
+      result?: { token?: string };
+      errors?: Array<{ message?: string }>;
+    };
 
-  if (!res.ok || !payload.success || !payload.result?.token) {
-    const msg = payload.errors?.map((e) => e.message).filter(Boolean).join("; ");
-    console.error("Cloudflare Stream token API failed:", msg || res.status);
+    if (!res.ok || !payload.success || !payload.result?.token) {
+      const msg = payload.errors?.map((e) => e.message).filter(Boolean).join("; ");
+      console.error("Cloudflare Stream token API failed:", msg || res.status);
+      return null;
+    }
+
+    return payload.result.token;
+  } catch (err) {
+    console.error("Cloudflare Stream token API request failed:", err);
     return null;
   }
-
-  return payload.result.token;
 }
 
 export async function buildSignedCloudflarePlaybackSource(

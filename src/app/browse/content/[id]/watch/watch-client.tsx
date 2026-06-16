@@ -1,5 +1,6 @@
 "use client";
 
+import "@/lib/player/vidstack-hls";
 import { useCallback, useRef } from "react";
 import { StorytimeMediaPlayer } from "@/components/player/storytime-media-player";
 import { WatchPlayerErrorBoundary } from "@/components/player/watch-player-error-boundary";

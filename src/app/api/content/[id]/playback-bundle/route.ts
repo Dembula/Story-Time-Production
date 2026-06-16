@@ -15,8 +15,9 @@ import {
   resolvePublishedContentVideoUrl,
 } from "@/lib/playback-content-url";
 import type { PlaybackSource } from "@/lib/playback-sources";
-import { ensureSceneIntelligence } from "@/lib/ai-metadata/ensure-scene-intelligence";
-import { contentHasScriptSource } from "@/lib/ai-metadata/resolve-content-script";
+import { contentHasScriptSource } from "@/lib/ai-metadata/content-script-source";
+
+export const runtime = "nodejs";
 
 export async function GET(
   req: NextRequest,
@@ -95,7 +96,10 @@ export async function GET(
       duration = content.seasons.flatMap((s) => s.episodes).find((e) => e.duration)?.duration ?? duration;
     }
 
-    const upstreamPlayback = await resolveServerPlaybackSource(videoUrl);
+    const upstreamPlayback = await resolveServerPlaybackSource(videoUrl).catch((err) => {
+      console.error("playback-bundle resolve source failed:", err);
+      return null;
+    });
     let playback: PlaybackSource | null = upstreamPlayback;
 
     if (upstreamPlayback?.type === "application/x-mpegurl") {
@@ -117,7 +121,12 @@ export async function GET(
 
     const posterUrl = getDisplayPosterUrl(content);
     const captureProtection = getServerCaptureProtectionConfig();
-    const session = await getServerSession(authOptions);
+    let session = null;
+    try {
+      session = await getServerSession(authOptions);
+    } catch (sessionErr) {
+      console.error("playback-bundle session lookup failed:", sessionErr);
+    }
 
     const hasScriptSource = contentHasScriptSource(content);
     const sceneCount = content.scenes.length;
@@ -132,6 +141,9 @@ export async function GET(
     if (intelligencePending) {
       after(async () => {
         try {
+          const { ensureSceneIntelligence } = await import(
+            "@/lib/ai-metadata/ensure-scene-intelligence"
+          );
           await ensureSceneIntelligence(id);
         } catch (err) {
           console.error("playback-bundle scene intelligence enqueue failed:", err);
@@ -178,7 +190,9 @@ export async function GET(
       },
     );
   } catch (err) {
-    console.error("playback-bundle error:", err);
-    return NextResponse.json({ error: "Failed" }, { status: 500 });
+    const message = err instanceof Error ? err.message : String(err);
+    const stack = err instanceof Error ? err.stack : undefined;
+    console.error("playback-bundle error:", message, stack);
+    return NextResponse.json({ error: "Failed", detail: message }, { status: 500 });
   }
 }
