@@ -17,6 +17,8 @@
     "health:platform": "tsx scripts/platform-health-check.ts",
     "stream:verify": "tsx scripts/verify-cloudflare-setup.ts",
     "stream:require-signed": "tsx scripts/enable-stream-require-signed-urls.ts",
+    "playback:self-test": "tsx scripts/playback-self-test.ts",
+    "playback:reconcile": "tsx scripts/playback-reconcile.ts",
     "content:enrich-backfill": "tsx scripts/backfill-content-enrichment.ts",
     "db:migrate:deploy": "prisma migrate deploy",
     "quality:gates": "node scripts/quality-gates.mjs",

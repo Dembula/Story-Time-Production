@@ -31,6 +31,14 @@ import {
 } from "@/lib/stream-playback-protection";
 import { usePlaybackSession } from "@/lib/playback/session-store";
 import { buildHlsDrmConfig } from "@/lib/content-capture-protection";
+import type { PlaybackManifest } from "@/lib/playback/manifest-types";
+import {
+  buildHlsDrmConfigForSource,
+  createFairPlayKeyHandler,
+  detectDeviceDrmCapabilities,
+  pickSupportedSource,
+} from "@/lib/playback/client-drm";
+import { prewarmFromManifest } from "@/lib/playback/instant-start";
 import { PlaybackChrome } from "./playback-chrome";
 import { PlaybackMetadataPanel } from "./playback-metadata-panel";
 import { PlaybackComplianceBadge } from "./playback-compliance-badge";
@@ -162,12 +170,40 @@ export function StorytimeMediaPlayer({
 
   });
 
+  type PlaybackBundle = {
+    playback?: PlaybackSource;
+    manifest?: PlaybackManifest;
+    scenes?: unknown;
+    enrichment?: unknown;
+    captureProtection?: { drmConfigured?: boolean; drmLicensePath?: string | null };
+  };
+  const typedBundle = bundle as PlaybackBundle | undefined;
+
+  const manifest = useMemo(() => {
+    const candidate = typedBundle?.manifest;
+    return candidate && Array.isArray(candidate.sources) ? candidate : null;
+  }, [typedBundle]);
+
+  const deviceCaps = useMemo(() => detectDeviceDrmCapabilities(), []);
+  const selectedManifestSource = useMemo(
+    () => (manifest ? pickSupportedSource(manifest, deviceCaps) : null),
+    [manifest, deviceCaps],
+  );
+
   const source = useMemo((): PlaybackSource | null => {
-    const bundlePlayback = bundle?.playback as PlaybackSource | undefined;
+    if (selectedManifestSource) {
+      const t = selectedManifestSource.type;
+      // Vidstack accepts `application/x-mpegurl`, `application/vnd.apple.mpegurl`,
+      // `video/mp4`. Normalise to the keys it expects.
+      const normalisedType: "application/x-mpegurl" | "video/mp4" =
+        t === "video/mp4" || t === "video/webm" ? "video/mp4" : "application/x-mpegurl";
+      return { src: selectedManifestSource.src, type: normalisedType };
+    }
+    const bundlePlayback = typedBundle?.playback;
     if (bundlePlayback?.src && bundlePlayback?.type) return bundlePlayback;
     if (signedPlaybackRequired) return null;
     return fallbackSource;
-  }, [bundle?.playback, fallbackSource, signedPlaybackRequired]);
+  }, [typedBundle, fallbackSource, selectedManifestSource, signedPlaybackRequired]);
 
   const missingSource = !source;
   const waitingForSignedBundle =
@@ -175,7 +211,7 @@ export function StorytimeMediaPlayer({
 
 
 
-  const scenes = (bundle?.scenes ?? []) as Array<{
+  const scenes = (typedBundle?.scenes ?? []) as Array<{
 
     id: string;
 
@@ -202,34 +238,65 @@ export function StorytimeMediaPlayer({
 
   const applyHlsDrmConfig = useCallback(
     (instance: unknown) => {
-      const protection = bundle?.captureProtection as
-        | { drmConfigured?: boolean; drmLicensePath?: string | null }
-        | undefined;
-      if (!protection?.drmConfigured || !protection?.drmLicensePath) return;
       const hls = instance as { config?: Record<string, unknown> } | null;
       if (!hls?.config) return;
+
+      // 1) Preferred: per-source DRM from the unified manifest (Widevine /
+      //    PlayReady descriptors built server-side with proxied license URLs).
+      if (selectedManifestSource) {
+        const drmConfig = buildHlsDrmConfigForSource(selectedManifestSource);
+        if (drmConfig) {
+          Object.assign(hls.config, drmConfig);
+          return;
+        }
+      }
+
+      // 2) Legacy single-system fallback (older bundles without `manifest`).
+      const protection = (bundle as
+        | { captureProtection?: { drmConfigured?: boolean; drmLicensePath?: string | null } }
+        | undefined)?.captureProtection;
+      if (!protection?.drmConfigured || !protection?.drmLicensePath) return;
       const licenseUrl =
         typeof window !== "undefined"
           ? `${window.location.origin}${protection.drmLicensePath}`
           : protection.drmLicensePath;
-      const drmConfig = buildHlsDrmConfig({
+      const legacy = buildHlsDrmConfig({
         enabled: true,
         mode: "drm",
         drmLicenseUrl: licenseUrl,
         drmAuthToken: null,
         watermarkEnabled: true,
       });
-      if (drmConfig) Object.assign(hls.config, drmConfig);
+      if (legacy) Object.assign(hls.config, legacy);
     },
-    [bundle?.captureProtection],
+    [bundle, selectedManifestSource],
   );
+
+  // FairPlay native HLS handler — attaches to the underlying <video> element
+  // when Apple browsers play encrypted HLS. The handler unwinds on unmount.
+  useEffect(() => {
+    const drm = selectedManifestSource?.drm;
+    if (!drm || !drm.keySystem.startsWith("com.apple.fps")) return;
+    const video = playerRef.current?.el?.querySelector("video") as HTMLVideoElement | null;
+    if (!video) return;
+    const handler = createFairPlayKeyHandler(drm);
+    const detach = handler.attach(video);
+    return () => {
+      try { detach(); } catch { /* no-op */ }
+    };
+  }, [selectedManifestSource]);
+
+  // Prewarm manifest, certificate and first segment as soon as we have
+  // a manifest available so play() is instantaneous.
+  useEffect(() => {
+    if (manifest) prewarmFromManifest(manifest);
+  }, [manifest]);
 
 
 
   useEffect(() => {
     const manifestUrl =
-      (bundle?.playback as PlaybackSource | undefined)?.src ??
-      (signedPlaybackRequired ? null : videoUrl);
+      typedBundle?.playback?.src ?? (signedPlaybackRequired ? null : videoUrl);
     if (manifestUrl) warmPlaybackManifest(manifestUrl);
 
     if (nextEpisode?.id) {
@@ -238,7 +305,7 @@ export function StorytimeMediaPlayer({
         : null;
       void fetchPlaybackBundle(contentId, nextEpisodeId);
     }
-  }, [videoUrl, nextEpisode?.id, nextEpisode?.href, contentId, bundle?.playback, signedPlaybackRequired]);
+  }, [videoUrl, nextEpisode?.id, nextEpisode?.href, contentId, typedBundle?.playback, signedPlaybackRequired]);
 
 
 
@@ -726,7 +793,7 @@ export function StorytimeMediaPlayer({
 
 
 
-  const enrichment = bundle?.enrichment as
+  const enrichment = typedBundle?.enrichment as
     | {
         moodTags?: string[];
         atmosphere?: string | null;

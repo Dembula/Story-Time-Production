@@ -65,6 +65,23 @@ export function buildCloudflarePlaybackUrls(uid: string, customerSubdomain: stri
   };
 }
 
+function parseAllowedOrigins(): string[] {
+  const raw = process.env.CLOUDFLARE_STREAM_ALLOWED_ORIGINS?.trim();
+  if (!raw) return [];
+  return raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function shouldRequireSignedUrls(): boolean {
+  return process.env.CLOUDFLARE_STREAM_SIGNED_URLS === "true";
+}
+
+function watermarkProfileId(): string | null {
+  return process.env.CLOUDFLARE_STREAM_WATERMARK_PROFILE_ID?.trim() || null;
+}
+
 export async function ingestToCloudflareStreamFromUrl(
   sourceUrl: string,
   meta?: Record<string, string>,
@@ -82,6 +99,19 @@ export async function ingestToCloudflareStreamFromUrl(
     throw new Error("Cloudflare Stream env is incomplete. Set CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_STREAM_API_TOKEN, CLOUDFLARE_STREAM_CUSTOMER_SUBDOMAIN.");
   }
 
+  const allowedOrigins = parseAllowedOrigins();
+  const requireSignedURLs = shouldRequireSignedUrls();
+  const watermark = watermarkProfileId();
+
+  const body: Record<string, unknown> = {
+    url: sourceUrl,
+    meta: meta ?? {},
+    requireSignedURLs,
+    thumbnailTimestampPct: 0.05,
+  };
+  if (allowedOrigins.length > 0) body.allowedOrigins = allowedOrigins;
+  if (watermark) body.watermark = { uid: watermark };
+
   const res = await fetch(
     `https://api.cloudflare.com/client/v4/accounts/${cfg.accountId}/stream/copy`,
     {
@@ -90,10 +120,7 @@ export async function ingestToCloudflareStreamFromUrl(
         Authorization: `Bearer ${cfg.apiToken}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        url: sourceUrl,
-        meta: meta ?? {},
-      }),
+      body: JSON.stringify(body),
       cache: "no-store",
     },
   );
@@ -117,6 +144,48 @@ export async function ingestToCloudflareStreamFromUrl(
     state: payload.result.status?.state ?? "queued",
     ...urls,
   };
+}
+
+export type CloudflareStreamPollResult = {
+  uid: string;
+  state: string;
+  readyToStream?: boolean;
+  duration?: number;
+  errorMessage?: string | null;
+};
+
+/** Pull the latest Stream processing status for a given UID. */
+export async function pollCloudflareStreamStatus(
+  uid: string,
+): Promise<CloudflareStreamPollResult | null> {
+  const cfg = getCloudflareStreamConfig();
+  if (!cfg) return null;
+  try {
+    const res = await fetch(
+      `https://api.cloudflare.com/client/v4/accounts/${cfg.accountId}/stream/${uid}`,
+      { headers: { Authorization: `Bearer ${cfg.apiToken}` }, cache: "no-store" },
+    );
+    const payload = (await res.json().catch(() => ({}))) as {
+      success?: boolean;
+      result?: {
+        uid?: string;
+        readyToStream?: boolean;
+        duration?: number;
+        status?: { state?: string; errorReasonText?: string };
+      };
+    };
+    if (!res.ok || !payload.success || !payload.result) return null;
+    return {
+      uid,
+      state: payload.result.status?.state ?? "unknown",
+      readyToStream: payload.result.readyToStream,
+      duration: payload.result.duration,
+      errorMessage: payload.result.status?.errorReasonText ?? null,
+    };
+  } catch (err) {
+    console.error("pollCloudflareStreamStatus error:", err);
+    return null;
+  }
 }
 
 export async function ensureCloudflareStreamPlaybackUrl(

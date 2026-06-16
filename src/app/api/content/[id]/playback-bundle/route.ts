@@ -6,6 +6,10 @@ import { getDisplayPosterUrl } from "@/lib/content-media-urls";
 import { getServerCaptureProtectionConfig } from "@/lib/content-capture-protection";
 import { isLongFormType } from "@/lib/content-types";
 import { resolveServerPlaybackSource } from "@/lib/server-playback-sources";
+import { buildPlaybackManifest } from "@/lib/playback/manifest";
+import { getAppBaseUrl } from "@/lib/app-url";
+
+export const runtime = "nodejs";
 
 export async function GET(
   req: NextRequest,
@@ -88,20 +92,46 @@ export async function GET(
       }
     }
 
+    const session = await getServerSession(authOptions);
+    const baseUrl = getAppBaseUrl() || null;
+    const contentScope = episodeId ? `${content.id}:${episodeId}` : content.id;
+
+    // New unified manifest (HLS + DASH + DRM + subs + thumbnails).
+    const manifest = await buildPlaybackManifest({
+      baseUrl,
+      contentScope,
+      videoUrl,
+      subtitles: isTrailer
+        ? []
+        : (content.subtitles ?? []).map((s) => ({
+            id: s.id,
+            language: s.language,
+            label: s.label,
+            vttUrl: s.vttUrl,
+            isDefault: s.isDefault,
+          })),
+      watermarkActive: !isTrailer && Boolean(session?.user?.id),
+      concurrentSessionsEnforced: true,
+      deviceFamilyHint: "unknown",
+    });
+
+    // Back-compat single playback source for legacy clients.
     const playback = await resolveServerPlaybackSource(videoUrl);
     const posterUrl = getDisplayPosterUrl(content);
     const captureProtection = getServerCaptureProtectionConfig();
-    const session = await getServerSession(authOptions);
 
     return NextResponse.json(
       {
         id: content.id,
         title: content.title,
         playback,
+        manifest,
         playbackProtection: {
-          signedUrl: Boolean(playback?.src.includes("/manifest/video.m3u8") && playback.src.includes(".")),
-          expiresHintSeconds: 4 * 60 * 60,
+          signedUrl: manifest.compliance.signedPlayback,
+          expiresHintSeconds: manifest.compliance.expiresInSeconds ?? 4 * 60 * 60,
           authenticatedViewer: Boolean(session?.user?.id),
+          fairPlayReady: manifest.compliance.fairPlayReady,
+          hardwareDrm: manifest.compliance.hardwareDrm,
         },
         posterUrl,
         duration,
@@ -112,7 +142,7 @@ export async function GET(
           enabled: captureProtection.enabled,
           mode: captureProtection.mode,
           watermarkEnabled: captureProtection.watermarkEnabled,
-          drmConfigured: Boolean(captureProtection.drmLicenseUrl),
+          drmConfigured: Boolean(captureProtection.drmLicenseUrl) || manifest.compliance.hardwareDrm,
           drmLicensePath: captureProtection.drmLicenseUrl ? "/api/content/drm-license" : null,
         },
       },

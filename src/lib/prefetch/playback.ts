@@ -1,5 +1,12 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { warmPlaybackManifest } from "./engine";
+import {
+  prewarmCertificate,
+  prewarmFirstSegment,
+  prewarmFromManifest,
+  prewarmManifestUrl,
+} from "@/lib/playback/instant-start";
+import type { PlaybackManifest } from "@/lib/playback/manifest-types";
 
 export const PLAYBACK_BUNDLE_STALE_MS = 3 * 60 * 60 * 1000;
 
@@ -24,7 +31,18 @@ export async function fetchPlaybackBundle(
     priority: "high",
   } as RequestInit);
   if (!res.ok) throw new Error("playback bundle unavailable");
-  return res.json();
+  const payload = (await res.json()) as { manifest?: PlaybackManifest };
+  // As soon as we know the manifest, start warming the manifest URL, DRM
+  // certificate and first segment — turning play() into a paint-in-frame
+  // operation on the next user gesture.
+  if (typeof window !== "undefined" && payload?.manifest) {
+    try {
+      prewarmFromManifest(payload.manifest);
+    } catch {
+      // best-effort
+    }
+  }
+  return payload;
 }
 
 const warmedWatchRoutes = new Set<string>();

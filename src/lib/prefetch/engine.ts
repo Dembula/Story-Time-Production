@@ -1,4 +1,6 @@
 import { extractCloudflareStreamUid } from "@/lib/cloudflare-stream";
+import { prewarmFromManifest } from "@/lib/playback/instant-start";
+import type { PlaybackManifest } from "@/lib/playback/manifest-types";
 
 const warmedManifests = new Set<string>();
 const warmedOrigins = new Set<string>();
@@ -88,7 +90,23 @@ export async function warmContentMetadata(contentId: string): Promise<void> {
 
   warmedMetadata.set(contentId, Date.now());
   try {
-    await fetch(`/api/content/${contentId}/playback-bundle`, { priority: "low" } as RequestInit);
+    const res = await fetch(`/api/content/${contentId}/playback-bundle`, {
+      priority: "low",
+    } as RequestInit);
+    if (!res.ok) {
+      warmedMetadata.delete(contentId);
+      return;
+    }
+    const payload = (await res.json().catch(() => null)) as {
+      manifest?: PlaybackManifest;
+    } | null;
+    if (payload?.manifest) {
+      try {
+        prewarmFromManifest(payload.manifest);
+      } catch {
+        // best-effort
+      }
+    }
   } catch {
     warmedMetadata.delete(contentId);
   }
