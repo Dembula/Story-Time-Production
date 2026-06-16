@@ -127,6 +127,30 @@ export async function getStreamAssetsByUrls(
   return result;
 }
 
+export type PendingStreamAsset = {
+  uid: string;
+  sourceUrl: string | null;
+  status: string | null;
+  entityType: string | null;
+  entityId: string | null;
+};
+
+/**
+ * Assets that have not reached a terminal "ready" state yet — used by the
+ * reconciliation job so playback becomes available even if a webhook was missed.
+ */
+export async function listPendingStreamAssets(limit = 50): Promise<PendingStreamAsset[]> {
+  const safeLimit = Math.max(1, Math.min(500, Math.floor(limit)));
+  const rows = (await prisma.$queryRaw`
+    SELECT "uid", "sourceUrl", "status", "entityType", "entityId"
+    FROM "StreamAsset"
+    WHERE LOWER(COALESCE("status", '')) NOT IN ('ready', 'error', 'failed')
+    ORDER BY "updatedAt" ASC
+    LIMIT ${safeLimit}
+  `) as PendingStreamAsset[];
+  return rows;
+}
+
 export async function getStreamStatusesByUids(uids: string[]) {
   if (uids.length === 0) return new Map<string, { status: string | null; playbackUrl: string | null }>();
   const rows = (await prisma.$queryRaw`
