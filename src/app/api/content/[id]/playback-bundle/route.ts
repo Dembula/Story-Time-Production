@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getDisplayPosterUrl } from "@/lib/content-media-urls";
 import { getServerCaptureProtectionConfig } from "@/lib/content-capture-protection";
 import { isLongFormType } from "@/lib/content-types";
-import { resolveServerPlaybackSource } from "@/lib/server-playback-sources";
+import { resolveServerPlaybackPlan } from "@/lib/server-playback-sources";
 
 export async function GET(
   req: NextRequest,
@@ -88,7 +88,8 @@ export async function GET(
       }
     }
 
-    const playback = await resolveServerPlaybackSource(videoUrl);
+    const playbackPlan = await resolveServerPlaybackPlan(videoUrl);
+    const playback = playbackPlan.playback;
     const posterUrl = getDisplayPosterUrl(content);
     const captureProtection = getServerCaptureProtectionConfig();
     const session = await getServerSession(authOptions);
@@ -98,6 +99,13 @@ export async function GET(
         id: content.id,
         title: content.title,
         playback,
+        playbackSources: playbackPlan.sources,
+        playbackReadiness: {
+          sourceOrigin: playbackPlan.sourceOrigin,
+          streamState: playbackPlan.streamState,
+          instantStartReady: Boolean(playbackPlan.sources.length > 0),
+          protocols: [...new Set(playbackPlan.sources.map((source) => source.delivery).filter(Boolean))],
+        },
         playbackProtection: {
           signedUrl: Boolean(playback?.src.includes("/manifest/video.m3u8") && playback.src.includes(".")),
           expiresHintSeconds: 4 * 60 * 60,
@@ -112,8 +120,19 @@ export async function GET(
           enabled: captureProtection.enabled,
           mode: captureProtection.mode,
           watermarkEnabled: captureProtection.watermarkEnabled,
-          drmConfigured: Boolean(captureProtection.drmLicenseUrl),
-          drmLicensePath: captureProtection.drmLicenseUrl ? "/api/content/drm-license" : null,
+          drmConfigured: Boolean(captureProtection.drmLicenseUrl || captureProtection.multiDrm),
+          drmLicensePath:
+            captureProtection.drmLicenseUrl || captureProtection.multiDrm
+              ? "/api/content/drm-license"
+              : null,
+          drmCertificatePath: captureProtection.multiDrm.fairplayCertificateUrl
+            ? "/api/content/drm-certificate"
+            : null,
+          drmSystems: {
+            widevine: Boolean(captureProtection.multiDrm.widevineLicenseUrl || captureProtection.drmLicenseUrl),
+            playready: Boolean(captureProtection.multiDrm.playreadyLicenseUrl || captureProtection.drmLicenseUrl),
+            fairplay: Boolean(captureProtection.multiDrm.fairplayLicenseUrl || captureProtection.drmLicenseUrl),
+          },
         },
       },
       {

@@ -3,6 +3,7 @@ export {
   getServerCaptureProtectionConfig,
   type CaptureProtectionConfig,
   type CaptureProtectionMode,
+  type MultiDrmConfig,
 } from "./config";
 export { buildHlsDrmConfig } from "./hls-drm";
 export {

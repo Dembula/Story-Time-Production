@@ -1,6 +1,7 @@
 import { readFileSync } from "fs";
 import { resolve } from "path";
 import { getCloudflareStreamConfig } from "../src/lib/cloudflare-stream";
+import { getServerCaptureProtectionConfig } from "../src/lib/content-capture-protection";
 import { prisma } from "../src/lib/prisma";
 
 function loadEnvLocal() {
@@ -25,6 +26,8 @@ async function main() {
 
   const ws = process.env.CLOUDFLARE_STREAM_WEBHOOK_SECRET?.trim() ?? "";
   const cfg = getCloudflareStreamConfig();
+  const captureProtection = getServerCaptureProtectionConfig();
+  const hasDatabaseUrl = Boolean(process.env.DATABASE_URL?.trim());
 
   const checks: Record<string, boolean | string> = {
     streamConfigOk: !!cfg,
@@ -34,7 +37,12 @@ async function main() {
     webhookSecretSet: !!ws,
     webhookSecretValidFormat: /^[a-f0-9]{32,64}$/i.test(ws) && !/^https?:/i.test(ws),
     storagePublicUrlSet: !!process.env.STORAGE_PUBLIC_BASE_URL?.trim(),
-    databaseUrlSet: !!process.env.DATABASE_URL?.trim(),
+    databaseUrlSet: hasDatabaseUrl,
+    drmWidevineConfigured: !!(captureProtection.multiDrm.widevineLicenseUrl ?? captureProtection.drmLicenseUrl),
+    drmPlayreadyConfigured: !!(captureProtection.multiDrm.playreadyLicenseUrl ?? captureProtection.drmLicenseUrl),
+    drmFairplayConfigured: !!(captureProtection.multiDrm.fairplayLicenseUrl ?? captureProtection.drmLicenseUrl),
+    drmFairplayCertConfigured:
+      captureProtection.mode !== "drm" || !!captureProtection.multiDrm.fairplayCertificateUrl,
   };
 
   if (cfg) {
@@ -61,18 +69,20 @@ async function main() {
       !!whBody.result?.secret && whBody.result.secret === ws;
   }
 
-  const [videoCount, streamUrlCount, streamAssets] = await Promise.all([
-    prisma.content.count({ where: { videoUrl: { not: null } } }),
-    prisma.content.count({
-      where: {
-        OR: [
-          { videoUrl: { contains: "videodelivery", mode: "insensitive" } },
-          { videoUrl: { contains: "cloudflarestream", mode: "insensitive" } },
-        ],
-      },
-    }),
-    prisma.streamAsset.count(),
-  ]);
+  const [videoCount, streamUrlCount, streamAssets] = hasDatabaseUrl
+    ? await Promise.all([
+        prisma.content.count({ where: { videoUrl: { not: null } } }),
+        prisma.content.count({
+          where: {
+            OR: [
+              { videoUrl: { contains: "videodelivery", mode: "insensitive" } },
+              { videoUrl: { contains: "cloudflarestream", mode: "insensitive" } },
+            ],
+          },
+        }),
+        prisma.streamAsset.count(),
+      ])
+    : [0, 0, 0];
 
   console.log(JSON.stringify({ envChecks: checks, db: { videoCount, streamUrlCount, streamAssets } }, null, 2));
 

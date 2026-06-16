@@ -16,6 +16,7 @@
     "verify": "npm run typecheck && npm run lint",
     "health:platform": "tsx scripts/platform-health-check.ts",
     "stream:verify": "tsx scripts/verify-cloudflare-setup.ts",
+    "playback:audit": "tsx scripts/audit-playback-readiness.ts",
     "stream:require-signed": "tsx scripts/enable-stream-require-signed-urls.ts",
     "content:enrich-backfill": "tsx scripts/backfill-content-enrichment.ts",
     "db:migrate:deploy": "prisma migrate deploy",

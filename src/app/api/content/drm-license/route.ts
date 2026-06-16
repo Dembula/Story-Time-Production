@@ -3,7 +3,22 @@ import { getServerCaptureProtectionConfig } from "@/lib/content-capture-protecti
 
 export async function POST(req: NextRequest) {
   const config = getServerCaptureProtectionConfig();
-  if (!config.enabled || !config.drmLicenseUrl) {
+  const requestedSystem = req.nextUrl.searchParams.get("system");
+  const drmSystem =
+    requestedSystem === "widevine" || requestedSystem === "playready" || requestedSystem === "fairplay"
+      ? requestedSystem
+      : null;
+
+  const licenseUrl =
+    drmSystem === "widevine"
+      ? config.multiDrm.widevineLicenseUrl ?? config.drmLicenseUrl
+      : drmSystem === "playready"
+        ? config.multiDrm.playreadyLicenseUrl ?? config.drmLicenseUrl
+        : drmSystem === "fairplay"
+          ? config.multiDrm.fairplayLicenseUrl ?? config.drmLicenseUrl
+          : config.drmLicenseUrl;
+
+  if (!config.enabled || !licenseUrl) {
     return NextResponse.json({ error: "DRM not configured" }, { status: 404 });
   }
 
@@ -15,11 +30,14 @@ export async function POST(req: NextRequest) {
   const headers: Record<string, string> = {
     "Content-Type": "application/octet-stream",
   };
+  if (drmSystem) {
+    headers["x-drm-system"] = drmSystem;
+  }
   if (config.drmAuthToken) {
     headers.Authorization = `Bearer ${config.drmAuthToken}`;
   }
 
-  const licenseRes = await fetch(config.drmLicenseUrl, {
+  const licenseRes = await fetch(licenseUrl, {
     method: "POST",
     headers,
     body,

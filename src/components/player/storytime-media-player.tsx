@@ -19,7 +19,7 @@ import {
   type MediaPlayerInstance,
 } from "@vidstack/react";
 import { DefaultVideoLayout, defaultLayoutIcons } from "@vidstack/react/player/layouts/default";
-import { resolvePlaybackSources, type PlaybackSource } from "@/lib/playback-sources";
+import { resolvePlaybackSourceSet, resolvePlaybackSources, type PlaybackSource } from "@/lib/playback-sources";
 import { warmPlaybackManifest } from "@/lib/prefetch";
 import {
   fetchPlaybackBundle,
@@ -139,6 +139,8 @@ export function StorytimeMediaPlayer({
   const [isPlaying, setIsPlaying] = useState(false);
   const [deviceProfile, setDeviceProfile] = useState(computePlaybackDeviceProfileClient);
   const [userStartRequested, setUserStartRequested] = useState(false);
+  const [activeSourceIndex, setActiveSourceIndex] = useState(0);
+  const [sourceSwitches, setSourceSwitches] = useState(0);
   const orientationLockedRef = useRef(false);
   const leaveWatchFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const leaveWatchPopStateRef = useRef<(() => void) | null>(null);
@@ -150,6 +152,7 @@ export function StorytimeMediaPlayer({
 
   const signedPlaybackRequired = isStreamSignedPlaybackClientEnabled();
   const fallbackSource = useMemo(() => resolvePlaybackSources(videoUrl), [videoUrl]);
+  const fallbackSources = useMemo(() => resolvePlaybackSourceSet(videoUrl), [videoUrl]);
 
   const { data: bundle, isLoading: bundleLoading, isError: bundleError } = useQuery({
 
@@ -162,16 +165,49 @@ export function StorytimeMediaPlayer({
 
   });
 
-  const source = useMemo((): PlaybackSource | null => {
+  const sourceOptions = useMemo(() => {
+    const bundleSources = Array.isArray(bundle?.playbackSources)
+      ? (bundle.playbackSources as PlaybackSource[])
+      : [];
     const bundlePlayback = bundle?.playback as PlaybackSource | undefined;
-    if (bundlePlayback?.src && bundlePlayback?.type) return bundlePlayback;
-    if (signedPlaybackRequired) return null;
-    return fallbackSource;
-  }, [bundle?.playback, fallbackSource, signedPlaybackRequired]);
+    const bundleCandidates = [
+      ...bundleSources,
+      ...(bundlePlayback?.src && bundlePlayback?.type ? [bundlePlayback] : []),
+    ];
+    const fallbackCandidates = [
+      ...fallbackSources,
+      ...(fallbackSource ? [fallbackSource] : []),
+    ];
+    const base = (signedPlaybackRequired ? bundleCandidates : [...bundleCandidates, ...fallbackCandidates]).filter(
+      (item): item is PlaybackSource => Boolean(item?.src && item?.type),
+    );
 
-  const missingSource = !source;
+    const seen = new Set<string>();
+    const deduped: PlaybackSource[] = [];
+    for (const option of base) {
+      const key = `${option.type}::${option.src}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      deduped.push(option);
+    }
+    return deduped;
+  }, [bundle?.playback, bundle?.playbackSources, fallbackSource, fallbackSources, signedPlaybackRequired]);
+
+  const sourceSignature = useMemo(
+    () => sourceOptions.map((item) => `${item.type}:${item.src}`).join("|"),
+    [sourceOptions],
+  );
+
+  useEffect(() => {
+    setActiveSourceIndex(0);
+    setSourceSwitches(0);
+  }, [sourceSignature]);
+
+  const source = sourceOptions[activeSourceIndex] ?? null;
+
+  const missingSource = sourceOptions.length === 0 || !source;
   const waitingForSignedBundle =
-    signedPlaybackRequired && bundleLoading && !source && !bundle;
+    signedPlaybackRequired && bundleLoading && sourceOptions.length === 0 && !bundle;
 
 
 
@@ -203,7 +239,16 @@ export function StorytimeMediaPlayer({
   const applyHlsDrmConfig = useCallback(
     (instance: unknown) => {
       const protection = bundle?.captureProtection as
-        | { drmConfigured?: boolean; drmLicensePath?: string | null }
+        | {
+            drmConfigured?: boolean;
+            drmLicensePath?: string | null;
+            drmCertificatePath?: string | null;
+            drmSystems?: {
+              widevine?: boolean;
+              playready?: boolean;
+              fairplay?: boolean;
+            };
+          }
         | undefined;
       if (!protection?.drmConfigured || !protection?.drmLicensePath) return;
       const hls = instance as { config?: Record<string, unknown> } | null;
@@ -218,6 +263,16 @@ export function StorytimeMediaPlayer({
         drmLicenseUrl: licenseUrl,
         drmAuthToken: null,
         watermarkEnabled: true,
+        multiDrm: {
+          widevineLicenseUrl: protection.drmSystems?.widevine ? licenseUrl : null,
+          playreadyLicenseUrl: protection.drmSystems?.playready ? licenseUrl : null,
+          fairplayLicenseUrl: protection.drmSystems?.fairplay ? licenseUrl : null,
+          fairplayCertificateUrl: protection.drmCertificatePath
+            ? typeof window !== "undefined"
+              ? `${window.location.origin}${protection.drmCertificatePath}`
+              : protection.drmCertificatePath
+            : null,
+        },
       });
       if (drmConfig) Object.assign(hls.config, drmConfig);
     },
@@ -227,9 +282,9 @@ export function StorytimeMediaPlayer({
 
 
   useEffect(() => {
-    const manifestUrl =
-      (bundle?.playback as PlaybackSource | undefined)?.src ??
-      (signedPlaybackRequired ? null : videoUrl);
+    const manifestUrl = sourceOptions.find((item) => item.type === "application/x-mpegurl")?.src
+      ?? sourceOptions[0]?.src
+      ?? (signedPlaybackRequired ? null : videoUrl);
     if (manifestUrl) warmPlaybackManifest(manifestUrl);
 
     if (nextEpisode?.id) {
@@ -238,7 +293,16 @@ export function StorytimeMediaPlayer({
         : null;
       void fetchPlaybackBundle(contentId, nextEpisodeId);
     }
-  }, [videoUrl, nextEpisode?.id, nextEpisode?.href, contentId, bundle?.playback, signedPlaybackRequired]);
+  }, [videoUrl, nextEpisode?.id, nextEpisode?.href, contentId, sourceOptions, signedPlaybackRequired]);
+
+  const failOverToNextSource = useCallback(() => {
+    setActiveSourceIndex((current) => {
+      const next = current + 1;
+      if (next >= sourceOptions.length) return current;
+      setSourceSwitches((value) => value + 1);
+      return next;
+    });
+  }, [sourceOptions.length]);
 
 
 
@@ -697,7 +761,9 @@ export function StorytimeMediaPlayer({
 
           {bundleError && signedPlaybackRequired
             ? "Signed playback could not be established. Check your connection and try again."
-            : "This title does not have a playable video yet. Try again later or choose another title."}
+            : sourceOptions.length > 0
+              ? "Playback sources were detected, but none could be started on this device."
+              : "This title does not have a playable video yet. Try again later or choose another title."}
 
         </p>
 
@@ -755,7 +821,11 @@ export function StorytimeMediaPlayer({
         ref={playerRef}
         className="h-full w-full [&_video]:object-contain"
         title={title}
-        src={{ src: source.src, type: source.type as "application/x-mpegurl" | "video/mp4" }}
+        key={`${activeSourceIndex}-${source.src}`}
+        src={{
+          src: source.src,
+          type: source.type as "application/x-mpegurl" | "application/dash+xml" | "video/mp4",
+        }}
         poster={poster || undefined}
         playsInline={deviceProfile.playsInline}
         autoPlay={deviceProfile.canAutoplayAudible}
@@ -769,6 +839,9 @@ export function StorytimeMediaPlayer({
           setIsPlaying(true);
         }}
         onPause={() => setIsPlaying(false)}
+        onError={() => {
+          failOverToNextSource();
+        }}
         onDurationChange={() => {
           applyStartTime();
           const player = playerRef.current;
@@ -831,6 +904,13 @@ export function StorytimeMediaPlayer({
         />
       ) : (
         <>
+          {sourceSwitches > 0 ? (
+            <div className="pointer-events-none absolute left-0 right-0 top-20 z-20 flex justify-center px-4">
+              <div className="rounded-full border border-orange-400/30 bg-black/75 px-3 py-1 text-xs text-orange-200 backdrop-blur">
+                Switched playback source for compatibility ({sourceSwitches})
+              </div>
+            </div>
+          ) : null}
           <div
             className={`pointer-events-none absolute left-0 right-0 top-0 z-10 bg-gradient-to-b from-black/70 to-transparent p-4 transition-opacity duration-500 ${
               uiVisible ? "opacity-100" : "opacity-0"

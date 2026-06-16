@@ -4,6 +4,7 @@ const warmedManifests = new Set<string>();
 const warmedOrigins = new Set<string>();
 const warmedRoutes = new Set<string>();
 const warmedMetadata = new Map<string, number>();
+const warmedSegments = new Set<string>();
 
 const METADATA_TTL_MS = 60_000;
 
@@ -43,13 +44,33 @@ export function warmPlaybackManifest(videoUrl: string | null | undefined) {
   link.crossOrigin = "anonymous";
   document.head.appendChild(link);
 
-  void fetch(manifest, { method: "GET", mode: "cors", credentials: "omit" }).catch(() => {
-    warmedManifests.delete(manifest);
-  });
+  void fetch(manifest, { method: "GET", mode: "cors", credentials: "omit" })
+    .then(async (response) => {
+      if (!response.ok) {
+        warmedManifests.delete(manifest);
+        return;
+      }
+      if (!/\.m3u8(\?|$)/i.test(manifest)) return;
+      const text = await response.text().catch(() => "");
+      if (!text) return;
+      const firstSegment = await resolveFirstHlsSegmentUrl(manifest, text);
+      if (!firstSegment || warmedSegments.has(firstSegment)) return;
+      warmedSegments.add(firstSegment);
+      void fetch(firstSegment, {
+        method: "GET",
+        mode: "cors",
+        credentials: "omit",
+      }).catch(() => {
+        warmedSegments.delete(firstSegment);
+      });
+    })
+    .catch(() => {
+      warmedManifests.delete(manifest);
+    });
 }
 
 function resolveManifestUrl(videoUrl: string): string | null {
-  if (/\.m3u8(\?|$)/i.test(videoUrl)) return videoUrl;
+  if (/\.m3u8(\?|$)|\.mpd(\?|$)/i.test(videoUrl)) return videoUrl;
   const uid = extractCloudflareStreamUid(videoUrl);
   return uid ? `https://videodelivery.net/${uid}/manifest/video.m3u8` : null;
 }
@@ -109,5 +130,36 @@ export function prefetchOnContentHover(
 
   if (payload.videoUrl) {
     prefetchBrowseRoute(watchHref, router);
+  }
+}
+
+async function resolveFirstHlsSegmentUrl(manifestUrl: string, manifestText: string): Promise<string | null> {
+  const lines = manifestText
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((line) => !line.startsWith("#EXT-X-SESSION-DATA"));
+
+  // Master playlist: choose first variant and inspect media playlist.
+  const variantLine = lines.find((line) => !line.startsWith("#") && /\.m3u8(\?|$)/i.test(line));
+  if (variantLine) {
+    try {
+      const variantUrl = new URL(variantLine, manifestUrl).toString();
+      const variantRes = await fetch(variantUrl, { method: "GET", mode: "cors", credentials: "omit" });
+      if (!variantRes.ok) return null;
+      const variantText = await variantRes.text().catch(() => "");
+      if (!variantText) return null;
+      return resolveFirstHlsSegmentUrl(variantUrl, variantText);
+    } catch {
+      return null;
+    }
+  }
+
+  const segmentLine = lines.find((line) => !line.startsWith("#"));
+  if (!segmentLine) return null;
+  try {
+    return new URL(segmentLine, manifestUrl).toString();
+  } catch {
+    return null;
   }
 }

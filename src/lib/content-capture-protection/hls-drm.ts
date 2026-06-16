@@ -13,8 +13,37 @@ export function buildHlsDrmConfig(config: CaptureProtectionConfig): HlsConfig | 
     return null;
   }
 
-  const licenseUrl = config.drmLicenseUrl;
+  const widevineLicenseUrl = config.multiDrm.widevineLicenseUrl ?? config.drmLicenseUrl;
+  const playreadyLicenseUrl = config.multiDrm.playreadyLicenseUrl ?? config.drmLicenseUrl;
+  const fairplayLicenseUrl = config.multiDrm.fairplayLicenseUrl ?? config.drmLicenseUrl;
+  const fairplayCertificateUrl = config.multiDrm.fairplayCertificateUrl;
   const authToken = config.drmAuthToken;
+  const drmSystems: Record<string, Record<string, unknown>> = {};
+
+  if (widevineLicenseUrl) {
+    drmSystems["com.widevine.alpha"] = {
+      licenseUrl: withDrmSystemQuery(widevineLicenseUrl, "widevine"),
+      videoRobustness: "HW_SECURE_ALL",
+      audioRobustness: "HW_SECURE_ALL",
+    };
+  }
+  if (playreadyLicenseUrl) {
+    drmSystems["com.microsoft.playready"] = {
+      licenseUrl: withDrmSystemQuery(playreadyLicenseUrl, "playready"),
+      videoRobustness: "HW_SECURE_ALL",
+      audioRobustness: "HW_SECURE_ALL",
+    };
+  }
+  if (fairplayLicenseUrl) {
+    const fairplayConfig = {
+      licenseUrl: withDrmSystemQuery(fairplayLicenseUrl, "fairplay"),
+      serverCertificateUrl: fairplayCertificateUrl ?? undefined,
+    };
+    drmSystems["com.apple.fps"] = fairplayConfig;
+    drmSystems["com.apple.fps.1_0"] = fairplayConfig;
+  }
+
+  if (Object.keys(drmSystems).length === 0) return null;
 
   return {
     emeEnabled: true,
@@ -22,21 +51,7 @@ export function buildHlsDrmConfig(config: CaptureProtectionConfig): HlsConfig | 
       audioEncryptionScheme: "cbcs",
       videoEncryptionScheme: "cbcs",
     },
-    drmSystems: {
-      "com.widevine.alpha": {
-        licenseUrl,
-        videoRobustness: "HW_SECURE_ALL",
-        audioRobustness: "HW_SECURE_ALL",
-      },
-      "com.microsoft.playready": {
-        licenseUrl,
-        videoRobustness: "HW_SECURE_ALL",
-        audioRobustness: "HW_SECURE_ALL",
-      },
-      "com.apple.fps": {
-        licenseUrl,
-      },
-    },
+    drmSystems,
     licenseXhrSetup: (xhr: XMLHttpRequest) => {
       if (authToken) {
         xhr.setRequestHeader("Authorization", `Bearer ${authToken}`);
@@ -60,4 +75,18 @@ export function buildHlsDrmConfig(config: CaptureProtectionConfig): HlsConfig | 
       return navigator.requestMediaKeySystemAccess(keySystem, configs);
     },
   };
+}
+
+function withDrmSystemQuery(licenseUrl: string, system: "widevine" | "playready" | "fairplay"): string {
+  try {
+    const resolved = new URL(
+      licenseUrl,
+      typeof window !== "undefined" ? window.location.origin : "https://storytime.local",
+    );
+    resolved.searchParams.set("system", system);
+    return resolved.toString();
+  } catch {
+    const delimiter = licenseUrl.includes("?") ? "&" : "?";
+    return `${licenseUrl}${delimiter}system=${system}`;
+  }
 }
