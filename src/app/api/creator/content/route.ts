@@ -7,6 +7,7 @@ import { isCreatorLicensePeriodActive, normalizeCreatorLicenseType } from "@/lib
 import { validateStorageUrlField } from "@/lib/storage-origin";
 import { getStreamAssetsByUrls } from "@/lib/stream-asset-store";
 import { linkOrIngestStreamForUrl } from "@/lib/stream-ingest-link";
+import { buildStreamIngestMeta } from "@/lib/stream-ingest-meta";
 import { creatorIsStudentAtUpload } from "@/lib/student-work";
 
 export async function GET(request: NextRequest) {
@@ -200,7 +201,7 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const createdEpisodes: Array<{ id: string; videoUrl: string | null }> = [];
+  const createdEpisodes: Array<{ id: string; videoUrl: string | null; title: string }> = [];
 
   if (Array.isArray(body.seasons) && body.seasons.length > 0) {
     for (const season of body.seasons as Array<{
@@ -236,7 +237,11 @@ export async function POST(request: NextRequest) {
             duration: ep.duration ?? null,
           },
         });
-        createdEpisodes.push({ id: createdEpisode.id, videoUrl: createdEpisode.videoUrl });
+        createdEpisodes.push({
+          id: createdEpisode.id,
+          videoUrl: createdEpisode.videoUrl,
+          title: ep.title,
+        });
       }
     }
   }
@@ -268,20 +273,28 @@ export async function POST(request: NextRequest) {
   }
 
   after(async () => {
+    const streamMetaBase = buildStreamIngestMeta({
+      contentTitle: content.title,
+      creatorId,
+      contentId: content.id,
+      source: "storytime-catalogue",
+    });
     const tasks: Promise<void>[] = [];
     if (videoUrl) {
       tasks.push(
         linkOrIngestStreamForUrl(videoUrl, "Content", content.id, {
+          ...streamMetaBase,
           area: "content-video",
-          creatorId,
+          name: content.title,
         }),
       );
     }
     if (trailerUrl) {
       tasks.push(
         linkOrIngestStreamForUrl(trailerUrl, "Content", content.id, {
+          ...streamMetaBase,
           area: "content-trailer",
-          creatorId,
+          name: `${content.title} (Trailer)`,
         }),
       );
     }
@@ -289,8 +302,11 @@ export async function POST(request: NextRequest) {
       if (b.videoUrl) {
         tasks.push(
           linkOrIngestStreamForUrl(b.videoUrl, "BtsVideo", b.id, {
+            ...streamMetaBase,
             area: "content-bts",
-            creatorId,
+            name: `${content.title} (BTS)`,
+            entityId: b.id,
+            entityType: "BtsVideo",
           }),
         );
       }
@@ -299,8 +315,12 @@ export async function POST(request: NextRequest) {
       if (episode.videoUrl) {
         tasks.push(
           linkOrIngestStreamForUrl(episode.videoUrl, "ContentEpisode", episode.id, {
+            ...streamMetaBase,
             area: "content-episode",
-            creatorId,
+            episodeTitle: episode.title,
+            name: `${content.title} · ${episode.title}`,
+            entityId: episode.id,
+            entityType: "ContentEpisode",
           }),
         );
       }

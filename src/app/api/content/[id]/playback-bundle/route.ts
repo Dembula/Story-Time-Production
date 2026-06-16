@@ -114,7 +114,7 @@ export async function GET(
         title: content.title,
         playback,
         playbackProtection: {
-          signedUrl: Boolean(playback?.src.includes("/manifest/video.m3u8") && playback.src.includes(".")),
+          signedUrl: playback?.type === "application/x-mpegurl",
           expiresHintSeconds: 4 * 60 * 60,
           authenticatedViewer: Boolean(session?.user?.id),
         },

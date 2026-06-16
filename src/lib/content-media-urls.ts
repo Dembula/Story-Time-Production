@@ -1,17 +1,22 @@
 import { buildCloudflarePlaybackUrls, extractCloudflareStreamUid, isCloudflareStreamUrl } from "@/lib/cloudflare-stream";
 
-/** Prefer Cloudflare Stream generated thumbnail when video is on Stream. */
+function isUploadedImageUrl(url: string | null | undefined): boolean {
+  const value = url?.trim();
+  if (!value) return false;
+  return !isCloudflareStreamUrl(value) && !/videodelivery\.net/i.test(value);
+}
+
+/** Stream-generated frame — fallback only when no creator artwork exists. */
 export function getStreamThumbnailUrl(
   videoUrl: string | null | undefined,
-  posterUrl: string | null | undefined,
-  options?: { time?: string },
+  options?: { time?: string; height?: number },
 ): string | null {
   const uid = extractCloudflareStreamUid(videoUrl ?? undefined);
-  if (uid) {
-    const time = options?.time ?? "2s";
-    return `https://videodelivery.net/${uid}/thumbnails/thumbnail.jpg?time=${encodeURIComponent(time)}`;
-  }
-  return posterUrl?.trim() || null;
+  if (!uid) return null;
+  const time = options?.time ?? "2s";
+  const params = new URLSearchParams({ time });
+  if (options?.height) params.set("height", String(options.height));
+  return `https://videodelivery.net/${uid}/thumbnails/thumbnail.jpg?${params.toString()}`;
 }
 
 /** Animated preview strip when supported (Cloudflare thumbnail GIF). */
@@ -21,25 +26,24 @@ export function getStreamThumbnailGifUrl(videoUrl: string | null | undefined): s
   return `https://videodelivery.net/${uid}/thumbnails/thumbnail.gif?time=1s&duration=4s&height=400`;
 }
 
+/** Portrait card art — always prefer the creator's uploaded poster. */
 export function getDisplayPosterUrl(item: {
   posterUrl?: string | null;
   backdropUrl?: string | null;
   videoUrl?: string | null;
   trailerUrl?: string | null;
 }): string | null {
-  return (
-    getStreamThumbnailUrl(item.trailerUrl ?? item.videoUrl, item.posterUrl, { time: "3s" }) ??
-    item.backdropUrl ??
-    null
-  );
+  if (isUploadedImageUrl(item.posterUrl)) return item.posterUrl!.trim();
+  return getStreamThumbnailUrl(item.videoUrl, { time: "3s" }) ?? null;
 }
 
+/** Wide hero / detail backdrop — always prefer the creator's uploaded backdrop. */
 export function getDisplayBackdropUrl(item: {
   posterUrl?: string | null;
   backdropUrl?: string | null;
   videoUrl?: string | null;
 }): string | null {
-  if (item.backdropUrl) return item.backdropUrl;
+  if (isUploadedImageUrl(item.backdropUrl)) return item.backdropUrl!.trim();
   const uid = extractCloudflareStreamUid(item.videoUrl ?? undefined);
   if (uid) {
     try {
@@ -52,7 +56,8 @@ export function getDisplayBackdropUrl(item: {
     } catch {
       // fall through
     }
-    return buildCloudflarePlaybackUrls(uid, "https://videodelivery.net").thumbnailUrl + "?height=720";
+    return `${buildCloudflarePlaybackUrls(uid, "https://videodelivery.net").thumbnailUrl}?time=5s&height=720`;
   }
-  return item.posterUrl ?? null;
+  if (isUploadedImageUrl(item.posterUrl)) return item.posterUrl!.trim();
+  return null;
 }

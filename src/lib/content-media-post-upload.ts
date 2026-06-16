@@ -1,4 +1,5 @@
 import { ingestToCloudflareStreamFromUrl } from "@/lib/cloudflare-stream";
+import { buildStreamIngestMeta } from "@/lib/stream-ingest-meta";
 import { upsertStreamAsset } from "@/lib/stream-asset-store";
 import { getStorageConfig } from "@/lib/storage-config";
 
@@ -57,15 +58,21 @@ export async function ingestVideoStreamForContentMedia(options: {
   sourceUrl: string;
   contentType: string;
   fileNameForMeta?: string;
+  creatorId?: string;
 }): Promise<void> {
   if (!options.contentType.startsWith("video/")) return;
 
   try {
-    const stream = await ingestToCloudflareStreamFromUrl(options.sourceUrl, {
-      source: "storytime-upload",
-      fileName: options.fileNameForMeta ?? "video",
-      mime: options.contentType,
-    });
+    const stream = await ingestToCloudflareStreamFromUrl(
+      options.sourceUrl,
+      buildStreamIngestMeta({
+        fileName: options.fileNameForMeta ?? "video",
+        creatorId: options.creatorId,
+        mime: options.contentType,
+        area: "content-media-upload",
+        source: "storytime-upload",
+      }),
+    );
     await upsertStreamAsset({
       uid: stream.uid,
       sourceUrl: options.sourceUrl,

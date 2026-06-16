@@ -107,7 +107,11 @@ export function NetflixMobileControls({
             ) : null}
             <button
               type="button"
-              onClick={onClose}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onClose();
+              }}
               className="flex h-10 w-10 items-center justify-center rounded-full text-white/90 transition-colors hover:bg-white/10 touch-manipulation"
               aria-label="Close player"
             >

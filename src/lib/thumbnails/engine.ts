@@ -19,7 +19,7 @@ export function rankThumbnailCandidates(item: {
   const poster = item.posterUrl?.trim();
   if (poster) candidates.push({ url: poster, score: 0.7, source: "poster" });
 
-  const streamStill = getStreamThumbnailUrl(item.videoUrl ?? item.trailerUrl, null, { time: "8s" });
+  const streamStill = getStreamThumbnailUrl(item.videoUrl ?? item.trailerUrl, { time: "8s" });
   if (streamStill) candidates.push({ url: streamStill, score: 0.85, source: "stream-still" });
 
   const gif = getStreamThumbnailGifUrl(item.videoUrl ?? item.trailerUrl);

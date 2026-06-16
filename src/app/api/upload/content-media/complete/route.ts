@@ -54,6 +54,7 @@ export async function POST(request: NextRequest) {
           sourceUrl: payload.sourceUrl,
           contentType,
           fileNameForMeta: nameHint,
+          creatorId: userId,
         });
       });
     }

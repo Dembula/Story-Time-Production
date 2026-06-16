@@ -36,6 +36,7 @@ import { PlaybackMetadataPanel } from "./playback-metadata-panel";
 import { PlaybackComplianceBadge } from "./playback-compliance-badge";
 import { NetflixMobileControls } from "./netflix-mobile-controls";
 import { computePlaybackDeviceProfileClient } from "@/lib/player/mobile-detect";
+import { leaveWatchRoute } from "@/lib/player/leave-watch";
 import { StoryTimeLoader, StoryTimeLoaderOverlay } from "@/components/ui/storytime-loader";
 import { PlaybackBufferingOverlay } from "./playback-buffering-overlay";
 import { PLAYBACK_COMMAND_EVENT, type PlaybackCommand } from "@/lib/input/platform-events";
@@ -140,8 +141,8 @@ export function StorytimeMediaPlayer({
   const [deviceProfile, setDeviceProfile] = useState(computePlaybackDeviceProfileClient);
   const [userStartRequested, setUserStartRequested] = useState(false);
   const orientationLockedRef = useRef(false);
-  const leaveWatchFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const leaveWatchPopStateRef = useRef<(() => void) | null>(null);
+  const watchShellRef = useRef<HTMLDivElement>(null);
+  const leavingWatchRef = useRef(false);
 
   const setAmbientUiVisible = usePlaybackSession((s) => s.setAmbientUiVisible);
   const isMobileLike = deviceProfile.isMobileLike;
@@ -274,74 +275,6 @@ export function StorytimeMediaPlayer({
 
   }, [resetIdleTimer]);
 
-
-
-  const exitContainerFullscreen = useCallback(() => {
-    if (typeof document === "undefined") return;
-    if (document.fullscreenElement && typeof document.exitFullscreen === "function") {
-      void document.exitFullscreen().catch(() => {});
-    }
-    const doc = document as Document & {
-      webkitFullscreenElement?: Element | null;
-      webkitExitFullscreen?: () => void;
-    };
-    if (doc.webkitFullscreenElement && typeof doc.webkitExitFullscreen === "function") {
-      try {
-        doc.webkitExitFullscreen();
-      } catch {
-        // no-op
-      }
-    }
-  }, []);
-
-  const leaveWatch = useCallback(() => {
-    exitContainerFullscreen();
-
-    if (typeof window === "undefined") {
-      router.replace(contentDetailUrl);
-      return;
-    }
-
-    if (leaveWatchFallbackTimerRef.current) {
-      clearTimeout(leaveWatchFallbackTimerRef.current);
-      leaveWatchFallbackTimerRef.current = null;
-    }
-    if (leaveWatchPopStateRef.current) {
-      window.removeEventListener("popstate", leaveWatchPopStateRef.current);
-      leaveWatchPopStateRef.current = null;
-    }
-
-    const pathBefore = window.location.pathname;
-    if (!pathBefore.includes("/watch")) {
-      router.replace(contentDetailUrl);
-      return;
-    }
-
-    const onPopState = () => {
-      if (leaveWatchFallbackTimerRef.current) {
-        clearTimeout(leaveWatchFallbackTimerRef.current);
-        leaveWatchFallbackTimerRef.current = null;
-      }
-      window.removeEventListener("popstate", onPopState);
-      leaveWatchPopStateRef.current = null;
-    };
-    leaveWatchPopStateRef.current = onPopState;
-    window.addEventListener("popstate", onPopState);
-
-    router.back();
-
-    leaveWatchFallbackTimerRef.current = setTimeout(() => {
-      leaveWatchFallbackTimerRef.current = null;
-      window.removeEventListener("popstate", onPopState);
-      leaveWatchPopStateRef.current = null;
-      if (window.location.pathname === pathBefore) {
-        router.replace(contentDetailUrl);
-      }
-    }, 700);
-  }, [contentDetailUrl, exitContainerFullscreen, router]);
-
-
-
   const applyStartTime = useCallback(() => {
 
     const player = playerRef.current;
@@ -428,6 +361,30 @@ export function StorytimeMediaPlayer({
       | null;
   }, []);
 
+  const leaveWatch = useCallback(() => {
+    if (leavingWatchRef.current) return;
+    leavingWatchRef.current = true;
+
+    void leaveWatchRoute(router, contentDetailUrl, {
+      pause: () => {
+        playerRef.current?.pause();
+      },
+      container: watchShellRef.current,
+      video: getVideoElement(),
+    }).finally(() => {
+      leavingWatchRef.current = false;
+    });
+  }, [contentDetailUrl, getVideoElement, router]);
+
+  const handleClosePlayer = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      leaveWatch();
+    },
+    [leaveWatch],
+  );
+
   const configureVideoForDevice = useCallback(() => {
     const video = getVideoElement();
     if (!video) return null;
@@ -480,12 +437,14 @@ export function StorytimeMediaPlayer({
     configureVideoForDevice();
     try {
       await player.play();
-      await requestNativeFullscreen();
+      if (isMobileLike) {
+        await requestNativeFullscreen();
+      }
     } catch {
       // Browser policy may still require interaction with native controls.
     }
     resetIdleTimer();
-  }, [configureVideoForDevice, requestNativeFullscreen, resetIdleTimer]);
+  }, [configureVideoForDevice, isMobileLike, requestNativeFullscreen, resetIdleTimer]);
 
   useEffect(() => {
     if (!source || isPlaying || userStartRequested || deviceProfile.canAutoplayAudible) return;
@@ -496,7 +455,9 @@ export function StorytimeMediaPlayer({
       configureVideoForDevice();
       void player
         .play()
-        .then(() => requestNativeFullscreen())
+        .then(() => {
+          if (isMobileLike) return requestNativeFullscreen();
+        })
         .catch(() => {
           // Keep the native media controls available without adding an extra app-level play prompt.
         });
@@ -505,6 +466,7 @@ export function StorytimeMediaPlayer({
   }, [
     configureVideoForDevice,
     deviceProfile.canAutoplayAudible,
+    isMobileLike,
     isPlaying,
     requestNativeFullscreen,
     source,
@@ -551,22 +513,6 @@ export function StorytimeMediaPlayer({
   }, []);
 
   useEffect(() => {
-    if (isMobileLike || typeof document === "undefined") return;
-    const enterFullscreen = () => {
-      const root = document.querySelector(".storytime-watch-player") as HTMLElement | null;
-      if (!root || document.fullscreenElement) return;
-      const requestFs =
-        root.requestFullscreen?.bind(root) ??
-        (root as unknown as { webkitRequestFullscreen?: () => Promise<void> | void })
-          .webkitRequestFullscreen?.bind(root);
-      if (!requestFs) return;
-      void Promise.resolve(requestFs()).catch(() => {});
-    };
-    const timer = window.setTimeout(enterFullscreen, 80);
-    return () => window.clearTimeout(timer);
-  }, [isMobileLike, source?.src]);
-
-  useEffect(() => {
     if (!isMobileLike) return;
     const lockLandscape = async () => {
       if (typeof window === "undefined") return;
@@ -588,12 +534,6 @@ export function StorytimeMediaPlayer({
 
   useEffect(() => {
     return () => {
-      if (leaveWatchFallbackTimerRef.current) {
-        clearTimeout(leaveWatchFallbackTimerRef.current);
-      }
-      if (typeof window !== "undefined" && leaveWatchPopStateRef.current) {
-        window.removeEventListener("popstate", leaveWatchPopStateRef.current);
-      }
       if (typeof window === "undefined") return;
       const orientationApi = window.screen?.orientation as (ScreenOrientation & { unlock?: () => void }) | undefined;
       if (orientationLockedRef.current && orientationApi?.unlock) {
@@ -744,6 +684,7 @@ export function StorytimeMediaPlayer({
 
   return (
     <div
+      ref={watchShellRef}
       className="storytime-watch-player fixed inset-0 z-[100] h-[100dvh] w-screen bg-black"
       data-input-scope="player"
       onMouseMove={resetIdleTimer}
@@ -841,7 +782,7 @@ export function StorytimeMediaPlayer({
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
-                    onClick={leaveWatch}
+                    onClick={handleClosePlayer}
                     className="rounded-lg border border-white/20 bg-black/50 px-3 py-2 text-sm font-medium text-white backdrop-blur-sm hover:bg-white/10"
                   >
                     ← Back

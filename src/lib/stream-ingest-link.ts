@@ -4,6 +4,7 @@ import {
   isCloudflareStreamUrl,
 } from "@/lib/cloudflare-stream";
 import { resolveContentTypeForUpload } from "@/lib/content-media-shared";
+import { buildStreamIngestMeta } from "@/lib/stream-ingest-meta";
 import { findStreamAssetUidBySourceUrl, setStreamAssetEntity, upsertStreamAsset } from "@/lib/stream-asset-store";
 import { isAllowedStorageUrl } from "@/lib/storage-origin";
 
@@ -25,10 +26,15 @@ export async function ensureVideoIngested(
 
   try {
     const contentType = resolveContentTypeForUpload({ name: trimmed.split("/").pop() ?? "video.mp4", type: "" });
-    const stream = await ingestToCloudflareStreamFromUrl(trimmed, {
-      ...meta,
-      mime: contentType,
-    });
+    const stream = await ingestToCloudflareStreamFromUrl(
+      trimmed,
+      buildStreamIngestMeta({
+        ...meta,
+        fileName: trimmed.split("/").pop() ?? "video.mp4",
+        mime: contentType,
+        source: meta?.source ?? "storytime-recovery",
+      }),
+    );
     await upsertStreamAsset({
       uid: stream.uid,
       sourceUrl: trimmed,
@@ -69,7 +75,15 @@ export async function linkOrIngestStreamForUrl(
   }
 
   try {
-    const stream = await ingestToCloudflareStreamFromUrl(trimmed, meta);
+    const stream = await ingestToCloudflareStreamFromUrl(
+      trimmed,
+      buildStreamIngestMeta({
+        ...meta,
+        entityType: linkedEntityType,
+        entityId,
+        source: meta?.source ?? "storytime-catalogue",
+      }),
+    );
     await upsertStreamAsset({
       uid: stream.uid,
       sourceUrl: trimmed,

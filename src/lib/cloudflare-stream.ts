@@ -1,3 +1,5 @@
+import { buildStreamIngestMeta } from "@/lib/stream-ingest-meta";
+
 type CloudflareStreamConfig = {
   accountId: string;
   apiToken: string;
@@ -82,6 +84,13 @@ export async function ingestToCloudflareStreamFromUrl(
     throw new Error("Cloudflare Stream env is incomplete. Set CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_STREAM_API_TOKEN, CLOUDFLARE_STREAM_CUSTOMER_SUBDOMAIN.");
   }
 
+  const streamMeta = buildStreamIngestMeta({
+    ...meta,
+    name: meta?.name ?? meta?.fileName ?? meta?.contentTitle ?? meta?.episodeTitle,
+    source: meta?.source ?? "storytime-ingest",
+    mime: meta?.mime,
+  });
+
   const res = await fetch(
     `https://api.cloudflare.com/client/v4/accounts/${cfg.accountId}/stream/copy`,
     {
@@ -92,7 +101,7 @@ export async function ingestToCloudflareStreamFromUrl(
       },
       body: JSON.stringify({
         url: sourceUrl,
-        meta: meta ?? {},
+        meta: streamMeta,
       }),
       cache: "no-store",
     },

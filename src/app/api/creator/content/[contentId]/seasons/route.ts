@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { validateStorageUrlField } from "@/lib/storage-origin";
 import { linkOrIngestStreamForUrl } from "@/lib/stream-ingest-link";
+import { buildStreamIngestMeta } from "@/lib/stream-ingest-meta";
 import { isLongFormType } from "@/lib/content-types";
 import { notifyUser } from "@/lib/notify-user";
 
@@ -103,11 +104,21 @@ export async function POST(
   });
 
   after(async () => {
+    const streamMetaBase = buildStreamIngestMeta({
+      contentTitle: content.title,
+      creatorId,
+      contentId: content.id,
+      source: "storytime-catalogue",
+    });
     for (const ep of createdSeason.episodes) {
       if (ep.videoUrl) {
         await linkOrIngestStreamForUrl(ep.videoUrl, "ContentEpisode", ep.id, {
+          ...streamMetaBase,
           area: "content-episode",
-          creatorId,
+          episodeTitle: ep.title,
+          name: `${content.title} · ${ep.title}`,
+          entityId: ep.id,
+          entityType: "ContentEpisode",
         });
       }
     }

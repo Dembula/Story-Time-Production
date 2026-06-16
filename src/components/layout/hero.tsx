@@ -5,7 +5,7 @@ import Image from "next/image";
 import { Play, Info } from "lucide-react";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { getDisplayPosterUrl } from "@/lib/content-media-urls";
+import { getDisplayBackdropUrl } from "@/lib/content-media-urls";
 
 type Content = {
   id: string;
@@ -52,15 +52,11 @@ export function Hero({ content }: { content: Content[] }) {
     );
   }
 
-  const backdrop =
-    getDisplayPosterUrl({
-      posterUrl: current.posterUrl,
-      backdropUrl: current.backdropUrl,
-      videoUrl: current.videoUrl,
-      trailerUrl: current.trailerUrl,
-    }) ??
-    current.backdropUrl ??
-    current.posterUrl;
+  const backdrop = getDisplayBackdropUrl({
+    posterUrl: current.posterUrl,
+    backdropUrl: current.backdropUrl,
+    videoUrl: current.videoUrl,
+  });
 
   return (
     <div className="relative h-[72vh] min-h-[460px] flex items-end cinematic-vignette overflow-hidden">
