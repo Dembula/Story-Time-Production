@@ -85,8 +85,14 @@ prisma/
 - Auto-advance to `nextEpisode` on end
 - Scene intelligence panel (mood, atmosphere, jump-to-scene)
 - Manifest prefetch for next episode
+- Signed playback bundle prefetch warms the final HLS manifest before navigation
+- Playback bundle access is entitlement-gated for full films and episodes
+- Subtitles from `ContentSubtitle` render as selectable player tracks
+- Standard capture hardening is wired into the watch player
 
 **State:** `usePlaybackSession` zustand store for mini-player shell (expandable to floating PiP chrome).
+
+**DRM readiness:** Standard protection and license proxy scaffolding are in-app. FairPlay/Widevine/PlayReady approval still requires encrypted HLS/DASH packaging and a multi-DRM license provider; see `docs/PLAYBACK_DRM_COMPATIBILITY.md`.
 
 **Future:** Recap skip from `ContentScene` markers; hover scrub previews from scene thumbnails; adaptive quality via Vidstack quality API.
 
@@ -121,7 +127,7 @@ prisma/
 
 ## Subtitles
 
-`parseVtt` + `findActiveCue` for overlay rendering. `ContentSubtitle` model + playback bundle exposes tracks.
+`parseVtt` + `findActiveCue` for overlay rendering. `ContentSubtitle` model + playback bundle exposes tracks, and the watch player attaches them to Vidstack.
 
 **Next:** Burn-in customization (size, background), subtitle search index from `dialogueIndex`.
 
@@ -145,7 +151,8 @@ prisma/
 
 - Vector DB (Pinecone/pgvector index at scale)
 - Dedicated media workers / queue
-- DRM, offline, native TV apps
+- Encrypted FairPlay/Widevine/PlayReady packaging and vendor certification
+- Native TV apps
 - Full actor/object CV pipelines (requires video analysis workers)
 - Thumbnail CTR experimentation service
 

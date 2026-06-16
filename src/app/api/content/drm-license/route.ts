@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { getServerCaptureProtectionConfig } from "@/lib/content-capture-protection";
 
 export async function POST(req: NextRequest) {
   const config = getServerCaptureProtectionConfig();
   if (!config.enabled || !config.drmLicenseUrl) {
     return NextResponse.json({ error: "DRM not configured" }, { status: 404 });
+  }
+
+  const session = await getServerSession(authOptions);
+  const role = (session?.user as { role?: string } | undefined)?.role;
+  if (!session?.user?.id || role !== "SUBSCRIBER") {
+    return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   }
 
   const body = await req.arrayBuffer();

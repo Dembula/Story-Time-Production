@@ -6,6 +6,19 @@ import { getDisplayPosterUrl } from "@/lib/content-media-urls";
 import { getServerCaptureProtectionConfig } from "@/lib/content-capture-protection";
 import { isLongFormType } from "@/lib/content-types";
 import { resolveServerPlaybackSource } from "@/lib/server-playback-sources";
+import { getViewerPlaybackState } from "@/lib/viewer-access";
+import { getViewerProfileAge } from "@/lib/viewer-profiles";
+
+function isSignedPlaybackUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    const tokenOrUid = parsed.pathname.split("/").filter(Boolean)[0];
+    return Boolean(tokenOrUid?.includes("."));
+  } catch {
+    return false;
+  }
+}
 
 export async function GET(
   req: NextRequest,
@@ -27,6 +40,7 @@ export async function GET(
         backdropUrl: true,
         duration: true,
         type: true,
+        minAge: true,
         seasons: {
           where: { published: true },
           orderBy: { seasonNumber: "asc" },
@@ -88,10 +102,44 @@ export async function GET(
       }
     }
 
+    const session = await getServerSession(authOptions);
+    const role = (session?.user as { role?: string } | undefined)?.role;
+
+    if (!isTrailer) {
+      if (!session?.user?.id || role !== "SUBSCRIBER") {
+        return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+      }
+
+      const profileId = req.cookies.get("st_viewer_profile")?.value;
+      if (!profileId) {
+        return NextResponse.json({ error: "Viewer profile required" }, { status: 403 });
+      }
+
+      const [viewerState, profile] = await Promise.all([
+        getViewerPlaybackState(session.user.id, content.id),
+        prisma.viewerProfile.findFirst({
+          where: { id: profileId, userId: session.user.id },
+          select: { age: true, dateOfBirth: true },
+        }),
+      ]);
+
+      if (!viewerState.subscription || !viewerState.canPlayContent) {
+        return NextResponse.json({ error: "Playback access required" }, { status: 403 });
+      }
+
+      if (!profile) {
+        return NextResponse.json({ error: "Viewer profile required" }, { status: 403 });
+      }
+
+      const profileAge = getViewerProfileAge(profile);
+      if (profileAge != null && (content.minAge ?? 0) > profileAge) {
+        return NextResponse.json({ error: "Profile age restriction" }, { status: 403 });
+      }
+    }
+
     const playback = await resolveServerPlaybackSource(videoUrl);
     const posterUrl = getDisplayPosterUrl(content);
     const captureProtection = getServerCaptureProtectionConfig();
-    const session = await getServerSession(authOptions);
 
     return NextResponse.json(
       {
@@ -99,7 +147,7 @@ export async function GET(
         title: content.title,
         playback,
         playbackProtection: {
-          signedUrl: Boolean(playback?.src.includes("/manifest/video.m3u8") && playback.src.includes(".")),
+          signedUrl: isSignedPlaybackUrl(playback?.src),
           expiresHintSeconds: 4 * 60 * 60,
           authenticatedViewer: Boolean(session?.user?.id),
         },

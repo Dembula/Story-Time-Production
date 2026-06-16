@@ -1,5 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { warmPlaybackManifest } from "./engine";
+import { isStreamSignedPlaybackClientEnabled } from "@/lib/stream-playback-protection";
 
 export const PLAYBACK_BUNDLE_STALE_MS = 3 * 60 * 60 * 1000;
 
@@ -25,6 +26,11 @@ export async function fetchPlaybackBundle(
   } as RequestInit);
   if (!res.ok) throw new Error("playback bundle unavailable");
   return res.json();
+}
+
+function warmBundlePlaybackManifest(bundle: unknown) {
+  const playback = (bundle as { playback?: { src?: string | null } } | null)?.playback;
+  warmPlaybackManifest(playback?.src);
 }
 
 const warmedWatchRoutes = new Set<string>();
@@ -71,16 +77,23 @@ export function preparePlaybackStart({
 }: PreparePlaybackOptions) {
   preloadPlayerModule();
   prefetchWatchRoute(watchHref, router);
-  warmPlaybackManifest(videoUrl);
+  if (!isStreamSignedPlaybackClientEnabled()) {
+    warmPlaybackManifest(videoUrl);
+  }
 
   if (queryClient) {
-    void queryClient.prefetchQuery({
-      queryKey: playbackBundleQueryKey(contentId, episodeId, { trailer }),
-      queryFn: () => fetchPlaybackBundle(contentId, episodeId, { trailer }),
-      staleTime: PLAYBACK_BUNDLE_STALE_MS,
-    });
+    void queryClient
+      .fetchQuery({
+        queryKey: playbackBundleQueryKey(contentId, episodeId, { trailer }),
+        queryFn: () => fetchPlaybackBundle(contentId, episodeId, { trailer }),
+        staleTime: PLAYBACK_BUNDLE_STALE_MS,
+      })
+      .then(warmBundlePlaybackManifest)
+      .catch(() => {});
   } else {
-    void fetchPlaybackBundle(contentId, episodeId, { trailer }).catch(() => {});
+    void fetchPlaybackBundle(contentId, episodeId, { trailer })
+      .then(warmBundlePlaybackManifest)
+      .catch(() => {});
   }
 }
 

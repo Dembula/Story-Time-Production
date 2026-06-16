@@ -23,22 +23,31 @@ export default async function WatchPage({
   const session = await getServerSession(authOptions);
   const role = (session?.user as { role?: string })?.role;
 
-  if (!session?.user?.id || role !== "SUBSCRIBER") {
+  if (!isTrailer && (!session?.user?.id || role !== "SUBSCRIBER")) {
     redirect(`/browse/content/${id}`);
   }
 
-  const cookieStore = await cookies();
-  const profileId = cookieStore.get("st_viewer_profile")?.value;
-  if (!profileId) {
-    redirect("/profiles");
-  }
-
   let profileAge: number | null = null;
-  const profile = await prisma.viewerProfile.findFirst({
-    where: { id: profileId, userId: session.user.id },
-    select: { age: true, dateOfBirth: true },
-  });
-  if (profile) profileAge = getViewerProfileAge(profile);
+  let profileId: string | null = null;
+  if (session?.user?.id) {
+    const cookieStore = await cookies();
+    profileId = cookieStore.get("st_viewer_profile")?.value ?? null;
+
+    if (!profileId && !isTrailer) {
+      redirect("/profiles");
+    }
+
+    if (profileId) {
+      const profile = await prisma.viewerProfile.findFirst({
+        where: { id: profileId, userId: session.user.id },
+        select: { age: true, dateOfBirth: true },
+      });
+      if (!profile && !isTrailer) {
+        redirect("/profiles");
+      }
+      if (profile) profileAge = getViewerProfileAge(profile);
+    }
+  }
 
   const content = await prisma.content.findUnique({
     where: { id, published: true },
@@ -90,15 +99,26 @@ export default async function WatchPage({
 
   if (!videoUrl) notFound();
 
-  const playback = await getViewerPlaybackState(session.user.id, content.id);
-  if (!playback.subscription) {
-    redirect("/onboarding/package");
-  }
-
   const minAge = content.minAge ?? 0;
   const ageRestricted = profileAge != null && minAge > profileAge;
-  if (ageRestricted || !playback.canPlayContent) {
+  if (ageRestricted) {
     redirect(`/browse/content/${id}`);
+  }
+
+  if (!isTrailer) {
+    const userId = session?.user?.id;
+    if (!userId) {
+      redirect(`/browse/content/${id}`);
+    }
+
+    const playback = await getViewerPlaybackState(userId, content.id);
+    if (!playback.subscription) {
+      redirect("/onboarding/package");
+    }
+
+    if (!playback.canPlayContent) {
+      redirect(`/browse/content/${id}`);
+    }
   }
 
   let nextEpisode: { id: string; title: string; href: string } | null = null;
@@ -123,7 +143,7 @@ export default async function WatchPage({
   if (!isTrailer) {
     const progress = await prisma.watchProgress.findUnique({
       where: {
-        viewerProfileId_contentId: { viewerProfileId: profileId, contentId: progressContentId },
+        viewerProfileId_contentId: { viewerProfileId: profileId!, contentId: progressContentId },
       },
       select: { positionSeconds: true, durationSeconds: true },
     });

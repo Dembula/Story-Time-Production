@@ -79,6 +79,11 @@ On card hover (before click):
 | Scene metadata overlay | `PlaybackMetadataPanel` + enrichment scenes |
 | Seamless next | Auto-navigate on `onEnd` + prefetch next bundle |
 | Mini player shell | `usePlaybackSession` + `MiniPlayer` (expand to floating video) |
+| Signed URL safety | Playback bundle enforces entitlement before returning full-title streams |
+| Subtitles | Bundle tracks are attached to Vidstack for player-native selection |
+| Capture protection | Standard browser hardening and DRM config scaffolding are wired |
+
+**DRM note:** FairPlay, Widevine, and PlayReady approval requires encrypted packaging plus a multi-DRM license service outside the app. The app-level readiness checklist is tracked in `docs/PLAYBACK_DRM_COMPATIBILITY.md`.
 
 **Future:** Recap skip via scene tags; hover scrub previews via sprite sheets from Stream.
 
@@ -128,7 +133,9 @@ Integrated with `getDisplayPosterUrl`; extend with A/B `ThumbnailExperiment` tab
 
 VTT parser ready for in-player overlay; bundle API returns subtitle tracks.
 
-**Next:** Upload pipeline for VTT, player track switcher, subtitle search index.
+Vidstack now receives those tracks directly on watch pages.
+
+**Next:** Upload pipeline for VTT, subtitle appearance controls, subtitle search index.
 
 ## 8. Database migration
 
@@ -152,8 +159,8 @@ OPENAI_API_KEY=... npx tsx -e "import { enrichContentById } from './src/lib/ai-m
 These are **architected but not fully built** (require infra beyond app code):
 
 - Edge CDN adaptive ladder / multi-bitrate switching UI
-- DRM (Widevine/FairPlay)
-- Offline downloads
+- Vendor-backed encrypted DRM packaging/certification (Widevine/FairPlay/PlayReady)
+- Native offline downloads beyond web cache support
 - Live streaming
 - Dedicated GPU workers for frame-level actor detection
 - Vector DB at billion-scale

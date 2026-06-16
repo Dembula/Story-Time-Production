@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import type { MediaPlayerInstance } from "@vidstack/react";
 import {
   getClientCaptureProtectionConfig,
@@ -11,7 +11,7 @@ import {
 
 type UseCaptureProtectedPlaybackOptions = {
   contentId: string;
-  playerRef: React.RefObject<MediaPlayerInstance | null>;
+  playerRef: RefObject<MediaPlayerInstance | null>;
   enabled?: boolean;
 };
 

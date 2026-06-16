@@ -16,6 +16,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   MediaPlayer,
   MediaProvider,
+  Track,
   type MediaPlayerInstance,
 } from "@vidstack/react";
 import { DefaultVideoLayout, defaultLayoutIcons } from "@vidstack/react/player/layouts/default";
@@ -34,11 +35,13 @@ import { buildHlsDrmConfig } from "@/lib/content-capture-protection";
 import { PlaybackChrome } from "./playback-chrome";
 import { PlaybackMetadataPanel } from "./playback-metadata-panel";
 import { PlaybackComplianceBadge } from "./playback-compliance-badge";
+import { CaptureProtectionBadge } from "./capture-protection-badge";
 import { NetflixMobileControls } from "./netflix-mobile-controls";
 import { computePlaybackDeviceProfileClient } from "@/lib/player/mobile-detect";
 import { StoryTimeLoader, StoryTimeLoaderOverlay } from "@/components/ui/storytime-loader";
 import { PlaybackBufferingOverlay } from "./playback-buffering-overlay";
 import { PLAYBACK_COMMAND_EVENT, type PlaybackCommand } from "@/lib/input/platform-events";
+import { useCaptureProtectedPlayback } from "@/hooks/use-capture-protected-playback";
 
 
 
@@ -84,6 +87,26 @@ type StorytimeMediaPlayerProps = {
 
   isTrailer?: boolean;
 
+};
+
+type PlaybackBundleSubtitle = {
+  id: string;
+  language: string;
+  label: string;
+  vttUrl: string;
+  isDefault: boolean;
+};
+
+type PlaybackBundleCaptureProtection = {
+  enabled?: boolean;
+  mode?: "standard" | "drm";
+  watermarkEnabled?: boolean;
+  drmConfigured?: boolean;
+  drmLicensePath?: string | null;
+};
+
+type PlaybackBundleProtection = {
+  signedUrl?: boolean;
 };
 
 
@@ -199,13 +222,19 @@ export function StorytimeMediaPlayer({
 
   );
   const activeSceneActors = actorList(activeScene?.actors).slice(0, 5);
+  const subtitles = (bundle?.subtitles ?? []) as PlaybackBundleSubtitle[];
+  const captureProtection = bundle?.captureProtection as PlaybackBundleCaptureProtection | undefined;
+  const playbackProtection = bundle?.playbackProtection as PlaybackBundleProtection | undefined;
+  const captureState = useCaptureProtectedPlayback({
+    contentId,
+    playerRef,
+    enabled: Boolean(captureProtection?.enabled),
+  });
 
   const applyHlsDrmConfig = useCallback(
     (instance: unknown) => {
-      const protection = bundle?.captureProtection as
-        | { drmConfigured?: boolean; drmLicensePath?: string | null }
-        | undefined;
-      if (!protection?.drmConfigured || !protection?.drmLicensePath) return;
+      const protection = captureProtection;
+      if (protection?.mode !== "drm" || !protection?.drmConfigured || !protection?.drmLicensePath) return;
       const hls = instance as { config?: Record<string, unknown> } | null;
       if (!hls?.config) return;
       const licenseUrl =
@@ -221,7 +250,7 @@ export function StorytimeMediaPlayer({
       });
       if (drmConfig) Object.assign(hls.config, drmConfig);
     },
-    [bundle?.captureProtection],
+    [captureProtection],
   );
 
 
@@ -802,10 +831,28 @@ export function StorytimeMediaPlayer({
           }
         }}
       >
-        <MediaProvider />
+        <MediaProvider>
+          {subtitles.map((track) => (
+            <Track
+              key={track.id}
+              src={track.vttUrl}
+              kind="subtitles"
+              label={track.label}
+              lang={track.language}
+              default={track.isDefault}
+            />
+          ))}
+        </MediaProvider>
         <PlaybackBufferingOverlay />
         {!isMobileLike ? <DefaultVideoLayout icons={defaultLayoutIcons} /> : null}
       </MediaPlayer>
+
+      <CaptureProtectionBadge
+        active={captureState.active}
+        drmConfigured={Boolean(captureProtection?.drmConfigured ?? captureState.drmConfigured)}
+        screenCaptured={captureState.screenCaptured}
+        signedUrl={Boolean(playbackProtection?.signedUrl)}
+      />
 
       {isMobileLike ? (
         <NetflixMobileControls
