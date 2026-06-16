@@ -5,7 +5,7 @@ import {
   getCloudflareStreamConfig,
   isCloudflareStreamUrl,
 } from "@/lib/cloudflare-stream";
-import type { PlaybackSource } from "@/lib/playback-sources";
+import type { PlaybackSource, PlaybackSourceSet } from "@/lib/playback-sources";
 
 const DEFAULT_TTL_SECONDS = 4 * 60 * 60;
 
@@ -42,6 +42,16 @@ export function isCloudflareSignedPlaybackEnabled(): boolean {
 function buildSignedHlsUrl(token: string, customerSubdomain?: string): string {
   const base = customerSubdomain?.replace(/\/+$/, "") || "https://videodelivery.net";
   return `${base}/${token}/manifest/video.m3u8`;
+}
+
+function buildSignedDashUrl(token: string, customerSubdomain?: string): string {
+  const base = customerSubdomain?.replace(/\/+$/, "") || "https://videodelivery.net";
+  return `${base}/${token}/manifest/video.mpd`;
+}
+
+function buildSignedMp4Url(token: string, customerSubdomain?: string): string {
+  const base = customerSubdomain?.replace(/\/+$/, "") || "https://videodelivery.net";
+  return `${base}/${token}/downloads/default.mp4`;
 }
 
 export function signCloudflareStreamTokenLocally(
@@ -151,6 +161,45 @@ export async function buildSignedCloudflarePlaybackSource(
     src: buildSignedHlsUrl(token, subdomain),
     type: "application/x-mpegurl",
   };
+}
+
+export async function buildSignedCloudflarePlaybackSources(
+  videoUrl: string | null | undefined,
+  options?: { ttlSeconds?: number },
+): Promise<PlaybackSourceSet | null> {
+  if (!isCloudflareSignedPlaybackEnabled()) return null;
+
+  const url = videoUrl?.trim();
+  if (!url) return null;
+
+  const uid = extractCloudflareStreamUid(url);
+  if (!uid) return null;
+
+  const cfg = getCloudflareStreamConfig();
+  const subdomain =
+    cfg?.customerSubdomain ??
+    (isCloudflareStreamUrl(url) ? deriveSubdomainFromStreamUrl(url) : "https://videodelivery.net");
+
+  const token =
+    signCloudflareStreamTokenLocally(uid, { ttlSeconds: options?.ttlSeconds, downloadable: false }) ??
+    (await fetchCloudflareStreamTokenFromApi(uid, { ttlSeconds: options?.ttlSeconds, downloadable: false }));
+
+  if (!token) return null;
+
+  const hls: PlaybackSource = {
+    src: buildSignedHlsUrl(token, subdomain),
+    type: "application/x-mpegurl",
+  };
+  const dash: PlaybackSource = {
+    src: buildSignedDashUrl(token, subdomain),
+    type: "application/dash+xml",
+  };
+  const mp4: PlaybackSource = {
+    src: buildSignedMp4Url(token, subdomain),
+    type: "video/mp4",
+  };
+
+  return { primary: hls, hls, dash, mp4 };
 }
 
 function deriveSubdomainFromStreamUrl(url: string): string {

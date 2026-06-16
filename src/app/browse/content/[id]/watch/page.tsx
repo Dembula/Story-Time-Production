@@ -14,11 +14,12 @@ export default async function WatchPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ episode?: string; trailer?: string }>;
+  searchParams: Promise<{ episode?: string; trailer?: string; offline?: string }>;
 }) {
   const { id } = await params;
-  const { episode: episodeId, trailer } = await searchParams;
+  const { episode: episodeId, trailer, offline } = await searchParams;
   const isTrailer = trailer === "1";
+  const offlineMode = offline === "1";
 
   const session = await getServerSession(authOptions);
   const role = (session?.user as { role?: string })?.role;
@@ -91,14 +92,16 @@ export default async function WatchPage({
   if (!videoUrl) notFound();
 
   const playback = await getViewerPlaybackState(session.user.id, content.id);
-  if (!playback.subscription) {
-    redirect("/onboarding/package");
-  }
+  if (!offlineMode) {
+    if (!playback.subscription) {
+      redirect("/onboarding/package");
+    }
 
-  const minAge = content.minAge ?? 0;
-  const ageRestricted = profileAge != null && minAge > profileAge;
-  if (ageRestricted || !playback.canPlayContent) {
-    redirect(`/browse/content/${id}`);
+    const minAge = content.minAge ?? 0;
+    const ageRestricted = profileAge != null && minAge > profileAge;
+    if (ageRestricted || !playback.canPlayContent) {
+      redirect(`/browse/content/${id}`);
+    }
   }
 
   let nextEpisode: { id: string; title: string; href: string } | null = null;
@@ -154,6 +157,7 @@ export default async function WatchPage({
       startTime={startTime}
       episodeId={!isTrailer && episodeId ? episodeId : null}
       isTrailer={isTrailer}
+      offlineMode={offlineMode}
     />
   );
 }

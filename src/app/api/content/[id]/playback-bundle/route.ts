@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getDisplayPosterUrl } from "@/lib/content-media-urls";
 import { getServerCaptureProtectionConfig } from "@/lib/content-capture-protection";
 import { isLongFormType } from "@/lib/content-types";
-import { resolveServerPlaybackSource } from "@/lib/server-playback-sources";
+import { resolveServerPlaybackBundle } from "@/lib/server-playback-sources";
 
 export async function GET(
   req: NextRequest,
@@ -88,18 +88,38 @@ export async function GET(
       }
     }
 
-    const playback = await resolveServerPlaybackSource(videoUrl);
+    const resolved = await resolveServerPlaybackBundle(videoUrl);
     const posterUrl = getDisplayPosterUrl(content);
     const captureProtection = getServerCaptureProtectionConfig();
     const session = await getServerSession(authOptions);
+
+    if (!resolved.playback && !resolved.streamReady) {
+      return NextResponse.json(
+        {
+          id: content.id,
+          title: content.title,
+          playback: null,
+          sources: null,
+          streamReady: false,
+          streamStatus: resolved.streamStatus ?? "processing",
+          error: "Video is still processing. Please try again shortly.",
+        },
+        { status: 202 },
+      );
+    }
 
     return NextResponse.json(
       {
         id: content.id,
         title: content.title,
-        playback,
+        playback: resolved.playback,
+        sources: resolved.sources,
+        streamReady: resolved.streamReady,
+        streamStatus: resolved.streamStatus,
         playbackProtection: {
-          signedUrl: Boolean(playback?.src.includes("/manifest/video.m3u8") && playback.src.includes(".")),
+          signedUrl: Boolean(
+            resolved.playback?.src.includes("/manifest/") && resolved.playback.src.includes("."),
+          ),
           expiresHintSeconds: 4 * 60 * 60,
           authenticatedViewer: Boolean(session?.user?.id),
         },
@@ -107,7 +127,15 @@ export async function GET(
         duration,
         enrichment: isTrailer ? null : content.enrichment,
         scenes: isTrailer ? [] : content.scenes,
-        subtitles: isTrailer ? [] : content.subtitles,
+        subtitles: isTrailer
+          ? []
+          : content.subtitles.map((track) => ({
+              id: track.id,
+              language: track.language,
+              label: track.label,
+              vttUrl: track.vttUrl,
+              isDefault: track.isDefault,
+            })),
         captureProtection: {
           enabled: captureProtection.enabled,
           mode: captureProtection.mode,

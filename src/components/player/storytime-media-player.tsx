@@ -16,10 +16,20 @@ import { useQuery } from "@tanstack/react-query";
 import {
   MediaPlayer,
   MediaProvider,
+  Track,
   type MediaPlayerInstance,
 } from "@vidstack/react";
 import { DefaultVideoLayout, defaultLayoutIcons } from "@vidstack/react/player/layouts/default";
-import { resolvePlaybackSources, type PlaybackSource } from "@/lib/playback-sources";
+import { resolvePlaybackSources, resolveAllPlaybackSources, type PlaybackSource } from "@/lib/playback-sources";
+import {
+  selectPrimaryPlaybackSource,
+  buildHlsInstantStartConfig,
+  mergeHlsConfigs,
+  getPreferredDrmKeySystems,
+  warmHlsPlayback,
+} from "@/lib/playback";
+import type { PlaybackBundleResponse, PlaybackSubtitleTrack } from "@/lib/playback/types";
+import { useCaptureProtectedPlayback } from "@/hooks/use-capture-protected-playback";
 import { warmPlaybackManifest } from "@/lib/prefetch";
 import {
   fetchPlaybackBundle,
@@ -84,6 +94,8 @@ type StorytimeMediaPlayerProps = {
 
   isTrailer?: boolean;
 
+  offlineSrc?: string | null;
+
 };
 
 
@@ -118,6 +130,8 @@ export function StorytimeMediaPlayer({
 
   isTrailer = false,
 
+  offlineSrc = null,
+
 }: StorytimeMediaPlayerProps) {
 
   const router = useRouter();
@@ -149,9 +163,10 @@ export function StorytimeMediaPlayer({
 
 
   const signedPlaybackRequired = isStreamSignedPlaybackClientEnabled();
-  const fallbackSource = useMemo(() => resolvePlaybackSources(videoUrl), [videoUrl]);
+  const fallbackSources = useMemo(() => resolveAllPlaybackSources(videoUrl), [videoUrl]);
+  const fallbackSource = useMemo(() => fallbackSources?.primary ?? resolvePlaybackSources(videoUrl), [fallbackSources, videoUrl]);
 
-  const { data: bundle, isLoading: bundleLoading, isError: bundleError } = useQuery({
+  const { data: bundle, isLoading: bundleLoading, isError: bundleError, error: bundleFetchError } = useQuery({
 
     queryKey: playbackBundleQueryKey(contentId, episodeId, { trailer: isTrailer }),
 
@@ -159,15 +174,55 @@ export function StorytimeMediaPlayer({
 
     staleTime: signedPlaybackRequired ? PLAYBACK_BUNDLE_STALE_MS : 60_000,
     refetchOnWindowFocus: signedPlaybackRequired,
+    enabled: !offlineSrc,
+    retry: (failureCount, error) => {
+      if (error instanceof Error && error.message === "processing") {
+        return failureCount < 12;
+      }
+      return failureCount < 2;
+    },
+    retryDelay: (attempt, error) => {
+      if (error instanceof Error && error.message === "processing") {
+        return Math.min(15000, 2000 + attempt * 1500);
+      }
+      return 1000;
+    },
 
   });
 
   const source = useMemo((): PlaybackSource | null => {
-    const bundlePlayback = bundle?.playback as PlaybackSource | undefined;
+    if (offlineSrc) {
+      return { src: offlineSrc, type: "video/mp4" };
+    }
+
+    const bundleData = bundle as PlaybackBundleResponse | undefined;
+    const bundleSources = bundleData?.sources;
+    const bundlePlayback = bundleData?.playback as PlaybackSource | undefined;
+
+    if (bundleSources) {
+      return selectPrimaryPlaybackSource(bundleSources, deviceProfile);
+    }
+
     if (bundlePlayback?.src && bundlePlayback?.type) return bundlePlayback;
     if (signedPlaybackRequired) return null;
+
+    if (fallbackSources) {
+      return selectPrimaryPlaybackSource(fallbackSources, deviceProfile);
+    }
+
     return fallbackSource;
-  }, [bundle?.playback, fallbackSource, signedPlaybackRequired]);
+  }, [offlineSrc, bundle, signedPlaybackRequired, fallbackSources, fallbackSource, deviceProfile]);
+
+  const subtitles = (bundle as PlaybackBundleResponse | undefined)?.subtitles ?? [];
+  const streamProcessing =
+    !offlineSrc &&
+    (bundleFetchError instanceof Error && bundleFetchError.message === "processing");
+
+  const { screenCaptured } = useCaptureProtectedPlayback({
+    contentId,
+    playerRef,
+    enabled: !isTrailer && !offlineSrc,
+  });
 
   const missingSource = !source;
   const waitingForSignedBundle =
@@ -205,32 +260,49 @@ export function StorytimeMediaPlayer({
       const protection = bundle?.captureProtection as
         | { drmConfigured?: boolean; drmLicensePath?: string | null }
         | undefined;
-      if (!protection?.drmConfigured || !protection?.drmLicensePath) return;
       const hls = instance as { config?: Record<string, unknown> } | null;
       if (!hls?.config) return;
-      const licenseUrl =
-        typeof window !== "undefined"
-          ? `${window.location.origin}${protection.drmLicensePath}`
-          : protection.drmLicensePath;
-      const drmConfig = buildHlsDrmConfig({
-        enabled: true,
-        mode: "drm",
-        drmLicenseUrl: licenseUrl,
-        drmAuthToken: null,
-        watermarkEnabled: true,
-      });
-      if (drmConfig) Object.assign(hls.config, drmConfig);
+
+      const instantStart = buildHlsInstantStartConfig();
+      let drmConfig: Record<string, unknown> | null = null;
+
+      if (protection?.drmConfigured && protection?.drmLicensePath) {
+        const licenseUrl =
+          typeof window !== "undefined"
+            ? `${window.location.origin}${protection.drmLicensePath}`
+            : protection.drmLicensePath;
+        drmConfig = buildHlsDrmConfig(
+          {
+            enabled: true,
+            mode: "drm",
+            drmLicenseUrl: licenseUrl,
+            drmAuthToken: null,
+            fairPlayCertificateUrl: null,
+            watermarkEnabled: true,
+          },
+          getPreferredDrmKeySystems(deviceProfile),
+        );
+      }
+
+      Object.assign(hls.config, mergeHlsConfigs(instantStart, drmConfig));
     },
-    [bundle?.captureProtection],
+    [bundle?.captureProtection, deviceProfile],
   );
 
 
 
   useEffect(() => {
     const manifestUrl =
+      offlineSrc ??
+      (bundle as PlaybackBundleResponse | undefined)?.sources?.hls?.src ??
       (bundle?.playback as PlaybackSource | undefined)?.src ??
       (signedPlaybackRequired ? null : videoUrl);
-    if (manifestUrl) warmPlaybackManifest(manifestUrl);
+    if (manifestUrl) {
+      warmPlaybackManifest(manifestUrl);
+      if (/\.m3u8(\?|$)/i.test(manifestUrl)) {
+        void warmHlsPlayback(manifestUrl);
+      }
+    }
 
     if (nextEpisode?.id) {
       const nextEpisodeId = nextEpisode.href?.includes("episode=")
@@ -238,7 +310,7 @@ export function StorytimeMediaPlayer({
         : null;
       void fetchPlaybackBundle(contentId, nextEpisodeId);
     }
-  }, [videoUrl, nextEpisode?.id, nextEpisode?.href, contentId, bundle?.playback, signedPlaybackRequired]);
+  }, [offlineSrc, videoUrl, nextEpisode?.id, nextEpisode?.href, contentId, bundle, signedPlaybackRequired]);
 
 
 
@@ -669,7 +741,7 @@ export function StorytimeMediaPlayer({
 
 
 
-  if (waitingForSignedBundle) {
+  if (waitingForSignedBundle || (streamProcessing && !source)) {
     return (
       <div className="relative fixed inset-0 z-[100] bg-black" data-input-scope="player">
         {poster ? (
@@ -678,7 +750,9 @@ export function StorytimeMediaPlayer({
         <StoryTimeLoaderOverlay mode="viewport">
           <div className="flex flex-col items-center text-center">
             <StoryTimeLoader size="md" />
-            <p className="mt-4 text-sm text-slate-300/90">Starting playback…</p>
+            <p className="mt-4 text-sm text-slate-300/90">
+              {streamProcessing ? "Preparing your film for playback…" : "Starting playback…"}
+            </p>
           </div>
         </StoryTimeLoaderOverlay>
       </div>
@@ -755,7 +829,7 @@ export function StorytimeMediaPlayer({
         ref={playerRef}
         className="h-full w-full [&_video]:object-contain"
         title={title}
-        src={{ src: source.src, type: source.type as "application/x-mpegurl" | "video/mp4" }}
+        src={{ src: source.src, type: source.type as "application/x-mpegurl" | "application/dash+xml" | "video/mp4" }}
         poster={poster || undefined}
         playsInline={deviceProfile.playsInline}
         autoPlay={deviceProfile.canAutoplayAudible}
@@ -802,10 +876,29 @@ export function StorytimeMediaPlayer({
           }
         }}
       >
-        <MediaProvider />
+        <MediaProvider>
+          {subtitles.map((track: PlaybackSubtitleTrack) => (
+            <Track
+              key={track.id}
+              src={track.vttUrl}
+              kind="subtitles"
+              label={track.label}
+              lang={track.language}
+              default={track.isDefault}
+            />
+          ))}
+        </MediaProvider>
         <PlaybackBufferingOverlay />
         {!isMobileLike ? <DefaultVideoLayout icons={defaultLayoutIcons} /> : null}
       </MediaPlayer>
+
+      {screenCaptured ? (
+        <div className="pointer-events-none absolute inset-0 z-[120] flex items-center justify-center bg-black/80 p-6 text-center">
+          <p className="max-w-md text-sm font-medium text-white">
+            Screen capture is not permitted while watching protected content.
+          </p>
+        </div>
+      ) : null}
 
       {isMobileLike ? (
         <NetflixMobileControls
