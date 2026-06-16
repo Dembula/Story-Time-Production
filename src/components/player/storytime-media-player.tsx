@@ -201,7 +201,7 @@ export function StorytimeMediaPlayer({
   const needsHlsJs = isHlsPlaybackSource(source);
   const hlsJsUnsupported = needsHlsJs && !isHlsJsSupported();
   const waitingForPlaybackBundle =
-    requiresPlaybackBundle && bundleLoading && !bundle?.playback;
+    requiresPlaybackBundle && bundleLoading && !source;
 
 
 
