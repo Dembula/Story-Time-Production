@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { UserPlus, MessageCircle, Check, Loader2, Film, MapPin, Globe } from "lucide-react";
+import { NativeSafeVideo } from "@/components/player/native-safe-video";
 
 interface ProfileData {
   user: {
@@ -242,7 +243,7 @@ export function CreatorProfileClient({ userId }: { userId: string }) {
                       if (Array.isArray(urls) && urls[0]) {
                         return (
                           <div className="mt-2 aspect-video w-full max-w-lg rounded-lg overflow-hidden bg-black border border-slate-800">
-                            <video src={urls[0]} controls className="h-full w-full" playsInline />
+                            <NativeSafeVideo videoUrl={urls[0]} controls className="h-full w-full" />
                           </div>
                         );
                       }

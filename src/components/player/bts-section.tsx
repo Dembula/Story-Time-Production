@@ -3,6 +3,8 @@
 import { Play } from "lucide-react";
 import { useState } from "react";
 import Image from "next/image";
+import { NativeSafeVideo } from "@/components/player/native-safe-video";
+import { resolveNativeVideoSafeUrl } from "@/lib/playback-sources";
 
 type BtsVideo = {
   id: string;
@@ -27,14 +29,16 @@ export function BtsSection({ btsVideos }: { btsVideos: BtsVideo[] }) {
     <div className="space-y-4">
       <h3 className="text-lg font-semibold">Behind the Scenes</h3>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {btsVideos.map((bts) => (
+        {btsVideos.map((bts) => {
+          const safeSrc = resolveNativeVideoSafeUrl(bts.videoUrl);
+          return (
           <div
             key={bts.id}
             className="relative aspect-video rounded-lg overflow-hidden bg-muted group"
           >
-            {playing === bts.id && bts.videoUrl ? (
-              <video
-                src={bts.videoUrl}
+            {playing === bts.id && safeSrc ? (
+              <NativeSafeVideo
+                videoUrl={bts.videoUrl}
                 autoPlay
                 controls
                 className="w-full h-full object-contain"
@@ -57,8 +61,9 @@ export function BtsSection({ btsVideos }: { btsVideos: BtsVideo[] }) {
                 )}
                 <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
                   <button
-                    onClick={() => setPlaying(bts.id)}
-                    className="p-4 rounded-full bg-primary text-primary-foreground hover:opacity-90"
+                    onClick={() => safeSrc && setPlaying(bts.id)}
+                    disabled={!safeSrc}
+                    className="p-4 rounded-full bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-40"
                   >
                     <Play className="w-8 h-8 fill-current" />
                   </button>
@@ -69,7 +74,8 @@ export function BtsSection({ btsVideos }: { btsVideos: BtsVideo[] }) {
               </>
             )}
           </div>
-        ))}
+        );
+        })}
       </div>
     </div>
   );

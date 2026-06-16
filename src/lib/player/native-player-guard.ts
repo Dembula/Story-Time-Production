@@ -4,7 +4,7 @@ type VideoWithWebkit = HTMLVideoElement & {
   webkitDisplayingFullscreen?: boolean;
 };
 
-/** iPhone, iPad, iPod, iPadOS desktop UA, and touch Safari — use Apple's native video player. */
+/** iPhone, iPad, iPod, iPadOS — Safari native inline/fullscreen video (not used on laptop/desktop). */
 export function usesAppleNativePlayer(): boolean {
   if (typeof window === "undefined") return false;
   const ua = window.navigator.userAgent || "";
@@ -15,14 +15,7 @@ export function usesAppleNativePlayer(): boolean {
       typeof window.navigator.maxTouchPoints === "number" &&
       window.navigator.maxTouchPoints > 1);
   const isIPadOSDesktopUa = /Macintosh/i.test(ua) && window.navigator.maxTouchPoints > 1;
-  const isSafari =
-    /Safari/i.test(ua) &&
-    !/Chrome|CriOS|FxiOS|EdgiOS|OPiOS/i.test(ua);
-  const coarse =
-    typeof window.matchMedia === "function"
-      ? window.matchMedia("(pointer: coarse)").matches
-      : false;
-  return isIOS || isIPadOSDesktopUa || (isSafari && coarse);
+  return isIOS || isIPadOSDesktopUa;
 }
 
 /** @deprecated Use {@link usesAppleNativePlayer}. */
@@ -33,6 +26,7 @@ export function requiresUserGestureToPlay(): boolean {
   return usesAppleNativePlayer();
 }
 
+/** Safari native fullscreen — iOS only. */
 export function enterAppleNativeFullscreen(video: HTMLVideoElement | null | undefined): void {
   if (!video) return;
   const el = video as VideoWithWebkit;
@@ -46,7 +40,7 @@ export function enterAppleNativeFullscreen(video: HTMLVideoElement | null | unde
   }
 }
 
-/** Hand playback to Safari's native fullscreen player with system controls. */
+/** iOS only: hand playback to Safari's native fullscreen player with system controls. */
 export function configureAppleNativePlayer(video: HTMLVideoElement): () => void {
   const el = video as VideoWithWebkit;
   el.controls = true;

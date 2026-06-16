@@ -3,7 +3,9 @@ import {
   HLSProviderLoader,
   isHLSProvider,
   type MediaProviderAdapter,
+  type Src,
 } from "@vidstack/react";
+import { usesAppleNativePlayer } from "@/lib/player/native-player-guard";
 
 /** Bundled hls.js constructor — never load from jsdelivr (blocked CDN / redirect loops). */
 export const VIDSTACK_HLS_LIBRARY = Hls;
@@ -14,31 +16,51 @@ if (typeof window !== "undefined") {
 
 let loaderPatched = false;
 
+type LoadSourceFn = (src: Src, preload?: string) => Promise<void>;
+
 type HlsProviderLike = MediaProviderAdapter & {
-  loadSource?: (src: { src?: string; type?: string }, preload?: string) => Promise<void>;
+  loadSource?: LoadSourceFn;
+  appendSource?: (src: Src, defaultType?: string) => void;
   media?: HTMLVideoElement;
   __storytimeHlsPatched?: boolean;
+  __storytimeAppendPatched?: boolean;
 };
 
-/** Windows hands `.m3u8` on `<source>` / `<video src>` to Windows Media Player before hls.js attaches. */
-export function shouldBlockNativeHlsHandoff(): boolean {
-  if (typeof window === "undefined") return false;
-  if (/Windows/i.test(navigator.userAgent)) return true;
-  return Hls.isSupported();
+/** Laptops/desktops use hls.js in the page. iOS uses Safari native HLS (see native-player-guard). */
+export function usesInBrowserHlsEngine(): boolean {
+  if (typeof window === "undefined") return true;
+  return !usesAppleNativePlayer();
 }
 
-function stripNativeHlsTargets(video: HTMLVideoElement): void {
+function shouldBlockNativeMediaHandoff(): boolean {
+  return usesInBrowserHlsEngine();
+}
+
+export function stripNativeHlsTargets(video: HTMLVideoElement): void {
   video.removeAttribute("src");
   video.querySelectorAll("source").forEach((node) => node.remove());
 }
 
+/** Desktop only: Vidstack must not append native HLS `<source>` (OS player handoff). */
+function patchProviderAppendSource(provider: HlsProviderLike): void {
+  if (provider.__storytimeAppendPatched || !shouldBlockNativeMediaHandoff()) return;
+  if (typeof provider.appendSource !== "function") return;
+
+  provider.__storytimeAppendPatched = true;
+  provider.appendSource = () => {
+    // hls.js uses MediaSource on desktop — native sources delegate to the OS player.
+  };
+}
+
 function patchProviderLoadSource(provider: HlsProviderLike): void {
-  if (provider.__storytimeHlsPatched || !shouldBlockNativeHlsHandoff()) return;
-  const originalLoadSource = provider.loadSource?.bind(provider);
+  if (provider.__storytimeHlsPatched || !shouldBlockNativeMediaHandoff()) return;
+  const originalLoadSource = provider.loadSource?.bind(provider) as LoadSourceFn | undefined;
   if (!originalLoadSource) return;
 
   provider.__storytimeHlsPatched = true;
-  provider.loadSource = async (src, preload) => {
+  patchProviderAppendSource(provider);
+
+  provider.loadSource = async (src: Src, preload?: string) => {
     const video = provider.media;
     let observer: MutationObserver | null = null;
 
@@ -63,17 +85,16 @@ function patchProviderLoadSource(provider: HlsProviderLike): void {
   };
 }
 
-/** Set bundled hls.js on the provider before Vidstack calls `setup()` (avoids CDN + native WMP handoff). */
 function patchHlsProviderLoader(): void {
   if (loaderPatched || typeof window === "undefined") return;
   loaderPatched = true;
 
   const originalLoad = HLSProviderLoader.prototype.load;
   HLSProviderLoader.prototype.load = async function loadWithBundledHls(context) {
-    const provider = (await originalLoad.call(this, context)) as HlsProviderLike | null;
+    const provider = await originalLoad.call(this, context);
     if (provider && typeof provider === "object" && "library" in provider) {
-      provider.library = Hls;
-      patchProviderLoadSource(provider);
+      (provider as { library: typeof Hls }).library = Hls;
+      patchProviderLoadSource(provider as unknown as HlsProviderLike);
     }
     return provider;
   };
@@ -81,17 +102,37 @@ function patchHlsProviderLoader(): void {
 
 patchHlsProviderLoader();
 
+export function guardVideoElementFromNativeHls(video: HTMLVideoElement | null | undefined): () => void {
+  if (!video || !shouldBlockNativeMediaHandoff()) return () => undefined;
+
+  stripNativeHlsTargets(video);
+  const observer = new MutationObserver(() => {
+    stripNativeHlsTargets(video);
+  });
+  observer.observe(video, {
+    childList: true,
+    attributes: true,
+    attributeFilter: ["src"],
+  });
+
+  return () => observer.disconnect();
+}
+
 export function configureVidstackHlsProvider(provider: MediaProviderAdapter | null): void {
   if (!provider || !isHLSProvider(provider)) return;
 
-  const hlsProvider = provider as HlsProviderLike;
+  const hlsProvider = provider as unknown as HlsProviderLike;
   provider.library = VIDSTACK_HLS_LIBRARY;
   provider.config = {
     ...provider.config,
     preferManagedMediaSource: false,
-    enableWorker: !/Windows/i.test(navigator.userAgent),
+    enableWorker: true,
     lowLatencyMode: false,
   };
+
+  if (!usesInBrowserHlsEngine()) return;
+
+  patchProviderAppendSource(hlsProvider);
   patchProviderLoadSource(hlsProvider);
 }
 

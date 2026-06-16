@@ -50,6 +50,39 @@ export function resolveTrailerSources(trailerUrl: string | null | undefined): Pl
   return resolvePlaybackSources(trailerUrl);
 }
 
+/** True when the URL points at HLS / Cloudflare Stream (must not use native `<video src>`). */
+export function isHlsUrl(url: string | null | undefined): boolean {
+  const trimmed = url?.trim();
+  if (!trimmed) return false;
+  if (extractCloudflareStreamUid(trimmed) || isCloudflareStreamUrl(trimmed)) return true;
+  return /\.m3u8(\?|$)/i.test(trimmed);
+}
+
+/** Catalogue rows that must resolve playback through `/api/content/.../playback-bundle`. */
+export function requiresStreamPlaybackBundle(url: string | null | undefined): boolean {
+  return isHlsUrl(url);
+}
+
+/**
+ * MP4-only URL for lightweight native `<video>` previews (admin, BTS, profile).
+ * Stream/HLS titles must use the in-browser watch player.
+ */
+export function resolveNativeVideoSafeUrl(videoUrl: string | null | undefined): string | null {
+  const source = resolvePlaybackSources(videoUrl);
+  if (isNativeVideoSafeSource(source)) return source!.src;
+
+  const uid = extractCloudflareStreamUid(videoUrl ?? undefined);
+  if (uid) {
+    const cfg = getCloudflareStreamConfig();
+    const subdomain =
+      cfg?.customerSubdomain ??
+      (videoUrl && isCloudflareStreamUrl(videoUrl) ? deriveSubdomainFromStreamUrl(videoUrl) : "");
+    return buildCloudflarePlaybackUrls(uid, subdomain || "https://videodelivery.net").mp4Url;
+  }
+
+  return null;
+}
+
 /** HLS must play through hls.js in the browser — never assign to a native `<video src>`. */
 export function isHlsPlaybackSource(source: PlaybackSource | null | undefined): boolean {
   return source?.type === "application/x-mpegurl";

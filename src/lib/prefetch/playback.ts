@@ -1,6 +1,37 @@
 import type { QueryClient } from "@tanstack/react-query";
+import type { PlaybackSource } from "@/lib/playback-sources";
 
 export const PLAYBACK_BUNDLE_STALE_MS = 3 * 60 * 60 * 1000;
+
+export type PlaybackBundleResponse = {
+  id: string;
+  title: string;
+  playback: PlaybackSource | null;
+  playbackProtection?: {
+    signedUrl?: boolean;
+    proxiedManifest?: boolean;
+    expiresHintSeconds?: number;
+    authenticatedViewer?: boolean;
+  };
+  posterUrl?: string | null;
+  duration?: number | null;
+  enrichment?: unknown;
+  scenes?: unknown[];
+  sceneIntelligence?: {
+    status?: string | null;
+    sceneCount?: number;
+    hasScriptSource?: boolean;
+    pending?: boolean;
+  } | null;
+  subtitles?: unknown[];
+  captureProtection?: {
+    enabled?: boolean;
+    mode?: string;
+    watermarkEnabled?: boolean;
+    drmConfigured?: boolean;
+    drmLicensePath?: string | null;
+  };
+};
 
 export function playbackBundleQueryKey(
   contentId: string,
@@ -14,7 +45,7 @@ export async function fetchPlaybackBundle(
   contentId: string,
   episodeId?: string | null,
   options?: { trailer?: boolean },
-) {
+): Promise<PlaybackBundleResponse> {
   const params = new URLSearchParams();
   if (episodeId) params.set("episodeId", episodeId);
   if (options?.trailer) params.set("trailer", "1");

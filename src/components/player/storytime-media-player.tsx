@@ -2,6 +2,7 @@
 
 
 
+import "@/lib/player/vidstack-hls";
 import "@vidstack/react/player/styles/default/theme.css";
 
 import "@vidstack/react/player/styles/default/layouts/video.css";
@@ -21,7 +22,7 @@ import {
 } from "@vidstack/react";
 import { DefaultVideoLayout, defaultLayoutIcons } from "@vidstack/react/player/layouts/default";
 import { extractCloudflareStreamUid, isCloudflareStreamUrl } from "@/lib/cloudflare-stream";
-import { resolvePlaybackSources, isHlsPlaybackSource, type PlaybackSource } from "@/lib/playback-sources";
+import { resolvePlaybackSources, isHlsPlaybackSource, requiresStreamPlaybackBundle, type PlaybackSource } from "@/lib/playback-sources";
 import { warmPlaybackManifest } from "@/lib/prefetch";
 import {
   fetchPlaybackBundle,
@@ -39,7 +40,9 @@ import { PlaybackComplianceBadge } from "./playback-compliance-badge";
 import { NetflixMobileControls } from "./netflix-mobile-controls";
 import { PictureInPicture2, SkipForward, Sparkles } from "lucide-react";
 import { computePlaybackDeviceProfileClient } from "@/lib/player/mobile-detect";
-import { configureVidstackHlsProvider, isHlsJsSupported } from "@/lib/player/vidstack-hls";
+import { configureVidstackHlsProvider, guardVideoElementFromNativeHls, isHlsJsSupported, usesInBrowserHlsEngine } from "@/lib/player/vidstack-hls";
+import { configureAppleNativePlayer, usesAppleNativePlayer } from "@/lib/player/native-player-guard";
+import { consumePlaybackPlayIntent } from "@/lib/player/play-intent";
 import {
   findActiveScene,
   formatActiveSceneLabel,
@@ -141,11 +144,13 @@ export function StorytimeMediaPlayer({
   const [nextCountdown, setNextCountdown] = useState<number | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [hlsLoadFailed, setHlsLoadFailed] = useState(false);
+  const [hlsInstanceReady, setHlsInstanceReady] = useState(false);
   const [deviceProfile, setDeviceProfile] = useState(computePlaybackDeviceProfileClient);
-  const [userStartRequested, setUserStartRequested] = useState(false);
+  const [userStartRequested, setUserStartRequested] = useState(() => consumePlaybackPlayIntent());
   const orientationLockedRef = useRef(false);
   const watchShellRef = useRef<HTMLDivElement>(null);
   const leavingWatchRef = useRef(false);
+  const appleNativeCleanupRef = useRef<(() => void) | null>(null);
 
   const setAmbientUiVisible = usePlaybackSession((s) => s.setAmbientUiVisible);
   const useTouchControls = deviceProfile.useTouchControls;
@@ -183,11 +188,7 @@ export function StorytimeMediaPlayer({
     Boolean((bundle?.playbackProtection as { signedUrl?: boolean } | undefined)?.signedUrl);
 
   const requiresPlaybackBundle = useMemo(() => {
-    const trimmed = videoUrl?.trim();
-    return (
-      signedPlaybackRequired ||
-      Boolean(trimmed && (isCloudflareStreamUrl(trimmed) || extractCloudflareStreamUid(trimmed)))
-    );
+    return signedPlaybackRequired || requiresStreamPlaybackBundle(videoUrl);
   }, [signedPlaybackRequired, videoUrl]);
 
   const source = useMemo((): PlaybackSource | null => {
@@ -202,6 +203,11 @@ export function StorytimeMediaPlayer({
   const hlsJsUnsupported = needsHlsJs && !isHlsJsSupported();
   const waitingForPlaybackBundle =
     requiresPlaybackBundle && bundleLoading && !source;
+
+  const hlsEngineReady = !needsHlsJs || isHlsJsSupported();
+  const waitingForHlsEngine = needsHlsJs && !hlsEngineReady;
+  const blockAutoplayUntilHls =
+    needsHlsJs && usesInBrowserHlsEngine() && !hlsInstanceReady;
 
 
 
@@ -232,6 +238,7 @@ export function StorytimeMediaPlayer({
 
   const applyHlsDrmConfig = useCallback(
     (instance: unknown) => {
+      setHlsInstanceReady(true);
       const protection = bundle?.captureProtection as
         | { drmConfigured?: boolean; drmLicensePath?: string | null }
         | undefined;
@@ -264,7 +271,13 @@ export function StorytimeMediaPlayer({
 
   useEffect(() => {
     setHlsLoadFailed(false);
+    setHlsInstanceReady(false);
   }, [source?.src, source?.type]);
+
+  useEffect(() => {
+    const video = playerRef.current?.el?.querySelector("video") as HTMLVideoElement | null;
+    return guardVideoElementFromNativeHls(video);
+  }, [source?.src, hlsInstanceReady]);
 
 
 
@@ -427,15 +440,32 @@ export function StorytimeMediaPlayer({
   const configureVideoForDevice = useCallback(() => {
     const video = getVideoElement();
     if (!video) return null;
+
+    appleNativeCleanupRef.current?.();
+    appleNativeCleanupRef.current = null;
+
     video.setAttribute("playsinline", "");
     video.setAttribute("webkit-playsinline", "");
     video.playsInline = true;
     video.disableRemotePlayback = true;
     video.setAttribute("disableremoteplayback", "");
-    hardenVideoElement(video);
     video.preload = "auto";
+
+    if (usesAppleNativePlayer()) {
+      appleNativeCleanupRef.current = configureAppleNativePlayer(video);
+    } else {
+      hardenVideoElement(video);
+    }
+
     return video;
   }, [getVideoElement]);
+
+  useEffect(() => {
+    return () => {
+      appleNativeCleanupRef.current?.();
+      appleNativeCleanupRef.current = null;
+    };
+  }, []);
 
   const requestNativeFullscreen = useCallback(async () => {
     const root = playerRef.current?.el?.closest(".storytime-watch-player") as HTMLElement | null;
@@ -470,20 +500,25 @@ export function StorytimeMediaPlayer({
   }, [configureVideoForDevice, resetIdleTimer]);
 
   useEffect(() => {
-    if (!source || isPlaying || userStartRequested || deviceProfile.canAutoplayAudible) return;
-    const timer = window.setTimeout(() => {
+    if (!source || isPlaying || blockAutoplayUntilHls) return;
+    if (!userStartRequested && !deviceProfile.canAutoplayAudible) return;
+
+    const start = () => {
       const player = playerRef.current;
       if (!player) return;
-      setUserStartRequested(true);
       configureVideoForDevice();
-      void player
-        .play()
-        .catch(() => {
-          // Keep the native media controls available without adding an extra app-level play prompt.
-        });
-    }, 80);
+      void player.play().catch(() => {});
+    };
+
+    if (userStartRequested) {
+      start();
+      return;
+    }
+
+    const timer = window.setTimeout(start, 80);
     return () => window.clearTimeout(timer);
   }, [
+    blockAutoplayUntilHls,
     configureVideoForDevice,
     deviceProfile.canAutoplayAudible,
     isPlaying,
@@ -627,6 +662,22 @@ export function StorytimeMediaPlayer({
 
 
 
+  if (waitingForHlsEngine) {
+    return (
+      <div className="relative fixed inset-0 z-[100] bg-black" data-input-scope="player">
+        {poster ? (
+          <Image src={poster} alt="" fill priority className="object-contain opacity-40" sizes="100vw" unoptimized={poster.startsWith("http")} />
+        ) : null}
+        <StoryTimeLoaderOverlay mode="viewport">
+          <div className="flex flex-col items-center text-center">
+            <StoryTimeLoader size="md" />
+            <p className="mt-4 text-sm text-slate-300/90">Preparing stream…</p>
+          </div>
+        </StoryTimeLoaderOverlay>
+      </div>
+    );
+  }
+
   if (waitingForPlaybackBundle) {
     return (
       <div className="relative fixed inset-0 z-[100] bg-black" data-input-scope="player">
@@ -753,8 +804,8 @@ export function StorytimeMediaPlayer({
         src={{ src: source.src, type: source.type as "application/x-mpegurl" | "video/mp4" }}
         poster={poster || undefined}
         playsInline={true}
-        preferNativeHLS={false}
-        autoPlay={deviceProfile.canAutoplayAudible}
+        preferNativeHLS={deviceProfile.isIOS}
+        autoPlay={deviceProfile.canAutoplayAudible && !blockAutoplayUntilHls}
         load="idle"
         onProviderChange={handleProviderChange}
         onHlsLibLoadError={handleHlsLibLoadError}

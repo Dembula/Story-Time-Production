@@ -16,6 +16,8 @@ import {
   type ReviewFeedbackKind,
 } from "@/lib/review-feedback";
 import { AdminProjectReviewDigest } from "@/components/admin/admin-project-review-digest";
+import { NativeSafeVideo } from "@/components/player/native-safe-video";
+import { resolveNativeVideoSafeUrl } from "@/lib/playback-sources";
 import { parsePlatformScriptVersionId } from "@/lib/content-catalogue-tags";
 
 interface ContentItem {
@@ -245,8 +247,12 @@ export function AdminContentClient() {
                 <button onClick={() => setPreviewing(null)} className="text-slate-400 hover:text-white text-xl">✕</button>
               </div>
               <div className="aspect-video bg-black">
-                {c.videoUrl ? (
-                  <video src={c.videoUrl} controls autoPlay className="w-full h-full" />
+                {resolveNativeVideoSafeUrl(c.videoUrl) ? (
+                  <NativeSafeVideo videoUrl={c.videoUrl} controls autoPlay className="w-full h-full" />
+                ) : c.videoUrl ? (
+                  <div className="flex h-full w-full items-center justify-center px-6 text-center text-sm text-slate-400">
+                    Stream preview plays in the in-browser watch player after publish.
+                  </div>
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-slate-500">No video URL provided</div>
                 )}

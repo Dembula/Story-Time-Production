@@ -19,7 +19,10 @@ export async function GET(
       return new NextResponse("Not found", { status: 404 });
     }
 
-    const playback = await resolveServerPlaybackSource(videoUrl);
+    const playback = await resolveServerPlaybackSource(videoUrl).catch((err) => {
+      console.error("hls-manifest resolve source failed:", err);
+      return null;
+    });
     if (!playback?.src || playback.type !== "application/x-mpegurl") {
       return new NextResponse("Playback unavailable", { status: 404 });
     }
