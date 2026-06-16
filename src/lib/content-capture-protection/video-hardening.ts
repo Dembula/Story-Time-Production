@@ -25,7 +25,10 @@ export function registerCaptureHandle(contentId: string): void {
 export function hardenVideoElement(video: HTMLVideoElement): void {
   video.disablePictureInPicture = false;
   video.disableRemotePlayback = true;
-  video.setAttribute("controlsList", "nodownload noremoteplayback");
+  video.setAttribute("controlsList", "nodownload noremoteplayback nofullscreen");
+  video.setAttribute("x-webkit-airplay", "deny");
+  video.controls = false;
+  video.removeAttribute("controls");
   video.setAttribute("playsinline", "true");
   video.setAttribute("webkit-playsinline", "true");
   video.crossOrigin = video.crossOrigin || "anonymous";

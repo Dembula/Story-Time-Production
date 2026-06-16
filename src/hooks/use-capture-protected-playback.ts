@@ -8,6 +8,7 @@ import {
   registerCaptureHandle,
   subscribeScreenCaptureChanges,
 } from "@/lib/content-capture-protection";
+import { usesAppleNativePlayer } from "@/lib/player/native-player-guard";
 
 type UseCaptureProtectedPlaybackOptions = {
   contentId: string;
@@ -35,6 +36,7 @@ export function useCaptureProtectedPlayback({
     if (!active) return;
 
     const attach = () => {
+      if (usesAppleNativePlayer()) return;
       const root = playerRef.current?.el;
       const video = root?.querySelector("video");
       if (!video || hardenedRef.current.has(video)) return;

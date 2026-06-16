@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { Play, Plus, Check, ChevronLeft, Download, Clapperboard } from "lucide-react";
 import { contentTypeLabel } from "@/lib/content-types";
 import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
+import { markPlaybackPlayIntent } from "@/lib/player/play-intent";
 
 type Props = {
   contentId: string;
@@ -95,11 +96,11 @@ export function ContentDetailHero({
   ].filter(Boolean);
 
   const heroHeight = mobileLandscape
-    ? "min-h-[88vh]"
+    ? "min-h-[72vh]"
     : isMobile
-      ? "min-h-[56vh] sm:min-h-[62vh]"
+      ? "min-h-[44vh] max-h-[52vh] sm:min-h-[48vh] sm:max-h-[56vh]"
       : isTablet
-        ? "min-h-[64vh]"
+        ? "min-h-[58vh]"
         : isTv
           ? "min-h-[78vh]"
           : "min-h-[68vh] lg:min-h-[72vh]";
@@ -142,7 +143,7 @@ export function ContentDetailHero({
             fill
             priority
             sizes="100vw"
-            className={`object-cover ${isMobile ? "object-[center_20%]" : "object-top"}`}
+            className={`object-cover ${isMobile ? "object-[center_30%] scale-105" : "object-top"}`}
           />
         ) : (
           <div className="absolute inset-0 bg-gradient-to-b from-slate-800 to-black" />
@@ -238,7 +239,10 @@ export function ContentDetailHero({
             {canPlay ? (
               <button
                 type="button"
-                onPointerDown={() => onPreparePlay?.()}
+                onPointerDown={() => {
+                  markPlaybackPlayIntent();
+                  onPreparePlay?.();
+                }}
                 onFocus={() => onPreparePlay?.()}
                 onClick={onPlay}
                 className={`flex shrink-0 items-center justify-center rounded-full bg-white shadow-[0_8px_32px_rgba(255,255,255,0.22)] transition hover:scale-105 active:scale-95 ${playSize} ${focusRing}`}

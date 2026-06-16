@@ -1,11 +1,15 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getDisplayPosterUrl } from "@/lib/content-media-urls";
 import { getServerCaptureProtectionConfig } from "@/lib/content-capture-protection";
 import { isLongFormType } from "@/lib/content-types";
-import { resolveServerPlaybackSource } from "@/lib/server-playback-sources";
+import {
+  isS3FallbackPlayback,
+  resolveServerPlaybackSource,
+} from "@/lib/server-playback-sources";
+import { ensureVideoIngested } from "@/lib/stream-ingest-link";
 
 export async function GET(
   req: NextRequest,
@@ -89,6 +93,17 @@ export async function GET(
     }
 
     const playback = await resolveServerPlaybackSource(videoUrl);
+
+    if (isS3FallbackPlayback(playback) && videoUrl) {
+      after(async () => {
+        try {
+          await ensureVideoIngested(videoUrl, { area: "playback-recovery", contentId: id });
+        } catch (err) {
+          console.error("playback-bundle stream recovery ingest failed:", err);
+        }
+      });
+    }
+
     const posterUrl = getDisplayPosterUrl(content);
     const captureProtection = getServerCaptureProtectionConfig();
     const session = await getServerSession(authOptions);

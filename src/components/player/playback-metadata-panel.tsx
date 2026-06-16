@@ -3,14 +3,13 @@
 import { motion } from "framer-motion";
 import { modalVariants } from "@/lib/motion/presets";
 
-type Scene = {
-  id: string;
-  startSeconds: number;
-  endSeconds: number;
-  summary: string | null;
-  mood: string | null;
-  actors: unknown;
-};
+import {
+  formatSceneActorsLabel,
+  parseSceneActors,
+  type PlaybackScene,
+} from "@/lib/player/scene-intelligence";
+
+type Scene = PlaybackScene;
 
 export function PlaybackMetadataPanel({
   open,
@@ -83,7 +82,8 @@ export function PlaybackMetadataPanel({
         <ul className="space-y-2">
           {scenes.map((scene) => {
             const active = currentTime >= scene.startSeconds && currentTime < scene.endSeconds;
-            const actors = Array.isArray(scene.actors) ? (scene.actors as string[]).join(", ") : "";
+            const actors = formatSceneActorsLabel(scene.actors);
+            const actorNames = parseSceneActors(scene.actors).join(", ");
             return (
               <li key={scene.id}>
                 <button
@@ -96,8 +96,16 @@ export function PlaybackMetadataPanel({
                   }`}
                 >
                   <p className="font-medium">{formatTime(scene.startSeconds)}</p>
+                  {actors ? (
+                    <p className="mt-1 text-[11px] font-medium text-orange-200/90">{actors}</p>
+                  ) : null}
                   <p className="mt-0.5 line-clamp-2">{scene.summary ?? "Scene"}</p>
-                  {actors && <p className="mt-1 text-[10px] text-slate-500">{actors}</p>}
+                  {actorNames && !actors ? (
+                    <p className="mt-1 text-[10px] text-slate-500">{actorNames}</p>
+                  ) : null}
+                  {scene.mood ? (
+                    <p className="mt-1 text-[10px] text-slate-500">{scene.mood}</p>
+                  ) : null}
                 </button>
               </li>
             );

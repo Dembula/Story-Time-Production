@@ -2,6 +2,7 @@
 
 import { Component, type ReactNode } from "react";
 import Link from "next/link";
+import { resolvePlaybackSources } from "@/lib/playback-sources";
 
 type WatchPlayerErrorBoundaryProps = {
   src: string;
@@ -35,6 +36,9 @@ export class WatchPlayerErrorBoundary extends Component<
 
     if (!hasError) return children;
 
+    const resolved = resolvePlaybackSources(src);
+    const fallbackSrc = resolved?.src ?? src;
+
     return (
       <div className="fixed inset-0 z-50 bg-black flex flex-col">
         <div className="p-4 flex items-center justify-between">
@@ -48,11 +52,10 @@ export class WatchPlayerErrorBoundary extends Component<
         </div>
         <div className="flex-1 p-4 pb-8">
           <video
-            src={src}
+            src={fallbackSrc}
             poster={poster || undefined}
             controls
             playsInline
-            autoPlay
             className="h-full w-full rounded-lg bg-black object-contain"
           />
         </div>

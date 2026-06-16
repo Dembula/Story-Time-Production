@@ -1,12 +1,12 @@
 /** Responsive poster card width for horizontal browse rows (scales with viewport on phones). */
 export const browsePosterCardClass =
-  "w-[28vw] max-w-[6.75rem] shrink-0 snap-start sm:w-36 md:w-44 lg:w-52";
+  "w-[24vw] max-w-[5.75rem] shrink-0 snap-start xs:w-[26vw] sm:w-32 md:w-40 lg:w-48";
 
 export const browsePosterCardImageSizes =
-  "(max-width: 480px) 28vw, (max-width: 768px) 36vw, (max-width: 1024px) 176px, 208px";
+  "(max-width: 480px) 24vw, (max-width: 768px) 32vw, (max-width: 1024px) 160px, 192px";
 
 export const browsePosterCardSkeletonClass =
-  "aspect-[2/3] w-[28vw] max-w-[6.75rem] shrink-0 rounded-xl sm:w-36 sm:rounded-2xl md:w-44 lg:w-52";
+  "aspect-[2/3] w-[24vw] max-w-[5.75rem] shrink-0 rounded-xl xs:w-[26vw] sm:w-32 sm:rounded-2xl md:w-40 lg:w-48";
 
 export const browseRowGapClass = "gap-3 sm:gap-4 md:gap-5";
 

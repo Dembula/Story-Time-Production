@@ -43,7 +43,9 @@ export function PlaybackChrome({
             <div className="min-w-0">
               <p className="truncate text-sm font-medium text-white">{title}</p>
               {currentSceneLabel && (
-                <p className="truncate text-xs text-orange-200/90">{currentSceneLabel}</p>
+                <p className="truncate text-xs text-orange-200/90" title={currentSceneLabel}>
+                  {currentSceneLabel}
+                </p>
               )}
             </div>
             <div className="flex items-center gap-2">

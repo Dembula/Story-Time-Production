@@ -21,6 +21,8 @@ import { usePlaybackPrefetch } from "@/hooks/use-playback-prefetch";
 import { startDownload, getDownload } from "@/lib/offline/download-manager";
 import { displayCreatorGoals } from "@/lib/creator-profile-goals";
 import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
+import { getDisplayBackdropUrl } from "@/lib/content-media-urls";
+import { markPlaybackPlayIntent } from "@/lib/player/play-intent";
 
 type Content = {
   id: string;
@@ -130,6 +132,11 @@ export function ContentDetailClient({
     : `/browse/content/${content.id}/watch`;
   const trailerTarget = `/browse/content/${content.id}/watch?trailer=1`;
   const playLabel = isLongForm ? "Play First Episode" : "Play";
+  const displayBackdropUrl = getDisplayBackdropUrl({
+    backdropUrl: content.backdropUrl,
+    posterUrl: content.posterUrl,
+    videoUrl: firstEpisode?.videoUrl ?? content.videoUrl,
+  });
 
   const warmPlayback = useCallback(() => {
     const episodeVideo = firstEpisode?.videoUrl ?? content.videoUrl;
@@ -159,6 +166,7 @@ export function ContentDetailClient({
 
   function handlePlay() {
     if (canPlay) {
+      markPlaybackPlayIntent();
       warmPlayback();
       router.push(playTarget);
       return;
@@ -331,7 +339,7 @@ export function ContentDetailClient({
         year={content.year}
         duration={content.duration}
         description={content.description}
-        backdropUrl={content.backdropUrl}
+        backdropUrl={displayBackdropUrl}
         trailerUrl={content.trailerUrl}
         autoPlay={autoPlay}
         canPlay={canPlay && !ageRestricted}

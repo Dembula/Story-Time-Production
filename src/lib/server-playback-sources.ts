@@ -37,3 +37,7 @@ export async function resolveServerPlaybackSource(
 
   return resolvePlaybackSources(url);
 }
+
+export function isS3FallbackPlayback(source: PlaybackSource | null): boolean {
+  return source?.type === "video/mp4";
+}

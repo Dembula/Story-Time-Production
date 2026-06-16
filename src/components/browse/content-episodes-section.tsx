@@ -7,6 +7,7 @@ import { ChevronDown, Play } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
 import { usePlaybackPrefetch } from "@/hooks/use-playback-prefetch";
+import { markPlaybackPlayIntent } from "@/lib/player/play-intent";
 
 export type EpisodeItem = {
   id: string;
@@ -204,6 +205,7 @@ export function ContentEpisodesSection({ contentId, seasons, canPlay, onLockedPl
                 className={`group shrink-0 snap-start ${focusRing}`}
                 onPointerEnter={() => warmEpisode(ep)}
                 onFocus={() => warmEpisode(ep)}
+                onClick={() => markPlaybackPlayIntent()}
               >
                 {inner}
               </Link>
