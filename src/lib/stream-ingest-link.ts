@@ -6,6 +6,7 @@ import {
 import { resolveContentTypeForUpload } from "@/lib/content-media-shared";
 import { findStreamAssetUidBySourceUrl, setStreamAssetEntity, upsertStreamAsset } from "@/lib/stream-asset-store";
 import { isAllowedStorageUrl } from "@/lib/storage-origin";
+import { createDownloadUrlForStorageUrl } from "@/lib/content-media-s3";
 
 const VIDEO_URL_RE = /\.(mp4|mov|webm|mkv|m4v|avi|mpeg|mpg|m2ts|3gp|hevc)(\?|$)/i;
 
@@ -25,7 +26,8 @@ export async function ensureVideoIngested(
 
   try {
     const contentType = resolveContentTypeForUpload({ name: trimmed.split("/").pop() ?? "video.mp4", type: "" });
-    const stream = await ingestToCloudflareStreamFromUrl(trimmed, {
+    const fetchableUrl = await createDownloadUrlForStorageUrl(trimmed);
+    const stream = await ingestToCloudflareStreamFromUrl(fetchableUrl, {
       ...meta,
       mime: contentType,
     });
@@ -69,7 +71,8 @@ export async function linkOrIngestStreamForUrl(
   }
 
   try {
-    const stream = await ingestToCloudflareStreamFromUrl(trimmed, meta);
+    const fetchableUrl = await createDownloadUrlForStorageUrl(trimmed);
+    const stream = await ingestToCloudflareStreamFromUrl(fetchableUrl, meta);
     await upsertStreamAsset({
       uid: stream.uid,
       sourceUrl: trimmed,

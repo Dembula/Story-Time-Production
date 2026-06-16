@@ -1,6 +1,7 @@
 import { ingestToCloudflareStreamFromUrl } from "@/lib/cloudflare-stream";
 import { upsertStreamAsset } from "@/lib/stream-asset-store";
 import { getStorageConfig } from "@/lib/storage-config";
+import { createContentMediaDownloadUrl } from "@/lib/content-media-s3";
 
 export type ContentMediaFinalizePayload = {
   ok: true;
@@ -57,16 +58,26 @@ export async function ingestVideoStreamForContentMedia(options: {
   sourceUrl: string;
   contentType: string;
   fileNameForMeta?: string;
+  /** Object key — used to mint a presigned GET so Cloudflare can pull from private buckets. */
+  key?: string;
 }): Promise<void> {
   if (!options.contentType.startsWith("video/")) return;
 
+  // Cloudflare downloads the master file from the URL we hand it. Prefer a presigned
+  // GET (works for private buckets); fall back to the canonical public URL.
+  const fetchableUrl = options.key
+    ? (await createContentMediaDownloadUrl(options.key)) ?? options.sourceUrl
+    : options.sourceUrl;
+
   try {
-    const stream = await ingestToCloudflareStreamFromUrl(options.sourceUrl, {
+    const stream = await ingestToCloudflareStreamFromUrl(fetchableUrl, {
       source: "storytime-upload",
       fileName: options.fileNameForMeta ?? "video",
       mime: options.contentType,
     });
     await upsertStreamAsset({
+      // Always store the canonical (non-expiring) URL so later lookups by
+      // content.videoUrl resolve, even though we ingested via a presigned URL.
       uid: stream.uid,
       sourceUrl: options.sourceUrl,
       playbackUrl: stream.mp4Url,
@@ -93,6 +104,7 @@ export async function finalizeContentMediaUpload(options: {
     sourceUrl: payload.sourceUrl,
     contentType: options.contentType,
     fileNameForMeta: options.fileNameForMeta ?? options.key.split("/").pop() ?? "video",
+    key: options.key,
   });
   return payload;
 }

@@ -93,6 +93,7 @@ export async function POST(request: NextRequest) {
           sourceUrl: payload.sourceUrl,
           contentType,
           fileNameForMeta: file.name,
+          key,
         });
       });
     }
