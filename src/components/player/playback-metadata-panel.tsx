@@ -17,6 +17,7 @@ export function PlaybackMetadataPanel({
   onClose,
   moodTags,
   atmosphere,
+  scriptAnalysis,
   scenes,
   currentTime,
   onSeek,
@@ -25,6 +26,12 @@ export function PlaybackMetadataPanel({
   onClose: () => void;
   moodTags?: unknown;
   atmosphere?: string | null;
+  scriptAnalysis?: {
+    used?: boolean;
+    sourceType?: string | null;
+    truncated?: boolean;
+    error?: string | null;
+  } | null;
   scenes: Scene[];
   currentTime: number;
   onSeek: (seconds: number) => void;
@@ -48,6 +55,17 @@ export function PlaybackMetadataPanel({
         </button>
       </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {scriptAnalysis?.used ? (
+          <div className="rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-100">
+            Script-backed scene data
+            {scriptAnalysis.sourceType ? ` · ${scriptAnalysis.sourceType.toUpperCase()}` : ""}
+            {scriptAnalysis.truncated ? " · excerpt analyzed" : ""}
+          </div>
+        ) : scriptAnalysis?.error ? (
+          <div className="rounded-xl border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+            Script file could not be read automatically; scene data is inferred from catalogue details.
+          </div>
+        ) : null}
         {atmosphere && (
           <p className="text-xs text-slate-300">
             <span className="text-orange-300">Atmosphere:</span> {atmosphere}

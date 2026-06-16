@@ -3,12 +3,23 @@ import { warmPlaybackManifest } from "./engine";
 
 export const PLAYBACK_BUNDLE_STALE_MS = 3 * 60 * 60 * 1000;
 
-export function playbackBundleQueryKey(contentId: string, episodeId?: string | null) {
-  return ["playback-bundle", contentId, episodeId ?? "main"] as const;
+export function playbackBundleQueryKey(
+  contentId: string,
+  episodeId?: string | null,
+  options?: { trailer?: boolean },
+) {
+  return ["playback-bundle", contentId, episodeId ?? "main", options?.trailer ? "trailer" : "feature"] as const;
 }
 
-export async function fetchPlaybackBundle(contentId: string, episodeId?: string | null) {
-  const qs = episodeId ? `?episodeId=${encodeURIComponent(episodeId)}` : "";
+export async function fetchPlaybackBundle(
+  contentId: string,
+  episodeId?: string | null,
+  options?: { trailer?: boolean },
+) {
+  const params = new URLSearchParams();
+  if (episodeId) params.set("episodeId", episodeId);
+  if (options?.trailer) params.set("trailer", "1");
+  const qs = params.toString() ? `?${params.toString()}` : "";
   const res = await fetch(`/api/content/${contentId}/playback-bundle${qs}`, {
     priority: "high",
   } as RequestInit);
@@ -43,6 +54,7 @@ export type PreparePlaybackOptions = {
   watchHref: string;
   videoUrl?: string | null;
   episodeId?: string | null;
+  trailer?: boolean;
   queryClient?: QueryClient;
   router?: { prefetch: (url: string) => void };
 };
@@ -53,6 +65,7 @@ export function preparePlaybackStart({
   watchHref,
   videoUrl,
   episodeId,
+  trailer,
   queryClient,
   router,
 }: PreparePlaybackOptions) {
@@ -62,12 +75,12 @@ export function preparePlaybackStart({
 
   if (queryClient) {
     void queryClient.prefetchQuery({
-      queryKey: playbackBundleQueryKey(contentId, episodeId),
-      queryFn: () => fetchPlaybackBundle(contentId, episodeId),
+      queryKey: playbackBundleQueryKey(contentId, episodeId, { trailer }),
+      queryFn: () => fetchPlaybackBundle(contentId, episodeId, { trailer }),
       staleTime: PLAYBACK_BUNDLE_STALE_MS,
     });
   } else {
-    void fetchPlaybackBundle(contentId, episodeId).catch(() => {});
+    void fetchPlaybackBundle(contentId, episodeId, { trailer }).catch(() => {});
   }
 }
 

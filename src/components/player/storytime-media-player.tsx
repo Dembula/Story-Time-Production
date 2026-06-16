@@ -47,6 +47,12 @@ const INTRO_SKIP_SECONDS = 90;
 const IDLE_HIDE_MS = 3200;
 
 
+function actorList(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.map((item) => String(item).trim()).filter(Boolean)
+    : [];
+}
+
 
 type StorytimeMediaPlayerProps = {
 
@@ -75,6 +81,8 @@ type StorytimeMediaPlayerProps = {
   onProgressSave?: (currentTime: number, duration: number) => void;
 
   episodeId?: string | null;
+
+  isTrailer?: boolean;
 
 };
 
@@ -107,6 +115,8 @@ export function StorytimeMediaPlayer({
   onProgressSave,
 
   episodeId = null,
+
+  isTrailer = false,
 
 }: StorytimeMediaPlayerProps) {
 
@@ -141,9 +151,9 @@ export function StorytimeMediaPlayer({
 
   const { data: bundle, isLoading: bundleLoading, isError: bundleError } = useQuery({
 
-    queryKey: playbackBundleQueryKey(contentId, episodeId),
+    queryKey: playbackBundleQueryKey(contentId, episodeId, { trailer: isTrailer }),
 
-    queryFn: () => fetchPlaybackBundle(contentId, episodeId),
+    queryFn: () => fetchPlaybackBundle(contentId, episodeId, { trailer: isTrailer }),
 
     staleTime: signedPlaybackRequired ? PLAYBACK_BUNDLE_STALE_MS : 60_000,
     refetchOnWindowFocus: signedPlaybackRequired,
@@ -186,6 +196,7 @@ export function StorytimeMediaPlayer({
     (s) => currentTime >= s.startSeconds && currentTime < s.endSeconds,
 
   );
+  const activeSceneActors = actorList(activeScene?.actors).slice(0, 5);
 
   const applyHlsDrmConfig = useCallback(
     (instance: unknown) => {
@@ -405,24 +416,52 @@ export function StorytimeMediaPlayer({
 
   }, []);
 
-  const toggleFullscreen = useCallback(async () => {
+  const requestNativeFullscreen = useCallback(async () => {
     const root = playerRef.current?.el?.closest(".storytime-watch-player") as HTMLElement | null;
-    if (!root) return;
+    const video = playerRef.current?.el?.querySelector("video") as
+      | (HTMLVideoElement & {
+          webkitEnterFullscreen?: () => void;
+          webkitDisplayingFullscreen?: boolean;
+          webkitSupportsFullscreen?: boolean;
+        })
+      | null;
+    if (!root && !video) return;
     try {
-      if (document.fullscreenElement) await document.exitFullscreen();
-      else await root.requestFullscreen();
+      if (isMobileLike && video?.webkitEnterFullscreen && !video.webkitDisplayingFullscreen) {
+        video.webkitEnterFullscreen();
+        return;
+      }
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+        return;
+      }
+      if (video?.requestFullscreen && isMobileLike) {
+        await video.requestFullscreen();
+        return;
+      }
+      if (root?.requestFullscreen) {
+        await root.requestFullscreen();
+      }
     } catch {
       // unsupported or denied
     }
-  }, []);
+  }, [isMobileLike]);
+
+  const toggleFullscreen = useCallback(async () => {
+    await requestNativeFullscreen();
+  }, [requestNativeFullscreen]);
 
   const togglePlayPause = useCallback(() => {
     const player = playerRef.current;
     if (!player) return;
-    if (player.paused) void player.play();
-    else player.pause();
+    if (player.paused) {
+      void player.play();
+      if (isMobileLike) void requestNativeFullscreen();
+    } else {
+      player.pause();
+    }
     resetIdleTimer();
-  }, [resetIdleTimer]);
+  }, [isMobileLike, requestNativeFullscreen, resetIdleTimer]);
 
   const seekBack = useCallback(() => {
     const player = playerRef.current;
@@ -624,11 +663,25 @@ export function StorytimeMediaPlayer({
 
 
 
-  const enrichment = bundle?.enrichment as { moodTags?: string[]; atmosphere?: string | null } | undefined;
+  const enrichment = bundle?.enrichment as
+    | {
+        moodTags?: string[];
+        atmosphere?: string | null;
+        narrativeJson?: {
+          scriptAnalysis?: {
+            used?: boolean;
+            sourceType?: string | null;
+            truncated?: boolean;
+            error?: string | null;
+          } | null;
+        } | null;
+      }
+    | undefined;
+  const scriptAnalysis = enrichment?.narrativeJson?.scriptAnalysis ?? null;
 
   return (
     <div
-      className="storytime-watch-player fixed inset-0 z-[100] bg-black"
+    className="storytime-watch-player fixed inset-0 z-[100] h-[100dvh] w-screen bg-black"
       data-input-scope="player"
       onMouseMove={resetIdleTimer}
       onTouchStart={resetIdleTimer}
@@ -695,6 +748,7 @@ export function StorytimeMediaPlayer({
           advisory={advisory}
           moodTags={enrichment?.moodTags}
           atmosphere={enrichment?.atmosphere}
+          actorsOnScreen={activeSceneActors}
           isPlaying={isPlaying}
           currentTime={currentTime}
           duration={duration}
@@ -703,8 +757,9 @@ export function StorytimeMediaPlayer({
           onSeekBack={seekBack}
           onSeekForward={seekForward}
           onSeek={seekTo}
-          showSkipIntro={showSkipIntro}
+          showSkipIntro={!isTrailer && showSkipIntro}
           onSkipIntro={skipIntro}
+          onFullscreen={requestNativeFullscreen}
         />
       ) : (
         <>
@@ -738,24 +793,34 @@ export function StorytimeMediaPlayer({
           <PlaybackChrome
             visible={uiVisible}
             title={title}
-            showSkipIntro={showSkipIntro}
+            showSkipIntro={!isTrailer && showSkipIntro}
             onSkipIntro={skipIntro}
             onPiP={enterPiP}
             pipSupported={typeof document !== "undefined" && document.pictureInPictureEnabled}
             metadataOpen={metadataOpen}
             onToggleMetadata={() => setMetadataOpen((v) => !v)}
-            currentSceneLabel={activeScene?.summary ?? activeScene?.mood ?? null}
+            metadataAvailable={!isTrailer}
+            currentSceneLabel={
+              isTrailer
+                ? null
+                : activeSceneActors.length > 0
+                  ? `On screen: ${activeSceneActors.join(", ")}`
+                  : activeScene?.summary ?? activeScene?.mood ?? null
+            }
           />
 
-          <PlaybackMetadataPanel
-            open={metadataOpen}
-            onClose={() => setMetadataOpen(false)}
-            moodTags={enrichment?.moodTags}
-            atmosphere={enrichment?.atmosphere}
-            scenes={scenes}
-            currentTime={currentTime}
-            onSeek={seekTo}
-          />
+          {!isTrailer ? (
+            <PlaybackMetadataPanel
+              open={metadataOpen}
+              onClose={() => setMetadataOpen(false)}
+              moodTags={enrichment?.moodTags}
+              atmosphere={enrichment?.atmosphere}
+              scriptAnalysis={scriptAnalysis}
+              scenes={scenes}
+              currentTime={currentTime}
+              onSeek={seekTo}
+            />
+          ) : null}
 
           {nextEpisode && uiVisible ? (
             <div className="pointer-events-none absolute bottom-36 left-0 right-0 z-10 flex justify-center p-4">

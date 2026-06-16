@@ -13,6 +13,7 @@ type PlaybackChromeProps = {
   pipSupported: boolean;
   metadataOpen: boolean;
   onToggleMetadata: () => void;
+  metadataAvailable?: boolean;
   currentSceneLabel?: string | null;
 };
 
@@ -25,6 +26,7 @@ export function PlaybackChrome({
   pipSupported,
   metadataOpen,
   onToggleMetadata,
+  metadataAvailable = true,
   currentSceneLabel,
 }: PlaybackChromeProps) {
   return (
@@ -54,17 +56,19 @@ export function PlaybackChrome({
                   <SkipForward className="h-3.5 w-3.5" /> Skip intro
                 </button>
               )}
-              <button
-                type="button"
-                onClick={onToggleMetadata}
-                className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold backdrop-blur-md ${
-                  metadataOpen
-                    ? "border-orange-400/40 bg-orange-500/20 text-orange-100"
-                    : "border-white/15 bg-black/50 text-white hover:bg-white/10"
-                }`}
-              >
-                <Sparkles className="h-3.5 w-3.5" /> Scene info
-              </button>
+              {metadataAvailable ? (
+                <button
+                  type="button"
+                  onClick={onToggleMetadata}
+                  className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold backdrop-blur-md ${
+                    metadataOpen
+                      ? "border-orange-400/40 bg-orange-500/20 text-orange-100"
+                      : "border-white/15 bg-black/50 text-white hover:bg-white/10"
+                  }`}
+                >
+                  <Sparkles className="h-3.5 w-3.5" /> Scene info
+                </button>
+              ) : null}
               {pipSupported && (
                 <button
                   type="button"

@@ -1,6 +1,6 @@
 "use client";
 
-import { Pause, Play, Rewind, FastForward, X } from "lucide-react";
+import { Maximize2, Pause, Play, Rewind, FastForward, X } from "lucide-react";
 import { PlaybackComplianceBadge } from "./playback-compliance-badge";
 
 const SEEK_SECONDS = 10;
@@ -13,6 +13,7 @@ type NetflixMobileControlsProps = {
   advisory?: Record<string, unknown> | null;
   moodTags?: string[] | null;
   atmosphere?: string | null;
+  actorsOnScreen?: string[];
   isPlaying: boolean;
   currentTime: number;
   duration: number;
@@ -23,6 +24,7 @@ type NetflixMobileControlsProps = {
   onSeek: (seconds: number) => void;
   showSkipIntro?: boolean;
   onSkipIntro?: () => void;
+  onFullscreen?: () => void;
 };
 
 function formatRemaining(seconds: number): string {
@@ -40,6 +42,7 @@ export function NetflixMobileControls({
   advisory = null,
   moodTags,
   atmosphere,
+  actorsOnScreen = [],
   isPlaying,
   currentTime,
   duration,
@@ -50,6 +53,7 @@ export function NetflixMobileControls({
   onSeek,
   showSkipIntro,
   onSkipIntro,
+  onFullscreen,
 }: NetflixMobileControlsProps) {
   const remaining = Math.max(0, duration - currentTime);
   const tagLine = [
@@ -84,15 +88,32 @@ export function NetflixMobileControls({
                 {tagLine}
               </p>
             ) : null}
+            {actorsOnScreen.length > 0 ? (
+              <p className="mt-1 line-clamp-1 text-[11px] font-medium text-orange-100/80">
+                On screen: {actorsOnScreen.slice(0, 4).join(", ")}
+              </p>
+            ) : null}
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white/90 transition-colors hover:bg-white/10 touch-manipulation"
-            aria-label="Close player"
-          >
-            <X className="h-7 w-7" />
-          </button>
+          <div className="flex shrink-0 items-center gap-1">
+            {onFullscreen ? (
+              <button
+                type="button"
+                onClick={onFullscreen}
+                className="flex h-10 w-10 items-center justify-center rounded-full text-white/90 transition-colors hover:bg-white/10 touch-manipulation"
+                aria-label="Enter fullscreen"
+              >
+                <Maximize2 className="h-5 w-5" />
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex h-10 w-10 items-center justify-center rounded-full text-white/90 transition-colors hover:bg-white/10 touch-manipulation"
+              aria-label="Close player"
+            >
+              <X className="h-7 w-7" />
+            </button>
+          </div>
         </div>
       </div>
 

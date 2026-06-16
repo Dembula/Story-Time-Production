@@ -21,6 +21,7 @@ type WatchClientProps = {
   nextEpisode: { id: string; title: string; href?: string } | null;
   startTime?: number;
   episodeId?: string | null;
+  isTrailer?: boolean;
 };
 
 export function WatchClient({
@@ -29,12 +30,14 @@ export function WatchClient({
   nextEpisode,
   startTime = 0,
   episodeId = null,
+  isTrailer = false,
 }: WatchClientProps) {
   const lastReportedRef = useRef(0);
   const lastSavedRef = useRef(0);
 
   const reportWatchTime = useCallback(
     async (currentTime: number, _duration: number) => {
+      if (isTrailer) return;
       const elapsed = Math.floor(currentTime);
       const delta = elapsed - lastReportedRef.current;
       if (delta < 30) return;
@@ -52,11 +55,12 @@ export function WatchClient({
         // ignore
       }
     },
-    [content.id],
+    [content.id, isTrailer],
   );
 
   const saveProgress = useCallback(
     async (currentTime: number, duration: number) => {
+      if (isTrailer) return;
       const pos = Math.floor(currentTime);
       if (pos - lastSavedRef.current < 8 && pos > 0) return;
       lastSavedRef.current = pos;
@@ -74,7 +78,7 @@ export function WatchClient({
         // ignore
       }
     },
-    [content.id],
+    [content.id, isTrailer],
   );
 
   return (
@@ -92,12 +96,13 @@ export function WatchClient({
         title={content.title}
         contentDetailUrl={contentDetailUrl}
         nextEpisode={nextEpisode}
-        startTime={startTime}
+        startTime={isTrailer ? 0 : startTime}
         ageRating={content.ageRating}
         minAge={content.minAge}
         advisory={content.advisory}
-        onTimeUpdate={reportWatchTime}
-        onProgressSave={saveProgress}
+        onTimeUpdate={isTrailer ? undefined : reportWatchTime}
+        onProgressSave={isTrailer ? undefined : saveProgress}
+        isTrailer={isTrailer}
       />
     </WatchPlayerErrorBoundary>
   );

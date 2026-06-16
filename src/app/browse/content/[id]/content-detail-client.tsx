@@ -101,6 +101,7 @@ export function ContentDetailClient({
   const { inList, toggle: toggleWatchlist } = useWatchlist(content.id);
   const preparePlayback = usePlaybackPrefetch();
   const [downloadState, setDownloadState] = useState<string | null>(null);
+  const [creditsExpanded, setCreditsExpanded] = useState(false);
 
   useEffect(() => {
     const d = getDownload(content.id);
@@ -127,6 +128,7 @@ export function ContentDetailClient({
   const playTarget = isLongForm && firstEpisode
     ? `/browse/content/${content.id}/watch?episode=${firstEpisode.id}`
     : `/browse/content/${content.id}/watch`;
+  const trailerTarget = `/browse/content/${content.id}/watch?trailer=1`;
   const playLabel = isLongForm ? "Play First Episode" : "Play";
 
   const warmPlayback = useCallback(() => {
@@ -138,6 +140,17 @@ export function ContentDetailClient({
       episodeId: firstEpisode?.id ?? null,
     });
   }, [preparePlayback, content.id, content.videoUrl, playTarget, firstEpisode?.id, firstEpisode?.videoUrl]);
+
+  const warmTrailer = useCallback(() => {
+    if (!content.trailerUrl) return;
+    preparePlayback({
+      contentId: content.id,
+      watchHref: trailerTarget,
+      videoUrl: content.trailerUrl,
+      episodeId: null,
+      trailer: true,
+    });
+  }, [preparePlayback, content.id, content.trailerUrl, trailerTarget]);
 
   useEffect(() => {
     if (!canPlay) return;
@@ -330,6 +343,7 @@ export function ContentDetailClient({
         playLabel={playLabel}
         playHref={playTarget}
         onPreparePlay={warmPlayback}
+        onPrepareTrailer={warmTrailer}
         hasDownload={Boolean(content.videoUrl && !isLongForm)}
         downloadState={downloadState}
         onDownload={handleDownload}
@@ -348,7 +362,9 @@ export function ContentDetailClient({
           <section className={`${isTv ? "mb-12" : "mb-10"}`}>
             <h2 className={`mb-3 font-display font-semibold text-white ${isTv ? "text-2xl" : "text-lg"}`}>Trailers</h2>
             <Link
-              href={`/browse/content/${content.id}/watch?trailer=1`}
+              href={trailerTarget}
+              onPointerDown={warmTrailer}
+              onFocus={warmTrailer}
               className={`group relative block aspect-video overflow-hidden rounded-xl border border-white/10 bg-slate-900 ${
                 isMobile ? "w-full" : "max-w-md"
               } ${isTv ? "max-w-xl rounded-2xl" : ""}`}
@@ -541,13 +557,22 @@ export function ContentDetailClient({
       )}
 
       {/* Crew Members */}
-      {content.crewMembers && content.crewMembers.length > 0 && (
+      {content.crewMembers && content.crewMembers.length > 0 && (() => {
+        const previewCount = isTv ? 12 : isMobile ? 6 : 8;
+        const visibleMembers = creditsExpanded ? content.crewMembers : content.crewMembers.slice(0, previewCount);
+        const hiddenCount = Math.max(0, content.crewMembers.length - visibleMembers.length);
+        return (
         <div className="mt-8 p-6 rounded-2xl bg-slate-800/30 border border-slate-700/50">
-          <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <UsersIcon className="w-5 h-5 text-emerald-500" /> Cast & Crew
-          </h3>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+              <UsersIcon className="w-5 h-5 text-emerald-500" /> Cast & Crew
+            </h3>
+            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-slate-300">
+              {content.crewMembers.length} credit{content.crewMembers.length === 1 ? "" : "s"}
+            </span>
+          </div>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            {content.crewMembers.map((member) => (
+            {visibleMembers.map((member) => (
               <CastCrewMemberCard
                 key={member.id}
                 member={member}
@@ -555,8 +580,21 @@ export function ContentDetailClient({
               />
             ))}
           </div>
+          {content.crewMembers.length > previewCount ? (
+            <div className="mt-5 flex justify-center">
+              <button
+                type="button"
+                onClick={() => setCreditsExpanded((v) => !v)}
+                className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:border-orange-400/35 hover:bg-orange-500/10"
+                aria-expanded={creditsExpanded}
+              >
+                {creditsExpanded ? "Show fewer credits" : `View all credits${hiddenCount ? ` (+${hiddenCount})` : ""}`}
+              </button>
+            </div>
+          ) : null}
         </div>
-      )}
+        );
+      })()}
 
       {isSubscriber && subscriptionExpired && (
         <div className="mt-10 rounded-xl overflow-hidden border border-slate-700/50 bg-slate-900/50">

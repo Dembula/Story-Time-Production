@@ -28,6 +28,7 @@ type Props = {
   playLabel?: string;
   playHref: string;
   onPreparePlay?: () => void;
+  onPrepareTrailer?: () => void;
   hasDownload?: boolean;
   downloadState?: string | null;
   onDownload?: () => void;
@@ -62,6 +63,7 @@ export function ContentDetailHero({
   playLabel = "Play",
   playHref,
   onPreparePlay,
+  onPrepareTrailer,
   hasDownload,
   downloadState,
   onDownload,
@@ -299,6 +301,8 @@ export function ContentDetailHero({
             {trailerUrl && (
               <Link
                 href={`/browse/content/${contentId}/watch?trailer=1`}
+                onPointerDown={() => onPrepareTrailer?.()}
+                onFocus={() => onPrepareTrailer?.()}
                 className={`flex shrink-0 items-center justify-center gap-2 rounded-full border border-white/15 bg-white/[0.08] text-white backdrop-blur-md transition hover:bg-white/12 ${focusRing} ${
                   isMobile
                     ? `${secondaryBtn}`

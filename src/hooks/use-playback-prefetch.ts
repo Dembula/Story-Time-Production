@@ -31,6 +31,7 @@ export function usePlaybackPrefetch() {
       watchHref: string;
       videoUrl?: string | null;
       episodeId?: string | null;
+      trailer?: boolean;
     }) => {
       preparePlaybackStart({
         ...options,

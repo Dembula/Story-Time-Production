@@ -9,13 +9,14 @@ import {
 type StreamAssetLink = {
   entityType: string | null;
   entityId: string | null;
+  sourceUrl: string | null;
   hlsUrl: string | null;
   playbackUrl: string | null;
 };
 
 async function getStreamAssetLink(uid: string): Promise<StreamAssetLink | null> {
   const rows = (await prisma.$queryRaw`
-    SELECT "entityType", "entityId", "hlsUrl", "playbackUrl"
+    SELECT "entityType", "entityId", "sourceUrl", "hlsUrl", "playbackUrl"
     FROM "StreamAsset"
     WHERE "uid" = ${uid}
     LIMIT 1
@@ -44,15 +45,40 @@ export async function syncLinkedEntitiesAfterStreamReady(uid: string, state: str
   const mp4Url = link.playbackUrl ?? urls.mp4Url;
   const thumbnailUrl = urls.thumbnailUrl;
 
-  if (link.entityType === "Content") {
+  if (link.entityType === "Content" || link.entityType === "ContentTrailer") {
     const content = await prisma.content.findUnique({
       where: { id: link.entityId },
       select: { id: true, videoUrl: true, posterUrl: true, trailerUrl: true },
     });
     if (!content) return;
 
-    const updates: { videoUrl?: string; posterUrl?: string } = {};
+    const updates: { videoUrl?: string; posterUrl?: string; trailerUrl?: string } = {};
     const currentVideo = content.videoUrl?.trim() ?? "";
+    const currentTrailer = content.trailerUrl?.trim() ?? "";
+    const sourceUrl = link.sourceUrl?.trim() ?? "";
+    const targetField =
+      link.entityType === "ContentTrailer" ||
+      (sourceUrl && currentTrailer === sourceUrl) ||
+      extractCloudflareStreamUid(currentTrailer) === uid
+        ? "trailerUrl"
+        : "videoUrl";
+
+    if (targetField === "trailerUrl") {
+      const shouldSetTrailer =
+        !currentTrailer ||
+        !isCloudflareStreamUrl(currentTrailer) ||
+        extractCloudflareStreamUid(currentTrailer) !== uid;
+
+      if (shouldSetTrailer && playbackUrl) {
+        updates.trailerUrl = playbackUrl;
+      }
+
+      if (Object.keys(updates).length > 0) {
+        await prisma.content.update({ where: { id: content.id }, data: updates });
+      }
+      return;
+    }
+
     const shouldSetVideo =
       !currentVideo ||
       !isCloudflareStreamUrl(currentVideo) ||

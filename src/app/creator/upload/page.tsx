@@ -173,6 +173,7 @@ function DistributionUploadInner() {
   const [uploadingMainVideo, setUploadingMainVideo] = useState(false);
   const [mainVideoProgress, setMainVideoProgress] = useState<number | null>(null);
   const [uploadingTrailer, setUploadingTrailer] = useState(false);
+  const [trailerProgress, setTrailerProgress] = useState<number | null>(null);
   const [uploadingPoster, setUploadingPoster] = useState(false);
   const [uploadingBackdrop, setUploadingBackdrop] = useState(false);
   const [uploadingScript, setUploadingScript] = useState(false);
@@ -241,6 +242,22 @@ function DistributionUploadInner() {
     } finally {
       setUploadingMainVideo(false);
       setMainVideoProgress(null);
+    }
+  }
+
+  async function handleTrailerUpload(file: File) {
+    try {
+      setUploadingTrailer(true);
+      setTrailerProgress(0);
+      setError("");
+      const url = await uploadToStorage(file, (pct) => setTrailerProgress(pct));
+      updateField("trailerUrl", url);
+    } catch (err) {
+      console.error(err);
+      setError(err instanceof Error ? err.message : "Failed to upload trailer. Please try again.");
+    } finally {
+      setUploadingTrailer(false);
+      setTrailerProgress(null);
     }
   }
 
@@ -750,44 +767,27 @@ function DistributionUploadInner() {
                 </details>
               </MediaDropzone>
               )}
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1.5">Trailer (optional)</label>
-                <div className="space-y-2">
+              <MediaDropzone
+                label="Trailer (optional)"
+                hint="Upload a short trailer or teaser. MOV/MP4 uploads are processed for adaptive streaming after submission."
+                accept="video/*"
+                uploading={uploadingTrailer}
+                progress={trailerProgress}
+                done={Boolean(form.trailerUrl) && !uploadingTrailer}
+                onFile={handleTrailerUpload}
+              >
+                <details className="rounded-lg border border-slate-700/60 bg-slate-900/30 px-3 py-2">
+                  <summary className="cursor-pointer text-xs text-slate-500 hover:text-slate-300 list-none [&::-webkit-details-marker]:hidden">
+                    Optional: paste trailer URL instead
+                  </summary>
                   <input
-                    type="file"
-                    accept="video/*"
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      try {
-                        setUploadingTrailer(true);
-                        const url = await uploadToStorage(file);
-                        updateField("trailerUrl", url);
-                      } catch (err) {
-                        console.error(err);
-                        setError(
-                          err instanceof Error ? err.message : "Failed to upload trailer. Please try again.",
-                        );
-                      } finally {
-                        setUploadingTrailer(false);
-                      }
-                    }}
-                    className="block w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-slate-700 file:text-white hover:file:bg-slate-600 cursor-pointer"
+                    value={form.trailerUrl}
+                    onChange={(e) => updateField("trailerUrl", e.target.value)}
+                    placeholder="https://…"
+                    className="mt-2 w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-xl text-white placeholder-slate-500 text-xs focus:border-orange-500 focus:outline-none transition"
                   />
-                  {uploadingTrailer && <p className="text-xs text-slate-400">Uploading…</p>}
-                  <details className="rounded-lg border border-slate-700/60 bg-slate-900/30 px-3 py-2">
-                    <summary className="cursor-pointer text-xs text-slate-500 hover:text-slate-300 list-none [&::-webkit-details-marker]:hidden">
-                      Optional: paste trailer URL instead
-                    </summary>
-                    <input
-                      value={form.trailerUrl}
-                      onChange={(e) => updateField("trailerUrl", e.target.value)}
-                      placeholder="https://…"
-                      className="mt-2 w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-xl text-white placeholder-slate-500 text-xs focus:border-orange-500 focus:outline-none transition"
-                    />
-                  </details>
-                </div>
-              </div>
+                </details>
+              </MediaDropzone>
             </div>
             <div className="space-y-4">
               <div>

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { embedText } from "./embeddings";
 import type { EnrichmentResult, SceneSegment } from "./types";
+import { extractScriptTextFromUrl, type ScriptTextExtraction } from "./script-text";
 
 function buildEnrichmentPrompt(content: {
   title: string;
@@ -8,7 +9,18 @@ function buildEnrichmentPrompt(content: {
   category: string | null;
   tags: string | null;
   duration: number | null;
-}) {
+}, script: ScriptTextExtraction | null) {
+  const scriptBlock = script?.text
+    ? `\nUploaded script source: ${script.sourceType}${script.truncated ? " (excerpt truncated for token limits)" : ""}
+
+Screenplay text:
+---
+${script.text}
+---`
+    : script?.error
+      ? `\nUploaded script source could not be read automatically: ${script.error}`
+      : "\nNo uploaded script text was available. Use catalogue metadata only and mark scene details as inferred.";
+
   return `Analyze this film/TV catalogue title for a streaming platform. Return strict JSON only.
 
 Title: ${content.title}
@@ -16,6 +28,7 @@ Description: ${content.description ?? "N/A"}
 Category: ${content.category ?? "N/A"}
 Tags: ${content.tags ?? "N/A"}
 Duration seconds: ${content.duration ?? "unknown"}
+${scriptBlock}
 
 JSON schema:
 {
@@ -27,7 +40,7 @@ JSON schema:
   "dialogueIndex": [{ "startSeconds": number, "endSeconds": number, "text": string }]
 }
 
-Generate 4-12 scenes spread across the runtime. Be concise.`;
+Generate 4-12 scenes spread across the runtime. When screenplay text is present, ground scene summaries, actors, and dialogue snippets in the script. Map script scenes proportionally across the runtime if exact timecodes are not present. List only characters that are actually present or speaking in each scene. Be concise.`;
 }
 
 export async function enrichContentById(contentId: string): Promise<EnrichmentResult | null> {
@@ -40,6 +53,7 @@ export async function enrichContentById(contentId: string): Promise<EnrichmentRe
       category: true,
       tags: true,
       duration: true,
+      scriptUrl: true,
     },
   });
   if (!content) return null;
@@ -54,6 +68,7 @@ export async function enrichContentById(contentId: string): Promise<EnrichmentRe
   });
 
   try {
+    const script = await extractScriptTextFromUrl(content.scriptUrl);
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -66,7 +81,7 @@ export async function enrichContentById(contentId: string): Promise<EnrichmentRe
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: "You are a film metadata analyst. Output valid JSON only." },
-          { role: "user", content: buildEnrichmentPrompt(content) },
+          { role: "user", content: buildEnrichmentPrompt(content, script) },
         ],
       }),
     });
@@ -80,6 +95,7 @@ export async function enrichContentById(contentId: string): Promise<EnrichmentRe
     const embedInput = [
       content.title,
       content.description,
+      script?.text,
       parsed.narrativeSummary,
       parsed.moodTags?.join(", "),
       parsed.atmosphere,
@@ -95,7 +111,17 @@ export async function enrichContentById(contentId: string): Promise<EnrichmentRe
         moodTags: parsed.moodTags ?? [],
         atmosphere: parsed.atmosphere ?? null,
         pacing: parsed.pacing ?? null,
-        narrativeJson: { summary: parsed.narrativeSummary },
+        narrativeJson: {
+          summary: parsed.narrativeSummary,
+          scriptAnalysis: script
+            ? {
+                sourceType: script.sourceType,
+                used: Boolean(script.text),
+                truncated: script.truncated,
+                error: script.error ?? null,
+              }
+            : { used: false, sourceType: null, truncated: false, error: null },
+        },
         dialogueIndex: parsed.dialogueIndex ?? [],
         embedding,
         processedAt: new Date(),

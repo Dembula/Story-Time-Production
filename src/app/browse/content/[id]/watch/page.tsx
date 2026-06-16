@@ -68,7 +68,7 @@ export default async function WatchPage({
   if (!content) notFound();
 
   let videoUrl = isTrailer ? content.trailerUrl : content.videoUrl;
-  let displayTitle = content.title;
+  let displayTitle = isTrailer ? `${content.title} · Official Trailer` : content.title;
   let episodeDuration = content.duration;
   let progressContentId = content.id;
 
@@ -120,16 +120,18 @@ export default async function WatchPage({
   }
 
   let startTime = 0;
-  const progress = await prisma.watchProgress.findUnique({
-    where: {
-      viewerProfileId_contentId: { viewerProfileId: profileId, contentId: progressContentId },
-    },
-    select: { positionSeconds: true, durationSeconds: true },
-  });
-  if (progress && progress.positionSeconds >= 30) {
-    const dur = progress.durationSeconds ?? episodeDuration ?? null;
-    if (!dur || progress.positionSeconds / dur < 0.92) {
-      startTime = progress.positionSeconds;
+  if (!isTrailer) {
+    const progress = await prisma.watchProgress.findUnique({
+      where: {
+        viewerProfileId_contentId: { viewerProfileId: profileId, contentId: progressContentId },
+      },
+      select: { positionSeconds: true, durationSeconds: true },
+    });
+    if (progress && progress.positionSeconds >= 30) {
+      const dur = progress.durationSeconds ?? episodeDuration ?? null;
+      if (!dur || progress.positionSeconds / dur < 0.92) {
+        startTime = progress.positionSeconds;
+      }
     }
   }
 
@@ -151,6 +153,7 @@ export default async function WatchPage({
       nextEpisode={nextEpisode ? { id: nextEpisode.id, title: nextEpisode.title, href: nextEpisode.href } : null}
       startTime={startTime}
       episodeId={!isTrailer && episodeId ? episodeId : null}
+      isTrailer={isTrailer}
     />
   );
 }

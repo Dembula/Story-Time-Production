@@ -51,10 +51,12 @@ export async function linkOrIngestStreamForUrl(
 ): Promise<void> {
   const trimmed = url?.trim();
   if (!trimmed || !isAllowedStorageUrl(trimmed) || !isLikelyVideoStorageUrl(trimmed)) return;
+  const linkedEntityType =
+    entityType === "Content" && meta?.area === "content-trailer" ? "ContentTrailer" : entityType;
 
   const existingUid = extractCloudflareStreamUid(trimmed);
   if (existingUid) {
-    await setStreamAssetEntity(existingUid, entityType, entityId);
+    await setStreamAssetEntity(existingUid, linkedEntityType, entityId);
     return;
   }
 
@@ -62,7 +64,7 @@ export async function linkOrIngestStreamForUrl(
 
   const uidFromStore = await findStreamAssetUidBySourceUrl(trimmed);
   if (uidFromStore) {
-    await setStreamAssetEntity(uidFromStore, entityType, entityId);
+    await setStreamAssetEntity(uidFromStore, linkedEntityType, entityId);
     return;
   }
 
@@ -76,7 +78,7 @@ export async function linkOrIngestStreamForUrl(
       iframeUrl: stream.iframeUrl,
       status: stream.state,
     });
-    await setStreamAssetEntity(stream.uid, entityType, entityId);
+    await setStreamAssetEntity(stream.uid, linkedEntityType, entityId);
   } catch (streamErr) {
     console.error("Cloudflare Stream ingestion failed for linked URL:", streamErr);
   }

@@ -67,6 +67,28 @@ export async function findStreamAssetUidBySourceUrl(sourceUrl: string): Promise<
   return rows[0]?.uid ?? null;
 }
 
+export type StreamAssetPlaybackCandidate = {
+  uid: string;
+  status: string | null;
+  playbackUrl: string | null;
+  hlsUrl: string | null;
+  iframeUrl: string | null;
+};
+
+export async function findStreamAssetBySourceUrl(
+  sourceUrl: string,
+): Promise<StreamAssetPlaybackCandidate | null> {
+  const trimmed = sourceUrl.trim();
+  if (!trimmed) return null;
+  const rows = (await prisma.$queryRaw`
+    SELECT "uid", "status", "playbackUrl", "hlsUrl", "iframeUrl"
+    FROM "StreamAsset"
+    WHERE "sourceUrl" = ${trimmed}
+    LIMIT 1
+  `) as StreamAssetPlaybackCandidate[];
+  return rows[0] ?? null;
+}
+
 export async function getStreamStatusesByUids(uids: string[]) {
   if (uids.length === 0) return new Map<string, { status: string | null; playbackUrl: string | null }>();
   const rows = (await prisma.$queryRaw`
