@@ -1,5 +1,4 @@
 import type { QueryClient } from "@tanstack/react-query";
-import { warmPlaybackManifest } from "./engine";
 
 export const PLAYBACK_BUNDLE_STALE_MS = 3 * 60 * 60 * 1000;
 
@@ -71,7 +70,6 @@ export function preparePlaybackStart({
 }: PreparePlaybackOptions) {
   preloadPlayerModule();
   prefetchWatchRoute(watchHref, router);
-  warmPlaybackManifest(videoUrl);
 
   if (queryClient) {
     void queryClient.prefetchQuery({

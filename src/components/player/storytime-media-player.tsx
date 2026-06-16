@@ -19,6 +19,7 @@ import {
   type MediaPlayerInstance,
 } from "@vidstack/react";
 import { DefaultVideoLayout, defaultLayoutIcons } from "@vidstack/react/player/layouts/default";
+import { extractCloudflareStreamUid, isCloudflareStreamUrl } from "@/lib/cloudflare-stream";
 import { resolvePlaybackSources, type PlaybackSource } from "@/lib/playback-sources";
 import { warmPlaybackManifest } from "@/lib/prefetch";
 import {
@@ -150,7 +151,12 @@ export function StorytimeMediaPlayer({
 
 
   const clientSignedPlaybackRequired = isStreamSignedPlaybackClientEnabled();
-  const fallbackSource = useMemo(() => resolvePlaybackSources(videoUrl), [videoUrl]);
+  const fallbackSource = useMemo(() => {
+    const trimmed = videoUrl?.trim();
+    if (!trimmed) return null;
+    if (isCloudflareStreamUrl(trimmed) || extractCloudflareStreamUid(trimmed)) return null;
+    return resolvePlaybackSources(trimmed);
+  }, [videoUrl]);
 
   const { data: bundle, isLoading: bundleLoading, isError: bundleError } = useQuery({
 
@@ -232,9 +238,7 @@ export function StorytimeMediaPlayer({
 
 
   useEffect(() => {
-    const manifestUrl =
-      (bundle?.playback as PlaybackSource | undefined)?.src ??
-      (signedPlaybackRequired ? null : videoUrl);
+    const manifestUrl = (bundle?.playback as PlaybackSource | undefined)?.src ?? null;
     if (manifestUrl) warmPlaybackManifest(manifestUrl);
 
     if (nextEpisode?.id) {
@@ -243,7 +247,7 @@ export function StorytimeMediaPlayer({
         : null;
       void fetchPlaybackBundle(contentId, nextEpisodeId);
     }
-  }, [videoUrl, nextEpisode?.id, nextEpisode?.href, contentId, bundle?.playback, signedPlaybackRequired]);
+  }, [nextEpisode?.id, nextEpisode?.href, contentId, bundle?.playback]);
 
 
 

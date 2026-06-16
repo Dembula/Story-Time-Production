@@ -9,7 +9,7 @@ import {
   isS3FallbackPlayback,
   resolveServerPlaybackSource,
 } from "@/lib/server-playback-sources";
-import { isCloudflareSignedPlaybackEnabled } from "@/lib/cloudflare-stream-signed-url";
+import { requiresSignedStreamPlayback } from "@/lib/cloudflare-stream-signed-url";
 import { ensureVideoIngested } from "@/lib/stream-ingest-link";
 
 export async function GET(
@@ -115,7 +115,7 @@ export async function GET(
         title: content.title,
         playback,
         playbackProtection: {
-          signedUrl: isCloudflareSignedPlaybackEnabled(),
+          signedUrl: requiresSignedStreamPlayback(),
           expiresHintSeconds: 4 * 60 * 60,
           authenticatedViewer: Boolean(session?.user?.id),
         },

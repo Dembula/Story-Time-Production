@@ -42,6 +42,15 @@ export function isCloudflareSignedPlaybackEnabled(): boolean {
   return Boolean(process.env.CLOUDFLARE_STREAM_SIGNING_KEY_ID?.trim());
 }
 
+/** Stream accounts with API credentials should not serve unsigned manifests (redirect-loop). */
+export function requiresSignedStreamPlayback(): boolean {
+  const flag = process.env.CLOUDFLARE_STREAM_SIGNED_URLS?.trim().toLowerCase();
+  if (flag === "true") return true;
+  if (flag === "false") return false;
+  if (process.env.CLOUDFLARE_STREAM_SIGNING_KEY_ID?.trim()) return true;
+  return Boolean(getCloudflareStreamConfig());
+}
+
 /** Signed manifests must use videodelivery.net — customer subdomains redirect-loop with JWT tokens. */
 function buildSignedHlsUrl(token: string): string {
   return `https://videodelivery.net/${token}/manifest/video.m3u8`;
@@ -131,17 +140,20 @@ export async function buildSignedCloudflarePlaybackSource(
   videoUrl: string | null | undefined,
   options?: { ttlSeconds?: number },
 ): Promise<PlaybackSource | null> {
-  if (!isCloudflareSignedPlaybackEnabled()) return null;
-
   const url = videoUrl?.trim();
   if (!url) return null;
 
   const uid = extractCloudflareStreamUid(url);
   if (!uid) return null;
 
+  const hasLocalSigning = Boolean(process.env.CLOUDFLARE_STREAM_SIGNING_KEY_ID?.trim());
+  const cfg = getCloudflareStreamConfig();
+  if (!hasLocalSigning && !cfg) return null;
+
+  const signOpts = { ttlSeconds: options?.ttlSeconds, downloadable: false as const };
   const token =
-    signCloudflareStreamTokenLocally(uid, { ttlSeconds: options?.ttlSeconds, downloadable: false }) ??
-    (await fetchCloudflareStreamTokenFromApi(uid, { ttlSeconds: options?.ttlSeconds, downloadable: false }));
+    (hasLocalSigning ? signCloudflareStreamTokenLocally(uid, signOpts) : null) ??
+    (cfg ? await fetchCloudflareStreamTokenFromApi(uid, signOpts) : null);
 
   if (!token) return null;
 

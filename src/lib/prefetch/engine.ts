@@ -1,5 +1,3 @@
-import { extractCloudflareStreamUid } from "@/lib/cloudflare-stream";
-
 const warmedManifests = new Set<string>();
 const warmedOrigins = new Set<string>();
 const warmedRoutes = new Set<string>();
@@ -25,33 +23,26 @@ export function prefetchBrowseRoute(href: string, router?: { prefetch: (url: str
   }
 }
 
-/** Warm HLS manifest in browser cache via low-priority fetch. */
-export function warmPlaybackManifest(videoUrl: string | null | undefined) {
+/** Warm an HLS manifest already resolved by playback-bundle (never guess unsigned Stream URLs). */
+export function warmPlaybackManifest(manifestUrl: string | null | undefined) {
   if (typeof window === "undefined") return;
-  const url = videoUrl?.trim();
-  if (!url) return;
+  const url = manifestUrl?.trim();
+  if (!url || !/\.m3u8(\?|$)/i.test(url)) return;
 
-  const manifest = resolveManifestUrl(url);
-  warmMediaOrigin(manifest ?? url);
-  if (!manifest || warmedManifests.has(manifest)) return;
-  warmedManifests.add(manifest);
+  warmMediaOrigin(url);
+  if (warmedManifests.has(url)) return;
+  warmedManifests.add(url);
 
   const link = document.createElement("link");
   link.rel = "prefetch";
   link.as = "fetch";
-  link.href = manifest;
+  link.href = url;
   link.crossOrigin = "anonymous";
   document.head.appendChild(link);
 
-  void fetch(manifest, { method: "GET", mode: "cors", credentials: "omit" }).catch(() => {
-    warmedManifests.delete(manifest);
+  void fetch(url, { method: "GET", mode: "cors", credentials: "omit" }).catch(() => {
+    warmedManifests.delete(url);
   });
-}
-
-function resolveManifestUrl(videoUrl: string): string | null {
-  if (/\.m3u8(\?|$)/i.test(videoUrl)) return videoUrl;
-  const uid = extractCloudflareStreamUid(videoUrl);
-  return uid ? `https://videodelivery.net/${uid}/manifest/video.m3u8` : null;
 }
 
 function warmMediaOrigin(url: string) {
@@ -104,7 +95,6 @@ export function prefetchOnContentHover(
 
   prefetchBrowseRoute(detailHref, router);
   warmThumbnail(payload.posterUrl);
-  warmPlaybackManifest(payload.trailerUrl ?? payload.videoUrl);
   void warmContentMetadata(payload.contentId);
 
   if (payload.videoUrl) {

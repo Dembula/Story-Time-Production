@@ -1,6 +1,6 @@
 import {
   buildSignedCloudflarePlaybackSource,
-  isCloudflareSignedPlaybackEnabled,
+  requiresSignedStreamPlayback,
 } from "@/lib/cloudflare-stream-signed-url";
 import { extractCloudflareStreamUid, isCloudflareStreamUrl } from "@/lib/cloudflare-stream";
 import { resolvePlaybackSources, type PlaybackSource } from "@/lib/playback-sources";
@@ -32,6 +32,21 @@ async function resolveS3FallbackFromStreamUrl(
   return resolvePlaybackSources(sourceUrl);
 }
 
+async function resolveStreamPlaybackSource(
+  streamUrl: string,
+): Promise<PlaybackSource | null> {
+  const signed = await buildSignedCloudflarePlaybackSource(streamUrl);
+  if (signed) return signed;
+
+  if (requiresSignedStreamPlayback()) {
+    const s3Fallback = await resolveS3FallbackFromStreamUrl(streamUrl);
+    if (s3Fallback) return s3Fallback;
+    return null;
+  }
+
+  return resolvePlaybackSources(streamUrl);
+}
+
 /**
  * Server-only source resolver. Uploaded files initially point at S3, then Stream
  * processing records an HLS URL in StreamAsset before webhooks update catalogue rows.
@@ -42,18 +57,8 @@ export async function resolveServerPlaybackSource(
   const url = videoUrl?.trim();
   if (!url) return null;
 
-  const signedRequired = isCloudflareSignedPlaybackEnabled();
-
-  const signedDirect = await buildSignedCloudflarePlaybackSource(url);
-  if (signedDirect) return signedDirect;
-
   if (isCloudflareStreamUrl(url) || extractCloudflareStreamUid(url)) {
-    if (signedRequired) {
-      const s3Fallback = await resolveS3FallbackFromStreamUrl(url);
-      if (s3Fallback) return s3Fallback;
-      return null;
-    }
-    return resolvePlaybackSources(url);
+    return resolveStreamPlaybackSource(url);
   }
 
   const asset = await findStreamAssetBySourceUrl(url);
@@ -61,13 +66,12 @@ export async function resolveServerPlaybackSource(
     ? asset?.hlsUrl ?? asset?.playbackUrl
     : null;
   if (streamUrl) {
-    const signedAsset = await buildSignedCloudflarePlaybackSource(streamUrl);
-    if (signedAsset) return signedAsset;
-    if (signedRequired) {
+    const streamPlayback = await resolveStreamPlaybackSource(streamUrl);
+    if (streamPlayback) return streamPlayback;
+    if (requiresSignedStreamPlayback()) {
       if (isS3OrMp4Url(url)) return resolvePlaybackSources(url);
       return null;
     }
-    return resolvePlaybackSources(streamUrl);
   }
 
   return resolvePlaybackSources(url);
