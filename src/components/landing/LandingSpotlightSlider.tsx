@@ -79,10 +79,12 @@ export function LandingSpotlightSlider() {
         ref={trackRef}
         className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
-        {items.map((item, index) => (
+        {items.map((item, index) => {
+          const callbackUrl = encodeURIComponent(`/browse/content/${item.id}`);
+          return (
           <Link
             key={item.id}
-            href={`/browse/content/${item.id}?from=discover`}
+            href={`/auth/signup?callbackUrl=${callbackUrl}`}
             data-spotlight-card
             className="group relative w-[7.25rem] shrink-0 snap-start sm:w-[8.5rem]"
           >
@@ -117,7 +119,8 @@ export function LandingSpotlightSlider() {
               </p>
             )}
           </Link>
-        ))}
+          );
+        })}
       </div>
     </section>
   );

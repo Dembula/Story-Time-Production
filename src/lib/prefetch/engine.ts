@@ -23,11 +23,15 @@ export function prefetchBrowseRoute(href: string, router?: { prefetch: (url: str
   }
 }
 
-/** Warm an HLS manifest already resolved by playback-bundle (never guess unsigned Stream URLs). */
+/** Warm an HLS manifest already resolved by playback-bundle (same-origin proxy or .m3u8). */
 export function warmPlaybackManifest(manifestUrl: string | null | undefined) {
   if (typeof window === "undefined") return;
   const url = manifestUrl?.trim();
-  if (!url || !/\.m3u8(\?|$)/i.test(url)) return;
+  if (!url) return;
+
+  const isManifest =
+    /\.m3u8(\?|$)/i.test(url) || url.includes("/hls-manifest");
+  if (!isManifest) return;
 
   warmMediaOrigin(url);
   if (warmedManifests.has(url)) return;

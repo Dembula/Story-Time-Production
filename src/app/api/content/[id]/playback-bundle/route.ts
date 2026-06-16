@@ -4,13 +4,17 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getDisplayPosterUrl } from "@/lib/content-media-urls";
 import { getServerCaptureProtectionConfig } from "@/lib/content-capture-protection";
-import { isLongFormType } from "@/lib/content-types";
 import {
   isS3FallbackPlayback,
   resolveServerPlaybackSource,
 } from "@/lib/server-playback-sources";
 import { requiresSignedStreamPlayback } from "@/lib/cloudflare-stream-signed-url";
 import { ensureVideoIngested } from "@/lib/stream-ingest-link";
+import {
+  buildHlsManifestProxyUrl,
+  resolvePublishedContentVideoUrl,
+} from "@/lib/playback-content-url";
+import type { PlaybackSource } from "@/lib/playback-sources";
 
 export async function GET(
   req: NextRequest,
@@ -21,13 +25,16 @@ export async function GET(
     const episodeId = req.nextUrl.searchParams.get("episodeId")?.trim() || null;
     const isTrailer = req.nextUrl.searchParams.get("trailer") === "1";
 
+    const videoUrl = await resolvePublishedContentVideoUrl(id, { episodeId, trailer: isTrailer });
+    if (!videoUrl) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
     const content = await prisma.content.findFirst({
       where: { id, published: true },
       select: {
         id: true,
         title: true,
-        videoUrl: true,
-        trailerUrl: true,
         posterUrl: true,
         backdropUrl: true,
         duration: true,
@@ -38,7 +45,7 @@ export async function GET(
           select: {
             episodes: {
               orderBy: { episodeNumber: "asc" },
-              select: { id: true, videoUrl: true, duration: true },
+              select: { id: true, duration: true },
             },
           },
         },
@@ -73,29 +80,27 @@ export async function GET(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    let videoUrl = isTrailer ? content.trailerUrl : content.videoUrl;
     let duration = isTrailer ? null : content.duration;
-
     if (!isTrailer && episodeId) {
       const episode = content.seasons
         .flatMap((s) => s.episodes)
         .find((e) => e.id === episodeId);
-      if (!episode?.videoUrl) {
-        return NextResponse.json({ error: "Episode not found" }, { status: 404 });
-      }
-      videoUrl = episode.videoUrl;
-      duration = episode.duration ?? duration;
-    } else if (!isTrailer && !videoUrl && isLongFormType(content.type)) {
-      const firstEpisode = content.seasons.flatMap((s) => s.episodes).find((e) => e.videoUrl);
-      if (firstEpisode?.videoUrl) {
-        videoUrl = firstEpisode.videoUrl;
-        duration = firstEpisode.duration ?? duration;
-      }
+      duration = episode?.duration ?? duration;
+    } else if (!isTrailer && !duration) {
+      duration = content.seasons.flatMap((s) => s.episodes).find((e) => e.duration)?.duration ?? duration;
     }
 
-    const playback = await resolveServerPlaybackSource(videoUrl);
+    const upstreamPlayback = await resolveServerPlaybackSource(videoUrl);
+    let playback: PlaybackSource | null = upstreamPlayback;
 
-    if (isS3FallbackPlayback(playback) && videoUrl) {
+    if (upstreamPlayback?.type === "application/x-mpegurl") {
+      playback = {
+        src: buildHlsManifestProxyUrl(id, { episodeId, trailer: isTrailer }),
+        type: "application/x-mpegurl",
+      };
+    }
+
+    if (isS3FallbackPlayback(upstreamPlayback) && videoUrl) {
       after(async () => {
         try {
           await ensureVideoIngested(videoUrl, { area: "playback-recovery", contentId: id });
@@ -116,6 +121,7 @@ export async function GET(
         playback,
         playbackProtection: {
           signedUrl: requiresSignedStreamPlayback(),
+          proxiedManifest: playback?.type === "application/x-mpegurl",
           expiresHintSeconds: 4 * 60 * 60,
           authenticatedViewer: Boolean(session?.user?.id),
         },

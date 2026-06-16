@@ -2,6 +2,7 @@ import { createSign, createPrivateKey, type JsonWebKey } from "node:crypto";
 import {
   buildCloudflarePlaybackUrls,
   extractCloudflareStreamUid,
+  getCloudflareStreamApiCredentials,
   getCloudflareStreamConfig,
   isCloudflareStreamUrl,
 } from "@/lib/cloudflare-stream";
@@ -48,7 +49,7 @@ export function requiresSignedStreamPlayback(): boolean {
   if (flag === "true") return true;
   if (flag === "false") return false;
   if (process.env.CLOUDFLARE_STREAM_SIGNING_KEY_ID?.trim()) return true;
-  return Boolean(getCloudflareStreamConfig());
+  return Boolean(getCloudflareStreamApiCredentials());
 }
 
 /** Signed manifests must use videodelivery.net — customer subdomains redirect-loop with JWT tokens. */
@@ -101,19 +102,19 @@ export async function fetchCloudflareStreamTokenFromApi(
   videoUid: string,
   options?: { ttlSeconds?: number; downloadable?: boolean },
 ): Promise<string | null> {
-  const cfg = getCloudflareStreamConfig();
-  if (!cfg) return null;
+  const api = getCloudflareStreamApiCredentials();
+  if (!api) return null;
 
   const exp = Math.floor(Date.now() / 1000) + Math.max(300, options?.ttlSeconds ?? DEFAULT_TTL_SECONDS);
   const body: Record<string, unknown> = { exp };
   if (options?.downloadable === false) body.downloadable = false;
 
   const res = await fetch(
-    `https://api.cloudflare.com/client/v4/accounts/${cfg.accountId}/stream/${videoUid}/token`,
+    `https://api.cloudflare.com/client/v4/accounts/${api.accountId}/stream/${videoUid}/token`,
     {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${cfg.apiToken}`,
+        Authorization: `Bearer ${api.apiToken}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
@@ -147,13 +148,13 @@ export async function buildSignedCloudflarePlaybackSource(
   if (!uid) return null;
 
   const hasLocalSigning = Boolean(process.env.CLOUDFLARE_STREAM_SIGNING_KEY_ID?.trim());
-  const cfg = getCloudflareStreamConfig();
-  if (!hasLocalSigning && !cfg) return null;
+  const api = getCloudflareStreamApiCredentials();
+  if (!hasLocalSigning && !api) return null;
 
   const signOpts = { ttlSeconds: options?.ttlSeconds, downloadable: false as const };
   const token =
     (hasLocalSigning ? signCloudflareStreamTokenLocally(uid, signOpts) : null) ??
-    (cfg ? await fetchCloudflareStreamTokenFromApi(uid, signOpts) : null);
+    (api ? await fetchCloudflareStreamTokenFromApi(uid, signOpts) : null);
 
   if (!token) return null;
 

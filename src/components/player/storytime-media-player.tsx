@@ -32,10 +32,11 @@ import {
 } from "@/lib/stream-playback-protection";
 import { usePlaybackSession } from "@/lib/playback/session-store";
 import { buildHlsDrmConfig } from "@/lib/content-capture-protection";
-import { PlaybackChrome } from "./playback-chrome";
+import { hardenVideoElement } from "@/lib/content-capture-protection/video-hardening";
 import { PlaybackMetadataPanel } from "./playback-metadata-panel";
 import { PlaybackComplianceBadge } from "./playback-compliance-badge";
 import { NetflixMobileControls } from "./netflix-mobile-controls";
+import { PictureInPicture2, SkipForward, Sparkles } from "lucide-react";
 import { computePlaybackDeviceProfileClient } from "@/lib/player/mobile-detect";
 import { leaveWatchRoute } from "@/lib/player/leave-watch";
 import { StoryTimeLoader, StoryTimeLoaderOverlay } from "@/components/ui/storytime-loader";
@@ -146,6 +147,7 @@ export function StorytimeMediaPlayer({
   const leavingWatchRef = useRef(false);
 
   const setAmbientUiVisible = usePlaybackSession((s) => s.setAmbientUiVisible);
+  const useTouchControls = deviceProfile.useTouchControls;
   const isMobileLike = deviceProfile.isMobileLike;
 
 
@@ -239,7 +241,7 @@ export function StorytimeMediaPlayer({
 
   useEffect(() => {
     const manifestUrl = (bundle?.playback as PlaybackSource | undefined)?.src ?? null;
-    if (manifestUrl) warmPlaybackManifest(manifestUrl);
+    if (manifestUrl?.startsWith("/api/")) warmPlaybackManifest(manifestUrl);
 
     if (nextEpisode?.id) {
       const nextEpisodeId = nextEpisode.href?.includes("episode=")
@@ -396,43 +398,30 @@ export function StorytimeMediaPlayer({
   const configureVideoForDevice = useCallback(() => {
     const video = getVideoElement();
     if (!video) return null;
-    if (deviceProfile.playsInline) {
-      video.setAttribute("playsinline", "");
-      video.setAttribute("webkit-playsinline", "");
-      video.playsInline = true;
-    } else {
-      video.removeAttribute("playsinline");
-      video.removeAttribute("webkit-playsinline");
-      video.playsInline = false;
-    }
+    video.setAttribute("playsinline", "");
+    video.setAttribute("webkit-playsinline", "");
+    video.playsInline = true;
+    video.disableRemotePlayback = true;
+    video.setAttribute("disableremoteplayback", "");
+    hardenVideoElement(video);
     video.preload = "auto";
     return video;
-  }, [deviceProfile.playsInline, getVideoElement]);
+  }, [getVideoElement]);
 
   const requestNativeFullscreen = useCallback(async () => {
     const root = playerRef.current?.el?.closest(".storytime-watch-player") as HTMLElement | null;
-    const video = configureVideoForDevice();
-    if (!root && !video) return;
+    configureVideoForDevice();
+    if (!root) return;
     try {
-      if (deviceProfile.isIOS && video?.webkitEnterFullscreen && !video.webkitDisplayingFullscreen) {
-        video.webkitEnterFullscreen();
-        return;
-      }
       if (document.fullscreenElement) {
         await document.exitFullscreen();
         return;
       }
-      if (video?.requestFullscreen && deviceProfile.prefersNativeFullscreen) {
-        await video.requestFullscreen();
-        return;
-      }
-      if (root?.requestFullscreen) {
-        await root.requestFullscreen();
-      }
+      await root.requestFullscreen();
     } catch {
       // unsupported or denied
     }
-  }, [configureVideoForDevice, deviceProfile.isIOS, deviceProfile.prefersNativeFullscreen]);
+  }, [configureVideoForDevice]);
 
   const toggleFullscreen = useCallback(async () => {
     await requestNativeFullscreen();
@@ -445,14 +434,11 @@ export function StorytimeMediaPlayer({
     configureVideoForDevice();
     try {
       await player.play();
-      if (isMobileLike) {
-        await requestNativeFullscreen();
-      }
     } catch {
       // Browser policy may still require interaction with native controls.
     }
     resetIdleTimer();
-  }, [configureVideoForDevice, isMobileLike, requestNativeFullscreen, resetIdleTimer]);
+  }, [configureVideoForDevice, resetIdleTimer]);
 
   useEffect(() => {
     if (!source || isPlaying || userStartRequested || deviceProfile.canAutoplayAudible) return;
@@ -463,9 +449,6 @@ export function StorytimeMediaPlayer({
       configureVideoForDevice();
       void player
         .play()
-        .then(() => {
-          if (isMobileLike) return requestNativeFullscreen();
-        })
         .catch(() => {
           // Keep the native media controls available without adding an extra app-level play prompt.
         });
@@ -474,9 +457,7 @@ export function StorytimeMediaPlayer({
   }, [
     configureVideoForDevice,
     deviceProfile.canAutoplayAudible,
-    isMobileLike,
     isPlaying,
-    requestNativeFullscreen,
     source,
     userStartRequested,
   ]);
@@ -702,17 +683,20 @@ export function StorytimeMediaPlayer({
     >
       <MediaPlayer
         ref={playerRef}
-        className="h-full w-full [&_video]:object-contain"
+        className="storytime-vidstack-player h-full w-full [&_video]:object-contain"
         title={title}
         src={{ src: source.src, type: source.type as "application/x-mpegurl" | "video/mp4" }}
         poster={poster || undefined}
-        playsInline={deviceProfile.playsInline}
+        playsInline={true}
         autoPlay={deviceProfile.canAutoplayAudible}
         load="eager"
         onHlsInstance={applyHlsDrmConfig}
         onLoadedData={() => {
           configureVideoForDevice();
           applyStartTime();
+        }}
+        onCanPlay={() => {
+          configureVideoForDevice();
         }}
         onPlay={() => {
           setIsPlaying(true);
@@ -753,10 +737,10 @@ export function StorytimeMediaPlayer({
       >
         <MediaProvider />
         <PlaybackBufferingOverlay />
-        {!isMobileLike ? <DefaultVideoLayout icons={defaultLayoutIcons} /> : null}
+        {!useTouchControls ? <DefaultVideoLayout icons={defaultLayoutIcons} /> : null}
       </MediaPlayer>
 
-      {isMobileLike ? (
+      {useTouchControls ? (
         <NetflixMobileControls
           visible={uiVisible}
           title={title}
@@ -781,50 +765,61 @@ export function StorytimeMediaPlayer({
       ) : (
         <>
           <div
-            className={`pointer-events-none absolute left-0 right-0 top-0 z-10 bg-gradient-to-b from-black/70 to-transparent p-4 transition-opacity duration-500 ${
+            className={`pointer-events-none absolute left-0 right-0 top-0 z-30 bg-gradient-to-b from-black/70 to-transparent p-4 transition-opacity duration-500 ${
               uiVisible ? "opacity-100" : "opacity-0"
             }`}
           >
             <div className="pointer-events-auto flex items-start justify-between gap-3">
-              <div className="flex min-w-0 flex-col gap-2">
-                <div className="flex flex-wrap items-center gap-2">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleClosePlayer}
+                  className="rounded-lg border border-white/20 bg-black/50 px-3 py-2 text-sm font-medium text-white backdrop-blur-sm hover:bg-white/10"
+                >
+                  ← Back
+                </button>
+                <PlaybackComplianceBadge
+                  ageRating={ageRating}
+                  minAge={minAge}
+                  advisory={advisory}
+                  variant="playback"
+                />
+                {!isTrailer && showSkipIntro ? (
                   <button
                     type="button"
-                    onClick={handleClosePlayer}
-                    className="rounded-lg border border-white/20 bg-black/50 px-3 py-2 text-sm font-medium text-white backdrop-blur-sm hover:bg-white/10"
+                    onClick={skipIntro}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-black/50 px-3 py-2 text-xs font-semibold text-white backdrop-blur-md hover:bg-white/10"
                   >
-                    ← Back
+                    <SkipForward className="h-3.5 w-3.5" /> Skip intro
                   </button>
-                  <PlaybackComplianceBadge
-                    ageRating={ageRating}
-                    minAge={minAge}
-                    advisory={advisory}
-                    variant="playback"
-                  />
-                </div>
+                ) : null}
+                {!isTrailer ? (
+                  <button
+                    type="button"
+                    onClick={() => setMetadataOpen((v) => !v)}
+                    className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold backdrop-blur-md ${
+                      metadataOpen
+                        ? "border-orange-400/40 bg-orange-500/20 text-orange-100"
+                        : "border-white/15 bg-black/50 text-white hover:bg-white/10"
+                    }`}
+                  >
+                    <Sparkles className="h-3.5 w-3.5" /> Scene info
+                  </button>
+                ) : null}
+                {typeof document !== "undefined" && document.pictureInPictureEnabled ? (
+                  <button
+                    type="button"
+                    onClick={() => void enterPiP()}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-black/50 px-3 py-2 text-xs font-semibold text-white backdrop-blur-md hover:bg-white/10"
+                    aria-label="Picture in picture"
+                  >
+                    <PictureInPicture2 className="h-3.5 w-3.5" />
+                  </button>
+                ) : null}
               </div>
               <p className="max-w-[40%] truncate pt-1 text-sm font-medium text-white/90">{title}</p>
             </div>
           </div>
-
-          <PlaybackChrome
-            visible={uiVisible}
-            title={title}
-            showSkipIntro={!isTrailer && showSkipIntro}
-            onSkipIntro={skipIntro}
-            onPiP={enterPiP}
-            pipSupported={typeof document !== "undefined" && document.pictureInPictureEnabled}
-            metadataOpen={metadataOpen}
-            onToggleMetadata={() => setMetadataOpen((v) => !v)}
-            metadataAvailable={!isTrailer}
-            currentSceneLabel={
-              isTrailer
-                ? null
-                : activeSceneActors.length > 0
-                  ? `On screen: ${activeSceneActors.join(", ")}`
-                  : activeScene?.summary ?? activeScene?.mood ?? null
-            }
-          />
 
           {!isTrailer ? (
             <PlaybackMetadataPanel
@@ -840,7 +835,7 @@ export function StorytimeMediaPlayer({
           ) : null}
 
           {nextEpisode && uiVisible ? (
-            <div className="pointer-events-none absolute bottom-36 left-0 right-0 z-10 flex justify-center p-4">
+            <div className="pointer-events-none absolute bottom-28 left-0 right-0 z-20 flex justify-center p-4">
               <Link
                 href={nextEpisode.href ?? `/browse/content/${nextEpisode.id}/watch`}
                 className="pointer-events-auto flex items-center gap-3 rounded-xl border border-white/10 bg-black/70 px-6 py-3 text-sm font-semibold text-white shadow-2xl backdrop-blur-md transition hover:bg-black/85"

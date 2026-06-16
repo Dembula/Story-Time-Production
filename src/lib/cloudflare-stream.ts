@@ -22,14 +22,20 @@ function normalizeSubdomain(value: string): string {
   return `https://${trimmed.replace(/\/+$/, "")}`;
 }
 
-export function getCloudflareStreamConfig(): CloudflareStreamConfig | null {
+export function getCloudflareStreamApiCredentials(): { accountId: string; apiToken: string } | null {
   const accountId = process.env.CLOUDFLARE_ACCOUNT_ID?.trim() ?? "";
   const apiToken = process.env.CLOUDFLARE_STREAM_API_TOKEN?.trim() ?? "";
+  if (!accountId || !apiToken) return null;
+  return { accountId, apiToken };
+}
+
+export function getCloudflareStreamConfig(): CloudflareStreamConfig | null {
+  const api = getCloudflareStreamApiCredentials();
   const customerSubdomainRaw = process.env.CLOUDFLARE_STREAM_CUSTOMER_SUBDOMAIN?.trim() ?? "";
-  if (!accountId || !apiToken || !customerSubdomainRaw) return null;
+  if (!api || !customerSubdomainRaw) return null;
   const customerSubdomain = normalizeSubdomain(customerSubdomainRaw);
   if (!customerSubdomain) return null;
-  return { accountId, apiToken, customerSubdomain };
+  return { ...api, customerSubdomain };
 }
 
 export function isCloudflareStreamUrl(url: string): boolean {

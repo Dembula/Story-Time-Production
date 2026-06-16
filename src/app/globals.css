@@ -589,3 +589,13 @@ html.modoc-viewer-open [data-browse-chrome] > nav {
     transform: scaleX(1);
   }
 }
+
+/* Vidstack default layout — keep timeline/controls above custom watch chrome */
+.storytime-vidstack-player [data-media-player] {
+  height: 100%;
+  width: 100%;
+}
+
+.storytime-vidstack-player .vds-video-layout {
+  z-index: 25;
+}

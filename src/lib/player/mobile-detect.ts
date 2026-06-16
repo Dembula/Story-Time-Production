@@ -17,6 +17,8 @@ export type PlaybackDeviceProfile = {
   playsInline: boolean;
   canAutoplayAudible: boolean;
   startHint: string;
+  /** Netflix-style overlay controls (phones / small touch screens). */
+  useTouchControls: boolean;
 };
 
 export function computePlaybackDeviceProfileClient(): PlaybackDeviceProfile {
@@ -33,6 +35,7 @@ export function computePlaybackDeviceProfileClient(): PlaybackDeviceProfile {
       playsInline: true,
       canAutoplayAudible: false,
       startHint: "Tap play to start playback.",
+      useTouchControls: false,
     };
   }
 
@@ -50,6 +53,8 @@ export function computePlaybackDeviceProfileClient(): PlaybackDeviceProfile {
       ? window.matchMedia("(pointer: coarse)").matches
       : false;
   const isMobileLike = isIOS || isAndroid || coarse || window.innerWidth < 900;
+  const useTouchControls =
+    isIOS || isAndroid || (isMobileLike && coarse && window.innerWidth < 768);
 
   const browser: PlaybackDeviceProfile["browser"] = /SamsungBrowser/i.test(ua)
     ? "samsung"
@@ -71,8 +76,8 @@ export function computePlaybackDeviceProfileClient(): PlaybackDeviceProfile {
         ? "android"
         : "desktop";
 
-  // Mobile browsers require a real user gesture for audible playback/fullscreen.
-  const prefersNativeFullscreen = isIOS || isAndroid;
+  // Always play inside the page — never hand off to the OS media player.
+  const prefersNativeFullscreen = false;
   const canAutoplayAudible = !isMobileLike && !isTvLike;
 
   return {
@@ -84,14 +89,15 @@ export function computePlaybackDeviceProfileClient(): PlaybackDeviceProfile {
     isTablet,
     isTvLike,
     prefersNativeFullscreen,
-    playsInline: !isIOS,
+    playsInline: true,
     canAutoplayAudible,
+    useTouchControls,
     startHint: isIOS
-      ? "Tap play to open the Apple full-screen video player."
+      ? "Tap play to start playback."
       : isAndroid
         ? browser === "samsung"
-          ? "Tap play to open Samsung Internet full-screen playback."
-          : "Tap play to open Android full-screen playback."
+          ? "Tap play to start playback."
+          : "Tap play to start playback."
         : "Tap play to start playback.",
   };
 }

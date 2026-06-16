@@ -48,6 +48,13 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_GOOGLE_AUTH_ENABLED: process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET ? "true" : "false",
     NEXT_PUBLIC_GITHUB_AUTH_ENABLED: process.env.GITHUB_ID && process.env.GITHUB_SECRET ? "true" : "false",
     NEXT_PUBLIC_APPLE_AUTH_ENABLED: process.env.APPLE_ID && process.env.APPLE_SECRET ? "true" : "false",
+    NEXT_PUBLIC_STREAM_SIGNED_URLS:
+      process.env.NEXT_PUBLIC_STREAM_SIGNED_URLS === "true" ||
+      process.env.CLOUDFLARE_STREAM_SIGNED_URLS === "true" ||
+      Boolean(process.env.CLOUDFLARE_STREAM_SIGNING_KEY_ID?.trim()) ||
+      Boolean(process.env.CLOUDFLARE_ACCOUNT_ID?.trim() && process.env.CLOUDFLARE_STREAM_API_TOKEN?.trim())
+        ? "true"
+        : "false",
   },
   images: {
     remotePatterns: [

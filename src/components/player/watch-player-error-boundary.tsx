@@ -2,7 +2,6 @@
 
 import { Component, type ReactNode } from "react";
 import Link from "next/link";
-import { resolvePlaybackSources } from "@/lib/playback-sources";
 
 type WatchPlayerErrorBoundaryProps = {
   src: string;
@@ -32,17 +31,14 @@ export class WatchPlayerErrorBoundary extends Component<
 
   render() {
     const { hasError } = this.state;
-    const { src, poster, title, contentDetailUrl, children } = this.props;
+    const { poster, title, contentDetailUrl, children } = this.props;
 
     if (!hasError) return children;
 
-    const resolved = resolvePlaybackSources(src);
-    const fallbackSrc = resolved?.src ?? src;
-
     return (
-      <div className="fixed inset-0 z-50 bg-black flex flex-col">
-        <div className="p-4 flex items-center justify-between">
-          <h1 className="text-sm font-medium text-white/90 truncate">{title}</h1>
+      <div className="fixed inset-0 z-50 flex flex-col bg-black">
+        <div className="flex items-center justify-between p-4">
+          <h1 className="truncate text-sm font-medium text-white/90">{title}</h1>
           <Link
             href={contentDetailUrl}
             className="rounded-lg border border-white/20 px-3 py-2 text-sm font-medium text-slate-100 hover:bg-white/10"
@@ -50,14 +46,15 @@ export class WatchPlayerErrorBoundary extends Component<
             Back
           </Link>
         </div>
-        <div className="flex-1 p-4 pb-8">
-          <video
-            src={fallbackSrc}
-            poster={poster || undefined}
-            controls
-            playsInline
-            className="h-full w-full rounded-lg bg-black object-contain"
-          />
+        <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center">
+          <p className="text-lg font-medium text-white">Playback error</p>
+          <p className="max-w-md text-sm text-slate-400">
+            The player could not start. Reload the page or return to the title details and try again.
+          </p>
+          {poster ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={poster} alt="" className="max-h-40 rounded-lg opacity-40" />
+          ) : null}
         </div>
       </div>
     );
