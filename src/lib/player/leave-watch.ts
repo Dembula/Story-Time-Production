@@ -51,9 +51,19 @@ export async function exitPlaybackFullscreen(options?: {
   }
 }
 
+import {
+  markSkipRouteEnterAnimation,
+  showNavExitOverlay,
+} from "@/lib/navigation/route-transition";
+
+type WatchExitRouter = {
+  replace: (href: string) => void;
+  prefetch?: (href: string) => void;
+};
+
 /** Always return to the title detail page — do not rely on history.back() in Chrome. */
 export async function leaveWatchRoute(
-  router: { replace: (href: string) => void },
+  router: WatchExitRouter,
   contentDetailUrl: string,
   options?: {
     pause?: () => void;
@@ -66,5 +76,8 @@ export async function leaveWatchRoute(
     container: options?.container,
     video: options?.video,
   });
+  router.prefetch?.(contentDetailUrl);
+  showNavExitOverlay();
+  markSkipRouteEnterAnimation();
   router.replace(contentDetailUrl);
 }

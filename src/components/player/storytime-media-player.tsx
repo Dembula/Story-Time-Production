@@ -176,6 +176,7 @@ export function StorytimeMediaPlayer({
 
     staleTime: clientSignedPlaybackRequired ? PLAYBACK_BUNDLE_STALE_MS : 60_000,
     refetchOnWindowFocus: clientSignedPlaybackRequired,
+    placeholderData: (previousData) => previousData,
     retry: 2,
     refetchInterval: (query) => {
       const intel = (query.state.data as { sceneIntelligence?: { pending?: boolean } } | undefined)
@@ -694,22 +695,6 @@ export function StorytimeMediaPlayer({
 
 
 
-  if (waitingForHlsEngine) {
-    return (
-      <div className="relative fixed inset-0 z-[100] bg-black" data-input-scope="player">
-        {poster ? (
-          <Image src={poster} alt="" fill priority className="object-contain opacity-40" sizes="100vw" unoptimized={poster.startsWith("http")} />
-        ) : null}
-        <StoryTimeLoaderOverlay mode="viewport">
-          <div className="flex flex-col items-center text-center">
-            <StoryTimeLoader size="md" />
-            <p className="mt-4 text-sm text-slate-300/90">Preparing stream…</p>
-          </div>
-        </StoryTimeLoaderOverlay>
-      </div>
-    );
-  }
-
   if (waitingForPlaybackBundle) {
     return (
       <div className="relative fixed inset-0 z-[100] bg-black" data-input-scope="player">
@@ -1029,6 +1014,15 @@ export function StorytimeMediaPlayer({
           ) : null}
         </>
       )}
+
+      {waitingForHlsEngine ? (
+        <StoryTimeLoaderOverlay mode="viewport">
+          <div className="flex flex-col items-center text-center">
+            <StoryTimeLoader size="md" />
+            <p className="mt-4 text-sm text-slate-300/90">Preparing stream…</p>
+          </div>
+        </StoryTimeLoaderOverlay>
+      ) : null}
     </div>
   );
 

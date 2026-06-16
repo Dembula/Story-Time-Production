@@ -8,6 +8,7 @@ import { Play, Plus, Check, ChevronLeft, Download, Clapperboard } from "lucide-r
 import { contentTypeLabel } from "@/lib/content-types";
 import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
 import { markPlaybackPlayIntent } from "@/lib/player/play-intent";
+import { beginBrowseNavigation } from "@/lib/navigation/route-transition";
 
 type Props = {
   contentId: string;
@@ -81,6 +82,10 @@ export function ContentDetailHero({
   const isTv = deviceClass === "tv";
   const isRemote = inputMode === "remote";
   const mobileLandscape = isMobile && orientation === "landscape";
+
+  useEffect(() => {
+    router.prefetch(backHref);
+  }, [router, backHref]);
 
   useEffect(() => {
     if (!autoPlay) return;
@@ -161,6 +166,7 @@ export function ContentDetailHero({
         >
           <Link
             href={backHref}
+            onClick={() => beginBrowseNavigation()}
             className={`flex items-center justify-center rounded-full border border-white/15 bg-black/45 text-white backdrop-blur-md transition hover:bg-black/65 ${focusRing} ${
               isTv ? "h-14 w-14" : "h-10 w-10 sm:h-11 sm:w-11"
             }`}

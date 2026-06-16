@@ -28,6 +28,12 @@ type StorytimeDesktopHlsPlayerProps = {
   children?: ReactNode;
 };
 
+function resolvePlaybackUrl(src: string): string {
+  if (typeof window === "undefined") return src;
+  if (src.startsWith("/")) return `${window.location.origin}${src}`;
+  return src;
+}
+
 /**
  * Desktop/laptop HLS — hls.js attached to a plain `<video>` with no `.m3u8` in `src`.
  * Avoids Vidstack native `<source>` handoff to Windows Media Player.
@@ -56,6 +62,8 @@ export const StorytimeDesktopHlsPlayer = forwardRef<
 ) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const callbacksRef = useRef({ onError, onHlsReady, autoPlay });
+  callbacksRef.current = { onError, onHlsReady, autoPlay };
 
   useImperativeHandle(
     ref,
@@ -95,32 +103,49 @@ export const StorytimeDesktopHlsPlayer = forwardRef<
     video.preload = "auto";
 
     let destroyed = false;
+    const playbackUrl = resolvePlaybackUrl(src);
+    const sameOrigin =
+      typeof window !== "undefined" && playbackUrl.startsWith(window.location.origin);
 
     if (!Hls.isSupported()) {
-      onError?.();
+      callbacksRef.current.onError?.();
       return;
     }
 
     const hls = new Hls({
       enableWorker: true,
       lowLatencyMode: false,
+      xhrSetup: (xhr, url) => {
+        if (sameOrigin && url.startsWith(window.location.origin)) {
+          xhr.withCredentials = true;
+        }
+      },
     });
     hlsRef.current = hls;
 
     hls.attachMedia(video);
     hls.on(Hls.Events.MEDIA_ATTACHED, () => {
       if (destroyed) return;
-      hls.loadSource(src);
+      hls.loadSource(playbackUrl);
     });
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
       if (destroyed) return;
-      onHlsReady?.();
-      if (autoPlay) {
+      callbacksRef.current.onHlsReady?.();
+      if (callbacksRef.current.autoPlay) {
         void video.play().catch(() => {});
       }
     });
     hls.on(Hls.Events.ERROR, (_event, data) => {
-      if (data.fatal) onError?.();
+      if (!data.fatal) return;
+      if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+        hls.startLoad();
+        return;
+      }
+      if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+        hls.recoverMediaError();
+        return;
+      }
+      callbacksRef.current.onError?.();
     });
 
     return () => {
@@ -131,7 +156,7 @@ export const StorytimeDesktopHlsPlayer = forwardRef<
       while (video.firstChild) video.removeChild(video.firstChild);
       video.load();
     };
-  }, [src, autoPlay, onError, onHlsReady]);
+  }, [src]);
 
   return (
     <div className={className}>

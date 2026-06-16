@@ -63,6 +63,7 @@ let playerModuleWarm = false;
 export function preloadPlayerModule() {
   if (playerModuleWarm || typeof window === "undefined") return;
   playerModuleWarm = true;
+  void import("@/lib/player/vidstack-hls");
   void import("@/components/player/storytime-media-player");
 }
 

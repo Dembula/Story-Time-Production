@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Users } from "lucide-react";
 import { modalVariants } from "@/lib/motion/presets";
 
@@ -63,21 +63,22 @@ export function PlaybackMetadataPanel({
   currentTime: number;
   onSeek: (seconds: number) => void;
 }) {
-  if (!open) return null;
-
   const tags = Array.isArray(moodTags) ? (moodTags as string[]) : [];
   const activeScene = findActiveScene(scenes, currentTime);
   const activeActors = parseSceneActors(activeScene?.actors);
   const scriptLabel = scriptSourceLabel(scriptAnalysis);
 
   return (
-    <motion.aside
-      className="absolute right-0 top-14 z-30 flex h-[calc(100%-3.5rem)] w-full max-w-sm flex-col border-l border-white/10 bg-black/80 backdrop-blur-xl"
-      variants={modalVariants()}
-      initial="hidden"
-      animate="visible"
-      exit="exit"
-    >
+    <AnimatePresence>
+      {open ? (
+        <motion.aside
+          key="playback-metadata"
+          className="absolute right-0 top-14 z-30 flex h-[calc(100%-3.5rem)] w-full max-w-sm flex-col border-l border-white/10 bg-black/80 backdrop-blur-xl"
+          variants={modalVariants()}
+          initial="hidden"
+          animate="visible"
+          exit="exit"
+        >
       <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
         <h2 className="text-sm font-semibold text-white">Scene intelligence</h2>
         <button type="button" onClick={onClose} className="text-xs text-slate-400 hover:text-white">
@@ -183,7 +184,9 @@ export function PlaybackMetadataPanel({
           </ul>
         ) : null}
       </div>
-    </motion.aside>
+        </motion.aside>
+      ) : null}
+    </AnimatePresence>
   );
 }
 

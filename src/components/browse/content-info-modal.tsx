@@ -2,6 +2,7 @@
 
 import { X, Calendar, Clock, Globe, Tag, Film, Shield, Upload } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useEffect } from "react";
 import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
 
 type Advisory = Record<string, boolean | string> | null | undefined;
@@ -86,15 +87,25 @@ export function ContentInfoModal({ open, onClose, content }: Props) {
     content.episodes ? { icon: Film, label: "Episodes", value: String(content.episodes) } : null,
   ].filter(Boolean) as { icon: typeof Film; label: string; value: string }[];
 
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
+
   return (
     <AnimatePresence>
       {open && (
         <>
           <motion.div
-            className="fixed inset-0 z-[2100] bg-black/75 backdrop-blur-md"
-            initial={{ opacity: 0 }}
+            className="fixed inset-0 z-[2100] bg-black/80"
+            initial={{ opacity: 1 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
             onClick={onClose}
           />
           <motion.div
@@ -105,10 +116,10 @@ export function ContentInfoModal({ open, onClose, content }: Props) {
                   ? "left-1/2 top-[10vh] w-full max-w-2xl -translate-x-1/2 max-h-[80vh]"
                   : "inset-x-4 top-[12vh] max-h-[76vh] max-w-lg md:inset-x-auto md:left-1/2 md:w-full md:-translate-x-1/2"
             }`}
-            initial={{ opacity: 0, y: 24, scale: 0.97 }}
+            initial={{ opacity: 1, y: 16, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 16, scale: 0.97 }}
-            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+            exit={{ opacity: 0, y: 12, scale: 0.98 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
           >
             <div className="sticky top-0 flex items-start justify-between border-b border-white/8 bg-[#0c0c0e]/95 px-5 py-4 backdrop-blur-xl">
               <div>

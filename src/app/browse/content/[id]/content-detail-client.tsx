@@ -137,6 +137,11 @@ export function ContentDetailClient({
   const detailPath = `/browse/content/${content.id}`;
   const signupCallback = encodeURIComponent(fromDiscover ? `${detailPath}?from=discover` : detailPath);
   const backHref = fromDiscover && !isSubscriber ? "/" : "/browse";
+
+  useEffect(() => {
+    router.prefetch(backHref);
+  }, [router, backHref]);
+
   const displayBackdropUrl = getDisplayBackdropUrl({
     backdropUrl: content.backdropUrl,
     posterUrl: content.posterUrl,
