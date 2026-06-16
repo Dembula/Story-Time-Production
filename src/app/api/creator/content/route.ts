@@ -5,8 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isCreatorLicensePeriodActive, normalizeCreatorLicenseType } from "@/lib/pricing";
 import { validateStorageUrlField } from "@/lib/storage-origin";
-import { extractCloudflareStreamUid } from "@/lib/cloudflare-stream";
-import { getStreamStatusesByUids } from "@/lib/stream-asset-store";
+import { getStreamAssetsByUrls } from "@/lib/stream-asset-store";
 import { linkOrIngestStreamForUrl } from "@/lib/stream-ingest-link";
 import { creatorIsStudentAtUpload } from "@/lib/student-work";
 
@@ -39,15 +38,12 @@ export async function GET(request: NextRequest) {
       },
     });
     if (!one) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    const uids = [extractCloudflareStreamUid(one.videoUrl), extractCloudflareStreamUid(one.trailerUrl)].filter(
-      (v): v is string => Boolean(v),
-    );
-    const statuses = await getStreamStatusesByUids(uids);
+    const statuses = await getStreamAssetsByUrls([one.videoUrl, one.trailerUrl]);
     return NextResponse.json({
       ...one,
       stream: {
-        video: statuses.get(extractCloudflareStreamUid(one.videoUrl) ?? ""),
-        trailer: statuses.get(extractCloudflareStreamUid(one.trailerUrl) ?? ""),
+        video: one.videoUrl ? statuses.get(one.videoUrl.trim()) : undefined,
+        trailer: one.trailerUrl ? statuses.get(one.trailerUrl.trim()) : undefined,
       },
     });
   }
@@ -66,19 +62,14 @@ export async function GET(request: NextRequest) {
     orderBy: { createdAt: "desc" },
   });
 
-  const allUids = contents.flatMap((item) =>
-    [extractCloudflareStreamUid(item.videoUrl), extractCloudflareStreamUid(item.trailerUrl)].filter(
-      (v): v is string => Boolean(v),
-    ),
-  );
-  const statuses = await getStreamStatusesByUids(allUids);
+  const statuses = await getStreamAssetsByUrls(contents.flatMap((item) => [item.videoUrl, item.trailerUrl]));
 
   return NextResponse.json(
     contents.map((item) => ({
       ...item,
       stream: {
-        video: statuses.get(extractCloudflareStreamUid(item.videoUrl) ?? ""),
-        trailer: statuses.get(extractCloudflareStreamUid(item.trailerUrl) ?? ""),
+        video: item.videoUrl ? statuses.get(item.videoUrl.trim()) : undefined,
+        trailer: item.trailerUrl ? statuses.get(item.trailerUrl.trim()) : undefined,
       },
     })),
   );
@@ -209,6 +200,8 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  const createdEpisodes: Array<{ id: string; videoUrl: string | null }> = [];
+
   if (Array.isArray(body.seasons) && body.seasons.length > 0) {
     for (const season of body.seasons as Array<{
       seasonNumber: number;
@@ -233,7 +226,7 @@ export async function POST(request: NextRequest) {
         if (!ep.videoUrl) continue;
         const videoErr = validateStorageUrlField(ep.videoUrl, "episodes.videoUrl", { allowNull: false });
         if (videoErr) return NextResponse.json({ error: videoErr }, { status: 400 });
-        await prisma.contentEpisode.create({
+        const createdEpisode = await prisma.contentEpisode.create({
           data: {
             seasonId: createdSeason.id,
             episodeNumber: ep.episodeNumber,
@@ -243,6 +236,7 @@ export async function POST(request: NextRequest) {
             duration: ep.duration ?? null,
           },
         });
+        createdEpisodes.push({ id: createdEpisode.id, videoUrl: createdEpisode.videoUrl });
       }
     }
   }
@@ -296,6 +290,16 @@ export async function POST(request: NextRequest) {
         tasks.push(
           linkOrIngestStreamForUrl(b.videoUrl, "BtsVideo", b.id, {
             area: "content-bts",
+            creatorId,
+          }),
+        );
+      }
+    }
+    for (const episode of createdEpisodes) {
+      if (episode.videoUrl) {
+        tasks.push(
+          linkOrIngestStreamForUrl(episode.videoUrl, "ContentEpisode", episode.id, {
+            area: "content-episode",
             creatorId,
           }),
         );

@@ -6,12 +6,19 @@ import { prismaDbNull, type InputJsonValue } from "@/lib/prisma-json";
 import { notifyUser } from "@/lib/notify-user";
 import { sanitizeReviewFeedback } from "@/lib/review-feedback";
 import { buildAppUrl } from "@/lib/app-url";
-import { extractCloudflareStreamUid, isCloudflareStreamUrl } from "@/lib/cloudflare-stream";
-import { getStreamStatusesByUids } from "@/lib/stream-asset-store";
+import { isCloudflareStreamUrl } from "@/lib/cloudflare-stream";
+import { getStreamAssetsByUrls } from "@/lib/stream-asset-store";
+import { isLikelyVideoStorageUrl } from "@/lib/stream-ingest-link";
 import { isSeasonOnlyCatalogueUpdate } from "@/lib/content-season-review";
 
 function reviewDetailUrl(contentId: string) {
   return `/creator/catalogue/reviews/${contentId}`;
+}
+
+const READY_STREAM_STATES = new Set(["ready", "live", "completed", "success"]);
+
+function isReadyStreamStatus(status: string | null | undefined): boolean {
+  return Boolean(status && READY_STREAM_STATES.has(status.toLowerCase()));
 }
 
 export async function PATCH(req: NextRequest) {
@@ -87,21 +94,34 @@ export async function PATCH(req: NextRequest) {
   };
 
   if (action === "APPROVE") {
-    const uids = [extractCloudflareStreamUid(before.videoUrl), extractCloudflareStreamUid(before.trailerUrl)].filter(
-      (v): v is string => Boolean(v),
-    );
-    if (uids.length > 0 && (isCloudflareStreamUrl(before.videoUrl ?? "") || isCloudflareStreamUrl(before.trailerUrl ?? ""))) {
-      const statuses = await getStreamStatusesByUids(uids);
-      const blocked = [...statuses.entries()].find(([, value]) => {
-        const state = (value.status ?? "").toLowerCase();
-        return state && !["ready", "live", "completed", "success"].includes(state);
-      });
-      if (blocked) {
-        return NextResponse.json(
-          { error: "This title is still processing for playback. Please approve after stream status is ready." },
-          { status: 409 },
-        );
-      }
+    const episodeRows = await prisma.contentEpisode.findMany({
+      where: { season: { contentId } },
+      select: { title: true, videoUrl: true },
+    });
+    const playbackItems = [
+      { label: "main video", url: before.videoUrl },
+      { label: "trailer", url: before.trailerUrl },
+      ...episodeRows.map((episode) => ({ label: `episode "${episode.title}"`, url: episode.videoUrl })),
+    ].filter((item): item is { label: string; url: string } => {
+      const url = item.url?.trim();
+      if (!url) return false;
+      return isCloudflareStreamUrl(url) || isLikelyVideoStorageUrl(url);
+    });
+
+    const streamAssets = await getStreamAssetsByUrls(playbackItems.map((item) => item.url));
+    const blocked = playbackItems.find((item) => {
+      const url = item.url.trim();
+      const asset = streamAssets.get(url);
+      if (isLikelyVideoStorageUrl(url) && !asset) return true;
+      return Boolean(asset?.status && !isReadyStreamStatus(asset.status));
+    });
+    if (blocked) {
+      return NextResponse.json(
+        {
+          error: `The ${blocked.label} is still processing for adaptive playback. Please approve after stream status is ready.`,
+        },
+        { status: 409 },
+      );
     }
     const updated = await prisma.content.update({
       where: { id: contentId },

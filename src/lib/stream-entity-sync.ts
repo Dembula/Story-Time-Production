@@ -114,5 +114,30 @@ export async function syncLinkedEntitiesAfterStreamReady(uid: string, state: str
     if (Object.keys(updates).length > 0) {
       await prisma.btsVideo.update({ where: { id: bts.id }, data: updates });
     }
+    return;
+  }
+
+  if (link.entityType === "ContentEpisode") {
+    const episode = await prisma.contentEpisode.findUnique({
+      where: { id: link.entityId },
+      select: { id: true, videoUrl: true, thumbnailUrl: true },
+    });
+    if (!episode) return;
+    const updates: { videoUrl?: string; thumbnailUrl?: string } = {};
+    const currentVideo = episode.videoUrl?.trim() ?? "";
+    const shouldSetEpisodeVideo =
+      !currentVideo ||
+      !isCloudflareStreamUrl(currentVideo) ||
+      extractCloudflareStreamUid(currentVideo) !== uid;
+
+    if (shouldSetEpisodeVideo && playbackUrl) {
+      updates.videoUrl = playbackUrl;
+    }
+    if (!episode.thumbnailUrl?.trim() && thumbnailUrl) {
+      updates.thumbnailUrl = thumbnailUrl;
+    }
+    if (Object.keys(updates).length > 0) {
+      await prisma.contentEpisode.update({ where: { id: episode.id }, data: updates });
+    }
   }
 }

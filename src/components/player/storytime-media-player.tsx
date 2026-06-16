@@ -13,7 +13,6 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Play } from "lucide-react";
 import {
   MediaPlayer,
   MediaProvider,
@@ -139,7 +138,6 @@ export function StorytimeMediaPlayer({
   const [nextCountdown, setNextCountdown] = useState<number | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [deviceProfile, setDeviceProfile] = useState(computePlaybackDeviceProfileClient);
-  const [playbackStartBlocked, setPlaybackStartBlocked] = useState(false);
   const [userStartRequested, setUserStartRequested] = useState(false);
   const orientationLockedRef = useRef(false);
   const leaveWatchFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -479,16 +477,39 @@ export function StorytimeMediaPlayer({
     const player = playerRef.current;
     if (!player) return;
     setUserStartRequested(true);
-    setPlaybackStartBlocked(false);
     configureVideoForDevice();
     try {
       await player.play();
       await requestNativeFullscreen();
     } catch {
-      setPlaybackStartBlocked(true);
+      // Browser policy may still require interaction with native controls.
     }
     resetIdleTimer();
   }, [configureVideoForDevice, requestNativeFullscreen, resetIdleTimer]);
+
+  useEffect(() => {
+    if (!source || isPlaying || userStartRequested || deviceProfile.canAutoplayAudible) return;
+    const timer = window.setTimeout(() => {
+      const player = playerRef.current;
+      if (!player) return;
+      setUserStartRequested(true);
+      configureVideoForDevice();
+      void player
+        .play()
+        .then(() => requestNativeFullscreen())
+        .catch(() => {
+          // Keep the native media controls available without adding an extra app-level play prompt.
+        });
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [
+    configureVideoForDevice,
+    deviceProfile.canAutoplayAudible,
+    isPlaying,
+    requestNativeFullscreen,
+    source,
+    userStartRequested,
+  ]);
 
   const togglePlayPause = useCallback(() => {
     const player = playerRef.current;
@@ -528,19 +549,6 @@ export function StorytimeMediaPlayer({
       window.removeEventListener("orientationchange", syncDeviceProfile);
     };
   }, []);
-
-  useEffect(() => {
-    if (!source || isPlaying || userStartRequested) return;
-    if (!deviceProfile.prefersNativeFullscreen && deviceProfile.canAutoplayAudible) return;
-    const timer = window.setTimeout(() => setPlaybackStartBlocked(true), 350);
-    return () => window.clearTimeout(timer);
-  }, [
-    deviceProfile.canAutoplayAudible,
-    deviceProfile.prefersNativeFullscreen,
-    isPlaying,
-    source,
-    userStartRequested,
-  ]);
 
   useEffect(() => {
     if (isMobileLike || typeof document === "undefined") return;
@@ -715,10 +723,6 @@ export function StorytimeMediaPlayer({
 
   const showSkipIntro =
     !introSkipped && currentTime < INTRO_SKIP_SECONDS && duration > INTRO_SKIP_SECONDS + 30;
-  const showStartOverlay =
-    playbackStartBlocked &&
-    !isPlaying &&
-    (deviceProfile.prefersNativeFullscreen || !deviceProfile.canAutoplayAudible);
 
 
 
@@ -763,7 +767,6 @@ export function StorytimeMediaPlayer({
         }}
         onPlay={() => {
           setIsPlaying(true);
-          setPlaybackStartBlocked(false);
         }}
         onPause={() => setIsPlaying(false)}
         onDurationChange={() => {
@@ -803,30 +806,6 @@ export function StorytimeMediaPlayer({
         <PlaybackBufferingOverlay />
         {!isMobileLike ? <DefaultVideoLayout icons={defaultLayoutIcons} /> : null}
       </MediaPlayer>
-
-      {showStartOverlay ? (
-        <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/65 px-6 text-center backdrop-blur-sm">
-          <div className="max-w-sm rounded-3xl border border-white/10 bg-slate-950/85 p-6 shadow-2xl">
-            <button
-              type="button"
-              onClick={startPlaybackFromGesture}
-              className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white text-slate-950 shadow-[0_12px_40px_rgba(255,255,255,0.25)] transition active:scale-95"
-              aria-label="Start playback"
-            >
-              <Play className="ml-1 h-9 w-9 fill-slate-950" />
-            </button>
-            <p className="mt-5 text-base font-semibold text-white">Start watching</p>
-            <p className="mt-2 text-sm leading-relaxed text-slate-300">{deviceProfile.startHint}</p>
-            <p className="mt-3 text-xs text-slate-500">
-              {deviceProfile.family === "ios"
-                ? "Optimized for Safari, iPhone, and iPad native playback."
-                : deviceProfile.family === "android"
-                  ? "Optimized for Chrome, Samsung Internet, and Android full-screen playback."
-                  : "Optimized for this device."}
-            </p>
-          </div>
-        </div>
-      ) : null}
 
       {isMobileLike ? (
         <NetflixMobileControls
