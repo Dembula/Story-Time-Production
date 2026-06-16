@@ -1,4 +1,5 @@
 import { extractCloudflareStreamUid } from "@/lib/cloudflare-stream";
+import { warmHlsPlayback } from "@/lib/playback/segment-prefetch";
 
 const warmedManifests = new Set<string>();
 const warmedOrigins = new Set<string>();
@@ -25,7 +26,7 @@ export function prefetchBrowseRoute(href: string, router?: { prefetch: (url: str
   }
 }
 
-/** Warm HLS manifest in browser cache via low-priority fetch. */
+/** Warm HLS manifest and first segments in browser cache for instant playback. */
 export function warmPlaybackManifest(videoUrl: string | null | undefined) {
   if (typeof window === "undefined") return;
   const url = videoUrl?.trim();
@@ -33,7 +34,10 @@ export function warmPlaybackManifest(videoUrl: string | null | undefined) {
 
   const manifest = resolveManifestUrl(url);
   warmMediaOrigin(manifest ?? url);
-  if (!manifest || warmedManifests.has(manifest)) return;
+  if (!manifest || warmedManifests.has(manifest)) {
+    if (manifest) void warmHlsPlayback(manifest);
+    return;
+  }
   warmedManifests.add(manifest);
 
   const link = document.createElement("link");
@@ -43,9 +47,13 @@ export function warmPlaybackManifest(videoUrl: string | null | undefined) {
   link.crossOrigin = "anonymous";
   document.head.appendChild(link);
 
-  void fetch(manifest, { method: "GET", mode: "cors", credentials: "omit" }).catch(() => {
-    warmedManifests.delete(manifest);
-  });
+  void fetch(manifest, { method: "GET", mode: "cors", credentials: "omit" } as RequestInit)
+    .catch(() => {
+      warmedManifests.delete(manifest);
+    })
+    .finally(() => {
+      void warmHlsPlayback(manifest);
+    });
 }
 
 function resolveManifestUrl(videoUrl: string): string | null {

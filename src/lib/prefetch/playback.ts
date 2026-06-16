@@ -1,5 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { warmPlaybackManifest } from "./engine";
+import { warmHlsPlayback } from "@/lib/playback/segment-prefetch";
+import type { PlaybackBundleResponse } from "@/lib/playback/types";
 
 export const PLAYBACK_BUNDLE_STALE_MS = 3 * 60 * 60 * 1000;
 
@@ -15,7 +17,7 @@ export async function fetchPlaybackBundle(
   contentId: string,
   episodeId?: string | null,
   options?: { trailer?: boolean },
-) {
+): Promise<PlaybackBundleResponse> {
   const params = new URLSearchParams();
   if (episodeId) params.set("episodeId", episodeId);
   if (options?.trailer) params.set("trailer", "1");
@@ -23,8 +25,15 @@ export async function fetchPlaybackBundle(
   const res = await fetch(`/api/content/${contentId}/playback-bundle${qs}`, {
     priority: "high",
   } as RequestInit);
+  if (res.status === 202) {
+    const payload = (await res.json()) as PlaybackBundleResponse;
+    throw new Error(payload.streamStatus === "processing" ? "processing" : "playback bundle unavailable");
+  }
   if (!res.ok) throw new Error("playback bundle unavailable");
-  return res.json();
+  const payload = (await res.json()) as PlaybackBundleResponse;
+  const manifest = payload.playback?.src ?? payload.sources?.hls?.src ?? null;
+  if (manifest) void warmHlsPlayback(manifest);
+  return payload;
 }
 
 const warmedWatchRoutes = new Set<string>();
