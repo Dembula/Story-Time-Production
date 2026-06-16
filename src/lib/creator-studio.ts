@@ -132,6 +132,32 @@ const activeStudioProfileSelect = {
   pipelineSectionMask: true,
 } as const;
 
+async function hasSettledLicenseEntitlement(license: { id: string; type: string; externalPaymentId: string | null }) {
+  if (isCreatorPerUploadLicense(license.type)) return true;
+
+  if (license.externalPaymentId) return true;
+
+  const [payment, promoRedemption] = await Promise.all([
+    prisma.paymentRecord.findFirst({
+      where: {
+        relatedEntityType: "CreatorDistributionLicense",
+        relatedEntityId: license.id,
+        status: "SUCCEEDED",
+      },
+      select: { id: true },
+    }),
+    prisma.promoCodeRedemption.findFirst({
+      where: {
+        context: "CREATOR_LICENSE",
+        referenceId: license.id,
+      },
+      select: { id: true },
+    }),
+  ]);
+
+  return Boolean(payment || promoRedemption);
+}
+
 export type StudioPipelineContext = {
   license: {
     id: string;
@@ -176,19 +202,7 @@ export async function loadStudioPipelineContext(userId: string): Promise<StudioP
       }));
 
     const license = user.creatorDistributionLicense;
-    const paidOrNoUpfrontCharge = license
-      ? isCreatorPerUploadLicense(license.type) ||
-        Boolean(
-          await prisma.paymentRecord.findFirst({
-            where: {
-              relatedEntityType: "CreatorDistributionLicense",
-              relatedEntityId: license.id,
-              status: "SUCCEEDED",
-            },
-            select: { id: true },
-          }),
-        )
-      : false;
+    const paidOrNoUpfrontCharge = license ? await hasSettledLicenseEntitlement(license) : false;
     const licensePeriodActive = Boolean(license && paidOrNoUpfrontCharge && isCreatorLicensePeriodActive(license));
     const { suiteAccess, pipelineAccess } = computeStudioSuiteAccess({
       license: paidOrNoUpfrontCharge ? license : null,
@@ -228,19 +242,7 @@ export async function loadStudioPipelineContext(userId: string): Promise<StudioP
     });
     if (!user) return null;
     const license = user.creatorDistributionLicense;
-    const paidOrNoUpfrontCharge = license
-      ? isCreatorPerUploadLicense(license.type) ||
-        Boolean(
-          await prisma.paymentRecord.findFirst({
-            where: {
-              relatedEntityType: "CreatorDistributionLicense",
-              relatedEntityId: license.id,
-              status: "SUCCEEDED",
-            },
-            select: { id: true },
-          }),
-        )
-      : false;
+    const paidOrNoUpfrontCharge = license ? await hasSettledLicenseEntitlement(license) : false;
     const licensePeriodActive = Boolean(license && paidOrNoUpfrontCharge && isCreatorLicensePeriodActive(license));
     const { suiteAccess, pipelineAccess } = computeStudioSuiteAccess({
       license: paidOrNoUpfrontCharge ? license : null,
