@@ -31,6 +31,9 @@ import {
 } from "@/lib/stream-playback-protection";
 import { usePlaybackSession } from "@/lib/playback/session-store";
 import { buildHlsDrmConfig } from "@/lib/content-capture-protection";
+import { useCaptureProtectedPlayback } from "@/hooks/use-capture-protected-playback";
+import { parseVtt, findActiveCue, type VttCue } from "@/lib/subtitles/vtt";
+import type { PlaybackBundleData } from "@/lib/playback-bundle";
 import { PlaybackChrome } from "./playback-chrome";
 import { PlaybackMetadataPanel } from "./playback-metadata-panel";
 import { PlaybackComplianceBadge } from "./playback-compliance-badge";
@@ -39,12 +42,23 @@ import { computePlaybackDeviceProfileClient } from "@/lib/player/mobile-detect";
 import { StoryTimeLoader, StoryTimeLoaderOverlay } from "@/components/ui/storytime-loader";
 import { PlaybackBufferingOverlay } from "./playback-buffering-overlay";
 import { PLAYBACK_COMMAND_EVENT, type PlaybackCommand } from "@/lib/input/platform-events";
+import { CaptureProtectionBadge } from "./capture-protection-badge";
 
 
 
 const INTRO_SKIP_SECONDS = 90;
 
 const IDLE_HIDE_MS = 3200;
+
+const BUFFER_EVENT_DEBOUNCE_MS = 15_000;
+
+function sendPlaybackAnalyticsEvent(name: string, properties: Record<string, unknown>) {
+  void fetch("/api/analytics/events", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, properties }),
+  }).catch(() => {});
+}
 
 
 function actorList(value: unknown): string[] {
@@ -84,6 +98,8 @@ type StorytimeMediaPlayerProps = {
 
   isTrailer?: boolean;
 
+  initialPlaybackBundle: PlaybackBundleData;
+
 };
 
 
@@ -118,6 +134,8 @@ export function StorytimeMediaPlayer({
 
   isTrailer = false,
 
+  initialPlaybackBundle,
+
 }: StorytimeMediaPlayerProps) {
 
   const router = useRouter();
@@ -139,9 +157,15 @@ export function StorytimeMediaPlayer({
   const [isPlaying, setIsPlaying] = useState(false);
   const [deviceProfile, setDeviceProfile] = useState(computePlaybackDeviceProfileClient);
   const [userStartRequested, setUserStartRequested] = useState(false);
+  const [subtitleMenuOpen, setSubtitleMenuOpen] = useState(false);
+  const [selectedSubtitleId, setSelectedSubtitleId] = useState("off");
+  const [subtitleCues, setSubtitleCues] = useState<Record<string, VttCue[]>>({});
   const orientationLockedRef = useRef(false);
   const leaveWatchFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const leaveWatchPopStateRef = useRef<(() => void) | null>(null);
+  const startupBeganAtRef = useRef<number | null>(null);
+  const startupReportedRef = useRef(false);
+  const lastBufferEventAtRef = useRef(0);
 
   const setAmbientUiVisible = usePlaybackSession((s) => s.setAmbientUiVisible);
   const isMobileLike = deviceProfile.isMobileLike;
@@ -151,7 +175,7 @@ export function StorytimeMediaPlayer({
   const signedPlaybackRequired = isStreamSignedPlaybackClientEnabled();
   const fallbackSource = useMemo(() => resolvePlaybackSources(videoUrl), [videoUrl]);
 
-  const { data: bundle, isLoading: bundleLoading, isError: bundleError } = useQuery({
+  const { data: bundle, isLoading: bundleLoading, isError: bundleError } = useQuery<PlaybackBundleData>({
 
     queryKey: playbackBundleQueryKey(contentId, episodeId, { trailer: isTrailer }),
 
@@ -159,11 +183,18 @@ export function StorytimeMediaPlayer({
 
     staleTime: signedPlaybackRequired ? PLAYBACK_BUNDLE_STALE_MS : 60_000,
     refetchOnWindowFocus: signedPlaybackRequired,
+    initialData: initialPlaybackBundle,
 
   });
 
+  const captureProtectionState = useCaptureProtectedPlayback({
+    contentId,
+    playerRef,
+    enabled: Boolean(bundle?.captureProtection?.enabled),
+  });
+
   const source = useMemo((): PlaybackSource | null => {
-    const bundlePlayback = bundle?.playback as PlaybackSource | undefined;
+    const bundlePlayback = bundle?.playback;
     if (bundlePlayback?.src && bundlePlayback?.type) return bundlePlayback;
     if (signedPlaybackRequired) return null;
     return fallbackSource;
@@ -175,21 +206,8 @@ export function StorytimeMediaPlayer({
 
 
 
-  const scenes = (bundle?.scenes ?? []) as Array<{
-
-    id: string;
-
-    startSeconds: number;
-
-    endSeconds: number;
-
-    summary: string | null;
-
-    mood: string | null;
-
-    actors: unknown;
-
-  }>;
+  const scenes = useMemo(() => bundle?.scenes ?? [], [bundle?.scenes]);
+  const subtitleTracks = useMemo(() => bundle?.subtitles ?? [], [bundle?.subtitles]);
 
 
 
@@ -199,6 +217,61 @@ export function StorytimeMediaPlayer({
 
   );
   const activeSceneActors = actorList(activeScene?.actors).slice(0, 5);
+  const activeSubtitleCue = useMemo(() => {
+    if (selectedSubtitleId === "off") return null;
+    return findActiveCue(subtitleCues[selectedSubtitleId] ?? [], currentTime);
+  }, [currentTime, selectedSubtitleId, subtitleCues]);
+  const selectedSubtitleLabel = useMemo(() => {
+    if (selectedSubtitleId === "off") return "Off";
+    return subtitleTracks.find((track) => track.id === selectedSubtitleId)?.label ?? "Captions";
+  }, [selectedSubtitleId, subtitleTracks]);
+
+  const emitPlaybackEvent = useCallback(
+    (name: string, properties: Record<string, unknown> = {}) => {
+      sendPlaybackAnalyticsEvent(name, {
+        contentId,
+        episodeId,
+        isTrailer,
+        sourceType: source?.type ?? null,
+        signedPlayback: bundle?.playbackProtection.signedUrl ?? false,
+        drmConfigured: bundle?.captureProtection.drmConfigured ?? false,
+        ...properties,
+      });
+    },
+    [
+      bundle?.captureProtection.drmConfigured,
+      bundle?.playbackProtection.signedUrl,
+      contentId,
+      episodeId,
+      isTrailer,
+      source?.type,
+    ],
+  );
+
+  const reportStartupIfNeeded = useCallback(() => {
+    if (startupReportedRef.current) return;
+    const startedAt = startupBeganAtRef.current;
+    if (startedAt == null) return;
+    startupReportedRef.current = true;
+    const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+    const connection = (navigator as Navigator & {
+      connection?: { effectiveType?: string; saveData?: boolean };
+    }).connection;
+
+    emitPlaybackEvent("playback_startup", {
+      startupMs: Math.max(0, Math.round(now - startedAt)),
+      autoplayAudible: deviceProfile.canAutoplayAudible,
+      subtitleTrackCount: subtitleTracks.length,
+      captionsEnabled: selectedSubtitleId !== "off",
+      effectiveConnectionType: connection?.effectiveType ?? null,
+      saveData: connection?.saveData ?? false,
+    });
+  }, [
+    deviceProfile.canAutoplayAudible,
+    emitPlaybackEvent,
+    selectedSubtitleId,
+    subtitleTracks.length,
+  ]);
 
   const applyHlsDrmConfig = useCallback(
     (instance: unknown) => {
@@ -239,6 +312,58 @@ export function StorytimeMediaPlayer({
       void fetchPlaybackBundle(contentId, nextEpisodeId);
     }
   }, [videoUrl, nextEpisode?.id, nextEpisode?.href, contentId, bundle?.playback, signedPlaybackRequired]);
+
+  useEffect(() => {
+    startupBeganAtRef.current =
+      typeof performance !== "undefined" ? performance.now() : Date.now();
+    startupReportedRef.current = false;
+    lastBufferEventAtRef.current = 0;
+  }, [source?.src]);
+
+  useEffect(() => {
+    if (isTrailer || subtitleTracks.length === 0) {
+      setSelectedSubtitleId("off");
+      return;
+    }
+
+    setSelectedSubtitleId((current) => {
+      if (current !== "off" && subtitleTracks.some((track) => track.id === current)) {
+        return current;
+      }
+      return subtitleTracks.find((track) => track.isDefault)?.id ?? subtitleTracks[0]?.id ?? "off";
+    });
+  }, [isTrailer, subtitleTracks]);
+
+  useEffect(() => {
+    if (selectedSubtitleId === "off") return;
+    const selectedTrack = subtitleTracks.find((track) => track.id === selectedSubtitleId);
+    if (!selectedTrack || subtitleCues[selectedTrack.id]) return;
+
+    let cancelled = false;
+    void fetch(selectedTrack.vttUrl, { credentials: "omit" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("subtitle track unavailable");
+        return response.text();
+      })
+      .then((raw) => {
+        if (cancelled) return;
+        setSubtitleCues((current) => {
+          if (current[selectedTrack.id]) return current;
+          return { ...current, [selectedTrack.id]: parseVtt(raw) };
+        });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        emitPlaybackEvent("playback_subtitle_load_failed", {
+          subtitleId: selectedTrack.id,
+          subtitleLabel: selectedTrack.label,
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [emitPlaybackEvent, selectedSubtitleId, subtitleCues, subtitleTracks]);
 
 
 
@@ -741,6 +866,13 @@ export function StorytimeMediaPlayer({
       }
     | undefined;
   const scriptAnalysis = enrichment?.narrativeJson?.scriptAnalysis ?? null;
+  const subtitleOverlayOffsetClass = isMobileLike
+    ? uiVisible
+      ? "bottom-28"
+      : "bottom-10"
+    : uiVisible
+      ? "bottom-24"
+      : "bottom-10";
 
   return (
     <div
@@ -761,14 +893,41 @@ export function StorytimeMediaPlayer({
         autoPlay={deviceProfile.canAutoplayAudible}
         load="eager"
         onHlsInstance={applyHlsDrmConfig}
+        onLoadStart={() => {
+          startupBeganAtRef.current =
+            typeof performance !== "undefined" ? performance.now() : Date.now();
+          startupReportedRef.current = false;
+        }}
         onLoadedData={() => {
           configureVideoForDevice();
           applyStartTime();
+          reportStartupIfNeeded();
         }}
         onPlay={() => {
           setIsPlaying(true);
+          emitPlaybackEvent("playback_play", {
+            currentTime: Math.round(playerRef.current?.currentTime ?? 0),
+          });
         }}
         onPause={() => setIsPlaying(false)}
+        onWaiting={() => {
+          const now = Date.now();
+          if (now - lastBufferEventAtRef.current < BUFFER_EVENT_DEBOUNCE_MS) return;
+          lastBufferEventAtRef.current = now;
+          emitPlaybackEvent("playback_buffering", {
+            currentTime: Math.round(playerRef.current?.currentTime ?? 0),
+            duration: Math.round(playerRef.current?.duration ?? 0),
+          });
+        }}
+        onError={() => {
+          const video = getVideoElement();
+          const mediaError = video?.error as (MediaError & { message?: string }) | null | undefined;
+          emitPlaybackEvent("playback_error", {
+            currentTime: Math.round(playerRef.current?.currentTime ?? 0),
+            mediaErrorCode: mediaError?.code ?? null,
+            mediaErrorMessage: mediaError?.message ?? null,
+          });
+        }}
         onDurationChange={() => {
           applyStartTime();
           const player = playerRef.current;
@@ -797,6 +956,9 @@ export function StorytimeMediaPlayer({
           if (player && onProgressSave) {
             onProgressSave(player.currentTime, player.duration);
           }
+          emitPlaybackEvent("playback_complete", {
+            finalTime: Math.round(playerRef.current?.currentTime ?? 0),
+          });
           if (nextEpisode) {
             router.push(nextEpisode.href ?? `/browse/content/${nextEpisode.id}/watch`);
           }
@@ -806,6 +968,85 @@ export function StorytimeMediaPlayer({
         <PlaybackBufferingOverlay />
         {!isMobileLike ? <DefaultVideoLayout icons={defaultLayoutIcons} /> : null}
       </MediaPlayer>
+
+      <CaptureProtectionBadge
+        active={captureProtectionState.active}
+        drmConfigured={
+          captureProtectionState.drmConfigured || Boolean(bundle?.captureProtection?.drmConfigured)
+        }
+        screenCaptured={captureProtectionState.screenCaptured}
+        signedUrl={bundle?.playbackProtection.signedUrl}
+      />
+
+      {activeSubtitleCue ? (
+        <div
+          className={`pointer-events-none absolute left-1/2 z-[12] w-[min(92vw,56rem)] -translate-x-1/2 px-4 ${subtitleOverlayOffsetClass}`}
+        >
+          <div className="rounded-2xl bg-black/72 px-4 py-2.5 text-center shadow-2xl backdrop-blur-md">
+            <p className="whitespace-pre-line text-sm font-medium leading-relaxed text-white sm:text-base">
+              {activeSubtitleCue.text}
+            </p>
+          </div>
+        </div>
+      ) : null}
+
+      {subtitleTracks.length > 0 && uiVisible ? (
+        <div
+          className={`absolute right-4 z-[13] pointer-events-auto ${
+            isMobileLike ? "bottom-36" : "bottom-24"
+          }`}
+        >
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setSubtitleMenuOpen((open) => !open)}
+              className="rounded-full border border-white/15 bg-black/65 px-3 py-2 text-xs font-semibold text-white shadow-lg backdrop-blur-md hover:bg-black/80"
+            >
+              CC · {selectedSubtitleLabel}
+            </button>
+            {subtitleMenuOpen ? (
+              <div className="absolute bottom-12 right-0 min-w-52 overflow-hidden rounded-2xl border border-white/10 bg-black/88 shadow-2xl backdrop-blur-xl">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedSubtitleId("off");
+                    setSubtitleMenuOpen(false);
+                  }}
+                  className={`block w-full px-4 py-2.5 text-left text-sm ${
+                    selectedSubtitleId === "off"
+                      ? "bg-white/10 text-orange-200"
+                      : "text-white/90 hover:bg-white/10"
+                  }`}
+                >
+                  Off
+                </button>
+                {subtitleTracks.map((track) => (
+                  <button
+                    key={track.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedSubtitleId(track.id);
+                      setSubtitleMenuOpen(false);
+                    }}
+                    className={`block w-full px-4 py-2.5 text-left text-sm ${
+                      selectedSubtitleId === track.id
+                        ? "bg-white/10 text-orange-200"
+                        : "text-white/90 hover:bg-white/10"
+                    }`}
+                  >
+                    {track.label}
+                    {track.isDefault ? (
+                      <span className="ml-2 text-[11px] uppercase tracking-[0.2em] text-white/45">
+                        Default
+                      </span>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
 
       {isMobileLike ? (
         <NetflixMobileControls

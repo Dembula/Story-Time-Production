@@ -1,4 +1,7 @@
-import { buildSignedCloudflarePlaybackSource } from "@/lib/cloudflare-stream-signed-url";
+import {
+  buildSignedCloudflarePlaybackSource,
+  isCloudflareSignedPlaybackEnabled,
+} from "@/lib/cloudflare-stream-signed-url";
 import { isCloudflareStreamUrl } from "@/lib/cloudflare-stream";
 import { resolvePlaybackSources, type PlaybackSource } from "@/lib/playback-sources";
 import { findStreamAssetBySourceUrl } from "@/lib/stream-asset-store";
@@ -19,9 +22,11 @@ export async function resolveServerPlaybackSource(
 ): Promise<PlaybackSource | null> {
   const url = videoUrl?.trim();
   if (!url) return null;
+  const signedPlaybackRequired = isCloudflareSignedPlaybackEnabled();
 
   const signedDirect = await buildSignedCloudflarePlaybackSource(url);
   if (signedDirect) return signedDirect;
+  if (signedPlaybackRequired) return null;
 
   if (!isCloudflareStreamUrl(url)) {
     const asset = await findStreamAssetBySourceUrl(url);
@@ -31,9 +36,11 @@ export async function resolveServerPlaybackSource(
     if (streamUrl) {
       const signedAsset = await buildSignedCloudflarePlaybackSource(streamUrl);
       if (signedAsset) return signedAsset;
+      if (signedPlaybackRequired) return null;
       return resolvePlaybackSources(streamUrl);
     }
   }
 
+  if (signedPlaybackRequired) return null;
   return resolvePlaybackSources(url);
 }

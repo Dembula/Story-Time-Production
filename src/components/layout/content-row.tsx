@@ -119,7 +119,7 @@ function ContentCard({
             muted
             playsInline
             loop
-            preload="none"
+            preload="metadata"
           />
         ) : null}
         <div className="absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/92 via-black/24 to-transparent p-4 opacity-0 transition-all duration-300 group-hover/card:opacity-100">

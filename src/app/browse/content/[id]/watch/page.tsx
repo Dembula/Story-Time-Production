@@ -8,6 +8,7 @@ import { WatchClient } from "./watch-client";
 import { getViewerPlaybackState } from "@/lib/viewer-access";
 import { getViewerProfileAge } from "@/lib/viewer-profiles";
 import { isLongFormType } from "@/lib/content-types";
+import { getPlaybackBundleData } from "@/lib/playback-bundle";
 
 export default async function WatchPage({
   params,
@@ -135,6 +136,17 @@ export default async function WatchPage({
     }
   }
 
+  const initialPlaybackBundle = await getPlaybackBundleData({
+    contentId: content.id,
+    episodeId: !isTrailer && episodeId ? episodeId : null,
+    isTrailer,
+    auth: {
+      userId: session.user.id,
+      role,
+      profileId,
+    },
+  });
+
   return (
     <WatchClient
       content={{
@@ -154,6 +166,7 @@ export default async function WatchPage({
       startTime={startTime}
       episodeId={!isTrailer && episodeId ? episodeId : null}
       isTrailer={isTrailer}
+      initialPlaybackBundle={initialPlaybackBundle}
     />
   );
 }

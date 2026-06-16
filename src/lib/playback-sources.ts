@@ -47,5 +47,18 @@ function deriveSubdomainFromStreamUrl(url: string): string {
 }
 
 export function resolveTrailerSources(trailerUrl: string | null | undefined): PlaybackSource | null {
-  return resolvePlaybackSources(trailerUrl);
+  const url = trailerUrl?.trim();
+  if (!url) return null;
+
+  const uid = extractCloudflareStreamUid(url);
+  if (uid) {
+    const cfg = getCloudflareStreamConfig();
+    const subdomain =
+      cfg?.customerSubdomain ??
+      (isCloudflareStreamUrl(url) ? deriveSubdomainFromStreamUrl(url) : "");
+    const urls = buildCloudflarePlaybackUrls(uid, subdomain || "https://videodelivery.net");
+    return { src: urls.mp4Url, type: "video/mp4" };
+  }
+
+  return resolvePlaybackSources(url);
 }

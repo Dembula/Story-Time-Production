@@ -3,6 +3,7 @@
 import { useCallback, useRef } from "react";
 import { StorytimeMediaPlayer } from "@/components/player/storytime-media-player";
 import { WatchPlayerErrorBoundary } from "@/components/player/watch-player-error-boundary";
+import type { PlaybackBundleData } from "@/lib/playback-bundle";
 
 type WatchClientProps = {
   content: {
@@ -22,6 +23,7 @@ type WatchClientProps = {
   startTime?: number;
   episodeId?: string | null;
   isTrailer?: boolean;
+  initialPlaybackBundle: PlaybackBundleData;
 };
 
 export function WatchClient({
@@ -31,6 +33,7 @@ export function WatchClient({
   startTime = 0,
   episodeId = null,
   isTrailer = false,
+  initialPlaybackBundle,
 }: WatchClientProps) {
   const lastReportedRef = useRef(0);
   const lastSavedRef = useRef(0);
@@ -103,6 +106,7 @@ export function WatchClient({
         onTimeUpdate={isTrailer ? undefined : reportWatchTime}
         onProgressSave={isTrailer ? undefined : saveProgress}
         isTrailer={isTrailer}
+        initialPlaybackBundle={initialPlaybackBundle}
       />
     </WatchPlayerErrorBoundary>
   );
