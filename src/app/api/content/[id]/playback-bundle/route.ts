@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
+import { after } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getDisplayPosterUrl } from "@/lib/content-media-urls";
-import { getServerCaptureProtectionConfig } from "@/lib/content-capture-protection";
+import {
+  getServerCaptureProtectionConfig,
+  hasFairPlayCertificate,
+} from "@/lib/content-capture-protection";
 import { isLongFormType } from "@/lib/content-types";
-import { resolveServerPlaybackSource } from "@/lib/server-playback-sources";
+import { resolveServerPlayback } from "@/lib/server-playback-sources";
+import { reconcileStreamAsset } from "@/lib/cloudflare-stream-status";
+import { buildCloudflarePlaybackUrls, extractCloudflareStreamUid, getCloudflareStreamConfig } from "@/lib/cloudflare-stream";
 
 export async function GET(
   req: NextRequest,
@@ -88,16 +94,44 @@ export async function GET(
       }
     }
 
-    const playback = await resolveServerPlaybackSource(videoUrl);
+    const resolved = await resolveServerPlayback(videoUrl);
+    const playback = resolved.source;
+
+    // Self-heal: if the linked asset is still transcoding, poll Cloudflare in the
+    // background so the next load resolves to adaptive HLS without waiting on a webhook.
+    if (resolved.processing && resolved.streamUid) {
+      const uid = resolved.streamUid;
+      after(async () => {
+        try {
+          await reconcileStreamAsset(uid);
+        } catch (reconcileErr) {
+          console.error("Opportunistic stream reconcile failed:", reconcileErr);
+        }
+      });
+    }
+
     const posterUrl = getDisplayPosterUrl(content);
     const captureProtection = getServerCaptureProtectionConfig();
     const session = await getServerSession(authOptions);
+
+    const streamUid = resolved.streamUid ?? extractCloudflareStreamUid(playback?.src ?? null);
+    const cfg = getCloudflareStreamConfig();
+    const dashUrl =
+      streamUid && cfg ? buildCloudflarePlaybackUrls(streamUid, cfg.customerSubdomain).dashUrl : null;
+    const fairplayAvailable =
+      captureProtection.enabled &&
+      Boolean(captureProtection.drmLicenseUrl) &&
+      hasFairPlayCertificate(captureProtection);
 
     return NextResponse.json(
       {
         id: content.id,
         title: content.title,
         playback,
+        // Alternative renditions for multi-DRM clients (Widevine/PlayReady prefer DASH).
+        playbackAlternatives: dashUrl ? { dash: dashUrl } : null,
+        processing: resolved.processing,
+        streamStatus: resolved.status,
         playbackProtection: {
           signedUrl: Boolean(playback?.src.includes("/manifest/video.m3u8") && playback.src.includes(".")),
           expiresHintSeconds: 4 * 60 * 60,
@@ -114,6 +148,8 @@ export async function GET(
           watermarkEnabled: captureProtection.watermarkEnabled,
           drmConfigured: Boolean(captureProtection.drmLicenseUrl),
           drmLicensePath: captureProtection.drmLicenseUrl ? "/api/content/drm-license" : null,
+          fairplayConfigured: fairplayAvailable,
+          fairplayCertificatePath: fairplayAvailable ? "/api/content/drm-certificate" : null,
         },
       },
       {
