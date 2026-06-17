@@ -118,7 +118,7 @@ export function ContentInfoModal({ open, onClose, content }: Props) {
           <motion.div
             className={`fixed z-[2101] mx-auto overflow-y-auto border border-white/12 bg-[#0c0c0e]/98 shadow-2xl backdrop-blur-2xl ${
               isMobile
-                ? "inset-0 max-h-[100dvh] rounded-none"
+                ? "inset-x-0 top-[env(safe-area-inset-top)] bottom-[calc(5.5rem+env(safe-area-inset-bottom))] max-h-none rounded-t-2xl border-x-0 border-b-0"
                 : isTv
                   ? "left-1/2 top-[8vh] w-full max-w-3xl -translate-x-1/2 max-h-[84vh] rounded-3xl"
                   : "inset-x-4 top-[8vh] max-h-[84vh] max-w-2xl rounded-2xl md:inset-x-auto md:left-1/2 md:w-full md:-translate-x-1/2"
@@ -146,7 +146,11 @@ export function ContentInfoModal({ open, onClose, content }: Props) {
               </button>
             </div>
 
-            <div className="space-y-5 px-5 py-5">
+            <div
+              className={`space-y-5 px-5 py-5 ${
+                isMobile ? "pb-[calc(1.5rem+env(safe-area-inset-bottom))]" : ""
+              }`}
+            >
               {content.description && (
                 <p className="text-sm leading-relaxed text-slate-300">{content.description}</p>
               )}
