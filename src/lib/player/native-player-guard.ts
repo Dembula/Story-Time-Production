@@ -26,7 +26,7 @@ export function requiresUserGestureToPlay(): boolean {
   return usesAppleNativePlayer();
 }
 
-/** Safari native fullscreen — iOS only. */
+/** Safari native fullscreen — iOS only, must be called from a user gesture. */
 export function enterAppleNativeFullscreen(video: HTMLVideoElement | null | undefined): void {
   if (!video) return;
   const el = video as VideoWithWebkit;
@@ -40,19 +40,30 @@ export function enterAppleNativeFullscreen(video: HTMLVideoElement | null | unde
   }
 }
 
-/** iOS only: hand playback to Safari's native fullscreen player with system controls. */
-export function configureAppleNativePlayer(video: HTMLVideoElement): () => void {
+export function exitAppleNativeFullscreen(video: HTMLVideoElement | null | undefined): void {
+  if (!video) return;
   const el = video as VideoWithWebkit;
-  el.controls = true;
-  el.setAttribute("controls", "");
-  el.setAttribute("playsinline", "true");
-  el.setAttribute("webkit-playsinline", "true");
+  if (!el.webkitDisplayingFullscreen) return;
+  if (typeof el.webkitExitFullscreen === "function") {
+    try {
+      el.webkitExitFullscreen();
+    } catch {
+      // unsupported or denied
+    }
+  }
+}
 
-  const onPlay = () => enterAppleNativeFullscreen(video);
+export function isVideoWebkitFullscreen(video: HTMLVideoElement | null | undefined): boolean {
+  if (!video) return false;
+  return Boolean((video as VideoWithWebkit).webkitDisplayingFullscreen);
+}
 
-  video.addEventListener("play", onPlay);
-
-  return () => {
-    video.removeEventListener("play", onPlay);
-  };
+/** iOS only: inline playback — Storytime custom controls handle transport and fullscreen. */
+export function configureAppleNativePlayer(video: HTMLVideoElement): () => void {
+  video.controls = false;
+  video.removeAttribute("controls");
+  video.setAttribute("playsinline", "true");
+  video.setAttribute("webkit-playsinline", "true");
+  video.playsInline = true;
+  return () => {};
 }

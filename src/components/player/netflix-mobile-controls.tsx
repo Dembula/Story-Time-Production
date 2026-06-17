@@ -1,6 +1,6 @@
 "use client";
 
-import { Maximize2, Pause, Play, Rewind, FastForward, X } from "lucide-react";
+import { Maximize2, Minimize2, Pause, Play, Rewind, FastForward, X } from "lucide-react";
 import { PlaybackComplianceBadge } from "./playback-compliance-badge";
 
 const SEEK_SECONDS = 10;
@@ -15,6 +15,7 @@ type NetflixMobileControlsProps = {
   atmosphere?: string | null;
   actorsOnScreen?: string[];
   isPlaying: boolean;
+  isFullscreen?: boolean;
   currentTime: number;
   duration: number;
   onClose: () => void;
@@ -34,6 +35,11 @@ function formatRemaining(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+function stopControlEvent(event: React.SyntheticEvent) {
+  event.preventDefault();
+  event.stopPropagation();
+}
+
 export function NetflixMobileControls({
   visible,
   title,
@@ -44,6 +50,7 @@ export function NetflixMobileControls({
   atmosphere,
   actorsOnScreen = [],
   isPlaying,
+  isFullscreen = false,
   currentTime,
   duration,
   onClose,
@@ -70,7 +77,8 @@ export function NetflixMobileControls({
         className={`absolute inset-x-0 top-0 z-30 bg-gradient-to-b from-black/85 via-black/40 to-transparent px-4 pb-10 pt-[max(env(safe-area-inset-top),0.75rem)] transition-opacity duration-300 ${
           visible ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
-        onClick={(e) => e.stopPropagation()}
+        onClick={stopControlEvent}
+        onPointerDown={stopControlEvent}
       >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
@@ -98,18 +106,20 @@ export function NetflixMobileControls({
             {onFullscreen ? (
               <button
                 type="button"
-                onClick={onFullscreen}
+                onClick={(e) => {
+                  stopControlEvent(e);
+                  onFullscreen();
+                }}
                 className="flex h-10 w-10 items-center justify-center rounded-full text-white/90 transition-colors hover:bg-white/10 touch-manipulation"
-                aria-label="Enter fullscreen"
+                aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
               >
-                <Maximize2 className="h-5 w-5" />
+                {isFullscreen ? <Minimize2 className="h-5 w-5" /> : <Maximize2 className="h-5 w-5" />}
               </button>
             ) : null}
             <button
               type="button"
-              onClick={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
+              onClick={(e) => {
+                stopControlEvent(e);
                 onClose();
               }}
               className="flex h-10 w-10 items-center justify-center rounded-full text-white/90 transition-colors hover:bg-white/10 touch-manipulation"
@@ -126,11 +136,15 @@ export function NetflixMobileControls({
         className={`absolute inset-0 z-20 flex items-center justify-center gap-10 px-6 transition-opacity duration-300 ${
           visible ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
-        onClick={(e) => e.stopPropagation()}
+        onClick={stopControlEvent}
+        onPointerDown={stopControlEvent}
       >
         <button
           type="button"
-          onClick={onSeekBack}
+          onClick={(e) => {
+            stopControlEvent(e);
+            onSeekBack();
+          }}
           className="flex h-14 w-14 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-sm transition-colors hover:bg-black/55 touch-manipulation"
           aria-label={`Rewind ${SEEK_SECONDS} seconds`}
         >
@@ -138,7 +152,10 @@ export function NetflixMobileControls({
         </button>
         <button
           type="button"
-          onClick={onTogglePlay}
+          onClick={(e) => {
+            stopControlEvent(e);
+            onTogglePlay();
+          }}
           className="flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm transition-colors hover:bg-black/60 touch-manipulation"
           aria-label={isPlaying ? "Pause" : "Play"}
         >
@@ -150,7 +167,10 @@ export function NetflixMobileControls({
         </button>
         <button
           type="button"
-          onClick={onSeekForward}
+          onClick={(e) => {
+            stopControlEvent(e);
+            onSeekForward();
+          }}
           className="flex h-14 w-14 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-sm transition-colors hover:bg-black/55 touch-manipulation"
           aria-label={`Forward ${SEEK_SECONDS} seconds`}
         >
@@ -163,13 +183,17 @@ export function NetflixMobileControls({
         className={`absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-4 pb-[max(env(safe-area-inset-bottom),1rem)] pt-12 transition-opacity duration-300 ${
           visible ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
-        onClick={(e) => e.stopPropagation()}
+        onClick={stopControlEvent}
+        onPointerDown={stopControlEvent}
       >
         {showSkipIntro && onSkipIntro ? (
           <div className="mb-3 flex justify-end">
             <button
               type="button"
-              onClick={onSkipIntro}
+              onClick={(e) => {
+                stopControlEvent(e);
+                onSkipIntro();
+              }}
               className="rounded-md border border-white/25 bg-white/15 px-4 py-2 text-xs font-semibold text-white backdrop-blur-sm touch-manipulation"
             >
               Skip intro

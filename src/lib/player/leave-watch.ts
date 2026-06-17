@@ -58,10 +58,24 @@ import {
 
 type WatchExitRouter = {
   replace: (href: string) => void;
+  back?: () => void;
   prefetch?: (href: string) => void;
 };
 
-/** Always return to the title detail page — do not rely on history.back() in Chrome. */
+function canUseHistoryBack(): boolean {
+  if (typeof window === "undefined" || typeof document === "undefined") return false;
+  if (window.history.length <= 1) return false;
+  const referrer = document.referrer?.trim();
+  if (!referrer) return false;
+  try {
+    const refUrl = new URL(referrer);
+    return refUrl.origin === window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
+/** Return to previous page when possible; fallback to the content detail page. */
 export async function leaveWatchRoute(
   router: WatchExitRouter,
   contentDetailUrl: string,
@@ -79,5 +93,20 @@ export async function leaveWatchRoute(
   router.prefetch?.(contentDetailUrl);
   showNavExitOverlay();
   markSkipRouteEnterAnimation();
+
+  if (router.back && canUseHistoryBack()) {
+    const fromPath = typeof window !== "undefined" ? window.location.pathname : "";
+    router.back();
+    // If back() is blocked/no-op, guarantee escape from watch route.
+    if (typeof window !== "undefined") {
+      window.setTimeout(() => {
+        if (window.location.pathname === fromPath) {
+          router.replace(contentDetailUrl);
+        }
+      }, 220);
+    }
+    return;
+  }
+
   router.replace(contentDetailUrl);
 }

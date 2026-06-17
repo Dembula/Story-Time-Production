@@ -40,10 +40,11 @@ import { NetflixMobileControls } from "./netflix-mobile-controls";
 import { PictureInPicture2, SkipForward, Sparkles } from "lucide-react";
 import { computePlaybackDeviceProfileClient } from "@/lib/player/mobile-detect";
 import { configureVidstackHlsProvider, isHlsJsSupported, usesInBrowserHlsEngine } from "@/lib/player/vidstack-hls";
-import { configureAppleNativePlayer, usesAppleNativePlayer } from "@/lib/player/native-player-guard";
+import { configureAppleNativePlayer, enterAppleNativeFullscreen, exitAppleNativeFullscreen, isVideoWebkitFullscreen, usesAppleNativePlayer } from "@/lib/player/native-player-guard";
 import { consumePlaybackPlayIntent } from "@/lib/player/play-intent";
 import { createVidstackPlaybackHandle, type StorytimePlaybackHandle } from "@/lib/player/watch-playback-handle";
 import { StorytimeDesktopHlsPlayer } from "./storytime-desktop-hls-player";
+import { StorytimeDesktopPlaybackBar } from "./storytime-desktop-playback-bar";
 import {
   findActiveScene,
   formatActiveSceneLabel,
@@ -145,6 +146,7 @@ export function StorytimeMediaPlayer({
   const [introSkipped, setIntroSkipped] = useState(false);
   const [nextCountdown, setNextCountdown] = useState<number | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [hlsLoadFailed, setHlsLoadFailed] = useState(false);
   const [hlsInstanceReady, setHlsInstanceReady] = useState(false);
   const [deviceProfile, setDeviceProfile] = useState(computePlaybackDeviceProfileClient);
@@ -212,7 +214,8 @@ export function StorytimeMediaPlayer({
   const useDirectDesktopHls = usesBrowserHls && needsHlsJs && Boolean(source?.src);
   const waitingForHlsEngine = useDirectDesktopHls && !hlsInstanceReady;
   const blockAutoplayUntilHls = useDirectDesktopHls && !hlsInstanceReady;
-  const showTouchStyleControls = useTouchControls || useDirectDesktopHls;
+  const showTouchStyleControls = useTouchControls;
+  const showDesktopHlsBar = useDirectDesktopHls && !useTouchControls;
 
   const getPlayback = useCallback((): StorytimePlaybackHandle | null => {
     if (useDirectDesktopHls) return desktopPlaybackRef.current;
@@ -445,6 +448,18 @@ export function StorytimeMediaPlayer({
       | null;
   }, [getPlayback]);
 
+  const unlockOrientationIfNeeded = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const orientationApi = window.screen?.orientation as (ScreenOrientation & { unlock?: () => void }) | undefined;
+    if (!orientationLockedRef.current || !orientationApi?.unlock) return;
+    try {
+      orientationApi.unlock();
+      orientationLockedRef.current = false;
+    } catch {
+      // no-op
+    }
+  }, []);
+
   const leaveWatch = useCallback(() => {
     if (leavingWatchRef.current) return;
     leavingWatchRef.current = true;
@@ -452,13 +467,14 @@ export function StorytimeMediaPlayer({
     void leaveWatchRoute(router, contentDetailUrl, {
       pause: () => {
         getPlayback()?.pause();
+        unlockOrientationIfNeeded();
       },
       container: watchShellRef.current,
       video: getVideoElement(),
     }).finally(() => {
       leavingWatchRef.current = false;
     });
-  }, [contentDetailUrl, getPlayback, getVideoElement, router]);
+  }, [contentDetailUrl, getPlayback, getVideoElement, router, unlockOrientationIfNeeded]);
 
   const handleClosePlayer = useCallback(
     (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -500,19 +516,48 @@ export function StorytimeMediaPlayer({
   }, []);
 
   const requestNativeFullscreen = useCallback(async () => {
+    const video = getVideoElement();
     const root = watchShellRef.current;
     configureVideoForDevice();
-    if (!root) return;
+    if (!root && !video) return;
+
+    if (usesAppleNativePlayer() && video) {
+      if (isVideoWebkitFullscreen(video)) {
+        exitAppleNativeFullscreen(video);
+      } else {
+        enterAppleNativeFullscreen(video);
+      }
+      resetIdleTimer();
+      return;
+    }
+
     try {
       if (document.fullscreenElement) {
         await document.exitFullscreen();
-        return;
+        unlockOrientationIfNeeded();
+      } else if (root) {
+        await root.requestFullscreen();
+        if (useTouchControls) {
+          const orientationApi = window.screen?.orientation as
+            | (ScreenOrientation & {
+                lock?: (orientation: "landscape" | "landscape-primary" | "landscape-secondary") => Promise<void>;
+              })
+            | undefined;
+          if (orientationApi?.lock) {
+            try {
+              await orientationApi.lock("landscape");
+              orientationLockedRef.current = true;
+            } catch {
+              // Requires user gesture on some browsers.
+            }
+          }
+        }
       }
-      await root.requestFullscreen();
     } catch {
       // unsupported or denied
     }
-  }, [configureVideoForDevice]);
+    resetIdleTimer();
+  }, [configureVideoForDevice, getVideoElement, resetIdleTimer, unlockOrientationIfNeeded, useTouchControls]);
 
   const toggleFullscreen = useCallback(async () => {
     await requestNativeFullscreen();
@@ -587,6 +632,24 @@ export function StorytimeMediaPlayer({
   }, [getPlayback, resetIdleTimer]);
 
   useEffect(() => {
+    if (typeof document === "undefined") return;
+    const syncFullscreen = () => {
+      const video = getVideoElement();
+      setIsFullscreen(Boolean(document.fullscreenElement || isVideoWebkitFullscreen(video)));
+    };
+    document.addEventListener("fullscreenchange", syncFullscreen);
+    const video = getVideoElement();
+    video?.addEventListener("webkitbeginfullscreen", syncFullscreen);
+    video?.addEventListener("webkitendfullscreen", syncFullscreen);
+    syncFullscreen();
+    return () => {
+      document.removeEventListener("fullscreenchange", syncFullscreen);
+      video?.removeEventListener("webkitbeginfullscreen", syncFullscreen);
+      video?.removeEventListener("webkitendfullscreen", syncFullscreen);
+    };
+  }, [getVideoElement, source?.src]);
+
+  useEffect(() => {
     if (typeof window === "undefined") return;
     const syncDeviceProfile = () => setDeviceProfile(computePlaybackDeviceProfileClient());
     syncDeviceProfile();
@@ -599,38 +662,10 @@ export function StorytimeMediaPlayer({
   }, []);
 
   useEffect(() => {
-    if (!isMobileLike) return;
-    const lockLandscape = async () => {
-      if (typeof window === "undefined") return;
-      const orientationApi = window.screen?.orientation as
-        | (ScreenOrientation & {
-            lock?: (orientation: "landscape" | "landscape-primary" | "landscape-secondary") => Promise<void>;
-          })
-        | undefined;
-      if (!orientationApi?.lock) return;
-      try {
-        await orientationApi.lock("landscape");
-        orientationLockedRef.current = true;
-      } catch {
-        // Requires user gesture on some browsers.
-      }
-    };
-    if (isPlaying) void lockLandscape();
-  }, [isMobileLike, isPlaying]);
-
-  useEffect(() => {
     return () => {
-      if (typeof window === "undefined") return;
-      const orientationApi = window.screen?.orientation as (ScreenOrientation & { unlock?: () => void }) | undefined;
-      if (orientationLockedRef.current && orientationApi?.unlock) {
-        try {
-          orientationApi.unlock();
-        } catch {
-          // no-op
-        }
-      }
+      unlockOrientationIfNeeded();
     };
-  }, []);
+  }, [unlockOrientationIfNeeded]);
 
   useEffect(() => {
     const onPlaybackCommand = (event: Event) => {
@@ -906,6 +941,7 @@ export function StorytimeMediaPlayer({
           atmosphere={enrichment?.atmosphere}
           actorsOnScreen={activeSceneActors}
           isPlaying={isPlaying}
+          isFullscreen={isFullscreen}
           currentTime={currentTime}
           duration={duration}
           onClose={leaveWatch}
@@ -915,7 +951,7 @@ export function StorytimeMediaPlayer({
           onSeek={seekTo}
           showSkipIntro={!isTrailer && showSkipIntro}
           onSkipIntro={skipIntro}
-          onFullscreen={requestNativeFullscreen}
+          onFullscreen={toggleFullscreen}
         />
       ) : (
         <>
@@ -1014,6 +1050,21 @@ export function StorytimeMediaPlayer({
           ) : null}
         </>
       )}
+
+      {showDesktopHlsBar ? (
+        <StorytimeDesktopPlaybackBar
+          visible={uiVisible}
+          isPlaying={isPlaying}
+          isFullscreen={isFullscreen}
+          currentTime={currentTime}
+          duration={duration}
+          onTogglePlay={togglePlayPause}
+          onSeekBack={seekBack}
+          onSeekForward={seekForward}
+          onSeek={seekTo}
+          onFullscreen={toggleFullscreen}
+        />
+      ) : null}
 
       {waitingForHlsEngine ? (
         <StoryTimeLoaderOverlay mode="viewport">

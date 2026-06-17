@@ -605,3 +605,16 @@ html.modoc-viewer-open [data-browse-chrome] > nav {
   width: 100%;
   height: 100%;
 }
+
+/* Storytime watch player — hide native OS video controls; custom chrome handles transport */
+.storytime-watch-player video {
+  pointer-events: auto;
+}
+
+.storytime-watch-player video::-webkit-media-controls {
+  display: none !important;
+}
+
+.storytime-watch-player video::-webkit-media-controls-enclosure {
+  display: none !important;
+}

@@ -89,15 +89,22 @@ export function ContentInfoModal({ open, onClose, content }: Props) {
 
   useEffect(() => {
     if (!open) return;
-    const prev = document.body.style.overflow;
+    const prevOverflow = document.body.style.overflow;
+    const prevPaddingRight = document.body.style.paddingRight;
+    const scrollbarWidth = Math.max(0, window.innerWidth - document.documentElement.clientWidth);
     document.body.style.overflow = "hidden";
+    // Prevent horizontal layout shift when scrollbar disappears.
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    }
     return () => {
-      document.body.style.overflow = prev;
+      document.body.style.overflow = prevOverflow;
+      document.body.style.paddingRight = prevPaddingRight;
     };
   }, [open]);
 
   return (
-    <AnimatePresence>
+    <AnimatePresence initial={false}>
       {open && (
         <>
           <motion.div
@@ -119,7 +126,8 @@ export function ContentInfoModal({ open, onClose, content }: Props) {
             initial={{ opacity: 1, y: 16, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 12, scale: 0.98 }}
-            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            style={{ willChange: "transform, opacity" }}
           >
             <div className="sticky top-0 flex items-start justify-between border-b border-white/8 bg-[#0c0c0e]/95 px-5 py-4 backdrop-blur-xl">
               <div>
