@@ -214,7 +214,8 @@ export function StorytimeMediaPlayer({
   const useDirectDesktopHls = usesBrowserHls && needsHlsJs && Boolean(source?.src);
   const waitingForHlsEngine = useDirectDesktopHls && !hlsInstanceReady;
   const blockAutoplayUntilHls = useDirectDesktopHls && !hlsInstanceReady;
-  const showTouchStyleControls = useTouchControls;
+  const useAppleNativeUi = usesAppleNativePlayer();
+  const showTouchStyleControls = useTouchControls && !useAppleNativeUi;
   const showDesktopHlsBar = useDirectDesktopHls && !useTouchControls;
 
   const getPlayback = useCallback((): StorytimePlaybackHandle | null => {
@@ -607,10 +608,16 @@ export function StorytimeMediaPlayer({
   const togglePlayPause = useCallback(() => {
     const player = getPlayback();
     if (!player) return;
-    if (player.paused) {
+    const video = player.getVideoElement();
+    const shouldPlay = video ? video.paused : player.paused;
+    if (shouldPlay) {
       void startPlaybackFromGesture();
+    } else if (video) {
+      video.pause();
+      setIsPlaying(false);
     } else {
       player.pause();
+      setIsPlaying(false);
     }
     resetIdleTimer();
   }, [getPlayback, resetIdleTimer, startPlaybackFromGesture]);
@@ -675,11 +682,19 @@ export function StorytimeMediaPlayer({
       if (!action || !player) return;
 
       switch (action) {
-        case "play_pause":
-          if (player.paused) void startPlaybackFromGesture();
-          else player.pause();
+        case "play_pause": {
+          const shouldPlay = video ? video.paused : player.paused;
+          if (shouldPlay) void startPlaybackFromGesture();
+          else if (video) {
+            video.pause();
+            setIsPlaying(false);
+          } else {
+            player.pause();
+            setIsPlaying(false);
+          }
           resetIdleTimer();
           break;
+        }
         case "seek_back":
           player.setCurrentTime(Math.max(0, player.currentTime - 10));
           resetIdleTimer();
@@ -911,11 +926,13 @@ export function StorytimeMediaPlayer({
       >
         <MediaProvider />
         <PlaybackBufferingOverlay />
-        {!showTouchStyleControls ? <DefaultVideoLayout icons={defaultLayoutIcons} /> : null}
+        {!showTouchStyleControls && !useAppleNativeUi ? (
+          <DefaultVideoLayout icons={defaultLayoutIcons} />
+        ) : null}
       </MediaPlayer>
       )}
 
-      {!useTouchControls && !isTrailer && activeSceneLabel && uiVisible ? (
+      {!useTouchControls && !useAppleNativeUi && !isTrailer && activeSceneLabel && uiVisible ? (
         <div className="pointer-events-none absolute bottom-24 left-4 z-20 max-w-md">
           <div className="rounded-xl border border-white/10 bg-black/55 px-3 py-2 backdrop-blur-md">
             {activeSceneActors.length > 0 ? (
@@ -953,7 +970,7 @@ export function StorytimeMediaPlayer({
           onSkipIntro={skipIntro}
           onFullscreen={toggleFullscreen}
         />
-      ) : (
+      ) : !useAppleNativeUi ? (
         <>
           <div
             className={`pointer-events-none absolute left-0 right-0 top-0 z-30 bg-gradient-to-b from-black/70 to-transparent p-4 transition-opacity duration-500 ${
@@ -1049,7 +1066,7 @@ export function StorytimeMediaPlayer({
             </div>
           ) : null}
         </>
-      )}
+      ) : null}
 
       {showDesktopHlsBar ? (
         <StorytimeDesktopPlaybackBar

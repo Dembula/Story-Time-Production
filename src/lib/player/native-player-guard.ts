@@ -58,12 +58,18 @@ export function isVideoWebkitFullscreen(video: HTMLVideoElement | null | undefin
   return Boolean((video as VideoWithWebkit).webkitDisplayingFullscreen);
 }
 
-/** iOS only: inline playback — Storytime custom controls handle transport and fullscreen. */
+/** iOS only: use Apple's native web media player + fullscreen controls. */
 export function configureAppleNativePlayer(video: HTMLVideoElement): () => void {
-  video.controls = false;
-  video.removeAttribute("controls");
+  video.controls = true;
+  video.setAttribute("controls", "");
   video.setAttribute("playsinline", "true");
   video.setAttribute("webkit-playsinline", "true");
   video.playsInline = true;
-  return () => {};
+
+  const onPlay = () => enterAppleNativeFullscreen(video);
+  video.addEventListener("play", onPlay);
+
+  return () => {
+    video.removeEventListener("play", onPlay);
+  };
 }
