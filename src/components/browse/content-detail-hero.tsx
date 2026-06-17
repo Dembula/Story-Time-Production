@@ -282,13 +282,13 @@ export function ContentDetailHero({
             <button
               type="button"
               onClick={onInfoOpen}
-              className={`flex shrink-0 items-center justify-center rounded-full border border-white/20 bg-black/45 font-bold text-white backdrop-blur-md transition hover:bg-black/60 ${secondaryBtn} ${focusRing} ${
-                isTv ? "text-xl" : "text-base sm:text-lg"
+              className={`flex shrink-0 items-center justify-center rounded-full border border-white/20 bg-black/45 px-4 font-semibold text-white backdrop-blur-md transition hover:bg-black/60 ${secondaryBtn} ${focusRing} ${
+                isTv ? "text-lg" : "text-sm sm:text-base"
               }`}
               aria-label="More information"
               title="More information"
             >
-              !
+              {isMobile ? "More" : "More info"}
             </button>
 
             {isSubscriber && (

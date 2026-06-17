@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Play, Lock, GraduationCap, Globe, BookOpen, Target, Briefcase, Music, Users as UsersIcon, X, Film } from "lucide-react";
+import { Play, Lock, GraduationCap, Globe, BookOpen, Target, Briefcase, Music, Users as UsersIcon, X, Film, ChevronRight } from "lucide-react";
 import { BtsSection } from "@/components/player/bts-section";
 import { CommentsSection } from "@/components/player/comments-section";
 import { RatingsSection } from "@/components/player/ratings-section";
@@ -15,7 +15,6 @@ import { ContentInfoModal } from "@/components/browse/content-info-modal";
 import { ContentEpisodesSection, type SeasonItem } from "@/components/browse/content-episodes-section";
 import { isLongFormType } from "@/lib/content-types";
 import { CheckoutModal } from "@/components/payments/checkout-modal";
-import { CastCrewMemberCard } from "@/components/browse/cast-crew-member-card";
 import { useWatchlist } from "@/hooks/use-watchlist";
 import { usePlaybackPrefetch } from "@/hooks/use-playback-prefetch";
 import { startDownload, getDownload } from "@/lib/offline/download-manager";
@@ -105,7 +104,6 @@ export function ContentDetailClient({
   const { inList, toggle: toggleWatchlist } = useWatchlist(content.id);
   const preparePlayback = usePlaybackPrefetch();
   const [downloadState, setDownloadState] = useState<string | null>(null);
-  const [creditsExpanded, setCreditsExpanded] = useState(false);
 
   useEffect(() => {
     const d = getDownload(content.id);
@@ -147,6 +145,7 @@ export function ContentDetailClient({
     posterUrl: content.posterUrl,
     videoUrl: firstEpisode?.videoUrl ?? content.videoUrl,
   });
+  const relatedTitles = (content.otherCreatorContent ?? []).slice(0, isTv ? 16 : 12);
 
   const warmPlayback = useCallback(() => {
     const episodeVideo = firstEpisode?.videoUrl ?? content.videoUrl;
@@ -575,45 +574,77 @@ export function ContentDetailClient({
         </div>
       )}
 
-      {/* Crew Members */}
-      {content.crewMembers && content.crewMembers.length > 0 && (() => {
-        const previewCount = isTv ? 12 : isMobile ? 6 : 8;
-        const visibleMembers = creditsExpanded ? content.crewMembers : content.crewMembers.slice(0, previewCount);
-        const hiddenCount = Math.max(0, content.crewMembers.length - visibleMembers.length);
-        return (
-        <div className="mt-8 p-6 rounded-2xl bg-slate-800/30 border border-slate-700/50">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-              <UsersIcon className="w-5 h-5 text-emerald-500" /> Cast & Crew
-            </h3>
-            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-slate-300">
-              {content.crewMembers.length} credit{content.crewMembers.length === 1 ? "" : "s"}
+      {/* Related / More Like This */}
+      {relatedTitles.length > 0 && (
+        <section className="mt-10">
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="text-xl font-semibold text-white">Related</h3>
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-400">
+              More like this <ChevronRight className="h-3.5 w-3.5" />
             </span>
           </div>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            {visibleMembers.map((member) => (
-              <CastCrewMemberCard
-                key={member.id}
-                member={member}
-                excludeContentId={content.id}
-              />
+          <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 [-webkit-overflow-scrolling:touch] scrollbar-hide">
+            {relatedTitles.map((item) => (
+              <Link
+                key={item.id}
+                href={`/browse/content/${item.id}`}
+                className="group block w-32 shrink-0 snap-start sm:w-36 md:w-40 lg:w-44"
+              >
+                <div className="relative aspect-[2/3] overflow-hidden rounded-xl border border-white/10 bg-slate-900">
+                  {item.posterUrl ? (
+                    <Image
+                      src={item.posterUrl}
+                      alt={item.title}
+                      fill
+                      sizes="(max-width: 768px) 128px, 176px"
+                      className="object-cover transition duration-300 group-hover:scale-105"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-[11px] text-slate-500">
+                      {item.title}
+                    </div>
+                  )}
+                </div>
+                <p className="mt-2 truncate text-xs font-medium text-white group-hover:text-orange-200 sm:text-sm">
+                  {item.title}
+                </p>
+                <p className="truncate text-[11px] text-slate-400">{item.type}</p>
+              </Link>
             ))}
           </div>
-          {content.crewMembers.length > previewCount ? (
-            <div className="mt-5 flex justify-center">
-              <button
-                type="button"
-                onClick={() => setCreditsExpanded((v) => !v)}
-                className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:border-orange-400/35 hover:bg-orange-500/10"
-                aria-expanded={creditsExpanded}
-              >
-                {creditsExpanded ? "Show fewer credits" : `View all credits${hiddenCount ? ` (+${hiddenCount})` : ""}`}
-              </button>
-            </div>
-          ) : null}
-        </div>
-        );
-      })()}
+        </section>
+      )}
+
+      {/* Cast & Crew horizontal rail */}
+      {content.crewMembers && content.crewMembers.length > 0 && (
+        <section className="mt-10">
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="text-xl font-semibold text-white">Cast & Crew</h3>
+            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-slate-300">
+              {content.crewMembers.length} credits
+            </span>
+          </div>
+          <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 [-webkit-overflow-scrolling:touch] scrollbar-hide">
+            {content.crewMembers.map((member) => {
+              const initials = member.name
+                .split(/\s+/)
+                .map((part) => part[0] ?? "")
+                .join("")
+                .slice(0, 2)
+                .toUpperCase();
+              return (
+                <div key={member.id} className="w-[7rem] shrink-0 snap-start text-center sm:w-[7.5rem]">
+                  <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full border border-white/10 bg-gradient-to-br from-slate-700/70 to-slate-900 text-base font-semibold text-white shadow-lg sm:h-24 sm:w-24">
+                    {initials}
+                  </div>
+                  <p className="mt-2 line-clamp-1 text-sm font-medium text-white">{member.name}</p>
+                  <p className="line-clamp-1 text-xs text-slate-400">{member.role}</p>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {isSubscriber && subscriptionExpired && (
         <div className="mt-10 rounded-xl overflow-hidden border border-slate-700/50 bg-slate-900/50">

@@ -152,6 +152,7 @@ export function StorytimeMediaPlayer({
   const [deviceProfile, setDeviceProfile] = useState(computePlaybackDeviceProfileClient);
   const [userStartRequested, setUserStartRequested] = useState(() => consumePlaybackPlayIntent());
   const orientationLockedRef = useRef(false);
+  const manualPauseRef = useRef(false);
   const watchShellRef = useRef<HTMLDivElement>(null);
   const leavingWatchRef = useRef(false);
   const appleNativeCleanupRef = useRef<(() => void) | null>(null);
@@ -286,6 +287,7 @@ export function StorytimeMediaPlayer({
   useEffect(() => {
     setHlsLoadFailed(false);
     setHlsInstanceReady(false);
+    manualPauseRef.current = false;
   }, [source?.src, source?.type]);
 
   const handleDesktopTimeUpdate = useCallback(() => {
@@ -567,6 +569,7 @@ export function StorytimeMediaPlayer({
   const startPlaybackFromGesture = useCallback(async () => {
     const player = getPlayback();
     if (!player) return;
+    manualPauseRef.current = false;
     setUserStartRequested(true);
     configureVideoForDevice();
     try {
@@ -579,6 +582,7 @@ export function StorytimeMediaPlayer({
 
   useEffect(() => {
     if (!source || isPlaying || blockAutoplayUntilHls) return;
+    if (manualPauseRef.current) return;
     if (!userStartRequested && !deviceProfile.canAutoplayAudible) return;
 
     const start = () => {
@@ -613,9 +617,11 @@ export function StorytimeMediaPlayer({
     if (shouldPlay) {
       void startPlaybackFromGesture();
     } else if (video) {
+      manualPauseRef.current = true;
       video.pause();
       setIsPlaying(false);
     } else {
+      manualPauseRef.current = true;
       player.pause();
       setIsPlaying(false);
     }
@@ -686,9 +692,11 @@ export function StorytimeMediaPlayer({
           const shouldPlay = video ? video.paused : player.paused;
           if (shouldPlay) void startPlaybackFromGesture();
           else if (video) {
+            manualPauseRef.current = true;
             video.pause();
             setIsPlaying(false);
           } else {
+            manualPauseRef.current = true;
             player.pause();
             setIsPlaying(false);
           }

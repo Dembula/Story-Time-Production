@@ -116,12 +116,12 @@ export function ContentInfoModal({ open, onClose, content }: Props) {
             onClick={onClose}
           />
           <motion.div
-            className={`fixed z-[2101] mx-auto overflow-y-auto rounded-2xl border border-white/12 bg-[#0c0c0e]/98 shadow-2xl backdrop-blur-2xl ${
+            className={`fixed z-[2101] mx-auto overflow-y-auto border border-white/12 bg-[#0c0c0e]/98 shadow-2xl backdrop-blur-2xl ${
               isMobile
-                ? "inset-x-3 bottom-3 top-auto max-h-[85vh] rounded-t-2xl"
+                ? "inset-0 max-h-[100dvh] rounded-none"
                 : isTv
-                  ? "left-1/2 top-[10vh] w-full max-w-2xl -translate-x-1/2 max-h-[80vh]"
-                  : "inset-x-4 top-[12vh] max-h-[76vh] max-w-lg md:inset-x-auto md:left-1/2 md:w-full md:-translate-x-1/2"
+                  ? "left-1/2 top-[8vh] w-full max-w-3xl -translate-x-1/2 max-h-[84vh] rounded-3xl"
+                  : "inset-x-4 top-[8vh] max-h-[84vh] max-w-2xl rounded-2xl md:inset-x-auto md:left-1/2 md:w-full md:-translate-x-1/2"
             }`}
             initial={{ opacity: 1, y: 16, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
