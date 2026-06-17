@@ -106,6 +106,20 @@ export default async function ContentDetailPage({
     select: { id: true, title: true, posterUrl: true, type: true, year: true },
   });
 
+  const relatedContent = await prisma.content.findMany({
+    where: {
+      id: { not: id },
+      published: true,
+      OR: [
+        content.category ? { category: content.category } : undefined,
+        { type: content.type },
+      ].filter(Boolean) as Array<Record<string, unknown>>,
+    },
+    take: 14,
+    orderBy: [{ year: "desc" }, { createdAt: "desc" }],
+    select: { id: true, title: true, posterUrl: true, type: true, year: true },
+  });
+
   const seasons: SeasonItem[] = content.seasons.map((s) => ({
     id: s.id,
     seasonNumber: s.seasonNumber,
@@ -132,6 +146,7 @@ export default async function ContentDetailPage({
           count: avgRating._count,
         },
         otherCreatorContent,
+        relatedContent,
         soundtrack: content.syncDeals.map((sd) => sd.musicTrack),
         crewMembers: content.crewMembers,
       }}

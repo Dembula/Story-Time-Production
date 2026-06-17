@@ -884,8 +884,14 @@ export function StorytimeMediaPlayer({
             applyStartTime();
           }}
           onError={() => setHlsLoadFailed(true)}
-          onPlay={() => setIsPlaying(true)}
-          onPause={() => setIsPlaying(false)}
+          onPlay={() => {
+            manualPauseRef.current = false;
+            setIsPlaying(true);
+          }}
+          onPause={() => {
+            manualPauseRef.current = true;
+            setIsPlaying(false);
+          }}
           onDurationChange={() => {
             applyStartTime();
             const player = getPlayback();
@@ -917,9 +923,13 @@ export function StorytimeMediaPlayer({
           if (!usesInBrowserHlsEngine()) setHlsInstanceReady(true);
         }}
         onPlay={() => {
+          manualPauseRef.current = false;
           setIsPlaying(true);
         }}
-        onPause={() => setIsPlaying(false)}
+        onPause={() => {
+          manualPauseRef.current = true;
+          setIsPlaying(false);
+        }}
         onDurationChange={() => {
           applyStartTime();
           const player = getPlayback();
@@ -1074,6 +1084,21 @@ export function StorytimeMediaPlayer({
             </div>
           ) : null}
         </>
+      ) : null}
+
+      {useAppleNativeUi && uiVisible ? (
+        <div className="pointer-events-none absolute left-0 right-0 top-0 z-30 bg-gradient-to-b from-black/75 to-transparent p-4">
+          <div className="pointer-events-auto flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={handleClosePlayer}
+              className="rounded-lg border border-white/20 bg-black/50 px-3 py-2 text-sm font-medium text-white backdrop-blur-sm hover:bg-white/10"
+            >
+              ← Back
+            </button>
+            <p className="max-w-[65%] truncate text-sm font-medium text-white/90">{title}</p>
+          </div>
+        </div>
       ) : null}
 
       {showDesktopHlsBar ? (

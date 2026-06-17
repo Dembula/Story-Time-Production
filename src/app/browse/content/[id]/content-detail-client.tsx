@@ -56,12 +56,24 @@ type Content = {
   btsVideos: { id: string; title: string; videoUrl: string | null; thumbnail: string | null }[];
   ratingStats?: { average: number; count: number };
   otherCreatorContent?: { id: string; title: string; posterUrl: string | null; type: string; year: number | null }[];
+  relatedContent?: { id: string; title: string; posterUrl: string | null; type: string; year: number | null }[];
   soundtrack?: { id: string; title: string; artistName: string; genre: string | null; coverUrl: string | null; creatorId: string }[];
   crewMembers?: { id: string; name: string; role: string; bio: string | null }[];
   minAge?: number;
   ageRating?: string | null;
   advisory?: unknown | null;
 };
+
+function extractLogline(description: string | null | undefined): string | null {
+  const text = description?.trim();
+  if (!text) return null;
+  const loglineMatch = text.match(/logline:\s*([\s\S]*?)(?:festival|awards?|release contact:|$)/i);
+  const logline = loglineMatch?.[1]?.trim();
+  if (logline) return logline.replace(/\s+/g, " ");
+  const firstSentence = text.split(/(?<=[.!?])\s+/)[0]?.trim();
+  if (!firstSentence) return text.slice(0, 220).trim();
+  return firstSentence.length > 220 ? `${firstSentence.slice(0, 220).trim()}…` : firstSentence;
+}
 
 export function ContentDetailClient({
   content,
@@ -145,7 +157,12 @@ export function ContentDetailClient({
     posterUrl: content.posterUrl,
     videoUrl: firstEpisode?.videoUrl ?? content.videoUrl,
   });
-  const relatedTitles = (content.otherCreatorContent ?? []).slice(0, isTv ? 16 : 12);
+  const relatedSource =
+    (content.relatedContent && content.relatedContent.length > 0
+      ? content.relatedContent
+      : content.otherCreatorContent) ?? [];
+  const relatedTitles = relatedSource.slice(0, isTv ? 16 : 12);
+  const heroLogline = extractLogline(content.description);
 
   const warmPlayback = useCallback(() => {
     const episodeVideo = firstEpisode?.videoUrl ?? content.videoUrl;
@@ -347,7 +364,7 @@ export function ContentDetailClient({
         category={content.category}
         year={content.year}
         duration={content.duration}
-        description={content.description}
+        description={heroLogline}
         backdropUrl={displayBackdropUrl}
         trailerUrl={content.trailerUrl}
         autoPlay={autoPlay}
@@ -435,6 +452,23 @@ export function ContentDetailClient({
           </p>
         )}
       </div>
+
+      {/* Bottom information block (full synopsis/details) */}
+      {content.description ? (
+        <section className="mt-10 rounded-2xl border border-slate-700/50 bg-slate-900/45 p-5 sm:p-6">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h3 className="text-xl font-semibold text-white">Information</h3>
+            <button
+              type="button"
+              onClick={() => setShowInfoModal(true)}
+              className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:bg-white/10"
+            >
+              View more
+            </button>
+          </div>
+          <p className="text-sm leading-relaxed text-slate-300">{content.description}</p>
+        </section>
+      ) : null}
 
       {/* Creator Profile Card */}
       {content.creator && (() => {
