@@ -136,7 +136,13 @@ export function ContentDetailHero({
 
   return (
     <div
-      className={`relative w-full ${isMobile ? "-mx-4 w-[calc(100%+2rem)]" : ""} ${isTv ? "mx-auto max-w-[1800px]" : ""}`}
+      className={`relative w-full ${
+        isTv
+          ? "mx-auto max-w-[1800px]"
+          : isMobile
+            ? "-mx-4 w-[calc(100%+2rem)]"
+            : "left-1/2 right-1/2 -mx-[50vw] w-screen"
+      }`}
     >
       <div
         className={`relative overflow-hidden ${heroHeight} ${
@@ -282,7 +288,9 @@ export function ContentDetailHero({
             <button
               type="button"
               onClick={onInfoOpen}
-              className={`flex shrink-0 items-center justify-center rounded-full border border-white/20 bg-black/45 px-4 font-semibold text-white backdrop-blur-md transition hover:bg-black/60 ${secondaryBtn} ${focusRing} ${
+              className={`flex h-11 shrink-0 items-center justify-center rounded-full border border-white/20 bg-black/45 px-4 font-semibold text-white backdrop-blur-md transition hover:bg-black/60 ${focusRing} ${
+                isTv ? "h-14 px-6" : ""
+              } ${
                 isTv ? "text-lg" : "text-sm sm:text-base"
               }`}
               aria-label="More information"
