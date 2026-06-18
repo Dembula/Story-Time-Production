@@ -16,8 +16,13 @@ export function getPayFastMerchantKey(): string {
   return key;
 }
 
-export function getPayFastPassphrase(): string {
+export function getPayFastPassphraseOrNull(): string | null {
   const phrase = process.env.PAYFAST_PASSPHRASE?.trim();
+  return phrase || null;
+}
+
+export function getPayFastPassphrase(): string {
+  const phrase = getPayFastPassphraseOrNull();
   if (!phrase) throw new Error("PAYFAST_PASSPHRASE is not configured.");
   return phrase;
 }

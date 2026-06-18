@@ -9,12 +9,18 @@ import type {
 import {
   getPayFastMerchantId,
   getPayFastMerchantKey,
-  getPayFastPassphrase,
+  getPayFastPassphraseOrNull,
   payfastCheckoutPageUrl,
   payfastNotifyUrl,
   PAYFAST_API_BASE,
 } from "@/lib/payments/providers/payfast-config";
-import { generatePayFastSignature, parsePayFastFormBody, verifyPayFastSignature } from "@/lib/payments/providers/payfast-signature";
+import {
+  generatePayFastCheckoutSignature,
+  generatePayFastSignature,
+  omitEmptyPayFastFields,
+  parsePayFastFormBody,
+  verifyPayFastSignature,
+} from "@/lib/payments/providers/payfast-signature";
 import { isPayFastChargeToken } from "@/lib/payments/payfast-saved-card";
 
 function formatPayFastAmount(amount: number): string {
@@ -29,9 +35,11 @@ function splitCustomerName(name?: string | null): { first: string; last: string 
 }
 
 function buildSignedFields(fields: Record<string, string>): Record<string, string> {
-  const signed = { ...fields };
-  signed.signature = generatePayFastSignature(signed, getPayFastPassphrase());
-  return signed;
+  const cleaned = omitEmptyPayFastFields(fields);
+  return {
+    ...cleaned,
+    signature: generatePayFastCheckoutSignature(cleaned, getPayFastPassphraseOrNull()),
+  };
 }
 
 class PayFastGatewayAdapter implements PaymentGatewayAdapter {
@@ -79,7 +87,7 @@ class PayFastGatewayAdapter implements PaymentGatewayAdapter {
         timestamp,
         amount: amountCents,
       },
-      getPayFastPassphrase(),
+      getPayFastPassphraseOrNull(),
     );
 
     const res = await fetch(`${PAYFAST_API_BASE}/subscriptions/${encodeURIComponent(token)}/adhoc`, {
@@ -129,7 +137,7 @@ class PayFastGatewayAdapter implements PaymentGatewayAdapter {
 
   verifyWebhookSignature(rawBody: string, _getHeader: (name: string) => string | null): boolean {
     const data = parsePayFastFormBody(rawBody);
-    return verifyPayFastSignature(data, data.signature, getPayFastPassphrase());
+    return verifyPayFastSignature(data, data.signature, getPayFastPassphraseOrNull());
   }
 }
 
@@ -152,12 +160,8 @@ export function buildPayFastCheckoutFields(args: {
   const itemName = args.purpose.replace(/_/g, " ").slice(0, 100);
   const baseAmount = args.metadata?.baseAmount;
   const feeAmount = args.metadata?.feeAmount;
-  let itemDescription = "Story Time payment";
-  if (typeof baseAmount === "number" && typeof feeAmount === "number" && feeAmount > 0) {
-    itemDescription = `Service R${Number(baseAmount).toFixed(2)} + Story Time transaction fee R${Number(feeAmount).toFixed(2)}`;
-  }
 
-  return buildSignedFields({
+  const fields: Record<string, string> = {
     merchant_id: getPayFastMerchantId(),
     merchant_key: getPayFastMerchantKey(),
     return_url: args.returnUrl,
@@ -169,11 +173,19 @@ export function buildPayFastCheckoutFields(args: {
     m_payment_id: args.reference,
     amount: formatPayFastAmount(args.amount),
     item_name: itemName,
-    item_description: itemDescription,
     custom_str1: args.paymentRecordId,
-    custom_str2: String(args.metadata?.referenceType ?? ""),
-    custom_str3: String(args.metadata?.referenceId ?? ""),
-  });
+  };
+
+  if (typeof baseAmount === "number" && typeof feeAmount === "number" && feeAmount > 0) {
+    fields.item_description = `Service R${Number(baseAmount).toFixed(2)} + Story Time transaction fee R${Number(feeAmount).toFixed(2)}`;
+  }
+
+  const referenceType = String(args.metadata?.referenceType ?? "").trim();
+  const referenceId = String(args.metadata?.referenceId ?? "").trim();
+  if (referenceType) fields.custom_str2 = referenceType;
+  if (referenceId) fields.custom_str3 = referenceId;
+
+  return buildSignedFields(fields);
 }
 
 export function buildPayFastCardConsentFields(args: {
@@ -188,7 +200,7 @@ export function buildPayFastCardConsentFields(args: {
     ? `${args.returnUrl}&payment_status=cancelled`
     : `${args.returnUrl}?payment_status=cancelled`;
 
-  return buildSignedFields({
+  const fields: Record<string, string> = {
     merchant_id: getPayFastMerchantId(),
     merchant_key: getPayFastMerchantKey(),
     return_url: args.returnUrl,
@@ -201,10 +213,14 @@ export function buildPayFastCardConsentFields(args: {
     amount: "0.00",
     item_name: "Story Time card authorization",
     subscription_type: "2",
-    custom_str1: args.payerId ?? "",
     custom_str2: "card_consent",
     custom_str3: args.reference,
-  });
+  };
+
+  const payerId = args.payerId?.trim();
+  if (payerId) fields.custom_str1 = payerId;
+
+  return buildSignedFields(fields);
 }
 
 export function createPayFastGateway(): PaymentGatewayAdapter {
