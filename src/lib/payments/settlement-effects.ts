@@ -38,6 +38,9 @@ export async function applyPaymentRecordSettlementEffects(paymentRecord: {
   ) {
     const now = new Date();
     const paymentCreatedAt = paymentRecord.createdAt ? new Date(paymentRecord.createdAt) : null;
+    const legacyMatchWindowEnd = paymentCreatedAt
+      ? new Date(paymentCreatedAt.getTime() + 15 * 60 * 1000)
+      : null;
     const current = await db.viewerSubscription.findUnique({
       where: { id: paymentRecord.relatedEntityId },
       select: { currentPeriodEnd: true },
@@ -55,7 +58,10 @@ export async function applyPaymentRecordSettlementEffects(paymentRecord: {
                     {
                       amount: paymentRecord.amount,
                       purpose: paymentRecord.purpose ?? "viewer_subscription",
-                      createdAt: { gte: paymentCreatedAt },
+                      createdAt: {
+                        gte: paymentCreatedAt,
+                        ...(legacyMatchWindowEnd ? { lte: legacyMatchWindowEnd } : {}),
+                      },
                     },
                   ]
                 : []),
