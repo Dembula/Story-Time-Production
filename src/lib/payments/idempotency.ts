@@ -29,6 +29,8 @@ export async function recordGatewayEventIfNew(args: {
   eventId?: string | null;
   payload?: Record<string, unknown>;
   signatureVerified?: boolean;
+  processed?: boolean;
+  processedAt?: Date | null;
 }) {
   const eventId = args.eventId ?? null;
   try {
@@ -39,9 +41,26 @@ export async function recordGatewayEventIfNew(args: {
         eventId,
         payload: args.payload ?? {},
         signatureVerified: args.signatureVerified ?? false,
+        processed: args.processed ?? false,
+        processedAt: args.processedAt ?? null,
       },
     });
   } catch {
-    return null;
+    if (!eventId) return null;
+    return db.gatewayEvent.update({
+      where: {
+        provider_eventType_eventId: {
+          provider: args.provider,
+          eventType: args.eventType,
+          eventId,
+        },
+      },
+      data: {
+        payload: args.payload ?? {},
+        signatureVerified: args.signatureVerified ?? false,
+        processed: args.processed ?? false,
+        processedAt: args.processedAt ?? null,
+      },
+    }).catch(() => null);
   }
 }

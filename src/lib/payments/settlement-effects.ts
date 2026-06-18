@@ -28,6 +28,8 @@ export async function applyPaymentRecordSettlementEffects(paymentRecord: {
   relatedEntityType: string | null;
   relatedEntityId: string | null;
   metadata?: unknown;
+  paidAt?: Date | string | null;
+  createdAt?: Date | string | null;
 }) {
   if (
     paymentRecord.relatedEntityType === "ViewerSubscription" &&
@@ -35,10 +37,54 @@ export async function applyPaymentRecordSettlementEffects(paymentRecord: {
     typeof paymentRecord.amount === "number"
   ) {
     const now = new Date();
+    const paymentCreatedAt = paymentRecord.createdAt ? new Date(paymentRecord.createdAt) : null;
     const current = await db.viewerSubscription.findUnique({
       where: { id: paymentRecord.relatedEntityId },
       select: { currentPeriodEnd: true },
     });
+    const existingPayment = paymentRecord.id
+      ? await db.subscriptionPayment.findFirst({
+          where: {
+            viewerSubscriptionId: paymentRecord.relatedEntityId,
+            status: "COMPLETED",
+            OR: [
+              { externalPaymentId: paymentRecord.id },
+              { gatewayReference: paymentRecord.id },
+              ...(paymentCreatedAt
+                ? [
+                    {
+                      amount: paymentRecord.amount,
+                      purpose: paymentRecord.purpose ?? "viewer_subscription",
+                      createdAt: { gte: paymentCreatedAt },
+                    },
+                  ]
+                : []),
+            ],
+          },
+          orderBy: { createdAt: "desc" },
+        })
+      : null;
+
+    if (existingPayment) {
+      if (paymentRecord.id && !existingPayment.externalPaymentId) {
+        await db.subscriptionPayment.update({
+          where: { id: existingPayment.id },
+          data: { externalPaymentId: paymentRecord.id },
+        }).catch(() => {});
+      }
+      await db.viewerSubscription.update({
+        where: { id: paymentRecord.relatedEntityId },
+        data: {
+          status: "ACTIVE",
+          trialEndsAt: null,
+          lastPaymentStatus: "SUCCEEDED",
+          lastPaymentAt: existingPayment.paidAt ?? now,
+          ...buildRecurringBillingSuccessReset(),
+        },
+      });
+      return;
+    }
+
     const isRenewal = (paymentRecord.purpose ?? "").includes("renewal");
     let nextPeriodEnd: Date;
     if (isRenewal) {
@@ -67,6 +113,7 @@ export async function applyPaymentRecordSettlementEffects(paymentRecord: {
         status: "COMPLETED",
         purpose: paymentRecord.purpose ?? "viewer_subscription",
         paidAt: now,
+        externalPaymentId: paymentRecord.id ?? null,
       },
     });
   }
@@ -74,25 +121,40 @@ export async function applyPaymentRecordSettlementEffects(paymentRecord: {
   if (paymentRecord.relatedEntityType === "ViewerContentAccess" && paymentRecord.relatedEntityId) {
     await db.viewerContentAccess.update({
       where: { id: paymentRecord.relatedEntityId },
-      data: { status: "COMPLETED", purchasedAt: new Date() },
+      data: {
+        status: "COMPLETED",
+        purchasedAt: new Date(),
+        externalPaymentId: paymentRecord.id ?? undefined,
+      },
     });
   }
 
   if (paymentRecord.relatedEntityType === "CompanySubscription" && paymentRecord.relatedEntityId) {
     const now = new Date();
+    const paymentCreatedAt = paymentRecord.createdAt ? new Date(paymentRecord.createdAt) : null;
     const current = await db.companySubscription.findUnique({
       where: { id: paymentRecord.relatedEntityId },
-      select: { currentPeriodEnd: true },
+      select: { currentPeriodEnd: true, lastPaymentAt: true, externalPaymentId: true, status: true },
     });
+    const alreadyApplied =
+      current?.externalPaymentId === paymentRecord.id ||
+      Boolean(
+        current?.status === "ACTIVE" &&
+          current.lastPaymentAt &&
+          paymentCreatedAt &&
+          new Date(current.lastPaymentAt) >= paymentCreatedAt,
+      );
     const isRenewal = (paymentRecord.purpose ?? "").includes("renewal");
-    const nextPeriodEnd = nextCompanyPeriodEnd(now, isRenewal, current?.currentPeriodEnd ?? null);
     await db.companySubscription.update({
       where: { id: paymentRecord.relatedEntityId },
       data: {
         status: "ACTIVE",
-        currentPeriodEnd: nextPeriodEnd,
+        ...(alreadyApplied
+          ? {}
+          : { currentPeriodEnd: nextCompanyPeriodEnd(now, isRenewal, current?.currentPeriodEnd ?? null) }),
         lastPaymentStatus: "SUCCEEDED",
         lastPaymentAt: now,
+        externalPaymentId: paymentRecord.id ?? undefined,
         ...buildRecurringBillingSuccessReset(),
       },
     });
@@ -100,8 +162,33 @@ export async function applyPaymentRecordSettlementEffects(paymentRecord: {
 
   if (paymentRecord.relatedEntityType === "CreatorDistributionLicense" && paymentRecord.relatedEntityId) {
     const isRenewal = (paymentRecord.purpose ?? "").includes("renewal");
+    const current = await db.creatorDistributionLicense.findUnique({
+      where: { id: paymentRecord.relatedEntityId },
+      select: { externalPaymentId: true, lastPaymentAt: true, status: true },
+    });
+    const paymentCreatedAt = paymentRecord.createdAt ? new Date(paymentRecord.createdAt) : null;
+    const alreadyApplied =
+      current?.externalPaymentId === paymentRecord.id ||
+      Boolean(
+        current?.status === "ACTIVE" &&
+          current.lastPaymentAt &&
+          paymentCreatedAt &&
+          new Date(current.lastPaymentAt) >= paymentCreatedAt,
+      );
     if (isRenewal) {
-      await extendCreatorLicensePeriod(paymentRecord.relatedEntityId);
+      if (!alreadyApplied) {
+        await extendCreatorLicensePeriod(paymentRecord.relatedEntityId);
+      }
+      await db.creatorDistributionLicense.update({
+        where: { id: paymentRecord.relatedEntityId },
+        data: {
+          status: "ACTIVE",
+          lastPaymentStatus: "SUCCEEDED",
+          lastPaymentAt: new Date(),
+          externalPaymentId: paymentRecord.id ?? undefined,
+          ...buildRecurringBillingSuccessReset(),
+        },
+      });
     } else {
       await db.creatorDistributionLicense.update({
         where: { id: paymentRecord.relatedEntityId },
@@ -109,6 +196,7 @@ export async function applyPaymentRecordSettlementEffects(paymentRecord: {
           status: "ACTIVE",
           lastPaymentStatus: "SUCCEEDED",
           lastPaymentAt: new Date(),
+          externalPaymentId: paymentRecord.id ?? undefined,
           ...buildRecurringBillingSuccessReset(),
         },
       });
