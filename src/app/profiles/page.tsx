@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ProfilesClient } from "./profiles-client";
-import { getLatestViewerSubscription, getViewerDeviceCount, getViewerModel, getViewerProfileLimit, subscriptionPaymentRequired } from "@/lib/viewer-access";
+import { getLatestViewerSubscription, getViewerDeviceCount, getViewerModel, getViewerProfileLimit, subscriptionNeedsReactivation, subscriptionPaymentRequired } from "@/lib/viewer-access";
 import { getViewerProfileAge } from "@/lib/viewer-profiles";
 import { isViewerAccountOnboardingComplete } from "@/lib/viewer-account-onboarding";
 import { isViewerProfilePinUnlocked } from "@/lib/viewer-profile-access";
@@ -34,6 +34,7 @@ export default async function ProfilesPage({
   if (!subscription) redirect("/onboarding/package");
 
   const paymentRequired = subscriptionPaymentRequired(subscription);
+  const needsReactivation = subscriptionNeedsReactivation(subscription);
   const accountDetailsIncomplete = Boolean(userRecord && !isViewerAccountOnboardingComplete(userRecord));
   if (accountDetailsIncomplete && !onboardingDeferred && !paymentRequired) {
     redirect("/onboarding/account");
@@ -76,6 +77,8 @@ export default async function ProfilesPage({
         <ProfilesClient
           accountDetailsIncomplete={accountDetailsIncomplete}
           subscriptionStatus={subscription.status}
+          needsReactivation={needsReactivation}
+          paymentRequired={paymentRequired}
           initialProfiles={profiles.map((profile) => ({
             id: profile.id,
             name: profile.name,

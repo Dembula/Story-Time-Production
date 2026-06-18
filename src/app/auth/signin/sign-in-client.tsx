@@ -21,6 +21,14 @@ export function SignInClient({ callbackUrl }: { callbackUrl: string | null }) {
       return;
     }
     try {
+      const entryRes = await fetch("/api/auth/entry-redirect", { cache: "no-store" });
+      if (entryRes.ok) {
+        const entry = (await entryRes.json()) as { path?: string };
+        if (entry.path) {
+          window.location.href = entry.path;
+          return;
+        }
+      }
       const sessionRes = await fetch("/api/auth/session", { cache: "no-store" });
       const session = sessionRes.ok ? ((await sessionRes.json()) as { user?: { role?: string } }) : null;
       window.location.href = defaultHomeForRole(session?.user?.role);

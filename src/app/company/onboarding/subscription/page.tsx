@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { CompanySubscriptionClient } from "./subscription-client";
 import { signInUrlForDestination } from "@/lib/auth-sign-in-path";
+import { OnboardingExitBar } from "@/components/auth/onboarding-exit-bar";
 
 const COMPANY_DASHBOARDS: Record<string, string> = {
   CREW_TEAM: "/crew-team/dashboard",
@@ -46,6 +47,7 @@ export default async function CompanySubscriptionOnboardingPage() {
   return (
     <div className="min-h-screen bg-background px-6 py-16 text-slate-100">
       <div className="mx-auto w-full max-w-5xl">
+        <OnboardingExitBar />
         <div className="mx-auto max-w-3xl text-center">
           <p className="mb-3 text-sm uppercase tracking-[0.28em] text-orange-300/80">
             {COMPANY_LABELS[role] ?? "Company"} onboarding

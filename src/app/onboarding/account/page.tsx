@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { isViewerAccountOnboardingComplete } from "@/lib/viewer-account-onboarding";
 import { getLatestViewerSubscription, subscriptionPaymentRequired } from "@/lib/viewer-access";
 import { AccountSetupClient } from "./account-setup-client";
+import { OnboardingExitBar } from "@/components/auth/onboarding-exit-bar";
 
 export default async function AccountSetupPage() {
   const session = await getServerSession(authOptions);
@@ -29,6 +30,7 @@ export default async function AccountSetupPage() {
   return (
     <div className="min-h-screen bg-background px-6 py-12 text-slate-100">
       <div className="mx-auto max-w-2xl">
+        <OnboardingExitBar />
         <AccountSetupClient allowAccountDeferral={allowAccountDeferral} />
       </div>
     </div>

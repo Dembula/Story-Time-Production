@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getCreatorPackageStatus } from "@/lib/creator-package-gate";
 import { signInUrlForDestination } from "@/lib/auth-sign-in-path";
 import { LicenseClient } from "./license-client";
+import { OnboardingExitBar } from "@/components/auth/onboarding-exit-bar";
 
 export default async function CreatorLicenseOnboardingPage() {
   const session = await getServerSession(authOptions);
@@ -19,6 +20,7 @@ export default async function CreatorLicenseOnboardingPage() {
   return (
     <div className="min-h-screen bg-background px-6 py-16 text-slate-100">
       <div className="mx-auto w-full max-w-5xl">
+        <OnboardingExitBar />
         <div className="mx-auto max-w-3xl text-center">
           <p className="mb-3 text-sm uppercase tracking-[0.28em] text-orange-300/80">Filmmaker onboarding</p>
           <h1 className="font-display text-4xl font-semibold text-white md:text-5xl">Choose your creator plan</h1>

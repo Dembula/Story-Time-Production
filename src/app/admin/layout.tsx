@@ -85,7 +85,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         sidebarFooter={
           <button
             onClick={handleSignOut}
-            className="flex w-full items-center gap-1.5 rounded-lg px-3 py-2 text-left text-sm text-slate-400 transition hover:bg-slate-900/70 hover:text-red-400 md:hidden"
+            className="flex w-full items-center gap-1.5 rounded-lg px-3 py-2 text-left text-sm text-slate-400 transition hover:bg-slate-900/70 hover:text-red-400"
           >
             <LogOut className="h-4 w-4" /> Logout
           </button>

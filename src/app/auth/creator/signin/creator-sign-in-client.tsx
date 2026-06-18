@@ -41,9 +41,23 @@ export function CreatorSignInClient({
         return;
       }
 
-      const destination = resolvePostSignInRedirect(selectedRole, callbackPath);
+      const destination = callbackPath
+        ? resolvePostSignInRedirect(selectedRole, callbackPath)
+        : null;
       await getSession();
-      window.location.replace(destination);
+      if (destination) {
+        window.location.replace(destination);
+        return;
+      }
+      const entryRes = await fetch("/api/auth/entry-redirect", { cache: "no-store" });
+      if (entryRes.ok) {
+        const entry = (await entryRes.json()) as { path?: string };
+        if (entry.path) {
+          window.location.replace(entry.path);
+          return;
+        }
+      }
+      window.location.replace(resolvePostSignInRedirect(selectedRole, null));
     } catch {
       setError("Sign in failed. If you have been trying repeatedly, wait a few minutes and try again.");
     } finally {

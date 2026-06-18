@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { PackageClient } from "./package-client";
 import { getViewerModel, isViewerSubscriptionExpired, subscriptionNeedsReactivation } from "@/lib/viewer-access";
+import { OnboardingExitBar } from "@/components/auth/onboarding-exit-bar";
 
 export default async function OnboardingPackagePage() {
   const session = await getServerSession(authOptions);
@@ -32,6 +33,7 @@ export default async function OnboardingPackagePage() {
   return (
     <div className="min-h-screen bg-background px-6 py-16 text-slate-100">
       <div className="mx-auto w-full max-w-6xl">
+        <OnboardingExitBar />
         <div className="mx-auto max-w-3xl text-center">
           <p className="mb-3 text-sm uppercase tracking-[0.28em] text-orange-300/80">
             {reactivationMode ? "Resume access" : "Viewer onboarding"}

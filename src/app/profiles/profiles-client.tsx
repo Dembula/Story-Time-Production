@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Plus, User, Shield, Users, CheckCircle, AlertCircle, Settings, Lock } from "lucide-react";
 import { getBirthDateOptionSets } from "@/lib/viewer-profiles";
 import { ProfilePinModal } from "@/components/viewer/profile-pin-modal";
+import { LogOutButton } from "@/components/auth/log-out-button";
 
 type Profile = {
   id: string;
@@ -29,6 +30,8 @@ export function ProfilesClient({
   viewerModel,
   accountDetailsIncomplete = false,
   subscriptionStatus = "ACTIVE",
+  needsReactivation = false,
+  paymentRequired = false,
   pendingPinProfile = null,
 }: {
   initialProfiles: Profile[];
@@ -37,6 +40,8 @@ export function ProfilesClient({
   viewerModel: "SUBSCRIPTION" | "PPV";
   accountDetailsIncomplete?: boolean;
   subscriptionStatus?: string;
+  needsReactivation?: boolean;
+  paymentRequired?: boolean;
   pendingPinProfile?: { id: string; name: string } | null;
 }) {
   const router = useRouter();
@@ -53,7 +58,9 @@ export function ProfilesClient({
   const [error, setError] = useState("");
   const [pinModalProfile, setPinModalProfile] = useState<Profile | null>(null);
   const [pinModalError, setPinModalError] = useState("");
-  const paymentPending = subscriptionStatus === "PAST_DUE";
+  const paymentPendingCheckout = paymentRequired || subscriptionStatus === "PAST_DUE";
+  const needsPlanReactivation = needsReactivation && !paymentPendingCheckout;
+  const paymentBlocked = paymentPendingCheckout || needsPlanReactivation;
   const canCreateMore = profiles.length < maxProfiles;
   const { years, months } = getBirthDateOptionSets();
   const days = useMemo(() => {
@@ -115,7 +122,7 @@ export function ProfilesClient({
   }
 
   function requestProfile(profile: Profile) {
-    if (paymentPending) {
+    if (paymentBlocked) {
       setError("Complete your subscription payment before entering the catalogue.");
       return;
     }
@@ -190,6 +197,10 @@ export function ProfilesClient({
 
   return (
     <div className="space-y-8">
+      <div className="flex justify-end">
+        <LogOutButton label="Log out to home" />
+      </div>
+
       <div className="space-y-2">
         <h1 className="font-display text-3xl font-semibold text-white md:text-4xl">Who’s watching?</h1>
         <p className="max-w-2xl text-slate-300/78">
@@ -228,38 +239,49 @@ export function ProfilesClient({
         </div>
       </div>
 
-      {paymentPending ? (
+      {paymentBlocked ? (
         <div className="rounded-xl border border-orange-400/30 bg-orange-500/10 p-4 text-sm text-orange-100 shadow-panel">
           <p className="font-medium text-white">Subscription payment required</p>
           <p className="mt-1 text-orange-100/90">
-            Complete secure payment to activate your plan. You cannot enter the catalogue until payment is confirmed.
+            {needsPlanReactivation
+              ? "Your trial or billing period has ended. Choose a plan and complete payment to start watching again."
+              : "Complete secure payment to activate your plan. You cannot enter the catalogue until payment is confirmed."}
           </p>
-          <button
-            type="button"
-            onClick={async () => {
-              const pendingCheckout =
-                typeof window !== "undefined" ? sessionStorage.getItem("st_pending_viewer_checkout") : null;
-              if (pendingCheckout) {
-                sessionStorage.removeItem("st_pending_viewer_checkout");
-                window.location.assign(pendingCheckout);
-                return;
-              }
-              setError("");
-              try {
-                const res = await fetch("/api/viewer/subscription/resume-checkout", { method: "POST" });
-                const data = await res.json().catch(() => ({}));
-                if (!res.ok || typeof data.checkoutUrl !== "string" || !data.checkoutUrl) {
-                  throw new Error(data.error || "Unable to start checkout.");
+          {needsPlanReactivation ? (
+            <Link
+              href="/onboarding/package"
+              className="mt-3 inline-flex rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-400"
+            >
+              Choose plan & pay
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={async () => {
+                const pendingCheckout =
+                  typeof window !== "undefined" ? sessionStorage.getItem("st_pending_viewer_checkout") : null;
+                if (pendingCheckout) {
+                  sessionStorage.removeItem("st_pending_viewer_checkout");
+                  window.location.assign(pendingCheckout);
+                  return;
                 }
-                window.location.assign(data.checkoutUrl);
-              } catch (err) {
-                setError(err instanceof Error ? err.message : "Unable to start checkout.");
-              }
-            }}
-            className="mt-3 rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-400"
-          >
-            Complete payment
-          </button>
+                setError("");
+                try {
+                  const res = await fetch("/api/viewer/subscription/resume-checkout", { method: "POST" });
+                  const data = await res.json().catch(() => ({}));
+                  if (!res.ok || typeof data.checkoutUrl !== "string" || !data.checkoutUrl) {
+                    throw new Error(data.error || "Unable to start checkout.");
+                  }
+                  window.location.assign(data.checkoutUrl);
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : "Unable to start checkout.");
+                }
+              }}
+              className="mt-3 rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-400"
+            >
+              Complete payment
+            </button>
+          )}
         </div>
       ) : null}
 
@@ -269,7 +291,7 @@ export function ProfilesClient({
         </div>
       )}
 
-      {accountDetailsIncomplete && !paymentPending ? (
+      {accountDetailsIncomplete && !paymentBlocked ? (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/12 bg-black px-4 py-3 shadow-panel">
           <p className="text-sm text-slate-300">
             Account details (email, phone, billing address) are not complete yet.
@@ -310,7 +332,7 @@ export function ProfilesClient({
             key={p.id}
             type="button"
             onClick={() => requestProfile(p)}
-            disabled={loading !== null || paymentPending}
+            disabled={loading !== null || paymentBlocked}
             className="storytime-section group p-5 text-left hover:-translate-y-1 hover:bg-white/[0.04] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <div className="flex items-start justify-between gap-3">
