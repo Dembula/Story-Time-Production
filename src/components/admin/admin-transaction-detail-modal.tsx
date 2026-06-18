@@ -6,7 +6,7 @@ import { formatZar } from "@/lib/format-currency-zar";
 import type {
   AdminMarketplaceTransactionDetail,
   AdminPaymentRecordDetail,
-} from "@/lib/admin/payment-transaction-detail";
+} from "@/lib/admin/payment-transaction-detail.types";
 
 type DetailKind = "payment" | "marketplace";
 

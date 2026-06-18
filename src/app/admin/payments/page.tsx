@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, ClipboardList, Eye, Landmark, ShieldCheck, Wallet } from "lucide-react";
 import { AdminTransactionDetailModal } from "@/components/admin/admin-transaction-detail-modal";
-import { PAYMENT_PURPOSE_LABELS } from "@/lib/admin/payment-transaction-detail";
+import { PAYMENT_PURPOSE_LABELS } from "@/lib/admin/payment-transaction-detail.types";
 
 const money = new Intl.NumberFormat("en-ZA", {
   minimumFractionDigits: 2,
