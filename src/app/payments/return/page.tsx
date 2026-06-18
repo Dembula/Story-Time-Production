@@ -6,25 +6,70 @@ import { useSearchParams } from "next/navigation";
 
 const PAYMENT_RECORD_STORAGE_KEY = "st_payment_record_id";
 
+const PAYFAST_RETURN_FIELD_KEYS = new Set([
+  "payment_status",
+  "pf_payment_id",
+  "m_payment_id",
+  "amount_gross",
+  "amount_fee",
+  "amount_net",
+  "merchant_id",
+  "signature",
+  "payment_method",
+  "item_name",
+  "item_description",
+  "email_address",
+  "name_first",
+  "name_last",
+]);
+
 function resolvePaymentRecordId(params: URLSearchParams): string {
-  const fromQuery = params.get("pr") || params.get("paymentRecordId") || params.get("m_payment_id") || "";
+  const fromQuery =
+    params.get("pr") ||
+    params.get("paymentRecordId") ||
+    params.get("m_payment_id") ||
+    "";
   if (fromQuery) return fromQuery;
   if (typeof window === "undefined") return "";
   return sessionStorage.getItem(PAYMENT_RECORD_STORAGE_KEY) || "";
 }
 
+function collectPayFastReturnFields(params: URLSearchParams): Record<string, string> {
+  const fields: Record<string, string> = {};
+  for (const [key, value] of params.entries()) {
+    if (PAYFAST_RETURN_FIELD_KEYS.has(key) || key.startsWith("custom_")) {
+      fields[key] = value;
+    }
+  }
+  return fields;
+}
+
+function isPayFastSuccessStatus(raw: string): boolean {
+  const status = raw.trim().toLowerCase();
+  return status === "success" || status === "complete";
+}
+
 function PaymentsReturnContent() {
   const params = useSearchParams();
-  const status = (params.get("payment_status") || "").toLowerCase();
+  const paymentStatus = params.get("payment_status") || "";
   const next = params.get("next") || "/profiles";
   const flow = params.get("flow") || "payment";
   const reference = params.get("reference") || "";
   const paymentRecordId = resolvePaymentRecordId(params);
-  const [resolvedStatus, setResolvedStatus] = useState(status);
+  const payfastReturnFields = useMemo(() => collectPayFastReturnFields(params), [params]);
+  const [resolvedStatus, setResolvedStatus] = useState(() =>
+    isPayFastSuccessStatus(paymentStatus) ? "success" : paymentStatus.toLowerCase() === "cancelled" ? "failed" : "",
+  );
   const [timedOut, setTimedOut] = useState(false);
 
   useEffect(() => {
-    if (status !== "success" || !paymentRecordId) return;
+    if (paymentStatus.toLowerCase() === "cancelled") {
+      setResolvedStatus("failed");
+    }
+  }, [paymentStatus]);
+
+  useEffect(() => {
+    if (!isPayFastSuccessStatus(paymentStatus) || !paymentRecordId) return;
     let cancelled = false;
     (async () => {
       try {
@@ -41,13 +86,13 @@ function PaymentsReturnContent() {
         });
         if (!cancelled && res.ok) setResolvedStatus("success");
       } catch {
-        // polling below will handle live gateway flows
+        // polling below handles live gateway flows
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [status, paymentRecordId]);
+  }, [paymentStatus, paymentRecordId]);
 
   useEffect(() => {
     if (!paymentRecordId) return;
@@ -57,11 +102,11 @@ function PaymentsReturnContent() {
     const poll = async () => {
       while (!cancelled && Date.now() - startedAt < 180000) {
         try {
-          const res = await fetch(`/api/payments/status?paymentRecordId=${encodeURIComponent(paymentRecordId)}`, {
+          const statusRes = await fetch(`/api/payments/status?paymentRecordId=${encodeURIComponent(paymentRecordId)}`, {
             cache: "no-store",
           });
-          const data = await res.json().catch(() => ({}));
-          const dbStatus = String(data?.payment?.status || "").toUpperCase();
+          const statusData = await statusRes.json().catch(() => ({}));
+          const dbStatus = String(statusData?.payment?.status || "").toUpperCase();
           if (dbStatus === "SUCCEEDED") {
             if (!cancelled) {
               sessionStorage.removeItem("st_pending_viewer_checkout");
@@ -75,11 +120,13 @@ function PaymentsReturnContent() {
             return;
           }
 
-          // Authenticated fallback when a session cookie is still present.
           const syncRes = await fetch("/api/payments/payfast/confirm-return", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ paymentRecordId }),
+            body: JSON.stringify({
+              paymentRecordId,
+              returnFields: Object.keys(payfastReturnFields).length > 0 ? payfastReturnFields : undefined,
+            }),
             cache: "no-store",
           }).catch(() => null);
 
@@ -107,7 +154,7 @@ function PaymentsReturnContent() {
     return () => {
       cancelled = true;
     };
-  }, [paymentRecordId]);
+  }, [paymentRecordId, payfastReturnFields]);
 
   useEffect(() => {
     if (resolvedStatus !== "success") return;

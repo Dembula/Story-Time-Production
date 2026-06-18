@@ -8,6 +8,7 @@ import { isPayFastChargeToken, upsertPayFastPaymentMethod } from "@/lib/payments
 import { resolvePaymentRecordIdFromPayFastItn } from "@/lib/payments/resolve-itn-payment-record";
 import { parsePayFastSettlementFromItn } from "@/lib/payments/payfast-settlement";
 import { findStoredItnWebhookForPayment } from "@/lib/payments/pending-gateway-payment";
+import { findPayFastTransactionByMPaymentId } from "@/lib/payments/providers/payfast-api-client";
 import { PAYFAST_VALIDATE_URL } from "@/lib/payments/providers/payfast-config";
 import { parsePayFastFormBody, verifyPayFastItnSignature } from "@/lib/payments/providers/payfast-signature";
 
@@ -293,8 +294,103 @@ export async function processPayFastItn(
   return { ok: true, paymentRecordId, already: result.ok && "already" in result ? result.already : false };
 }
 
-/** Replay a stored ITN or complete an already-received webhook for a pending payment. */
-export async function syncPayFastPaymentRecord(paymentRecordId: string): Promise<PayFastItnProcessResult> {
+async function completeFromPayFastHistory(paymentRecordId: string): Promise<PayFastItnProcessResult> {
+  const payment = await db.paymentRecord.findUnique({ where: { id: paymentRecordId } });
+  if (!payment) {
+    return { ok: false, status: 404, error: "Payment not found" };
+  }
+  if (payment.status === "SUCCEEDED") {
+    return { ok: true, paymentRecordId, already: true };
+  }
+
+  let transaction;
+  try {
+    transaction = await findPayFastTransactionByMPaymentId(paymentRecordId, new Date(payment.createdAt));
+  } catch (err) {
+    console.error("PayFast history lookup failed", { paymentRecordId, err });
+    return { ok: false, status: 202, error: "Awaiting PayFast confirmation" };
+  }
+
+  if (!transaction) {
+    return { ok: false, status: 202, error: "Awaiting PayFast confirmation" };
+  }
+
+  if (transaction.gross > 0 && !amountsMatch(Number(payment.amount), transaction.gross)) {
+    return { ok: false, status: 400, error: "Amount mismatch" };
+  }
+
+  const settlementFields: Record<string, string> = {
+    amount_gross: transaction.gross.toFixed(2),
+    amount_net: transaction.net.toFixed(2),
+    payment_status: "COMPLETE",
+  };
+  if (transaction.fee > 0) {
+    settlementFields.amount_fee = (-transaction.fee).toFixed(2);
+  }
+  if (transaction.fundingType) {
+    settlementFields.payment_method = transaction.fundingType;
+  }
+
+  const settlement = parsePayFastSettlementFromItn(settlementFields, Number(payment.amount));
+
+  await db.paymentRecord.update({
+    where: { id: paymentRecordId },
+    data: {
+      providerPaymentId: transaction.pfPaymentId,
+      providerItnStatus: "COMPLETE",
+    },
+  }).catch(() => {});
+
+  const result = await completeGatewayPayment(paymentRecordId, {
+    reference: transaction.pfPaymentId,
+    provider: PAYMENT_PROVIDER,
+    settlement,
+  });
+
+  if (!result.ok && result.status !== 409) {
+    return { ok: false, status: result.status, error: result.error };
+  }
+
+  await persistPayFastItn({
+    rawBody: `source=payfast_api&m_payment_id=${encodeURIComponent(paymentRecordId)}&pf_payment_id=${encodeURIComponent(transaction.pfPaymentId)}`,
+    data: {
+      m_payment_id: paymentRecordId,
+      pf_payment_id: transaction.pfPaymentId,
+      payment_status: "COMPLETE",
+      amount_gross: transaction.gross.toFixed(2),
+      amount_fee: transaction.fee > 0 ? (-transaction.fee).toFixed(2) : "",
+      amount_net: transaction.net.toFixed(2),
+      payment_method: transaction.fundingType ?? "",
+    },
+    signatureVerified: true,
+    paymentRecordId,
+    processed: true,
+  });
+
+  return { ok: true, paymentRecordId, already: result.ok && "already" in result ? result.already : false };
+}
+
+/** Process PayFast fields captured from the browser return redirect (when ITN is delayed). */
+export async function processPayFastReturnFields(
+  paymentRecordId: string,
+  fields: Record<string, string>,
+): Promise<PayFastItnProcessResult> {
+  const cleaned = Object.fromEntries(
+    Object.entries(fields).filter(([, value]) => String(value ?? "").trim() !== ""),
+  ) as Record<string, string>;
+
+  if (!cleaned.m_payment_id) cleaned.m_payment_id = paymentRecordId;
+  if (!cleaned.custom_str1) cleaned.custom_str1 = paymentRecordId;
+
+  const rawBody = new URLSearchParams(cleaned).toString();
+  return processPayFastItn(rawBody, { skipRemoteValidate: true });
+}
+
+/** Replay ITN, process return fields, or poll PayFast transaction history for a pending payment. */
+export async function syncPayFastPaymentRecord(
+  paymentRecordId: string,
+  options?: { returnFields?: Record<string, string> },
+): Promise<PayFastItnProcessResult> {
   const payment = await db.paymentRecord.findUnique({ where: { id: paymentRecordId } });
   if (!payment) {
     return { ok: false, status: 404, error: "Payment not found" };
@@ -315,5 +411,10 @@ export async function syncPayFastPaymentRecord(paymentRecordId: string): Promise
     return processPayFastItn(rawBody, { skipRemoteValidate: true, requireSignature: false });
   }
 
-  return { ok: false, status: 202, error: "Awaiting PayFast confirmation" };
+  if (options?.returnFields && Object.keys(options.returnFields).length > 0) {
+    const fromReturn = await processPayFastReturnFields(paymentRecordId, options.returnFields);
+    if (fromReturn.ok) return fromReturn;
+  }
+
+  return completeFromPayFastHistory(paymentRecordId);
 }

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { PAYFAST_PROCESS_URL } from "@/lib/payments/providers/payfast-config";
+import { PAYFAST_PROCESS_URL, getPaymentBaseUrl } from "@/lib/payments/providers/payfast-config";
 import {
   buildPayFastCardConsentFields,
   buildPayFastCheckoutFields,
@@ -11,6 +11,31 @@ import { appendPaymentRecordToReturnUrl, buildPaymentReturnUrl } from "@/lib/pay
 import { toGatewaySafeReference } from "@/lib/payments/reference";
 
 const db = prisma as any;
+
+function resolveCheckoutReturnUrl(
+  payment: { id: string; purpose?: string | null },
+  metadata: Record<string, unknown>,
+): string {
+  const stored = metadata.returnUrl;
+  if (typeof stored === "string" && stored.trim() && !stored.includes("vercel.app")) {
+    return appendPaymentRecordToReturnUrl(stored, payment.id);
+  }
+
+  let nextPath = "/payments/return";
+  if (typeof stored === "string" && stored.trim()) {
+    try {
+      const parsed = new URL(stored);
+      nextPath = parsed.searchParams.get("next") || nextPath;
+    } catch {
+      // ignore malformed stored return URLs
+    }
+  }
+
+  return appendPaymentRecordToReturnUrl(
+    buildPaymentReturnUrl(nextPath, payment.purpose ?? "payment"),
+    payment.id,
+  );
+}
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -28,7 +53,7 @@ export async function GET(req: NextRequest) {
 
     let payerId = userId;
     let returnUrl = appendPaymentRecordToReturnUrl(
-      `${process.env.NEXTAUTH_URL?.replace(/\/$/, "")}/onboarding/account`,
+      `${getPaymentBaseUrl()}/onboarding/account`,
       subscriptionId ?? reference,
     );
     let customerEmail = session?.user?.email;
@@ -52,7 +77,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
       returnUrl = appendPaymentRecordToReturnUrl(
-        `${process.env.NEXTAUTH_URL?.replace(/\/$/, "")}/browse/settings`,
+        `${getPaymentBaseUrl()}/browse/settings`,
         reference,
       );
     } else {
@@ -87,10 +112,7 @@ export async function GET(req: NextRequest) {
       ? (payment.metadata as Record<string, unknown>)
       : {};
 
-  const returnUrl =
-    metadata.returnUrl && typeof metadata.returnUrl === "string"
-      ? metadata.returnUrl
-      : buildPaymentReturnUrl("/payments/return", payment.purpose ?? "payment");
+  const returnUrl = resolveCheckoutReturnUrl(payment, metadata);
 
   return NextResponse.json({
     action: PAYFAST_PROCESS_URL,
@@ -99,7 +121,7 @@ export async function GET(req: NextRequest) {
       amount: payment.amount,
       purpose: payment.purpose ?? "payment",
       reference: toGatewaySafeReference("pf", payment.id),
-      returnUrl: appendPaymentRecordToReturnUrl(returnUrl, payment.id),
+      returnUrl,
       customerEmail: payment.email ?? payment.user?.email,
       customerName: payment.user?.name,
       metadata: {

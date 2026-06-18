@@ -13,11 +13,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = (await req.json().catch(() => null)) as { paymentRecordId?: string } | null;
+  const body = (await req.json().catch(() => null)) as {
+    paymentRecordId?: string;
+    returnFields?: Record<string, string>;
+    payfastFields?: Record<string, string>;
+  } | null;
   const paymentRecordId = body?.paymentRecordId?.trim() || req.nextUrl.searchParams.get("paymentRecordId")?.trim();
   if (!paymentRecordId) {
     return NextResponse.json({ error: "paymentRecordId is required." }, { status: 400 });
   }
+
+  const returnFields = body?.returnFields ?? body?.payfastFields;
 
   const payment = await db.paymentRecord.findUnique({
     where: { id: paymentRecordId },
@@ -30,7 +36,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const result = await syncPayFastPaymentRecord(paymentRecordId);
+  const result = await syncPayFastPaymentRecord(paymentRecordId, { returnFields });
   if (!result.ok && result.status === 202) {
     return NextResponse.json({ ok: false, pending: true, message: result.error }, { status: 202 });
   }

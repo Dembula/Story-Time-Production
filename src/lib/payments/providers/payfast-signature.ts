@@ -124,7 +124,34 @@ export function verifyPayFastItnSignature(
   const passphrase = process.env.PAYFAST_PASSPHRASE?.trim() || null;
   if (verifyPayFastSignature(data, signature, passphrase)) return true;
   if (passphrase && verifyPayFastSignature(data, signature, null)) return true;
+  if (verifyPayFastItnSignaturePostOrder(data, signature, passphrase)) return true;
+  if (passphrase && verifyPayFastItnSignaturePostOrder(data, signature, null)) return true;
   return false;
+}
+
+/** PayFast PHP ITN samples verify fields in POST order (excluding signature). */
+function verifyPayFastItnSignaturePostOrder(
+  data: Record<string, string>,
+  signature: string | null | undefined,
+  passphrase?: string | null,
+): boolean {
+  if (!signature?.trim()) return false;
+
+  const pairs: string[] = [];
+  for (const [key, value] of Object.entries(data)) {
+    if (key === "signature") break;
+    const trimmed = String(value ?? "").trim();
+    if (trimmed === "") continue;
+    pairs.push(`${key}=${encodePayFastValue(trimmed)}`);
+  }
+
+  let payload = pairs.join("&");
+  if (passphrase?.trim()) {
+    payload += `&passphrase=${encodePayFastValue(passphrase)}`;
+  }
+
+  const expected = createHash("md5").update(payload).digest("hex");
+  return expected.toLowerCase() === signature.trim().toLowerCase();
 }
 
 export function verifyPayFastSignature(

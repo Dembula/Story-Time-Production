@@ -1,7 +1,7 @@
-const APP_BASE_URL = process.env.NEXTAUTH_URL?.trim() || "http://localhost:3000";
+import { getPaymentBaseUrl } from "@/lib/payments/providers/payfast-config";
 
 function resolvePaymentBaseUrl() {
-  return new URL("/payments/return", APP_BASE_URL).toString();
+  return new URL("/payments/return", getPaymentBaseUrl()).toString();
 }
 
 export function buildPaymentReturnUrl(nextPath: string, flow: string) {

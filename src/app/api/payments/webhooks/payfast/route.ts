@@ -9,6 +9,11 @@ export async function POST(req: NextRequest) {
   const result = await processPayFastItn(rawBody);
 
   if (!result.ok) {
+    console.warn("payfast itn rejected", {
+      status: result.status,
+      error: result.error,
+      bodyLength: rawBody.length,
+    });
     if (result.status === 401) return new NextResponse("Invalid signature", { status: 401 });
     if (result.status === 404) return new NextResponse(result.error, { status: 404 });
     if (result.status === 400) return new NextResponse(result.error, { status: 400 });
