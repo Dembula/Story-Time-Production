@@ -1,14 +1,14 @@
 import { prisma } from "./prisma";
 
-const VIEWER_SUBSCRIPTION_PURPOSES = ["viewer_subscription", "viewer_subscription_renewal"] as const;
+const VIEWER_POOL_PURPOSES = ["viewer_subscription", "viewer_subscription_renewal", "viewer_ppv"] as const;
 
-/** Viewer subscription revenue (ZAR) in period from completed gateway payments. */
-export async function getViewerSubscriptionRevenue(periodStart: Date, periodEnd: Date): Promise<number> {
+/** Viewer pool revenue (subscriptions + PPV) in ZAR from completed gateway payments. */
+export async function getViewerPoolRevenue(periodStart: Date, periodEnd: Date): Promise<number> {
   const [gatewayPayments, legacyPayments] = await Promise.all([
     prisma.paymentRecord.aggregate({
       where: {
         status: "SUCCEEDED",
-        purpose: { in: [...VIEWER_SUBSCRIPTION_PURPOSES] },
+        purpose: { in: [...VIEWER_POOL_PURPOSES] },
         paidAt: { gte: periodStart, lte: periodEnd },
       },
       _sum: { amount: true },
@@ -23,6 +23,11 @@ export async function getViewerSubscriptionRevenue(periodStart: Date, periodEnd:
   ]);
 
   return roundMoney((gatewayPayments._sum.amount ?? 0) + (legacyPayments._sum.amount ?? 0));
+}
+
+/** @deprecated Use getViewerPoolRevenue — includes subscriptions and PPV. */
+export async function getViewerSubscriptionRevenue(periodStart: Date, periodEnd: Date): Promise<number> {
+  return getViewerPoolRevenue(periodStart, periodEnd);
 }
 
 function roundMoney(amount: number): number {
@@ -54,7 +59,7 @@ export async function getCreatorRevenue(
         period: `${periodStart.getFullYear()}-${String(periodStart.getMonth() + 1).padStart(2, "0")}`,
       },
     }),
-    getViewerSubscriptionRevenue(periodStart, periodEnd),
+    getViewerPoolRevenue(periodStart, periodEnd),
   ]);
 
   const creatorSeconds = creatorWatchTime._sum.durationSeconds ?? 0;
@@ -85,7 +90,7 @@ export async function getPlatformStats(periodStart: Date, periodEnd: Date) {
         period: `${periodStart.getFullYear()}-${String(periodStart.getMonth() + 1).padStart(2, "0")}`,
       },
     }),
-    getViewerSubscriptionRevenue(periodStart, periodEnd),
+    getViewerPoolRevenue(periodStart, periodEnd),
   ]);
 
   return {

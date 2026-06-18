@@ -1362,7 +1362,10 @@ function ScriptReviewWorkspace({ projectId, title }: ScriptReviewWorkspaceProps)
   }, [projectScripts, selectedScriptId]);
 
   const hasOpenRequest = requests.some(
-    (r) => r.status === "PENDING_ADMIN_REVIEW" || r.status === "IN_REVIEW",
+    (r) =>
+      r.status === "AWAITING_PAYMENT" ||
+      r.status === "PENDING_ADMIN_REVIEW" ||
+      r.status === "IN_REVIEW",
   );
 
   const requestMutation = useMutation({
@@ -1375,6 +1378,11 @@ function ScriptReviewWorkspace({ projectId, title }: ScriptReviewWorkspaceProps)
         throw new Error(err.error || "Failed to request review");
       }
       return res.json();
+    },
+    onSuccess: (data) => {
+      if (data?.checkoutUrl) {
+        window.location.href = data.checkoutUrl as string;
+      }
     },
     onMutate: () => setRequesting(true),
     onSettled: () => {
@@ -1785,7 +1793,10 @@ function ScriptReviewWorkspaceV2({ projectId, title }: ScriptReviewWorkspaceProp
   }, [selectedVersionId, parsedBody]);
 
   const hasOpenRequest = requests.some(
-    (r) => r.status === "PENDING_ADMIN_REVIEW" || r.status === "IN_REVIEW",
+    (r) =>
+      r.status === "AWAITING_PAYMENT" ||
+      r.status === "PENDING_ADMIN_REVIEW" ||
+      r.status === "IN_REVIEW",
   );
 
   const saveNotesMutation = useMutation({
@@ -1822,7 +1833,11 @@ function ScriptReviewWorkspaceV2({ projectId, title }: ScriptReviewWorkspaceProp
       if (!res.ok) throw new Error(json.error || "Failed to submit for executive review");
       return json;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      if (data?.checkoutUrl) {
+        window.location.href = data.checkoutUrl as string;
+        return;
+      }
       queryClient.invalidateQueries({ queryKey: ["script-review-v2", workingProjectId] });
     },
   });
@@ -1899,7 +1914,6 @@ function ScriptReviewWorkspaceV2({ projectId, title }: ScriptReviewWorkspaceProp
     setProcessingPayment(true);
     setPaymentMessage(null);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1200));
       let scriptVersionIdForSubmission = reviewDraft.scriptVersionId;
       if (!scriptVersionIdForSubmission && reviewDraft.creatorScriptId) {
         const publishRes = await fetch(
@@ -1921,10 +1935,14 @@ function ScriptReviewWorkspaceV2({ projectId, title }: ScriptReviewWorkspaceProp
       if (!scriptVersionIdForSubmission) {
         throw new Error("No project script version available for submission");
       }
-      await requestMutation.mutateAsync(scriptVersionIdForSubmission);
+      const result = await requestMutation.mutateAsync(scriptVersionIdForSubmission);
+      if (result?.checkoutUrl) {
+        window.location.href = result.checkoutUrl as string;
+        return;
+      }
       void queryClient.invalidateQueries({ queryKey: ["project-script-review-script-v2", workingProjectId] });
       setPaymentOpen(false);
-      setPaymentMessage("Payment successful. Script submitted to executive review.");
+      setPaymentMessage("Redirecting to PayFast checkout…");
     } catch (error) {
       setPaymentMessage((error as Error).message);
     } finally {
@@ -5886,7 +5904,11 @@ function CastingPortalWorkspace({
       }
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      if (data?.checkoutUrl) {
+        window.location.href = data.checkoutUrl as string;
+        return;
+      }
       setPortalMessage(
         `Hire confirmed. Contract draft created and acquisition fee paid (${formatZar(CASTING_ACQUISITION_FEE_ZAR)}).`,
       );
@@ -5908,6 +5930,10 @@ function CastingPortalWorkspace({
       return res.json();
     },
     onSuccess: (data) => {
+      if (data?.checkoutUrl) {
+        window.location.href = data.checkoutUrl as string;
+        return;
+      }
       setPortalMessage(
         `Audition listing published to ${data?.invitationsCreated ?? 0} agencies. Listing fee paid (${formatZar(AUDITION_LISTING_FEE_ZAR)}).`,
       );

@@ -12,6 +12,8 @@ import {
 import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
 import { applyPrefillToUploadForm, type ProjectUploadPrefill } from "@/lib/project-upload-prefill";
 import { CheckoutModal } from "@/components/payments/checkout-modal";
+import { CREATOR_PER_FILM_UPLOAD_PRICE } from "@/lib/pricing";
+import { formatZar } from "@/lib/format-currency-zar";
 import { MediaDropzone } from "@/components/ecosystem/media-dropzone";
 import { defaultMinAgeForRating } from "@/lib/fpb-compliance";
 import { isLongFormType } from "@/lib/content-types";
@@ -73,6 +75,9 @@ function DistributionUploadInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const projectIdFromUrl = searchParams.get("projectId");
+  const contentIdFromUrl = searchParams.get("contentId");
+  const [editingContentId, setEditingContentId] = useState<string | null>(null);
+  const [resubmitMode, setResubmitMode] = useState(false);
   const [linkedProject, setLinkedProject] = useState<{ id: string; title: string } | null>(null);
   const [prefillData, setPrefillData] = useState<ProjectUploadPrefill | null>(null);
   const [dataSourceMode, setDataSourceMode] = useState<"unset" | "platform" | "manual">("unset");
@@ -107,6 +112,44 @@ function DistributionUploadInner() {
       })
       .catch(() => setPrefillData(null));
   }, [projectIdFromUrl]);
+
+  useEffect(() => {
+    if (!contentIdFromUrl) {
+      setEditingContentId(null);
+      setResubmitMode(false);
+      return;
+    }
+    fetch(`/api/creator/content?id=${encodeURIComponent(contentIdFromUrl)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data?.id) return;
+        setEditingContentId(data.id);
+        setResubmitMode(["REJECTED", "CHANGES_REQUESTED", "UNPUBLISHED"].includes(data.reviewStatus));
+        setForm((f) => ({
+          ...f,
+          title: data.title ?? "",
+          description: data.description ?? "",
+          type: data.type ?? "",
+          posterUrl: data.posterUrl ?? "",
+          backdropUrl: data.backdropUrl ?? "",
+          videoUrl: data.videoUrl ?? "",
+          trailerUrl: data.trailerUrl ?? "",
+          scriptUrl: data.scriptUrl ?? "",
+          category: data.category ?? "",
+          tags: data.tags ?? "",
+          language: data.language ?? "",
+          country: data.country ?? "South Africa",
+          ageRating: data.ageRating ?? "",
+          year: data.year ? String(data.year) : f.year,
+          duration: data.duration ? String(data.duration) : "",
+          episodes: data.episodes ? String(data.episodes) : "",
+        }));
+        if (data.category) {
+          setSelectedGenres(data.category.split(",").map((g: string) => g.trim()).filter(Boolean));
+        }
+      })
+      .catch(() => {});
+  }, [contentIdFromUrl]);
 
   function applyPlatformPrefill() {
     if (!prefillData) return;
@@ -392,6 +435,7 @@ function DistributionUploadInner() {
         ...(longFormUpload && episodeDrafts.length > 0
           ? { seasons: buildSeasonsPayload(episodeDrafts), episodes: episodeDrafts.length, videoUrl: null }
           : {}),
+        ...(editingContentId ? { contentId: editingContentId } : {}),
       };
 
       const res = await fetch("/api/creator/content", {
@@ -408,6 +452,8 @@ function DistributionUploadInner() {
           return;
         }
         setError("Unable to start checkout. Please try again.");
+      } else if (res.ok && data?.reviewStatus === "AWAITING_PAYMENT") {
+        setError("Payment is required before your film can enter review.");
       } else if (res.ok) {
         setSuccess(true);
         setTimeout(() => router.push("/creator/dashboard"), 2000);
@@ -450,8 +496,8 @@ function DistributionUploadInner() {
       <CheckoutModal
         open={checkoutOpen}
         checkoutUrl={checkoutUrl}
-        title="Complete submission payment"
-        subtitle="Secure payment is required before catalogue review continues."
+        title="Complete film submission payment"
+        subtitle={`Pay ${formatZar(CREATOR_PER_FILM_UPLOAD_PRICE)} to submit this title for catalogue review. Your film enters the review queue only after successful payment.`}
         onClose={() => setCheckoutOpen(false)}
       />
       <div className="mx-auto max-w-6xl space-y-8">
@@ -481,6 +527,15 @@ function DistributionUploadInner() {
             <span>Autosave intent: use Save draft on the last step until you are ready.</span>
           </div>
         </header>
+
+        {resubmitMode && editingContentId ? (
+          <div className="creator-glass-panel rounded-xl border border-orange-400/25 bg-orange-500/[0.06] p-4">
+            <p className="text-sm font-medium text-orange-100">Revising a returned submission</p>
+            <p className="mt-1 text-xs text-slate-400">
+              You already paid for this title — resubmission after rejection or requested changes is free.
+            </p>
+          </div>
+        ) : null}
 
         {linkedProject && (
           <div className="creator-glass-panel flex flex-wrap items-center justify-between gap-3 rounded-xl border border-orange-500/25 bg-orange-500/[0.06] p-4">

@@ -16,6 +16,8 @@ type ViewerSubscriptionLike = {
   deviceCount?: number | null;
   viewerModel?: string | null;
   profileLimit?: number | null;
+  lastPaymentStatus?: string | null;
+  lastPaymentAt?: Date | string | null;
 };
 
 type ViewerContentAccessLike = {
@@ -41,8 +43,18 @@ export function getViewerDeviceCount(subscription?: ViewerSubscriptionLike | nul
   return getViewerPlanConfig(subscription?.plan).deviceCount;
 }
 
+/** PayFast adhoc renewal awaiting ITN — keep catalogue access during processing. */
+export function hasViewerRenewalPaymentInFlight(subscription?: ViewerSubscriptionLike | null): boolean {
+  if (!subscription || getViewerModel(subscription) !== VIEWER_MODELS.SUBSCRIPTION) return false;
+  if (subscription.lastPaymentStatus !== "PENDING") return false;
+  if (!subscription.lastPaymentAt) return true;
+  const ageMs = Date.now() - new Date(subscription.lastPaymentAt).getTime();
+  return ageMs < 72 * 60 * 60 * 1000;
+}
+
 export function isViewerSubscriptionExpired(subscription?: ViewerSubscriptionLike | null) {
   if (!subscription) return true;
+  if (hasViewerRenewalPaymentInFlight(subscription)) return false;
 
   if (getViewerModel(subscription) === VIEWER_MODELS.PPV) {
     return subscription.status === "PAST_DUE" || subscription.status === "CANCELLED";
@@ -71,6 +83,7 @@ export function isExpiredTrialSubscription(subscription?: ViewerSubscriptionLike
 /** Viewer must pay or pick a new plan (post-trial, failed renewal, cancelled, lapsed period). */
 export function subscriptionNeedsReactivation(subscription?: ViewerSubscriptionLike | null) {
   if (!subscription) return false;
+  if (hasViewerRenewalPaymentInFlight(subscription)) return false;
   if (subscription.status === "PAST_DUE" || subscription.status === "CANCELLED") return true;
   if (isExpiredTrialSubscription(subscription)) return true;
   if (subscription.status === "ACTIVE" && isViewerSubscriptionExpired(subscription)) return true;

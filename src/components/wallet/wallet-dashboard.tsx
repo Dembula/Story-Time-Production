@@ -54,11 +54,23 @@ export function WalletDashboard({
       const res = await fetch("/api/payments/payouts/request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount: Math.max(0, Number(data?.wallet?.availableBalance ?? 0)), beneficiaryToken: "stub_beneficiary" }),
+        body: JSON.stringify({ amount: Math.max(0, Number(data?.wallet?.availableBalance ?? 0)) }),
       });
       return readJsonOrThrow(res);
     },
     onSuccess: () => refetch(),
+  });
+  const payfastCardMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/payments/payfast/card-consent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ returnPath: window.location.pathname }),
+      });
+      const payload = await readJsonOrThrow(res);
+      if (payload.checkoutUrl) window.location.href = payload.checkoutUrl;
+      return payload;
+    },
   });
 
   const wallet = data?.wallet;
@@ -68,6 +80,11 @@ export function WalletDashboard({
   );
   const escrows = (data?.escrows as any[] | undefined) ?? [];
   const payouts = (wallet?.payoutRequests as any[] | undefined) ?? [];
+  const payfastCard = data?.payfastCard as { hasToken?: boolean } | undefined;
+  const payoutBanking = data?.payoutBanking as
+    | { bankName?: string; accountNumberMasked?: string; accountType?: string }
+    | null
+    | undefined;
   const { data: session } = useSession();
   const role = session?.user?.role;
   const payoutKycStatus = (session?.user as { payoutKycVerificationStatus?: string })?.payoutKycVerificationStatus;
@@ -76,7 +93,13 @@ export function WalletDashboard({
   const payoutsUnlocked =
     (!requiresPayoutKyc(role) || payoutKycStatus === "APPROVED") &&
     (!isFunder || funderStatus === "APPROVED");
-  const verificationHref = isFunder ? "/funders/verification" : "/payout-verification";
+  const bankingHref =
+    role === "CONTENT_CREATOR" || role === "MUSIC_CREATOR"
+      ? "/creator/account"
+      : isFunder
+        ? "/funders/verification"
+        : "/payout-verification";
+  const verificationHref = bankingHref;
   const verificationLabel = isFunder ? "funder verification" : "payout verification";
 
   return (
@@ -120,6 +143,55 @@ export function WalletDashboard({
 
       <section className="grid gap-4 lg:grid-cols-2">
         <div className="storytime-section p-6">
+          <h2 className="text-lg font-semibold">Marketplace payments</h2>
+          <p className="mt-1 text-xs text-slate-400">
+            Marketplace checkout uses your wallet first, then a PayFast-saved card, then hosted checkout.
+          </p>
+          {payfastCard?.hasToken ? (
+            <p className="mt-3 text-xs text-emerald-300">PayFast card on file — marketplace charges can use your saved card.</p>
+          ) : (
+            <div className="mt-3 space-y-2">
+              <p className="text-xs text-amber-200">
+                No PayFast card saved. Add one to pay equipment, crew, cast, locations, and catering without leaving Story Time.
+              </p>
+              <button
+                type="button"
+                onClick={() => payfastCardMutation.mutate()}
+                disabled={payfastCardMutation.isPending}
+                className="rounded-xl bg-orange-500 px-3 py-2 text-xs font-semibold text-white hover:bg-orange-400 disabled:opacity-50"
+              >
+                {payfastCardMutation.isPending ? "Redirecting…" : "Add card via PayFast"}
+              </button>
+              {payfastCardMutation.error ? (
+                <p className="text-sm text-red-400">{(payfastCardMutation.error as Error).message}</p>
+              ) : null}
+            </div>
+          )}
+        </div>
+        <div className="storytime-section p-6">
+          <h2 className="text-lg font-semibold">Payout banking</h2>
+          <p className="mt-1 text-xs text-slate-400">
+            Withdrawals are reviewed manually by admin. Bank details come from your verified profile — not entered here.
+          </p>
+          {payoutBanking?.bankName ? (
+            <div className="mt-3 rounded-xl border border-slate-800 bg-slate-900/50 px-3 py-3 text-xs text-slate-300">
+              <p>{payoutBanking.bankName}</p>
+              <p className="mt-1 font-mono">{payoutBanking.accountNumberMasked}</p>
+              <p className="mt-1 text-slate-500">{payoutBanking.accountType}</p>
+            </div>
+          ) : (
+            <div className="mt-3 rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-3 text-xs text-amber-100">
+              Bank details required before you can request a payout.{" "}
+              <Link href={bankingHref} className="font-semibold text-orange-300 underline hover:text-orange-200">
+                Add banking details
+              </Link>
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-2">
+        <div className="storytime-section p-6">
           <h2 className="text-lg font-semibold">Payouts</h2>
           <p className="mt-1 text-xs text-slate-400">
             Withdrawals require approved verification. You can still view balances and use the platform while review is in progress.
@@ -128,7 +200,11 @@ export function WalletDashboard({
             <button
               type="button"
               onClick={() => payoutMutation.mutate()}
-              disabled={payoutMutation.isPending || Number(wallet?.availableBalance ?? 0) <= 0}
+              disabled={
+                payoutMutation.isPending ||
+                Number(wallet?.availableBalance ?? 0) <= 0 ||
+                !payoutBanking?.bankName
+              }
               className="mt-3 rounded-xl bg-emerald-500 px-3 py-2 text-xs font-semibold text-black hover:bg-emerald-400 disabled:opacity-50"
             >
               Request payout (available balance)

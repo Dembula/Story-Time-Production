@@ -12,6 +12,7 @@ import { computeDiscountedAmount, redeemPromoCode, resolvePromoCode } from "@/li
 import { initializeCheckout } from "@/lib/payments/billing";
 import { getPaymentGateway } from "@/lib/payments/gateway";
 import { buildPaymentReturnUrl } from "@/lib/payments/return-url";
+import { addViewerSubscriptionPeriod } from "@/lib/payments/billing-interval";
 
 function promoFailureMessage(reason: string) {
   switch (reason) {
@@ -192,7 +193,10 @@ export async function POST(req: Request) {
         billingEmail: user.email,
         lastPaymentStatus: "PENDING",
         lastPaymentError: null,
-        currentPeriodEnd: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
+        cancelAtPeriodEnd: false,
+        renewalAttemptCount: 0,
+        pastDueSince: null,
+        currentPeriodEnd: addViewerSubscriptionPeriod(now),
       },
     });
 
@@ -305,9 +309,8 @@ export async function POST(req: Request) {
     };
   }
   const trialEndsAt = useTrial ? new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000) : null;
-  const currentPeriodEnd = new Date(
-    now.getTime() + (useTrial ? 37 : 30) * 24 * 60 * 60 * 1000,
-  );
+  const currentPeriodEnd =
+    useTrial && trialEndsAt ? addViewerSubscriptionPeriod(trialEndsAt) : addViewerSubscriptionPeriod(now);
   const subscription = await prisma.viewerSubscription.create({
     data: {
       userId: user.id,
@@ -357,7 +360,7 @@ export async function POST(req: Request) {
       checkoutUrl = consent.checkoutUrl;
       await prisma.viewerSubscription.update({
         where: { id: subscription.id },
-        data: { externalPaymentId: consent.externalRef, lastPaymentStatus: "PENDING" },
+        data: { lastPaymentStatus: "PENDING" },
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to initialize card capture.";

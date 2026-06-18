@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 
 type PayResponse = {
   requiresPayment?: boolean;
+  awaitingGatewayConfirmation?: boolean;
   checkoutUrl?: string;
   paymentRecordId?: string;
   transactionId?: string;
@@ -51,6 +52,14 @@ export function useMarketplacePay(options?: { onPaid?: (transactionId: string) =
         const data = (await res.json().catch(() => null)) as PayResponse | null;
         if (!res.ok) {
           throw new Error(data?.error || "Payment failed");
+        }
+        if (data?.requiresPayment && data.awaitingGatewayConfirmation && data.paymentRecordId) {
+          const ok = await pollPaymentRecord(data.paymentRecordId);
+          if (ok) {
+            options?.onPaid?.(data.paymentRecordId);
+            return { mode: "saved_card" as const, data };
+          }
+          throw new Error("Payment is still processing. Check back shortly or try hosted checkout.");
         }
         if (data?.requiresPayment && data.checkoutUrl) {
           setCheckoutUrl(data.checkoutUrl);

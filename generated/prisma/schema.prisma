@@ -1381,26 +1381,29 @@ model CastingInquiry {
 
 // --- Viewer subscriptions & payments ---
 model ViewerSubscription {
-  id                String               @id @default(cuid())
-  userId            String
-  user              User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  paymentMethodId   String?
-  paymentMethod     ViewerPaymentMethod? @relation("ViewerSubscriptionPaymentMethod", fields: [paymentMethodId], references: [id], onDelete: SetNull)
-  viewerModel       String               @default("SUBSCRIPTION") // SUBSCRIPTION, PPV
-  plan              String // BASE_1, STANDARD_3, FAMILY_5
-  status            String // TRIAL_ACTIVE, ACTIVE, PAST_DUE, CANCELLED
-  trialEndsAt       DateTime?
-  currentPeriodEnd  DateTime?
-  deviceCount       Int                  @default(1)
-  profileLimit      Int?
-  billingEmail      String?
-  cancelAtPeriodEnd Boolean              @default(false)
-  lastPaymentStatus String?
-  lastPaymentAt     DateTime?
-  lastPaymentError  String?
-  externalPaymentId String?
-  createdAt         DateTime             @default(now())
-  updatedAt         DateTime             @updatedAt
+  id                  String               @id @default(cuid())
+  userId              String
+  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  paymentMethodId     String?
+  paymentMethod       ViewerPaymentMethod? @relation("ViewerSubscriptionPaymentMethod", fields: [paymentMethodId], references: [id], onDelete: SetNull)
+  viewerModel         String               @default("SUBSCRIPTION") // SUBSCRIPTION, PPV
+  plan                String // BASE_1, STANDARD_3, FAMILY_5
+  billingInterval     String               @default("month") // month, year
+  status              String // TRIAL_ACTIVE, ACTIVE, PAST_DUE, CANCELLED
+  trialEndsAt         DateTime?
+  currentPeriodEnd    DateTime?
+  deviceCount         Int                  @default(1)
+  profileLimit        Int?
+  billingEmail        String?
+  cancelAtPeriodEnd   Boolean              @default(false)
+  renewalAttemptCount Int                  @default(0)
+  pastDueSince        DateTime?
+  lastPaymentStatus   String?
+  lastPaymentAt       DateTime?
+  lastPaymentError    String?
+  externalPaymentId   String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
 
   payments SubscriptionPayment[]
 
@@ -1545,23 +1548,26 @@ model CateringBooking {
 }
 
 model CompanySubscription {
-  id                String               @id @default(cuid())
-  userId            String
-  user              User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  paymentMethodId   String?
-  paymentMethod     ViewerPaymentMethod? @relation("CompanySubscriptionPaymentMethod", fields: [paymentMethodId], references: [id], onDelete: SetNull)
-  companyType       String // CREW_TEAM, CASTING_AGENCY, LOCATION_OWNER, EQUIPMENT_COMPANY, CATERING_COMPANY
-  plan              String // STANDARD_R29, PROMOTED_R49
-  status            String // ACTIVE, PAST_DUE, CANCELLED
-  currentPeriodEnd  DateTime?
-  billingEmail      String?
-  cancelAtPeriodEnd Boolean              @default(false)
-  lastPaymentStatus String?
-  lastPaymentAt     DateTime?
-  lastPaymentError  String?
-  externalPaymentId String?
-  createdAt         DateTime             @default(now())
-  updatedAt         DateTime             @updatedAt
+  id                  String               @id @default(cuid())
+  userId              String
+  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  paymentMethodId     String?
+  paymentMethod       ViewerPaymentMethod? @relation("CompanySubscriptionPaymentMethod", fields: [paymentMethodId], references: [id], onDelete: SetNull)
+  companyType         String // CREW_TEAM, CASTING_AGENCY, LOCATION_OWNER, EQUIPMENT_COMPANY, CATERING_COMPANY
+  plan                String // STANDARD_R29, PROMOTED_R49
+  billingInterval     String               @default("month") // month, year
+  status              String // ACTIVE, PAST_DUE, CANCELLED
+  currentPeriodEnd    DateTime?
+  billingEmail        String?
+  cancelAtPeriodEnd   Boolean              @default(false)
+  renewalAttemptCount Int                  @default(0)
+  pastDueSince        DateTime?
+  lastPaymentStatus   String?
+  lastPaymentAt       DateTime?
+  lastPaymentError    String?
+  externalPaymentId   String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
 
   @@index([userId])
   @@index([paymentMethodId])
@@ -1575,6 +1581,14 @@ model CreatorDistributionLicense {
   creatorStudioProfile   CreatorStudioProfile? @relation(fields: [creatorStudioProfileId], references: [id], onDelete: SetNull)
   type                   String // CREATOR_PIPELINE_*, CREATOR_UPLOAD_*, legacy YEARLY_R89, etc.
   yearlyExpiresAt        DateTime?
+  autoRenew              Boolean               @default(true)
+  cancelAtPeriodEnd      Boolean               @default(false)
+  status                 String                @default("ACTIVE") // ACTIVE, PAST_DUE, CANCELLED
+  renewalAttemptCount    Int                   @default(0)
+  pastDueSince           DateTime?
+  lastPaymentAt          DateTime?
+  lastPaymentStatus      String?
+  lastPaymentError       String?
   externalPaymentId      String?
   createdAt              DateTime              @default(now())
   updatedAt              DateTime              @updatedAt
@@ -1825,10 +1839,16 @@ model PayoutRequest {
   wallet            Wallet    @relation(fields: [walletId], references: [id], onDelete: Cascade)
   amount            Float
   currency          String    @default("ZAR")
-  status            String    @default("PROCESSING") // PROCESSING | PAID | FAILED
+  status            String    @default("PENDING_REVIEW") // PENDING_REVIEW | APPROVED | DECLINED | PAID | FAILED | PROCESSING
   provider          String    @default("PAYFAST")
   providerReference String?   @unique
   failureReason     String?
+  declineReason     String?
+  adminNotes        String?
+  proofUrl          String?
+  proofReference    String?
+  reviewedById      String?
+  reviewedAt        DateTime?
   paidAt            DateTime?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt

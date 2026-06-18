@@ -1,7 +1,11 @@
-import { PLATFORM_TX_FEE_RATE, VIEWER_CREATOR_SPLIT, VIEWER_PLATFORM_SPLIT, roundMoney } from "@/lib/payments/config";
+import { MARKETPLACE_TX_FEE_RATE, PLATFORM_TX_FEE_RATE, VIEWER_CREATOR_SPLIT, VIEWER_PLATFORM_SPLIT, roundMoney } from "@/lib/payments/config";
 
 export function calculatePlatformTransactionFee(amount: number): number {
   return roundMoney(amount * PLATFORM_TX_FEE_RATE);
+}
+
+export function calculateMarketplaceTransactionFee(baseAmount: number): number {
+  return roundMoney(baseAmount * MARKETPLACE_TX_FEE_RATE);
 }
 
 export function splitViewerRevenue(amount: number) {

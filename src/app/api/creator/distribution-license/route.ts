@@ -6,7 +6,7 @@ import { ensureCreatorStudioProfilesForUser, loadStudioPipelineContext } from "@
 import { defaultSuiteAccessOpen } from "@/lib/creator-suite-access";
 import { isMissingCreatorStudioInfrastructure } from "@/lib/prisma-missing-table";
 import { getCreatorPackageStatus } from "@/lib/creator-package-gate";
-import { CREATOR_LICENSE_CONFIG, CREATOR_LICENSE_TYPE, CREATOR_ONBOARDING_PLANS, formatCreatorLicenseSummary } from "@/lib/pricing";
+import { CREATOR_LICENSE_CONFIG, CREATOR_LICENSE_TYPE, CREATOR_ONBOARDING_PLANS, formatCreatorLicenseSummary, isCreatorPerFilmLicense } from "@/lib/pricing";
 import { computeDiscountedAmount, redeemPromoCode, resolvePromoCode } from "@/lib/promo-codes";
 import { initializeCheckout } from "@/lib/payments/billing";
 import { buildPaymentReturnUrl } from "@/lib/payments/return-url";
@@ -35,13 +35,15 @@ function addMonths(from: Date, months: number): Date {
 }
 
 function creatorLicenseNeedsUpfrontPayment(type: string) {
-  return !type.includes("PER_UPLOAD");
+  return !isCreatorPerFilmLicense(type);
 }
 
 function resolveCreatorLicensePrice(type: string) {
-  if (type === CREATOR_LICENSE_TYPE.UPLOAD_ONLY_YEARLY) return CREATOR_ONBOARDING_PLANS.UPLOAD_ONLY.price;
+  if (type === CREATOR_LICENSE_TYPE.UPLOAD_ONLY_YEARLY) return CREATOR_ONBOARDING_PLANS.UPLOAD_YEARLY.price;
+  if (type === "CREATOR_UPLOAD_ONLY_R99_Y") return CREATOR_ONBOARDING_PLANS.UPLOAD_YEARLY.price;
   if (type === CREATOR_LICENSE_TYPE.PIPELINE_YEARLY) return CREATOR_ONBOARDING_PLANS.PIPELINE_YEARLY.price;
   if (type === CREATOR_LICENSE_TYPE.PIPELINE_MONTHLY) return CREATOR_ONBOARDING_PLANS.PIPELINE_MONTHLY.price;
+  if (type === CREATOR_LICENSE_TYPE.PER_FILM) return 0;
   if (type === "YEARLY_R89" || type === "YEARLY") return CREATOR_LICENSE_CONFIG.YEARLY.price;
   if (type === "PER_UPLOAD_R24_99" || type === "PER_UPLOAD_R10" || type === "PER_UPLOAD") return 0;
   return 0;
@@ -179,7 +181,7 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => null)) as
     | {
         /** New onboarding */
-        package?: "UPLOAD_ONLY" | "PIPELINE";
+        package?: "PER_FILM" | "UPLOAD_YEARLY" | "UPLOAD_ONLY" | "PIPELINE";
         billing?: "YEARLY" | "MONTHLY";
         /** Legacy music / old UI */
         type?: string;
@@ -199,7 +201,10 @@ export async function POST(req: Request) {
       storedType = "YEARLY_R89";
       periodEnd = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
     }
-  } else if (body?.package === "UPLOAD_ONLY") {
+  } else if (body?.package === "PER_FILM") {
+    storedType = CREATOR_LICENSE_TYPE.PER_FILM;
+    periodEnd = null;
+  } else if (body?.package === "UPLOAD_YEARLY" || body?.package === "UPLOAD_ONLY") {
     storedType = CREATOR_LICENSE_TYPE.UPLOAD_ONLY_YEARLY;
     periodEnd = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
   } else if (body?.package === "PIPELINE" && body.billing === "YEARLY") {
@@ -212,7 +217,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         error:
-          "Pipeline was not assigned: choose Upload & originals, or Full pipeline with yearly or monthly billing.",
+          "Choose Pay per film, Catalogue unlimited (yearly), or Full pipeline with yearly or monthly billing.",
         code: "INVALID_PLAN_SELECTION",
       },
       { status: 400 },
@@ -265,6 +270,8 @@ export async function POST(req: Request) {
         creatorStudioProfileId: profileId,
         type: storedType,
         yearlyExpiresAt: periodEnd,
+        autoRenew: true,
+        status: finalPrice > 0 ? "PAST_DUE" : "ACTIVE",
         externalPaymentId: null,
       },
     });
@@ -275,6 +282,8 @@ export async function POST(req: Request) {
           userId: user.id,
           type: storedType,
           yearlyExpiresAt: periodEnd,
+          autoRenew: true,
+          status: finalPrice > 0 ? "PAST_DUE" : "ACTIVE",
           externalPaymentId: null,
         },
       });

@@ -7,7 +7,7 @@ import { VIEWER_PLAN_CONFIG } from "@/lib/pricing";
 import { formatZar } from "@/lib/format-currency-zar";
 import { getBirthDateOptionSets } from "@/lib/viewer-profiles";
 
-type PaymentMethod = { id: string; label: string; lastFour: string; isDefault: boolean };
+type PaymentMethod = { id: string; label: string; lastFour: string; isDefault: boolean; payfastTokenized?: boolean };
 type ViewerProfile = {
   id: string;
   name: string;
@@ -43,8 +43,7 @@ export function SettingsClient() {
   const [notifyEmail, setNotifyEmail] = useState(true);
   const [playbackQuality, setPlaybackQuality] = useState<string>("auto");
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
-  const [newPaymentLabel, setNewPaymentLabel] = useState("");
-  const [newPaymentLastFour, setNewPaymentLastFour] = useState("");
+  const [savingCard, setSavingCard] = useState(false);
   const [newProfileName, setNewProfileName] = useState("");
   const [newProfilePinEnabled, setNewProfilePinEnabled] = useState(false);
   const [newProfilePin, setNewProfilePin] = useState("");
@@ -248,29 +247,26 @@ export function SettingsClient() {
     }
   }
 
-  async function addPaymentMethod(e: React.FormEvent) {
-    e.preventDefault();
+  async function startPayFastCardSave() {
     setError("");
-    const label = newPaymentLabel.trim();
-    const lastFour = newPaymentLastFour.replace(/\D/g, "").slice(-4);
-    if (!label || lastFour.length !== 4) {
-      setError("Enter a label and the last 4 digits of the card.");
-      return;
-    }
-    const res = await fetch("/api/viewer/payment-methods", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ label, lastFour }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (res.ok) {
-      const m = data as PaymentMethod;
-      setPaymentMethods((prev) => [m, ...prev]);
-      setNewPaymentLabel("");
-      setNewPaymentLastFour("");
-      setSuccess("Payment method added");
-    } else {
-      setError(data?.error || "Failed to add payment method");
+    setSavingCard(true);
+    try {
+      const res = await fetch("/api/viewer/payment-methods", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ returnPath: "/browse/settings" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Failed to start PayFast card setup");
+      if (data.checkoutUrl) {
+        window.location.href = data.checkoutUrl as string;
+        return;
+      }
+      setSuccess(data.message || "Redirecting to PayFast…");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to start PayFast card setup");
+    } finally {
+      setSavingCard(false);
     }
   }
 
@@ -851,19 +847,28 @@ export function SettingsClient() {
         <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-white">
           <CreditCard className="w-5 h-5 text-slate-400" /> Settings · Payment methods
         </h2>
-        <p className="mb-4 text-sm text-slate-400">At least one payment method must stay saved on your account.</p>
+        <p className="mb-4 text-sm text-slate-400">
+          Cards are saved securely through PayFast. Story Time stores only a PayFast token and display label — never your full card number.
+        </p>
         <ul className="space-y-2 mb-6">
           {paymentMethods.map((p) => (
             <li key={p.id} className="flex items-center justify-between rounded-xl border border-white/8 bg-white/[0.03] px-3 py-3">
-              <span className="text-white font-medium">{p.label}</span>
+              <div>
+                <span className="text-white font-medium">{p.label}</span>
+                {!p.payfastTokenized ? (
+                  <span className="ml-2 text-[10px] uppercase tracking-wide text-amber-400">Legacy — re-add via PayFast</span>
+                ) : null}
+              </div>
               <span className="text-slate-400 text-sm">****{p.lastFour}</span>
               <div className="flex items-center gap-2">
-                {!p.isDefault && (
+                {p.payfastTokenized && !p.isDefault ? (
                   <button type="button" onClick={() => setDefaultPayment(p.id)} className="text-xs text-orange-400 hover:underline flex items-center gap-1">
                     <Star className="w-3 h-3" /> Set default
                   </button>
-                )}
-                {p.isDefault && <span className="text-xs text-emerald-400 flex items-center gap-1"><Star className="w-3 h-3 fill-current" /> Default</span>}
+                ) : null}
+                {p.isDefault && p.payfastTokenized ? (
+                  <span className="text-xs text-emerald-400 flex items-center gap-1"><Star className="w-3 h-3 fill-current" /> Default</span>
+                ) : null}
                 <button type="button" onClick={() => removePayment(p.id)} className="p-1.5 rounded text-slate-400 hover:text-red-400">
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -871,30 +876,14 @@ export function SettingsClient() {
             </li>
           ))}
         </ul>
-        <form onSubmit={addPaymentMethod} className="flex flex-wrap items-end gap-3">
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">Label (e.g. Visa ****4242)</label>
-            <input
-              value={newPaymentLabel}
-              onChange={(e) => setNewPaymentLabel(e.target.value)}
-              placeholder="Visa ****4242"
-              className="storytime-input w-48 px-3 py-2 text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">Last 4 digits</label>
-            <input
-              value={newPaymentLastFour}
-              onChange={(e) => setNewPaymentLastFour(e.target.value.replace(/\D/g, "").slice(0, 4))}
-              placeholder="4242"
-              maxLength={4}
-              className="storytime-input w-24 px-3 py-2 text-sm"
-            />
-          </div>
-          <button type="submit" className="flex items-center gap-2 rounded-xl viewer-btn-primary px-4 py-2.5 text-sm font-semibold transition hover:-translate-y-0.5">
-            <Plus className="w-4 h-4" /> Add
-          </button>
-        </form>
+        <button
+          type="button"
+          onClick={startPayFastCardSave}
+          disabled={savingCard}
+          className="flex items-center gap-2 rounded-xl viewer-btn-primary px-4 py-2.5 text-sm font-semibold transition hover:-translate-y-0.5 disabled:opacity-50"
+        >
+          <Plus className="w-4 h-4" /> {savingCard ? "Opening PayFast…" : "Add card via PayFast"}
+        </button>
       </section>
 
       {showPlanModal ? (

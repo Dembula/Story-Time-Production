@@ -3,9 +3,9 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { parseEmbeddedMeta, type ActorMarketMeta } from "@/lib/marketplace-profile-meta";
-
-const ACQUISITION_FEE = 19.99;
-const ROLE_LINK_MARKER_PREFIX = "castingRoleId:";
+import { initializeCheckout } from "@/lib/payments/billing";
+import { buildPaymentReturnUrl } from "@/lib/payments/return-url";
+import { CASTING_ACQUISITION_FEE_ZAR } from "@/lib/pricing";
 
 async function ensureCreatorForProject(projectId: string) {
   const session = await getServerSession(authOptions);
@@ -24,7 +24,12 @@ async function ensureCreatorForProject(projectId: string) {
     project.members.some((m) => m.userId === userId) ||
     project.pitches.some((p) => p.creatorId === userId);
   if (!isCreatorMember) return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }), userId: null as string | null };
-  return { error: null as NextResponse | null, userId, email: session.user?.email ?? null };
+  return {
+    error: null as NextResponse | null,
+    userId,
+    email: session.user?.email ?? null,
+    name: session.user?.name ?? null,
+  };
 }
 
 export async function POST(req: NextRequest, context: { params: Promise<{ projectId: string }> }) {
@@ -51,145 +56,56 @@ export async function POST(req: NextRequest, context: { params: Promise<{ projec
   if (!invitation.talent) {
     return NextResponse.json({ error: "Accepted invitation has no talent linked" }, { status: 400 });
   }
+
+  const existingContract = await prisma.projectContract.findFirst({
+    where: { projectId, type: "ACTOR", castingTalentId: invitation.talent.id },
+    select: { id: true },
+  });
+  if (existingContract) {
+    return NextResponse.json({ error: "Contract already exists for this talent." }, { status: 409 });
+  }
+
   const talent = invitation.talent;
   const parsedTalentMeta = parseEmbeddedMeta<ActorMarketMeta>(talent.bio);
-
-  const marker = `${ROLE_LINK_MARKER_PREFIX}${invitation.roleId}`;
   const fallbackRate = Number(parsedTalentMeta.meta?.dailyRate ?? 0);
-  const amount = Math.max(0, Number(body.salaryAmount ?? fallbackRate));
+  const salaryAmount = Math.max(0, Number(body.salaryAmount ?? fallbackRate));
 
-  const result = await prisma.$transaction(async (tx) => {
-    const payment = await tx.paymentRecord.create({
-      data: {
-        userId,
-        provider: "DISABLED",
-        purpose: "CASTING_ACQUISITION_FEE",
-        status: "SUCCEEDED",
-        amount: ACQUISITION_FEE,
-        currency: "ZAR",
-        email: access.email,
-        paidAt: new Date(),
-        metadata: {
-          kind: "CASTING_ACQUISITION_FEE",
-          invitationId: invitation.id,
-          roleId: invitation.roleId,
-          talentId: invitation.talentId,
-          castingAgencyId: invitation.castingAgencyId,
-          projectId,
-        } as any,
+  try {
+    const { checkout, paymentRecord } = await initializeCheckout({
+      userId,
+      email: access.email,
+      customerName: access.name,
+      amount: CASTING_ACQUISITION_FEE_ZAR,
+      purpose: "CASTING_ACQUISITION_FEE",
+      referenceType: "CastingInvitation",
+      referenceId: invitation.id,
+      returnUrl: buildPaymentReturnUrl(
+        `/creator/projects/${projectId}/pre-production/casting`,
+        "casting_acquisition",
+      ),
+      metadata: {
+        kind: "CASTING_ACQUISITION_FEE",
+        invitationId: invitation.id,
+        roleId: invitation.roleId,
+        talentId: invitation.talentId,
+        castingAgencyId: invitation.castingAgencyId,
+        projectId,
+        salaryAmount,
+        salaryNotes: body.salaryNotes ?? null,
       },
     });
 
-    await tx.castingRole.update({
-      where: { id: invitation.roleId },
-      data: { status: "CAST" },
+    return NextResponse.json({
+      ok: true,
+      requiresPayment: true,
+      acquisitionFee: CASTING_ACQUISITION_FEE_ZAR,
+      paymentId: paymentRecord.id,
+      checkoutUrl: checkout.checkoutUrl,
+      paymentRecordId: paymentRecord.id,
+      salaryAmount,
     });
-    if (!invitation.role.breakdownCharacterId) {
-      const match = await tx.breakdownCharacter.findFirst({
-        where: { projectId, name: { equals: invitation.role.name, mode: "insensitive" } },
-        select: { id: true },
-      });
-      if (match) {
-        await tx.castingRole.update({
-          where: { id: invitation.roleId },
-          data: { breakdownCharacterId: match.id },
-        });
-      }
-    }
-
-    const budget = await tx.projectBudget.upsert({
-      where: { projectId },
-      create: { projectId, template: "SHORT_FILM", currency: "ZAR", totalPlanned: 0 },
-      update: {},
-    });
-    const existingLine = await tx.projectBudgetLine.findFirst({
-      where: { budgetId: budget.id, notes: { contains: marker } },
-    });
-    const notesWithMarker = `${body.salaryNotes ?? ""}\n[${marker}]`.trim();
-    if (existingLine) {
-      await tx.projectBudgetLine.update({
-        where: { id: existingLine.id },
-        data: {
-          department: "CAST",
-          name: `Salary · ${invitation.role.name}`,
-          quantity: 1,
-          unitCost: amount,
-          total: amount,
-          notes: notesWithMarker,
-        },
-      });
-    } else {
-      await tx.projectBudgetLine.create({
-        data: {
-          budgetId: budget.id,
-          department: "CAST",
-          name: `Salary · ${invitation.role.name}`,
-          quantity: 1,
-          unitCost: amount,
-          total: amount,
-          notes: notesWithMarker,
-        },
-      });
-    }
-
-    const existingRoster = await tx.creatorCastRoster.findFirst({
-      where: { creatorId: userId, notes: { contains: marker } },
-    });
-    if (existingRoster) {
-      await tx.creatorCastRoster.update({
-        where: { id: existingRoster.id },
-        data: {
-          name: talent.name,
-          roleType: "Actor",
-          notes: `Linked from ${invitation.castingAgency?.agencyName ?? "agency"}.\n[${marker}]`,
-          pastWork: talent.pastWork ?? null,
-        },
-      });
-    } else {
-      await tx.creatorCastRoster.create({
-        data: {
-          creatorId: userId,
-          name: talent.name,
-          roleType: "Actor",
-          notes: `Linked from ${invitation.castingAgency?.agencyName ?? "agency"}.\n[${marker}]`,
-          pastWork: talent.pastWork ?? parsedTalentMeta.plain ?? null,
-          contactEmail: talent.contactEmail ?? null,
-        },
-      });
-    }
-
-    const existingContract = await tx.projectContract.findFirst({
-      where: { projectId, type: "ACTOR", castingTalentId: talent.id },
-    });
-    if (!existingContract) {
-      const contract = await tx.projectContract.create({
-        data: {
-          projectId,
-          type: "ACTOR",
-          status: "DRAFT",
-          subject: `Actor contract – ${talent.name}`,
-          castingTalentId: talent.id,
-          createdById: userId,
-        },
-      });
-      const terms = `Role: ${invitation.role.name}\nSalary (planned): R${amount.toFixed(
-        2,
-      )}\nAgency: ${invitation.castingAgency?.agencyName ?? "N/A"}\n\nFinal terms to be signed by all parties.`;
-      const version = await tx.projectContractVersion.create({
-        data: { contractId: contract.id, version: 1, terms, createdById: userId },
-      });
-      await tx.projectContract.update({
-        where: { id: contract.id },
-        data: { currentVersionId: version.id },
-      });
-    }
-
-    return { paymentId: payment.id };
-  });
-
-  return NextResponse.json({
-    ok: true,
-    acquisitionFee: ACQUISITION_FEE,
-    paymentId: result.paymentId,
-  });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to initialize checkout.";
+    return NextResponse.json({ error: message }, { status: 502 });
+  }
 }

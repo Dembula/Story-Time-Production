@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, ClipboardList, Landmark, ShieldCheck, Wallet } from "lucide-react";
 
 const money = new Intl.NumberFormat("en-ZA", {
@@ -10,29 +10,76 @@ const money = new Intl.NumberFormat("en-ZA", {
   maximumFractionDigits: 2,
 });
 
+type PayoutRow = {
+  id: string;
+  amount: number;
+  status: string;
+  provider: string;
+  providerReference?: string | null;
+  declineReason?: string | null;
+  adminNotes?: string | null;
+  proofUrl?: string | null;
+  proofReference?: string | null;
+  createdAt: string;
+  user?: { id: string; name: string | null; email: string | null; role: string };
+};
+
 export default function AdminPaymentsPage() {
+  const queryClient = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ["admin-payments"],
     queryFn: async () => fetch("/api/admin/payments").then((r) => r.json()),
   });
-  const [tab, setTab] = useState<"payments" | "payouts" | "escrow" | "events">("payments");
+  const [tab, setTab] = useState<"payments" | "payouts" | "escrow" | "events">("payouts");
+  const [selectedPayoutId, setSelectedPayoutId] = useState<string | null>(null);
+  const [declineReason, setDeclineReason] = useState("");
+  const [adminNotes, setAdminNotes] = useState("");
+  const [proofReference, setProofReference] = useState("");
+  const [proofUrl, setProofUrl] = useState("");
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const metrics = data?.metrics ?? {};
   const paymentRecords = (data?.paymentRecords ?? []) as any[];
-  const payouts = (data?.payouts ?? []) as any[];
+  const payouts = (data?.payouts ?? []) as PayoutRow[];
   const escrows = (data?.escrows ?? []) as any[];
   const gatewayEvents = (data?.gatewayEvents ?? []) as any[];
+  const selectedPayout = payouts.find((p) => p.id === selectedPayoutId) ?? null;
+
+  const payoutAction = useMutation({
+    mutationFn: async (payload: {
+      id: string;
+      action: "approve" | "decline" | "mark_paid";
+      declineReason?: string;
+      adminNotes?: string;
+      proofReference?: string;
+      proofUrl?: string;
+    }) => {
+      const res = await fetch("/api/admin/payouts", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || "Payout action failed");
+      return json;
+    },
+    onSuccess: () => {
+      setActionError(null);
+      setDeclineReason("");
+      setProofReference("");
+      setProofUrl("");
+      void queryClient.invalidateQueries({ queryKey: ["admin-payments"] });
+    },
+    onError: (err: Error) => setActionError(err.message),
+  });
 
   const cards = useMemo(
     () => [
       { label: "Payment pending", value: String(metrics.paymentPending ?? 0), tone: "text-amber-300" },
       { label: "Payment succeeded", value: String(metrics.paymentSucceeded ?? 0), tone: "text-emerald-300" },
-      { label: "Escrow held", value: String(metrics.escrowHeld ?? 0), tone: "text-blue-300" },
-      { label: "Escrow disputed", value: String(metrics.escrowDisputed ?? 0), tone: "text-red-300" },
-      { label: "Payout processing", value: String(metrics.payoutProcessing ?? 0), tone: "text-orange-300" },
-      { label: "Payout failed", value: String(metrics.payoutFailed ?? 0), tone: "text-rose-300" },
+      { label: "Payout queue", value: String(metrics.payoutProcessing ?? 0), tone: "text-orange-300" },
       {
-        label: "Platform available balance",
+        label: "Treasury cash (available)",
         value: `R${money.format(Number(metrics.platformAvailableBalance ?? 0))}`,
         tone: "text-emerald-300",
       },
@@ -42,17 +89,27 @@ export default function AdminPaymentsPage() {
         tone: "text-cyan-300",
       },
       {
-        label: "Platform charges (fees)",
-        value: `R${money.format(Number(metrics.platformCharges ?? 0))}`,
+        label: "Platform revenue recognized",
+        value: `R${money.format(Number(metrics.platformRevenueAccountBalance ?? 0))}`,
         tone: "text-orange-300",
       },
       {
-        label: "Payouts completed",
+        label: "Creator pool held (60%)",
+        value: `R${money.format(Number(metrics.creatorPoolHeld ?? 0))}`,
+        tone: "text-green-300",
+      },
+      {
+        label: "Marketplace fees (3%)",
+        value: `R${money.format(Number(metrics.marketplaceFees ?? 0))}`,
+        tone: "text-violet-300",
+      },
+      {
+        label: "Manual payouts completed",
         value: `R${money.format(Number(metrics.payoutCompletedTotal ?? 0))}`,
         tone: "text-violet-300",
       },
       {
-        label: "Net retained",
+        label: "Total platform position",
         value: `R${money.format(Number(metrics.netRetained ?? 0))}`,
         tone: "text-lime-300",
       },
@@ -69,7 +126,8 @@ export default function AdminPaymentsPage() {
           Payments control center
         </h1>
         <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
-          Monitor checkout activity, payout queue, escrow lifecycle, and webhook processing from one admin workspace.
+          Viewer subs split 60% creator pool / 40% Story Time. Marketplace 3%, licences, script review, and casting fees
+          book to platform revenue. All withdrawal requests are reviewed and paid manually here.
         </p>
       </header>
 
@@ -82,11 +140,171 @@ export default function AdminPaymentsPage() {
       </div>
 
       <div className="flex flex-wrap gap-2">
+        <TabButton label="Manual payouts" active={tab === "payouts"} onClick={() => setTab("payouts")} />
         <TabButton label="Payments" active={tab === "payments"} onClick={() => setTab("payments")} />
-        <TabButton label="Payouts" active={tab === "payouts"} onClick={() => setTab("payouts")} />
         <TabButton label="Escrow" active={tab === "escrow"} onClick={() => setTab("escrow")} />
         <TabButton label="Gateway events" active={tab === "events"} onClick={() => setTab("events")} />
       </div>
+
+      {tab === "payouts" ? (
+        <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+          <section className="creator-glass-panel rounded-2xl border border-white/10 p-5">
+            <SectionHeader icon={<ArrowRight className="h-4 w-4 text-orange-400" />} title="Withdrawal requests" />
+            <div className="mt-3 space-y-2">
+              {payouts.length === 0 ? (
+                <p className="text-sm text-slate-500">No payout requests yet.</p>
+              ) : null}
+              {payouts.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedPayoutId(p.id);
+                    setAdminNotes(p.adminNotes ?? "");
+                    setActionError(null);
+                  }}
+                  className={`grid w-full grid-cols-[auto_1fr_auto] items-center gap-3 rounded-lg border px-3 py-3 text-left text-xs transition ${
+                    selectedPayoutId === p.id ? "border-orange-500/50 bg-orange-500/5" : "border-slate-800 hover:bg-slate-900/50"
+                  }`}
+                >
+                  <StatusPill value={p.status} />
+                  <div>
+                    <p className="font-medium text-white">{p.user?.name || p.user?.email || "User"}</p>
+                    <p className="text-slate-500">{p.user?.role} · {new Date(p.createdAt).toLocaleString()}</p>
+                  </div>
+                  <span className="font-semibold text-white">R{money.format(Number(p.amount ?? 0))}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="creator-glass-panel rounded-2xl border border-white/10 p-5">
+            <SectionHeader icon={<ShieldCheck className="h-4 w-4 text-orange-400" />} title="Review & proof" />
+            {!selectedPayout ? (
+              <p className="mt-3 text-sm text-slate-500">Select a withdrawal request to approve, decline, or mark paid.</p>
+            ) : (
+              <div className="mt-4 space-y-4 text-sm">
+                <div className="rounded-lg border border-slate-800 bg-slate-950/50 p-3">
+                  <p className="text-white font-medium">{selectedPayout.user?.name || "—"}</p>
+                  <p className="text-slate-400">{selectedPayout.user?.email}</p>
+                  <p className="mt-2 text-lg font-semibold text-orange-300">R{money.format(selectedPayout.amount)}</p>
+                  <p className="text-xs text-slate-500 mt-1">Status: {selectedPayout.status}</p>
+                  {selectedPayout.declineReason ? (
+                    <p className="text-xs text-red-300 mt-2">Declined: {selectedPayout.declineReason}</p>
+                  ) : null}
+                  {selectedPayout.proofReference ? (
+                    <p className="text-xs text-emerald-300 mt-2">Proof ref: {selectedPayout.proofReference}</p>
+                  ) : null}
+                  {selectedPayout.proofUrl ? (
+                    <a href={selectedPayout.proofUrl} target="_blank" rel="noreferrer" className="text-xs text-cyan-300 mt-1 block underline">
+                      View proof document
+                    </a>
+                  ) : null}
+                </div>
+
+                <label className="block">
+                  <span className="text-xs text-slate-500">Admin notes (internal)</span>
+                  <textarea
+                    value={adminNotes}
+                    onChange={(e) => setAdminNotes(e.target.value)}
+                    rows={2}
+                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+                  />
+                </label>
+
+                {selectedPayout.status === "PENDING_REVIEW" || selectedPayout.status === "PROCESSING" ? (
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={payoutAction.isPending}
+                      onClick={() =>
+                        payoutAction.mutate({
+                          id: selectedPayout.id,
+                          action: "approve",
+                          adminNotes,
+                        })
+                      }
+                      className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
+                    >
+                      Approve for payout
+                    </button>
+                  </div>
+                ) : null}
+
+                {["PENDING_REVIEW", "APPROVED", "PROCESSING"].includes(selectedPayout.status) ? (
+                  <div className="space-y-2 border-t border-slate-800 pt-4">
+                    <label className="block">
+                      <span className="text-xs text-slate-500">Decline reason (shown to user)</span>
+                      <textarea
+                        value={declineReason}
+                        onChange={(e) => setDeclineReason(e.target.value)}
+                        rows={2}
+                        className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      disabled={payoutAction.isPending || !declineReason.trim()}
+                      onClick={() =>
+                        payoutAction.mutate({
+                          id: selectedPayout.id,
+                          action: "decline",
+                          declineReason,
+                          adminNotes,
+                        })
+                      }
+                      className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-2 text-xs font-semibold text-red-300 disabled:opacity-50"
+                    >
+                      Decline & release funds
+                    </button>
+                  </div>
+                ) : null}
+
+                {selectedPayout.status === "APPROVED" || selectedPayout.status === "PROCESSING" ? (
+                  <div className="space-y-2 border-t border-slate-800 pt-4">
+                    <label className="block">
+                      <span className="text-xs text-slate-500">EFT / payment reference</span>
+                      <input
+                        value={proofReference}
+                        onChange={(e) => setProofReference(e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+                        placeholder="e.g. ABSA ref 123456"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs text-slate-500">Proof URL (optional)</span>
+                      <input
+                        value={proofUrl}
+                        onChange={(e) => setProofUrl(e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+                        placeholder="https://..."
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      disabled={payoutAction.isPending || (!proofReference.trim() && !proofUrl.trim())}
+                      onClick={() =>
+                        payoutAction.mutate({
+                          id: selectedPayout.id,
+                          action: "mark_paid",
+                          proofReference,
+                          proofUrl,
+                          adminNotes,
+                        })
+                      }
+                      className="rounded-lg bg-orange-500 px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
+                    >
+                      Mark paid (manual EFT done)
+                    </button>
+                  </div>
+                ) : null}
+
+                {actionError ? <p className="text-xs text-red-400">{actionError}</p> : null}
+              </div>
+            )}
+          </section>
+        </div>
+      ) : null}
 
       {tab === "payments" ? (
         <section className="creator-glass-panel rounded-2xl border border-white/10 p-5">
@@ -98,22 +316,6 @@ export default function AdminPaymentsPage() {
                 <StatusPill value={p.status} />
                 <span className="font-medium text-white">R{money.format(Number(p.amount ?? 0))}</span>
                 <span className="truncate text-slate-500">{p.id}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      {tab === "payouts" ? (
-        <section className="creator-glass-panel rounded-2xl border border-white/10 p-5">
-          <SectionHeader icon={<ArrowRight className="h-4 w-4 text-orange-400" />} title="Payout queue" />
-          <div className="mt-3 space-y-2">
-            {payouts.map((p) => (
-              <div key={p.id} className="grid grid-cols-[auto_1fr_auto_1fr] items-center gap-3 rounded-lg border border-slate-800 px-3 py-2 text-xs">
-                <StatusPill value={p.status} />
-                <span className="text-slate-300">{p.provider}</span>
-                <span className="font-medium text-white">R{money.format(Number(p.amount ?? 0))}</span>
-                <span className="truncate text-slate-500">{p.providerReference || p.id}</span>
               </div>
             ))}
           </div>
@@ -192,10 +394,13 @@ function SectionHeader({ icon, title }: { icon: ReactNode; title: string }) {
 }
 
 function StatusPill({ value }: { value: string }) {
-  const tone = value === "SUCCEEDED" || value === "COMPLETED"
-    ? "bg-emerald-500/10 text-emerald-300"
-    : value === "FAILED" || value === "DISPUTED"
-      ? "bg-red-500/10 text-red-300"
-      : "bg-amber-500/10 text-amber-300";
+  const tone =
+    value === "SUCCEEDED" || value === "COMPLETED" || value === "PAID"
+      ? "bg-emerald-500/10 text-emerald-300"
+      : value === "FAILED" || value === "DISPUTED" || value === "DECLINED"
+        ? "bg-red-500/10 text-red-300"
+        : value === "APPROVED"
+          ? "bg-blue-500/10 text-blue-300"
+          : "bg-amber-500/10 text-amber-300";
   return <span className={`rounded-full px-2 py-0.5 ${tone}`}>{value}</span>;
 }

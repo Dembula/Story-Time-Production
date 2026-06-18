@@ -3,7 +3,16 @@ import { after } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isCreatorLicensePeriodActive, normalizeCreatorLicenseType } from "@/lib/pricing";
+import { isCreatorLicensePeriodActive } from "@/lib/pricing";
+import {
+  CREATOR_FILM_UPLOAD_PURPOSE,
+  contentHasSuccessfulUploadPayment,
+  creatorHasUnlimitedUploads,
+  creatorNeedsPerFilmUploadPayment,
+  perFilmUploadAmount,
+} from "@/lib/creator-film-upload-payment";
+import { initializeCheckout } from "@/lib/payments/billing";
+import { buildPaymentReturnUrl } from "@/lib/payments/return-url";
 import { validateStorageUrlField } from "@/lib/storage-origin";
 import { getStreamAssetsByUrls } from "@/lib/stream-asset-store";
 import { linkOrIngestStreamForUrl } from "@/lib/stream-ingest-link";
@@ -111,6 +120,8 @@ export async function POST(request: NextRequest) {
     where: { id: creatorId },
     select: {
       id: true,
+      email: true,
+      name: true,
       creatorDistributionLicense: {
         select: { type: true, yearlyExpiresAt: true },
       },
@@ -121,12 +132,28 @@ export async function POST(request: NextRequest) {
   }
   const license = user.creatorDistributionLicense;
   const isDraft = (body.reviewStatus || "DRAFT") === "DRAFT";
-  if (normalizeCreatorLicenseType(license.type) === "YEARLY") {
-    if (!isCreatorLicensePeriodActive(license)) {
-      return NextResponse.json({ error: "Your plan period has ended. Renew to upload." }, { status: 402 });
+  const existingContentId = typeof body.contentId === "string" ? body.contentId.trim() : "";
+
+  if (!isDraft && !creatorHasUnlimitedUploads(license)) {
+    if (!creatorNeedsPerFilmUploadPayment(license.type)) {
+      return NextResponse.json({ error: "Your creator plan is not active. Renew to upload." }, { status: 402 });
     }
-  } else if (!isDraft) {
-    // Payment gateway has been removed; continue with direct submission.
+  } else if (!isDraft && !isCreatorLicensePeriodActive(license)) {
+    return NextResponse.json({ error: "Your plan period has ended. Renew to upload." }, { status: 402 });
+  }
+
+  if (existingContentId) {
+    const existing = await prisma.content.findFirst({
+      where: { id: existingContentId, creatorId },
+      select: { id: true, title: true, reviewStatus: true },
+    });
+    if (!existing) {
+      return NextResponse.json({ error: "Content not found" }, { status: 404 });
+    }
+    const editableStatuses = new Set(["DRAFT", "AWAITING_PAYMENT", "REJECTED", "CHANGES_REQUESTED", "UNPUBLISHED"]);
+    if (!editableStatuses.has(existing.reviewStatus)) {
+      return NextResponse.json({ error: "This title cannot be edited in its current review state." }, { status: 409 });
+    }
   }
 
   const minAge = typeof body.minAge === "number" ? Math.max(0, Math.min(21, body.minAge)) : body.minAge != null ? Math.max(0, Math.min(21, parseInt(String(body.minAge), 10) || 0)) : 0;
@@ -161,35 +188,54 @@ export async function POST(request: NextRequest) {
 
   const isStudentWork = await creatorIsStudentAtUpload(creatorId);
 
-  const content = await prisma.content.create({
-    data: {
-      title: body.title,
-      description: body.description || null,
-      type: body.type,
-      posterUrl: body.posterUrl || null,
-      backdropUrl: body.backdropUrl || null,
-      videoUrl,
-      trailerUrl,
-      scriptUrl: body.scriptUrl || null,
-      category: body.category || null,
-      tags: body.tags || null,
-      language: body.language || null,
-      country: body.country || null,
-      ageRating: body.ageRating || null,
-      minAge,
-      advisory,
-      year: body.year ? parseInt(body.year) : null,
-      duration: body.duration ? parseInt(body.duration) : null,
-      episodes: body.episodes ? parseInt(body.episodes) : null,
-      featured: false,
-      published: false,
-      reviewStatus: body.reviewStatus || "DRAFT",
-      submittedAt: body.submittedAt ? new Date(body.submittedAt) : null,
-      isStudentWork,
-      creatorId,
-      ...(linkedProjectId ? { linkedProjectId } : {}),
-    },
-  });
+  const submissionReviewStatus = isDraft
+    ? "DRAFT"
+    : creatorHasUnlimitedUploads(license)
+      ? "PENDING"
+      : "AWAITING_PAYMENT";
+
+  const contentData = {
+    title: body.title,
+    description: body.description || null,
+    type: body.type,
+    posterUrl: body.posterUrl || null,
+    backdropUrl: body.backdropUrl || null,
+    videoUrl,
+    trailerUrl,
+    scriptUrl: body.scriptUrl || null,
+    category: body.category || null,
+    tags: body.tags || null,
+    language: body.language || null,
+    country: body.country || null,
+    ageRating: body.ageRating || null,
+    minAge,
+    advisory,
+    year: body.year ? parseInt(body.year) : null,
+    duration: body.duration ? parseInt(body.duration) : null,
+    episodes: body.episodes ? parseInt(body.episodes) : null,
+    featured: false,
+    published: false,
+    reviewStatus: submissionReviewStatus,
+    submittedAt: isDraft || submissionReviewStatus === "AWAITING_PAYMENT" ? null : body.submittedAt ? new Date(body.submittedAt) : new Date(),
+    isStudentWork,
+    ...(linkedProjectId ? { linkedProjectId } : {}),
+  };
+
+  let content;
+  if (existingContentId) {
+    content = await prisma.content.update({
+      where: { id: existingContentId },
+      data: contentData,
+    });
+    await prisma.crewMember.deleteMany({ where: { contentId: content.id } });
+  } else {
+    content = await prisma.content.create({
+      data: {
+        ...contentData,
+        creatorId,
+      },
+    });
+  }
 
   if (body.crew && Array.isArray(body.crew)) {
     for (const c of body.crew) {
@@ -203,7 +249,7 @@ export async function POST(request: NextRequest) {
 
   const createdEpisodes: Array<{ id: string; videoUrl: string | null; title: string }> = [];
 
-  if (Array.isArray(body.seasons) && body.seasons.length > 0) {
+  if (Array.isArray(body.seasons) && body.seasons.length > 0 && !existingContentId) {
     for (const season of body.seasons as Array<{
       seasonNumber: number;
       title?: string;
@@ -327,6 +373,47 @@ export async function POST(request: NextRequest) {
     }
     await Promise.all(tasks);
   });
+
+  if (!isDraft && creatorNeedsPerFilmUploadPayment(license.type)) {
+    const alreadyPaid = await contentHasSuccessfulUploadPayment(content.id);
+
+    if (alreadyPaid) {
+      const submitted = await prisma.content.update({
+        where: { id: content.id },
+        data: { reviewStatus: "PENDING", submittedAt: new Date() },
+      });
+      return NextResponse.json(submitted);
+    }
+
+    try {
+      const amount = perFilmUploadAmount();
+      const checkout = await initializeCheckout({
+        userId: creatorId,
+        email: user.email,
+        customerName: user.name,
+        amount,
+        purpose: CREATOR_FILM_UPLOAD_PURPOSE,
+        referenceType: "Content",
+        referenceId: content.id,
+        returnUrl: buildPaymentReturnUrl("/creator/dashboard", "creator_film_upload"),
+        metadata: { contentTitle: content.title, contentType: content.type },
+      });
+      return NextResponse.json({
+        ...content,
+        requiresPayment: true,
+        checkoutUrl: checkout.checkout.checkoutUrl,
+        paymentRecordId: checkout.paymentRecord.id,
+        uploadFee: amount,
+      });
+    } catch (error) {
+      await prisma.content.update({
+        where: { id: content.id },
+        data: { reviewStatus: "AWAITING_PAYMENT" },
+      });
+      const message = error instanceof Error ? error.message : "Unable to initialize checkout.";
+      return NextResponse.json({ error: message, contentId: content.id }, { status: 502 });
+    }
+  }
 
   return NextResponse.json(content);
 }

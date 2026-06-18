@@ -8,10 +8,9 @@ import {
   MARKETPLACE_TRANSACTION_TYPE,
   type MarketplaceTransactionType,
 } from "@/lib/financial-ledger";
-import { postBalancedLedgerBatch } from "@/lib/payments/ledger";
+import { postMarketplacePaymentAllocation } from "@/lib/payments/marketplace-allocation";
 import { settleMarketplaceWithWallet } from "@/lib/payments/marketplace-wallet";
 import { ensureWalletForUser } from "@/lib/payments/wallet";
-import { getPlatformTreasuryUserId } from "@/lib/payments/treasury-inflow";
 
 const db = prisma as typeof prisma & {
   paymentRecord: {
@@ -297,43 +296,17 @@ export async function finalizeMarketplaceGatewayPayment(paymentRecordId: string)
     return { ok: false as const, error: "Payment amount mismatch" };
   }
 
-  const treasuryUserId = await getPlatformTreasuryUserId();
-  await ensureWalletForUser(treasuryUserId);
-  await ensureWalletForUser(quote.buyerUserId);
-  await ensureWalletForUser(quote.sellerUserId);
-
-  await postBalancedLedgerBatch({
-    idempotencyKey: `gateway_marketplace_${paymentRecordId}_treasury_debit`,
+  await postMarketplacePaymentAllocation({
+    payerUserId: quote.buyerUserId,
+    sellerUserId: quote.sellerUserId,
+    baseAmount: quote.baseAmount,
+    feeAmount: quote.feeAmount,
+    totalAmount: quote.totalAmount,
     referenceType: quote.entityType,
     referenceId: quote.entityId,
-    metadata: { paymentRecordId, flow: "marketplace_gateway" },
-    entries: [
-      {
-        userId: treasuryUserId,
-        direction: "DEBIT",
-        accountType: "AVAILABLE",
-        transactionType: "marketplace_gateway_settle",
-        amount: quote.totalAmount,
-      },
-      {
-        userId: quote.buyerUserId,
-        direction: "CREDIT",
-        accountType: "LOCKED",
-        transactionType: "escrow_hold",
-        amount: quote.baseAmount,
-      },
-      ...(quote.feeAmount > 0
-        ? [
-            {
-              userId: treasuryUserId,
-              direction: "CREDIT" as const,
-              accountType: "PLATFORM_REVENUE" as const,
-              transactionType: "marketplace_fee",
-              amount: quote.feeAmount,
-            },
-          ]
-        : []),
-    ],
+    idempotencyKey: `gateway_marketplace_${paymentRecordId}`,
+    paymentSource: "gateway",
+    paymentRecordId,
   });
 
   const buyerWallet = await ensureWalletForUser(quote.buyerUserId);
@@ -351,10 +324,15 @@ export async function finalizeMarketplaceGatewayPayment(paymentRecordId: string)
       buyerWalletId: buyerWallet.id,
       sellerWalletId: sellerWallet.id,
       amount: quote.baseAmount,
-      status: "HELD",
-      releaseTrigger: "MANUAL_CONFIRMATION",
+      status: "RELEASED",
+      releaseTrigger: "MONTHLY_VENDOR_PAYOUT",
+      releasedAt: new Date(),
     },
-    update: { status: "HELD", amount: quote.baseAmount },
+    update: {
+      status: "RELEASED",
+      amount: quote.baseAmount,
+      releasedAt: new Date(),
+    },
   });
 
   const tx = await prisma.transaction.create({

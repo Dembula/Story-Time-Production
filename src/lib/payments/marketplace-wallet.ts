@@ -1,9 +1,5 @@
-import { prisma } from "@/lib/prisma";
-import { createEscrowHold } from "@/lib/payments/escrow";
 import { ensureWalletForUser } from "@/lib/payments/wallet";
-import { postBalancedLedgerBatch } from "@/lib/payments/ledger";
-
-const db = prisma as any;
+import { postMarketplacePaymentAllocation } from "@/lib/payments/marketplace-allocation";
 
 export async function settleMarketplaceWithWallet(args: {
   buyerUserId: string;
@@ -25,43 +21,17 @@ export async function settleMarketplaceWithWallet(args: {
     };
   }
 
-  await createEscrowHold({
-    buyerUserId: args.buyerUserId,
+  await postMarketplacePaymentAllocation({
+    payerUserId: args.buyerUserId,
     sellerUserId: args.sellerUserId,
-    amount: args.baseAmount,
+    baseAmount: args.baseAmount,
+    feeAmount: args.feeAmount,
+    totalAmount: args.totalAmount,
     referenceType: args.referenceType,
     referenceId: args.referenceId,
     idempotencyKey: args.escrowIdempotencyKey,
+    paymentSource: "wallet",
   });
-
-  if (args.feeAmount > 0) {
-    const treasury =
-      (await db.user.findFirst({ where: { role: "ADMIN" }, select: { id: true } })) ??
-      ({ id: args.buyerUserId } as { id: string });
-    await ensureWalletForUser(treasury.id);
-
-    await postBalancedLedgerBatch({
-      idempotencyKey: `${args.escrowIdempotencyKey}_fee`,
-      referenceType: args.referenceType,
-      referenceId: args.referenceId,
-      entries: [
-        {
-          userId: args.buyerUserId,
-          direction: "DEBIT",
-          accountType: "AVAILABLE",
-          transactionType: "marketplace_fee",
-          amount: args.feeAmount,
-        },
-        {
-          userId: treasury.id,
-          direction: "CREDIT",
-          accountType: "PLATFORM_REVENUE",
-          transactionType: "marketplace_fee",
-          amount: args.feeAmount,
-        },
-      ],
-    });
-  }
 
   return {
     ok: true as const,

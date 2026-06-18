@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { VIEWER_CREATOR_SPLIT, roundMoney } from "@/lib/payments/config";
 import { postBalancedLedgerBatch } from "@/lib/payments/ledger";
 import { ensureWalletForUser } from "@/lib/payments/wallet";
-import { getCreatorRevenue, getViewerSubscriptionRevenue } from "@/lib/revenue";
+import { getCreatorRevenue, getViewerPoolRevenue } from "@/lib/revenue";
 import { getPlatformTreasuryUserId } from "@/lib/payments/treasury-inflow";
 
 const db = prisma as any;
@@ -94,12 +94,12 @@ export async function distributeCreatorPoolForPeriod(
     return { ok: true, skipped: true, periodKey, reason: "already_distributed" };
   }
 
-  const viewerSubRevenue = await getViewerSubscriptionRevenue(periodStart, periodEnd);
-  const creatorPool = roundMoney(viewerSubRevenue * VIEWER_CREATOR_SPLIT);
-  const storyTimeRetained = roundMoney(viewerSubRevenue - creatorPool);
+  const viewerPoolRevenue = await getViewerPoolRevenue(periodStart, periodEnd);
+  const creatorPool = roundMoney(viewerPoolRevenue * VIEWER_CREATOR_SPLIT);
+  const storyTimeRetained = roundMoney(viewerPoolRevenue - creatorPool);
 
-  if (viewerSubRevenue <= 0) {
-    return { ok: true, skipped: true, periodKey, reason: "no_viewer_subscription_revenue" };
+  if (viewerPoolRevenue <= 0) {
+    return { ok: true, skipped: true, periodKey, reason: "no_viewer_pool_revenue" };
   }
 
   if (creatorPool <= 0) {
@@ -120,7 +120,7 @@ export async function distributeCreatorPoolForPeriod(
 
   const allocations = allocateByWatchShare(creatorPool, watchRows);
   if (allocations.length === 0) {
-    return { ok: true, skipped: true, periodKey, reason: "no_watch_time", viewerSubRevenue, creatorPool };
+    return { ok: true, skipped: true, periodKey, reason: "no_watch_time", viewerSubRevenue: viewerPoolRevenue, creatorPool };
   }
 
   const treasuryUserId = await getPlatformTreasuryUserId();
@@ -128,16 +128,27 @@ export async function distributeCreatorPoolForPeriod(
 
   const treasuryWallet = await db.wallet.findUnique({
     where: { userId: treasuryUserId },
-    select: { availableBalance: true },
+    select: { id: true, availableBalance: true, accounts: { where: { accountType: "CREATOR_REVENUE" } } },
   });
   const totalDistributed = roundMoney(allocations.reduce((sum, row) => sum + row.amount, 0));
   const treasuryAvailable = Number(treasuryWallet?.availableBalance ?? 0);
+  const creatorPoolHeld = Number(treasuryWallet?.accounts?.[0]?.balance ?? 0);
+  if (creatorPoolHeld + 0.001 < totalDistributed) {
+    return {
+      ok: false,
+      periodKey,
+      reason: "insufficient_creator_pool_balance",
+      viewerSubRevenue: viewerPoolRevenue,
+      creatorPool,
+      totalDistributed,
+    };
+  }
   if (treasuryAvailable + 0.001 < totalDistributed) {
     return {
       ok: false,
       periodKey,
       reason: "insufficient_treasury_balance",
-      viewerSubRevenue,
+      viewerSubRevenue: viewerPoolRevenue,
       creatorPool,
       totalDistributed,
     };
@@ -153,10 +164,18 @@ export async function distributeCreatorPoolForPeriod(
         periodKey,
         watchTime: allocation.watchTime,
         share: allocation.share,
-        viewerSubRevenue,
+        viewerSubRevenue: viewerPoolRevenue,
         creatorPool,
       },
       entries: [
+        {
+          userId: treasuryUserId,
+          direction: "DEBIT",
+          accountType: "CREATOR_REVENUE",
+          transactionType: "creator_pool_payout",
+          amount: allocation.amount,
+          description: `Creator pool allocation ${periodKey}`,
+        },
         {
           userId: treasuryUserId,
           direction: "DEBIT",
@@ -172,6 +191,14 @@ export async function distributeCreatorPoolForPeriod(
           transactionType: "creator_earnings",
           amount: allocation.amount,
           description: `Viewer subscription pool ${periodKey}`,
+        },
+        {
+          userId: treasuryUserId,
+          direction: "CREDIT",
+          accountType: "LOCKED",
+          transactionType: "creator_pool_balance",
+          amount: allocation.amount,
+          description: "Creator pool ledger balance",
         },
       ],
     });
@@ -196,18 +223,18 @@ export async function distributeCreatorPoolForPeriod(
   if (existingPlatformRevenue) {
     await prisma.platformRevenue.update({
       where: { id: existingPlatformRevenue.id },
-      data: { amount: viewerSubRevenue },
+      data: { amount: viewerPoolRevenue },
     });
   } else {
     await prisma.platformRevenue.create({
-      data: { period: periodKey, amount: viewerSubRevenue },
+      data: { period: periodKey, amount: viewerPoolRevenue },
     });
   }
 
   return {
     ok: true,
     periodKey,
-    viewerSubRevenue,
+    viewerSubRevenue: viewerPoolRevenue,
     creatorPool,
     storyTimeRetained,
     creatorsPaid: allocations.length,

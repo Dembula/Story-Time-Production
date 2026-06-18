@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-
-const LISTING_FEE = 99.99;
+import { initializeCheckout } from "@/lib/payments/billing";
+import { buildPaymentReturnUrl } from "@/lib/payments/return-url";
+import { AUDITION_LISTING_FEE_ZAR } from "@/lib/pricing";
 
 async function ensureCreatorForProject(projectId: string) {
   const session = await getServerSession(authOptions);
@@ -22,7 +23,12 @@ async function ensureCreatorForProject(projectId: string) {
     project.members.some((m) => m.userId === userId) ||
     project.pitches.some((p) => p.creatorId === userId);
   if (!isCreatorMember) return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }), userId: null as string | null };
-  return { error: null as NextResponse | null, userId, email: session.user?.email ?? null };
+  return {
+    error: null as NextResponse | null,
+    userId,
+    email: session.user?.email ?? null,
+    name: session.user?.name ?? null,
+  };
 }
 
 export async function POST(req: NextRequest, context: { params: Promise<{ projectId: string }> }) {
@@ -51,52 +57,53 @@ export async function POST(req: NextRequest, context: { params: Promise<{ projec
     return NextResponse.json({ error: "No casting agencies available for broadcast" }, { status: 400 });
   }
 
-  const payment = await prisma.paymentRecord.create({
-    data: {
+  const existingListing = await prisma.castingInvitation.findFirst({
+    where: {
+      projectId,
+      roleId: role.id,
+      creatorId,
+      message: { contains: "Listing fee paid" },
+    },
+    select: { id: true },
+  });
+  if (existingListing) {
+    return NextResponse.json({ error: "This role has already been advertised." }, { status: 409 });
+  }
+
+  try {
+    const { checkout, paymentRecord } = await initializeCheckout({
       userId: creatorId,
-      provider: "DISABLED",
-      purpose: "AUDITION_LISTING",
-      status: "SUCCEEDED",
-      amount: LISTING_FEE,
-      currency: "ZAR",
       email: access.email,
-      paidAt: new Date(),
+      customerName: access.name,
+      amount: AUDITION_LISTING_FEE_ZAR,
+      purpose: "AUDITION_LISTING",
+      referenceType: "CastingRole",
+      referenceId: role.id,
+      returnUrl: buildPaymentReturnUrl(
+        `/creator/projects/${projectId}/pre-production/casting`,
+        "audition_listing",
+      ),
       metadata: {
         kind: "AUDITION_LISTING",
         roleId: role.id,
+        roleName: role.name,
         projectId,
+        creatorId,
         scheduledAt: body.scheduledAt ?? null,
         details: body.details ?? null,
-      } as any,
-    },
-  });
+      },
+    });
 
-  const msgParts = [
-    `Audition listing for role "${role.name}".`,
-    body.scheduledAt ? `Scheduled: ${body.scheduledAt}` : null,
-    body.details ? `Details: ${body.details}` : null,
-    `Listing fee paid: R${LISTING_FEE.toFixed(2)}.`,
-  ].filter(Boolean);
-
-  const created = await prisma.$transaction(
-    agencies.map((agency) =>
-      prisma.castingInvitation.create({
-        data: {
-          projectId,
-          roleId: role.id,
-          creatorId,
-          castingAgencyId: agency.id,
-          message: msgParts.join(" "),
-          status: "PENDING",
-        },
-      }),
-    ),
-  );
-
-  return NextResponse.json({
-    ok: true,
-    listingFee: LISTING_FEE,
-    paymentId: payment.id,
-    invitationsCreated: created.length,
-  });
+    return NextResponse.json({
+      ok: true,
+      requiresPayment: true,
+      listingFee: AUDITION_LISTING_FEE_ZAR,
+      paymentId: paymentRecord.id,
+      checkoutUrl: checkout.checkoutUrl,
+      paymentRecordId: paymentRecord.id,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to initialize checkout.";
+    return NextResponse.json({ error: message }, { status: 502 });
+  }
 }

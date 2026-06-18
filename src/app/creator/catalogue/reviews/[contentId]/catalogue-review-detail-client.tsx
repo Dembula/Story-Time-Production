@@ -122,10 +122,14 @@ export function CatalogueReviewDetailClient({ contentId }: { contentId: string }
 
         <div className="flex flex-wrap gap-3">
           <Link
-            href="/creator/upload"
+            href={data.reviewStatus === "REJECTED" || data.reviewStatus === "CHANGES_REQUESTED"
+              ? `/creator/upload?contentId=${data.id}`
+              : "/creator/upload"}
             className="inline-flex items-center justify-center rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-orange-600"
           >
-            Catalogue upload
+            {data.reviewStatus === "REJECTED" || data.reviewStatus === "CHANGES_REQUESTED"
+              ? "Revise & resubmit"
+              : "Catalogue upload"}
           </Link>
           {data.linkedProject && (
             <Link

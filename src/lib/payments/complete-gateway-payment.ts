@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { DEMO_PAYMENT_PROVIDER } from "@/lib/payments/config";
 import { recordGatewayEventIfNew } from "@/lib/payments/idempotency";
 import { applyPaymentRecordSettlementEffects } from "@/lib/payments/settlement-effects";
-import { creditTreasuryFromGatewayPayment } from "@/lib/payments/treasury-inflow";
+import { allocateGatewayPaymentLedger } from "@/lib/payments/gateway-allocation";
 
 const db = prisma as any;
 
@@ -70,21 +70,24 @@ export async function completeGatewayPayment(
     signatureVerified: provider === DEMO_PAYMENT_PROVIDER,
   });
 
-  await creditTreasuryFromGatewayPayment({
+  await allocateGatewayPaymentLedger({
     id: paymentRecordId,
     amount: payment.amount,
+    purpose: payment.purpose,
     relatedEntityType: payment.relatedEntityType,
     relatedEntityId: payment.relatedEntityId,
   }).catch((err: unknown) => {
-    console.error("treasury inflow skipped", err);
+    console.error("gateway allocation skipped", err);
   });
 
   await applyPaymentRecordSettlementEffects({
     id: paymentRecordId,
+    userId: payment.userId,
     purpose: payment.purpose,
     amount: payment.amount,
     relatedEntityType: payment.relatedEntityType,
     relatedEntityId: payment.relatedEntityId,
+    metadata: payment.metadata,
   });
 
   return { ok: true, paymentRecordId };

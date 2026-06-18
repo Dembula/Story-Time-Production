@@ -1,9 +1,12 @@
 # Payments Launch Checklist
 
 ## Credentials and webhooks
-- Configure PayFast merchant credentials (`PAYFAST_MERCHANT_ID`, `PAYFAST_MERCHANT_KEY`, `PAYFAST_PASSPHRASE`) once integration is complete.
-- Register HTTPS ITN/webhook URL: `https://<your-domain>/api/payments/webhooks/payfast`.
-- Return URL after checkout should land on `/payments/return` with `?pr=<paymentRecordId>` for status polling.
+- Configure PayFast: `PAYFAST_MERCHANT_ID`, `PAYFAST_MERCHANT_KEY`, `PAYFAST_PASSPHRASE`
+- Set `PAYMENTS_DEMO_MODE=false` on production
+- Set `NEXTAUTH_URL=https://story-time.online`
+- ITN notify URL (sent per checkout + can register in PayFast): `https://story-time.online/api/payments/webhooks/payfast`
+- Return/cancel URLs are sent per checkout to `https://story-time.online/payments/return`
+- Optional cron: `CRON_SECRET` (Vercel Cron Bearer token), `SUBSCRIPTION_BILLING_CRON_TOKEN`
 
 ## Database and backfills
 - Run `npx prisma migrate deploy`.

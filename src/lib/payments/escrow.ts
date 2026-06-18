@@ -73,6 +73,23 @@ export async function releaseEscrow(args: {
     (await db.user.findFirst({ where: { role: "ADMIN" }, select: { id: true } })) ??
     ({ id: buyerWallet.userId } as { id: string });
   await ensureWalletForUser(treasuryUser.id);
+
+  const marketplaceTypes = new Set([
+    "EquipmentRequest",
+    "LocationBooking",
+    "CateringBooking",
+    "CrewTeamRequest",
+    "CastingInquiry",
+  ]);
+  const isMarketplace = marketplaceTypes.has(escrow.referenceType);
+
+  if (isMarketplace) {
+    return db.escrowAccount.update({
+      where: { id: escrow.id },
+      data: { status: "RELEASED", releasedAt: new Date() },
+    });
+  }
+
   const { fee, net } = netAfterPlatformFee(escrow.amount);
 
   await postBalancedLedgerBatch({

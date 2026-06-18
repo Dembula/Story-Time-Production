@@ -34,6 +34,7 @@ export async function POST(
     return NextResponse.json({
       success: true,
       requiresPayment: true,
+      awaitingGatewayConfirmation: result.awaitingGatewayConfirmation ?? false,
       checkoutUrl: result.checkoutUrl,
       paymentRecordId: result.paymentRecordId,
       baseAmount: result.baseAmount,

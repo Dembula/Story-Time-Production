@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import {
   CREATOR_ONBOARDING_PLANS,
+  CREATOR_PER_FILM_UPLOAD_PRICE,
   CREATOR_PIPELINE_MONTHLY_ANNUAL_TOTAL,
   CREATOR_PIPELINE_YEARLY_SAVINGS_VS_12_MONTHLY,
   CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY,
@@ -25,7 +26,7 @@ import { defaultSuiteAccessOpen } from "@/lib/creator-suite-access";
 import { formatZar } from "@/lib/format-currency-zar";
 import { CheckoutModal } from "@/components/payments/checkout-modal";
 
-type CreatorPackage = "UPLOAD_ONLY" | "PIPELINE";
+type CreatorPackage = "PER_FILM" | "UPLOAD_YEARLY" | "PIPELINE";
 type PipelineBilling = "YEARLY" | "MONTHLY";
 
 function SelectionCheck({ active }: { active: boolean }) {
@@ -47,9 +48,9 @@ function SelectionCheck({ active }: { active: boolean }) {
 export function LicenseClient() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [pkg, setPkg] = useState<CreatorPackage>("UPLOAD_ONLY");
+  const [pkg, setPkg] = useState<CreatorPackage>("PER_FILM");
   const [pipelineBilling, setPipelineBilling] = useState<PipelineBilling>("YEARLY");
-  const [expanded, setExpanded] = useState<string | null>("UPLOAD_ONLY");
+  const [expanded, setExpanded] = useState<string | null>("PER_FILM");
   const [promoCode, setPromoCode] = useState("");
   const [promoMessage, setPromoMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -59,17 +60,15 @@ export function LicenseClient() {
   const [redirectAfterCheckout, setRedirectAfterCheckout] = useState("/creator/dashboard");
 
   const selectedPrice = useMemo(() => {
-    if (pkg === "UPLOAD_ONLY") return CREATOR_ONBOARDING_PLANS.UPLOAD_ONLY.price;
+    if (pkg === "PER_FILM") return 0;
+    if (pkg === "UPLOAD_YEARLY") return CREATOR_ONBOARDING_PLANS.UPLOAD_YEARLY.price;
     return pipelineBilling === "YEARLY"
       ? CREATOR_ONBOARDING_PLANS.PIPELINE_YEARLY.price
       : CREATOR_ONBOARDING_PLANS.PIPELINE_MONTHLY.price;
   }, [pkg, pipelineBilling]);
 
-  const selectedInterval = pkg === "UPLOAD_ONLY"
-    ? "year"
-    : pipelineBilling === "YEARLY"
-      ? "year"
-      : "month";
+  const selectedInterval =
+    pkg === "PER_FILM" ? "film" : pkg === "UPLOAD_YEARLY" ? "year" : pipelineBilling === "YEARLY" ? "year" : "month";
 
   async function submit() {
     setError("");
@@ -80,9 +79,11 @@ export function LicenseClient() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
-          pkg === "UPLOAD_ONLY"
-            ? { package: "UPLOAD_ONLY", promoCode }
-            : { package: "PIPELINE", billing: pipelineBilling, promoCode },
+          pkg === "PER_FILM"
+            ? { package: "PER_FILM", promoCode }
+            : pkg === "UPLOAD_YEARLY"
+              ? { package: "UPLOAD_YEARLY", promoCode }
+              : { package: "PIPELINE", billing: pipelineBilling, promoCode },
         ),
       });
       const data = await res.json().catch(() => ({}));
@@ -136,10 +137,10 @@ export function LicenseClient() {
       <div className="grid gap-4 md:grid-cols-3">
         <div className="storytime-kpi p-4">
           <p className="flex items-center gap-2 text-xs uppercase tracking-wide text-slate-500">
-            <Film className="h-4 w-4" /> Distribution
+            <Film className="h-4 w-4" /> Catalogue
           </p>
           <p className="mt-1 text-sm text-slate-300">
-            Every plan includes catalogue upload, Originals, and analytics — the difference is whether you use our in-app production pipeline.
+            Pay per film or choose unlimited yearly uploads. Pipeline tools are only on the full studio plan.
           </p>
         </div>
         <div className="storytime-kpi p-4">
@@ -147,7 +148,7 @@ export function LicenseClient() {
             <Workflow className="h-4 w-4" /> Pipeline
           </p>
           <p className="mt-1 text-sm text-slate-300">
-            Full pipeline unlocks Pre-production, Production, and Post-production in the sidebar and linked project workspaces.
+            Full pipeline unlocks Pre-production, Production, and Post-production workspaces.
           </p>
         </div>
         <div className="storytime-kpi p-4">
@@ -155,42 +156,42 @@ export function LicenseClient() {
             <ShieldCheck className="h-4 w-4" /> Billing
           </p>
           <p className="mt-1 text-sm text-slate-300">
-            Pay yearly upfront for the best rate, or choose monthly pipeline billing with secure checkout.
+            Per-film billing happens at upload. Yearly and pipeline plans use secure checkout now.
           </p>
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Upload-only */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* Pay per film */}
         <div
-          data-selected={pkg === "UPLOAD_ONLY"}
+          data-selected={pkg === "PER_FILM"}
           className={`storytime-plan-card flex h-full flex-col p-6 transition duration-200 ${
-            pkg === "UPLOAD_ONLY" ? "border-orange-400/50 bg-orange-500/10 shadow-glow ring-1 ring-orange-400/25" : "hover:border-white/15"
+            pkg === "PER_FILM" ? "border-orange-400/50 bg-orange-500/10 shadow-glow ring-1 ring-orange-400/25" : "hover:border-white/15"
           }`}
         >
-          <button type="button" onClick={() => setPkg("UPLOAD_ONLY")} className="flex w-full flex-col text-left">
+          <button type="button" onClick={() => setPkg("PER_FILM")} className="flex w-full flex-col text-left">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="mb-3 inline-flex w-fit items-center gap-1 rounded-full border border-sky-400/25 bg-sky-500/10 px-3 py-1 text-xs font-medium text-sky-200">
-                  <Clapperboard className="h-3.5 w-3.5" /> Upload focus
+                  <Film className="h-3.5 w-3.5" /> Pay as you go
                 </div>
-                <h3 className="text-2xl font-semibold text-white">Upload &amp; originals</h3>
+                <h3 className="text-2xl font-semibold text-white">Pay per film</h3>
               </div>
-              <SelectionCheck active={pkg === "UPLOAD_ONLY"} />
+              <SelectionCheck active={pkg === "PER_FILM"} />
             </div>
             <p className="mt-2 text-sm text-slate-400">
-              For creators who only release on Story Time. Sidebar hides the production pipeline; you keep uploads, Originals, network, messages, and analytics.
+              Catalogue upload only. Pay {formatZar(CREATOR_PER_FILM_UPLOAD_PRICE)} each time you submit a new title for review. Resubmissions after rejection are free.
             </p>
             <p className="mt-6 text-4xl font-bold text-white">
-              {formatZar(CREATOR_ONBOARDING_PLANS.UPLOAD_ONLY.price)}
-              <span className="ml-1 text-sm font-normal text-slate-400">/year</span>
+              {formatZar(CREATOR_PER_FILM_UPLOAD_PRICE)}
+              <span className="ml-1 text-sm font-normal text-slate-400">/film</span>
             </p>
             <ul className="mt-5 space-y-2 text-sm text-slate-300">
               {[
-                "Catalogue upload & distribution workflow",
+                "Catalogue upload & distribution",
                 "Originals submissions",
                 "Analytics & audience insights",
-                "No Pre / Production / Post sidebar sections",
+                "No production pipeline access",
               ].map((b) => (
                 <li key={b} className="flex items-center gap-2">
                   <Check className="h-4 w-4 shrink-0 text-emerald-400" />
@@ -201,16 +202,71 @@ export function LicenseClient() {
           </button>
           <button
             type="button"
-            onClick={() => setExpanded((c) => (c === "UPLOAD_ONLY" ? null : "UPLOAD_ONLY"))}
+            onClick={() => setExpanded((c) => (c === "PER_FILM" ? null : "PER_FILM"))}
             className="mt-5 flex items-center justify-between rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3 text-sm text-slate-300 hover:bg-white/[0.05]"
           >
             <span>More detail</span>
-            {expanded === "UPLOAD_ONLY" ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            {expanded === "PER_FILM" ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           </button>
-          {expanded === "UPLOAD_ONLY" ? (
-            <div className="mt-3 space-y-2 rounded-xl border border-white/8 bg-white/[0.03] p-4 text-sm text-slate-400">
+          {expanded === "PER_FILM" ? (
+            <div className="mt-3 rounded-xl border border-white/8 bg-white/[0.03] p-4 text-sm text-slate-400">
               <p>
-                Best if you already shoot offline and only need a polished home for your film on Story Time — without budgeting, scheduling, or breakdown tools in-app.
+                Best for filmmakers releasing one or two titles a year. Payment is collected at submission — your film enters review only after successful payment.
+              </p>
+            </div>
+          ) : null}
+        </div>
+
+        {/* Catalogue unlimited yearly */}
+        <div
+          data-selected={pkg === "UPLOAD_YEARLY"}
+          className={`storytime-plan-card flex h-full flex-col p-6 transition duration-200 ${
+            pkg === "UPLOAD_YEARLY" ? "border-orange-400/50 bg-orange-500/10 shadow-glow ring-1 ring-orange-400/25" : "hover:border-white/15"
+          }`}
+        >
+          <button type="button" onClick={() => setPkg("UPLOAD_YEARLY")} className="flex w-full flex-col text-left">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="mb-3 inline-flex w-fit items-center gap-1 rounded-full border border-emerald-400/25 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-200">
+                  <Clapperboard className="h-3.5 w-3.5" /> Unlimited
+                </div>
+                <h3 className="text-2xl font-semibold text-white">Catalogue unlimited</h3>
+              </div>
+              <SelectionCheck active={pkg === "UPLOAD_YEARLY"} />
+            </div>
+            <p className="mt-2 text-sm text-slate-400">
+              Unlimited catalogue uploads for 12 months. Same distribution features as pay-per-film, without a fee on each submission.
+            </p>
+            <p className="mt-6 text-4xl font-bold text-white">
+              {formatZar(CREATOR_ONBOARDING_PLANS.UPLOAD_YEARLY.price)}
+              <span className="ml-1 text-sm font-normal text-slate-400">/year</span>
+            </p>
+            <ul className="mt-5 space-y-2 text-sm text-slate-300">
+              {[
+                "Unlimited catalogue submissions",
+                "Originals & analytics",
+                "No per-film upload fees",
+                "No production pipeline access",
+              ].map((b) => (
+                <li key={b} className="flex items-center gap-2">
+                  <Check className="h-4 w-4 shrink-0 text-emerald-400" />
+                  {b}
+                </li>
+              ))}
+            </ul>
+          </button>
+          <button
+            type="button"
+            onClick={() => setExpanded((c) => (c === "UPLOAD_YEARLY" ? null : "UPLOAD_YEARLY"))}
+            className="mt-5 flex items-center justify-between rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3 text-sm text-slate-300 hover:bg-white/[0.05]"
+          >
+            <span>More detail</span>
+            {expanded === "UPLOAD_YEARLY" ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </button>
+          {expanded === "UPLOAD_YEARLY" ? (
+            <div className="mt-3 rounded-xl border border-white/8 bg-white/[0.03] p-4 text-sm text-slate-400">
+              <p>
+                Ideal if you release multiple films or series in a year. One annual payment covers every catalogue submission during your license period.
               </p>
             </div>
           ) : null}
@@ -234,7 +290,7 @@ export function LicenseClient() {
               <SelectionCheck active={pkg === "PIPELINE"} />
             </div>
             <p className="mt-2 text-sm text-slate-400">
-              Everything in the upload plan, plus Pre-production, Production, and Post-production tools, project workspaces, and linked workflows.
+              Unlimited uploads plus Pre-production, Production, and Post-production tools and project workspaces.
             </p>
           </button>
 
@@ -259,21 +315,13 @@ export function LicenseClient() {
                   <span className="h-5 w-5 shrink-0 rounded-md border border-white/15" aria-hidden />
                 )}
               </div>
-              <div className="mt-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-400/95">
-                  Save {formatZar(CREATOR_PIPELINE_YEARLY_SAVINGS_VS_12_MONTHLY)}
-                </p>
-                <p className="mt-1 text-sm text-slate-500">
-                  <span className="line-through decoration-slate-600">
-                    {formatZar(CREATOR_PIPELINE_MONTHLY_ANNUAL_TOTAL)}
-                  </span>
-                  <span className="ml-1.5 text-[11px] text-slate-600">(12 × monthly)</span>
-                </p>
-                <p className="mt-1 text-2xl font-bold text-white">
-                  {formatZar(CREATOR_ONBOARDING_PLANS.PIPELINE_YEARLY.price)}
-                  <span className="text-xs font-normal text-slate-400">/year</span>
-                </p>
-              </div>
+              <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-emerald-400/95">
+                Save {formatZar(CREATOR_PIPELINE_YEARLY_SAVINGS_VS_12_MONTHLY)}
+              </p>
+              <p className="mt-1 text-2xl font-bold text-white">
+                {formatZar(CREATOR_ONBOARDING_PLANS.PIPELINE_YEARLY.price)}
+                <span className="text-xs font-normal text-slate-400">/year</span>
+              </p>
             </button>
             <button
               type="button"
@@ -304,9 +352,9 @@ export function LicenseClient() {
 
           <ul className="mt-5 space-y-2 text-sm text-slate-300">
             {[
-              "All upload & originals features",
+              "Unlimited catalogue uploads",
               "Pre-production, production & post sidebar",
-              "Per-project workspace tools (breakdown, schedule, etc.)",
+              "Per-project workspace tools",
             ].map((b) => (
               <li key={b} className="flex items-center gap-2">
                 <Check className="h-4 w-4 shrink-0 text-emerald-400" />
@@ -314,81 +362,6 @@ export function LicenseClient() {
               </li>
             ))}
           </ul>
-
-          <button
-            type="button"
-            onClick={() => setExpanded((c) => (c === "PIPELINE" ? null : "PIPELINE"))}
-            className="mt-5 flex w-full items-center justify-between rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3 text-sm text-slate-300 hover:bg-white/[0.05]"
-          >
-            <span>More details</span>
-            {expanded === "PIPELINE" ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-          </button>
-          {expanded === "PIPELINE" ? (
-            <div className="mt-3 space-y-5 rounded-xl border border-white/8 bg-white/[0.03] p-4 text-sm text-slate-400">
-              <p>
-                The full pipeline plan keeps Story Time as your film&apos;s home from prep through delivery: the same distribution
-                features as the upload plan, plus every in-app production phase and per-project workspace we expose to creators.
-              </p>
-
-              <div>
-                <p className="font-medium text-slate-200">Everything in Upload &amp; originals</p>
-                <ul className="mt-2 list-inside list-disc space-y-1.5 pl-0.5 marker:text-slate-600">
-                  <li>Catalogue upload and distribution workflow for your releases</li>
-                  <li>Originals submissions and title management</li>
-                  <li>Analytics, audience insights, and creator-facing account tools</li>
-                  <li>Network, messages, and dashboard access</li>
-                </ul>
-              </div>
-
-              <div>
-                <p className="font-medium text-slate-200">Pipeline in the sidebar</p>
-                <ul className="mt-2 list-inside list-disc space-y-1.5 pl-0.5 marker:text-slate-600">
-                  <li>
-                    <strong className="font-medium text-slate-300">Pre-Production</strong> — hub for prep tools, casting and crew
-                    shortcuts, and jumping into a project&apos;s pre-production workspace
-                  </li>
-                  <li>
-                    <strong className="font-medium text-slate-300">Production</strong> — shoot-focused hub: control center, call sheets,
-                    dailies, on-set tasks, expenses, continuity, wrap, and linked project routes
-                  </li>
-                  <li>
-                    <strong className="font-medium text-slate-300">Post-Production</strong> — editorial and finishing hub (ingest
-                    through mix, packaging) with paths into each project&apos;s post tools and distribution
-                  </li>
-                </ul>
-              </div>
-
-              <div>
-                <p className="font-medium text-slate-200">Per-project workspace tools</p>
-                <p className="mt-2">
-                  Each project opens a dedicated workspace with phase tabs. You can work through the same pipeline in one place, for
-                  example:
-                </p>
-                <ul className="mt-2 list-inside list-disc space-y-1.5 pl-0.5 marker:text-slate-600">
-                  <li>
-                    <strong className="font-medium text-slate-300">Pre-production:</strong> idea and script development, script review,
-                    breakdown, budget builder, production scheduling, casting portal, crew and location marketplaces, equipment
-                    planning, visual planning, legal and contracts, funding hub, table reads, production workspace,
-                    risk and insurance, and readiness checks
-                  </li>
-                  <li>
-                    <strong className="font-medium text-slate-300">Production:</strong> control center, call sheets, on-set tasks,
-                    equipment tracking, shoot progress, continuity, dailies review, expense tracker, incident reporting, and wrap
-                  </li>
-                  <li>
-                    <strong className="font-medium text-slate-300">Post-production:</strong> footage ingestion, editing studio, sound
-                    design, music scoring, visual effects, color grading, final sound mix, final cut approval, film packaging, and
-                    project distribution handoff
-                  </li>
-                </ul>
-              </div>
-
-              <p className="text-xs text-slate-500">
-                Exact screens evolve as we ship updates; your license is for the full creator pipeline as it exists in the product,
-                including new tools added under these areas.
-              </p>
-            </div>
-          ) : null}
         </div>
       </div>
 
@@ -399,28 +372,36 @@ export function LicenseClient() {
               <Check className="h-5 w-5" strokeWidth={2.5} aria-hidden />
             </div>
             <div>
-            <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Your selection</p>
-            <h2 className="mt-2 text-xl font-semibold text-white">
-              {pkg === "UPLOAD_ONLY"
-                ? "Upload & originals"
-                : pipelineBilling === "YEARLY"
-                  ? "Full pipeline · Yearly"
-                  : "Full pipeline · Monthly"}
-            </h2>
-            <p className="mt-1 text-sm text-slate-400">
-              {pkg === "UPLOAD_ONLY"
-                ? "Pipeline sections stay hidden in the creator sidebar."
-                : "All pipeline menus and project tools are available after onboarding."}
-            </p>
+              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Your selection</p>
+              <h2 className="mt-2 text-xl font-semibold text-white">
+                {pkg === "PER_FILM"
+                  ? "Pay per film"
+                  : pkg === "UPLOAD_YEARLY"
+                    ? "Catalogue unlimited"
+                    : pipelineBilling === "YEARLY"
+                      ? "Full pipeline · Yearly"
+                      : "Full pipeline · Monthly"}
+              </h2>
+              <p className="mt-1 text-sm text-slate-400">
+                {pkg === "PER_FILM"
+                  ? `You pay ${formatZar(CREATOR_PER_FILM_UPLOAD_PRICE)} at each new film submission.`
+                  : pkg === "UPLOAD_YEARLY"
+                    ? "Unlimited uploads for 12 months. Pipeline sections stay hidden."
+                    : "All pipeline menus and project tools are available after onboarding."}
+              </p>
             </div>
           </div>
           <div className="rounded-2xl border border-orange-400/20 bg-orange-500/10 px-4 py-3 text-right">
             <p className="text-xs uppercase tracking-wide text-orange-200/80">Due now</p>
             <p className="mt-1 text-3xl font-bold text-white">
-              {formatZar(selectedPrice)}
-              <span className="text-sm font-normal text-slate-400">
-                {selectedInterval === "year" ? "/year" : "/month"}
-              </span>
+              {pkg === "PER_FILM" ? formatZar(0) : formatZar(selectedPrice)}
+              {pkg !== "PER_FILM" ? (
+                <span className="text-sm font-normal text-slate-400">
+                  {selectedInterval === "year" ? "/year" : "/month"}
+                </span>
+              ) : (
+                <span className="ml-2 text-sm font-normal text-slate-400">at upload</span>
+              )}
             </p>
           </div>
         </div>
@@ -436,7 +417,7 @@ export function LicenseClient() {
             value={promoCode}
             onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
             placeholder="e.g. CREATOR100"
-            className="w-full px-3 py-2 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm"
+            className="w-full rounded-lg border border-slate-600 bg-slate-900/50 px-3 py-2 text-sm text-white"
           />
         </div>
         {promoMessage ? <p className="mt-3 text-xs text-emerald-400">{promoMessage}</p> : null}

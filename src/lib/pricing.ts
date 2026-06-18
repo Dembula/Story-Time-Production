@@ -37,10 +37,14 @@ export function getViewerPlanConfigById(plan?: string | null) {
 
 /** Stored in CreatorDistributionLicense.type */
 export const CREATOR_LICENSE_TYPE = {
-  UPLOAD_ONLY_YEARLY: "CREATOR_UPLOAD_ONLY_R99_Y",
+  PER_FILM: "CREATOR_PER_FILM_R99_99",
+  UPLOAD_ONLY_YEARLY: "CREATOR_UPLOAD_ONLY_R599_Y",
   PIPELINE_YEARLY: "CREATOR_PIPELINE_R1999_Y",
   PIPELINE_MONTHLY: "CREATOR_PIPELINE_R209_M",
 } as const;
+
+/** One-time fee per catalogue film submission (pay-per-film plan). */
+export const CREATOR_PER_FILM_UPLOAD_PRICE = 99.99;
 
 /** React Query key — invalidate/set after license POST so sidebar & gates see fresh access. */
 export const CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY = ["creator-distribution-license"] as const;
@@ -48,11 +52,28 @@ export const CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY = ["creator-distribution-lic
 export const CREATOR_STUDIO_PROFILES_QUERY_KEY = ["creator-studio-profiles"] as const;
 
 export const CREATOR_ONBOARDING_PLANS = {
+  PER_FILM: {
+    id: "PER_FILM" as const,
+    label: "Pay per film",
+    headline: "Catalogue upload only — pay when you submit each title",
+    price: CREATOR_PER_FILM_UPLOAD_PRICE,
+    interval: "film" as const,
+    includesPipeline: false,
+  },
+  UPLOAD_YEARLY: {
+    id: "UPLOAD_YEARLY" as const,
+    label: "Catalogue unlimited",
+    headline: "Unlimited catalogue uploads for one year",
+    price: 599.99,
+    interval: "year" as const,
+    includesPipeline: false,
+  },
+  /** @deprecated Use UPLOAD_YEARLY — kept for imports that still reference UPLOAD_ONLY */
   UPLOAD_ONLY: {
-    id: "UPLOAD_ONLY" as const,
-    label: "Upload & originals",
-    headline: "For filmmakers who only distribute on Story Time",
-    price: 99.99,
+    id: "UPLOAD_YEARLY" as const,
+    label: "Catalogue unlimited",
+    headline: "Unlimited catalogue uploads for one year",
+    price: 599.99,
     interval: "year" as const,
     includesPipeline: false,
   },
@@ -85,12 +106,16 @@ export const CREATOR_PIPELINE_YEARLY_SAVINGS_VS_12_MONTHLY =
 /** Legacy config — kept for old license strings & music creator flow. */
 export const CREATOR_LICENSE_CONFIG = {
   YEARLY: {
-    label: "Yearly distribution license",
-    price: CREATOR_ONBOARDING_PLANS.UPLOAD_ONLY.price,
+    label: "Yearly catalogue license",
+    price: CREATOR_ONBOARDING_PLANS.UPLOAD_YEARLY.price,
+  },
+  PER_FILM: {
+    label: "Pay per film",
+    price: CREATOR_PER_FILM_UPLOAD_PRICE,
   },
   PER_UPLOAD: {
-    label: "Pay per upload (legacy)",
-    price: 24.99,
+    label: "Pay per film",
+    price: CREATOR_PER_FILM_UPLOAD_PRICE,
   },
 } as const;
 
@@ -99,6 +124,7 @@ export function creatorHasPipelineAccess(rawType: string | null | undefined): bo
   if (!rawType) return false;
   if (rawType.startsWith("CREATOR_PIPELINE_")) return true;
   if (rawType.startsWith("CREATOR_UPLOAD_")) return false;
+  if (rawType.startsWith("CREATOR_PER_FILM")) return false;
   if (
     rawType === "PER_UPLOAD" ||
     rawType === "PER_UPLOAD_R10" ||
@@ -111,22 +137,38 @@ export function creatorHasPipelineAccess(rawType: string | null | undefined): bo
   return false;
 }
 
-export function isCreatorPerUploadLicense(rawType: string | null | undefined): boolean {
+export function isCreatorPerFilmLicense(rawType: string | null | undefined): boolean {
   if (!rawType) return false;
+  if (rawType === CREATOR_LICENSE_TYPE.PER_FILM) return true;
   return (
     rawType === "PER_UPLOAD" ||
     rawType === "PER_UPLOAD_R10" ||
     rawType === "PER_UPLOAD_R24_99" ||
-    rawType.includes("PER_UPLOAD")
+    rawType.includes("PER_UPLOAD") ||
+    rawType.includes("PER_FILM")
   );
+}
+
+/** @deprecated Use isCreatorPerFilmLicense */
+export function isCreatorPerUploadLicense(rawType: string | null | undefined): boolean {
+  return isCreatorPerFilmLicense(rawType);
+}
+
+export function isCreatorYearlyCatalogueLicense(rawType: string | null | undefined): boolean {
+  if (!rawType) return false;
+  if (rawType === CREATOR_LICENSE_TYPE.UPLOAD_ONLY_YEARLY) return true;
+  if (rawType === "CREATOR_UPLOAD_ONLY_R99_Y") return true;
+  return rawType === "YEARLY" || rawType === "YEARLY_R89";
 }
 
 /** License period still valid (uses yearlyExpiresAt for all timed plans). */
 export function isCreatorLicensePeriodActive(license: {
   type: string;
   yearlyExpiresAt: Date | string | null;
+  status?: string | null;
 }): boolean {
-  if (isCreatorPerUploadLicense(license.type)) return true;
+  if (license.status === "CANCELLED" || license.status === "PAST_DUE") return false;
+  if (isCreatorPerFilmLicense(license.type)) return true;
   if (!license.yearlyExpiresAt) return true;
   const end = new Date(license.yearlyExpiresAt);
   return end.getTime() > Date.now();
@@ -134,19 +176,23 @@ export function isCreatorLicensePeriodActive(license: {
 
 export function normalizeCreatorLicenseType(type?: string | null) {
   if (!type) return "YEARLY" as const;
-  if (isCreatorPerUploadLicense(type)) return "PER_UPLOAD" as const;
+  if (isCreatorPerFilmLicense(type)) return "PER_FILM" as const;
   return "YEARLY" as const;
 }
 
 export function getCreatorLicenseConfig(type?: string | null) {
-  return CREATOR_LICENSE_CONFIG[normalizeCreatorLicenseType(type)];
+  const normalized = normalizeCreatorLicenseType(type);
+  if (normalized === "PER_FILM") return CREATOR_LICENSE_CONFIG.PER_FILM;
+  return CREATOR_LICENSE_CONFIG.YEARLY;
 }
 
 export function formatCreatorLicenseSummary(rawType: string | null | undefined): string {
   if (!rawType) return "No plan";
   switch (rawType) {
+    case CREATOR_LICENSE_TYPE.PER_FILM:
+      return `Pay per film · ${formatZar(CREATOR_PER_FILM_UPLOAD_PRICE)} per submission`;
     case CREATOR_LICENSE_TYPE.UPLOAD_ONLY_YEARLY:
-      return `Upload & originals · ${formatZar(CREATOR_ONBOARDING_PLANS.UPLOAD_ONLY.price)}/year`;
+      return `Catalogue unlimited · ${formatZar(CREATOR_ONBOARDING_PLANS.UPLOAD_YEARLY.price)}/year`;
     case CREATOR_LICENSE_TYPE.PIPELINE_YEARLY:
       return `Full pipeline · ${formatZar(CREATOR_ONBOARDING_PLANS.PIPELINE_YEARLY.price)}/year`;
     case CREATOR_LICENSE_TYPE.PIPELINE_MONTHLY:
@@ -154,11 +200,14 @@ export function formatCreatorLicenseSummary(rawType: string | null | undefined):
     default:
       break;
   }
-  if (isCreatorPerUploadLicense(rawType)) {
-    return `Legacy · Pay per upload (${formatZar(CREATOR_LICENSE_CONFIG.PER_UPLOAD.price)})`;
+  if (isCreatorPerFilmLicense(rawType)) {
+    return `Pay per film · ${formatZar(CREATOR_PER_FILM_UPLOAD_PRICE)} per submission`;
+  }
+  if (rawType === "CREATOR_UPLOAD_ONLY_R99_Y") {
+    return `Catalogue unlimited · ${formatZar(CREATOR_ONBOARDING_PLANS.UPLOAD_YEARLY.price)}/year`;
   }
   if (rawType === "YEARLY" || rawType === "YEARLY_R89") {
-    return `Legacy · Yearly (${formatZar(CREATOR_LICENSE_CONFIG.YEARLY.price)})`;
+    return `Catalogue unlimited · ${formatZar(CREATOR_LICENSE_CONFIG.YEARLY.price)}/year`;
   }
   return rawType;
 }

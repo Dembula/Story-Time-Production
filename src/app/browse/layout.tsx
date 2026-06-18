@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { SubscriptionExpiredModal } from "./subscription-expired-modal";
 import { ViewerSuggestionsTrigger } from "./viewer-suggestions-trigger";
 import { cookies, headers } from "next/headers";
-import { getLatestViewerSubscription, getViewerModel, isViewerSubscriptionExpired, subscriptionPaymentRequired } from "@/lib/viewer-access";
+import { getLatestViewerSubscription, getViewerModel, subscriptionNeedsReactivation } from "@/lib/viewer-access";
 import { isViewerAccountOnboardingComplete } from "@/lib/viewer-account-onboarding";
 import { isViewerProfilePinUnlocked } from "@/lib/viewer-profile-access";
 
@@ -38,7 +38,7 @@ export default async function BrowseLayout({
       if (!sub) {
         redirect("/onboarding/package");
       }
-      if (getViewerModel(sub) === "SUBSCRIPTION" && subscriptionPaymentRequired(sub)) {
+      if (getViewerModel(sub) === "SUBSCRIPTION" && subscriptionNeedsReactivation(sub)) {
         redirect("/profiles?payment=required");
       }
       const cookieStore = await cookies();
@@ -56,7 +56,7 @@ export default async function BrowseLayout({
           redirect("/profiles?verify=1");
         }
       }
-      subscriptionExpired = getViewerModel(sub) === "SUBSCRIPTION" ? isViewerSubscriptionExpired(sub) : false;
+      subscriptionExpired = getViewerModel(sub) === "SUBSCRIPTION" ? subscriptionNeedsReactivation(sub) : false;
     } catch {
       // DB unreachable (e.g. wrong port or Neon suspended): still render layout
     }

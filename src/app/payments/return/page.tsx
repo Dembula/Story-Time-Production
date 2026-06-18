@@ -13,12 +13,18 @@ function PaymentsReturnContent() {
   const paymentRecordId = params.get("pr") || "";
   const [resolvedStatus, setResolvedStatus] = useState(status);
 
-  // Belt-and-suspenders: if user lands with success but DB still pending, try demo complete once.
+  // Demo only: if user lands with success but DB still pending, try demo complete once.
   useEffect(() => {
     if (status !== "success" || !paymentRecordId) return;
     let cancelled = false;
     (async () => {
       try {
+        const statusRes = await fetch(`/api/payments/status?paymentRecordId=${encodeURIComponent(paymentRecordId)}`, {
+          cache: "no-store",
+        });
+        const statusData = await statusRes.json().catch(() => ({}));
+        if (statusData?.gatewayMode !== "demo") return;
+
         const res = await fetch("/api/payments/demo/complete", {
           method: "POST",
           headers: { "Content-Type": "application/json" },

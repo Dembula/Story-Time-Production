@@ -34,9 +34,12 @@ const PLAN_LABELS: Record<string, string> = {
 export function AccountClient({ subscription }: { subscription: Subscription }) {
   const [renewing, setRenewing] = useState(false);
   const [renewError, setRenewError] = useState("");
+  const [cancelLoading, setCancelLoading] = useState(false);
+  const [cancelMessage, setCancelMessage] = useState("");
   const isActive = subscription && (subscription.status === "ACTIVE" || subscription.status === "TRIAL_ACTIVE");
   const isTrial = subscription?.status === "TRIAL_ACTIVE";
   const isPpv = subscription?.viewerModel === "PPV";
+  const canManageSubscription = !isPpv && isActive;
 
   async function retryRenewal() {
     setRenewError("");
@@ -50,6 +53,45 @@ export function AccountClient({ subscription }: { subscription: Subscription }) 
       setRenewError(error instanceof Error ? error.message : "Renewal failed");
     } finally {
       setRenewing(false);
+    }
+  }
+
+  async function manageCancellation(cancelAtPeriodEnd: boolean) {
+    setCancelMessage("");
+    setCancelLoading(true);
+    try {
+      const res = await fetch("/api/viewer/subscription/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cancelAtPeriodEnd }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Unable to update subscription");
+      setCancelMessage(data.message || (cancelAtPeriodEnd ? "Cancellation scheduled." : "Subscription cancelled."));
+      window.location.reload();
+    } catch (error) {
+      setCancelMessage(error instanceof Error ? error.message : "Unable to update subscription");
+    } finally {
+      setCancelLoading(false);
+    }
+  }
+
+  async function resumeSubscription() {
+    setCancelLoading(true);
+    setCancelMessage("");
+    try {
+      const res = await fetch("/api/viewer/subscription/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "resume" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Unable to resume subscription");
+      window.location.reload();
+    } catch (error) {
+      setCancelMessage(error instanceof Error ? error.message : "Unable to resume subscription");
+    } finally {
+      setCancelLoading(false);
     }
   }
 
@@ -108,9 +150,14 @@ export function AccountClient({ subscription }: { subscription: Subscription }) 
           )}
           {subscription.currentPeriodEnd && !isTrial && (
             <span className="flex items-center gap-1.5">
-              <Calendar className="w-4 h-4" /> Renews {new Date(subscription.currentPeriodEnd).toLocaleDateString()}
+              <Calendar className="w-4 h-4" />{" "}
+              {subscription.cancelAtPeriodEnd ? "Access until" : "Renews"}{" "}
+              {new Date(subscription.currentPeriodEnd).toLocaleDateString()}
             </span>
           )}
+          {subscription.cancelAtPeriodEnd ? (
+            <span className="text-amber-300 text-sm">Cancellation scheduled at period end</span>
+          ) : null}
           {subscription.paymentMethodLabel && (
             <span className="flex items-center gap-1.5">
               <CreditCard className="w-4 h-4" /> {subscription.paymentMethodLabel}
@@ -127,7 +174,12 @@ export function AccountClient({ subscription }: { subscription: Subscription }) 
             {renewError}
           </div>
         ) : null}
-        <div className="mt-4 flex gap-3">
+        {cancelMessage ? (
+          <div className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-200">
+            {cancelMessage}
+          </div>
+        ) : null}
+        <div className="mt-4 flex flex-wrap gap-3">
           <Link href="/onboarding/package" className="inline-flex items-center gap-2 rounded-xl bg-orange-500/12 px-4 py-2.5 text-sm font-medium text-orange-300 hover:bg-orange-500/18">
             <RefreshCw className="w-4 h-4" /> {isPpv ? "Change viewer model" : "Change plan"}
           </Link>
@@ -146,6 +198,26 @@ export function AccountClient({ subscription }: { subscription: Subscription }) 
             <Link href="/browse/account/renew" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm font-medium text-slate-300 hover:bg-white/[0.05]">
               Add payment method
             </Link>
+          ) : null}
+          {canManageSubscription && !subscription.cancelAtPeriodEnd ? (
+            <button
+              type="button"
+              onClick={() => manageCancellation(true)}
+              disabled={cancelLoading}
+              className="inline-flex items-center gap-2 rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-2.5 text-sm font-medium text-red-300 hover:bg-red-500/15 disabled:opacity-50"
+            >
+              Cancel at period end
+            </button>
+          ) : null}
+          {canManageSubscription && subscription.cancelAtPeriodEnd ? (
+            <button
+              type="button"
+              onClick={resumeSubscription}
+              disabled={cancelLoading}
+              className="inline-flex items-center gap-2 rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-2.5 text-sm font-medium text-emerald-300 hover:bg-emerald-500/15 disabled:opacity-50"
+            >
+              Keep subscription
+            </button>
           ) : null}
         </div>
       </div>

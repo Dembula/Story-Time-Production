@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { initializeCheckout } from "@/lib/payments/billing";
+import { buildPaymentReturnUrl } from "@/lib/payments/return-url";
+import { EXECUTIVE_SCRIPT_REVIEW_FEE_ZAR } from "@/lib/pricing";
 
 export async function GET(
   req: NextRequest,
@@ -21,10 +24,7 @@ export async function GET(
       where: { userId, projectId },
     }),
     prisma.scriptReviewRequest.findMany({
-      where:
-        role === "ADMIN"
-          ? { projectId }
-          : { projectId, requesterId: userId },
+      where: role === "ADMIN" ? { projectId } : { projectId, requesterId: userId },
       orderBy: { submittedAt: "desc" },
       take: 10,
       include: {
@@ -101,26 +101,19 @@ export async function POST(
     scriptVersionId = latestScript?.id ?? null;
   }
 
-  const amount = 599.99;
-
-  const payment = await prisma.paymentRecord.create({
-    data: {
-      userId,
-      provider: "DISABLED",
-      purpose: "SCRIPT_REVIEW",
-      status: "SUCCEEDED",
-      amount,
-      currency: "ZAR",
-      email: session.user?.email ?? null,
-      paidAt: new Date(),
-      metadata: {
-        kind: "SCRIPT_REVIEW",
-        projectId,
-        requesterId: userId,
-        scriptVersionId,
-      } as any,
+  const openRequest = await prisma.scriptReviewRequest.findFirst({
+    where: {
+      projectId,
+      requesterId: userId,
+      status: { in: ["AWAITING_PAYMENT", "PENDING_ADMIN_REVIEW", "IN_REVIEW"] },
     },
+    select: { id: true },
   });
+  if (openRequest) {
+    return NextResponse.json({ error: "You already have an open script review request for this project." }, { status: 409 });
+  }
+
+  const amount = EXECUTIVE_SCRIPT_REVIEW_FEE_ZAR;
 
   const requestRecord = await prisma.scriptReviewRequest.create({
     data: {
@@ -128,25 +121,48 @@ export async function POST(
       scriptVersionId,
       requesterId: userId,
       feeAmount: amount,
-      paymentId: payment.id,
-      status: "PENDING_ADMIN_REVIEW",
+      status: "AWAITING_PAYMENT",
     },
   });
 
-  await prisma.notification.create({
-    data: {
-      userId, // could be routed to admins; for now notify requester
-      type: "CONTRACT_EVENT",
-      title: "Executive script review requested",
-      body: `Your script for "${project.title}" has been submitted for Story Time Executive Script Review.`,
-      metadata: JSON.stringify({
+  try {
+    const { checkout, paymentRecord } = await initializeCheckout({
+      userId,
+      email: session.user?.email,
+      customerName: session.user?.name,
+      amount,
+      purpose: "SCRIPT_REVIEW",
+      referenceType: "ScriptReviewRequest",
+      referenceId: requestRecord.id,
+      returnUrl: buildPaymentReturnUrl(
+        `/creator/projects/${projectId}/pre-production/script-review`,
+        "script_review",
+      ),
+      metadata: {
         projectId,
+        projectTitle: project.title,
+        scriptVersionId,
         reviewRequestId: requestRecord.id,
-      }),
-    },
-  });
+      },
+    });
 
-  return NextResponse.json({ review: requestRecord });
+    await prisma.scriptReviewRequest.update({
+      where: { id: requestRecord.id },
+      data: { paymentId: paymentRecord.id },
+    });
+
+    return NextResponse.json({
+      review: requestRecord,
+      requiresPayment: true,
+      checkoutUrl: checkout.checkoutUrl,
+      paymentRecordId: paymentRecord.id,
+      feeAmount: amount,
+    });
+  } catch (error) {
+    await prisma.scriptReviewRequest.delete({ where: { id: requestRecord.id } }).catch(() => {});
+    const message = error instanceof Error ? error.message : "Unable to initialize checkout.";
+    return NextResponse.json({ error: message }, { status: 502 });
+  }
 }
 
 export async function PATCH(
@@ -162,11 +178,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = (await req.json().catch(() => null)) as
-    | {
-        notesBody?: string;
-      }
-    | null;
+  const body = (await req.json().catch(() => null)) as { notesBody?: string } | null;
 
   if (!body?.notesBody && body?.notesBody !== "") {
     return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
@@ -191,4 +203,3 @@ export async function PATCH(
 
   return NextResponse.json({ notes: note });
 }
-

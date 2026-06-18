@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getPaymentGateway } from "@/lib/payments/gateway";
 import { calculatePlatformTransactionFee } from "@/lib/payments/fees";
+import { STORYTIME_TRANSACTION_FEE_LABEL } from "@/lib/payments/config";
 import { toGatewaySafeReference } from "@/lib/payments/reference";
 import { PAYMENT_PROVIDER } from "@/lib/payments/config";
 import { appendPaymentRecordToReturnUrl } from "@/lib/payments/return-url";
@@ -8,6 +9,17 @@ const db = prisma as any;
 
 function generateInvoiceNumber(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+}
+
+const PURPOSE_LABELS: Record<string, string> = {
+  SCRIPT_REVIEW: "Story Time Executive Script Review",
+  CASTING_ACQUISITION_FEE: "Casting acquisition fee",
+  AUDITION_LISTING: "Audition listing fee",
+};
+
+function invoiceLineDescription(purpose: string, isMarketplace: boolean) {
+  if (isMarketplace) return purpose.replace(/_/g, " ");
+  return PURPOSE_LABELS[purpose] ?? purpose.replace(/_/g, " ");
 }
 
 export async function initializeCheckout(args: {
@@ -22,14 +34,44 @@ export async function initializeCheckout(args: {
   metadata?: Record<string, unknown>;
 }) {
   const platformFeeAmount = calculatePlatformTransactionFee(args.amount);
+  const marketplaceMeta = args.metadata ?? {};
+  const isMarketplace = marketplaceMeta.marketplace === true;
+  const baseAmount = typeof marketplaceMeta.baseAmount === "number" ? marketplaceMeta.baseAmount : args.amount;
+  const marketplaceFee =
+    typeof marketplaceMeta.feeAmount === "number" ? marketplaceMeta.feeAmount : 0;
+
+  const invoiceLines = isMarketplace && marketplaceFee > 0
+    ? [
+        {
+          description: invoiceLineDescription(args.purpose, isMarketplace),
+          quantity: 1,
+          unitAmount: baseAmount,
+          totalAmount: baseAmount,
+        },
+        {
+          description: STORYTIME_TRANSACTION_FEE_LABEL,
+          quantity: 1,
+          unitAmount: marketplaceFee,
+          totalAmount: marketplaceFee,
+        },
+      ]
+    : [
+        {
+          description: invoiceLineDescription(args.purpose, false),
+          quantity: 1,
+          unitAmount: args.amount,
+          totalAmount: args.amount,
+        },
+      ];
+
   const invoice = await db.invoice.create({
     data: {
       userId: args.userId,
       invoiceNumber: generateInvoiceNumber("INV"),
       status: "PENDING",
       currency: "ZAR",
-      subtotalAmount: args.amount,
-      platformFeeAmount,
+      subtotalAmount: isMarketplace ? baseAmount : args.amount,
+      platformFeeAmount: isMarketplace ? marketplaceFee : platformFeeAmount,
       totalAmount: args.amount,
       metadata: {
         purpose: args.purpose,
@@ -38,14 +80,7 @@ export async function initializeCheckout(args: {
         ...(args.metadata ?? {}),
       },
       lines: {
-        create: [
-          {
-            description: args.purpose,
-            quantity: 1,
-            unitAmount: args.amount,
-            totalAmount: args.amount,
-          },
-        ],
+        create: invoiceLines,
       },
     },
   });
@@ -61,7 +96,7 @@ export async function initializeCheckout(args: {
       email: args.email ?? undefined,
       relatedEntityType: args.referenceType,
       relatedEntityId: args.referenceId,
-      metadata: { invoiceId: invoice.id, ...(args.metadata ?? {}) },
+      metadata: { invoiceId: invoice.id, returnUrl: args.returnUrl, ...(args.metadata ?? {}) },
     },
   });
 

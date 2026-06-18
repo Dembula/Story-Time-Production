@@ -4,7 +4,7 @@ import { StoryTimeLoader, StoryTimeLoadingCenter } from "@/components/ui/storyti
 import { useEffect, useState } from "react";
 import { formatZar } from "@/lib/format-currency-zar";
 import { ADMIN_DASHBOARD_REFETCH_MS } from "@/lib/dashboard-refresh";
-import { COMPANY_PLAN_CONFIG, CREATOR_LICENSE_CONFIG, CREATOR_ONBOARDING_PLANS } from "@/lib/pricing";
+import { COMPANY_PLAN_CONFIG, CREATOR_LICENSE_CONFIG, CREATOR_ONBOARDING_PLANS, CREATOR_PER_FILM_UPLOAD_PRICE } from "@/lib/pricing";
 import {
   DollarSign, TrendingUp, Users, Film, Music, PieChart, BarChart3,
   ArrowUpRight, ArrowDownRight, Percent, Wallet, Banknote, Building2,
@@ -124,25 +124,26 @@ export function AdminRevenueClient() {
           <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6">
             <h3 className="text-white font-semibold mb-4 flex items-center gap-2"><PieChart className="w-5 h-5 text-orange-400" /> Revenue Split Breakdown</h3>
             <p className="text-sm text-slate-400 mb-4">
-              How the monthly {formatZar(p.revenuePool, { maximumFractionDigits: 0 })} pool is distributed. Creators earn proportional to their share of total platform watch time.
+              Viewer subscription revenue splits <strong className="text-slate-300">60% creator pool</strong> /{" "}
+              <strong className="text-slate-300">40% Story Time</strong>. The creator pool below is allocated by watch-time
+              proportion across the period.
             </p>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="p-4 rounded-xl bg-green-500/5 border border-green-500/20">
-                <p className="text-xs text-green-400 uppercase tracking-wider mb-1">Creator Share (70%)</p>
-                <p className="text-2xl font-bold text-green-400">{formatZar(p.revenuePool * 0.7)}</p>
+                <p className="text-xs text-green-400 uppercase tracking-wider mb-1">Creator pool (60%)</p>
+                <p className="text-2xl font-bold text-green-400">{formatZar(p.creatorPool)}</p>
                 <p className="text-xs text-slate-500 mt-1">Divided by watch-time proportion</p>
               </div>
               <div className="p-4 rounded-xl bg-blue-500/5 border border-blue-500/20">
-                <p className="text-xs text-blue-400 uppercase tracking-wider mb-1">Platform Operations (20%)</p>
-                <p className="text-2xl font-bold text-blue-400">{formatZar(p.revenuePool * 0.2)}</p>
-                <p className="text-xs text-slate-500 mt-1">Infrastructure, CDN, support</p>
-              </div>
-              <div className="p-4 rounded-xl bg-purple-500/5 border border-purple-500/20">
-                <p className="text-xs text-purple-400 uppercase tracking-wider mb-1">Growth Fund (10%)</p>
-                <p className="text-2xl font-bold text-purple-400">{formatZar(p.revenuePool * 0.1)}</p>
-                <p className="text-xs text-slate-500 mt-1">Marketing, student films partnerships, development</p>
+                <p className="text-xs text-blue-400 uppercase tracking-wider mb-1">Story Time retained (40%)</p>
+                <p className="text-2xl font-bold text-blue-400">{formatZar(p.platformCut)}</p>
+                <p className="text-xs text-slate-500 mt-1">Platform operations from viewer subscriptions</p>
               </div>
             </div>
+            <p className="text-xs text-slate-500 mt-4">
+              Marketplace (3%), script review, casting fees, creator licences, and company subscriptions are booked separately as
+              Story Time platform revenue — not part of this viewer pool.
+            </p>
           </div>
 
           <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6">
@@ -150,8 +151,11 @@ export function AdminRevenueClient() {
             <div className="bg-slate-900/50 rounded-lg p-4 font-mono text-sm text-slate-300 space-y-1">
               <p>Creator Revenue = (Creator Watch Time / Total Watch Time) × Creator Pool</p>
               <p className="text-xs text-slate-500">
-                Creator Pool = Revenue Pool × 0.70 = {formatZar(p.revenuePool, { maximumFractionDigits: 0 })} × 0.70 ={" "}
-                {formatZar(p.revenuePool * 0.7)}
+                Creator Pool = Viewer Pool Revenue × 0.60 = {formatZar(data?.viewerSub?.viewerSubRevenue ?? p.revenuePool, { maximumFractionDigits: 0 })} × 0.60 ={" "}
+                {formatZar(p.creatorPool)}
+              </p>
+              <p className="text-xs text-slate-500">
+                Story Time share = Viewer Pool Revenue × 0.40 = {formatZar(data?.viewerSub?.storyTimeFromSubs ?? p.platformCut)}
               </p>
               <p className="text-xs text-slate-500">Total Watch Time This Period = {Math.floor(p.totalWatchTime / 3600)}h {Math.floor((p.totalWatchTime % 3600) / 60)}m</p>
             </div>
@@ -283,10 +287,10 @@ export function AdminRevenueClient() {
       {tab === "financials" && (
         <div className="space-y-6">
           <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6">
-            <h3 className="text-white font-semibold mb-4">Viewer subscription split (60% creators / 40% Story Time)</h3>
+            <h3 className="text-white font-semibold mb-4">Viewer pool split — subscriptions + PPV (60% creators / 40% Story Time)</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="p-4 rounded-xl bg-slate-800/40 border border-slate-700/30">
-                <p className="text-xs text-slate-500 mb-1">Viewer sub revenue (ZAR)</p>
+                <p className="text-xs text-slate-500 mb-1">Viewer pool revenue (ZAR)</p>
                 <p className="text-2xl font-bold text-white">{formatZar(data?.viewerSub?.viewerSubRevenue ?? 0)}</p>
               </div>
               <div className="p-4 rounded-xl bg-green-500/5 border border-green-500/20">
@@ -314,7 +318,8 @@ export function AdminRevenueClient() {
             </div>
             <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
               <p className="text-xs text-slate-400 mb-1">
-                Creator plans (upload {formatZar(CREATOR_ONBOARDING_PLANS.UPLOAD_ONLY.price)}/yr · pipeline{" "}
+                Creator plans (per film {formatZar(CREATOR_PER_FILM_UPLOAD_PRICE)} · catalogue unlimited{" "}
+                {formatZar(CREATOR_ONBOARDING_PLANS.UPLOAD_YEARLY.price)}/yr · pipeline{" "}
                 {formatZar(CREATOR_ONBOARDING_PLANS.PIPELINE_YEARLY.price)}/yr or {formatZar(CREATOR_ONBOARDING_PLANS.PIPELINE_MONTHLY.price)}/mo; legacy per-upload{" "}
                 {formatZar(CREATOR_LICENSE_CONFIG.PER_UPLOAD.price)})
               </p>

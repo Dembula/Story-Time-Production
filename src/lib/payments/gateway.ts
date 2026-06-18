@@ -4,6 +4,7 @@ import {
   isPayFastConfigured,
 } from "@/lib/payments/config";
 import { createDemoGateway } from "@/lib/payments/providers/demo";
+import { createPayFastGateway } from "@/lib/payments/providers/payfast";
 import { createUnconfiguredGateway } from "@/lib/payments/providers/unconfigured";
 
 export type GatewayCheckoutRequest = {
@@ -45,6 +46,7 @@ export interface PaymentGatewayAdapter {
     amount: number;
     currency: string;
     reference: string;
+    paymentRecordId?: string;
   }): Promise<{ provider: string; externalRef: string; status: "PENDING" | "COMPLETED" | "FAILED" }>;
   requestPayout(payload: GatewayPayoutRequest): Promise<{ provider: string; externalRef: string; status: string }>;
   verifyWebhookSignature(rawBody: string, getHeader: (name: string) => string | null): boolean;
@@ -52,8 +54,7 @@ export interface PaymentGatewayAdapter {
 
 export function getPaymentGateway(): PaymentGatewayAdapter {
   if (isPayFastConfigured()) {
-    // Live PayFast adapter ships when merchant credentials are configured.
-    return createUnconfiguredGateway();
+    return createPayFastGateway();
   }
   if (isDemoPaymentsMode()) {
     return createDemoGateway();

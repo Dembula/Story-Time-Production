@@ -29,7 +29,7 @@ export {
 } from "./marketplace-zar-defaults";
 
 /** Re-export creator pool primitives so callers can import marketplace + pool logic from one module. */
-export { getCreatorRevenue, getViewerSubscriptionRevenue, getPlatformStats } from "./revenue";
+export { getCreatorRevenue, getViewerPoolRevenue, getViewerSubscriptionRevenue, getPlatformStats } from "./revenue";
 
 /** Values stored on `Transaction.type` (see Prisma schema). */
 export const MARKETPLACE_TRANSACTION_TYPE = {

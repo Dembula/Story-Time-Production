@@ -8,8 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import Link from "next/link";
 import {
   CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY,
-  getCreatorLicenseConfig,
-  normalizeCreatorLicenseType,
+  formatCreatorLicenseSummary,
 } from "@/lib/pricing";
 import { formatZar } from "@/lib/format-currency-zar";
 import { isLongFormType } from "@/lib/content-types";
@@ -67,9 +66,7 @@ export function CreatorDashboardClient() {
           <h1 className="font-display text-3xl font-semibold tracking-tight text-white">Creator Dashboard</h1>
           {license && (
             <span className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-xs font-medium text-slate-300">
-              {normalizeCreatorLicenseType(license.type) === "YEARLY"
-                ? `Yearly license (${formatZar(getCreatorLicenseConfig("YEARLY").price)})`
-                : `Pay per upload (${formatZar(getCreatorLicenseConfig("PER_UPLOAD").price)})`}
+              {formatCreatorLicenseSummary(license.type)}
             </span>
           )}
         </div>
@@ -294,6 +291,13 @@ export function CreatorDashboardClient() {
                   {c.reviewStatus === "DRAFT" && (
                     <Link href="/creator/upload">
                       <Button size="sm" className="bg-orange-500 hover:bg-orange-600 text-white text-xs">Continue Editing</Button>
+                    </Link>
+                  )}
+                  {(c.reviewStatus === "REJECTED" || c.reviewStatus === "CHANGES_REQUESTED") && (
+                    <Link href={`/creator/upload?contentId=${c.id}`}>
+                      <Button size="sm" variant="outline" className="border-orange-400/30 text-orange-200 text-xs hover:bg-orange-500/10">
+                        Revise & resubmit
+                      </Button>
                     </Link>
                   )}
                 </div>

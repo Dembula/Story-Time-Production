@@ -1,5 +1,7 @@
 export const PAYMENT_CURRENCY = "ZAR";
+export const MARKETPLACE_TX_FEE_RATE = 0.03;
 export const PLATFORM_TX_FEE_RATE = 0.035;
+export const STORYTIME_TRANSACTION_FEE_LABEL = "Story Time transaction fee";
 export const VIEWER_CREATOR_SPLIT = 0.6;
 export const VIEWER_PLATFORM_SPLIT = 0.4;
 export const PAYMENT_PROVIDER = "PAYFAST";
@@ -21,7 +23,8 @@ export function roundMoney(amount: number): number {
 export function isPayFastConfigured(): boolean {
   return Boolean(
     process.env.PAYFAST_MERCHANT_ID?.trim() &&
-      process.env.PAYFAST_MERCHANT_KEY?.trim(),
+      process.env.PAYFAST_MERCHANT_KEY?.trim() &&
+      process.env.PAYFAST_PASSPHRASE?.trim(),
   );
 }
 

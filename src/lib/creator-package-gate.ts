@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { isCreatorLicensePeriodActive, isCreatorPerUploadLicense } from "@/lib/pricing";
+import { isCreatorLicensePeriodActive, isCreatorPerFilmLicense } from "@/lib/pricing";
 
 export type CreatorPackageGateReason = "no_license" | "payment_required" | "expired";
 
@@ -33,7 +33,7 @@ export function isCreatorOnboardingExemptPath(pathname: string, role?: string | 
 }
 
 export function creatorLicenseNeedsUpfrontPayment(type: string): boolean {
-  return !isCreatorPerUploadLicense(type);
+  return !isCreatorPerFilmLicense(type);
 }
 
 /** Whether the creator has selected a plan and satisfied payment (or valid per-upload terms). */
@@ -45,7 +45,7 @@ export async function getCreatorPackageStatus(
 
   const license = await prisma.creatorDistributionLicense.findUnique({
     where: { userId },
-    select: { id: true, type: true, yearlyExpiresAt: true },
+    select: { id: true, type: true, yearlyExpiresAt: true, status: true },
   });
 
   if (!license) {
@@ -62,7 +62,7 @@ export async function getCreatorPackageStatus(
     };
   }
 
-  if (isCreatorPerUploadLicense(license.type)) {
+  if (isCreatorPerFilmLicense(license.type)) {
     return {
       complete: true,
       onboardingPath,

@@ -13,7 +13,14 @@ type CheckoutModalProps = {
 };
 
 function isDemoCheckoutUrl(url: string) {
-  return url.includes("/payments/demo-checkout") || url.includes("/payments/mock-checkout");
+  return (
+    url.includes("/payments/demo-checkout") ||
+    url.includes("/payments/mock-checkout")
+  );
+}
+
+function isPayFastCheckoutUrl(url: string) {
+  return url.includes("/payments/payfast-checkout");
 }
 
 export function CheckoutModal({
@@ -25,6 +32,7 @@ export function CheckoutModal({
   onClose,
 }: CheckoutModalProps) {
   const demo = isDemoCheckoutUrl(checkoutUrl);
+  const payfast = isPayFastCheckoutUrl(checkoutUrl);
 
   useEffect(() => {
     if (!open || !checkoutUrl || typeof window === "undefined") return;
@@ -48,13 +56,16 @@ export function CheckoutModal({
                   : "border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
               }`}
             >
-              <ShieldCheck className="h-3.5 w-3.5" /> {demo ? "Demo checkout" : "Storytime secure pay"}
+              <ShieldCheck className="h-3.5 w-3.5" />{" "}
+              {demo ? "Demo checkout" : payfast ? "PayFast checkout" : "Storytime secure pay"}
             </p>
             <h3 className="mt-2 text-lg font-semibold text-white">{title}</h3>
             <p className="mt-1 text-sm text-slate-400">
               {demo
                 ? "PayFast is not live yet — you will complete a simulated payment (no real charge)."
-                : subtitle}
+                : payfast
+                  ? "You will be redirected to PayFast to pay by card, EFT, or other supported methods."
+                  : subtitle}
             </p>
           </div>
           <button
