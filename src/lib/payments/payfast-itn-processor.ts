@@ -10,7 +10,11 @@ import { parsePayFastSettlementFromItn } from "@/lib/payments/payfast-settlement
 import { findStoredItnWebhookForPayment } from "@/lib/payments/pending-gateway-payment";
 import { findPayFastTransactionByMPaymentId } from "@/lib/payments/providers/payfast-api-client";
 import { PAYFAST_VALIDATE_URL } from "@/lib/payments/providers/payfast-config";
-import { parsePayFastFormBody, verifyPayFastItnSignature } from "@/lib/payments/providers/payfast-signature";
+import {
+  buildPayFastItnValidatePayload,
+  parsePayFastFormBody,
+  verifyPayFastItnSignature,
+} from "@/lib/payments/providers/payfast-signature";
 
 const db = prisma as any;
 
@@ -68,10 +72,13 @@ async function persistPayFastItn(args: {
 
 async function validateItnWithPayFast(rawBody: string): Promise<boolean> {
   try {
+    const validatePayload = buildPayFastItnValidatePayload(rawBody);
+    if (!validatePayload) return false;
+
     const res = await fetch(PAYFAST_VALIDATE_URL, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: rawBody,
+      body: validatePayload,
     });
     const text = (await res.text()).trim();
     return text === "VALID";
@@ -139,7 +146,7 @@ export async function processPayFastItn(
   options?: { skipRemoteValidate?: boolean; requireSignature?: boolean },
 ): Promise<PayFastItnProcessResult> {
   const data = parsePayFastFormBody(rawBody);
-  const signatureVerified = verifyPayFastItnSignature(data, data.signature);
+  const signatureVerified = verifyPayFastItnSignature(data, data.signature, rawBody);
 
   const paymentRecordIdPreview = await resolvePaymentRecordIdFromPayFastItn(data);
 
@@ -382,7 +389,10 @@ export async function processPayFastReturnFields(
   if (!cleaned.m_payment_id) cleaned.m_payment_id = paymentRecordId;
   if (!cleaned.custom_str1) cleaned.custom_str1 = paymentRecordId;
 
-  const rawBody = new URLSearchParams(cleaned).toString();
+  const rawBody = Object.entries(cleaned)
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
+    .join("&");
+
   return processPayFastItn(rawBody, { skipRemoteValidate: true });
 }
 

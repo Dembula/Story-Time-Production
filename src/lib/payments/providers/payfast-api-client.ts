@@ -5,7 +5,7 @@ import {
   getPayFastPassphraseOrNull,
   PAYFAST_API_BASE,
 } from "@/lib/payments/providers/payfast-config";
-import { encodePayFastValue, omitEmptyPayFastFields } from "@/lib/payments/providers/payfast-signature";
+import { encodePayFastPhpUrlencode, omitEmptyPayFastFields } from "@/lib/payments/providers/payfast-signature";
 import { createHash } from "crypto";
 
 export type PayFastHistoryTransaction = {
@@ -32,7 +32,7 @@ export function generatePayFastApiSignature(data: Record<string, string>): strin
   const keys = Object.keys(cleaned).sort();
   const pairs: string[] = [];
   for (const key of keys) {
-    pairs.push(`${key}=${encodePayFastValue(String(cleaned[key]))}`);
+    pairs.push(`${key}=${encodePayFastPhpUrlencode(String(cleaned[key]), true)}`);
   }
   return createHash("md5").update(pairs.join("&")).digest("hex");
 }

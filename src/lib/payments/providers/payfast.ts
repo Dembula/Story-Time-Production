@@ -137,7 +137,7 @@ class PayFastGatewayAdapter implements PaymentGatewayAdapter {
 
   verifyWebhookSignature(rawBody: string, _getHeader: (name: string) => string | null): boolean {
     const data = parsePayFastFormBody(rawBody);
-    return verifyPayFastItnSignature(data, data.signature);
+    return verifyPayFastItnSignature(data, data.signature, rawBody);
   }
 }
 
