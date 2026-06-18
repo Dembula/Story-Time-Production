@@ -90,9 +90,34 @@ export async function allocateGatewayPaymentLedger(payment: {
       payment.relatedEntityId,
       full.userId,
     );
-    if (!resolved.ok) return;
-
-    const quote = resolved.quote;
+    let quote: {
+      buyerUserId: string;
+      sellerUserId: string;
+      baseAmount: number;
+      feeAmount: number;
+      totalAmount: number;
+    };
+    if (resolved.ok) {
+      quote = resolved.quote;
+    } else {
+      const existingTx = await (prisma as any).transaction.findFirst({
+        where: {
+          referenceId: payment.relatedEntityId,
+          payerId: full.userId,
+          status: "COMPLETED",
+          OR: [{ externalPaymentId: payment.id }, { externalPaymentId: null }],
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      if (!existingTx) return;
+      quote = {
+        buyerUserId: existingTx.payerId,
+        sellerUserId: existingTx.payeeId,
+        baseAmount: Number(existingTx.amount ?? 0),
+        feeAmount: Number(existingTx.feeAmount ?? 0),
+        totalAmount: Number(existingTx.totalAmount ?? 0),
+      };
+    }
     if (Math.abs(amount - quote.totalAmount) > 0.02) {
       console.error("marketplace gateway amount mismatch", payment.id, amount, quote.totalAmount);
       return;

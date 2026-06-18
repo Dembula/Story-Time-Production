@@ -33,7 +33,8 @@ export async function POST(req: NextRequest) {
 
   const data = parsePayFastFormBody(rawBody);
   const paymentStatus = (data.payment_status ?? "").toUpperCase();
-  const pfPaymentId = data.pf_payment_id ?? data.m_payment_id ?? "";
+  const mPaymentId = data.m_payment_id?.trim() || "";
+  const pfPaymentId = data.pf_payment_id?.trim() || "";
   const flow = data.custom_str2 ?? "";
 
   if (flow === "card_consent" && data.token) {
@@ -93,9 +94,31 @@ export async function POST(req: NextRequest) {
 
   if (paymentStatus !== "COMPLETE") {
     if (paymentStatus === "CANCELLED" || paymentStatus === "FAILED") {
+      const existing = await db.paymentRecord.findUnique({
+        where: { id: paymentRecordId },
+        select: { metadata: true, gatewayReference: true },
+      });
+      const metadata =
+        existing?.metadata && typeof existing.metadata === "object"
+          ? (existing.metadata as Record<string, unknown>)
+          : {};
       await db.paymentRecord.update({
         where: { id: paymentRecordId },
-        data: { status: paymentStatus === "CANCELLED" ? "CANCELLED" : "FAILED" },
+        data: {
+          status: paymentStatus === "CANCELLED" ? "CANCELLED" : "FAILED",
+          failedAt: new Date(),
+          failureReason: paymentStatus,
+          ...(mPaymentId && (!existing?.gatewayReference || existing.gatewayReference === mPaymentId)
+            ? { gatewayReference: mPaymentId }
+            : {}),
+          ...(pfPaymentId ? { gatewayTransactionId: pfPaymentId } : {}),
+          metadata: {
+            ...metadata,
+            payfastPaymentStatus: paymentStatus,
+            gatewayReference: mPaymentId || metadata.gatewayReference || null,
+            gatewayTransactionId: pfPaymentId || metadata.gatewayTransactionId || null,
+          },
+        },
       }).catch(() => {});
     }
     return new NextResponse("OK", { status: 200 });
@@ -115,8 +138,17 @@ export async function POST(req: NextRequest) {
   }
 
   const result = await completeGatewayPayment(paymentRecordId, {
-    reference: pfPaymentId,
+    reference: pfPaymentId || mPaymentId || paymentRecordId,
+    gatewayReference: mPaymentId || paymentRecordId,
+    gatewayTransactionId: pfPaymentId || undefined,
     provider: PAYMENT_PROVIDER,
+    signatureVerified: true,
+    payload: {
+      payfastPaymentStatus: paymentStatus,
+      amountGross: data.amount_gross ?? data.amount,
+      mPaymentId: mPaymentId || null,
+      pfPaymentId: pfPaymentId || null,
+    },
   });
 
   if (data.token && payment.userId && isPayFastChargeToken(data.token)) {

@@ -12,10 +12,22 @@ export type CompleteGatewayPaymentResult =
   | { ok: true; already?: boolean; paymentRecordId: string }
   | { ok: false; error: string; status: number };
 
+type CompleteGatewayPaymentOptions = {
+  /** Backwards-compatible gateway transaction/reference id. */
+  reference?: string;
+  /** Merchant reference sent to PayFast as m_payment_id. */
+  gatewayReference?: string;
+  /** PayFast's pf_payment_id or saved-card transaction id. */
+  gatewayTransactionId?: string;
+  provider?: string;
+  signatureVerified?: boolean;
+  payload?: Record<string, unknown>;
+};
+
 /** Mark a gateway payment SUCCEEDED and run treasury + domain settlement. */
 export async function completeGatewayPayment(
   paymentRecordId: string,
-  options?: { reference?: string; provider?: string },
+  options?: CompleteGatewayPaymentOptions,
 ): Promise<CompleteGatewayPaymentResult> {
   const payment = await db.paymentRecord.findUnique({
     where: { id: paymentRecordId },
@@ -25,31 +37,37 @@ export async function completeGatewayPayment(
     return { ok: false, error: "Payment not found.", status: 404 };
   }
 
-  if (payment.status === "SUCCEEDED") {
-    return { ok: true, already: true, paymentRecordId };
-  }
-
-  if (payment.status === "FAILED" || payment.status === "CANCELLED") {
-    return { ok: false, error: "Payment is no longer pending.", status: 409 };
-  }
-
   const now = new Date();
   const provider = options?.provider ?? payment.provider ?? DEMO_PAYMENT_PROVIDER;
   const metadata =
     payment.metadata && typeof payment.metadata === "object"
       ? (payment.metadata as Record<string, unknown>)
       : {};
+  const gatewayReference =
+    options?.gatewayReference ??
+    (typeof metadata.gatewayReference === "string" ? metadata.gatewayReference : null);
+  const gatewayTransactionId =
+    options?.gatewayTransactionId ??
+    options?.reference ??
+    (typeof metadata.gatewayTransactionId === "string" ? metadata.gatewayTransactionId : null);
 
-  await db.paymentRecord.update({
+  const updatedPayment = await db.paymentRecord.update({
     where: { id: paymentRecordId },
     data: {
       status: "SUCCEEDED",
-      paidAt: now,
+      paidAt: payment.paidAt ?? now,
+      failedAt: null,
+      failureReason: null,
       provider,
+      ...(gatewayReference && (!payment.gatewayReference || payment.gatewayReference === gatewayReference)
+        ? { gatewayReference }
+        : {}),
+      ...(gatewayTransactionId ? { gatewayTransactionId } : {}),
       metadata: {
         ...metadata,
-        demoCompletedAt: now.toISOString(),
-        gatewayReference: options?.reference ?? metadata.gatewayReference ?? null,
+        gatewayReference: gatewayReference ?? metadata.gatewayReference ?? null,
+        gatewayTransactionId: gatewayTransactionId ?? metadata.gatewayTransactionId ?? null,
+        gatewayCompletedAt: metadata.gatewayCompletedAt ?? now.toISOString(),
       },
     },
   });
@@ -65,9 +83,17 @@ export async function completeGatewayPayment(
   await recordGatewayEventIfNew({
     provider,
     eventType: "payment.succeeded",
-    eventId: options?.reference ?? paymentRecordId,
-    payload: { paymentRecordId, mode: provider === DEMO_PAYMENT_PROVIDER ? "demo" : "live" },
-    signatureVerified: provider === DEMO_PAYMENT_PROVIDER,
+    eventId: gatewayTransactionId ?? gatewayReference ?? paymentRecordId,
+    payload: {
+      paymentRecordId,
+      gatewayReference,
+      gatewayTransactionId,
+      mode: provider === DEMO_PAYMENT_PROVIDER ? "demo" : "live",
+      ...(options?.payload ?? {}),
+    },
+    signatureVerified: options?.signatureVerified ?? provider === DEMO_PAYMENT_PROVIDER,
+    processed: true,
+    processedAt: now,
   });
 
   await allocateGatewayPaymentLedger({
@@ -81,16 +107,18 @@ export async function completeGatewayPayment(
   });
 
   await applyPaymentRecordSettlementEffects({
-    id: paymentRecordId,
-    userId: payment.userId,
-    purpose: payment.purpose,
-    amount: payment.amount,
-    relatedEntityType: payment.relatedEntityType,
-    relatedEntityId: payment.relatedEntityId,
-    metadata: payment.metadata,
+    id: updatedPayment.id,
+    userId: updatedPayment.userId,
+    purpose: updatedPayment.purpose,
+    amount: updatedPayment.amount,
+    relatedEntityType: updatedPayment.relatedEntityType,
+    relatedEntityId: updatedPayment.relatedEntityId,
+    metadata: updatedPayment.metadata,
+    paidAt: updatedPayment.paidAt,
+    createdAt: updatedPayment.createdAt,
   });
 
-  return { ok: true, paymentRecordId };
+  return { ok: true, already: payment.status === "SUCCEEDED", paymentRecordId };
 }
 
 /** Mark a pending payment as failed (demo checkout cancel). */

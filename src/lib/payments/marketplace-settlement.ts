@@ -285,6 +285,23 @@ export async function finalizeMarketplaceGatewayPayment(paymentRecordId: string)
   }
 
   const entityType = record.relatedEntityType as MarketplaceEntityType;
+  const existingGatewayTransaction = await prisma.transaction.findFirst({
+    where: { externalPaymentId: paymentRecordId },
+    orderBy: { createdAt: "desc" },
+  });
+  if (existingGatewayTransaction) {
+    await attachTransactionToEntity(
+      { entityType, entityId: record.relatedEntityId } as MarketplaceSettlementQuote,
+      existingGatewayTransaction.id,
+    );
+    return {
+      ok: true as const,
+      transactionId: existingGatewayTransaction.id,
+      paymentMode: "gateway" as const,
+      alreadyPaid: true,
+    };
+  }
+
   const resolved = await resolveMarketplaceSettlement(entityType, record.relatedEntityId, record.userId);
   if (!resolved.ok) {
     if (resolved.error === "Already paid") return { ok: true as const, paymentMode: "gateway" as const, alreadyPaid: true };
@@ -294,6 +311,34 @@ export async function finalizeMarketplaceGatewayPayment(paymentRecordId: string)
   const quote = resolved.quote;
   if (Math.abs(record.amount - quote.totalAmount) > 0.02) {
     return { ok: false as const, error: "Payment amount mismatch" };
+  }
+
+  const matchingDetachedTransaction = await prisma.transaction.findFirst({
+    where: {
+      payerId: quote.buyerUserId,
+      payeeId: quote.sellerUserId,
+      referenceId: quote.entityId,
+      type: quote.transactionType,
+      status: "COMPLETED",
+      totalAmount: quote.totalAmount,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  if (matchingDetachedTransaction) {
+    await prisma.transaction.update({
+      where: { id: matchingDetachedTransaction.id },
+      data: {
+        externalPaymentId: paymentRecordId,
+        gatewayReference: record.gatewayTransactionId ?? record.gatewayReference ?? paymentRecordId,
+      },
+    }).catch(() => {});
+    await attachTransactionToEntity(quote, matchingDetachedTransaction.id);
+    return {
+      ok: true as const,
+      transactionId: matchingDetachedTransaction.id,
+      paymentMode: "gateway" as const,
+      alreadyPaid: true,
+    };
   }
 
   await postMarketplacePaymentAllocation({
@@ -345,6 +390,7 @@ export async function finalizeMarketplaceGatewayPayment(paymentRecordId: string)
       status: "COMPLETED",
       type: quote.transactionType,
       referenceId: quote.entityId,
+      gatewayReference: record.gatewayTransactionId ?? record.gatewayReference ?? paymentRecordId,
       externalPaymentId: paymentRecordId,
     },
   });
