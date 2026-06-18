@@ -3,6 +3,12 @@ import { buildPaymentReturnUrl } from "@/lib/payments/return-url";
 import { getPaymentGateway } from "@/lib/payments/gateway";
 import { completeGatewayPayment } from "@/lib/payments/complete-gateway-payment";
 import { PAYMENT_PROVIDER } from "@/lib/payments/config";
+import {
+  estimatePayFastFee,
+  estimatePayFastSettlement,
+  normalizePayFastMethodCode,
+  payFastMethodLabel,
+} from "@/lib/payments/payfast-settlement";
 import { prisma } from "@/lib/prisma";
 import {
   finalizeMarketplaceWalletPayment,
@@ -68,7 +74,18 @@ async function trySavedCardMarketplacePay(args: {
     });
 
     if (charge.status === "COMPLETED") {
-      await completeGatewayPayment(paymentRecord.id, { reference: charge.externalRef });
+      const methodCode = normalizePayFastMethodCode(tokenLookup?.cardType);
+      await completeGatewayPayment(paymentRecord.id, {
+        reference: charge.externalRef,
+        settlement: {
+          amountGross: args.quote.totalAmount,
+          providerFeeAmount: estimatePayFastFee(args.quote.totalAmount, methodCode),
+          settlementAmount: estimatePayFastSettlement(args.quote.totalAmount, methodCode),
+          providerPaymentMethod: methodCode,
+          providerPaymentMethodLabel: payFastMethodLabel(methodCode),
+          settlementSource: "estimated",
+        },
+      });
       return { mode: "completed", paymentRecordId: paymentRecord.id };
     }
 

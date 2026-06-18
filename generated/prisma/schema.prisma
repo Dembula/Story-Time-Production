@@ -1675,6 +1675,12 @@ model PaymentRecord {
   gatewayAccessCode       String?   @map("paystackAccessCode")
   gatewayAuthorizationUrl String?   @map("paystackAuthorizationUrl")
   gatewayTransactionId    String?   @map("paystackTransactionId")
+  providerPaymentId       String? // PayFast pf_payment_id from ITN
+  providerItnStatus       String? // Last ITN payment_status (COMPLETE, FAILED, etc.)
+  providerPaymentMethod   String? // PayFast payment_method code (cc, dc, ap, gp, …)
+  providerFeeAmount       Float? // PayFast processing fee (incl. VAT) deducted from gross
+  settlementAmount        Float? // Net amount credited to merchant after PayFast fees
+  settlementSource        String? // itn | estimated | demo
   customerCode            String?
   authorizationCode       String?
   paidAt                  DateTime?
@@ -1686,20 +1692,24 @@ model PaymentRecord {
   @@index([userId])
   @@index([purpose])
   @@index([status])
+  @@index([providerPaymentId])
 }
 
 model PaymentWebhookEvent {
-  id          String    @id @default(cuid())
-  provider    String    @default("PAYFAST")
-  eventType   String
-  eventId     String?
-  reference   String?
-  payload     Json?
-  processedAt DateTime?
-  createdAt   DateTime  @default(now())
+  id                String    @id @default(cuid())
+  provider          String    @default("PAYFAST")
+  eventType         String
+  eventId           String?
+  reference         String? // PaymentRecord id when known
+  payload           Json?
+  signatureVerified Boolean   @default(false)
+  processingError   String?
+  processedAt       DateTime?
+  createdAt         DateTime  @default(now())
 
   @@unique([provider, eventType, eventId])
   @@index([reference])
+  @@index([provider, reference])
 }
 
 model Wallet {

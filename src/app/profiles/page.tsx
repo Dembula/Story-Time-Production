@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ProfilesClient } from "./profiles-client";
 import { getLatestViewerSubscription, getViewerDeviceCount, getViewerModel, getViewerProfileLimit, subscriptionNeedsReactivation, subscriptionPaymentRequired } from "@/lib/viewer-access";
+import { hasPendingGatewayPayment } from "@/lib/payments/pending-gateway-payment";
 import { getViewerProfileAge } from "@/lib/viewer-profiles";
 import { isViewerAccountOnboardingComplete } from "@/lib/viewer-account-onboarding";
 import { isViewerProfilePinUnlocked } from "@/lib/viewer-profile-access";
@@ -33,7 +34,19 @@ export default async function ProfilesPage({
   const subscription = await getLatestViewerSubscription(session.user.id);
   if (!subscription) redirect("/onboarding/package");
 
-  const paymentRequired = subscriptionPaymentRequired(subscription);
+  const paymentStillProcessing = await hasPendingGatewayPayment("ViewerSubscription", subscription.id);
+  const pendingPayment = paymentStillProcessing
+    ? await prisma.paymentRecord.findFirst({
+        where: {
+          relatedEntityType: "ViewerSubscription",
+          relatedEntityId: subscription.id,
+          status: "PENDING",
+        },
+        select: { id: true },
+        orderBy: { createdAt: "desc" },
+      })
+    : null;
+  const paymentRequired = subscriptionPaymentRequired(subscription) && !paymentStillProcessing;
   const needsReactivation = subscriptionNeedsReactivation(subscription);
   const accountDetailsIncomplete = Boolean(userRecord && !isViewerAccountOnboardingComplete(userRecord));
   if (accountDetailsIncomplete && !onboardingDeferred && !paymentRequired) {
@@ -79,6 +92,8 @@ export default async function ProfilesPage({
           subscriptionStatus={subscription.status}
           needsReactivation={needsReactivation}
           paymentRequired={paymentRequired}
+          paymentStillProcessing={paymentStillProcessing}
+          pendingPaymentRecordId={pendingPayment?.id ?? null}
           initialProfiles={profiles.map((profile) => ({
             id: profile.id,
             name: profile.name,

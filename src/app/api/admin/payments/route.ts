@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { splitViewerRevenue } from "@/lib/payments/fees";
+import { getPaymentSettlementAmount } from "@/lib/payments/payfast-settlement";
 import { getPlatformTreasuryUserId } from "@/lib/payments/treasury-inflow";
 import { getWalletSnapshot } from "@/lib/payments/wallet";
 import { VIEWER_CREATOR_SPLIT, VIEWER_PLATFORM_SPLIT } from "@/lib/payments/config";
@@ -25,8 +26,19 @@ export async function GET(req: NextRequest) {
   const limit = Math.min(200, Number(req.nextUrl.searchParams.get("limit") ?? "100"));
   try {
     const [paymentRecords, transactions, payouts, escrows, gatewayEvents, invoices] = await Promise.all([
-      db.paymentRecord.findMany({ orderBy: { createdAt: "desc" }, take: limit }),
-      db.transaction.findMany({ orderBy: { createdAt: "desc" }, take: limit }),
+      db.paymentRecord.findMany({
+        orderBy: { createdAt: "desc" },
+        take: limit,
+        include: { user: { select: { id: true, name: true, email: true, role: true } } },
+      }),
+      db.transaction.findMany({
+        orderBy: { createdAt: "desc" },
+        take: limit,
+        include: {
+          payer: { select: { id: true, name: true, email: true, role: true } },
+          payee: { select: { id: true, name: true, email: true, role: true } },
+        },
+      }),
       db.payoutRequest.findMany({
         orderBy: { createdAt: "desc" },
         take: limit,
@@ -46,11 +58,34 @@ export async function GET(req: NextRequest) {
 
     const succeededPayments = paymentRecordsTyped.filter((p: any) => p.status === "SUCCEEDED");
     const grossInflow = succeededPayments.reduce((sum: number, p: any) => sum + Number(p.amount ?? 0), 0);
+    const netInflow = succeededPayments.reduce(
+      (sum: number, p: any) =>
+        sum +
+        getPaymentSettlementAmount({
+          amount: Number(p.amount ?? 0),
+          settlementAmount: p.settlementAmount != null ? Number(p.settlementAmount) : null,
+        }),
+      0,
+    );
+    const payfastFeesTotal = succeededPayments.reduce(
+      (sum: number, p: any) => sum + Number(p.providerFeeAmount ?? 0),
+      0,
+    );
 
-    const viewerSubGross = succeededPayments
-      .filter((p: any) => String(p.purpose ?? "").includes("viewer_subscription"))
-      .reduce((sum: number, p: any) => sum + Number(p.amount ?? 0), 0);
-    const viewerSplit = splitViewerRevenue(viewerSubGross);
+    const viewerPoolPayments = succeededPayments.filter((p: any) =>
+      ["viewer_subscription", "viewer_subscription_renewal", "viewer_ppv"].includes(String(p.purpose ?? "")),
+    );
+    const viewerSubGross = viewerPoolPayments.reduce((sum: number, p: any) => sum + Number(p.amount ?? 0), 0);
+    const viewerSubNet = viewerPoolPayments.reduce(
+      (sum: number, p: any) =>
+        sum +
+        getPaymentSettlementAmount({
+          amount: Number(p.amount ?? 0),
+          settlementAmount: p.settlementAmount != null ? Number(p.settlementAmount) : null,
+        }),
+      0,
+    );
+    const viewerSplit = splitViewerRevenue(viewerSubNet);
 
     const marketplaceFees = transactionsTyped
       .filter((t: any) => t.status === "COMPLETED")
@@ -97,9 +132,12 @@ export async function GET(req: NextRequest) {
       payoutProcessing: payoutPendingReview,
       payoutFailed: payoutsTyped.filter((p: any) => p.status === "FAILED" || p.status === "DECLINED").length,
       grossInflow,
+      netInflow,
+      payfastFeesTotal,
       platformCharges,
       marketplaceFees,
       viewerSubGross,
+      viewerSubNet,
       viewerCreatorPool: viewerSplit.creator,
       viewerPlatformShare: viewerSplit.platform,
       platformServiceRevenue,

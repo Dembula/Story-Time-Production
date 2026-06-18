@@ -1087,6 +1087,12 @@ exports.Prisma.PaymentRecordScalarFieldEnum = {
   gatewayAccessCode: 'gatewayAccessCode',
   gatewayAuthorizationUrl: 'gatewayAuthorizationUrl',
   gatewayTransactionId: 'gatewayTransactionId',
+  providerPaymentId: 'providerPaymentId',
+  providerItnStatus: 'providerItnStatus',
+  providerPaymentMethod: 'providerPaymentMethod',
+  providerFeeAmount: 'providerFeeAmount',
+  settlementAmount: 'settlementAmount',
+  settlementSource: 'settlementSource',
   customerCode: 'customerCode',
   authorizationCode: 'authorizationCode',
   paidAt: 'paidAt',
@@ -1103,6 +1109,8 @@ exports.Prisma.PaymentWebhookEventScalarFieldEnum = {
   eventId: 'eventId',
   reference: 'reference',
   payload: 'payload',
+  signatureVerified: 'signatureVerified',
+  processingError: 'processingError',
   processedAt: 'processedAt',
   createdAt: 'createdAt'
 };

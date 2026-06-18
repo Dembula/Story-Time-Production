@@ -4,16 +4,25 @@ import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
+const PAYMENT_RECORD_STORAGE_KEY = "st_payment_record_id";
+
+function resolvePaymentRecordId(params: URLSearchParams): string {
+  const fromQuery = params.get("pr") || params.get("paymentRecordId") || params.get("m_payment_id") || "";
+  if (fromQuery) return fromQuery;
+  if (typeof window === "undefined") return "";
+  return sessionStorage.getItem(PAYMENT_RECORD_STORAGE_KEY) || "";
+}
+
 function PaymentsReturnContent() {
   const params = useSearchParams();
   const status = (params.get("payment_status") || "").toLowerCase();
   const next = params.get("next") || "/profiles";
   const flow = params.get("flow") || "payment";
   const reference = params.get("reference") || "";
-  const paymentRecordId = params.get("pr") || "";
+  const paymentRecordId = resolvePaymentRecordId(params);
   const [resolvedStatus, setResolvedStatus] = useState(status);
+  const [timedOut, setTimedOut] = useState(false);
 
-  // Demo only: if user lands with success but DB still pending, try demo complete once.
   useEffect(() => {
     if (status !== "success" || !paymentRecordId) return;
     let cancelled = false;
@@ -46,7 +55,7 @@ function PaymentsReturnContent() {
     const startedAt = Date.now();
 
     const poll = async () => {
-      while (!cancelled && Date.now() - startedAt < 120000) {
+      while (!cancelled && Date.now() - startedAt < 180000) {
         try {
           const res = await fetch(`/api/payments/status?paymentRecordId=${encodeURIComponent(paymentRecordId)}`, {
             cache: "no-store",
@@ -54,18 +63,44 @@ function PaymentsReturnContent() {
           const data = await res.json().catch(() => ({}));
           const dbStatus = String(data?.payment?.status || "").toUpperCase();
           if (dbStatus === "SUCCEEDED") {
-            if (!cancelled) setResolvedStatus("success");
+            if (!cancelled) {
+              sessionStorage.removeItem("st_pending_viewer_checkout");
+              sessionStorage.removeItem(PAYMENT_RECORD_STORAGE_KEY);
+              setResolvedStatus("success");
+            }
             return;
           }
           if (dbStatus === "FAILED" || dbStatus === "CANCELLED") {
             if (!cancelled) setResolvedStatus("failed");
             return;
           }
+
+          // Authenticated fallback when a session cookie is still present.
+          const syncRes = await fetch("/api/payments/payfast/confirm-return", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ paymentRecordId }),
+            cache: "no-store",
+          }).catch(() => null);
+
+          if (syncRes?.ok) {
+            const syncData = await syncRes.json().catch(() => ({}));
+            const syncedStatus = String(syncData?.payment?.status || "").toUpperCase();
+            if (syncedStatus === "SUCCEEDED") {
+              if (!cancelled) {
+                sessionStorage.removeItem("st_pending_viewer_checkout");
+                sessionStorage.removeItem(PAYMENT_RECORD_STORAGE_KEY);
+                setResolvedStatus("success");
+              }
+              return;
+            }
+          }
         } catch {
           // keep polling until timeout
         }
-        await new Promise((resolve) => setTimeout(resolve, 2500));
+        await new Promise((resolve) => setTimeout(resolve, 2000));
       }
+      if (!cancelled) setTimedOut(true);
     };
 
     void poll();
@@ -85,14 +120,18 @@ function PaymentsReturnContent() {
   const heading = useMemo(() => {
     if (resolvedStatus === "success") return "Payment completed";
     if (resolvedStatus === "failed") return "Payment failed";
+    if (timedOut) return "Payment confirmation delayed";
     return "Payment status pending";
-  }, [resolvedStatus]);
+  }, [resolvedStatus, timedOut]);
 
   const message = useMemo(() => {
     if (resolvedStatus === "success") return "Your transaction is confirmed. Redirecting now...";
     if (resolvedStatus === "failed") return "The payment could not be completed. You can retry from the previous screen.";
+    if (timedOut) {
+      return "PayFast may still be sending confirmation. You can continue — we will activate your access as soon as confirmation arrives.";
+    }
     return "Waiting for secure confirmation from the payment network...";
-  }, [resolvedStatus]);
+  }, [resolvedStatus, timedOut]);
 
   return (
     <main className="min-h-screen bg-slate-950 px-4 py-10 text-slate-100">
@@ -106,6 +145,7 @@ function PaymentsReturnContent() {
         <div className="mt-5 rounded-xl border border-slate-800 bg-slate-950/60 p-4 text-xs text-slate-400">
           <p>Flow: {flow}</p>
           {reference ? <p className="mt-1 break-all">Reference: {reference}</p> : null}
+          {paymentRecordId ? <p className="mt-1 break-all">Payment: {paymentRecordId}</p> : null}
         </div>
 
         <div className="mt-6 grid gap-3">

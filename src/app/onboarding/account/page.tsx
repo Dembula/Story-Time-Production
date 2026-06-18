@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isViewerAccountOnboardingComplete } from "@/lib/viewer-account-onboarding";
 import { getLatestViewerSubscription, subscriptionPaymentRequired } from "@/lib/viewer-access";
+import { hasPendingGatewayPayment } from "@/lib/payments/pending-gateway-payment";
 import { AccountSetupClient } from "./account-setup-client";
 import { OnboardingExitBar } from "@/components/auth/onboarding-exit-bar";
 
@@ -21,11 +22,15 @@ export default async function AccountSetupPage() {
   if (user && isViewerAccountOnboardingComplete(user)) redirect("/profiles");
 
   const subscription = await getLatestViewerSubscription(session.user.id);
-  if (subscription && subscriptionPaymentRequired(subscription)) {
+  const paymentStillProcessing =
+    subscription != null &&
+    (await hasPendingGatewayPayment("ViewerSubscription", subscription.id));
+  if (subscription && subscriptionPaymentRequired(subscription) && !paymentStillProcessing) {
     redirect("/profiles?payment=required");
   }
 
-  const allowAccountDeferral = !subscription || !subscriptionPaymentRequired(subscription);
+  const allowAccountDeferral =
+    !subscription || !subscriptionPaymentRequired(subscription) || paymentStillProcessing;
 
   return (
     <div className="min-h-screen bg-background px-6 py-12 text-slate-100">

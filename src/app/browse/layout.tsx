@@ -8,6 +8,7 @@ import { SubscriptionExpiredModal } from "./subscription-expired-modal";
 import { ViewerSuggestionsTrigger } from "./viewer-suggestions-trigger";
 import { cookies, headers } from "next/headers";
 import { getLatestViewerSubscription, getViewerModel, subscriptionNeedsReactivation } from "@/lib/viewer-access";
+import { hasPendingGatewayPayment } from "@/lib/payments/pending-gateway-payment";
 import { isViewerAccountOnboardingComplete } from "@/lib/viewer-account-onboarding";
 import { isViewerProfilePinUnlocked } from "@/lib/viewer-profile-access";
 
@@ -39,7 +40,10 @@ export default async function BrowseLayout({
         redirect("/onboarding/package");
       }
       if (getViewerModel(sub) === "SUBSCRIPTION" && subscriptionNeedsReactivation(sub)) {
-        redirect("/profiles?payment=required");
+        const stillProcessing = await hasPendingGatewayPayment("ViewerSubscription", sub.id);
+        if (!stillProcessing) {
+          redirect("/profiles?payment=required");
+        }
       }
       const cookieStore = await cookies();
       const onboardingDeferred = cookieStore.get("st_onboarding_deferred")?.value === "1";

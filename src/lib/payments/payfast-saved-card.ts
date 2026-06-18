@@ -21,6 +21,7 @@ export type PayFastTokenLookup = {
   source: "viewer_payment_method" | "viewer_subscription";
   methodId?: string;
   subscriptionId?: string;
+  cardType?: string | null;
 };
 
 /** Resolve a PayFast adhoc charge token for any user (viewer or creator). */
@@ -39,6 +40,7 @@ export async function getPayFastTokenForUser(userId: string): Promise<PayFastTok
       id: true,
       authorizationCode: true,
       customerCode: true,
+      cardType: true,
     },
   });
 
@@ -48,6 +50,7 @@ export async function getPayFastTokenForUser(userId: string): Promise<PayFastTok
       token: methodToken,
       source: "viewer_payment_method",
       methodId: method.id,
+      cardType: method.cardType,
     };
   }
 

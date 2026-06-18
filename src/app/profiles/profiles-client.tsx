@@ -32,6 +32,8 @@ export function ProfilesClient({
   subscriptionStatus = "ACTIVE",
   needsReactivation = false,
   paymentRequired = false,
+  paymentStillProcessing = false,
+  pendingPaymentRecordId = null,
   pendingPinProfile = null,
 }: {
   initialProfiles: Profile[];
@@ -42,6 +44,8 @@ export function ProfilesClient({
   subscriptionStatus?: string;
   needsReactivation?: boolean;
   paymentRequired?: boolean;
+  paymentStillProcessing?: boolean;
+  pendingPaymentRecordId?: string | null;
   pendingPinProfile?: { id: string; name: string } | null;
 }) {
   const router = useRouter();
@@ -59,8 +63,8 @@ export function ProfilesClient({
   const [pinModalProfile, setPinModalProfile] = useState<Profile | null>(null);
   const [pinModalError, setPinModalError] = useState("");
   const paymentPendingCheckout = paymentRequired || subscriptionStatus === "PAST_DUE";
-  const needsPlanReactivation = needsReactivation && !paymentPendingCheckout;
-  const paymentBlocked = paymentPendingCheckout || needsPlanReactivation;
+  const needsPlanReactivation = needsReactivation && !paymentPendingCheckout && !paymentStillProcessing;
+  const paymentBlocked = !paymentStillProcessing && (paymentPendingCheckout || needsPlanReactivation);
   const canCreateMore = profiles.length < maxProfiles;
   const { years, months } = getBirthDateOptionSets();
   const days = useMemo(() => {
@@ -70,6 +74,33 @@ export function ProfilesClient({
     const dayCount = new Date(Date.UTC(birthYear, birthMonth, 0)).getUTCDate();
     return Array.from({ length: dayCount }, (_, index) => index + 1);
   }, [birthYear, birthMonth]);
+
+  useEffect(() => {
+    if (!paymentStillProcessing || !pendingPaymentRecordId) return;
+    let cancelled = false;
+    const poll = async () => {
+      for (let i = 0; i < 60 && !cancelled; i++) {
+        try {
+          const res = await fetch(
+            `/api/payments/status?paymentRecordId=${encodeURIComponent(pendingPaymentRecordId)}`,
+            { cache: "no-store" },
+          );
+          const data = await res.json().catch(() => ({}));
+          if (String(data?.payment?.status || "").toUpperCase() === "SUCCEEDED") {
+            router.refresh();
+            return;
+          }
+        } catch {
+          // retry
+        }
+        await new Promise((r) => setTimeout(r, 3000));
+      }
+    };
+    void poll();
+    return () => {
+      cancelled = true;
+    };
+  }, [paymentStillProcessing, pendingPaymentRecordId, router]);
 
   useEffect(() => {
     if (!pendingPinProfile) return;
@@ -238,6 +269,15 @@ export function ProfilesClient({
           </div>
         </div>
       </div>
+
+      {paymentStillProcessing ? (
+        <div className="rounded-xl border border-cyan-400/30 bg-cyan-500/10 p-4 text-sm text-cyan-100 shadow-panel">
+          <p className="font-medium text-white">Confirming your payment</p>
+          <p className="mt-1 text-cyan-100/90">
+            PayFast is sending secure confirmation. This usually takes a few seconds — you can create profiles while we finish activating your subscription.
+          </p>
+        </div>
+      ) : null}
 
       {paymentBlocked ? (
         <div className="rounded-xl border border-orange-400/30 bg-orange-500/10 p-4 text-sm text-orange-100 shadow-panel">

@@ -5,6 +5,11 @@ import { DEMO_PAYMENT_PROVIDER } from "@/lib/payments/config";
 import { recordGatewayEventIfNew } from "@/lib/payments/idempotency";
 import { applyPaymentRecordSettlementEffects } from "@/lib/payments/settlement-effects";
 import { allocateGatewayPaymentLedger } from "@/lib/payments/gateway-allocation";
+import {
+  demoPayFastSettlement,
+  getPaymentSettlementAmount,
+  type PayFastSettlementBreakdown,
+} from "@/lib/payments/payfast-settlement";
 
 const db = prisma as any;
 
@@ -12,10 +17,43 @@ export type CompleteGatewayPaymentResult =
   | { ok: true; already?: boolean; paymentRecordId: string }
   | { ok: false; error: string; status: number };
 
+export type CompleteGatewayPaymentOptions = {
+  reference?: string;
+  provider?: string;
+  settlement?: PayFastSettlementBreakdown;
+};
+
+function resolveSettlement(
+  payment: { amount: number; provider?: string | null },
+  settlement?: PayFastSettlementBreakdown,
+): PayFastSettlementBreakdown {
+  if (settlement) return settlement;
+  if ((payment.provider ?? "") === DEMO_PAYMENT_PROVIDER) {
+    return demoPayFastSettlement(payment.amount);
+  }
+  return demoPayFastSettlement(payment.amount);
+}
+
+/** Persist PayFast fee / net settlement on a payment record (ITN backfill or completion). */
+export async function persistPaymentSettlement(
+  paymentRecordId: string,
+  settlement: PayFastSettlementBreakdown,
+) {
+  await db.paymentRecord.update({
+    where: { id: paymentRecordId },
+    data: {
+      providerPaymentMethod: settlement.providerPaymentMethod,
+      providerFeeAmount: settlement.providerFeeAmount,
+      settlementAmount: settlement.settlementAmount,
+      settlementSource: settlement.settlementSource,
+    },
+  });
+}
+
 /** Mark a gateway payment SUCCEEDED and run treasury + domain settlement. */
 export async function completeGatewayPayment(
   paymentRecordId: string,
-  options?: { reference?: string; provider?: string },
+  options?: CompleteGatewayPaymentOptions,
 ): Promise<CompleteGatewayPaymentResult> {
   const payment = await db.paymentRecord.findUnique({
     where: { id: paymentRecordId },
@@ -40,16 +78,37 @@ export async function completeGatewayPayment(
       ? (payment.metadata as Record<string, unknown>)
       : {};
 
+  const settlement = resolveSettlement(payment, options?.settlement);
+  const allocatableAmount = getPaymentSettlementAmount({
+    amount: payment.amount,
+    settlementAmount: settlement.settlementAmount,
+  });
+
   await db.paymentRecord.update({
     where: { id: paymentRecordId },
     data: {
       status: "SUCCEEDED",
       paidAt: now,
       provider,
+      gatewayReference: options?.reference ?? payment.gatewayReference ?? undefined,
+      providerPaymentId: options?.reference ?? payment.providerPaymentId ?? undefined,
+      providerItnStatus: "COMPLETE",
+      providerPaymentMethod: settlement.providerPaymentMethod,
+      providerFeeAmount: settlement.providerFeeAmount,
+      settlementAmount: settlement.settlementAmount,
+      settlementSource: settlement.settlementSource,
       metadata: {
         ...metadata,
         demoCompletedAt: now.toISOString(),
         gatewayReference: options?.reference ?? metadata.gatewayReference ?? null,
+        payfastSettlement: {
+          amountGross: settlement.amountGross,
+          providerFeeAmount: settlement.providerFeeAmount,
+          settlementAmount: settlement.settlementAmount,
+          providerPaymentMethod: settlement.providerPaymentMethod,
+          providerPaymentMethodLabel: settlement.providerPaymentMethodLabel,
+          settlementSource: settlement.settlementSource,
+        },
       },
     },
   });
@@ -66,13 +125,20 @@ export async function completeGatewayPayment(
     provider,
     eventType: "payment.succeeded",
     eventId: options?.reference ?? paymentRecordId,
-    payload: { paymentRecordId, mode: provider === DEMO_PAYMENT_PROVIDER ? "demo" : "live" },
-    signatureVerified: provider === DEMO_PAYMENT_PROVIDER,
+    payload: {
+      paymentRecordId,
+      mode: provider === DEMO_PAYMENT_PROVIDER ? "demo" : "live",
+      settlementAmount: allocatableAmount,
+      providerFeeAmount: settlement.providerFeeAmount,
+    },
+    signatureVerified: provider === DEMO_PAYMENT_PROVIDER ? true : Boolean(options?.reference),
   });
 
   await allocateGatewayPaymentLedger({
     id: paymentRecordId,
     amount: payment.amount,
+    settlementAmount: allocatableAmount,
+    providerFeeAmount: settlement.providerFeeAmount,
     purpose: payment.purpose,
     relatedEntityType: payment.relatedEntityType,
     relatedEntityId: payment.relatedEntityId,
@@ -87,7 +153,10 @@ export async function completeGatewayPayment(
     amount: payment.amount,
     relatedEntityType: payment.relatedEntityType,
     relatedEntityId: payment.relatedEntityId,
-    metadata: payment.metadata,
+    metadata: {
+      ...metadata,
+      payfastSettlement: settlement,
+    },
   });
 
   return { ok: true, paymentRecordId };

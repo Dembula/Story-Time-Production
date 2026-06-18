@@ -18,6 +18,9 @@ function PayFastCheckoutInner() {
       setError("Missing payment reference.");
       return;
     }
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("st_payment_record_id", pr);
+    }
     let cancelled = false;
     (async () => {
       try {

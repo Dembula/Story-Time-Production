@@ -3,7 +3,9 @@
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, ClipboardList, Landmark, ShieldCheck, Wallet } from "lucide-react";
+import { ArrowRight, ClipboardList, Eye, Landmark, ShieldCheck, Wallet } from "lucide-react";
+import { AdminTransactionDetailModal } from "@/components/admin/admin-transaction-detail-modal";
+import { PAYMENT_PURPOSE_LABELS } from "@/lib/admin/payment-transaction-detail";
 
 const money = new Intl.NumberFormat("en-ZA", {
   minimumFractionDigits: 2,
@@ -30,7 +32,9 @@ export default function AdminPaymentsPage() {
     queryKey: ["admin-payments"],
     queryFn: async () => fetch("/api/admin/payments").then((r) => r.json()),
   });
-  const [tab, setTab] = useState<"payments" | "payouts" | "escrow" | "events">("payouts");
+  const [tab, setTab] = useState<"payments" | "marketplace" | "payouts" | "escrow" | "events">("payouts");
+  const [detailKind, setDetailKind] = useState<"payment" | "marketplace" | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
   const [selectedPayoutId, setSelectedPayoutId] = useState<string | null>(null);
   const [declineReason, setDeclineReason] = useState("");
   const [adminNotes, setAdminNotes] = useState("");
@@ -40,6 +44,7 @@ export default function AdminPaymentsPage() {
 
   const metrics = data?.metrics ?? {};
   const paymentRecords = (data?.paymentRecords ?? []) as any[];
+  const marketplaceTransactions = (data?.transactions ?? []) as any[];
   const payouts = (data?.payouts ?? []) as PayoutRow[];
   const escrows = (data?.escrows ?? []) as any[];
   const gatewayEvents = (data?.gatewayEvents ?? []) as any[];
@@ -89,13 +94,18 @@ export default function AdminPaymentsPage() {
         tone: "text-cyan-300",
       },
       {
-        label: "Platform revenue recognized",
-        value: `R${money.format(Number(metrics.platformRevenueAccountBalance ?? 0))}`,
-        tone: "text-orange-300",
+        label: "Net inflow (after PayFast)",
+        value: `R${money.format(Number(metrics.netInflow ?? metrics.grossInflow ?? 0))}`,
+        tone: "text-emerald-300",
       },
       {
-        label: "Creator pool held (60%)",
-        value: `R${money.format(Number(metrics.creatorPoolHeld ?? 0))}`,
+        label: "PayFast fees (recorded)",
+        value: `R${money.format(Number(metrics.payfastFeesTotal ?? 0))}`,
+        tone: "text-red-300",
+      },
+      {
+        label: "Creator pool (60% of net viewer revenue)",
+        value: `R${money.format(Number(metrics.viewerCreatorPool ?? 0))}`,
         tone: "text-green-300",
       },
       {
@@ -141,7 +151,8 @@ export default function AdminPaymentsPage() {
 
       <div className="flex flex-wrap gap-2">
         <TabButton label="Manual payouts" active={tab === "payouts"} onClick={() => setTab("payouts")} />
-        <TabButton label="Payments" active={tab === "payments"} onClick={() => setTab("payments")} />
+        <TabButton label="Gateway payments" active={tab === "payments"} onClick={() => setTab("payments")} />
+        <TabButton label="Marketplace tx" active={tab === "marketplace"} onClick={() => setTab("marketplace")} />
         <TabButton label="Escrow" active={tab === "escrow"} onClick={() => setTab("escrow")} />
         <TabButton label="Gateway events" active={tab === "events"} onClick={() => setTab("events")} />
       </div>
@@ -308,14 +319,92 @@ export default function AdminPaymentsPage() {
 
       {tab === "payments" ? (
         <section className="creator-glass-panel rounded-2xl border border-white/10 p-5">
-          <SectionHeader icon={<Landmark className="h-4 w-4 text-orange-400" />} title="Recent payments" />
+          <SectionHeader icon={<Landmark className="h-4 w-4 text-orange-400" />} title="Gateway payments (PayFast)" />
+          <p className="mt-2 text-xs text-slate-500">
+            Viewer subscriptions, creator licences, company listings, marketplace checkout, and platform services.
+          </p>
           <div className="mt-3 space-y-2">
+            {paymentRecords.length === 0 ? (
+              <p className="text-sm text-slate-500">No payment records yet.</p>
+            ) : null}
             {paymentRecords.map((p) => (
-              <div key={p.id} className="grid grid-cols-[1.2fr_auto_auto_1fr] items-center gap-3 rounded-lg border border-slate-800 px-3 py-2 text-xs">
-                <span className="text-slate-200">{p.purpose}</span>
+              <div
+                key={p.id}
+                className="grid grid-cols-1 items-center gap-3 rounded-lg border border-slate-800 px-3 py-3 text-xs sm:grid-cols-[1.4fr_auto_auto_1fr_auto]"
+              >
+                <div className="min-w-0">
+                  <p className="font-medium text-slate-200">
+                    {PAYMENT_PURPOSE_LABELS[p.purpose] ?? String(p.purpose).replace(/_/g, " ")}
+                  </p>
+                  <p className="mt-0.5 truncate text-slate-500">
+                    {p.user?.name || p.user?.email || "Unknown payer"} · {p.user?.role || "—"}
+                  </p>
+                </div>
                 <StatusPill value={p.status} />
-                <span className="font-medium text-white">R{money.format(Number(p.amount ?? 0))}</span>
-                <span className="truncate text-slate-500">{p.id}</span>
+                <div className="text-right sm:text-left">
+                  <span className="font-medium text-white">R{money.format(Number(p.amount ?? 0))}</span>
+                  {p.settlementAmount != null && Number(p.settlementAmount) !== Number(p.amount) ? (
+                    <p className="text-[10px] text-emerald-400">
+                      net R{money.format(Number(p.settlementAmount))}
+                    </p>
+                  ) : null}
+                </div>
+                <span className="truncate font-mono text-slate-500">{p.id}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDetailKind("payment");
+                    setDetailId(p.id);
+                  }}
+                  className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-700 px-3 py-1.5 text-slate-300 hover:border-orange-500/40 hover:bg-orange-500/10 hover:text-orange-200"
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                  View
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {tab === "marketplace" ? (
+        <section className="creator-glass-panel rounded-2xl border border-white/10 p-5">
+          <SectionHeader icon={<ArrowRight className="h-4 w-4 text-orange-400" />} title="Marketplace transactions" />
+          <p className="mt-2 text-xs text-slate-500">
+            Location, catering, equipment, crew, and casting payments — includes 3% Story Time fee breakdown.
+          </p>
+          <div className="mt-3 space-y-2">
+            {marketplaceTransactions.length === 0 ? (
+              <p className="text-sm text-slate-500">No marketplace transactions yet.</p>
+            ) : null}
+            {marketplaceTransactions.map((t) => (
+              <div
+                key={t.id}
+                className="grid grid-cols-1 items-center gap-3 rounded-lg border border-slate-800 px-3 py-3 text-xs sm:grid-cols-[1.2fr_auto_auto_1fr_auto]"
+              >
+                <div className="min-w-0">
+                  <p className="font-medium text-slate-200">{String(t.type).replace(/_/g, " ")}</p>
+                  <p className="mt-0.5 truncate text-slate-500">
+                    {t.payer?.email || t.payerId} → {t.payee?.email || t.payeeId}
+                  </p>
+                </div>
+                <StatusPill value={t.status} />
+                <div className="text-right sm:text-left">
+                  <p className="font-medium text-white">R{money.format(Number(t.totalAmount ?? 0))}</p>
+                  <p className="text-[10px] text-slate-500">fee R{money.format(Number(t.feeAmount ?? 0))}</p>
+                </div>
+                <span className="truncate font-mono text-slate-500">{t.id}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDetailKind("marketplace");
+                    setDetailId(t.id);
+                  }}
+                  className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-700 px-3 py-1.5 text-slate-300 hover:border-orange-500/40 hover:bg-orange-500/10 hover:text-orange-200"
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                  View
+                </button>
               </div>
             ))}
           </div>
@@ -326,14 +415,35 @@ export default function AdminPaymentsPage() {
         <section className="creator-glass-panel rounded-2xl border border-white/10 p-5">
           <SectionHeader icon={<ShieldCheck className="h-4 w-4 text-orange-400" />} title="Escrow accounts" />
           <div className="mt-3 space-y-2">
-            {escrows.map((e) => (
-              <div key={e.id} className="grid grid-cols-[1fr_auto_auto_1fr] items-center gap-3 rounded-lg border border-slate-800 px-3 py-2 text-xs">
-                <span className="text-slate-300">{e.referenceType}</span>
-                <StatusPill value={e.status} />
-                <span className="font-medium text-white">R{money.format(Number(e.amount ?? 0))}</span>
-                <span className="truncate text-slate-500">{e.id}</span>
-              </div>
-            ))}
+            {escrows.map((e) => {
+              const linkedTx = marketplaceTransactions.find((t) => t.referenceId === e.referenceId);
+              return (
+                <div
+                  key={e.id}
+                  className="grid grid-cols-1 items-center gap-3 rounded-lg border border-slate-800 px-3 py-2 text-xs sm:grid-cols-[1fr_auto_auto_1fr_auto]"
+                >
+                  <span className="text-slate-300">{e.referenceType}</span>
+                  <StatusPill value={e.status} />
+                  <span className="font-medium text-white">R{money.format(Number(e.amount ?? 0))}</span>
+                  <span className="truncate text-slate-500">{e.id}</span>
+                  {linkedTx ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDetailKind("marketplace");
+                        setDetailId(linkedTx.id);
+                      }}
+                      className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-700 px-3 py-1.5 text-slate-300 hover:border-orange-500/40 hover:bg-orange-500/10 hover:text-orange-200"
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                      View
+                    </button>
+                  ) : (
+                    <span className="text-slate-600">—</span>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </section>
       ) : null}
@@ -357,6 +467,15 @@ export default function AdminPaymentsPage() {
           </div>
         </section>
       ) : null}
+
+      <AdminTransactionDetailModal
+        kind={detailKind}
+        id={detailId}
+        onClose={() => {
+          setDetailKind(null);
+          setDetailId(null);
+        }}
+      />
     </div>
   );
 }

@@ -117,6 +117,16 @@ export function generatePayFastSignature(
   return createHash("md5").update(payload).digest("hex");
 }
 
+export function verifyPayFastItnSignature(
+  data: Record<string, string>,
+  signature: string | null | undefined,
+): boolean {
+  const passphrase = process.env.PAYFAST_PASSPHRASE?.trim() || null;
+  if (verifyPayFastSignature(data, signature, passphrase)) return true;
+  if (passphrase && verifyPayFastSignature(data, signature, null)) return true;
+  return false;
+}
+
 export function verifyPayFastSignature(
   data: Record<string, string>,
   signature: string | null | undefined,

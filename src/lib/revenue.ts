@@ -1,17 +1,18 @@
 import { prisma } from "./prisma";
+import { getPaymentSettlementAmount } from "@/lib/payments/payfast-settlement";
 
 const VIEWER_POOL_PURPOSES = ["viewer_subscription", "viewer_subscription_renewal", "viewer_ppv"] as const;
 
-/** Viewer pool revenue (subscriptions + PPV) in ZAR from completed gateway payments. */
+/** Viewer pool revenue (subscriptions + PPV) in ZAR — net after PayFast fees when recorded. */
 export async function getViewerPoolRevenue(periodStart: Date, periodEnd: Date): Promise<number> {
   const [gatewayPayments, legacyPayments] = await Promise.all([
-    prisma.paymentRecord.aggregate({
+    prisma.paymentRecord.findMany({
       where: {
         status: "SUCCEEDED",
         purpose: { in: [...VIEWER_POOL_PURPOSES] },
         paidAt: { gte: periodStart, lte: periodEnd },
       },
-      _sum: { amount: true },
+      select: { amount: true, settlementAmount: true },
     }),
     prisma.subscriptionPayment.aggregate({
       where: {
@@ -22,7 +23,12 @@ export async function getViewerPoolRevenue(periodStart: Date, periodEnd: Date): 
     }),
   ]);
 
-  return roundMoney((gatewayPayments._sum.amount ?? 0) + (legacyPayments._sum.amount ?? 0));
+  const gatewayNet = gatewayPayments.reduce(
+    (sum, p) => sum + getPaymentSettlementAmount({ amount: p.amount, settlementAmount: p.settlementAmount }),
+    0,
+  );
+
+  return roundMoney(gatewayNet + (legacyPayments._sum.amount ?? 0));
 }
 
 /** @deprecated Use getViewerPoolRevenue — includes subscriptions and PPV. */

@@ -62,6 +62,8 @@ function balancingLockedDebit(treasuryUserId: string, creditTotal: number): Ledg
 export async function allocateGatewayPaymentLedger(payment: {
   id: string;
   amount: number;
+  settlementAmount?: number;
+  providerFeeAmount?: number;
   purpose?: string | null;
   relatedEntityType: string | null;
   relatedEntityId: string | null;
@@ -71,7 +73,9 @@ export async function allocateGatewayPaymentLedger(payment: {
 
   const idempotencyKey = `gateway_allocate_${payment.id}`;
   const purpose = payment.purpose ?? "";
-  const amount = payment.amount;
+  const grossAmount = payment.amount;
+  const settlementAmount = payment.settlementAmount ?? grossAmount;
+  const providerFeeAmount = payment.providerFeeAmount ?? Math.max(0, grossAmount - settlementAmount);
 
   if (
     payment.relatedEntityType &&
@@ -93,8 +97,8 @@ export async function allocateGatewayPaymentLedger(payment: {
     if (!resolved.ok) return;
 
     const quote = resolved.quote;
-    if (Math.abs(amount - quote.totalAmount) > 0.02) {
-      console.error("marketplace gateway amount mismatch", payment.id, amount, quote.totalAmount);
+    if (Math.abs(grossAmount - quote.totalAmount) > 0.02) {
+      console.error("marketplace gateway amount mismatch", payment.id, grossAmount, quote.totalAmount);
       return;
     }
 
@@ -106,8 +110,8 @@ export async function allocateGatewayPaymentLedger(payment: {
         direction: "CREDIT",
         accountType: "AVAILABLE",
         transactionType: "incoming_payment",
-        amount: quote.totalAmount,
-        description: "Marketplace gateway payment received",
+        amount: settlementAmount,
+        description: "Marketplace gateway payment received (net after PayFast fees)",
       },
       {
         userId: quote.sellerUserId,
@@ -138,6 +142,9 @@ export async function allocateGatewayPaymentLedger(payment: {
       metadata: {
         paymentRecordId: payment.id,
         flow: "marketplace_gateway",
+        grossAmount,
+        settlementAmount,
+        providerFeeAmount,
         baseAmount: quote.baseAmount,
         feeAmount: quote.feeAmount,
         feeLabel: STORYTIME_TRANSACTION_FEE_LABEL,
@@ -148,7 +155,7 @@ export async function allocateGatewayPaymentLedger(payment: {
   }
 
   if (VIEWER_POOL_PURPOSES.has(purpose)) {
-    const split = splitViewerRevenue(amount);
+    const split = splitViewerRevenue(settlementAmount);
     const poolLabel =
       purpose === "viewer_ppv" ? "Viewer PPV payment received" : "Viewer subscription payment received";
     const credits: LedgerEntry[] = [
@@ -157,8 +164,8 @@ export async function allocateGatewayPaymentLedger(payment: {
         direction: "CREDIT",
         accountType: "AVAILABLE",
         transactionType: "incoming_payment",
-        amount,
-        description: poolLabel,
+        amount: settlementAmount,
+        description: `${poolLabel} (net after PayFast fees)`,
       },
       {
         userId: treasuryUserId,
@@ -186,6 +193,9 @@ export async function allocateGatewayPaymentLedger(payment: {
         paymentRecordId: payment.id,
         flow: "viewer_pool",
         purpose,
+        grossAmount,
+        settlementAmount,
+        providerFeeAmount,
         creatorPool: split.creator,
         platformShare: split.platform,
       },
@@ -201,15 +211,15 @@ export async function allocateGatewayPaymentLedger(payment: {
         direction: "CREDIT",
         accountType: "AVAILABLE",
         transactionType: "incoming_payment",
-        amount,
-        description: "Platform payment received",
+        amount: settlementAmount,
+        description: "Platform payment received (net after PayFast fees)",
       },
       {
         userId: treasuryUserId,
         direction: "CREDIT",
         accountType: "PLATFORM_REVENUE",
         transactionType: "platform_service_revenue",
-        amount,
+        amount: settlementAmount,
         description: purpose.replace(/_/g, " "),
       },
     ];
@@ -218,7 +228,14 @@ export async function allocateGatewayPaymentLedger(payment: {
       idempotencyKey,
       referenceType: payment.relatedEntityType || "PLATFORM_PAYMENT",
       referenceId: payment.relatedEntityId || payment.id,
-      metadata: { paymentRecordId: payment.id, flow: "platform_revenue", purpose },
+      metadata: {
+        paymentRecordId: payment.id,
+        flow: "platform_revenue",
+        purpose,
+        grossAmount,
+        settlementAmount,
+        providerFeeAmount,
+      },
       entries: [...credits, balancingLockedDebit(treasuryUserId, creditTotal)],
     });
     return;
@@ -231,15 +248,15 @@ export async function allocateGatewayPaymentLedger(payment: {
       direction: "CREDIT",
       accountType: "AVAILABLE",
       transactionType: "incoming_payment",
-      amount,
-      description: "Gateway payment received",
+      amount: settlementAmount,
+      description: "Gateway payment received (net after PayFast fees)",
     },
     {
       userId: treasuryUserId,
       direction: "CREDIT",
       accountType: "PLATFORM_REVENUE",
       transactionType: "platform_service_revenue",
-      amount,
+      amount: settlementAmount,
       description: purpose || "platform payment",
     },
   ];
@@ -248,7 +265,13 @@ export async function allocateGatewayPaymentLedger(payment: {
     idempotencyKey,
     referenceType: payment.relatedEntityType || "PAYMENT_RECORD",
     referenceId: payment.relatedEntityId || payment.id,
-    metadata: { paymentRecordId: payment.id, flow: "default_platform" },
+    metadata: {
+      paymentRecordId: payment.id,
+      flow: "default_platform",
+      grossAmount,
+      settlementAmount,
+      providerFeeAmount,
+    },
     entries: [...credits, balancingLockedDebit(treasuryUserId, creditTotal)],
   });
 }

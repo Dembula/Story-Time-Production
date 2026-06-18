@@ -36,6 +36,8 @@ export function appBaseUrl(): string {
 }
 
 export function payfastNotifyUrl(): string {
+  const override = process.env.PAYFAST_NOTIFY_URL?.trim();
+  if (override) return override.replace(/\/$/, "");
   return `${appBaseUrl()}/api/payments/webhooks/payfast`;
 }
 

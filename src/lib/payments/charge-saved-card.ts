@@ -6,6 +6,13 @@ import { completeGatewayPayment } from "@/lib/payments/complete-gateway-payment"
 import { getPaymentGateway } from "@/lib/payments/gateway";
 import { getPayFastTokenForUser } from "@/lib/payments/payfast-saved-card";
 import { toGatewaySafeReference } from "@/lib/payments/reference";
+import {
+  estimatePayFastFee,
+  estimatePayFastSettlement,
+  normalizePayFastMethodCode,
+  payFastMethodLabel,
+  type PayFastSettlementBreakdown,
+} from "@/lib/payments/payfast-settlement";
 
 const db = prisma as any;
 
@@ -81,7 +88,20 @@ export async function chargeUserSavedCard(args: {
       return { ok: false, status: "FAILED", reason: "charge_not_completed" };
     }
 
-    await completeGatewayPayment(paymentRecord.id, { reference: charge.externalRef });
+    const methodCode = normalizePayFastMethodCode(tokenLookup?.cardType);
+    const settlement: PayFastSettlementBreakdown = {
+      amountGross: args.amount,
+      providerFeeAmount: estimatePayFastFee(args.amount, methodCode),
+      settlementAmount: estimatePayFastSettlement(args.amount, methodCode),
+      providerPaymentMethod: methodCode,
+      providerPaymentMethodLabel: payFastMethodLabel(methodCode),
+      settlementSource: "estimated",
+    };
+
+    await completeGatewayPayment(paymentRecord.id, {
+      reference: charge.externalRef,
+      settlement,
+    });
     return {
       ok: true,
       status: "COMPLETED",

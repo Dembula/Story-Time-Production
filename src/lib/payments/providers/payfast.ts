@@ -19,7 +19,7 @@ import {
   generatePayFastSignature,
   omitEmptyPayFastFields,
   parsePayFastFormBody,
-  verifyPayFastSignature,
+  verifyPayFastItnSignature,
 } from "@/lib/payments/providers/payfast-signature";
 import { isPayFastChargeToken } from "@/lib/payments/payfast-saved-card";
 
@@ -137,7 +137,7 @@ class PayFastGatewayAdapter implements PaymentGatewayAdapter {
 
   verifyWebhookSignature(rawBody: string, _getHeader: (name: string) => string | null): boolean {
     const data = parsePayFastFormBody(rawBody);
-    return verifyPayFastSignature(data, data.signature, getPayFastPassphraseOrNull());
+    return verifyPayFastItnSignature(data, data.signature);
   }
 }
 
@@ -170,7 +170,7 @@ export function buildPayFastCheckoutFields(args: {
     name_first: first,
     name_last: last,
     email_address: args.customerEmail?.trim() || "no-reply@story-time.online",
-    m_payment_id: args.reference,
+    m_payment_id: args.paymentRecordId,
     amount: formatPayFastAmount(args.amount),
     item_name: itemName,
     custom_str1: args.paymentRecordId,

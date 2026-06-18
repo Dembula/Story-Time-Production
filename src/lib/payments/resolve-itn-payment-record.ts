@@ -25,17 +25,23 @@ export async function resolvePaymentRecordIdFromPayFastItn(
     });
     if (byId) return byId.id;
 
-    const byGatewayRef = await db.gatewayReference.findFirst({
+    const byLegacyRef = await db.gatewayReference.findFirst({
       where: { externalRef: mPaymentId },
       orderBy: { createdAt: "desc" },
       select: { metadata: true },
     });
-    const fromMeta = (byGatewayRef?.metadata as { paymentRecordId?: string } | null)?.paymentRecordId;
+    const fromMeta = (byLegacyRef?.metadata as { paymentRecordId?: string } | null)?.paymentRecordId;
     if (fromMeta) return fromMeta;
   }
 
   const pfPaymentId = data.pf_payment_id?.trim();
   if (pfPaymentId) {
+    const byProvider = await db.paymentRecord.findFirst({
+      where: { providerPaymentId: pfPaymentId },
+      select: { id: true },
+    });
+    if (byProvider) return byProvider.id;
+
     const byPfRef = await db.gatewayReference.findFirst({
       where: { externalRef: pfPaymentId },
       orderBy: { createdAt: "desc" },
