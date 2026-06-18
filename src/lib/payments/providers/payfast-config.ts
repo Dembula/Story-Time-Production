@@ -2,6 +2,7 @@ import { PAYMENT_PROVIDER } from "@/lib/payments/config";
 
 export const PAYFAST_PROCESS_URL = "https://www.payfast.co.za/eng/process";
 export const PAYFAST_VALIDATE_URL = "https://www.payfast.co.za/eng/query/validate";
+export const PAYFAST_RECURRING_UPDATE_BASE = "https://www.payfast.co.za/eng/recurring/update";
 export const PAYFAST_API_BASE = "https://api.payfast.co.za";
 
 /** Canonical production origin for PayFast notify/return URLs. */
@@ -100,6 +101,14 @@ export function payfastNotifyUrl(): string {
 
 export function payfastCheckoutPageUrl(paymentRecordId: string): string {
   return `${getPaymentBaseUrl()}/payments/payfast-checkout?pr=${encodeURIComponent(paymentRecordId)}`;
+}
+
+/** PayFast hosted page to update card details for an existing subscription/token. */
+export function buildPayFastCardUpdateUrl(token: string, returnUrl: string): string {
+  const trimmedToken = token.trim();
+  const url = new URL(`${PAYFAST_RECURRING_UPDATE_BASE}/${encodeURIComponent(trimmedToken)}`);
+  url.searchParams.set("return", returnUrl);
+  return url.toString();
 }
 
 export { PAYMENT_PROVIDER };

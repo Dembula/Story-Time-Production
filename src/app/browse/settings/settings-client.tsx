@@ -44,6 +44,7 @@ export function SettingsClient() {
   const [playbackQuality, setPlaybackQuality] = useState<string>("auto");
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [savingCard, setSavingCard] = useState(false);
+  const [updatingCardId, setUpdatingCardId] = useState<string | null>(null);
   const [newProfileName, setNewProfileName] = useState("");
   const [newProfilePinEnabled, setNewProfilePinEnabled] = useState(false);
   const [newProfilePin, setNewProfilePin] = useState("");
@@ -267,6 +268,32 @@ export function SettingsClient() {
       setError(e instanceof Error ? e.message : "Failed to start PayFast card setup");
     } finally {
       setSavingCard(false);
+    }
+  }
+
+  async function updateCardOnPayFast(paymentMethodId?: string) {
+    setError("");
+    setUpdatingCardId(paymentMethodId ?? "default");
+    try {
+      const res = await fetch("/api/payments/payfast/update-card", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          paymentMethodId,
+          returnPath: "/browse/settings",
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Failed to start PayFast card update");
+      if (data.updateUrl) {
+        window.location.href = data.updateUrl as string;
+        return;
+      }
+      setSuccess(data.message || "Redirecting to PayFast…");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to start PayFast card update");
+    } finally {
+      setUpdatingCardId(null);
     }
   }
 
@@ -861,6 +888,16 @@ export function SettingsClient() {
               </div>
               <span className="text-slate-400 text-sm">****{p.lastFour}</span>
               <div className="flex items-center gap-2">
+                {p.payfastTokenized ? (
+                  <button
+                    type="button"
+                    onClick={() => updateCardOnPayFast(p.id)}
+                    disabled={updatingCardId === p.id}
+                    className="text-xs text-sky-400 hover:underline disabled:opacity-50"
+                  >
+                    {updatingCardId === p.id ? "Opening PayFast…" : "Update on PayFast"}
+                  </button>
+                ) : null}
                 {p.payfastTokenized && !p.isDefault ? (
                   <button type="button" onClick={() => setDefaultPayment(p.id)} className="text-xs text-orange-400 hover:underline flex items-center gap-1">
                     <Star className="w-3 h-3" /> Set default
@@ -876,14 +913,26 @@ export function SettingsClient() {
             </li>
           ))}
         </ul>
-        <button
-          type="button"
-          onClick={startPayFastCardSave}
-          disabled={savingCard}
-          className="flex items-center gap-2 rounded-xl viewer-btn-primary px-4 py-2.5 text-sm font-semibold transition hover:-translate-y-0.5 disabled:opacity-50"
-        >
-          <Plus className="w-4 h-4" /> {savingCard ? "Opening PayFast…" : "Add card via PayFast"}
-        </button>
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={startPayFastCardSave}
+            disabled={savingCard}
+            className="flex items-center gap-2 rounded-xl viewer-btn-primary px-4 py-2.5 text-sm font-semibold transition hover:-translate-y-0.5 disabled:opacity-50"
+          >
+            <Plus className="w-4 h-4" /> {savingCard ? "Opening PayFast…" : "Add card via PayFast"}
+          </button>
+          {paymentMethods.some((p) => p.payfastTokenized) ? (
+            <button
+              type="button"
+              onClick={() => updateCardOnPayFast()}
+              disabled={updatingCardId === "default"}
+              className="rounded-xl border border-sky-400/30 bg-sky-500/10 px-4 py-2.5 text-sm font-semibold text-sky-200 transition hover:bg-sky-500/20 disabled:opacity-50"
+            >
+              {updatingCardId === "default" ? "Opening PayFast…" : "Update default card on PayFast"}
+            </button>
+          ) : null}
+        </div>
       </section>
 
       {showPlanModal ? (

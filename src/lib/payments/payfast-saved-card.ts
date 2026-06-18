@@ -1,6 +1,8 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
+import { buildPayFastCardUpdateUrl } from "@/lib/payments/providers/payfast-config";
+import { buildPaymentReturnUrl } from "@/lib/payments/return-url";
 
 const db = prisma as any;
 
@@ -150,4 +152,39 @@ export async function createPayFastCardConsentForUser(args: {
     customer: { email: args.email, name: args.name, payerId: args.userId },
   });
   return { checkoutUrl: consent.checkoutUrl, reference };
+}
+
+/** Redirect URL for PayFast's hosted card update flow (`/eng/recurring/update/{token}`). */
+export async function getPayFastCardUpdateUrlForUser(args: {
+  userId: string;
+  paymentMethodId?: string | null;
+  returnPath?: string;
+}): Promise<{ updateUrl: string; tokenSource: PayFastTokenLookup["source"] | "payment_method" }> {
+  let token: string | null = null;
+  let tokenSource: PayFastTokenLookup["source"] | "payment_method" = "viewer_payment_method";
+
+  const methodId = args.paymentMethodId?.trim();
+  if (methodId) {
+    const method = await db.viewerPaymentMethod.findFirst({
+      where: { id: methodId, userId: args.userId },
+      select: { authorizationCode: true, customerCode: true },
+    });
+    token = method?.authorizationCode ?? method?.customerCode ?? null;
+    tokenSource = "payment_method";
+  } else {
+    const lookup = await getPayFastTokenForUser(args.userId);
+    token = lookup?.token ?? null;
+    if (lookup) tokenSource = lookup.source;
+  }
+
+  if (!token || !isPayFastChargeToken(token)) {
+    throw new Error("No PayFast card on file to update. Add a card via PayFast first.");
+  }
+
+  const returnPath = args.returnPath?.trim() || "/browse/settings";
+  const returnUrl = buildPaymentReturnUrl(returnPath, "payfast_card_update");
+  return {
+    updateUrl: buildPayFastCardUpdateUrl(token, returnUrl),
+    tokenSource,
+  };
 }

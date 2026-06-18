@@ -72,6 +72,18 @@ export function WalletDashboard({
       return payload;
     },
   });
+  const payfastUpdateCardMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/payments/payfast/update-card", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ returnPath: window.location.pathname }),
+      });
+      const payload = await readJsonOrThrow(res);
+      if (payload.updateUrl) window.location.href = payload.updateUrl;
+      return payload;
+    },
+  });
 
   const wallet = data?.wallet;
   const transactions = useMemo(
@@ -148,7 +160,20 @@ export function WalletDashboard({
             Marketplace checkout uses your wallet first, then a PayFast-saved card, then hosted checkout.
           </p>
           {payfastCard?.hasToken ? (
-            <p className="mt-3 text-xs text-emerald-300">PayFast card on file — marketplace charges can use your saved card.</p>
+            <div className="mt-3 space-y-2">
+              <p className="text-xs text-emerald-300">PayFast card on file — marketplace charges can use your saved card.</p>
+              <button
+                type="button"
+                onClick={() => payfastUpdateCardMutation.mutate()}
+                disabled={payfastUpdateCardMutation.isPending}
+                className="rounded-xl border border-sky-400/30 bg-sky-500/10 px-3 py-2 text-xs font-semibold text-sky-200 hover:bg-sky-500/20 disabled:opacity-50"
+              >
+                {payfastUpdateCardMutation.isPending ? "Redirecting…" : "Update card on PayFast"}
+              </button>
+              {payfastUpdateCardMutation.error ? (
+                <p className="text-sm text-red-400">{(payfastUpdateCardMutation.error as Error).message}</p>
+              ) : null}
+            </div>
           ) : (
             <div className="mt-3 space-y-2">
               <p className="text-xs text-amber-200">
