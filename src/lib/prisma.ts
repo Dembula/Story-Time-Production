@@ -46,13 +46,14 @@ const REQUIRED_PRISMA_DELEGATES = [
   "modocActionLog",
   "modocTopicStat",
   "modocSessionIntel",
+  "adminAuditLog",
 ] as const;
 function prismaSingletonIsStale(client: unknown): boolean {
   if (typeof window !== "undefined") return false;
   const c = client as Record<string, unknown>;
   return REQUIRED_PRISMA_DELEGATES.some((name) => typeof c[name] === "undefined");
 }
-if (process.env.NODE_ENV !== "production" && prisma && prismaSingletonIsStale(prisma)) {
+if (prisma && prismaSingletonIsStale(prisma)) {
   void prisma.$disconnect().catch(() => {});
   prisma = createPrismaClient();
 }

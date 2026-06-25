@@ -171,8 +171,19 @@ export function AdminContentClient() {
         ...(action === "REJECT" || action === "REQUEST_CHANGES" ? { reviewFeedback: withCta } : {}),
       }),
     });
+    const raw = await res.text();
+    const payload = raw
+      ? (() => {
+          try {
+            return JSON.parse(raw) as { error?: string };
+          } catch {
+            return null;
+          }
+        })()
+      : null;
+
     if (res.ok) {
-      const updated = await res.json();
+      const updated = payload as ContentItem;
       setContent((prev) => prev.map((c) => (c.id === contentId ? { ...c, ...updated } : c)));
       setNoteById((prev) => ({ ...prev, [contentId]: "" }));
       setFeedbackById((prev) => ({ ...prev, [contentId]: [] }));
@@ -181,8 +192,12 @@ export function AdminContentClient() {
         setTab("APPROVED");
       }
     } else {
-      const payload = (await res.json().catch(() => null)) as { error?: string } | null;
-      setActionError(payload?.error ?? `Could not ${action.toLowerCase().replace(/_/g, " ")} this title. Please try again.`);
+      setActionError(
+        payload?.error ??
+          (raw?.trim()
+            ? `Approval failed (${res.status}): ${raw.slice(0, 240)}`
+            : `Could not ${action.toLowerCase().replace(/_/g, " ")} this title. Please try again.`),
+      );
     }
     setActionLoading(null);
   }
