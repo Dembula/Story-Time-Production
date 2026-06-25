@@ -14,8 +14,8 @@ import { getViewerProfileAge } from "@/lib/viewer-profiles";
 import { VIEWER_MODELS } from "@/lib/viewer-access";
 import { getDisplayPosterUrl } from "@/lib/content-media-urls";
 
-/** Personalized rows still fetch client-side; catalogue can revalidate when not searching. */
-export const revalidate = 60;
+/** Catalogue must reflect admin publish/unpublish immediately. */
+export const dynamic = "force-dynamic";
 
 export default async function BrowsePage({
   searchParams,

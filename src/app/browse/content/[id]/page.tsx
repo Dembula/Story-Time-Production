@@ -8,6 +8,8 @@ import { getViewerPlaybackState, isPpvEligibleContent } from "@/lib/viewer-acces
 import { getViewerProfileAge } from "@/lib/viewer-profiles";
 import type { SeasonItem } from "@/components/browse/content-episodes-section";
 
+export const dynamic = "force-dynamic";
+
 export default async function ContentDetailPage({
   params,
   searchParams,

@@ -1,4 +1,3 @@
-import { revalidatePath } from "next/cache";
 import { NextRequest, NextResponse, after } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -23,7 +22,17 @@ function isReadyStreamStatus(status: string | null | undefined): boolean {
   return Boolean(status && READY_STREAM_STATES.has(status.toLowerCase()));
 }
 
+async function loadStreamAssetsSafely(urls: string[]) {
+  try {
+    return await getStreamAssetsByUrls(urls);
+  } catch (err) {
+    console.error("stream asset lookup failed during content review:", err);
+    return new Map();
+  }
+}
+
 export async function PATCH(req: NextRequest) {
+  try {
   const session = await getServerSession(authOptions);
   const role = (session?.user as { role?: string })?.role;
   const adminId = (session?.user as { id?: string })?.id;
@@ -110,7 +119,7 @@ export async function PATCH(req: NextRequest) {
       return isCloudflareStreamUrl(url) || isLikelyVideoStorageUrl(url);
     });
 
-    const streamAssets = await getStreamAssetsByUrls(playbackItems.map((item) => item.url));
+    const streamAssets = await loadStreamAssetsSafely(playbackItems.map((item) => item.url));
     const blocked = playbackItems.find((item) => {
       const asset = streamAssets.get(item.url.trim());
       return Boolean(asset?.status && !isReadyStreamStatus(asset.status));
@@ -145,16 +154,17 @@ export async function PATCH(req: NextRequest) {
         newValue: { reviewStatus: updated.reviewStatus, published: updated.published } as InputJsonValue,
       },
     });
-    await notify(
-      "APPROVE",
-      seasonOnlyUpdate ? "New season approved" : "Your catalogue title was approved",
-      seasonOnlyUpdate
-        ? `A new season for "${before.title}" is approved and now visible to viewers.`
-        : `"${before.title}" is approved and published on the catalogue.`,
-    );
-    revalidatePath("/browse");
-    revalidatePath("/browse/search");
-    revalidatePath(`/browse/content/${contentId}`);
+    try {
+      await notify(
+        "APPROVE",
+        seasonOnlyUpdate ? "New season approved" : "Your catalogue title was approved",
+        seasonOnlyUpdate
+          ? `A new season for "${before.title}" is approved and now visible to viewers.`
+          : `"${before.title}" is approved and published on the catalogue.`,
+      );
+    } catch (err) {
+      console.error("creator notification on approve failed:", err);
+    }
 
     if (!seasonOnlyUpdate) {
       after(async () => {
@@ -303,16 +313,22 @@ export async function PATCH(req: NextRequest) {
         newValue: { reviewStatus: updated.reviewStatus, published: false } as InputJsonValue,
       },
     });
-    await notify(
-      "UNPUBLISH",
-      "A title was unpublished",
-      `"${before.title}" is no longer public on the catalogue. See your review page for notes.`,
-    );
-    revalidatePath("/browse");
-    revalidatePath("/browse/search");
-    revalidatePath(`/browse/content/${contentId}`);
+    try {
+      await notify(
+        "UNPUBLISH",
+        "A title was unpublished",
+        `"${before.title}" is no longer public on the catalogue. See your review page for notes.`,
+      );
+    } catch (err) {
+      console.error("creator notification on unpublish failed:", err);
+    }
     return NextResponse.json(updated);
   }
 
   return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+  } catch (error) {
+    console.error("admin content review failed:", error);
+    const message = error instanceof Error ? error.message : "Review action failed";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

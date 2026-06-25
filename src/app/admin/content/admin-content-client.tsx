@@ -108,6 +108,7 @@ export function AdminContentClient() {
   const [feedbackById, setFeedbackById] = useState<Record<string, FeedbackDraftRow[]>>({});
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -142,6 +143,7 @@ export function AdminContentClient() {
   async function handleReview(contentId: string, action: string, featured?: boolean) {
     setActionLoading(contentId);
     setActionError(null);
+    setActionSuccess(null);
     const item = content.find((x) => x.id === contentId);
     const note = noteById[contentId] ?? "";
     const rows = feedbackById[contentId] ?? [];
@@ -174,6 +176,10 @@ export function AdminContentClient() {
       setContent((prev) => prev.map((c) => (c.id === contentId ? { ...c, ...updated } : c)));
       setNoteById((prev) => ({ ...prev, [contentId]: "" }));
       setFeedbackById((prev) => ({ ...prev, [contentId]: [] }));
+      if (action === "APPROVE") {
+        setActionSuccess(`"${item?.title ?? "Title"}" is now published on the catalogue.`);
+        setTab("APPROVED");
+      }
     } else {
       const payload = (await res.json().catch(() => null)) as { error?: string } | null;
       setActionError(payload?.error ?? `Could not ${action.toLowerCase().replace(/_/g, " ")} this title. Please try again.`);
@@ -212,6 +218,13 @@ export function AdminContentClient() {
         <div className="flex items-start gap-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <p>{actionError}</p>
+        </div>
+      ) : null}
+
+      {actionSuccess ? (
+        <div className="flex items-start gap-3 rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-green-200">
+          <CheckCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <p>{actionSuccess}</p>
         </div>
       ) : null}
 

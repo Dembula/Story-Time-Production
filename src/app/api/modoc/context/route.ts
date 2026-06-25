@@ -67,7 +67,16 @@ export async function GET(req: NextRequest) {
   }
 
   if (role !== CREATOR_VA_ROLE) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return NextResponse.json({
+      greeting,
+      isNewSessionToday,
+      unreadVaCount: 0,
+      suggestions: [],
+      learningHint: hint,
+      playbookRuleCount,
+      interactionCount: learning.interactionCount ?? 0,
+      selfAwareIntro: null,
+    });
   }
 
   const projectId = req.nextUrl.searchParams.get("projectId");
