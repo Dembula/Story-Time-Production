@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import { NextRequest, NextResponse, after } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -8,7 +9,7 @@ import { sanitizeReviewFeedback } from "@/lib/review-feedback";
 import { buildAppUrl } from "@/lib/app-url";
 import { isCloudflareStreamUrl } from "@/lib/cloudflare-stream";
 import { getStreamAssetsByUrls } from "@/lib/stream-asset-store";
-import { isLikelyVideoStorageUrl } from "@/lib/stream-ingest-link";
+import { isLikelyVideoStorageUrl, linkOrIngestStreamForUrl } from "@/lib/stream-ingest-link";
 import { isSeasonOnlyCatalogueUpdate } from "@/lib/content-season-review";
 import { ensureSceneIntelligence } from "@/lib/ai-metadata/ensure-scene-intelligence";
 
@@ -111,9 +112,7 @@ export async function PATCH(req: NextRequest) {
 
     const streamAssets = await getStreamAssetsByUrls(playbackItems.map((item) => item.url));
     const blocked = playbackItems.find((item) => {
-      const url = item.url.trim();
-      const asset = streamAssets.get(url);
-      if (isLikelyVideoStorageUrl(url) && !asset) return true;
+      const asset = streamAssets.get(item.url.trim());
       return Boolean(asset?.status && !isReadyStreamStatus(asset.status));
     });
     if (blocked) {
@@ -153,8 +152,28 @@ export async function PATCH(req: NextRequest) {
         ? `A new season for "${before.title}" is approved and now visible to viewers.`
         : `"${before.title}" is approved and published on the catalogue.`,
     );
+    revalidatePath("/browse");
+    revalidatePath("/browse/search");
+    revalidatePath(`/browse/content/${contentId}`);
+
     if (!seasonOnlyUpdate) {
       after(async () => {
+        try {
+          const ingestTargets = [
+            { url: before.videoUrl, area: "content-main" },
+            { url: before.trailerUrl, area: "content-trailer" },
+            ...episodeRows.map((episode) => ({ url: episode.videoUrl, area: "content-episode" })),
+          ];
+          for (const target of ingestTargets) {
+            if (!target.url?.trim()) continue;
+            await linkOrIngestStreamForUrl(target.url, "Content", contentId, {
+              area: target.area,
+              source: "storytime-admin-approve",
+            });
+          }
+        } catch (err) {
+          console.error("stream ingest on approve failed:", err);
+        }
         try {
           await ensureSceneIntelligence(contentId);
         } catch (err) {
@@ -289,6 +308,9 @@ export async function PATCH(req: NextRequest) {
       "A title was unpublished",
       `"${before.title}" is no longer public on the catalogue. See your review page for notes.`,
     );
+    revalidatePath("/browse");
+    revalidatePath("/browse/search");
+    revalidatePath(`/browse/content/${contentId}`);
     return NextResponse.json(updated);
   }
 

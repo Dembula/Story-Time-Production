@@ -107,6 +107,7 @@ export function AdminContentClient() {
   const [noteById, setNoteById] = useState<Record<string, string>>({});
   const [feedbackById, setFeedbackById] = useState<Record<string, FeedbackDraftRow[]>>({});
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -140,6 +141,7 @@ export function AdminContentClient() {
 
   async function handleReview(contentId: string, action: string, featured?: boolean) {
     setActionLoading(contentId);
+    setActionError(null);
     const item = content.find((x) => x.id === contentId);
     const note = noteById[contentId] ?? "";
     const rows = feedbackById[contentId] ?? [];
@@ -172,6 +174,9 @@ export function AdminContentClient() {
       setContent((prev) => prev.map((c) => (c.id === contentId ? { ...c, ...updated } : c)));
       setNoteById((prev) => ({ ...prev, [contentId]: "" }));
       setFeedbackById((prev) => ({ ...prev, [contentId]: [] }));
+    } else {
+      const payload = (await res.json().catch(() => null)) as { error?: string } | null;
+      setActionError(payload?.error ?? `Could not ${action.toLowerCase().replace(/_/g, " ")} this title. Please try again.`);
     }
     setActionLoading(null);
   }
@@ -202,6 +207,13 @@ export function AdminContentClient() {
           .
         </p>
       </header>
+
+      {actionError ? (
+        <div className="flex items-start gap-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <p>{actionError}</p>
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         {[

@@ -206,8 +206,12 @@ export function DashboardSidebarShell({
         <div className="flex w-full gap-4 md:gap-6">
           {showDockedSidebar ? (
             <aside className="hidden w-56 shrink-0 md:block xl:w-64">
-              <div className="sticky top-24 max-h-[calc(100vh-7rem)] overflow-y-auto pr-1">{sidebarBody}</div>
-              {sidebarFooter ? <div className="mt-4">{sidebarFooter}</div> : null}
+              <div className="sticky top-24 flex max-h-[calc(100vh-7rem)] flex-col">
+                <div className="min-h-0 flex-1 overflow-y-auto pr-1">{sidebarBody}</div>
+                {sidebarFooter ? (
+                  <div className="mt-3 shrink-0 border-t border-white/8 pt-3">{sidebarFooter}</div>
+                ) : null}
+              </div>
             </aside>
           ) : null}
 
