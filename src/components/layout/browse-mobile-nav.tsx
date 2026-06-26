@@ -12,7 +12,7 @@ import { isOfflineDownloadEnabled } from "@/lib/platform/offline-downloads";
 const allTabs = [
   { href: "/browse", label: "Home", icon: Home, match: (p: string) => p === "/browse" || (p.startsWith("/browse/content") && !p.includes("/watch")) },
   { href: "/browse/search", label: "Search", icon: Search, match: (p: string) => p.startsWith("/browse/search") },
-  { href: "/browse/downloads", label: "Downloads", icon: Download, match: (p: string) => p.startsWith("/browse/downloads"), nativeOnly: true },
+  { href: "/browse/downloads", label: "Downloads", icon: Download, match: (p: string) => p.startsWith("/browse/downloads") },
   { href: "/browse/my-list", label: "My List", icon: Bookmark, match: (p: string) => p.startsWith("/browse/my-list") },
   { href: "/browse/settings", label: "Profile", icon: User, match: (p: string) => p.startsWith("/browse/settings") || p.startsWith("/browse/account") },
 ] as const;
@@ -22,7 +22,7 @@ export function BrowseMobileNav() {
   const { prefersReducedMotion } = useMotion();
   const pathname = usePathname();
   const downloadsEnabled = isOfflineDownloadEnabled();
-  const tabs = allTabs.filter((tab) => !("nativeOnly" in tab && tab.nativeOnly) || downloadsEnabled);
+  const tabs = allTabs.filter((tab) => tab.href !== "/browse/downloads" || downloadsEnabled);
   const gridColsClass = tabs.length >= 5 ? "grid-cols-5" : "grid-cols-4";
 
   if (deviceClass !== "mobile") return null;

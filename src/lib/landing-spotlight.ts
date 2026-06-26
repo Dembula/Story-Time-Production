@@ -50,7 +50,7 @@ export async function getLandingSpotlight(limit = 10): Promise<LandingSpotlightI
       id: item.id,
       title: item.title,
       type: item.type,
-      year: item.year,
+      year: item.year ?? new Date(item.createdAt).getFullYear(),
       category: item.category,
       posterUrl: getDisplayPosterUrl(item),
       creatorName: item.creator?.name ?? null,

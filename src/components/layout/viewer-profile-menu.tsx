@@ -33,7 +33,7 @@ type ProfileMenuProps = {
 const subscriberLinks = [
   { href: "/profiles", label: "Profile", icon: User },
   { href: "/browse#continue-watching", label: "Continue Watching", icon: Clock },
-  { href: "/browse/downloads", label: "Downloads", icon: Download, nativeOnly: true },
+  { href: "/browse/downloads", label: "Downloads", icon: Download },
   { href: "/browse/my-list", label: "My List", icon: Bookmark },
   { href: "/browse/settings", label: "Account & preferences", icon: Settings },
   { href: "/browse/account", label: "Subscription", icon: CreditCard },
@@ -51,7 +51,7 @@ export function ViewerProfileMenu({
   const pathname = usePathname();
   const downloadsEnabled = isOfflineDownloadEnabled();
   const visibleSubscriberLinks = subscriberLinks.filter(
-    (link) => !("nativeOnly" in link && link.nativeOnly) || downloadsEnabled,
+    (link) => link.href !== "/browse/downloads" || downloadsEnabled,
   );
 
   return (

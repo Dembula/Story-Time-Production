@@ -113,11 +113,9 @@ export function LandingSpotlightSlider() {
             <p className="mt-2 line-clamp-2 text-left text-xs font-medium leading-snug text-slate-200 group-hover:text-white">
               {item.title}
             </p>
-            {(item.creatorName || item.year) && (
-              <p className="mt-0.5 line-clamp-1 text-left text-[10px] text-slate-500">
-                {[item.creatorName, item.year].filter(Boolean).join(" · ")}
-              </p>
-            )}
+            {item.year ? (
+              <p className="mt-0.5 line-clamp-1 text-left text-[10px] text-slate-500">{item.year}</p>
+            ) : null}
           </Link>
           );
         })}
