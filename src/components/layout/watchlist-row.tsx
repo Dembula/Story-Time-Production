@@ -4,8 +4,7 @@ import { useSession } from "next-auth/react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import Image from "next/image";
-import { ChevronLeft, ChevronRight, Bookmark } from "lucide-react";
-import { useRef } from "react";
+import { Bookmark } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getDisplayPosterUrl } from "@/lib/content-media-urls";
 import {
@@ -14,6 +13,7 @@ import {
   browsePosterCardSkeletonClass,
   browseRowGapClass,
 } from "@/lib/browse-card-layout";
+import { HorizontalScrollRow } from "@/components/layout/horizontal-scroll-row";
 
 type WatchlistItem = {
   content: {
@@ -35,7 +35,6 @@ export function WatchlistRow() {
 }
 
 function WatchlistRowInner() {
-  const scrollRef = useRef<HTMLDivElement>(null);
   const { data, isLoading } = useQuery({
     queryKey: ["watchlist"],
     queryFn: () => fetch("/api/watchlist").then((r) => r.json()),
@@ -59,61 +58,40 @@ function WatchlistRowInner() {
 
   if (!items.length) return null;
 
-  function scroll(direction: "left" | "right") {
-    if (!scrollRef.current) return;
-    scrollRef.current.scrollBy({
-      left: direction === "left" ? -scrollRef.current.clientWidth * 0.75 : scrollRef.current.clientWidth * 0.75,
-      behavior: "smooth",
-    });
-  }
-
   return (
-    <div id="my-list" className="group/row mb-14">
-      <div className="mb-5 flex items-end justify-between">
-        <div>
-          <h2 className="font-display text-xl font-semibold text-white">My List</h2>
-          <p className="mt-1 text-sm text-slate-400">Titles you saved to watch later</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Link href="/browse/my-list" className="text-xs font-medium text-orange-300 hover:text-orange-200">
-            See all
+    <HorizontalScrollRow
+      id="my-list"
+      className="mb-14"
+      title={<h2 className="font-display text-xl font-semibold text-white">My List</h2>}
+      subtitle="Titles you saved to watch later"
+      headerEnd={
+        <Link href="/browse/my-list" className="text-xs font-medium text-orange-300 hover:text-orange-200">
+          See all
+        </Link>
+      }
+      scrollClassName={`flex snap-x snap-mandatory overflow-x-auto scroll-smooth pb-2 scrollbar-hide [-webkit-overflow-scrolling:touch] ${browseRowGapClass}`}
+    >
+      {items.slice(0, 12).map(({ content: c }) => {
+        const poster = getDisplayPosterUrl(c) ?? c.posterUrl;
+        return (
+          <Link
+            key={c.id}
+            href={`/browse/content/${c.id}`}
+            className={`group/card ${browsePosterCardClass}`}
+          >
+            <div className="relative aspect-[2/3] overflow-hidden rounded-xl border border-white/8 bg-card shadow-media transition duration-300 group-hover/card:scale-[1.03] group-hover/card:shadow-[var(--cin-depth-1)] sm:rounded-2xl">
+              {poster ? (
+                <Image src={poster} alt={c.title} fill sizes={browsePosterCardImageSizes} className="object-cover" />
+              ) : (
+                <div className="flex h-full items-center justify-center bg-slate-900">
+                  <Bookmark className="h-8 w-8 text-slate-600" />
+                </div>
+              )}
+            </div>
+            <p className="mt-2 truncate text-xs font-medium text-white sm:mt-3 sm:text-sm">{c.title}</p>
           </Link>
-          <div className="flex gap-2 opacity-0 transition group-hover/row:opacity-100">
-            <button type="button" onClick={() => scroll("left")} className="rounded-full border border-white/10 bg-white/[0.06] p-2.5" aria-label="Scroll left">
-              <ChevronLeft className="h-5 w-5 text-white" />
-            </button>
-            <button type="button" onClick={() => scroll("right")} className="rounded-full border border-white/10 bg-white/[0.06] p-2.5" aria-label="Scroll right">
-              <ChevronRight className="h-5 w-5 text-white" />
-            </button>
-          </div>
-        </div>
-      </div>
-      <div
-        ref={scrollRef}
-        className={`flex snap-x snap-mandatory overflow-x-auto scroll-smooth pb-2 scrollbar-hide ${browseRowGapClass}`}
-      >
-        {items.slice(0, 12).map(({ content: c }) => {
-          const poster = getDisplayPosterUrl(c) ?? c.posterUrl;
-          return (
-            <Link
-              key={c.id}
-              href={`/browse/content/${c.id}`}
-              className={`group/card ${browsePosterCardClass}`}
-            >
-              <div className="relative aspect-[2/3] overflow-hidden rounded-xl border border-white/8 bg-card shadow-media transition duration-300 group-hover/card:scale-[1.03] group-hover/card:shadow-[var(--cin-depth-1)] sm:rounded-2xl">
-                {poster ? (
-                  <Image src={poster} alt={c.title} fill sizes={browsePosterCardImageSizes} className="object-cover" />
-                ) : (
-                  <div className="flex h-full items-center justify-center bg-slate-900">
-                    <Bookmark className="h-8 w-8 text-slate-600" />
-                  </div>
-                )}
-              </div>
-              <p className="mt-2 truncate text-xs font-medium text-white sm:mt-3 sm:text-sm">{c.title}</p>
-            </Link>
-          );
-        })}
-      </div>
-    </div>
+        );
+      })}
+    </HorizontalScrollRow>
   );
 }

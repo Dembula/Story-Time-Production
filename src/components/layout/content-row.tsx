@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { ChevronLeft, ChevronRight, Lock } from "lucide-react";
+import { Lock } from "lucide-react";
 import { useRef, useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import { useContentPrefetch } from "@/hooks/use-content-prefetch";
@@ -19,6 +19,7 @@ import {
   browsePosterCardSkeletonClass,
   browseRowGapClass,
 } from "@/lib/browse-card-layout";
+import { HorizontalScrollRow } from "@/components/layout/horizontal-scroll-row";
 
 export type ContentItem = {
   id: string;
@@ -132,11 +133,6 @@ function ContentCard({
             View details
           </span>
         </div>
-        {item._count?.ratings ? (
-          <div className="absolute right-2 top-2 rounded-full border border-white/10 bg-black/55 px-2.5 py-1 text-xs text-slate-100 backdrop-blur-sm">
-            {item._count.ratings} ratings
-          </div>
-        ) : null}
         {ppvMode && !/music/i.test(item.type) ? (
           <div className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full border border-orange-300/30 bg-orange-500/20 px-2.5 py-1 text-xs text-orange-100 backdrop-blur-sm">
             <Lock className="h-3 w-3" /> Pay to unlock
@@ -163,18 +159,6 @@ export function ContentRow({
   loading?: boolean;
   ppvMode?: boolean;
 }) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const { prefersReducedMotion } = useMotion();
-
-  function scroll(direction: "left" | "right") {
-    if (!scrollRef.current) return;
-    const amount = scrollRef.current.clientWidth * 0.8;
-    scrollRef.current.scrollBy({
-      left: direction === "left" ? -amount : amount,
-      behavior: "smooth",
-    });
-  }
-
   if (loading) {
     return (
       <div className="mb-12">
@@ -194,42 +178,15 @@ export function ContentRow({
   if (!contents?.length) return null;
 
   return (
-    <div className="group/row mb-10 sm:mb-14">
-      <div className="mb-3 flex items-end justify-between sm:mb-5">
-        <div>
-          <h2 className="font-display text-lg font-semibold text-white sm:text-xl">{title}</h2>
-          {subtitle && <p className="mt-0.5 text-xs text-slate-400 sm:mt-1 sm:text-sm">{subtitle}</p>}
-        </div>
-        <div className="flex gap-2 opacity-100 transition md:opacity-0 md:group-hover/row:opacity-100">
-          <motion.button
-            type="button"
-            onClick={() => scroll("left")}
-            whileTap={prefersReducedMotion ? undefined : { scale: 0.94 }}
-            className="viewer-motion-surface rounded-full border border-white/12 bg-white/[0.08] p-2.5 shadow-panel backdrop-blur-xl hover:-translate-y-0.5 hover:bg-white/[0.15]"
-            aria-label="Scroll left"
-          >
-            <ChevronLeft className="h-5 w-5 text-white" />
-          </motion.button>
-          <motion.button
-            type="button"
-            onClick={() => scroll("right")}
-            whileTap={prefersReducedMotion ? undefined : { scale: 0.94 }}
-            className="viewer-motion-surface rounded-full border border-white/12 bg-white/[0.08] p-2.5 shadow-panel backdrop-blur-xl hover:-translate-y-0.5 hover:bg-white/[0.15]"
-            aria-label="Scroll right"
-          >
-            <ChevronRight className="h-5 w-5 text-white" />
-          </motion.button>
-        </div>
-      </div>
-      <div
-        ref={scrollRef}
-        data-spatial-nav="row"
-        className={`flex snap-x snap-mandatory overflow-x-auto scroll-smooth pb-2 scrollbar-hide [-webkit-overflow-scrolling:touch] ${browseRowGapClass}`}
-      >
-        {contents.map((item) => (
-          <ContentCard key={item.id} item={item} ppvMode={ppvMode} />
-        ))}
-      </div>
-    </div>
+    <HorizontalScrollRow
+      className="mb-10 sm:mb-14"
+      title={<h2 className="font-display text-lg font-semibold text-white sm:text-xl">{title}</h2>}
+      subtitle={subtitle}
+      scrollClassName={`flex snap-x snap-mandatory overflow-x-auto scroll-smooth pb-2 scrollbar-hide [-webkit-overflow-scrolling:touch] ${browseRowGapClass}`}
+    >
+      {contents.map((item) => (
+        <ContentCard key={item.id} item={item} ppvMode={ppvMode} />
+      ))}
+    </HorizontalScrollRow>
   );
 }

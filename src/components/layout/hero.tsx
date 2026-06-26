@@ -126,15 +126,13 @@ export function Hero({ content }: { content: Content[] }) {
       </div>
 
       {content.length > 1 && (
-        <div className="absolute bottom-8 right-8 md:right-20 flex gap-2 z-10">
+        <div className="pointer-events-none absolute bottom-6 left-1/2 z-10 flex -translate-x-1/2 gap-1.5 md:bottom-8">
           {content.slice(0, 5).map((c, i) => (
-            <button
+            <span
               key={c.id}
-              type="button"
-              onClick={() => setActiveIndex(i)}
-              aria-label={`Show ${c.title}`}
-              className={`h-1 rounded-full transition-all duration-300 ${
-                i === activeIndex ? "w-8 bg-orange-300 shadow-[0_0_16px_rgba(255,179,71,0.8)]" : "w-2 bg-white/45 hover:bg-white/70"
+              aria-hidden
+              className={`h-1 rounded-full transition-all duration-500 ${
+                i === activeIndex ? "w-7 bg-orange-300/95" : "w-1.5 bg-white/35"
               }`}
             />
           ))}

@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ContentDetailHero } from "@/components/browse/content-detail-hero";
 import { ContentInfoModal } from "@/components/browse/content-info-modal";
 import { ContentEpisodesSection, type SeasonItem } from "@/components/browse/content-episodes-section";
+import { HorizontalScrollRow } from "@/components/layout/horizontal-scroll-row";
 import { isLongFormType } from "@/lib/content-types";
 import { CheckoutModal } from "@/components/payments/checkout-modal";
 import { useWatchlist } from "@/hooks/use-watchlist";
@@ -610,74 +611,76 @@ export function ContentDetailClient({
 
       {/* Related / More Like This */}
       {relatedTitles.length > 0 && (
-        <section className="mt-10">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-xl font-semibold text-white">Related</h3>
+        <HorizontalScrollRow
+          className="mt-10"
+          title={<h3 className="text-xl font-semibold text-white">Related</h3>}
+          headerEnd={
             <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-400">
               More like this <ChevronRight className="h-3.5 w-3.5" />
             </span>
-          </div>
-          <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 [-webkit-overflow-scrolling:touch] scrollbar-hide">
-            {relatedTitles.map((item) => (
-              <Link
-                key={item.id}
-                href={`/browse/content/${item.id}`}
-                className="group block w-32 shrink-0 snap-start sm:w-36 md:w-40 lg:w-44"
-              >
-                <div className="relative aspect-[2/3] overflow-hidden rounded-xl border border-white/10 bg-slate-900">
-                  {item.posterUrl ? (
-                    <Image
-                      src={item.posterUrl}
-                      alt={item.title}
-                      fill
-                      sizes="(max-width: 768px) 128px, 176px"
-                      className="object-cover transition duration-300 group-hover:scale-105"
-                    />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center text-[11px] text-slate-500">
-                      {item.title}
-                    </div>
-                  )}
-                </div>
-                <p className="mt-2 truncate text-xs font-medium text-white group-hover:text-orange-200 sm:text-sm">
-                  {item.title}
-                </p>
-                <p className="truncate text-[11px] text-slate-400">{item.type}</p>
-              </Link>
-            ))}
-          </div>
-        </section>
+          }
+          scrollClassName="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 [-webkit-overflow-scrolling:touch] scrollbar-hide"
+        >
+          {relatedTitles.map((item) => (
+            <Link
+              key={item.id}
+              href={`/browse/content/${item.id}`}
+              className="group block w-32 shrink-0 snap-start sm:w-36 md:w-40 lg:w-44"
+            >
+              <div className="relative aspect-[2/3] overflow-hidden rounded-xl border border-white/10 bg-slate-900">
+                {item.posterUrl ? (
+                  <Image
+                    src={item.posterUrl}
+                    alt={item.title}
+                    fill
+                    sizes="(max-width: 768px) 128px, 176px"
+                    className="object-cover transition duration-300 group-hover:scale-105"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-[11px] text-slate-500">
+                    {item.title}
+                  </div>
+                )}
+              </div>
+              <p className="mt-2 truncate text-xs font-medium text-white group-hover:text-orange-200 sm:text-sm">
+                {item.title}
+              </p>
+              <p className="truncate text-[11px] text-slate-400">{item.type}</p>
+            </Link>
+          ))}
+        </HorizontalScrollRow>
       )}
 
       {/* Cast & Crew horizontal rail */}
       {content.crewMembers && content.crewMembers.length > 0 && (
-        <section className="mt-10">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-xl font-semibold text-white">Cast & Crew</h3>
+        <HorizontalScrollRow
+          className="mt-10"
+          title={<h3 className="text-xl font-semibold text-white">Cast & Crew</h3>}
+          headerEnd={
             <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-slate-300">
               {content.crewMembers.length} credits
             </span>
-          </div>
-          <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 [-webkit-overflow-scrolling:touch] scrollbar-hide">
-            {content.crewMembers.map((member) => {
-              const initials = member.name
-                .split(/\s+/)
-                .map((part) => part[0] ?? "")
-                .join("")
-                .slice(0, 2)
-                .toUpperCase();
-              return (
-                <div key={member.id} className="w-[7rem] shrink-0 snap-start text-center sm:w-[7.5rem]">
-                  <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full border border-white/10 bg-gradient-to-br from-slate-700/70 to-slate-900 text-base font-semibold text-white shadow-lg sm:h-24 sm:w-24">
-                    {initials}
-                  </div>
-                  <p className="mt-2 line-clamp-1 text-sm font-medium text-white">{member.name}</p>
-                  <p className="line-clamp-1 text-xs text-slate-400">{member.role}</p>
+          }
+          scrollClassName="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 [-webkit-overflow-scrolling:touch] scrollbar-hide"
+        >
+          {content.crewMembers.map((member) => {
+            const initials = member.name
+              .split(/\s+/)
+              .map((part) => part[0] ?? "")
+              .join("")
+              .slice(0, 2)
+              .toUpperCase();
+            return (
+              <div key={member.id} className="w-[7rem] shrink-0 snap-start text-center sm:w-[7.5rem]">
+                <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full border border-white/10 bg-gradient-to-br from-slate-700/70 to-slate-900 text-base font-semibold text-white shadow-lg sm:h-24 sm:w-24">
+                  {initials}
                 </div>
-              );
-            })}
-          </div>
-        </section>
+                <p className="mt-2 line-clamp-1 text-sm font-medium text-white">{member.name}</p>
+                <p className="line-clamp-1 text-xs text-slate-400">{member.role}</p>
+              </div>
+            );
+          })}
+        </HorizontalScrollRow>
       )}
 
       {isSubscriber && subscriptionExpired && (
