@@ -94,7 +94,10 @@ export async function fetchAdminRevenueBundle() {
       title: true,
       type: true,
       creator: { select: { name: true } },
-      watchSessions: { where: { startedAt: { gte: periodStart, lte: periodEnd } }, select: { durationSeconds: true } },
+      watchSessions: {
+        where: { startedAt: { gte: periodStart, lte: periodEnd }, countsForCreatorRevenue: true },
+        select: { durationSeconds: true },
+      },
     },
   });
 

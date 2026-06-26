@@ -7,19 +7,23 @@ import { motion } from "framer-motion";
 import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
 import { useMotion } from "@/components/motion/motion-provider";
 import { viewerSprings } from "@/lib/motion/viewer-presets";
+import { isOfflineDownloadEnabled } from "@/lib/platform/offline-downloads";
 
-const tabs = [
+const allTabs = [
   { href: "/browse", label: "Home", icon: Home, match: (p: string) => p === "/browse" || (p.startsWith("/browse/content") && !p.includes("/watch")) },
   { href: "/browse/search", label: "Search", icon: Search, match: (p: string) => p.startsWith("/browse/search") },
-  { href: "/browse/downloads", label: "Downloads", icon: Download, match: (p: string) => p.startsWith("/browse/downloads") },
+  { href: "/browse/downloads", label: "Downloads", icon: Download, match: (p: string) => p.startsWith("/browse/downloads"), nativeOnly: true },
   { href: "/browse/my-list", label: "My List", icon: Bookmark, match: (p: string) => p.startsWith("/browse/my-list") },
   { href: "/browse/settings", label: "Profile", icon: User, match: (p: string) => p.startsWith("/browse/settings") || p.startsWith("/browse/account") },
-];
+] as const;
 
 export function BrowseMobileNav() {
   const { deviceClass } = useAdaptiveUi();
   const { prefersReducedMotion } = useMotion();
   const pathname = usePathname();
+  const downloadsEnabled = isOfflineDownloadEnabled();
+  const tabs = allTabs.filter((tab) => !("nativeOnly" in tab && tab.nativeOnly) || downloadsEnabled);
+  const gridColsClass = tabs.length >= 5 ? "grid-cols-5" : "grid-cols-4";
 
   if (deviceClass !== "mobile") return null;
   if (pathname.includes("/watch")) return null;
@@ -31,7 +35,7 @@ export function BrowseMobileNav() {
       transition={{ ...viewerSprings.sheet, delay: 0.08 }}
       className="browse-mobile-nav fixed bottom-0 left-0 right-0 z-40 border-t border-white/10 bg-black/94 px-1.5 pb-[max(env(safe-area-inset-bottom),0.45rem)] pt-2 backdrop-blur-2xl md:hidden"
     >
-      <ul className="grid grid-cols-5 gap-0.5 rounded-2xl border border-white/10 bg-black/80 p-1 shadow-[0_10px_40px_rgba(0,0,0,0.55)]">
+      <ul className={`grid ${gridColsClass} gap-0.5 rounded-2xl border border-white/10 bg-black/80 p-1 shadow-[0_10px_40px_rgba(0,0,0,0.55)]`}>
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const active = tab.match(pathname);

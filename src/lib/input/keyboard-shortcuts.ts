@@ -1,7 +1,18 @@
+import { isOfflineDownloadEnabled } from "@/lib/platform/offline-downloads";
+
 export type ShortcutGroup = {
   title: string;
-  items: { keys: string; description: string }[];
+  items: { keys: string; description: string; nativeOnly?: boolean }[];
 };
+
+export function getPlatformShortcutGroups(): ShortcutGroup[] {
+  const downloadsEnabled = isOfflineDownloadEnabled();
+
+  return PLATFORM_SHORTCUT_GROUPS.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => !item.nativeOnly || downloadsEnabled),
+  }));
+}
 
 export const PLATFORM_SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
@@ -11,7 +22,7 @@ export const PLATFORM_SHORTCUT_GROUPS: ShortcutGroup[] = [
       { keys: "Ctrl + K", description: "Open search" },
       { keys: "H", description: "Go to Home" },
       { keys: "M", description: "Open My List" },
-      { keys: "D", description: "Open Downloads" },
+      { keys: "D", description: "Open Downloads", nativeOnly: true },
       { keys: "Esc", description: "Close panel or go back" },
       { keys: "?", description: "Show keyboard shortcuts" },
     ],

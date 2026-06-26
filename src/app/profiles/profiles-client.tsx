@@ -228,7 +228,7 @@ export function ProfilesClient({
 
   return (
     <div className="space-y-8">
-      <div className="flex justify-end">
+      <div className="flex shrink-0 justify-end">
         <LogOutButton label="Log out to home" />
       </div>
 
@@ -285,43 +285,19 @@ export function ProfilesClient({
           <p className="mt-1 text-orange-100/90">
             {needsPlanReactivation
               ? "Your trial or billing period has ended. Choose a plan and complete payment to start watching again."
-              : "Complete secure payment to activate your plan. You cannot enter the catalogue until payment is confirmed."}
+              : "Choose your viewer model and plan, then complete payment or start a free trial to access the catalogue."}
           </p>
-          {needsPlanReactivation ? (
-            <Link
-              href="/onboarding/package"
-              className="mt-3 inline-flex rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-400"
-            >
-              Choose plan & pay
-            </Link>
-          ) : (
-            <button
-              type="button"
-              onClick={async () => {
-                const pendingCheckout =
-                  typeof window !== "undefined" ? sessionStorage.getItem("st_pending_viewer_checkout") : null;
-                if (pendingCheckout) {
-                  sessionStorage.removeItem("st_pending_viewer_checkout");
-                  window.location.assign(pendingCheckout);
-                  return;
-                }
-                setError("");
-                try {
-                  const res = await fetch("/api/viewer/subscription/resume-checkout", { method: "POST" });
-                  const data = await res.json().catch(() => ({}));
-                  if (!res.ok || typeof data.checkoutUrl !== "string" || !data.checkoutUrl) {
-                    throw new Error(data.error || "Unable to start checkout.");
-                  }
-                  window.location.assign(data.checkoutUrl);
-                } catch (err) {
-                  setError(err instanceof Error ? err.message : "Unable to start checkout.");
-                }
-              }}
-              className="mt-3 rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-400"
-            >
-              Complete payment
-            </button>
-          )}
+          <Link
+            href="/browse/account/change-plan"
+            onClick={() => {
+              if (typeof window !== "undefined") {
+                sessionStorage.removeItem("st_pending_viewer_checkout");
+              }
+            }}
+            className="mt-3 inline-flex rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-400"
+          >
+            Choose plan & pay
+          </Link>
         </div>
       ) : null}
 

@@ -6,6 +6,7 @@ import {
   VIEWER_MODELS,
   VIEWER_PLAN_CONFIG,
   hasBlockingActiveSubscription,
+  isInitialSubscriptionPaymentPending,
   subscriptionNeedsReactivation,
 } from "@/lib/viewer-access";
 import { computeDiscountedAmount, redeemPromoCode, resolvePromoCode } from "@/lib/promo-codes";
@@ -120,8 +121,10 @@ export async function POST(req: Request) {
     });
   }
 
-  const reactivating = Boolean(existing && subscriptionNeedsReactivation(existing));
+  const initialPaymentPending = Boolean(existing && isInitialSubscriptionPaymentPending(existing));
+  const reactivating = Boolean(existing && subscriptionNeedsReactivation(existing) && !initialPaymentPending);
   const postTrialReturnPath = user.accountOnboardingCompletedAt ? "/browse" : "/profiles";
+  const checkoutReturnPath = user.accountOnboardingCompletedAt ? "/profiles" : "/onboarding/account";
 
   if (reactivating && existing) {
     if (selectedViewerModel === VIEWER_MODELS.PPV) {
@@ -256,6 +259,178 @@ export async function POST(req: Request) {
       });
       return NextResponse.json({ error: message }, { status: 502 });
     }
+  }
+
+  if (initialPaymentPending && existing) {
+    if (selectedViewerModel === VIEWER_MODELS.PPV) {
+      const updated = await prisma.viewerSubscription.update({
+        where: { id: existing.id },
+        data: {
+          viewerModel: VIEWER_MODELS.PPV,
+          plan: "PPV_FILM",
+          status: "ACTIVE",
+          trialEndsAt: null,
+          deviceCount: 1,
+          profileLimit: 1,
+          billingEmail: user.email,
+          lastPaymentStatus: null,
+          lastPaymentError: null,
+          lastPaymentAt: null,
+          cancelAtPeriodEnd: false,
+          renewalAttemptCount: 0,
+          pastDueSince: null,
+        },
+      });
+
+      return NextResponse.json({
+        subscription: updated,
+        profileId: null,
+        redirectTo: checkoutReturnPath,
+        requiresPayment: false,
+      });
+    }
+
+    const now = new Date();
+    const basePrice: number = planConfig.price;
+    let finalPrice: number = basePrice;
+    if (typeof body.promoCode === "string" && body.promoCode.trim()) {
+      const promoResult = await resolvePromoCode(body.promoCode, "VIEWER_SUBSCRIPTION");
+      if ("error" in promoResult) {
+        return NextResponse.json({ error: promoResult.error }, { status: 400 });
+      }
+      const alreadyUsed = await prisma.promoCodeRedemption.findUnique({
+        where: {
+          promoCodeId_userId_context: {
+            promoCodeId: promoResult.promo.id,
+            userId: user.id,
+            context: "VIEWER_SUBSCRIPTION",
+          },
+        },
+        select: { id: true },
+      });
+      if (alreadyUsed) {
+        return NextResponse.json({ error: "Promo code already used for this account." }, { status: 400 });
+      }
+      finalPrice = computeDiscountedAmount(basePrice, promoResult.promo);
+      appliedPromo = {
+        id: promoResult.promo.id,
+        code: promoResult.promo.code,
+        kind: promoResult.promo.kind,
+        amount: promoResult.promo.amount ?? null,
+      };
+    }
+
+    const trialEndsAt = useTrial ? new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000) : null;
+    const currentPeriodEnd =
+      useTrial && trialEndsAt ? addViewerSubscriptionPeriod(trialEndsAt) : addViewerSubscriptionPeriod(now);
+    const subscription = await prisma.viewerSubscription.update({
+      where: { id: existing.id },
+      data: {
+        viewerModel: VIEWER_MODELS.SUBSCRIPTION,
+        plan: planType,
+        status: useTrial ? "TRIAL_ACTIVE" : "PAST_DUE",
+        trialEndsAt,
+        currentPeriodEnd,
+        deviceCount: planConfig.deviceCount,
+        profileLimit: planConfig.profileLimit,
+        billingEmail: user.email,
+        lastPaymentStatus: "PENDING",
+        lastPaymentAt: null,
+        lastPaymentError: null,
+        cancelAtPeriodEnd: false,
+        renewalAttemptCount: 0,
+        pastDueSince: null,
+      },
+    });
+
+    if (appliedPromo) {
+      const redemption = await redeemPromoCode({
+        promoCodeId: appliedPromo.id,
+        userId: user.id,
+        context: "VIEWER_SUBSCRIPTION",
+        referenceId: subscription.id,
+        discountAmount: Math.max(0, basePrice - finalPrice),
+        resultingPlan: planType,
+        metadata: {
+          basePrice,
+          finalPrice,
+          trialApplied: useTrial,
+        },
+      });
+      if (!redemption.ok) {
+        return NextResponse.json({ error: promoFailureMessage(redemption.reason) }, { status: 400 });
+      }
+    }
+
+    let checkoutUrl: string | null = null;
+    let checkoutWarning: string | null = null;
+    if (useTrial) {
+      try {
+        const gateway = getPaymentGateway();
+        const consent = await gateway.createCardConsentSession({
+          reference: `trial-consent-${subscription.id}`,
+          returnUrl: buildPaymentReturnUrl("/onboarding/account", "viewer_trial_card_capture"),
+          customer: { email: user.email, name: user.name, payerId: user.id },
+        });
+        checkoutUrl = consent.checkoutUrl;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unable to initialize card capture.";
+        checkoutWarning = isRetryableConsentSetupError(message)
+          ? "Trial started, but card capture is not available yet. PayFast integration is required before saved cards can be collected."
+          : "Trial started, but card capture could not be initialized right now. You can add a payment method later in account settings.";
+        await prisma.viewerSubscription.update({
+          where: { id: subscription.id },
+          data: { lastPaymentStatus: "PENDING", lastPaymentError: checkoutWarning },
+        });
+      }
+    } else {
+      try {
+        const checkout = await initializeCheckout({
+          userId: user.id,
+          email: user.email,
+          customerName: user.name,
+          amount: finalPrice,
+          purpose: "viewer_subscription",
+          referenceType: "ViewerSubscription",
+          referenceId: subscription.id,
+          returnUrl: buildPaymentReturnUrl(checkoutReturnPath, "viewer_subscription"),
+          metadata: { planType },
+        });
+        checkoutUrl = checkout.checkout.checkoutUrl;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unable to initialize checkout.";
+        await prisma.viewerSubscription.update({
+          where: { id: subscription.id },
+          data: {
+            status: "PAST_DUE",
+            lastPaymentStatus: "FAILED",
+            lastPaymentError: message,
+          },
+        });
+        return NextResponse.json({ error: message }, { status: 502 });
+      }
+    }
+
+    const deferCheckout = !useTrial && Boolean(checkoutUrl);
+
+    return NextResponse.json({
+      subscription,
+      profileId: null,
+      redirectTo: checkoutReturnPath,
+      requiresPayment: useTrial ? Boolean(checkoutUrl) : false,
+      deferCheckout,
+      checkoutUrl,
+      checkoutWarning,
+      pricing: {
+        basePrice,
+        finalPrice,
+        promoCode: appliedPromo?.code ?? null,
+        discountAmount: Math.max(0, basePrice - finalPrice),
+      },
+      message: useTrial
+        ? "Trial activated. Add your card now for automatic billing at trial end."
+        : "Subscription updated. Complete payment to activate full access.",
+    });
   }
 
   if (selectedViewerModel === VIEWER_MODELS.PPV) {

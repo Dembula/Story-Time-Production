@@ -3,7 +3,7 @@ import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { PackageClient } from "./package-client";
-import { getViewerModel, isViewerSubscriptionExpired, subscriptionNeedsReactivation } from "@/lib/viewer-access";
+import { getViewerModel, isInitialSubscriptionPaymentPending, isViewerSubscriptionExpired, subscriptionNeedsReactivation } from "@/lib/viewer-access";
 import { OnboardingExitBar } from "@/components/auth/onboarding-exit-bar";
 
 export default async function OnboardingPackagePage() {
@@ -28,7 +28,11 @@ export default async function OnboardingPackagePage() {
   const hasActive = sub && !isViewerSubscriptionExpired(sub);
   if (hasActive) redirect(getViewerModel(sub) === "PPV" ? "/browse" : "/profiles");
 
-  const reactivationMode = Boolean(sub && subscriptionNeedsReactivation(sub));
+  const reactivationMode = Boolean(
+    sub && subscriptionNeedsReactivation(sub) && !isInitialSubscriptionPaymentPending(sub),
+  );
+  const initialViewerModel = sub ? getViewerModel(sub) : undefined;
+  const initialPlan = sub?.plan;
 
   return (
     <div className="min-h-screen bg-background px-6 py-16 text-slate-100">
@@ -49,7 +53,11 @@ export default async function OnboardingPackagePage() {
         </div>
 
         <div className="mt-12">
-        <PackageClient reactivationMode={reactivationMode} />
+        <PackageClient
+          reactivationMode={reactivationMode}
+          initialViewerModel={initialViewerModel}
+          initialPlan={initialPlan}
+        />
         </div>
       </div>
     </div>

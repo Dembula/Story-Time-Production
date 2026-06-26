@@ -3,6 +3,8 @@
 export const PAYMENT_PURPOSE_LABELS: Record<string, string> = {
   viewer_subscription: "Viewer subscription (initial)",
   viewer_subscription_renewal: "Viewer subscription renewal",
+  viewer_subscription_reactivate: "Viewer subscription reactivation",
+  viewer_subscription_plan_change: "Viewer subscription plan change",
   viewer_ppv: "Viewer pay-per-view title",
   SCRIPT_REVIEW: "Executive script review",
   CASTING_ACQUISITION_FEE: "Casting acquisition fee",

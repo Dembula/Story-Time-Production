@@ -8,6 +8,7 @@ import { addViewerSubscriptionPeriod } from "@/lib/payments/billing-interval";
 import { nextCompanyPeriodEnd } from "@/lib/payments/company-subscription-billing";
 import { buildRecurringBillingSuccessReset } from "@/lib/payments/recurring-billing-shared";
 import { extendCreatorLicensePeriod } from "@/lib/payments/creator-license-billing";
+import { VIEWER_PLAN_CONFIG } from "@/lib/pricing";
 
 const db = prisma as any;
 
@@ -35,18 +36,37 @@ export async function applyPaymentRecordSettlementEffects(paymentRecord: {
     typeof paymentRecord.amount === "number"
   ) {
     const now = new Date();
+    const purpose = paymentRecord.purpose ?? "";
+    const isRenewal = purpose.includes("renewal");
+    const isPlanChange = purpose === "viewer_subscription_plan_change";
+    const meta =
+      paymentRecord.metadata && typeof paymentRecord.metadata === "object"
+        ? (paymentRecord.metadata as Record<string, unknown>)
+        : {};
     const current = await db.viewerSubscription.findUnique({
       where: { id: paymentRecord.relatedEntityId },
       select: { currentPeriodEnd: true },
     });
-    const isRenewal = (paymentRecord.purpose ?? "").includes("renewal");
     let nextPeriodEnd: Date;
-    if (isRenewal) {
+    if (isPlanChange) {
+      nextPeriodEnd =
+        current?.currentPeriodEnd && current.currentPeriodEnd > now
+          ? current.currentPeriodEnd
+          : addViewerSubscriptionPeriod(now);
+    } else if (isRenewal) {
       const base = current?.currentPeriodEnd && current.currentPeriodEnd > now ? current.currentPeriodEnd : now;
       nextPeriodEnd = addViewerSubscriptionPeriod(base);
     } else {
       nextPeriodEnd = addViewerSubscriptionPeriod(now);
     }
+
+    const planType = typeof meta.planType === "string" ? meta.planType : undefined;
+    const viewerModel = typeof meta.viewerModel === "string" ? meta.viewerModel : undefined;
+    const planConfig =
+      planType && planType in VIEWER_PLAN_CONFIG
+        ? VIEWER_PLAN_CONFIG[planType as keyof typeof VIEWER_PLAN_CONFIG]
+        : null;
+
     await db.viewerSubscription.update({
       where: { id: paymentRecord.relatedEntityId },
       data: {
@@ -56,6 +76,14 @@ export async function applyPaymentRecordSettlementEffects(paymentRecord: {
         lastPaymentStatus: "SUCCEEDED",
         lastPaymentAt: now,
         ...buildRecurringBillingSuccessReset(),
+        ...(planConfig
+          ? {
+              plan: planType,
+              viewerModel: viewerModel ?? "SUBSCRIPTION",
+              deviceCount: planConfig.deviceCount,
+              profileLimit: planConfig.profileLimit,
+            }
+          : {}),
       },
     });
 

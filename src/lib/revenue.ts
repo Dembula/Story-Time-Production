@@ -1,7 +1,7 @@
 import { prisma } from "./prisma";
 import { getPaymentSettlementAmount } from "@/lib/payments/payfast-settlement";
-
-const VIEWER_POOL_PURPOSES = ["viewer_subscription", "viewer_subscription_renewal", "viewer_ppv"] as const;
+import { VIEWER_POOL_PAYMENT_PURPOSES } from "@/lib/payments/viewer-pool-purposes";
+import { revenueEligibleWatchSessionWhere } from "@/lib/revenue-eligible-watch";
 
 /** Viewer pool revenue (subscriptions + PPV) in ZAR — net after PayFast fees when recorded. */
 export async function getViewerPoolRevenue(periodStart: Date, periodEnd: Date): Promise<number> {
@@ -9,7 +9,7 @@ export async function getViewerPoolRevenue(periodStart: Date, periodEnd: Date): 
     prisma.paymentRecord.findMany({
       where: {
         status: "SUCCEEDED",
-        purpose: { in: [...VIEWER_POOL_PURPOSES] },
+        purpose: { in: [...VIEWER_POOL_PAYMENT_PURPOSES] },
         paidAt: { gte: periodStart, lte: periodEnd },
       },
       select: { amount: true, settlementAmount: true },
@@ -49,6 +49,7 @@ export async function getCreatorRevenue(
   const [creatorWatchTime, totalPlatformWatchTime, platformRevenue, viewerSubRevenue] = await Promise.all([
     prisma.watchSession.aggregate({
       where: {
+        ...revenueEligibleWatchSessionWhere,
         content: { creatorId },
         startedAt: { gte: periodStart, lte: periodEnd },
       },
@@ -56,6 +57,7 @@ export async function getCreatorRevenue(
     }),
     prisma.watchSession.aggregate({
       where: {
+        ...revenueEligibleWatchSessionWhere,
         startedAt: { gte: periodStart, lte: periodEnd },
       },
       _sum: { durationSeconds: true },
@@ -88,7 +90,7 @@ export async function getPlatformStats(periodStart: Date, periodEnd: Date) {
     prisma.user.count(),
     prisma.content.count({ where: { published: true } }),
     prisma.watchSession.aggregate({
-      where: { startedAt: { gte: periodStart, lte: periodEnd } },
+      where: { ...revenueEligibleWatchSessionWhere, startedAt: { gte: periodStart, lte: periodEnd } },
       _sum: { durationSeconds: true },
     }),
     prisma.platformRevenue.findFirst({

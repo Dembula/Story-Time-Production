@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getViewerPlaybackState } from "@/lib/viewer-access";
+import { resolveWatchCountsForCreatorRevenue } from "@/lib/revenue-eligible-watch";
 
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -34,12 +35,15 @@ export async function POST(request: NextRequest) {
     if (profile) viewerProfileId = profile.id;
   }
 
+  const countsForCreatorRevenue = await resolveWatchCountsForCreatorRevenue(session.user.id, contentId);
+
   await prisma.watchSession.create({
     data: {
       userId: session.user.id,
       contentId,
       durationSeconds: Math.min(durationSeconds, 86400),
       viewerProfileId,
+      countsForCreatorRevenue,
     },
   });
 

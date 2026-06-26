@@ -2,6 +2,7 @@
 
 import { StoryTimeLoader, StoryTimeLoadingCenter } from "@/components/ui/storytime-loader";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Bell, CreditCard, Gauge, Lock, Mail, MapPin, Plus, Smartphone, Star, Trash2, User, Users } from "lucide-react";
 import { VIEWER_PLAN_CONFIG } from "@/lib/pricing";
 import { formatZar } from "@/lib/format-currency-zar";
@@ -865,9 +866,9 @@ export function SettingsClient() {
         <p className="mb-4 text-sm text-slate-400">
           Current package: {subscription?.plan ?? "N/A"} · {subscription?.deviceCount ?? 1} devices · {subscription?.profileLimit ?? 1} profiles
         </p>
-        <button type="button" onClick={() => setShowPlanModal(true)} className="rounded-xl viewer-btn-primary px-4 py-2.5 text-sm font-semibold">
+        <Link href="/browse/account/change-plan" className="inline-flex rounded-xl viewer-btn-primary px-4 py-2.5 text-sm font-semibold">
           Change package
-        </button>
+        </Link>
       </section>
 
       <section id="settings-payment-methods" className="storytime-section p-6">

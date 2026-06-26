@@ -4,9 +4,14 @@ import { redirect } from "next/navigation";
 import { AccountClient } from "./account-client";
 import { prisma } from "@/lib/prisma";
 
-export default async function BrowseAccountPage() {
+export default async function BrowseAccountPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ updated?: string }>;
+}) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) redirect("/auth/signin");
+  const params = searchParams ? await searchParams : {};
 
   const user = await prisma.user.findUnique({
     where: { email: session.user.email },
@@ -62,7 +67,7 @@ export default async function BrowseAccountPage() {
       <div className="max-w-2xl mx-auto">
         <h1 className="text-3xl font-semibold text-white mb-2">My subscription</h1>
         <p className="text-slate-400 mb-8">Manage your plan, devices, and billing</p>
-        <AccountClient subscription={subscription} />
+        <AccountClient subscription={subscription} planUpdated={params.updated === "1"} />
       </div>
     </div>
   );

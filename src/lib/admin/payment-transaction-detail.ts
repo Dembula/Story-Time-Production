@@ -13,6 +13,7 @@ import {
   VIEWER_PLATFORM_SPLIT,
 } from "@/lib/payments/config";
 import { MARKETPLACE_TRANSACTION_TYPE } from "@/lib/financial-ledger";
+import { isViewerPoolPaymentPurpose } from "@/lib/payments/viewer-pool-purposes";
 import {
   PAYMENT_PURPOSE_LABELS,
   paymentPurposeLabel,
@@ -25,12 +26,6 @@ export type { AdminMarketplaceTransactionDetail, AdminPaymentRecordDetail, Reven
 export { PAYMENT_PURPOSE_LABELS } from "@/lib/admin/payment-transaction-detail.types";
 
 const db = prisma as any;
-
-const VIEWER_POOL_PURPOSES = new Set([
-  "viewer_subscription",
-  "viewer_subscription_renewal",
-  "viewer_ppv",
-]);
 
 const MARKETPLACE_ENTITY_TYPES = new Set([
   "EquipmentRequest",
@@ -116,7 +111,7 @@ function buildRevenueRoutingForPayment(
     };
   }
 
-  if (VIEWER_POOL_PURPOSES.has(purpose)) {
+  if (isViewerPoolPaymentPurpose(purpose)) {
     const split = splitViewerRevenue(settlementAmount);
     const poolName = purpose === "viewer_ppv" ? "Viewer PPV pool" : "Viewer subscription pool";
     return {

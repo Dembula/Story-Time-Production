@@ -86,13 +86,30 @@ type ViewerModel = "SUBSCRIPTION" | "PPV";
 
 type PackageClientProps = {
   reactivationMode?: boolean;
+  initialViewerModel?: ViewerModel;
+  initialPlan?: string;
 };
 
-export function PackageClient({ reactivationMode = false }: PackageClientProps) {
+const PLAN_IDS = new Set(PLANS.map((plan) => plan.id));
+
+function resolveInitialPlan(plan?: string): string {
+  if (plan && PLAN_IDS.has(plan as (typeof PLANS)[number]["id"])) {
+    return plan;
+  }
+  return "BASE_1";
+}
+
+export function PackageClient({
+  reactivationMode = false,
+  initialViewerModel,
+  initialPlan,
+}: PackageClientProps) {
   const router = useRouter();
-  const [viewerModel, setViewerModel] = useState<ViewerModel>("SUBSCRIPTION");
-  const [selected, setSelected] = useState<string>("BASE_1");
-  const [expanded, setExpanded] = useState<string | null>("BASE_1");
+  const [viewerModel, setViewerModel] = useState<ViewerModel>(
+    initialViewerModel === "PPV" ? "PPV" : "SUBSCRIPTION",
+  );
+  const [selected, setSelected] = useState<string>(resolveInitialPlan(initialPlan));
+  const [expanded, setExpanded] = useState<string | null>(resolveInitialPlan(initialPlan));
   const [startTrial, setStartTrial] = useState(!reactivationMode);
   const [promoCode, setPromoCode] = useState("");
   const [promoMessage, setPromoMessage] = useState("");

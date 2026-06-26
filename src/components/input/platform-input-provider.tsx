@@ -6,6 +6,7 @@ import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
 import { isEditableTarget, getFocusableElements } from "@/lib/input/focusable";
 import { startGamepadNavigation } from "@/lib/input/gamepad-navigation";
 import { matchesShortcut } from "@/lib/input/keyboard-shortcuts";
+import { isOfflineDownloadEnabled } from "@/lib/platform/offline-downloads";
 import { mapKeyboardToRemoteAction } from "@/lib/input/remote-keys";
 import {
   closeTopOverlay,
@@ -112,7 +113,7 @@ export function PlatformInputProvider({ children }: { children: React.ReactNode 
           router.push("/browse/my-list");
           return;
         }
-        if (matchesShortcut(event, "d") && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        if (isOfflineDownloadEnabled() && matchesShortcut(event, "d") && !event.ctrlKey && !event.metaKey && !event.altKey) {
           event.preventDefault();
           router.push("/browse/downloads");
           return;

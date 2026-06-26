@@ -9,12 +9,7 @@ import {
   resolveMarketplaceSettlement,
   type MarketplaceEntityType,
 } from "@/lib/payments/marketplace-settlement";
-
-const VIEWER_POOL_PURPOSES = new Set([
-  "viewer_subscription",
-  "viewer_subscription_renewal",
-  "viewer_ppv",
-]);
+import { isViewerPoolPaymentPurpose } from "@/lib/payments/viewer-pool-purposes";
 
 const PLATFORM_REVENUE_PURPOSES = new Set([
   "SCRIPT_REVIEW",
@@ -154,7 +149,7 @@ export async function allocateGatewayPaymentLedger(payment: {
     return;
   }
 
-  if (VIEWER_POOL_PURPOSES.has(purpose)) {
+  if (isViewerPoolPaymentPurpose(purpose)) {
     const split = splitViewerRevenue(settlementAmount);
     const poolLabel =
       purpose === "viewer_ppv" ? "Viewer PPV payment received" : "Viewer subscription payment received";

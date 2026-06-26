@@ -18,6 +18,7 @@ import { isLongFormType } from "@/lib/content-types";
 import { CheckoutModal } from "@/components/payments/checkout-modal";
 import { useWatchlist } from "@/hooks/use-watchlist";
 import { usePlaybackPrefetch } from "@/hooks/use-playback-prefetch";
+import { isOfflineDownloadEnabled } from "@/lib/platform/offline-downloads";
 import { startDownload, getDownload } from "@/lib/offline/download-manager";
 import { displayCreatorGoals } from "@/lib/creator-profile-goals";
 import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
@@ -116,18 +117,20 @@ export function ContentDetailClient({
   const isSubscriber = (session?.user as { role?: string } | undefined)?.role === "SUBSCRIBER";
   const { inList, toggle: toggleWatchlist } = useWatchlist(content.id);
   const preparePlayback = usePlaybackPrefetch();
+  const downloadsEnabled = isOfflineDownloadEnabled();
   const [downloadState, setDownloadState] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!downloadsEnabled) return;
     const d = getDownload(content.id);
     setDownloadState(d?.status ?? null);
     const onChange = () => setDownloadState(getDownload(content.id)?.status ?? null);
     window.addEventListener("storytime-downloads-changed", onChange);
     return () => window.removeEventListener("storytime-downloads-changed", onChange);
-  }, [content.id]);
+  }, [content.id, downloadsEnabled]);
 
   const handleDownload = async () => {
-    if (!content.videoUrl) return;
+    if (!downloadsEnabled || !content.videoUrl) return;
     await startDownload({
       contentId: content.id,
       title: content.title,
@@ -305,7 +308,7 @@ export function ContentDetailClient({
               Go to Account to pay for your subscription and resume watching.
             </p>
             <Link
-              href="/browse/account/renew"
+              href="/browse/account/change-plan"
               className="inline-flex rounded-xl viewer-btn-primary px-6 py-3 font-medium transition"
             >
               Go to Account &amp; renew
@@ -379,9 +382,9 @@ export function ContentDetailClient({
         playHref={playTarget}
         onPreparePlay={warmPlayback}
         onPrepareTrailer={warmTrailer}
-        hasDownload={Boolean(content.videoUrl && !isLongForm)}
-        downloadState={downloadState}
-        onDownload={handleDownload}
+        hasDownload={downloadsEnabled && Boolean(content.videoUrl && !isLongForm)}
+        downloadState={downloadsEnabled ? downloadState : null}
+        onDownload={downloadsEnabled ? handleDownload : undefined}
         isSubscriber={Boolean(isSubscriber)}
         backHref={backHref}
       />
@@ -692,7 +695,7 @@ export function ContentDetailClient({
               </div>
               <h3 className="text-xl font-semibold text-white mb-2">Your subscription has ended</h3>
               <p className="text-slate-400 max-w-md mx-auto mb-8">Pay in Account to resume watching.</p>
-              <Link href="/browse/account/renew" className="inline-flex px-8 py-3.5 rounded-lg viewer-btn-primary font-semibold transition">
+              <Link href="/browse/account/change-plan" className="inline-flex px-8 py-3.5 rounded-lg viewer-btn-primary font-semibold transition">
                 Go to Account &amp; renew
               </Link>
             </div>
@@ -734,7 +737,7 @@ export function ContentDetailClient({
               <p className="mx-auto mb-8 max-w-md text-slate-400">
                 Pay Per View only unlocks one title at a time. Switch this viewer account to a subscription plan for full catalogue access.
               </p>
-              <Link href="/browse/account/renew" className="inline-flex rounded-lg viewer-btn-primary px-8 py-3.5 font-semibold transition">
+              <Link href="/browse/account/change-plan" className="inline-flex rounded-lg viewer-btn-primary px-8 py-3.5 font-semibold transition">
                 Choose a subscription plan
               </Link>
             </div>

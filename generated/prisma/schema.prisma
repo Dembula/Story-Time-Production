@@ -581,9 +581,11 @@ model BtsVideo {
 }
 
 model WatchSession {
-  id              String   @id @default(cuid())
-  durationSeconds Int
-  startedAt       DateTime @default(now())
+  id                      String   @id @default(cuid())
+  durationSeconds         Int
+  startedAt               DateTime @default(now())
+  /// False for free-trial catalogue views — excluded from creator revenue share.
+  countsForCreatorRevenue Boolean  @default(true)
 
   userId    String
   user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -595,7 +597,7 @@ model WatchSession {
 
   @@index([userId])
   @@index([contentId])
-  @@index([startedAt])
+  @@index([countsForCreatorRevenue, startedAt])
   @@index([viewerProfileId])
 }
 

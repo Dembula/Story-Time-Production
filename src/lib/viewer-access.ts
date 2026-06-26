@@ -18,6 +18,8 @@ type ViewerSubscriptionLike = {
   profileLimit?: number | null;
   lastPaymentStatus?: string | null;
   lastPaymentAt?: Date | string | null;
+  renewalAttemptCount?: number | null;
+  pastDueSince?: Date | string | null;
 };
 
 type ViewerContentAccessLike = {
@@ -107,6 +109,17 @@ export function subscriptionPaymentRequired(subscription?: ViewerSubscriptionLik
   if (!subscription) return false;
   if (getViewerModel(subscription) === VIEWER_MODELS.PPV) return false;
   return subscription.status === "PAST_DUE";
+}
+
+/** First-time checkout abandoned or never completed — user should pick model/trial again, not resume PayFast. */
+export function isInitialSubscriptionPaymentPending(subscription?: ViewerSubscriptionLike | null) {
+  if (!subscription) return false;
+  if (getViewerModel(subscription) !== VIEWER_MODELS.SUBSCRIPTION) return false;
+  if (subscription.status !== "PAST_DUE") return false;
+  if (subscription.lastPaymentStatus === "SUCCEEDED") return false;
+  if ((subscription.renewalAttemptCount ?? 0) > 0) return false;
+  if (subscription.pastDueSince) return false;
+  return true;
 }
 
 export function hasActiveCatalogueSubscription(subscription?: ViewerSubscriptionLike | null) {

@@ -31,7 +31,13 @@ const PLAN_LABELS: Record<string, string> = {
   PPV_FILM: `Pay Per View - ${formatZar(VIEWER_PLAN_CONFIG.PPV_FILM.price)} per title`,
 };
 
-export function AccountClient({ subscription }: { subscription: Subscription }) {
+export function AccountClient({
+  subscription,
+  planUpdated = false,
+}: {
+  subscription: Subscription;
+  planUpdated?: boolean;
+}) {
   const [renewing, setRenewing] = useState(false);
   const [renewError, setRenewError] = useState("");
   const [cancelLoading, setCancelLoading] = useState(false);
@@ -112,11 +118,16 @@ export function AccountClient({ subscription }: { subscription: Subscription }) 
 
   return (
     <div className="space-y-6">
+      {planUpdated ? (
+        <div className="rounded-2xl border border-emerald-400/25 bg-emerald-500/10 p-4 text-sm text-emerald-100">
+          Your plan was updated successfully. Enjoy watching on Story Time.
+        </div>
+      ) : null}
       {subscriptionEnded && (
         <div className="rounded-2xl border border-orange-400/28 bg-orange-500/10 p-6 shadow-panel">
           <h2 className="text-lg font-semibold text-white mb-1">Your subscription has ended</h2>
           <p className="text-slate-300 text-sm mb-4">Pay below to resume watching. Choose a plan and complete payment to restore your account.</p>
-          <Link href="/browse/account/renew" className="inline-flex rounded-xl viewer-btn-primary px-5 py-2.5 font-semibold transition hover:-translate-y-0.5">
+          <Link href="/browse/account/change-plan" className="inline-flex rounded-xl viewer-btn-primary px-5 py-2.5 font-semibold transition hover:-translate-y-0.5">
             Pay &amp; resume subscription
           </Link>
         </div>
@@ -179,8 +190,22 @@ export function AccountClient({ subscription }: { subscription: Subscription }) 
             {cancelMessage}
           </div>
         ) : null}
+        {isTrial && subscription.trialEndsAt && (
+          <div className="mt-4 rounded-xl border border-cyan-400/20 bg-cyan-500/8 p-4 text-sm text-cyan-100">
+            <p className="font-medium text-white">Free trial active</p>
+            <p className="mt-1 text-cyan-100/90">
+              Trial ends {new Date(subscription.trialEndsAt).toLocaleDateString()}. You can switch to a paid plan early or keep watching until the trial ends.
+            </p>
+            <Link
+              href="/browse/account/change-plan"
+              className="mt-3 inline-flex rounded-lg bg-cyan-500/20 px-4 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/30"
+            >
+              View plans &amp; pay now
+            </Link>
+          </div>
+        )}
         <div className="mt-4 flex flex-wrap gap-3">
-          <Link href="/onboarding/package" className="inline-flex items-center gap-2 rounded-xl bg-orange-500/12 px-4 py-2.5 text-sm font-medium text-orange-300 hover:bg-orange-500/18">
+          <Link href="/browse/account/change-plan" className="inline-flex items-center gap-2 rounded-xl bg-orange-500/12 px-4 py-2.5 text-sm font-medium text-orange-300 hover:bg-orange-500/18">
             <RefreshCw className="w-4 h-4" /> {isPpv ? "Change viewer model" : "Change plan"}
           </Link>
           {!isPpv && (
@@ -195,7 +220,7 @@ export function AccountClient({ subscription }: { subscription: Subscription }) 
             </button>
           )}
           {!isPpv && !subscription.paymentMethodLabel ? (
-            <Link href="/browse/account/renew" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm font-medium text-slate-300 hover:bg-white/[0.05]">
+            <Link href="/browse/account/change-plan" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm font-medium text-slate-300 hover:bg-white/[0.05]">
               Add payment method
             </Link>
           ) : null}

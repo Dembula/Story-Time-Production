@@ -405,6 +405,7 @@ exports.Prisma.WatchSessionScalarFieldEnum = {
   id: 'id',
   durationSeconds: 'durationSeconds',
   startedAt: 'startedAt',
+  countsForCreatorRevenue: 'countsForCreatorRevenue',
   userId: 'userId',
   contentId: 'contentId',
   viewerProfileId: 'viewerProfileId'

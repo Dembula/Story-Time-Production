@@ -22,6 +22,7 @@ export default async function BrowseLayout({
   let subscriptionExpired = false;
   const headerList = await headers();
   const isPublicContentDetail = headerList.get("x-browse-public-detail") === "1";
+  const isAccountManagement = headerList.get("x-browse-account-access") === "1";
 
   if (session?.user?.email && role === "SUBSCRIBER" && !isPublicContentDetail) {
     try {
@@ -41,20 +42,20 @@ export default async function BrowseLayout({
       }
       if (getViewerModel(sub) === "SUBSCRIPTION" && subscriptionNeedsReactivation(sub)) {
         const stillProcessing = await hasPendingGatewayPayment("ViewerSubscription", sub.id);
-        if (!stillProcessing) {
+        if (!stillProcessing && !isAccountManagement) {
           redirect("/profiles?payment=required");
         }
       }
       const cookieStore = await cookies();
       const onboardingDeferred = cookieStore.get("st_onboarding_deferred")?.value === "1";
-      if (user && !isViewerAccountOnboardingComplete(user) && !onboardingDeferred) {
+      if (user && !isViewerAccountOnboardingComplete(user) && !onboardingDeferred && !isAccountManagement) {
         redirect("/onboarding/account");
       }
       const activeProfileId = cookieStore.get("st_viewer_profile")?.value;
-      if (!activeProfileId) {
+      if (!activeProfileId && !isAccountManagement) {
         redirect("/profiles");
       }
-      if (user?.id) {
+      if (user?.id && activeProfileId) {
         const unlocked = await isViewerProfilePinUnlocked(user.id, activeProfileId, cookieStore);
         if (!unlocked) {
           redirect("/profiles?verify=1");

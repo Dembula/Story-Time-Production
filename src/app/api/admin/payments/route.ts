@@ -7,6 +7,8 @@ import { getPaymentSettlementAmount } from "@/lib/payments/payfast-settlement";
 import { getPlatformTreasuryUserId } from "@/lib/payments/treasury-inflow";
 import { getWalletSnapshot } from "@/lib/payments/wallet";
 import { VIEWER_CREATOR_SPLIT, VIEWER_PLATFORM_SPLIT } from "@/lib/payments/config";
+import { isViewerPoolPaymentPurpose } from "@/lib/payments/viewer-pool-purposes";
+import { VIEWER_PLAN_CONFIG } from "@/lib/pricing";
 
 const db = prisma as any;
 
@@ -72,9 +74,7 @@ export async function GET(req: NextRequest) {
       0,
     );
 
-    const viewerPoolPayments = succeededPayments.filter((p: any) =>
-      ["viewer_subscription", "viewer_subscription_renewal", "viewer_ppv"].includes(String(p.purpose ?? "")),
-    );
+    const viewerPoolPayments = succeededPayments.filter((p: any) => isViewerPoolPaymentPurpose(p.purpose));
     const viewerSubGross = viewerPoolPayments.reduce((sum: number, p: any) => sum + Number(p.amount ?? 0), 0);
     const viewerSubNet = viewerPoolPayments.reduce(
       (sum: number, p: any) =>
@@ -153,14 +153,54 @@ export async function GET(req: NextRequest) {
       viewerPlatformSplitPct: VIEWER_PLATFORM_SPLIT * 100,
     };
 
+    const trialSubscriptions = await db.viewerSubscription.findMany({
+      where: {
+        viewerModel: "SUBSCRIPTION",
+        OR: [{ status: "TRIAL_ACTIVE" }, { trialEndsAt: { not: null } }],
+      },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+      include: {
+        user: { select: { id: true, name: true, email: true } },
+      },
+    });
+
+    const trialSignups = trialSubscriptions.map((sub: any) => {
+      const planConfig = VIEWER_PLAN_CONFIG[sub.plan as keyof typeof VIEWER_PLAN_CONFIG] ?? VIEWER_PLAN_CONFIG.BASE_1;
+      const isActiveTrial = sub.status === "TRIAL_ACTIVE";
+      return {
+        id: sub.id,
+        userId: sub.userId,
+        userName: sub.user?.name ?? null,
+        userEmail: sub.user?.email ?? null,
+        plan: sub.plan,
+        planLabel: planConfig.label,
+        potentialMonthlyRevenue: planConfig.price,
+        status: sub.status,
+        trialEndsAt: sub.trialEndsAt,
+        createdAt: sub.createdAt,
+        isActiveTrial,
+        hasConverted: sub.lastPaymentStatus === "SUCCEEDED",
+      };
+    });
+
+    const trialMetrics = {
+      activeTrialCount: trialSignups.filter((row: { isActiveTrial: boolean }) => row.isActiveTrial).length,
+      potentialMonthlyRevenue: trialSignups
+        .filter((row: { isActiveTrial: boolean }) => row.isActiveTrial)
+        .reduce((sum: number, row: { potentialMonthlyRevenue: number }) => sum + row.potentialMonthlyRevenue, 0),
+      totalTrialSignups: trialSignups.length,
+    };
+
     return NextResponse.json({
-      metrics,
+      metrics: { ...metrics, ...trialMetrics },
       paymentRecords,
       transactions,
       payouts,
       escrows,
       gatewayEvents,
       invoices,
+      trialSignups,
     });
   } catch (error: any) {
     if (error?.code === "P2021") {

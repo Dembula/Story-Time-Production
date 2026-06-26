@@ -2,7 +2,7 @@
 
 import { X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { PLATFORM_SHORTCUT_GROUPS } from "@/lib/input/keyboard-shortcuts";
+import { getPlatformShortcutGroups } from "@/lib/input/keyboard-shortcuts";
 import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
 
 type Props = {
@@ -14,6 +14,8 @@ export function KeyboardShortcutsPanel({ open, onClose }: Props) {
   const { deviceClass, inputMode } = useAdaptiveUi();
   const isTv = deviceClass === "tv";
   const isRemote = inputMode === "remote";
+
+  const shortcutGroups = getPlatformShortcutGroups();
 
   return (
     <AnimatePresence>
@@ -65,7 +67,7 @@ export function KeyboardShortcutsPanel({ open, onClose }: Props) {
             </div>
 
             <div className="space-y-6">
-              {PLATFORM_SHORTCUT_GROUPS.map((group) => (
+              {shortcutGroups.map((group) => (
                 <section key={group.title}>
                   <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-orange-300/90">
                     {group.title}

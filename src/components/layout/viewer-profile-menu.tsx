@@ -16,6 +16,7 @@ import {
   CreditCard,
 } from "lucide-react";
 import { modalVariants } from "@/lib/motion/presets";
+import { isOfflineDownloadEnabled } from "@/lib/platform/offline-downloads";
 
 type ProfileMenuProps = {
   open: boolean;
@@ -32,7 +33,7 @@ type ProfileMenuProps = {
 const subscriberLinks = [
   { href: "/profiles", label: "Profile", icon: User },
   { href: "/browse#continue-watching", label: "Continue Watching", icon: Clock },
-  { href: "/browse/downloads", label: "Downloads", icon: Download },
+  { href: "/browse/downloads", label: "Downloads", icon: Download, nativeOnly: true },
   { href: "/browse/my-list", label: "My List", icon: Bookmark },
   { href: "/browse/settings", label: "Account & preferences", icon: Settings },
   { href: "/browse/account", label: "Subscription", icon: CreditCard },
@@ -48,6 +49,10 @@ export function ViewerProfileMenu({
   onSignOut,
 }: ProfileMenuProps) {
   const pathname = usePathname();
+  const downloadsEnabled = isOfflineDownloadEnabled();
+  const visibleSubscriberLinks = subscriberLinks.filter(
+    (link) => !("nativeOnly" in link && link.nativeOnly) || downloadsEnabled,
+  );
 
   return (
     <AnimatePresence>
@@ -83,7 +88,7 @@ export function ViewerProfileMenu({
 
             <div className="py-1">
               {role === "SUBSCRIBER" &&
-                subscriberLinks.map((link) => {
+                visibleSubscriberLinks.map((link) => {
                   const Icon = link.icon;
                   const active = pathname === link.href || pathname.startsWith(link.href + "/");
                   return (

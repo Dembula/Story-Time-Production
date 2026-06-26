@@ -32,7 +32,7 @@ export default function AdminPaymentsPage() {
     queryKey: ["admin-payments"],
     queryFn: async () => fetch("/api/admin/payments").then((r) => r.json()),
   });
-  const [tab, setTab] = useState<"payments" | "marketplace" | "payouts" | "escrow" | "events">("payouts");
+  const [tab, setTab] = useState<"payments" | "marketplace" | "payouts" | "escrow" | "events" | "trials">("payouts");
   const [detailKind, setDetailKind] = useState<"payment" | "marketplace" | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [selectedPayoutId, setSelectedPayoutId] = useState<string | null>(null);
@@ -48,6 +48,18 @@ export default function AdminPaymentsPage() {
   const payouts = (data?.payouts ?? []) as PayoutRow[];
   const escrows = (data?.escrows ?? []) as any[];
   const gatewayEvents = (data?.gatewayEvents ?? []) as any[];
+  const trialSignups = (data?.trialSignups ?? []) as Array<{
+    id: string;
+    userName: string | null;
+    userEmail: string | null;
+    planLabel: string;
+    potentialMonthlyRevenue: number;
+    status: string;
+    trialEndsAt: string | null;
+    createdAt: string;
+    isActiveTrial: boolean;
+    hasConverted: boolean;
+  }>;
   const selectedPayout = payouts.find((p) => p.id === selectedPayoutId) ?? null;
 
   const payoutAction = useMutation({
@@ -119,6 +131,16 @@ export default function AdminPaymentsPage() {
         tone: "text-violet-300",
       },
       {
+        label: "Active free trials",
+        value: String(metrics.activeTrialCount ?? 0),
+        tone: "text-cyan-300",
+      },
+      {
+        label: "Potential trial revenue / mo",
+        value: `R${money.format(Number(metrics.potentialMonthlyRevenue ?? 0))}`,
+        tone: "text-cyan-200",
+      },
+      {
         label: "Total platform position",
         value: `R${money.format(Number(metrics.netRetained ?? 0))}`,
         tone: "text-lime-300",
@@ -154,6 +176,7 @@ export default function AdminPaymentsPage() {
         <TabButton label="Gateway payments" active={tab === "payments"} onClick={() => setTab("payments")} />
         <TabButton label="Marketplace tx" active={tab === "marketplace"} onClick={() => setTab("marketplace")} />
         <TabButton label="Escrow" active={tab === "escrow"} onClick={() => setTab("escrow")} />
+        <TabButton label="Free trial signups" active={tab === "trials"} onClick={() => setTab("trials")} />
         <TabButton label="Gateway events" active={tab === "events"} onClick={() => setTab("events")} />
       </div>
 
@@ -444,6 +467,41 @@ export default function AdminPaymentsPage() {
                 </div>
               );
             })}
+          </div>
+        </section>
+      ) : null}
+
+      {tab === "trials" ? (
+        <section className="creator-glass-panel rounded-2xl border border-white/10 p-5">
+          <SectionHeader icon={<Landmark className="h-4 w-4 text-cyan-400" />} title="Free trial signups (potential revenue)" />
+          <p className="mt-2 text-sm text-slate-400">
+            Trial viewers are not charged yet. These rows represent possible monthly subscription revenue if trials convert.
+            Trial watch time is excluded from creator revenue pool calculations.
+          </p>
+          <div className="mt-4 space-y-2">
+            {trialSignups.length === 0 ? (
+              <p className="text-sm text-slate-500">No trial signups recorded yet.</p>
+            ) : null}
+            {trialSignups.map((trial) => (
+              <div
+                key={trial.id}
+                className="grid grid-cols-1 gap-2 rounded-lg border border-slate-800 px-3 py-3 text-xs sm:grid-cols-[1fr_auto_auto_auto]"
+              >
+                <div>
+                  <p className="font-medium text-white">{trial.userName || trial.userEmail || "Viewer"}</p>
+                  <p className="text-slate-500">{trial.userEmail}</p>
+                  <p className="mt-1 text-slate-400">
+                    {trial.planLabel} · started {new Date(trial.createdAt).toLocaleDateString()}
+                    {trial.trialEndsAt ? ` · trial ends ${new Date(trial.trialEndsAt).toLocaleDateString()}` : ""}
+                  </p>
+                </div>
+                <StatusPill value={trial.isActiveTrial ? "TRIAL_ACTIVE" : trial.status} />
+                <span className="font-semibold text-cyan-200">R{money.format(Number(trial.potentialMonthlyRevenue ?? 0))}/mo</span>
+                <span className={`rounded-full px-2 py-0.5 ${trial.hasConverted ? "bg-emerald-500/10 text-emerald-300" : "bg-amber-500/10 text-amber-300"}`}>
+                  {trial.hasConverted ? "converted" : "not billed yet"}
+                </span>
+              </div>
+            ))}
           </div>
         </section>
       ) : null}

@@ -17,6 +17,14 @@ export async function middleware(req: NextRequest) {
     });
   }
 
+  if (path.startsWith("/browse/account")) {
+    const requestHeaders = new Headers(req.headers);
+    requestHeaders.set("x-browse-account-access", "1");
+    return NextResponse.next({
+      request: { headers: requestHeaders },
+    });
+  }
+
   if (path.startsWith("/creator/join/")) {
     return NextResponse.next();
   }
@@ -109,6 +117,8 @@ export async function middleware(req: NextRequest) {
 export const config = {
   matcher: [
     "/browse/content/:id",
+    "/browse/account",
+    "/browse/account/:path*",
     "/creator/:path*",
     "/music-creator/:path*",
     "/admin/:path*",
