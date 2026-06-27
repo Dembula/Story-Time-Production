@@ -367,6 +367,56 @@ exports.Prisma.ContentEnrichmentScalarFieldEnum = {
   updatedAt: 'updatedAt'
 };
 
+exports.Prisma.KnowledgeChunkScalarFieldEnum = {
+  id: 'id',
+  chunkKey: 'chunkKey',
+  sourceType: 'sourceType',
+  sourceId: 'sourceId',
+  contentId: 'contentId',
+  projectId: 'projectId',
+  userId: 'userId',
+  title: 'title',
+  chunkText: 'chunkText',
+  metadata: 'metadata',
+  embedding: 'embedding',
+  tokenEstimate: 'tokenEstimate',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.KnowledgeEdgeScalarFieldEnum = {
+  id: 'id',
+  fromType: 'fromType',
+  fromId: 'fromId',
+  toType: 'toType',
+  toId: 'toId',
+  relation: 'relation',
+  label: 'label',
+  weight: 'weight',
+  metadata: 'metadata',
+  contentId: 'contentId',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.AiRequestLogScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  route: 'route',
+  agentId: 'agentId',
+  modelUsed: 'modelUsed',
+  taskKind: 'taskKind',
+  experimentVariant: 'experimentVariant',
+  latencyMs: 'latencyMs',
+  ragHitCount: 'ragHitCount',
+  vectorBackend: 'vectorBackend',
+  graphEdgeCount: 'graphEdgeCount',
+  success: 'success',
+  errorMessage: 'errorMessage',
+  metadata: 'metadata',
+  createdAt: 'createdAt'
+};
+
 exports.Prisma.ContentSceneScalarFieldEnum = {
   id: 'id',
   contentId: 'contentId',
@@ -2533,6 +2583,9 @@ exports.Prisma.ModelName = {
   ContentSeason: 'ContentSeason',
   ContentEpisode: 'ContentEpisode',
   ContentEnrichment: 'ContentEnrichment',
+  KnowledgeChunk: 'KnowledgeChunk',
+  KnowledgeEdge: 'KnowledgeEdge',
+  AiRequestLog: 'AiRequestLog',
   ContentScene: 'ContentScene',
   ContentSubtitle: 'ContentSubtitle',
   BtsVideo: 'BtsVideo',

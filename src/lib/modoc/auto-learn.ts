@@ -10,6 +10,7 @@ import {
   upsertPlaybookEntries,
 } from "./learning-store";
 import { getModocLearning, saveModocLearning } from "./learning";
+import { learnSaLanguageFromTurn } from "@/lib/ai-os/languages/learn-from-turn";
 
 export async function ingestModocConversationLearning(params: {
   userId: string;
@@ -41,6 +42,14 @@ export async function ingestModocConversationLearning(params: {
     interactionCount: (profile.interactionCount ?? 0) + 1,
     lastLearnedAt: new Date().toISOString(),
   });
+
+  if (params.assistantMessage) {
+    await learnSaLanguageFromTurn({
+      userId: params.userId,
+      userMessage,
+      assistantMessage: params.assistantMessage,
+    }).catch(() => {});
+  }
 }
 
 export async function buildPlaybookPromptForUser(userId: string): Promise<string> {

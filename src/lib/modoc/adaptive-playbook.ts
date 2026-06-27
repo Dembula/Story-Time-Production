@@ -23,6 +23,7 @@ export const TOPIC_PATTERNS: Array<{ topic: string; pattern: RegExp }> = [
   { topic: "command_center", pattern: /\b(command center|dashboard|overview)\b/i },
   { topic: "deadline", pattern: /\b(deadline|due|urgent|asap|tomorrow|today)\b/i },
   { topic: "help", pattern: /\b(help|how do i|what should|next step|stuck)\b/i },
+  { topic: "sa_language", pattern: /\b(isizulu|isixhosa|afrikaans|sesotho|setswana|sepedi|xitsonga|siswati|tshivenda|ndebele|zulu|xhosa|pedi|sotho|translate|slang|yebo|sawubona|molo|dumela|lumela|thobela|lekker|sharp sharp|eish)\b/i },
 ];
 
 type PlaybookDraft = Pick<ModocPlaybookEntry, "when" | "then" | "origin" | "confidence">;
@@ -147,6 +148,15 @@ export function derivePlaybookDraftsFromTurn(turn: {
         "User asks for guidance",
         "Give 2-3 ranked next steps tied to project database data.",
         0.7,
+      ),
+    );
+  }
+  if (topics.includes("sa_language")) {
+    drafts.push(
+      draft(
+        "User writes in or asks about SA languages or slang",
+        "Reply in their language mix; use glossary context; explain slang respectfully; search catalogue in that language when relevant.",
+        0.82,
       ),
     );
   }

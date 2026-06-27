@@ -86,7 +86,54 @@ export async function persistEnrichmentResult(
     });
   }
 
+  await indexRagFromEnrichment(contentId);
+  await indexGraphFromEnrichment(contentId);
+
+  const content = await prisma.content.findFirst({
+    where: { id: contentId },
+    select: { linkedProjectId: true },
+  });
+  if (content?.linkedProjectId) {
+    await indexProjectGraph(content.linkedProjectId);
+  }
+
   return { ...input.parsed, embedding };
+}
+
+async function indexProjectGraph(projectId: string): Promise<void> {
+  try {
+    const { syncProjectKnowledgeGraph } = await import("@/lib/ai-os/knowledge-graph/sync-project");
+    await syncProjectKnowledgeGraph(projectId);
+  } catch (e) {
+    if (process.env.NODE_ENV === "development") {
+      console.error("Project knowledge graph sync failed:", e);
+    }
+  }
+}
+
+async function indexGraphFromEnrichment(contentId: string): Promise<void> {
+  try {
+    const { syncContentKnowledgeGraph } = await import("@/lib/ai-os/knowledge-graph/sync-content");
+    await syncContentKnowledgeGraph(contentId);
+  } catch (e) {
+    if (process.env.NODE_ENV === "development") {
+      console.error("Knowledge graph sync failed:", e);
+    }
+  }
+}
+
+async function indexRagFromEnrichment(contentId: string): Promise<void> {
+  try {
+    const { indexCatalogueFromEnrichment, indexScenesForContent } = await import(
+      "@/lib/ai-os/rag/index-catalogue"
+    );
+    await indexCatalogueFromEnrichment(contentId);
+    await indexScenesForContent(contentId);
+  } catch (e) {
+    if (process.env.NODE_ENV === "development") {
+      console.error("RAG index from enrichment failed:", e);
+    }
+  }
 }
 
 export async function markEnrichmentFailed(contentId: string, error: unknown): Promise<void> {

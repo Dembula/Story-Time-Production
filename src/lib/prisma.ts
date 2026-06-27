@@ -46,6 +46,9 @@ const REQUIRED_PRISMA_DELEGATES = [
   "modocActionLog",
   "modocTopicStat",
   "modocSessionIntel",
+  "knowledgeChunk",
+  "knowledgeEdge",
+  "aiRequestLog",
   "adminAuditLog",
 ] as const;
 function prismaSingletonIsStale(client: unknown): boolean {

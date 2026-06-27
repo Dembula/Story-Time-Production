@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
-import { cosineSimilarity, embedText, parseStoredEmbedding } from "@/lib/ai-metadata/embeddings";
+import { embedText, cosineSimilarity, parseStoredEmbedding } from "@/lib/ai-metadata/embeddings";
+import { retrieveKnowledge } from "@/lib/ai-os/rag/retrieve";
 import { rankSearchResults } from "@/lib/browse-search";
 import { getDisplayPosterUrl } from "@/lib/content-media-urls";
 
@@ -13,6 +14,58 @@ export async function semanticSearchCatalogue(options: {
   if (q.length < 2) return [];
 
   const ageFilter = options.profileAge != null ? { minAge: { lte: options.profileAge } } : {};
+
+  if (process.env.AI_RAG_ENABLED !== "false") {
+    try {
+      const rag = await retrieveKnowledge({
+        query: q,
+        sourceTypes: ["catalogue"],
+        limit,
+        minScore: 0.12,
+        profileAge: options.profileAge,
+      });
+
+      if (rag.chunks.length > 0) {
+        const orderedIds = rag.chunks
+          .map((c) => c.contentId)
+          .filter((id): id is string => Boolean(id));
+        const uniqueIds = [...new Set(orderedIds)];
+
+        const rows = await prisma.content.findMany({
+          where: {
+            id: { in: uniqueIds },
+            published: true,
+            ...ageFilter,
+          },
+          include: {
+            enrichment: { select: { moodTags: true, atmosphere: true } },
+            creator: { select: { name: true } },
+            _count: { select: { ratings: true } },
+          },
+        });
+
+        const byId = new Map(rows.map((c) => [c.id, c]));
+        return uniqueIds
+          .map((id) => byId.get(id))
+          .filter((c): c is NonNullable<typeof c> => Boolean(c))
+          .slice(0, limit)
+          .map((c) => ({
+            id: c.id,
+            title: c.title,
+            type: c.type,
+            category: c.category,
+            year: c.year,
+            posterUrl: getDisplayPosterUrl(c),
+            creatorName: c.creator?.name ?? null,
+            moodTags: c.enrichment?.moodTags,
+            atmosphere: c.enrichment?.atmosphere ?? null,
+            ratingCount: c._count.ratings,
+          }));
+      }
+    } catch {
+      /* fall through to legacy search */
+    }
+  }
 
   const queryEmbedding = await embedText(q);
 

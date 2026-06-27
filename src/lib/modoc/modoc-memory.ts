@@ -1,13 +1,12 @@
 import "server-only";
 
 import type { ProductionGraph } from "./production-graph";
-import { formatProductionGraphForPrompt } from "./production-graph";
 import type { ModocLearningProfile } from "./learning";
-import { getModocLearning } from "./learning";
-import { getLatestSessionIntel, getRecentActionLogs, getTopPlaybookRules } from "./learning-store";
-import { TOOL_WORKFLOW } from "./tool-workflow";
 import type { ModocActionType } from "./action-types";
+import { assembleStoryTimeMemoryCached } from "@/lib/ai-os/memory/cached-assemble";
+import type { StoryTimeMemoryLayers } from "@/lib/ai-os/memory/types";
 
+/** @deprecated Use StoryTimeMemoryLayers from @/lib/ai-os/memory — kept for backward compatibility. */
 export type ModocMemoryLayers = {
   shortTerm: {
     sessionTool?: string;
@@ -40,147 +39,63 @@ export type AssembledModocMemory = {
   layers: ModocMemoryLayers;
   promptBlock: string;
   missingContextFlags: string[];
+  /** Version 2 five-layer memory (primary). */
+  storyTimeLayers: StoryTimeMemoryLayers;
+  /** True when served from Redis/in-memory hot cache. */
+  cacheHit?: boolean;
 };
 
-function computeActionSuccessRates(
-  logs: Array<{ action: string; ok?: boolean }>,
-): Record<string, number> {
-  const buckets: Record<string, { ok: number; total: number }> = {};
-  for (const log of logs) {
-    const b = buckets[log.action] ?? { ok: 0, total: 0 };
-    b.total += 1;
-    if (log.ok !== false) b.ok += 1;
-    buckets[log.action] = b;
-  }
-  const rates: Record<string, number> = {};
-  for (const [action, { ok, total }] of Object.entries(buckets)) {
-    rates[action] = total > 0 ? ok / total : 0;
-  }
-  return rates;
+function toLegacyLayers(layers: StoryTimeMemoryLayers): ModocMemoryLayers {
+  return {
+    shortTerm: {
+      sessionTool: layers.conversation.sessionTool,
+      sessionTask: layers.conversation.sessionTask,
+      recentUserIntents: layers.conversation.recentUserIntents,
+      recentActions: layers.user.recentActions,
+      at: layers.conversation.at,
+    },
+    project: layers.project.graph,
+    behavioral: {
+      acceptedActions: layers.user.acceptedActions,
+      declinedActions: layers.user.declinedActions,
+      preferredSuggestions: layers.user.preferredSuggestions,
+      actionSuccessRates: layers.user.actionSuccessRates,
+      ...(layers.user.lastSessionIntel ? { lastSessionIntel: layers.user.lastSessionIntel } : {}),
+    },
+    system: {
+      workflowPatterns: layers.global.workflowPatterns,
+      playbookRules: layers.user.playbookRules,
+    },
+  };
 }
 
-/** Assemble 4 structured memory layers for MODOC reasoning. */
+/** Assemble structured memory layers for MODOC reasoning (delegates to AI OS memory). */
 export async function assembleModocMemory(params: {
   userId: string;
   projectId?: string | null;
+  conversationId?: string | null;
   graph: ProductionGraph | null;
   pageContext?: Record<string, unknown>;
   recentUserMessages?: string[];
+  includeStudio?: boolean;
 }): Promise<AssembledModocMemory> {
-  const [learning, recentLogs, playbookRules, sessionIntel] = await Promise.all([
-    getModocLearning(params.userId),
-    getRecentActionLogs(params.userId, 25).catch(() => []),
-    getTopPlaybookRules(params.userId, 8).catch(() => []),
-    getLatestSessionIntel(params.userId, params.projectId).catch(() => null),
-  ]);
+  const assembled = await assembleStoryTimeMemoryCached({
+    userId: params.userId,
+    projectId: params.projectId,
+    conversationId: params.conversationId,
+    graph: params.graph,
+    pageContext: params.pageContext,
+    recentUserMessages: params.recentUserMessages,
+    includeStudio: params.includeStudio,
+  });
 
-  const shortTerm = {
-    sessionTool: typeof params.pageContext?.tool === "string" ? params.pageContext.tool : undefined,
-    sessionTask: typeof params.pageContext?.task === "string" ? params.pageContext.task : undefined,
-    recentUserIntents: (params.recentUserMessages ?? []).slice(-5),
-    recentActions: recentLogs.slice(0, 8).map((l) => `${l.action}:${l.ok === false ? "fail" : "ok"}`),
-    at: new Date().toISOString(),
+  return {
+    layers: toLegacyLayers(assembled.layers),
+    promptBlock: assembled.promptBlock,
+    missingContextFlags: assembled.missingContextFlags,
+    storyTimeLayers: assembled.layers,
+    cacheHit: assembled.cacheHit,
   };
-
-  const intelSnapshot =
-    sessionIntel ??
-    (learning.lastSessionIntel
-      ? {
-          next_best_action_priority: learning.lastSessionIntel.next_best_action_priority,
-          next_best_action_score: learning.lastSessionIntel.next_best_action_score,
-          missing_context_flags: learning.lastSessionIntel.missing_context_flags,
-          action_success_rate_estimate: learning.lastSessionIntel.action_success_rate_estimate,
-          suggestion_acceptance_rate: learning.lastSessionIntel.suggestion_acceptance_rate,
-        }
-      : undefined);
-
-  const behavioral = {
-    acceptedActions: learning.acceptedActions ?? {},
-    declinedActions: learning.declinedActions ?? {},
-    preferredSuggestions: learning.preferredSuggestions ?? [],
-    actionSuccessRates: computeActionSuccessRates(recentLogs),
-    ...(intelSnapshot
-      ? {
-          lastSessionIntel: {
-            next_best_action_priority: intelSnapshot.next_best_action_priority,
-            next_best_action_score: intelSnapshot.next_best_action_score,
-            missing_context_flags: intelSnapshot.missing_context_flags,
-            action_success_rate_estimate: intelSnapshot.action_success_rate_estimate,
-            suggestion_acceptance_rate: intelSnapshot.suggestion_acceptance_rate,
-          },
-        }
-      : {}),
-  };
-
-  const workflowPatterns = Object.values(TOOL_WORKFLOW)
-    .slice(0, 20)
-    .map((w) => ({
-      tool: w.tool,
-      nextTool: w.nextTool,
-      escalateAction: w.escalateAction,
-    }));
-
-  const system = {
-    workflowPatterns,
-    playbookRules: playbookRules.map((r) => ({
-      when: r.when,
-      then: r.then,
-      confidence: r.confidence,
-    })),
-  };
-
-  const layers: ModocMemoryLayers = {
-    shortTerm,
-    project: params.graph,
-    behavioral,
-    system,
-  };
-
-  const missingContextFlags = [
-    ...(params.graph?.missingContextFlags ?? []),
-    ...(intelSnapshot?.missing_context_flags ?? []),
-    ...(!params.projectId ? ["no_focus_project"] : []),
-  ];
-
-  const promptBlock = formatMemoryPromptBlock(layers, params.graph);
-
-  return { layers, promptBlock, missingContextFlags };
-}
-
-function formatMemoryPromptBlock(layers: ModocMemoryLayers, graph: ProductionGraph | null): string {
-  const parts: string[] = [
-    "## MODOC memory layers (structured JSON — not chat history)",
-    "",
-    "### 1. Short-term (current session)",
-    "```json",
-    JSON.stringify(layers.shortTerm, null, 2),
-    "```",
-    "",
-  ];
-
-  if (graph) {
-    parts.push(formatProductionGraphForPrompt(graph), "");
-  } else {
-    parts.push(
-      "### 2. Project memory",
-      "No focus project graph loaded. Request projectId from page context before executing project actions.",
-      "",
-    );
-  }
-
-  parts.push(
-    "### 3. Behavioral memory",
-    "```json",
-    JSON.stringify(layers.behavioral, null, 2),
-    "```",
-    "",
-    "### 4. System memory (workflows + playbook)",
-    "```json",
-    JSON.stringify(layers.system, null, 2),
-    "```",
-  );
-
-  return parts.join("\n");
 }
 
 /** Rank suggested action by behavioral success + acceptance. */

@@ -7,20 +7,18 @@ import {
   OPENROUTER_DEFAULT_MODELS,
   resolveModelChain,
 } from "./openrouter-models";
+import { abModelOverride, resolveAbExperimentVariant } from "@/lib/ai-os/evaluation/ab-model";
+import { resolveModocTaskKind, type ModocTaskKind } from "./task-kind";
 
-export type ModocTaskKind =
-  | "creative"
-  | "extraction"
-  | "logic"
-  | "chat"
-  | "default";
+export type { ModocTaskKind } from "./task-kind";
+export { resolveModocTaskKind } from "./task-kind";
 
 const openRouter = createOpenAI({
   apiKey: process.env.OPENROUTER_API_KEY ?? "",
   baseURL: "https://openrouter.ai/api/v1",
 });
 
-function chainFor(kind: ModocTaskKind): string[] {
+function chainFor(kind: ModocTaskKind, userId?: string | null): string[] {
   const env = [
     kind === "creative" ? process.env.OPENROUTER_MODOC_CREATIVE_MODEL : undefined,
     kind === "extraction" ? process.env.OPENROUTER_MODOC_EXTRACTION_MODEL : undefined,
@@ -32,65 +30,18 @@ function chainFor(kind: ModocTaskKind): string[] {
     kind === "default"
       ? OPENROUTER_DEFAULT_MODELS.default
       : OPENROUTER_DEFAULT_MODELS[kind];
-  return resolveModelChain(env, fallbacks);
+  const base = resolveModelChain(env, fallbacks);
+  const variant = resolveAbExperimentVariant(userId);
+  const override = abModelOverride(kind, variant);
+  if (override) {
+    return [override, ...base.filter((m) => m !== override)];
+  }
+  return base;
 }
 
-const EXTRACTION_TASKS = new Set([
-  "script_breakdown",
-  "breakdown",
-  "script_review",
-  "legal_contracts",
-  "production_readiness",
-  "creator_analytics",
-]);
-
-const CREATIVE_TASKS = new Set([
-  "script",
-  "idea_notes",
-  "logline",
-  "visual_planning",
-  "funding_hub",
-  "table_reads",
-]);
-
-const LOGIC_TASKS = new Set([
-  "budget",
-  "schedule",
-  "production_scheduling",
-  "risk_insurance",
-  "production_expense_tracker",
-  "call_sheet_generator",
-]);
-
-export function resolveModocTaskKind(params: {
-  task?: string;
-  tool?: string;
-  lastUserText?: string;
-}): ModocTaskKind {
-  const task = params.task ?? "";
-  const tool = params.tool ?? "";
-
-  if (EXTRACTION_TASKS.has(task) || tool.includes("breakdown") || tool.includes("legal")) {
-    return "extraction";
-  }
-  if (CREATIVE_TASKS.has(task) || tool.includes("script") || tool.includes("idea")) {
-    return "creative";
-  }
-  if (LOGIC_TASKS.has(task) || tool.includes("budget") || tool.includes("schedule")) {
-    return "logic";
-  }
-
-  const t = (params.lastUserText ?? "").toLowerCase();
-  if (/\b(breakdown|extract|parse|analyze contract)\b/.test(t)) return "extraction";
-  if (/\b(budget|schedule|calculate|assign scenes)\b/.test(t)) return "logic";
-  if (/\b(write|dialogue|logline|rewrite|story)\b/.test(t)) return "creative";
-
-  return "chat";
-}
-
-export function modelsForTask(kind: ModocTaskKind): string[] {
-  const list = chainFor(kind);
-  return list.length > 0 ? list : chainFor("default");
+export function modelsForTask(kind: ModocTaskKind, userId?: string | null): string[] {
+  const list = chainFor(kind, userId);
+  return list.length > 0 ? list : chainFor("default", userId);
 }
 
 /** Primary model id for a task kind (non-streaming calls e.g. breakdown extraction). */
@@ -102,14 +53,16 @@ export type StreamModocParams = {
   system: string;
   messages: ModelMessage[];
   taskKind: ModocTaskKind;
+  userId?: string | null;
   maxOutputTokens?: number;
   temperature?: number;
-  onFinish?: (result: { text: string; modelUsed: string }) => void | Promise<void>;
+  onFinish?: (result: { text: string; modelUsed: string; experimentVariant: string }) => void | Promise<void>;
 };
 
 /** Stream with OpenRouter model routing + fallback chain. */
 export async function streamModocWithFallback(params: StreamModocParams) {
-  const models = modelsForTask(params.taskKind);
+  const experimentVariant = resolveAbExperimentVariant(params.userId);
+  const models = modelsForTask(params.taskKind, params.userId);
   const temperatures: Record<ModocTaskKind, number> = {
     creative: 0.85,
     extraction: 0.2,
@@ -128,7 +81,7 @@ export async function streamModocWithFallback(params: StreamModocParams) {
         maxOutputTokens: params.maxOutputTokens ?? 4096,
         temperature: params.temperature ?? temperatures[params.taskKind],
         onFinish: async ({ text }) => {
-          await params.onFinish?.({ text, modelUsed: modelId });
+          await params.onFinish?.({ text, modelUsed: modelId, experimentVariant });
         },
       });
       return { result, modelUsed: modelId };

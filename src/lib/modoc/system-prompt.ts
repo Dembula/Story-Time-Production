@@ -5,6 +5,7 @@
 
 import type { ModocPlatformContext } from "./types";
 import { MODOC_RESPONSE_PROTOCOL } from "./response-protocol";
+import { MODOC_SA_MULTILINGUAL_POLICY } from "@/lib/ai-os/languages/system-prompt";
 
 const MODOC_IDENTITY = `You are MODOC (Machine Orchestrating Digital Operations for Creation) — a **persistent production intelligence system** embedded in Story Time Studios.
 
@@ -84,6 +85,7 @@ export function buildModocSystemPrompt(ctx: ModocPlatformContext): string {
   );
 
   parts.push(MODOC_OS_PRINCIPLES);
+  parts.push(MODOC_SA_MULTILINGUAL_POLICY);
   parts.push(MODOC_VA_ACTION_INSTRUCTIONS);
   parts.push(MODOC_RESPONSE_PROTOCOL);
 

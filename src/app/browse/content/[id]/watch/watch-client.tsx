@@ -1,9 +1,10 @@
 "use client";
 
 import "@/lib/player/vidstack-hls";
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 import { StorytimeMediaPlayer } from "@/components/player/storytime-media-player";
 import { WatchPlayerErrorBoundary } from "@/components/player/watch-player-error-boundary";
+import { PlaybackXRayPanel } from "@/components/player/playback-xray-panel";
 
 type WatchClientProps = {
   content: {
@@ -35,10 +36,16 @@ export function WatchClient({
 }: WatchClientProps) {
   const lastReportedRef = useRef(0);
   const lastSavedRef = useRef(0);
+  const [playbackPosition, setPlaybackPosition] = useState(startTime);
+  const [playbackDuration, setPlaybackDuration] = useState<number | null>(null);
 
   const reportWatchTime = useCallback(
     async (currentTime: number, _duration: number) => {
       if (isTrailer) return;
+      setPlaybackPosition(Math.floor(currentTime));
+      if (Number.isFinite(_duration) && _duration > 0) {
+        setPlaybackDuration(Math.floor(_duration));
+      }
       const elapsed = Math.floor(currentTime);
       const delta = elapsed - lastReportedRef.current;
       if (delta < 30) return;
@@ -63,6 +70,10 @@ export function WatchClient({
     async (currentTime: number, duration: number) => {
       if (isTrailer) return;
       const pos = Math.floor(currentTime);
+      setPlaybackPosition(pos);
+      if (Number.isFinite(duration) && duration > 0) {
+        setPlaybackDuration(Math.floor(duration));
+      }
       if (pos - lastSavedRef.current < 8 && pos > 0) return;
       lastSavedRef.current = pos;
       try {
@@ -89,22 +100,31 @@ export function WatchClient({
       title={content.title}
       contentDetailUrl={contentDetailUrl}
     >
-      <StorytimeMediaPlayer
-        contentId={content.id}
-        episodeId={episodeId}
-        videoUrl={content.videoUrl}
-        poster={content.posterUrl || content.backdropUrl}
-        title={content.title}
-        contentDetailUrl={contentDetailUrl}
-        nextEpisode={nextEpisode}
-        startTime={isTrailer ? 0 : startTime}
-        ageRating={content.ageRating}
-        minAge={content.minAge}
-        advisory={content.advisory}
-        onTimeUpdate={isTrailer ? undefined : reportWatchTime}
-        onProgressSave={isTrailer ? undefined : saveProgress}
-        isTrailer={isTrailer}
-      />
+      <div className="relative h-full w-full">
+        <StorytimeMediaPlayer
+          contentId={content.id}
+          episodeId={episodeId}
+          videoUrl={content.videoUrl}
+          poster={content.posterUrl || content.backdropUrl}
+          title={content.title}
+          contentDetailUrl={contentDetailUrl}
+          nextEpisode={nextEpisode}
+          startTime={isTrailer ? 0 : startTime}
+          ageRating={content.ageRating}
+          minAge={content.minAge}
+          advisory={content.advisory}
+          onTimeUpdate={isTrailer ? undefined : reportWatchTime}
+          onProgressSave={isTrailer ? undefined : saveProgress}
+          isTrailer={isTrailer}
+        />
+        {!isTrailer && (
+          <PlaybackXRayPanel
+            contentId={content.id}
+            positionSeconds={playbackPosition}
+            durationSeconds={playbackDuration}
+          />
+        )}
+      </div>
     </WatchPlayerErrorBoundary>
   );
 }

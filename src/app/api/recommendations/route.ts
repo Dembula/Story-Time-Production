@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getViewerProfileAge } from "@/lib/viewer-profiles";
 import { getDisplayPosterUrl } from "@/lib/content-media-urls";
 import { getViewerRecommendations } from "@/lib/viewer-recommendations";
+import { getHybridRecommendations } from "@/lib/recommendations/hybrid-recommendations";
 
 export async function GET() {
   try {
@@ -31,12 +32,20 @@ export async function GET() {
       }
     }
 
-    const recommendations = await getViewerRecommendations({
-      userId,
-      viewerProfileId,
-      profileAge,
-      limit: 12,
-    });
+    const useHybrid = process.env.AI_HYBRID_RECOMMENDATIONS !== "false";
+    const recommendations = useHybrid
+      ? await getHybridRecommendations({
+          userId,
+          viewerProfileId,
+          profileAge,
+          limit: 12,
+        })
+      : await getViewerRecommendations({
+          userId,
+          viewerProfileId,
+          profileAge,
+          limit: 12,
+        });
 
     return NextResponse.json(
       recommendations.map(({ recScore: _s, avgRating: _a, ...c }) => ({

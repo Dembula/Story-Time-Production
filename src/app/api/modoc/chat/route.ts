@@ -45,24 +45,16 @@ import { buildCreatorWorkspaceContext } from "@/lib/modoc/creator-workspace-cont
 import { buildCreatorDatabaseContext } from "@/lib/modoc/va-database-context";
 import { buildViewerDatabaseContext, MODOC_VIEWER_INSTRUCTIONS } from "@/lib/modoc/va-viewer-database-context";
 import { buildPlaybookPromptForUser } from "@/lib/modoc/auto-learn";
-import { ingestModocConversationLearning } from "@/lib/modoc/auto-learn";
-import type { ModocActionPayload, ModocActionType } from "@/lib/modoc/action-types";
-import { normalizeModocActionType } from "@/lib/modoc/action-types";
-import { inferFollowUpExecuteAction } from "@/lib/modoc/follow-up-actions";
-import { getModocLearning } from "@/lib/modoc/learning";
-import { getRecentActionLogs, migrateJsonLearningToDb } from "@/lib/modoc/learning-store";
-import { buildExecutedActionPromptBlock, runVaAction } from "@/lib/modoc/run-va-action";
+import type { ModocActionPayload } from "@/lib/modoc/action-types";
 import { buildVaAwarenessContext } from "@/lib/modoc/va-awareness-context";
-import {
-  getLastUserTextFromRawMessages,
-  prepareModocModelMessages,
-} from "@/lib/modoc/chat-messages";
+import { getLastUserTextFromRawMessages } from "@/lib/modoc/chat-messages";
 import { buildProductionGraph } from "@/lib/modoc/production-graph";
 import { assembleModocMemory } from "@/lib/modoc/modoc-memory";
 import { buildSlicedContext } from "@/lib/modoc/context-slicer";
-import { resolveModocTaskKind, streamModocWithFallback } from "@/lib/modoc/model-router";
-import { parseModocIntelFromText } from "@/lib/modoc/response-protocol";
-import { buildModocSessionIntel, persistModocSessionIntel } from "@/lib/modoc/learning-loop";
+import { ModocOrchestratorError, runModocChatOrchestrator } from "@/lib/ai-os";
+import { buildRagPromptBlock } from "@/lib/ai-os/rag/build-rag-prompt";
+import { buildSaLanguagePromptBlock } from "@/lib/ai-os/languages/build-language-context";
+import { resolveViewerProfileContext } from "@/lib/modoc/viewer-profile-resolver";
 
 export const maxDuration = 60;
 
@@ -167,6 +159,8 @@ export async function POST(req: Request) {
     clientContext,
   });
 
+  let memoryCacheHit: boolean | undefined;
+
   // Creator VA: only this creator's projects — never platform-wide data
   if (role === CREATOR_VA_ROLE && scope === "creator" && userId) {
     try {
@@ -192,6 +186,7 @@ export async function POST(req: Request) {
           assembleModocMemory({
             userId,
             projectId: focusProjectId,
+            conversationId,
             graph,
             pageContext: pageContext as Record<string, unknown> | undefined,
             recentUserMessages: [lastUserText].filter(Boolean),
@@ -205,6 +200,8 @@ export async function POST(req: Request) {
               }).catch(() => "")
             : Promise.resolve(""),
         ]);
+
+      memoryCacheHit = memory.cacheHit;
 
       systemPrompt += `
 
@@ -1330,133 +1327,66 @@ Suggest performance summary, lessons learned categories, and a final deliverable
     }
   }
 
-  let resolvedExecuteAction = executeAction;
-  if (
-    !resolvedExecuteAction?.type &&
-    userId &&
-    sessionRole === CREATOR_VA_ROLE &&
-    Array.isArray(rawMessages) &&
-    rawMessages.length > 0
-  ) {
-    try {
-      const lastUserText = getLastUserTextFromRawMessages(rawMessages);
-      const learning = await getModocLearning(userId);
-      await migrateJsonLearningToDb(userId, learning);
-      const recentActions = await getRecentActionLogs(userId, 200);
-      const inferred = inferFollowUpExecuteAction(lastUserText, recentActions);
-      if (inferred) {
-        resolvedExecuteAction = { type: inferred.type, payload: inferred.payload };
-      }
-    } catch (e) {
-      if (process.env.NODE_ENV === "development") console.error("MODOC follow-up action inference failed:", e);
-    }
-  }
-
-  if (resolvedExecuteAction?.type && userId && sessionRole === CREATOR_VA_ROLE) {
-    try {
-      const actionType = normalizeModocActionType(resolvedExecuteAction.type);
-      if (!actionType) {
-        if (process.env.NODE_ENV === "development") {
-          console.error("MODOC unknown executeAction:", resolvedExecuteAction.type);
-        }
-      } else {
-        const focusProjectId = (pageContext?.projectId as string | undefined) ?? undefined;
-        const actionPayload = {
-          ...(resolvedExecuteAction.payload ?? {}),
-          projectId:
-            resolvedExecuteAction.payload?.projectId ?? focusProjectId ?? undefined,
-        };
-        const actionResult = await runVaAction({
-          userId,
-          action: actionType,
-          payload: actionPayload,
-          conversationId,
-        });
-
-        const actionContext = executeAction?.type ? "suggestion" : "follow_up";
-        systemPrompt += buildExecutedActionPromptBlock(actionType, actionResult, actionContext);
-      }
-    } catch (e) {
-      if (process.env.NODE_ENV === "development") console.error("MODOC action execution failed:", e);
-    }
-  }
-
-  const lastUserTextForLearning = getLastUserTextFromRawMessages(rawMessages);
-
   try {
-    const messages = await prepareModocModelMessages(rawMessages);
-    if (messages.length === 0) {
-      return new Response(JSON.stringify({ error: "No valid messages to send." }), {
-        status: 400,
+    const lastUserText = getLastUserTextFromRawMessages(rawMessages);
+    if (lastUserText.length >= 3 && userId && process.env.AI_RAG_ENABLED !== "false") {
+      try {
+        const focusProjectId = (pageContext?.projectId as string | undefined) ?? null;
+        const focusContentId = (pageContext?.contentId as string | undefined) ?? null;
+        const viewerProfile =
+          sessionRole === VIEWER_VA_ROLE || scope === "browse"
+            ? await resolveViewerProfileContext(userId)
+            : null;
+        const ragBlock = await buildRagPromptBlock({
+          query: lastUserText,
+          sessionRole: sessionRole ?? "SUBSCRIBER",
+          scope,
+          projectId: focusProjectId,
+          contentId: focusContentId,
+          userId,
+          profileAge: viewerProfile?.profileAge ?? null,
+        });
+        if (ragBlock) systemPrompt += ragBlock;
+      } catch (e) {
+        if (process.env.NODE_ENV === "development") console.error("MODOC RAG retrieval failed:", e);
+      }
+    }
+
+    if (lastUserText.length >= 1 && userId) {
+      try {
+        const saLangBlock = await buildSaLanguagePromptBlock({
+          query: lastUserText,
+          userId,
+        });
+        if (saLangBlock) systemPrompt += saLangBlock;
+      } catch (e) {
+        if (process.env.NODE_ENV === "development") console.error("MODOC SA language context failed:", e);
+      }
+    }
+
+    const { streamResponse } = await runModocChatOrchestrator({
+      userId: userId!,
+      sessionRole: sessionRole ?? "SUBSCRIBER",
+      scope,
+      path,
+      pageContext,
+      conversationId,
+      rawMessages,
+      userContext,
+      systemPrompt,
+      executeAction,
+      focusProjectId: (pageContext?.projectId as string | undefined) ?? null,
+      memoryCacheHit,
+    });
+
+    return streamResponse;
+  } catch (e) {
+    if (e instanceof ModocOrchestratorError) {
+      return new Response(JSON.stringify({ error: e.message }), {
+        status: e.status,
         headers: { "Content-Type": "application/json" },
       });
     }
-
-    const taskKind = resolveModocTaskKind({
-      task: (pageContext?.task as string | undefined) ?? undefined,
-      tool: (pageContext?.tool as string | undefined) ?? undefined,
-      lastUserText: lastUserTextForLearning,
-    });
-
-    const focusProjectId = (pageContext?.projectId as string | undefined) ?? null;
-    const graphForIntel =
-      focusProjectId && userId
-        ? await buildProductionGraph(userId, focusProjectId).catch(() => null)
-        : null;
-
-    const { result, modelUsed } = await streamModocWithFallback({
-      system: systemPrompt,
-      messages,
-      taskKind,
-      onFinish: async ({ text, modelUsed: used }) => {
-        if (userId && lastUserTextForLearning) {
-          const canLearn =
-            sessionRole === CREATOR_VA_ROLE ||
-            (sessionRole === VIEWER_VA_ROLE && (scope === "browse" || path.startsWith("/browse")));
-          if (canLearn) {
-            try {
-              await ingestModocConversationLearning({
-                userId,
-                userMessage: lastUserTextForLearning,
-                assistantMessage: text,
-                conversationId,
-              });
-            } catch (e) {
-              if (process.env.NODE_ENV === "development") {
-                console.error("MODOC auto-learn failed:", e);
-              }
-            }
-          }
-
-          if (sessionRole === CREATOR_VA_ROLE) {
-            try {
-              const intelBlock = parseModocIntelFromText(text);
-              const sessionIntel = await buildModocSessionIntel({
-                userId,
-                userIntent: lastUserTextForLearning,
-                graph: graphForIntel,
-                intelBlock,
-                modelUsed: used,
-                conversationId: conversationId ?? undefined,
-                projectId: focusProjectId,
-              });
-              await persistModocSessionIntel(userId, sessionIntel);
-            } catch (e) {
-              if (process.env.NODE_ENV === "development") {
-                console.error("MODOC session intel failed:", e);
-              }
-            }
-          }
-        }
-      },
-    });
-
-    if (process.env.NODE_ENV === "development") {
-      console.info(`MODOC routed to ${modelUsed} (${taskKind})`);
-    }
-
-    return result.toUIMessageStreamResponse();
-  } catch (e) {
     const message = e instanceof Error ? e.message : "Chat failed";
     console.error("MODOC chat stream failed:", e);
     return new Response(JSON.stringify({ error: message }), {

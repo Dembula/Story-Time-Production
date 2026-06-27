@@ -535,6 +535,76 @@ model ContentEnrichment {
   @@index([status])
 }
 
+/// Unified RAG knowledge chunks — catalogue, scenes, policies, project scripts.
+model KnowledgeChunk {
+  id            String   @id @default(cuid())
+  chunkKey      String   @unique
+  sourceType    String
+  sourceId      String?
+  contentId     String?
+  projectId     String?
+  userId        String?
+  title         String?
+  chunkText     String   @db.Text
+  metadata      Json?
+  /// Fallback embedding (1536 dims) when pgvector query unavailable.
+  embedding     Json?
+  tokenEstimate Int?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([sourceType])
+  @@index([contentId])
+  @@index([projectId])
+  @@index([userId, sourceType])
+}
+
+/// Knowledge graph edges — relationships between content, scenes, actors, genres, creators, themes.
+model KnowledgeEdge {
+  id        String   @id @default(cuid())
+  fromType  String
+  fromId    String
+  toType    String
+  toId      String
+  relation  String
+  label     String?
+  weight    Float    @default(1)
+  metadata  Json?
+  contentId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([fromType, fromId, relation, toType, toId])
+  @@index([fromType, fromId])
+  @@index([toType, toId])
+  @@index([contentId])
+  @@index([relation])
+}
+
+/// AI request observability — latency, model, RAG hits, agent routing.
+model AiRequestLog {
+  id                String   @id @default(cuid())
+  userId            String?
+  route             String
+  agentId           String?
+  modelUsed         String?
+  taskKind          String?
+  experimentVariant String?
+  latencyMs         Int
+  ragHitCount       Int      @default(0)
+  vectorBackend     String?
+  graphEdgeCount    Int      @default(0)
+  success           Boolean  @default(true)
+  errorMessage      String?
+  metadata          Json?
+  createdAt         DateTime @default(now())
+
+  @@index([route, createdAt])
+  @@index([userId, createdAt])
+  @@index([agentId, createdAt])
+  @@index([experimentVariant, createdAt])
+}
+
 model ContentScene {
   id           String             @id @default(cuid())
   contentId    String
