@@ -79,7 +79,7 @@ export async function publishCreatorScriptToProject(params: {
         if (existing) {
           await tx.projectScene.update({
             where: { id: existing.id },
-            data: { heading, intExt, timeOfDay } as Record<string, unknown>,
+            data: { heading, intExt, timeOfDay },
           });
         } else {
           await tx.projectScene.create({
@@ -90,7 +90,7 @@ export async function publishCreatorScriptToProject(params: {
               heading,
               intExt,
               timeOfDay,
-            } as Record<string, unknown>,
+            },
           });
         }
       }

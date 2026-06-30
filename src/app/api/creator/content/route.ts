@@ -332,7 +332,7 @@ export async function POST(request: NextRequest) {
       contentId: content.id,
       source: "storytime-catalogue",
     });
-    const tasks: Promise<void>[] = [];
+    const tasks: Promise<unknown>[] = [];
     if (videoUrl) {
       tasks.push(
         linkOrIngestStreamForUrl(videoUrl, "Content", content.id, {

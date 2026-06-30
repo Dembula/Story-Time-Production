@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import type {
   DailiesClipRecord,
   DailiesDepartmentId,
@@ -16,6 +17,8 @@ import {
   TAKE_STATUS_LABELS,
 } from "@/lib/dailies/departments";
 import { buildDailyReport } from "@/lib/dailies/ai-footage-analysis";
+import { resolveDailiesClipPlaybackUrl } from "@/lib/dailies/resolve-playback-url";
+import type { DailiesHealthPayload } from "@/lib/dailies/dailies-health";
 import { DailiesVideoPlayer, type DailiesPlaybackHandle } from "@/components/dailies/dailies-video-player";
 
 function StatCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
@@ -319,7 +322,7 @@ export function DailiesReviewWorkspace({
       <div className="space-y-3">
         <DailiesVideoPlayer
           ref={playerRef}
-          src={clip.videoUrl}
+          src={resolveDailiesClipPlaybackUrl(clip)}
           onTimeUpdate={setCurrentMs}
           className="w-full"
         />
@@ -577,7 +580,7 @@ function CompareColumn({
           </option>
         ))}
       </select>
-      <DailiesVideoPlayer src={clip?.videoUrl ?? null} />
+      <DailiesVideoPlayer src={resolveDailiesClipPlaybackUrl(clip)} />
       {clip ? (
         <p className="text-[10px] text-slate-500">
           {TAKE_STATUS_LABELS[clip.takeStatus]} · {clip.camera ?? "—"}
@@ -742,6 +745,16 @@ export function DailiesUploadPanel({
   const [camera, setCamera] = useState("A");
   const [error, setError] = useState("");
 
+  const { data: healthData } = useQuery({
+    queryKey: ["project-dailies-health", projectId],
+    queryFn: async () => {
+      const res = await fetch(`/api/creator/projects/${projectId}/dailies/health`);
+      const json = (await res.json().catch(() => ({}))) as DailiesHealthPayload & { error?: string };
+      if (!res.ok) throw new Error(json.error || "Could not check dailies upload readiness");
+      return json;
+    },
+  });
+
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -783,6 +796,16 @@ export function DailiesUploadPanel({
 
   return (
     <div className="space-y-4 rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+      {healthData && !healthData.ok ? (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+          <p className="font-medium">Upload may fail until storage is configured</p>
+          <ul className="mt-1 list-disc space-y-0.5 pl-4 text-amber-100/90">
+            {healthData.issues.slice(0, 4).map((issue) => (
+              <li key={issue}>{issue}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       <p className="text-xs text-slate-400">
         Upload camera clips — automatically linked to shoot days, scenes, and editorial bins. Proxies process in the background.
       </p>

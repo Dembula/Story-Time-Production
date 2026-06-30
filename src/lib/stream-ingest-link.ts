@@ -5,10 +5,21 @@ import {
 } from "@/lib/cloudflare-stream";
 import { resolveContentTypeForUpload } from "@/lib/content-media-shared";
 import { buildStreamIngestMeta } from "@/lib/stream-ingest-meta";
-import { findStreamAssetUidBySourceUrl, setStreamAssetEntity, upsertStreamAsset } from "@/lib/stream-asset-store";
+import {
+  findStreamAssetBySourceUrl,
+  findStreamAssetByUid,
+  setStreamAssetEntity,
+  upsertStreamAsset,
+  type StreamAssetPlaybackCandidate,
+} from "@/lib/stream-asset-store";
 import { isAllowedStorageUrl } from "@/lib/storage-origin";
 
 const VIDEO_URL_RE = /\.(mp4|mov|webm|mkv|m4v|avi|mpeg|mpg|m2ts|3gp|hevc)(\?|$)/i;
+
+export function resolveStreamPlaybackUrl(asset: StreamAssetPlaybackCandidate | null | undefined): string | null {
+  if (!asset) return null;
+  return asset.hlsUrl ?? asset.playbackUrl ?? asset.iframeUrl ?? null;
+}
 
 export function isLikelyVideoStorageUrl(url: string): boolean {
   return VIDEO_URL_RE.test(url) || isCloudflareStreamUrl(url);
@@ -22,7 +33,7 @@ export async function ensureVideoIngested(
   const trimmed = url?.trim();
   if (!trimmed || !isAllowedStorageUrl(trimmed) || !isLikelyVideoStorageUrl(trimmed)) return;
   if (extractCloudflareStreamUid(trimmed)) return;
-  if (await findStreamAssetUidBySourceUrl(trimmed)) return;
+  if (await findStreamAssetBySourceUrl(trimmed)) return;
 
   try {
     const contentType = resolveContentTypeForUpload({ name: trimmed.split("/").pop() ?? "video.mp4", type: "" });
@@ -54,24 +65,24 @@ export async function linkOrIngestStreamForUrl(
   entityType: string,
   entityId: string,
   meta?: Record<string, string>,
-): Promise<void> {
+): Promise<StreamAssetPlaybackCandidate | null> {
   const trimmed = url?.trim();
-  if (!trimmed || !isAllowedStorageUrl(trimmed) || !isLikelyVideoStorageUrl(trimmed)) return;
+  if (!trimmed || !isAllowedStorageUrl(trimmed) || !isLikelyVideoStorageUrl(trimmed)) return null;
   const linkedEntityType =
     entityType === "Content" && meta?.area === "content-trailer" ? "ContentTrailer" : entityType;
 
   const existingUid = extractCloudflareStreamUid(trimmed);
   if (existingUid) {
     await setStreamAssetEntity(existingUid, linkedEntityType, entityId);
-    return;
+    return (await findStreamAssetByUid(existingUid)) ?? findStreamAssetBySourceUrl(trimmed);
   }
 
-  if (isCloudflareStreamUrl(trimmed)) return;
+  if (isCloudflareStreamUrl(trimmed)) return findStreamAssetBySourceUrl(trimmed);
 
-  const uidFromStore = await findStreamAssetUidBySourceUrl(trimmed);
-  if (uidFromStore) {
-    await setStreamAssetEntity(uidFromStore, linkedEntityType, entityId);
-    return;
+  const existingAsset = await findStreamAssetBySourceUrl(trimmed);
+  if (existingAsset) {
+    await setStreamAssetEntity(existingAsset.uid, linkedEntityType, entityId);
+    return existingAsset;
   }
 
   try {
@@ -91,9 +102,20 @@ export async function linkOrIngestStreamForUrl(
       hlsUrl: stream.hlsUrl,
       iframeUrl: stream.iframeUrl,
       status: stream.state,
+      entityType: linkedEntityType,
+      entityId,
     });
     await setStreamAssetEntity(stream.uid, linkedEntityType, entityId);
+    return {
+      uid: stream.uid,
+      sourceUrl: trimmed,
+      status: stream.state,
+      playbackUrl: stream.mp4Url,
+      hlsUrl: stream.hlsUrl,
+      iframeUrl: stream.iframeUrl,
+    };
   } catch (streamErr) {
     console.error("Cloudflare Stream ingestion failed for linked URL:", streamErr);
+    return null;
   }
 }

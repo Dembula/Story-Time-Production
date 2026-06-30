@@ -4,8 +4,8 @@ import type { Prisma } from "@/generated/prisma";
 import { ensureProjectAccess, projectAccessDenied } from "@/lib/project-access";
 import { prisma } from "@/lib/prisma";
 import { validateStorageUrlField } from "@/lib/storage-origin";
-import { linkOrIngestStreamForUrl } from "@/lib/stream-ingest-link";
 import { ensureLegacyClipsFromBatches } from "@/lib/dailies/build-intelligence-payload";
+import { finalizeDailiesBatchStream } from "@/lib/dailies/finalize-clip-stream";
 
 export async function GET(
   _req: NextRequest,
@@ -110,15 +110,21 @@ export async function POST(
 
   if (videoUrl) {
     after(async () => {
-      await linkOrIngestStreamForUrl(videoUrl, "DailiesBatch", batch.id, {
-        area: "dailies",
-        projectId,
-      });
-      if (clip) {
-        await prisma.dailiesClip.update({
-          where: { id: clip.id },
-          data: { streamStatus: "ready" },
+      try {
+        await finalizeDailiesBatchStream({
+          batchId: batch.id,
+          clipId: clip?.id ?? null,
+          videoUrl,
+          projectId,
         });
+      } catch (err) {
+        console.error("Dailies batch stream finalize failed:", err);
+        if (clip) {
+          await prisma.dailiesClip.update({
+            where: { id: clip.id },
+            data: { streamStatus: "ready" },
+          });
+        }
       }
     });
   }

@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/prisma";
+import { getStreamAssetsByUrls } from "@/lib/stream-asset-store";
+import { resolveStreamPlaybackUrl } from "@/lib/stream-ingest-link";
 import {
   analyzeFootageClip,
   generateProductionInsights,
@@ -74,6 +76,8 @@ export async function buildDailiesIntelligence(projectId: string): Promise<Daili
     continuityByScene.set(n.sceneId, (continuityByScene.get(n.sceneId) ?? 0) + 1);
   }
 
+  const streamByUrl = await getStreamAssetsByUrls(clipsRaw.map((c) => c.videoUrl));
+
   const clips: DailiesClipRecord[] = clipsRaw.map((c) => {
     const noteList = c.notes.map((n) => ({
       body: n.body,
@@ -107,7 +111,7 @@ export async function buildDailiesIntelligence(projectId: string): Promise<Daili
       unit: c.unit ?? c.shootDay?.unit ?? null,
       title: c.title,
       videoUrl: c.videoUrl,
-      proxyUrl: c.proxyUrl,
+      proxyUrl: c.proxyUrl ?? resolveStreamPlaybackUrl(c.videoUrl ? streamByUrl.get(c.videoUrl) : undefined),
       streamStatus: c.streamStatus,
       shotNumber: c.shotNumber,
       takeNumber: c.takeNumber,

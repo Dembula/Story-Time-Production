@@ -4,8 +4,8 @@ import type { Prisma } from "@/generated/prisma";
 import { ensureProjectAccess, projectAccessDenied } from "@/lib/project-access";
 import { prisma } from "@/lib/prisma";
 import { validateStorageUrlField } from "@/lib/storage-origin";
-import { linkOrIngestStreamForUrl } from "@/lib/stream-ingest-link";
 import { analyzeFootageClip } from "@/lib/dailies/ai-footage-analysis";
+import { finalizeDailiesClipStream } from "@/lib/dailies/finalize-clip-stream";
 
 export async function GET(
   req: NextRequest,
@@ -88,14 +88,15 @@ export async function POST(
 
   if (videoUrl) {
     after(async () => {
-      await linkOrIngestStreamForUrl(videoUrl, "DailiesBatch", clip.id, {
-        area: "dailies",
-        projectId,
-      });
-      await prisma.dailiesClip.update({
-        where: { id: clip.id },
-        data: { streamStatus: "ready" },
-      });
+      try {
+        await finalizeDailiesClipStream({ clipId: clip.id, videoUrl, projectId });
+      } catch (err) {
+        console.error("Dailies clip stream finalize failed:", err);
+        await prisma.dailiesClip.update({
+          where: { id: clip.id },
+          data: { streamStatus: "ready" },
+        });
+      }
     });
   }
 
