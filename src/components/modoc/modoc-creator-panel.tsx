@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import { formatModocChatError } from "@/lib/modoc/format-chat-error";
 import { useModoc } from "./use-modoc";
 import { getModocMessageText } from "./modoc-context";
 import { Bot, X, Send, Sparkles } from "lucide-react";
@@ -150,9 +151,7 @@ export function ModocCreatorPanel({
           })}
           {error && (
             <div className="rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-              {error.message?.includes("503") || error.message?.toLowerCase().includes("configured")
-                ? "AI assistant is not configured. Set OPENROUTER_API_KEY in your environment."
-                : error.message || "Something went wrong. Try again."}
+              {formatModocChatError(error.message)}
             </div>
           )}
           {showThinking && (

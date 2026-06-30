@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { getModocMessageText } from "./modoc-context";
 import { useModoc } from "./use-modoc";
+import { formatModocChatError } from "@/lib/modoc/format-chat-error";
 import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
 import { useMotion } from "@/components/motion/motion-provider";
 import { viewerMessageVariants } from "@/lib/motion/viewer-presets";
@@ -527,9 +528,7 @@ export function ModocViewerPanel({
 
                 {error && (
                   <p className="text-center text-sm text-red-400">
-                    {error.message?.includes("503") || error.message?.toLowerCase().includes("configured")
-                      ? "AI assistant is not configured. Set OPENROUTER_API_KEY in your environment."
-                      : error.message || "Something went wrong. Check your connection and try again."}
+                    {formatModocChatError(error.message)}
                   </p>
                 )}
               </div>

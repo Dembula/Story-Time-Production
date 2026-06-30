@@ -32,6 +32,11 @@ const LOGIC_TASKS = new Set([
   "call_sheet_generator",
 ]);
 
+/** Strip platform name so "story time platform" does not route to creative. */
+function textForTaskKindInference(raw: string): string {
+  return raw.replace(/\bstory\s*time\b/gi, "storytime_platform");
+}
+
 export function resolveModocTaskKind(params: {
   task?: string;
   tool?: string;
@@ -50,10 +55,12 @@ export function resolveModocTaskKind(params: {
     return "logic";
   }
 
-  const t = (params.lastUserText ?? "").toLowerCase();
+  const t = textForTaskKindInference((params.lastUserText ?? "").toLowerCase());
   if (/\b(breakdown|extract|parse|analyze contract)\b/.test(t)) return "extraction";
   if (/\b(budget|schedule|calculate|assign scenes)\b/.test(t)) return "logic";
-  if (/\b(write|dialogue|logline|rewrite|story)\b/.test(t)) return "creative";
+  if (/\b(write|dialogue|logline|rewrite|screenplay|script draft)\b/.test(t)) return "creative";
+  // "story" alone — not "story time" / storytime_platform
+  if (/\bstory\b/.test(t) && !/\bstorytime_platform\b/.test(t)) return "creative";
 
   return "chat";
 }

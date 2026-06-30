@@ -18,6 +18,7 @@ import {
   stripModocMachineBlocks,
 } from "@/lib/modoc/response-protocol";
 import { buildModocGreeting } from "@/lib/modoc/greeting";
+import { formatModocChatError } from "@/lib/modoc/format-chat-error";
 import { resolveQuickPromptAction } from "@/lib/modoc/quick-prompt-actions";
 import {
   notifyModocFieldFill,
@@ -712,9 +713,7 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
                 <>
               {error && (
                 <div className="rounded-xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-xs text-red-200">
-                  {error.message?.includes("503") || error.message?.toLowerCase().includes("configured")
-                    ? "AI assistant is not configured. Set OPENROUTER_API_KEY in your environment."
-                    : error.message || "Something went wrong. Try again."}
+                  {formatModocChatError(error.message)}
                 </div>
               )}
               {activityBanner && (

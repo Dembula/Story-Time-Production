@@ -6,6 +6,7 @@ import {
   normalizeOpenRouterModelId,
   OPENROUTER_DEFAULT_MODELS,
   resolveModelChain,
+  resolveWorkingModel,
 } from "./openrouter-models";
 import { abModelOverride, resolveAbExperimentVariant } from "@/lib/ai-os/evaluation/ab-model";
 import { resolveModocTaskKind, type ModocTaskKind } from "./task-kind";
@@ -34,7 +35,7 @@ function chainFor(kind: ModocTaskKind, userId?: string | null): string[] {
   const variant = resolveAbExperimentVariant(userId);
   const override = abModelOverride(kind, variant);
   if (override) {
-    return [override, ...base.filter((m) => m !== override)];
+    return [normalizeOpenRouterModelId(override), ...base.filter((m) => m !== override)];
   }
   return base;
 }
@@ -62,7 +63,7 @@ export type StreamModocParams = {
 /** Stream with OpenRouter model routing + fallback chain. */
 export async function streamModocWithFallback(params: StreamModocParams) {
   const experimentVariant = resolveAbExperimentVariant(params.userId);
-  const models = modelsForTask(params.taskKind, params.userId);
+  const modelChain = modelsForTask(params.taskKind, params.userId);
   const temperatures: Record<ModocTaskKind, number> = {
     creative: 0.85,
     extraction: 0.2,
@@ -71,11 +72,17 @@ export async function streamModocWithFallback(params: StreamModocParams) {
     default: 0.7,
   };
 
+  // Probe chain so retired env models (e.g. claude-3.5-sonnet) auto-fall through.
+  const workingModel = await resolveWorkingModel(modelChain);
+  const models = workingModel
+    ? [workingModel, ...modelChain.filter((m) => normalizeOpenRouterModelId(m) !== workingModel)]
+    : modelChain;
+
   let lastError: unknown;
   for (const modelId of models) {
     try {
       const result = streamText({
-        model: openRouter.chat(modelId),
+        model: openRouter.chat(normalizeOpenRouterModelId(modelId)),
         system: params.system,
         messages: params.messages,
         maxOutputTokens: params.maxOutputTokens ?? 4096,
@@ -84,12 +91,10 @@ export async function streamModocWithFallback(params: StreamModocParams) {
           await params.onFinish?.({ text, modelUsed: modelId, experimentVariant });
         },
       });
-      return { result, modelUsed: modelId };
+      return { result, modelUsed: normalizeOpenRouterModelId(modelId) };
     } catch (e) {
       lastError = e;
-      if (process.env.NODE_ENV === "development") {
-        console.warn(`MODOC model ${modelId} failed, trying fallback…`, e);
-      }
+      console.warn(`MODOC model ${modelId} failed, trying fallback…`, e);
     }
   }
   throw lastError instanceof Error ? lastError : new Error("All MODOC models failed");
