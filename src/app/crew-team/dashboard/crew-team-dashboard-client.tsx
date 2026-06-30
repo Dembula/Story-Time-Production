@@ -6,6 +6,7 @@ import { Users, Send, DollarSign, ClipboardList } from "lucide-react";
 import { formatZar } from "@/lib/format-currency-zar";
 import { readCompanyApiJson } from "@/lib/casting-agency-client";
 import { OpsMetricCard, OpsPageHeader, OpsQuickActions, OpsSection } from "@/components/ecosystem/ops-shell";
+import { StakeholderEcosystemHome } from "@/components/ecosystem/stakeholder-ecosystem-home";
 
 export function CrewTeamDashboardClient() {
   const [teamName, setTeamName] = useState("");
@@ -51,6 +52,8 @@ export function CrewTeamDashboardClient() {
         subtitle="Roster with headshots and day rates, inbound hire requests, and project invitations — built for production crew companies."
       />
       {error && <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">{error}</div>}
+
+      <StakeholderEcosystemHome portalPrefix="/crew-team" />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <OpsMetricCard label="Crew members" value={metrics.members} icon={Users} accent="emerald" />

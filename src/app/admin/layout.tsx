@@ -11,6 +11,7 @@ const navSections: DashboardNavSection[] = [
     items: [
       { href: "/admin", label: "Overview" },
       { href: "/admin/review", label: "Review hub" },
+      { href: "/admin/script-reviews", label: "Executive script reviews", highlight: true },
       { href: "/admin/projects", label: "Projects" },
     ],
   },
@@ -18,6 +19,7 @@ const navSections: DashboardNavSection[] = [
     title: "Catalogue & rights",
     items: [
       { href: "/admin/content", label: "Content" },
+      { href: "/admin/credit-people", label: "Credit identities" },
       { href: "/admin/originals", label: "Originals", highlight: true },
       { href: "/admin/music", label: "Music" },
     ],
@@ -28,6 +30,7 @@ const navSections: DashboardNavSection[] = [
       { href: "/admin/crew", label: "Crew" },
       { href: "/admin/cast", label: "Cast" },
       { href: "/admin/locations", label: "Locations" },
+      { href: "/admin/marketplace-vendors", label: "Equipment & catering" },
     ],
   },
   {

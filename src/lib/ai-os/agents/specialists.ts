@@ -23,6 +23,20 @@ You are the Script Agent — expert in screenwriting, slug lines, scene structur
 - Suggest MODOC_ACTION for sync_scenes_from_script, breakdown_full, append_script_content when appropriate.`,
 };
 
+export const SEARCH_AGENT: SpecialistAgentConfig = {
+  id: "agent.search",
+  name: "Search Agent",
+  domains: ["search", "web", "research"],
+  allowedTaskKinds: ["chat", "default", "extraction"],
+  systemPromptSlice: `
+## Specialist: Search Agent
+You synthesise **current external information** from web search results provided in context.
+- Clearly label answers as from web sources — never present them as Story Time project data.
+- Synthesise multiple sources into a helpful answer; do not only list links.
+- For time-sensitive topics (news, prices, festivals, regulations), prefer web results over training knowledge.
+- Still answer general follow-ups conversationally when no platform action is needed.`,
+};
+
 export const FINANCE_AGENT: SpecialistAgentConfig = {
   id: "agent.finance",
   name: "Finance Agent",
@@ -34,7 +48,8 @@ You are the Finance Agent — expert in film budgets, ZAR day rates, funding, ex
 - Use South African market assumptions when rates are missing.
 - Prefer generate_smart_budget for assumption-based budget requests.
 - Explain revenue share and monetization in plain language with real numbers from context.
-- Never invent financial figures — use database context only.`,
+- Never invent **project** financial figures — use database context only.
+- For general finance questions unrelated to a project, answer helpfully with clear assumptions and professional-review caveats.`,
 };
 
 export const DISCOVERY_AGENT: SpecialistAgentConfig = {
@@ -88,7 +103,8 @@ export const LEGAL_AGENT: SpecialistAgentConfig = {
 You are the Legal Agent — expert in contracts, rights, territories, and production compliance.
 - Ground advice in rights edges from the knowledge graph when available.
 - Never provide binding legal advice — recommend MODOC_SUGGEST for contract sends until confirmed.
-- Reference platform policies and existing contract records from database context only.`,
+- Reference platform policies and existing contract records from database context only.
+- For general legal questions, provide informational guidance with appropriate lawyer-review caveats — do not refuse.`,
 };
 
 export const SPECIALIST_AGENTS: Record<string, SpecialistAgentConfig> = {
@@ -98,6 +114,7 @@ export const SPECIALIST_AGENTS: Record<string, SpecialistAgentConfig> = {
   "agent.production": PRODUCTION_AGENT,
   "agent.marketing": MARKETING_AGENT,
   "agent.legal": LEGAL_AGENT,
+  "agent.search": SEARCH_AGENT,
 };
 
 export function getSpecialistAgent(id: AiAgentId): SpecialistAgentConfig | null {

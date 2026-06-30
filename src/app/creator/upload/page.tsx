@@ -18,6 +18,7 @@ import { MediaDropzone } from "@/components/ecosystem/media-dropzone";
 import { defaultMinAgeForRating } from "@/lib/fpb-compliance";
 import { isLongFormType } from "@/lib/content-types";
 import { SeriesEpisodesUpload, buildSeasonsPayload, type EpisodeDraft } from "@/components/creator/series-episodes-upload";
+import { UploadCreditRoleSelect } from "@/components/creator/upload-credit-role-select";
 
 const TYPES = [
   { value: "MOVIE", label: "Movie", icon: Film, desc: "Feature or short film" },
@@ -1265,39 +1266,24 @@ function DistributionUploadInner() {
       {step === 5 && (
         <div className="space-y-6">
           <h2 className="text-xl font-semibold text-white">Cast & Crew</h2>
-          <p className="text-sm text-slate-400">Add key cast and crew members. You can update this later from your dashboard.</p>
+          <p className="text-sm text-slate-400">
+            Credit everyone who worked on this title — principal cast, ADs, DOP, department heads, and
+            post. Industry abbreviations (1st AD, DOP, EP, etc.) are listed with full titles. You can
+            add more rows and update credits later from your dashboard.
+          </p>
           <div className="space-y-3">
             {crew.map((c, i) => (
-              <div key={i} className="flex gap-3 items-center">
+              <div key={i} className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <input
                   value={c.name}
                   onChange={(e) => updateCrew(i, "name", e.target.value)}
-                  placeholder="Full name"
+                  placeholder="Full name (as it should appear on screen)"
                   className="flex-1 px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 text-sm focus:border-orange-500 focus:outline-none transition"
                 />
-                <select
+                <UploadCreditRoleSelect
                   value={c.role}
-                  onChange={(e) => updateCrew(i, "role", e.target.value)}
-                  className="w-48 px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm focus:border-orange-500 focus:outline-none transition"
-                >
-                  <option value="">Select role</option>
-                  <option value="Director">Director</option>
-                  <option value="Producer">Producer</option>
-                  <option value="Lead Actor">Lead Actor</option>
-                  <option value="Supporting Actor">Supporting Actor</option>
-                  <option value="Director of Photography">Director of Photography</option>
-                  <option value="Editor">Editor</option>
-                  <option value="Sound Designer">Sound Designer</option>
-                  <option value="Production Designer">Production Designer</option>
-                  <option value="Costume Designer">Costume Designer</option>
-                  <option value="Composer">Composer</option>
-                  <option value="VFX Supervisor">VFX Supervisor</option>
-                  <option value="Script Supervisor">Script Supervisor</option>
-                  <option value="Camera Operator">Camera Operator</option>
-                  <option value="Gaffer">Gaffer</option>
-                  <option value="Grip">Grip</option>
-                  <option value="Other">Other</option>
-                </select>
+                  onChange={(role) => updateCrew(i, "role", role)}
+                />
                 {crew.length > 1 && (
                   <button onClick={() => removeCrewRow(i)} className="p-2 text-red-400 hover:text-red-300 transition">✕</button>
                 )}
@@ -1305,7 +1291,7 @@ function DistributionUploadInner() {
             ))}
           </div>
           <button onClick={addCrewRow} className="text-sm text-orange-400 hover:text-orange-300 transition">
-            + Add another crew member
+            + Add another cast or crew credit
           </button>
         </div>
       )}

@@ -1,6 +1,7 @@
 import { CREATOR_VA_ROLE } from "@/lib/modoc/creator-va";
 import { resolveModocTaskKind, type ModocTaskKind } from "@/lib/modoc/task-kind";
 import { VIEWER_VA_ROLE } from "@/lib/modoc/viewer-va";
+import { classifyVaIntent } from "@/lib/modoc/intent-classifier";
 import { resolveSpecialistFromTask } from "../agents/specialists";
 import type { AiAgentId, OrchestrationPlan } from "../types";
 
@@ -47,6 +48,11 @@ export function planModocOrchestration(input: IntentRouterInput): OrchestrationP
     lastUserText: input.lastUserText,
   });
 
+  const intent = classifyVaIntent(input.lastUserText ?? "", {
+    hasProjectContext: !!input.pageContext?.projectId,
+    taskSlug: task,
+  });
+
   const isCreator =
     input.sessionRole === CREATOR_VA_ROLE ||
     input.scope === "creator";
@@ -83,10 +89,24 @@ export function planModocOrchestration(input: IntentRouterInput): OrchestrationP
     routingReason += `; future specialist hint: ${futureAgent}`;
   }
 
+  if (intent.needsWebSearch && intent.category === "web_current_events") {
+    primaryAgentId = "agent.search";
+    routingReason += `; web search intent — agent.search`;
+  } else if (intent.category === "general_knowledge" && isViewer && !specialist) {
+    primaryAgentId = "modoc.viewer";
+    routingReason = "General knowledge — conversational mode";
+  }
+
+  routingReason += `; intent=${intent.category}; mode=${intent.responseMode}`;
+
   return {
     primaryAgentId,
     supportingAgentIds,
     taskKind,
     routingReason,
+    intentCategory: intent.category,
+    responseMode: intent.responseMode,
+    needsWebSearch: intent.needsWebSearch,
+    webSearchQuery: intent.webSearchQuery,
   };
 }

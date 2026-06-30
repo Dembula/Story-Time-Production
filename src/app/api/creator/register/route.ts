@@ -589,6 +589,11 @@ export async function POST(request: NextRequest) {
     await ensureUserRole(userForRole.id, role);
     await linkPendingStudioInvitesToUser(userForRole.id, normalizedEmail);
 
+    const { linkUserToCreditProfiles } = await import("@/lib/credit-person");
+    void linkUserToCreditProfiles(userForRole.id).catch((err) => {
+      console.warn("[creator/register] credit profile link failed:", err);
+    });
+
     try {
       await sendWelcomeEmail(normalizedEmail, name?.trim() || null, {
         role,

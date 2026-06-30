@@ -9,6 +9,7 @@ import { firstPhotoUrl } from "@/lib/marketplace-media";
 import { readCompanyApiJson } from "@/lib/casting-agency-client";
 import { MapPin, MessageCircle, Clock, CheckCircle, XCircle, TrendingUp, DollarSign, Wallet, Home } from "lucide-react";
 import { OpsMetricCard, OpsPageHeader, OpsQuickActions, OpsSection } from "@/components/ecosystem/ops-shell";
+import { StakeholderEcosystemHome } from "@/components/ecosystem/stakeholder-ecosystem-home";
 
 interface LocationBooking {
   id: string;
@@ -101,6 +102,8 @@ export function LocationDashboardClient() {
         subtitle="Property galleries, shoot bookings, and settled revenue — your locations hub for film and TV productions."
       />
       {error && <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">{error}</div>}
+
+      <StakeholderEcosystemHome portalPrefix="/location-owner" />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
         <OpsMetricCard label="Properties" value={metrics.listings || listings.length} icon={MapPin} accent="cyan" />

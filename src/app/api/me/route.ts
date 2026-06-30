@@ -264,5 +264,10 @@ export async function PATCH(req: NextRequest) {
       ? await loadViewerBillingAddress(session.user.id).catch(() => null)
       : null;
 
+  if (name !== undefined && typeof name === "string" && name.trim()) {
+    const { linkUserToCreditProfiles } = await import("@/lib/credit-person");
+    void linkUserToCreditProfiles(session.user.id).catch(() => null);
+  }
+
   return NextResponse.json({ ...updated, billingAddress });
 }

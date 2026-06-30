@@ -2,6 +2,7 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import { ensureProjectAccess } from "@/lib/project-access";
+import { embedBudgetLineKey } from "@/lib/budget-line-keys";
 import { type BudgetTemplate, runBudgetEngine } from "@/lib/budget-engine";
 import type { ModocActionPayload } from "./action-types";
 import type { ModocActionResult } from "./actions";
@@ -301,13 +302,7 @@ export async function vaGenerateSmartBudget(
       makeupsCount: scene.breakdownMakeups.length,
       shootDaysAssigned: shootDayCounts.get(scene.id) ?? 0,
     })),
-    manualLines: (budget.lines ?? []).map((line) => ({
-      department: line.department,
-      name: line.name,
-      quantity: line.quantity,
-      unitCost: line.unitCost,
-      total: line.total,
-    })),
+    manualLines: [],
     expenses: fullProject.productionExpenses,
     crewNeeds: fullProject.crewRoleNeeds,
     castRoles: fullProject.castingRoles.map((role) => ({ name: role.name, status: role.status, linkedSalaryAmount: role.dailyRate ?? null })),
@@ -481,16 +476,16 @@ export async function vaGenerateSmartBudget(
     }
   }
 
-  const engineLines = engine.sceneLineItems.map((item) => ({
-    department: item.department,
-    name: item.name,
-    quantity: item.quantity,
-    unitCost: item.unitCost,
-    total: item.total,
-    notes: item.notes,
-  }));
+  const engineLines = engine.sceneLineItems.length;
 
-  const allLines = [...engineLines, ...supplemental];
+  // Persist project-level supplemental lines only — scene allocations stay live from the engine (no duplicates).
+  const allLines = supplemental.map((line) => ({
+    ...line,
+    notes: embedBudgetLineKey(
+      line.notes,
+      `project|${line.department}|${line.name}`.toLowerCase(),
+    ),
+  }));
 
   await prisma.$transaction(async (tx) => {
     await tx.projectBudgetLine.deleteMany({ where: { budgetId: budget!.id } });
@@ -507,7 +502,10 @@ export async function vaGenerateSmartBudget(
         },
       });
     }
-    const totalPlanned = allLines.reduce((s, l) => s + l.total, 0);
+    const supplementalTotal = allLines.reduce((s, l) => s + l.total, 0);
+    const totalPlanned = Number(
+      (engine.dashboard.estimatedTotal + supplementalTotal).toFixed(2),
+    );
     await tx.projectBudgetAssumption.deleteMany({ where: { budgetId: budget!.id } });
     for (const row of assumptionRows) {
       await tx.projectBudgetAssumption.create({

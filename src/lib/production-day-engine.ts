@@ -26,6 +26,7 @@ export type ProductionDayRecord = {
   id: string;
   shootDayNumber: number;
   date: string;
+  unit: string | null;
   callTime: string | null;
   wrapTime: string | null;
   location: string | null;
@@ -150,6 +151,12 @@ function parseTimeToMinutes(v: string | null | undefined): number | null {
 function overlaps(aStart: number | null, aEnd: number | null, bStart: number | null, bEnd: number | null): boolean {
   if (aStart == null || aEnd == null || bStart == null || bEnd == null) return true;
   return aStart < bEnd && bStart < aEnd;
+}
+
+/** Units on different shooting units (A vs B) do not share cast/crew/equipment conflicts. */
+function unitsShareResources(aUnit: string | null | undefined, bUnit: string | null | undefined): boolean {
+  const normalize = (u: string | null | undefined) => (u?.trim().toUpperCase() || "A");
+  return normalize(aUnit) === normalize(bUnit);
 }
 
 function normalizeText(v: string | null | undefined): string {
@@ -515,6 +522,7 @@ export async function buildProductionDataEngine(
       id: day.id,
       shootDayNumber: index + 1,
       date: day.date.toISOString(),
+      unit: day.unit ?? null,
       callTime: day.callTime,
       wrapTime: day.wrapTime,
       location,
@@ -558,6 +566,7 @@ export async function buildProductionDataEngine(
       const a = productionDays[i];
       const b = productionDays[j];
       if (a.date.slice(0, 10) !== b.date.slice(0, 10)) continue;
+      if (!unitsShareResources(a.unit, b.unit)) continue;
       const overlap = overlaps(
         parseTimeToMinutes(a.callTime),
         parseTimeToMinutes(a.wrapTime),

@@ -7,6 +7,8 @@ import {
   notifyLocationBookingCreated,
   notifyLocationBookingStatus,
 } from "@/lib/marketplace-notifications";
+import { userCanApproveLocationBooking } from "@/lib/stakeholder-ecosystem/location-manager-service";
+import { publishBookingSyncForLocation } from "@/lib/stakeholder-ecosystem/sync-events";
 
 export async function GET(req: NextRequest) {
   if (!hasLocationBookingModels()) {
@@ -101,14 +103,20 @@ export async function PATCH(req: NextRequest) {
   const body = await req.json();
   const existing = await prisma.locationBooking.findUnique({
     where: { id: body.id },
-    select: { ownerId: true, status: true, requesterId: true },
+    select: { ownerId: true, status: true, requesterId: true, locationId: true },
   });
 
   if (!existing) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
 
   const role = (session.user as { role?: string })?.role;
   const userId = (session.user as { id?: string })?.id!;
-  if (existing.ownerId !== userId && role !== "ADMIN") {
+  const canApprove =
+    role === "ADMIN" ||
+    (await userCanApproveLocationBooking(userId, {
+      ownerId: existing.ownerId,
+      locationId: existing.locationId,
+    }));
+  if (!canApprove) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -125,6 +133,14 @@ export async function PATCH(req: NextRequest) {
         locationName: updated.location.name,
         status: body.status,
         bookingId: body.id,
+      });
+    } catch {
+      /* non-blocking */
+    }
+    try {
+      await publishBookingSyncForLocation(existing.locationId, {
+        bookingId: body.id,
+        status: body.status,
       });
     } catch {
       /* non-blocking */

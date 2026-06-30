@@ -7,6 +7,7 @@ import { Calendar, DollarSign, UtensilsCrossed } from "lucide-react";
 import { formatZar } from "@/lib/format-currency-zar";
 import { readCompanyApiJson } from "@/lib/casting-agency-client";
 import { OpsMetricCard, OpsPageHeader, OpsQuickActions, OpsSection } from "@/components/ecosystem/ops-shell";
+import { StakeholderEcosystemHome } from "@/components/ecosystem/stakeholder-ecosystem-home";
 
 export function CateringDashboardClient() {
   const [company, setCompany] = useState<{ companyName: string; tagline: string | null; logoUrl: string | null } | null>(null);
@@ -55,6 +56,8 @@ export function CateringDashboardClient() {
         />
       </div>
       {error && <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">{error}</div>}
+
+      <StakeholderEcosystemHome portalPrefix="/catering-company" />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <OpsMetricCard label="Bookings" value={metrics.totalBookings} icon={Calendar} accent="orange" />

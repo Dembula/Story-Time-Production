@@ -6,6 +6,7 @@ import { Package, Clock, DollarSign, Wrench, Camera } from "lucide-react";
 import { formatZar } from "@/lib/format-currency-zar";
 import { readCompanyApiJson } from "@/lib/casting-agency-client";
 import { OpsMetricCard, OpsPageHeader, OpsQuickActions, OpsSection } from "@/components/ecosystem/ops-shell";
+import { StakeholderEcosystemHome } from "@/components/ecosystem/stakeholder-ecosystem-home";
 
 export function EquipmentDashboardClient() {
   const [metrics, setMetrics] = useState({ listings: 0, totalRequests: 0, pending: 0, approved: 0, revenue: 0 });
@@ -41,6 +42,8 @@ export function EquipmentDashboardClient() {
         subtitle="Fleet catalog with kit photos, rental requests, and settled marketplace revenue — built for camera, grip, and production gear houses."
       />
       {error && <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">{error}</div>}
+
+      <StakeholderEcosystemHome portalPrefix="/equipment-company" />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         <OpsMetricCard label="Fleet items" value={metrics.listings} icon={Package} accent="cyan" />

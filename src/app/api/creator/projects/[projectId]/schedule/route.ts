@@ -8,6 +8,8 @@ import {
   parseShootDayNotes,
 } from "@/lib/production-day-engine";
 import { SIGNED_CONTRACT_STATUSES } from "@/lib/contract-template-engine";
+import { SCHEDULE_BLOCKING_STATUSES } from "@/lib/contract-lifecycle";
+import { publishStakeholderSyncEvent } from "@/lib/stakeholder-ecosystem/sync-events";
 
 async function ensureAccess(projectId: string) {
   const session = await getServerSession(authOptions);
@@ -100,13 +102,16 @@ async function buildContractGate(projectId: string) {
     },
     orderBy: { createdAt: "desc" },
   });
+  const blockingContracts = contracts.filter((c) =>
+    (SCHEDULE_BLOCKING_STATUSES as readonly string[]).includes(c.status),
+  );
   const unsigned = contracts.filter((c) => !SIGNED_CONTRACT_STATUSES.has(c.status));
   return {
     totalContracts: contracts.length,
     signedContracts: contracts.length - unsigned.length,
     unsignedContracts: unsigned.length,
-    blocking: unsigned.length > 0,
-    unsignedDetails: unsigned.slice(0, 20).map((c) => ({
+    blocking: blockingContracts.length > 0,
+    unsignedDetails: blockingContracts.slice(0, 20).map((c) => ({
       id: c.id,
       type: c.type,
       status: c.status,
@@ -127,7 +132,7 @@ async function loadSchedulePayload(projectId: string, userId: string | null) {
     return null;
   }
 
-  const [shootDays, scenes, contractGate] = await Promise.all([
+  const [shootDays, scenes, contractGate, crewNeeds, equipmentItems] = await Promise.all([
     prisma.shootDay.findMany({
       where: { projectId },
       orderBy: { date: "asc" },
@@ -140,6 +145,16 @@ async function loadSchedulePayload(projectId: string, userId: string | null) {
       include: sceneScheduleInclude,
     }),
     buildContractGate(projectId),
+    prisma.crewRoleNeed.findMany({
+      where: { projectId },
+      select: { role: true, department: true },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.equipmentPlanItem.findMany({
+      where: { projectId },
+      select: { category: true, description: true, quantity: true },
+      orderBy: { createdAt: "asc" },
+    }),
   ]);
 
   scenes.sort((a, b) =>
@@ -181,6 +196,12 @@ async function loadSchedulePayload(projectId: string, userId: string | null) {
     productionDays: productionData.productionDays,
     conflicts: productionData.conflicts,
     contractGate,
+    crewNeeds,
+    equipmentItems: equipmentItems.map((e) => ({
+      category: e.category,
+      description: e.description,
+      quantity: e.quantity ?? 1,
+    })),
   };
 }
 
@@ -357,6 +378,12 @@ export async function PATCH(
       }
     }
   }, { timeout: 60000, maxWait: 10000 });
+
+  await publishStakeholderSyncEvent({
+    projectId,
+    eventType: "SCHEDULE_CHANGED",
+    payload: { dayCount: body.days.length },
+  });
 
   const payload = await loadSchedulePayload(projectId, access.userId);
   if (!payload) return NextResponse.json({ error: "Not found" }, { status: 404 });

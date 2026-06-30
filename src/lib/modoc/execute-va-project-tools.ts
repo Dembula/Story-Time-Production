@@ -8,6 +8,7 @@ import {
 } from "@/lib/budget-engine";
 import type { ModocActionPayload } from "./action-types";
 import type { ModocActionResult } from "./actions";
+import { createProductionExpense, findExpenseByIdOrTitle, softDeleteProductionExpense, updateProductionExpense } from "@/lib/expense-service";
 import { CAST_DAY_RATES_ZAR } from "./va-smart-budget";
 
 const BUDGET_TEMPLATES = new Set<string>([
@@ -442,22 +443,28 @@ export async function vaCreateProductionExpense(
   if (!payload.description?.trim() && !payload.title?.trim()) {
     return { ok: false, error: "description is required for expense", status: 400 };
   }
+  if (!amount || amount <= 0) {
+    return { ok: false, error: "amount is required for expense", status: 400 };
+  }
 
-  const expense = await prisma.productionExpense.create({
-    data: {
-      projectId,
-      description: (payload.description ?? payload.title)!.trim(),
-      amount,
-      department: payload.department ?? null,
-      vendor: payload.vendor ?? null,
-      spentAt: payload.date ? new Date(payload.date) : new Date(),
-      createdById: userId,
-    },
+  const { expense } = await createProductionExpense({
+    projectId,
+    userId,
+    amount: Number(amount),
+    title: payload.title?.trim() ?? payload.description?.trim(),
+    description: payload.description?.trim() ?? payload.title?.trim(),
+    category: payload.category ?? payload.department ?? null,
+    department: payload.department ?? null,
+    vendor: payload.vendor ?? null,
+    notes: payload.notes ?? null,
+    approvalStatus: "PENDING",
+    paymentStatus: "UNPAID",
+    spentAt: payload.date ? new Date(payload.date) : new Date(),
   });
 
   return {
     ok: true,
-    message: `Logged expense R${amount.toLocaleString("en-ZA")} — "${expense.description}".`,
+    message: `Logged expense R${Number(amount).toLocaleString("en-ZA")} — "${expense.meta.title}".`,
     data: { expenseId: expense.id },
   };
 }

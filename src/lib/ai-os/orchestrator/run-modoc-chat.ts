@@ -23,7 +23,21 @@ import { resolveAbExperimentVariant } from "../evaluation/ab-model";
 import { invalidateMemoryCache } from "../memory/cached-assemble";
 import { logAiRequest } from "../observability/log-request";
 import { planModocOrchestration } from "../planner/intent-router";
+import { searchWeb, formatWebSearchForPrompt } from "@/lib/modoc/web-search";
 import type { ModocChatOrchestratorInput, ModocChatOrchestratorResult, OrchestrationPlan } from "../types";
+
+function buildResponseModePromptBlock(plan: OrchestrationPlan): string {
+  if (plan.responseMode === "conversational") {
+    return `
+## Response mode for this turn: conversational
+Answer naturally in clear prose. Do NOT use OBSERVATION / REASONING / ACTION headers unless you are executing a MODOC_ACTION or MODOC_SUGGEST for Story Time.
+`;
+  }
+  return `
+## Response mode for this turn: production protocol
+Use OBSERVATION / REASONING / ACTION when answering about Story Time production data or executing platform workflows.
+`;
+}
 
 export type ResolveModocActionsInput = {
   userId: string;
@@ -112,6 +126,21 @@ export async function resolveModocActionsAndPlan(
     }
   }
 
+  systemPrompt += buildResponseModePromptBlock(plan);
+
+  if (plan.needsWebSearch && plan.webSearchQuery?.trim()) {
+    try {
+      const webResults = await searchWeb(plan.webSearchQuery.trim());
+      plan.webSearchUsed = webResults.length > 0;
+      systemPrompt += `\n\n${formatWebSearchForPrompt(webResults, plan.webSearchQuery.trim())}`;
+    } catch (e) {
+      if (process.env.NODE_ENV === "development") {
+        console.error("MODOC web search failed:", e);
+      }
+      systemPrompt += `\n\n${formatWebSearchForPrompt([], plan.webSearchQuery.trim())}`;
+    }
+  }
+
   return { systemPrompt, plan };
 }
 
@@ -171,6 +200,9 @@ export async function runModocChatOrchestrator(
           routingReason: plan.routingReason,
           experimentVariant: variant,
           memoryCacheHit: input.memoryCacheHit ?? false,
+          intentCategory: plan.intentCategory,
+          responseMode: plan.responseMode,
+          webSearchUsed: plan.webSearchUsed ?? false,
         },
       });
 

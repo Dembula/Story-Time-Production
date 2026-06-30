@@ -190,5 +190,5 @@ export function isContractEditable(status: string): boolean {
 
 export function isContractViewOnly(status: string): boolean {
   const s = status.toUpperCase();
-  return s === "SIGNED" || s === "EXECUTED" || s === "CLOSED" || s === "ACCEPTED";
+  return s === "SIGNED" || s === "EXECUTED" || s === "CLOSED" || s === "ACCEPTED" || s === "COMPLETED";
 }

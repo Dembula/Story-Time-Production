@@ -3,6 +3,13 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { CONTRACT_STATUS } from "@/lib/contract-template-engine";
+import {
+  canUserRespondAsCounterparty,
+  logContractEvent,
+  markContractViewed,
+} from "@/lib/contract-lifecycle";
+import { contractProjectLink } from "@/lib/contract-notification";
+import { notifyUser } from "@/lib/notify-user";
 
 interface Params {
   params: Promise<{ projectId: string; contractId: string }>;
@@ -10,7 +17,6 @@ interface Params {
 
 export async function POST(req: NextRequest, { params }: Params) {
   const session = await getServerSession(authOptions);
-  const role = (session?.user as { role?: string })?.role;
   const userId = (session?.user as { id?: string })?.id;
   if (!session || !userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -33,7 +39,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   const contract = await prisma.projectContract.findFirst({
     where: { id: contractId, projectId },
     include: {
-      project: { include: { members: true, pitches: true } },
+      project: { select: { title: true } },
       versions: { orderBy: { version: "desc" }, take: 1 },
     },
   });
@@ -41,20 +47,46 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Contract not found" }, { status: 404 });
   }
 
-  const isProjectMember =
-    role === "ADMIN" ||
-    contract.project.members.some((m) => m.userId === userId) ||
-    contract.project.pitches.some((p) => p.creatorId === userId);
   const isCounterparty = contract.counterpartyUserId === userId;
-  if (!isProjectMember && !isCounterparty) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!isCounterparty) {
+    return NextResponse.json(
+      { error: "Only the designated recipient can respond to this contract." },
+      { status: 403 },
+    );
+  }
+
+  if (body.action === "VIEW") {
+    await markContractViewed(contractId, userId);
+    const viewed = await prisma.projectContract.findUnique({ where: { id: contractId } });
+    return NextResponse.json({ contract: viewed });
+  }
+
+  if (["ACCEPT", "REJECT", "REQUEST_CHANGES"].includes(body.action)) {
+    if (!body.signerName?.trim() && !session.user?.name) {
+      return NextResponse.json({ error: "Signer name required" }, { status: 400 });
+    }
+    if (
+      (body.action === "REJECT" || body.action === "REQUEST_CHANGES") &&
+      !body.comment?.trim()
+    ) {
+      return NextResponse.json(
+        { error: "Comment required for decline or change requests" },
+        { status: 400 },
+      );
+    }
+  }
+
+  if (!canUserRespondAsCounterparty(contract, userId)) {
+    return NextResponse.json(
+      { error: `Cannot ${body.action.toLowerCase()} contract in status ${contract.status}` },
+      { status: 400 },
+    );
   }
 
   let nextStatus = contract.status;
-  if (body.action === "VIEW") nextStatus = CONTRACT_STATUS.VIEWED;
   if (body.action === "REJECT") nextStatus = CONTRACT_STATUS.REJECTED;
   if (body.action === "REQUEST_CHANGES") nextStatus = CONTRACT_STATUS.CHANGES_REQUESTED;
-  if (body.action === "ACCEPT") nextStatus = CONTRACT_STATUS.SIGNED;
+  if (body.action === "ACCEPT") nextStatus = "PARTIALLY_SIGNED";
 
   const updated = await prisma.$transaction(async (tx) => {
     const c = await tx.projectContract.update({
@@ -76,7 +108,7 @@ export async function POST(req: NextRequest, { params }: Params) {
             contractId,
             versionId: contract.versions[0].id,
             userId,
-            name: body.signerName ?? session.user?.name ?? "External signer",
+            name: body.signerName ?? session.user?.name ?? "Counterparty",
             role: body.signerRole ?? "Counterparty",
           },
         });
@@ -97,26 +129,36 @@ export async function POST(req: NextRequest, { params }: Params) {
       },
     });
 
-    if (contract.createdById) {
-      await tx.notification.create({
-        data: {
-          userId: contract.createdById,
-          type: "CONTRACT_EVENT",
-          title: "Contract response received",
-          body: `${body.action} on ${contract.subject ?? "contract"} for ${contract.project.title}.`,
-          metadata: JSON.stringify({
-            projectId,
-            contractId,
-            action: body.action,
-            status: nextStatus,
-            comment: body.comment ?? null,
-          }),
-        },
-      });
-    }
-
     return c;
   });
+
+  await logContractEvent(contractId, body.action, {
+    userId,
+    detail: body.comment ?? undefined,
+    metadata: { status: nextStatus },
+  });
+
+  if (contract.createdById) {
+    const titles: Record<string, string> = {
+      ACCEPT: "Contract signed by recipient",
+      REJECT: "Contract rejected",
+      REQUEST_CHANGES: "Changes requested on contract",
+    };
+    await notifyUser({
+      userId: contract.createdById,
+      type: "CONTRACT_EVENT",
+      title: titles[body.action] ?? "Contract response received",
+      body: `${body.action} on ${contract.subject ?? "contract"} for ${contract.project.title}.`,
+      metadata: {
+        projectId,
+        contractId,
+        url: contractProjectLink(projectId, contractId),
+        action: body.action,
+        status: nextStatus,
+        comment: body.comment ?? null,
+      },
+    });
+  }
 
   return NextResponse.json({ contract: updated });
 }

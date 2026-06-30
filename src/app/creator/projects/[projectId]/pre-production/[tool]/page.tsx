@@ -14,12 +14,22 @@ import { ModocFieldPopover } from "@/components/modoc";
 import { ModocBreakdownIncorporateBar } from "@/components/modoc/modoc-breakdown-incorporate-bar";
 import { useModocToolRefresh } from "@/components/modoc/use-modoc-tool-refresh";
 import { queryKeysForProjectTool } from "@/lib/modoc/project-tool-query-keys";
-import { useModoc, useModocOptional } from "@/components/modoc/use-modoc";
 import { parseScenesFromScreenplay } from "@/lib/scene-parser";
 import { parseSluglineMeta } from "@/lib/slugline-meta";
 import { VisualPlanningCatalogue } from "@/components/creator/visual-planning-catalogue";
 import { LegalContractsWorkspace } from "@/components/project-tools/pre/LegalContractsWorkspace";
 import { formatZar } from "@/lib/format-currency-zar";
+import { mergeBudgetTemplateWithSaved } from "@/lib/budget-merge";
+import { budgetRowKey, embedBudgetLineKey } from "@/lib/budget-line-keys";
+import {
+  BudgetStudioNav,
+  budgetWorkspaceDepartments,
+  type BudgetWorkspaceId,
+} from "@/components/budget/budget-studio-nav";
+import { BudgetVersionsPanel } from "@/components/financial-ops/financial-ops-panels";
+import { BudgetActualsPanel } from "@/components/budget/budget-actuals-panel";
+import { FinancialReportsPanel } from "@/components/financial-ops/financial-roadmap-panels";
+import { buildShootDayPipelinePreview } from "@/lib/schedule-day-preview";
 import {
   AUDITION_LISTING_FEE_ZAR,
   CASTING_ACQUISITION_FEE_ZAR,
@@ -27,6 +37,9 @@ import {
 } from "@/lib/pricing";
 import { mutationErrorMessage, projectToolFetch, projectToolQueryFn } from "@/lib/project-tool-fetch";
 import { ToolActionError } from "@/components/project-tools/tool-action-error";
+import { ScriptWritingStudio } from "@/components/script-studio/script-writing-studio";
+import { ScriptReviewStudio } from "@/components/script-review/script-review-studio";
+import { parseScriptReviewNoteBodyV2 } from "@/lib/script-review/notes";
 import {
   ToolSavedViewSheet,
   ToolViewButton,
@@ -115,7 +128,7 @@ export default function PreProductionToolPage({ params }: PreProductionToolPageP
     return (
       <>
         {!hasProject && <UnlinkedBanner />}
-        <ScriptWritingWorkspace projectId={projectId} title={title} />
+        <ScriptWritingStudio projectId={projectId} title={title} />
       </>
     );
   }
@@ -124,7 +137,7 @@ export default function PreProductionToolPage({ params }: PreProductionToolPageP
     return (
       <>
         {!hasProject && <UnlinkedBanner />}
-        <ScriptReviewWorkspaceV2 projectId={projectId} title={title} />
+        <ScriptReviewStudio projectId={projectId} title={title} />
       </>
     );
   }
@@ -639,1511 +652,6 @@ function IdeaDevelopmentWorkspace({ projectId, title }: IdeaDevelopmentWorkspace
 
       
       
-    </div>
-  );
-}
-
-// --- Script Writing (simplified but fully wired) ---
-
-interface ScriptWritingWorkspaceProps {
-  projectId?: string;
-  title: string;
-}
-
-function ScriptWritingWorkspace({ projectId, title }: ScriptWritingWorkspaceProps) {
-  const router = useRouter();
-  const queryClient = useQueryClient();
-  const hasProject = !!projectId;
-
-  const listEndpoint = hasProject
-    ? `/api/creator/scripts?projectId=${projectId}`
-    : "/api/creator/scripts";
-
-  const { data, isLoading } = useQuery({
-    queryKey: ["creator-scripts", projectId ?? null],
-    queryFn: projectToolQueryFn(listEndpoint),
-  });
-
-  const scripts = useMemo(
-    () =>
-      (((data?.scripts as { id: string; title: string; type: string; content: string }[]) ?? []) || []),
-    [data?.scripts],
-  );
-
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const selected = useMemo(
-    () => scripts.find((s) => s.id === selectedId) ?? scripts[0],
-    [scripts, selectedId],
-  );
-
-  const [draft, setDraft] = useState<{
-    id?: string;
-    title: string;
-    type: string;
-    content: string;
-  } | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [dirty, setDirty] = useState(false);
-
-  useEffect(() => {
-    if (!selectedId && scripts.length > 0) {
-      setSelectedId(scripts[0].id);
-    }
-  }, [scripts, selectedId]);
-
-  useEffect(() => {
-    if (selected) {
-      setDraft({
-        id: selected.id,
-        title: selected.title,
-        type: selected.type || "FEATURE",
-        content: selected.content || "",
-      });
-      setDirty(false);
-    } else {
-      setDraft(null);
-      setDirty(false);
-    }
-  }, [selected]);
-
-  const createMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch("/api/creator/scripts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: hasProject ? "New project script" : "New script",
-          projectId: hasProject ? projectId : null,
-        }),
-      });
-      if (!res.ok) throw new Error("Failed to create script");
-      return res.json();
-    },
-    onSuccess: (result: any) => {
-      const created = result?.script as
-        | { id: string; title: string; type: string; content: string }
-        | undefined;
-      if (created?.id) {
-        setSelectedId(created.id);
-      }
-      queryClient.invalidateQueries({ queryKey: ["creator-scripts", projectId ?? null] });
-    },
-    onError: () => {
-      // eslint-disable-next-line no-alert
-      alert("We couldn't create a new script. Please try again.");
-    },
-  });
-
-  const saveMutation = useMutation({
-    mutationFn: async (payload: { id: string; title: string; type: string; content: string }) => {
-      const res = await fetch("/api/creator/scripts", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: payload.id,
-          title: payload.title,
-          type: payload.type,
-          content: payload.content,
-          projectId: hasProject ? projectId : null,
-        }),
-      });
-      if (!res.ok) throw new Error("Failed to save script");
-      return res.json();
-    },
-    onSuccess: () => {
-      setDirty(false);
-    },
-    onSettled: () => {
-      setSaving(false);
-      queryClient.invalidateQueries({ queryKey: ["creator-scripts", projectId ?? null] });
-    },
-  });
-
-  const publishToProjectMutation = useMutation({
-    mutationFn: async (creatorScriptId: string) => {
-      const res = await fetch(
-        `/api/creator/projects/${projectId}/script/publish-from-creator-script`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ creatorScriptId }),
-        },
-      );
-      const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.error || "Publish failed");
-      return data as { scenesSynced?: number };
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["project-schedule", projectId] });
-      void queryClient.invalidateQueries({ queryKey: ["project-script", projectId] });
-      void queryClient.invalidateQueries({ queryKey: ["project-scenes", projectId] });
-      void queryClient.invalidateQueries({ queryKey: ["project-breakdown", projectId] });
-    },
-  });
-
-  const wordCount = draft?.content
-    ? draft.content
-        .split(/\s+/)
-        .map((w) => w.trim())
-        .filter(Boolean).length
-    : 0;
-  const sceneCount = draft?.content
-    ? draft.content.split(/\n/).filter((line) => line.trim().match(/^(INT\.|EXT\.)/)).length
-    : 0;
-
-  const approxPages = draft?.content ? Math.max(1, Math.round(draft.content.length / 1800)) : 0;
-  const [scriptsViewOpen, setScriptsViewOpen] = useState(false);
-  const { data: ideasData } = useQuery({
-    enabled: !!hasProject && !!projectId,
-    queryKey: ["project-ideas", projectId],
-    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/ideas`),
-  });
-  const projectIdeas = (ideasData?.ideas ?? []) as Array<{
-    id: string;
-    title: string;
-    logline: string | null;
-    notes: string | null;
-  }>;
-  const primaryIdea = projectIdeas[0];
-
-  const [listingPrice, setListingPrice] = useState<string>("15000");
-  const [listingSynopsis, setListingSynopsis] = useState<string>("");
-  const [listingThemes, setListingThemes] = useState<string>("");
-  const [listingGenre, setListingGenre] = useState<string>("");
-  const [listingModel, setListingModel] = useState<"SALE_FULL_RIGHTS" | "LICENSE" | "CO_PRODUCE">("SALE_FULL_RIGHTS");
-
-  const { data: marketplaceData } = useQuery({
-    queryKey: ["ip-marketplace", projectId ?? null],
-    queryFn: projectToolQueryFn(
-      projectId ? `/api/creator/ip-marketplace?projectId=${projectId}` : "/api/creator/ip-marketplace",
-    ),
-  });
-
-  const listToMarketplaceMutation = useMutation({
-    mutationFn: async (creatorScriptId: string) => {
-      const res = await fetch("/api/creator/ip-marketplace", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          creatorScriptId,
-          title: draft?.title || selected?.title || "Untitled script",
-          synopsis: listingSynopsis,
-          themes: listingThemes,
-          genre: listingGenre || draft?.type || "OTHER",
-          language: "EN",
-          monetizationModel: listingModel,
-          listingPrice: Number.parseFloat(listingPrice),
-          listingCurrency: "ZAR",
-        }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error((json as { error?: string }).error || "Could not list script");
-      return json;
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["ip-marketplace", projectId ?? null] });
-    },
-  });
-
-  const purchaseMutation = useMutation({
-    mutationFn: async (ipAssetId: string) => {
-      const res = await fetch("/api/creator/ip-marketplace/purchase", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ipAssetId }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error((json as { error?: string }).error || "Could not purchase script");
-      return json;
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["ip-marketplace", projectId ?? null] });
-      void queryClient.invalidateQueries({ queryKey: ["creator-scripts", projectId ?? null] });
-    },
-  });
-
-  return (
-    <div className="space-y-4">
-      <header className="storytime-plan-card p-5 md:p-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div className="min-w-0 flex-1">
-            <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">
-              Pre-production workspace
-            </p>
-            <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
-            Full screenplay workspace with manual saves, script library, and basic scene stats.
-            {hasProject
-              ? " The production schedule, breakdown, and call sheets use the separate project screenplay—publish your library script to sync it and refresh scene rows."
-              : " You can also write standalone scripts without linking a project."}
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <ToolViewButton
-            onClick={() => setScriptsViewOpen(true)}
-            count={scripts.length}
-            disabled={scripts.length === 0}
-          />
-          <div className="flex flex-col items-end gap-1">
-            <span className="text-[11px] text-slate-400">
-              {saving ? "Saving..." : dirty ? "Unsaved changes" : "Saved"}
-            </span>
-            <div className="flex items-center gap-2 text-[11px] text-slate-400">
-              <span>{wordCount} words</span>
-              <span>• {sceneCount} scenes</span>
-              <span>• ~{approxPages} pages</span>
-            </div>
-          </div>
-        </div>
-        </div>
-      </header>
-
-      <ToolSavedViewSheet
-        open={scriptsViewOpen}
-        onClose={() => setScriptsViewOpen(false)}
-        title="Script library"
-        subtitle="Read-only preview of saved screenplays in your library."
-      >
-        <ScriptsSavedViewer
-          scripts={scripts.map((s) => ({
-            id: s.id,
-            title: s.title,
-            type: s.type,
-            content: s.content,
-          }))}
-          selectedId={selectedId}
-          onSelect={setSelectedId}
-        />
-      </ToolSavedViewSheet>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="md:col-span-1 space-y-2">
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-slate-400">Script library</p>
-            <Button
-              size="sm"
-              variant="outline"
-              className="border-slate-700 text-[11px] text-slate-100"
-              onClick={() => createMutation.mutate()}
-            >
-              New script
-            </Button>
-          </div>
-          <div className="creator-glass-panel max-h-[420px] overflow-y-auto">
-            {isLoading ? (
-              <div className="p-3 space-y-2">
-                <Skeleton className="h-10 bg-slate-800/60" />
-                <Skeleton className="h-10 bg-slate-800/60" />
-              </div>
-            ) : scripts.length === 0 ? (
-              <div className="p-4 text-xs text-slate-400">
-                No scripts yet. Create a new screenplay to start writing.
-              </div>
-            ) : (
-              <ul className="p-2 space-y-1 text-xs">
-                {scripts.map((script) => (
-                  <li key={script.id}>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedId(script.id)}
-                      className={`w-full text-left px-3 py-2 rounded-lg transition ${
-                        script.id === selected?.id
-                          ? "bg-slate-800 text-white"
-                          : "text-slate-300 hover:bg-slate-900"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="truncate text-[13px]">{script.title}</span>
-                      </div>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
-
-        <div className="md:col-span-2 space-y-3">
-          {draft ? (
-            <div className="space-y-3">
-              <div className="grid grid-cols-1 md:grid-cols-[2fr_minmax(0,1fr)] gap-3">
-                <div className="space-y-1">
-                  <label className="text-xs text-slate-400">Script title</label>
-                  <Input
-                    value={draft.title}
-                    onChange={(e) => {
-                      setDraft({ ...draft, title: e.target.value });
-                      setDirty(true);
-                    }}
-                    className="bg-slate-900 border-slate-700 text-sm text-white"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-slate-400">Script type</label>
-                  <select
-                    value={draft.type}
-                    onChange={(e) => {
-                      setDraft({ ...draft, type: e.target.value });
-                      setDirty(true);
-                    }}
-                    className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-white outline-none focus:border-orange-500"
-                  >
-                    <option value="FEATURE">Feature film</option>
-                    <option value="SHORT">Short film</option>
-                    <option value="EPISODE">Series episode</option>
-                    <option value="OTHER">Other</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs text-slate-400">Screenplay</label>
-                  <div className="flex flex-wrap items-center gap-2">
-                    
-                    <span className="text-[10px] text-slate-500">|</span>
-                    <div className="flex flex-wrap gap-2 text-[10px] text-slate-300">
-                    <button
-                      type="button"
-                      className="px-2 py-1 rounded-full border border-slate-700 hover:border-orange-500 hover:text-orange-300 transition"
-                      onClick={() => {
-                        const extra = "\nINT. LOCATION - DAY\n\n";
-                        setDraft({ ...draft, content: (draft.content || "") + extra });
-                        setDirty(true);
-                      }}
-                    >
-                      + Slugline
-                    </button>
-                    <button
-                      type="button"
-                      className="px-2 py-1 rounded-full border border-slate-700 hover:border-orange-500 hover:text-orange-300 transition"
-                      onClick={() => {
-                        const extra = "\nCHARACTER NAME\n";
-                        setDraft({ ...draft, content: (draft.content || "") + extra });
-                        setDirty(true);
-                      }}
-                    >
-                      + Character
-                    </button>
-                    <button
-                      type="button"
-                      className="px-2 py-1 rounded-full border border-slate-700 hover:border-orange-500 hover:text-orange-300 transition"
-                      onClick={() => {
-                        const extra = "\n    (beat)\n";
-                        setDraft({ ...draft, content: (draft.content || "") + extra });
-                        setDirty(true);
-                      }}
-                    >
-                      + Parenthetical
-                    </button>
-                    <button
-                      type="button"
-                      className="px-2 py-1 rounded-full border border-slate-700 hover:border-orange-500 hover:text-orange-300 transition"
-                      onClick={() => {
-                        const extra = "\nCUT TO:\n";
-                        setDraft({ ...draft, content: (draft.content || "") + extra });
-                        setDirty(true);
-                      }}
-                    >
-                      + Transition
-                    </button>
-                    </div>
-                  </div>
-                </div>
-                <textarea
-                  value={draft.content}
-                  onChange={(e) => {
-                    setDraft({ ...draft, content: e.target.value });
-                    setDirty(true);
-                  }}
-                  rows={24}
-                  className="w-full rounded-2xl bg-slate-950 border border-slate-800 px-4 py-3 text-[13px] font-mono text-slate-100 outline-none focus:border-orange-500 leading-relaxed"
-                  placeholder="INT. LOCATION - DAY&#10;&#10;Action lines, CHARACTER names, and dialogue..."
-                />
-              </div>
-
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="border-slate-600 text-xs text-slate-100"
-                  disabled={!dirty || !selected}
-                  onClick={() => {
-                    if (!selected) return;
-                    setDraft({
-                      id: selected.id,
-                      title: selected.title,
-                      type: selected.type || "FEATURE",
-                      content: selected.content || "",
-                    });
-                    setDirty(false);
-                  }}
-                >
-                  Discard
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="border-slate-600 text-xs text-slate-100"
-                  disabled={!draft.id || saving || !dirty}
-                  onClick={() => {
-                    if (!draft.id) return;
-                    setSaving(true);
-                    saveMutation.mutate({
-                      id: draft.id!,
-                      title: draft.title,
-                      type: draft.type,
-                      content: draft.content,
-                    });
-                  }}
-                >
-                  Save
-                </Button>
-                {hasProject && selected?.id && (
-                  <Button
-                    size="sm"
-                    className="bg-cyan-700 hover:bg-cyan-600 text-white text-xs"
-                    disabled={publishToProjectMutation.isPending || dirty}
-                    title={
-                      dirty
-                        ? "Save your script first so the project screenplay matches what you publish."
-                        : "Copy this script into the project screenplay and parse scene headings into project scenes."
-                    }
-                    onClick={() => publishToProjectMutation.mutate(selected.id)}
-                  >
-                    {publishToProjectMutation.isPending
-                      ? "Publishing…"
-                      : "Publish to project scenes"}
-                  </Button>
-                )}
-              </div>
-              {hasProject && dirty && (
-                <p className="text-[11px] text-amber-400/90 text-right">
-                  Save before publishing so the project schedule gets the latest text.
-                </p>
-              )}
-            </div>
-          ) : (
-            <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/40 p-6 text-sm text-slate-400">
-              Create a new script on the left to start writing.
-            </div>
-          )}
-        </div>
-      </div>
-
-      <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <Card className="creator-glass-panel border-0 bg-transparent text-slate-50 shadow-none xl:col-span-2">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm">List of script marketplace</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-xs text-slate-300">
-            <p className="text-slate-400">
-              Browse listed scripts from other creators. Each listing includes title, synopsis, themes, and price.
-            </p>
-            {((marketplaceData?.listedAssets as Array<{
-              id: string;
-              title: string;
-              synopsis: string | null;
-              themes: string | null;
-              listingPrice: number | null;
-              currentOwner: { name: string | null; professionalName: string | null };
-            }>) ?? []).length === 0 ? (
-              <p className="text-slate-500">No marketplace listings right now.</p>
-            ) : (
-              <div className="space-y-2">
-                {((marketplaceData?.listedAssets as Array<{
-                  id: string;
-                  title: string;
-                  synopsis: string | null;
-                  themes: string | null;
-                  listingPrice: number | null;
-                  currentOwner: { name: string | null; professionalName: string | null };
-                }>) ?? []).map((asset) => (
-                  <div key={asset.id} className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-medium text-slate-100">{asset.title}</p>
-                        <p className="text-[11px] text-slate-500">
-                          by {asset.currentOwner.professionalName || asset.currentOwner.name || "Creator"}
-                        </p>
-                      </div>
-                      <Button
-                        size="sm"
-                        className="bg-orange-500 hover:bg-orange-600 text-white text-xs"
-                        disabled={purchaseMutation.isPending}
-                        onClick={() => purchaseMutation.mutate(asset.id)}
-                      >
-                        {purchaseMutation.isPending ? "Processing…" : `Buy ${formatZar(asset.listingPrice ?? 0)}`}
-                      </Button>
-                    </div>
-                    <p className="mt-2 text-slate-300">{asset.synopsis || "No synopsis available."}</p>
-                    {asset.themes ? <p className="mt-1 text-[11px] text-slate-400">Themes: {asset.themes}</p> : null}
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="creator-glass-panel border-0 bg-transparent text-slate-50 shadow-none">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm">List selected script</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-xs text-slate-300">
-            <p className="text-slate-400">Price is part of listing setup and is used by your payment gateway flow.</p>
-            <Input value={listingPrice} onChange={(e) => setListingPrice(e.target.value)} placeholder="Price (ZAR)" />
-            <select
-              value={listingModel}
-              onChange={(e) => setListingModel(e.target.value as "SALE_FULL_RIGHTS" | "LICENSE" | "CO_PRODUCE")}
-              className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-white outline-none focus:border-orange-500"
-            >
-              <option value="SALE_FULL_RIGHTS">Sell full rights</option>
-              <option value="LICENSE">License rights</option>
-              <option value="CO_PRODUCE">Co-produce (retain ownership %)</option>
-            </select>
-            <Input value={listingGenre} onChange={(e) => setListingGenre(e.target.value)} placeholder="Genre / themes category" />
-            <textarea
-              rows={4}
-              value={listingSynopsis}
-              onChange={(e) => setListingSynopsis(e.target.value)}
-              className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-white outline-none focus:border-orange-500"
-              placeholder="Marketplace synopsis / description preview..."
-            />
-            <Input value={listingThemes} onChange={(e) => setListingThemes(e.target.value)} placeholder="Themes (comma separated)" />
-            <Button
-              className="w-full bg-cyan-700 hover:bg-cyan-600 text-white text-xs"
-              disabled={!selected?.id || listToMarketplaceMutation.isPending || dirty}
-              onClick={() => selected?.id && listToMarketplaceMutation.mutate(selected.id)}
-              title={dirty ? "Save this script first before listing it." : undefined}
-            >
-              {listToMarketplaceMutation.isPending ? "Listing…" : "List this script on marketplace"}
-            </Button>
-            <Button
-              variant="outline"
-              className="w-full border-slate-600 text-slate-100 text-xs"
-              onClick={() => router.push("/creator/ip-marketplace")}
-            >
-              View the script marketplace
-            </Button>
-          </CardContent>
-        </Card>
-      </section>
-
-      <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <Card className="creator-glass-panel border-0 bg-transparent text-slate-50 shadow-none">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm">Purchased scripts history</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-xs text-slate-300">
-            {((marketplaceData?.purchased as Array<{
-              id: string;
-              amount: number;
-              date: string;
-              ipAsset: { title: string };
-              seller: { name: string | null; professionalName: string | null };
-            }>) ?? []).length === 0 ? (
-              <p className="text-slate-500">No purchased scripts yet.</p>
-            ) : (
-              ((marketplaceData?.purchased as Array<{
-                id: string;
-                amount: number;
-                date: string;
-                ipAsset: { title: string };
-                seller: { name: string | null; professionalName: string | null };
-              }>) ?? []).map((row) => (
-                <div key={row.id} className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">
-                  <p className="font-medium text-slate-100">{row.ipAsset.title}</p>
-                  <p className="text-[11px] text-slate-500">
-                    {formatZar(row.amount)} · from {row.seller.professionalName || row.seller.name || "Creator"} ·{" "}
-                    {new Date(row.date).toLocaleDateString()}
-                  </p>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="creator-glass-panel border-0 bg-transparent text-slate-50 shadow-none">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm">Sold scripts history</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-xs text-slate-300">
-            {((marketplaceData?.sold as Array<{
-              id: string;
-              amount: number;
-              date: string;
-              ipAsset: { title: string };
-              buyer: { name: string | null; professionalName: string | null };
-            }>) ?? []).length === 0 ? (
-              <p className="text-slate-500">No sold scripts yet.</p>
-            ) : (
-              ((marketplaceData?.sold as Array<{
-                id: string;
-                amount: number;
-                date: string;
-                ipAsset: { title: string };
-                buyer: { name: string | null; professionalName: string | null };
-              }>) ?? []).map((row) => (
-                <div key={row.id} className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">
-                  <p className="font-medium text-slate-100">{row.ipAsset.title}</p>
-                  <p className="text-[11px] text-slate-500">
-                    {formatZar(row.amount)} · to {row.buyer.professionalName || row.buyer.name || "Creator"} ·{" "}
-                    {new Date(row.date).toLocaleDateString()}
-                  </p>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
-      </section>
-
-      
-    </div>
-  );
-}
-
-// --- Script Review (paid option wired) ---
-
-interface ScriptReviewWorkspaceProps {
-  projectId?: string;
-  title: string;
-}
-
-function ScriptReviewWorkspace({ projectId, title }: ScriptReviewWorkspaceProps) {
-  const queryClient = useQueryClient();
-  const hasProject = !!projectId;
-  const [requesting, setRequesting] = useState(false);
-  const [notes, setNotes] = useState("");
-  const [notesDirty, setNotesDirty] = useState(false);
-  const [notesSaving, setNotesSaving] = useState(false);
-  const [notesSaveMessage, setNotesSaveMessage] = useState("");
-  const [selectedScriptId, setSelectedScriptId] = useState<string>("");
-  const [modocReviews, setModocReviews] = useState<Array<{ id: string; scriptId: string; scriptTitle: string; reviewText: string; createdAt: string }>>([]);
-
-  const { data: scriptsData } = useQuery({
-    enabled: !!hasProject && !!projectId,
-    queryKey: ["creator-scripts", projectId],
-    queryFn: projectToolQueryFn(`/api/creator/scripts?projectId=${projectId}`),
-  });
-  const projectScripts = useMemo(
-    () => ((scriptsData?.scripts ?? []) as Array<{ id: string; title: string; content?: string; type?: string }>),
-    [scriptsData?.scripts],
-  );
-  const notesEndpoint = hasProject
-    ? `/api/creator/projects/${projectId}/script-review`
-    : "/api/creator/script-review/notes";
-
-  const { data, isLoading } = useQuery({
-    queryKey: ["script-review", projectId ?? null],
-    queryFn: projectToolQueryFn(notesEndpoint),
-  });
-
-  const requests =
-    ((data?.requests as {
-      id: string;
-      status: string;
-      feeAmount: number;
-      submittedAt: string;
-      reviewedAt: string | null;
-      feedbackUrl: string | null;
-      feedbackNotes: string | null;
-    }[]) ?? []) || [];
-
-  useEffect(() => {
-    const initialBody = (data?.notes?.body as string) ?? "";
-    setNotes(initialBody);
-    setNotesDirty(false);
-  }, [data?.notes?.body]);
-
-  useEffect(() => {
-    if (projectScripts.length > 0 && !selectedScriptId) {
-      setSelectedScriptId(projectScripts[0].id);
-    }
-  }, [projectScripts, selectedScriptId]);
-
-  const hasOpenRequest = requests.some(
-    (r) =>
-      r.status === "AWAITING_PAYMENT" ||
-      r.status === "PENDING_ADMIN_REVIEW" ||
-      r.status === "IN_REVIEW",
-  );
-
-  const requestMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch(`/api/creator/projects/${projectId}/script-review`, {
-        method: "POST",
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || "Failed to request review");
-      }
-      return res.json();
-    },
-    onSuccess: (data) => {
-      if (data?.checkoutUrl) {
-        window.location.href = data.checkoutUrl as string;
-      }
-    },
-    onMutate: () => setRequesting(true),
-    onSettled: () => {
-      setRequesting(false);
-      queryClient.invalidateQueries({ queryKey: ["script-review", projectId ?? null] });
-    },
-  });
-
-  const notesMutation = useMutation({
-    mutationFn: async (body: string) => {
-      const res = await fetch(notesEndpoint, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notesBody: body }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || "Failed to save notes");
-      }
-      return res.json();
-    },
-    onMutate: () => setNotesSaving(true),
-    onSuccess: () => {
-      setNotesDirty(false);
-    },
-    onSettled: () => {
-      setNotesSaving(false);
-      queryClient.invalidateQueries({ queryKey: ["script-review", projectId ?? null] });
-    },
-  });
-
-  return (
-    <div className="space-y-4">
-      <header className="storytime-plan-card p-5 md:p-6">
-        <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">
-          Pre-production workspace
-        </p>
-        <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
-        <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
-          Review your script internally and optionally request a Story Time Executive Script Review for professional feedback.
-        </p>
-      </header>
-
-      {hasProject && projectScripts.length > 0 && (
-        <div className="rounded-lg border border-slate-800 bg-slate-900/50 px-4 py-3">
-          <label className="text-xs font-medium text-slate-400 block mb-2">Script you&apos;re reviewing</label>
-          <select
-            value={selectedScriptId || projectScripts[0]?.id || ""}
-            onChange={(e) => setSelectedScriptId(e.target.value)}
-            className="w-full max-w-md rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-orange-500"
-          >
-            <option value="">Select a script</option>
-            {projectScripts.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.title}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="md:col-span-2 space-y-3">
-          <Card className="creator-glass-panel border-0 bg-transparent text-slate-50 shadow-none">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm flex items-center justify-between gap-3">
-                <span>Internal notes</span>
-                <span className="text-[11px] font-normal text-slate-400">
-                  {notesSaving ? "Saving..." : notesDirty ? "Unsaved changes" : "Saved"}
-                </span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <p className="text-xs text-slate-400">
-                Capture internal comments and feedback here. This can be expanded into per-scene
-                notes later.
-              </p>
-              <textarea
-                rows={10}
-                className="w-full rounded-md bg-slate-900 border border-slate-700 px-3 py-2 text-sm text-white outline-none focus:border-orange-500"
-                placeholder="Strengths, issues, questions for the next draft..."
-                value={notes}
-                onChange={(e) => {
-                  setNotes(e.target.value);
-                  setNotesDirty(true);
-                }}
-              />
-              <div className="flex justify-end">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="border-slate-600 text-xs text-slate-100"
-                  disabled={notesSaving || !notesDirty}
-                  onClick={() => notesMutation.mutate(notes)}
-                >
-                  Save notes
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-          {hasProject && (
-            <Card className="creator-glass-panel border-0 bg-transparent text-slate-50 shadow-none">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Executive review history</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-xs text-slate-300">
-                {isLoading ? (
-                  <p className="text-slate-500">Loading history…</p>
-                ) : requests.length === 0 ? (
-                  <p className="text-slate-500">
-                    No executive script reviews have been requested for this project yet.
-                  </p>
-                ) : (
-                  <ul className="space-y-2">
-                    {requests.map((r) => (
-                      <li
-                        key={r.id}
-                        className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 flex items-center justify-between gap-3"
-                      >
-                        <div>
-                          <p className="font-medium text-slate-100">
-                            {formatZar(r.feeAmount)} · {r.status.replace(/_/g, " ")}
-                          </p>
-                          <p className="text-[11px] text-slate-500">
-                            Requested{" "}
-                            {new Date(r.submittedAt).toLocaleDateString(undefined, {
-                              year: "numeric",
-                              month: "short",
-                              day: "numeric",
-                            })}
-                            {r.reviewedAt
-                              ? ` · Reviewed ${new Date(r.reviewedAt).toLocaleDateString()}`
-                              : ""}
-                          </p>
-                        </div>
-                        {r.feedbackUrl && (
-                          <a
-                            href={r.feedbackUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-[11px] text-orange-300 hover:text-orange-200 underline"
-                          >
-                            Open feedback
-                          </a>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </CardContent>
-            </Card>
-          )}
-          {hasProject && modocReviews.length > 0 && (
-            <Card className="creator-glass-panel border-0 bg-transparent text-slate-50 shadow-none">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm">AI review history</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3 text-xs text-slate-300">
-                <ul className="space-y-3">
-                  {modocReviews.map((r) => (
-                    <li
-                      key={r.id}
-                      className="rounded-lg border border-cyan-500/20 bg-slate-900/60 px-3 py-3"
-                    >
-                      <div className="flex items-center justify-between gap-2 mb-2">
-                        <span className="font-medium text-cyan-200/90">AI review · {r.scriptTitle}</span>
-                        <span className="text-[10px] text-slate-500">
-                          {new Date(r.createdAt).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })}
-                        </span>
-                      </div>
-                      <div className="text-slate-300 whitespace-pre-wrap text-[11px] leading-relaxed max-h-48 overflow-y-auto">
-                        {r.reviewText}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-
-        <div className="space-y-3">
-          <Card className="creator-glass-panel border-0 bg-transparent text-slate-50 shadow-none">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm">Story Time Executive Script Review</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 text-xs text-slate-300">
-              <p>
-                Submit your latest draft for an Executive Script Review by Story Time for detailed
-                feedback on story, structure, character, and market positioning.
-              </p>
-              <p className="text-orange-300 font-medium">Cost: {formatZar(EXECUTIVE_SCRIPT_REVIEW_FEE_ZAR)} (once-off per request)</p>
-              <ul className="list-disc list-inside space-y-1">
-                <li>Script is submitted to the Story Time admin review dashboard.</li>
-                <li>Admins attach feedback directly to this project.</li>
-                <li>You’re notified once feedback is ready.</li>
-              </ul>
-              
-              <Button
-                className="w-full bg-orange-500 hover:bg-orange-600 text-white mt-2"
-                disabled={requesting || !hasProject || hasOpenRequest}
-                onClick={() => hasProject && requestMutation.mutate()}
-                title={
-                  !hasProject
-                    ? "Link a project above to request review"
-                    : hasOpenRequest
-                    ? "You already have a pending review"
-                    : undefined
-                }
-              >
-                {requesting ? "Processing..." : "Request Executive Script Review"}
-              </Button>
-              {requestMutation.error && (
-                <p className="text-[11px] text-red-400">
-                  {(requestMutation.error as Error).message}
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-
-      
-    </div>
-  );
-}
-
-type InternalReviewEntryV2 = {
-  id: string;
-  scriptVersionId: string;
-  scriptLabel: string;
-  notes: string;
-  createdAt: string;
-  updatedAt: string;
-};
-
-type ScriptReviewNoteBodyV2 = {
-  draftByScript?: Record<string, string>;
-  internalReviews?: InternalReviewEntryV2[];
-};
-
-function parseScriptReviewNoteBodyV2(raw: unknown): ScriptReviewNoteBodyV2 {
-  if (typeof raw !== "string" || !raw.trim()) return {};
-  try {
-    const parsed = JSON.parse(raw) as ScriptReviewNoteBodyV2;
-    return {
-      draftByScript: parsed?.draftByScript ?? {},
-      internalReviews: Array.isArray(parsed?.internalReviews) ? parsed.internalReviews : [],
-    };
-  } catch {
-    return {};
-  }
-}
-
-function stringifyScriptReviewNoteBodyV2(payload: ScriptReviewNoteBodyV2): string {
-  return JSON.stringify(
-    {
-      draftByScript: payload.draftByScript ?? {},
-      internalReviews: payload.internalReviews ?? [],
-    },
-    null,
-    2,
-  );
-}
-
-function ScriptReviewWorkspaceV2({ projectId, title }: ScriptReviewWorkspaceProps) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const queryClient = useQueryClient();
-
-  const [workingProjectId, setWorkingProjectId] = useState(projectId ?? "");
-  const [selectedVersionId, setSelectedVersionId] = useState("");
-  const [payScriptVersionId, setPayScriptVersionId] = useState("");
-  const [internalDraft, setInternalDraft] = useState("");
-  const [internalDraftDirty, setInternalDraftDirty] = useState(false);
-  const [paymentOpen, setPaymentOpen] = useState(false);
-  const [processingPayment, setProcessingPayment] = useState(false);
-  const [notesSaving, setNotesSaving] = useState(false);
-  const [notesSaveMessage, setNotesSaveMessage] = useState("");
-  const [paymentEmail, setPaymentEmail] = useState("");
-  const [paymentName, setPaymentName] = useState("");
-  const [paymentMessage, setPaymentMessage] = useState<string | null>(null);
-  const [reviewsViewOpen, setReviewsViewOpen] = useState(false);
-  const [reviewsViewTab, setReviewsViewTab] = useState("script");
-
-  useEffect(() => {
-    setWorkingProjectId(projectId ?? "");
-  }, [projectId]);
-
-  const { data: projectsData } = useQuery({
-    queryKey: ["creator-projects", "script-review-selector-v2"],
-    queryFn: projectToolQueryFn("/api/creator/projects"),
-  });
-  const creatorProjects = useMemo(
-    () => ((projectsData?.projects ?? []) as Array<{ id: string; title: string }>),
-    [projectsData?.projects],
-  );
-
-  useEffect(() => {
-    if (!workingProjectId && creatorProjects.length > 0) {
-      setWorkingProjectId(creatorProjects[0].id);
-    }
-  }, [workingProjectId, creatorProjects]);
-
-  const hasProject = !!workingProjectId;
-  const notesEndpoint = hasProject
-    ? `/api/creator/projects/${workingProjectId}/script-review`
-    : "/api/creator/script-review/notes";
-
-  const { data: scriptData, isLoading: scriptLoading } = useQuery({
-    enabled: hasProject,
-    queryKey: ["project-script-review-script-v2", workingProjectId],
-    queryFn: projectToolQueryFn(`/api/creator/projects/${workingProjectId}/script`),
-  });
-
-  const scriptTitle = (scriptData?.script?.title as string | undefined) ?? "Project script";
-  const scriptVersions = useMemo(
-    () =>
-      ((scriptData?.script?.versions as Array<{
-        id: string;
-        versionLabel: string | null;
-        content: string;
-        createdAt: string;
-      }> | undefined) ?? []),
-    [scriptData?.script?.versions],
-  );
-  const { data: creatorScriptsData } = useQuery({
-    enabled: hasProject,
-    queryKey: ["creator-scripts", "script-review-v2", workingProjectId],
-    queryFn: projectToolQueryFn(`/api/creator/scripts?projectId=${workingProjectId}`),
-  });
-  const creatorScripts = useMemo(
-    () =>
-      ((creatorScriptsData?.scripts as Array<{
-        id: string;
-        title: string;
-        content: string;
-        updatedAt: string;
-      }> | undefined) ?? []),
-    [creatorScriptsData?.scripts],
-  );
-
-  const draftOptions = useMemo(
-    () => [
-      ...scriptVersions.map((v) => ({
-        id: `project-version:${v.id}`,
-        origin: "project-version" as const,
-        title: scriptTitle,
-        label: `${scriptTitle} · ${v.versionLabel || "Project draft"} · ${new Date(v.createdAt).toLocaleDateString()}`,
-        content: v.content ?? "",
-        scriptVersionId: v.id,
-        creatorScriptId: null as string | null,
-      })),
-      ...creatorScripts.map((s) => ({
-        id: `creator-script:${s.id}`,
-        origin: "creator-script" as const,
-        title: s.title,
-        label: `${s.title} · Library script · ${new Date(s.updatedAt).toLocaleDateString()}`,
-        content: s.content ?? "",
-        scriptVersionId: null as string | null,
-        creatorScriptId: s.id,
-      })),
-    ],
-    [scriptVersions, scriptTitle, creatorScripts],
-  );
-
-  useEffect(() => {
-    if (draftOptions.length === 0) {
-      setSelectedVersionId("");
-      setPayScriptVersionId("");
-      return;
-    }
-    if (!selectedVersionId) setSelectedVersionId(draftOptions[0].id);
-    if (!payScriptVersionId) setPayScriptVersionId(draftOptions[0].id);
-  }, [draftOptions, selectedVersionId, payScriptVersionId]);
-
-  const selectedDraft = draftOptions.find((v) => v.id === selectedVersionId) ?? draftOptions[0];
-  const reviewDraft = draftOptions.find((v) => v.id === payScriptVersionId) ?? draftOptions[0];
-
-  const { data, isLoading } = useQuery({
-    enabled: hasProject,
-    queryKey: ["script-review-v2", workingProjectId],
-    queryFn: projectToolQueryFn(notesEndpoint),
-  });
-
-  const requests = ((data?.requests as Array<{
-    id: string;
-    status: string;
-    feeAmount: number;
-    submittedAt: string;
-    reviewedAt: string | null;
-    feedbackUrl: string | null;
-    feedbackNotes: string | null;
-    scriptVersion?: { id: string; versionLabel: string | null; script: { title: string } } | null;
-  }>) ?? []);
-
-  const parsedBody = useMemo(
-    () => parseScriptReviewNoteBodyV2((data?.notes?.body as string) ?? ""),
-    [data?.notes?.body],
-  );
-  const internalReviews = useMemo(() => parsedBody.internalReviews ?? [], [parsedBody.internalReviews]);
-
-  useEffect(() => {
-    if (!selectedVersionId) return;
-    setInternalDraft((parsedBody.draftByScript ?? {})[selectedVersionId] ?? "");
-    setInternalDraftDirty(false);
-  }, [selectedVersionId, parsedBody]);
-
-  const hasOpenRequest = requests.some(
-    (r) =>
-      r.status === "AWAITING_PAYMENT" ||
-      r.status === "PENDING_ADMIN_REVIEW" ||
-      r.status === "IN_REVIEW",
-  );
-
-  const saveNotesMutation = useMutation({
-    mutationFn: async (body: string) => {
-      const res = await fetch(notesEndpoint, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notesBody: body }),
-      });
-      if (!res.ok) throw new Error("Failed to save notes");
-      return res.json();
-    },
-    onMutate: () => setNotesSaving(true),
-    onSuccess: () => {
-      setNotesSaveMessage("Saved");
-    },
-    onError: () => {
-      setNotesSaveMessage("Could not save notes. Try again.");
-    },
-    onSettled: () => {
-      setNotesSaving(false);
-      queryClient.invalidateQueries({ queryKey: ["script-review-v2", workingProjectId] });
-    },
-  });
-
-  const requestMutation = useMutation({
-    mutationFn: async (scriptVersionId: string) => {
-      const res = await fetch(`/api/creator/projects/${workingProjectId}/script-review`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scriptVersionId }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error || "Failed to submit for executive review");
-      return json;
-    },
-    onSuccess: (data) => {
-      if (data?.checkoutUrl) {
-        window.location.href = data.checkoutUrl as string;
-        return;
-      }
-      queryClient.invalidateQueries({ queryKey: ["script-review-v2", workingProjectId] });
-    },
-  });
-
-  const updateProjectRoute = (nextProjectId: string) => {
-    if (!nextProjectId) return;
-    if (pathname.startsWith("/creator/projects/") && projectId) {
-      const nextPath = pathname.replace(`/creator/projects/${projectId}`, `/creator/projects/${nextProjectId}`);
-      router.push(nextPath);
-      return;
-    }
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("projectId", nextProjectId);
-    router.push(`${pathname}?${params.toString()}`);
-  };
-
-  const saveDraft = useCallback(() => {
-    if (!selectedVersionId) return;
-    const nextBody: ScriptReviewNoteBodyV2 = {
-      draftByScript: {
-        ...(parsedBody.draftByScript ?? {}),
-        [selectedVersionId]: internalDraft,
-      },
-      internalReviews,
-    };
-    saveNotesMutation.mutate(stringifyScriptReviewNoteBodyV2(nextBody), {
-      onSuccess: () => {
-        setInternalDraftDirty(false);
-        setNotesSaveMessage("Draft notes saved");
-      },
-    });
-  }, [internalDraft, internalReviews, parsedBody.draftByScript, saveNotesMutation, selectedVersionId]);
-
-  const addInternalReview = () => {
-    if (!selectedDraft || !internalDraft.trim()) return;
-    const nextBody: ScriptReviewNoteBodyV2 = {
-      draftByScript: {
-        ...(parsedBody.draftByScript ?? {}),
-        [selectedDraft.id]: internalDraft,
-      },
-      internalReviews: [
-        {
-          id: `internal-${Date.now()}`,
-          scriptVersionId: selectedDraft.id,
-          scriptLabel: selectedDraft.label,
-          notes: internalDraft.trim(),
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-        ...internalReviews,
-      ],
-    };
-    saveNotesMutation.mutate(stringifyScriptReviewNoteBodyV2(nextBody), {
-      onSuccess: () => {
-        setInternalDraftDirty(false);
-        setNotesSaveMessage("Review added to history");
-      },
-    });
-  };
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "s") return;
-      if (!internalDraftDirty || notesSaving || !selectedVersionId) return;
-      event.preventDefault();
-      saveDraft();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [internalDraftDirty, notesSaving, saveDraft, selectedVersionId]);
-
-  async function handleProcessPayment() {
-    if (!reviewDraft) return;
-    setProcessingPayment(true);
-    setPaymentMessage(null);
-    try {
-      let scriptVersionIdForSubmission = reviewDraft.scriptVersionId;
-      if (!scriptVersionIdForSubmission && reviewDraft.creatorScriptId) {
-        const publishRes = await fetch(
-          `/api/creator/projects/${workingProjectId}/script/publish-from-creator-script`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ creatorScriptId: reviewDraft.creatorScriptId }),
-          },
-        );
-        if (!publishRes.ok) {
-          const publishErr = await publishRes.json().catch(() => ({}));
-          throw new Error(publishErr.error || "Failed to link script to this project");
-        }
-        const projectScriptRes = await fetch(`/api/creator/projects/${workingProjectId}/script`);
-        const projectScriptJson = await projectScriptRes.json().catch(() => ({}));
-        scriptVersionIdForSubmission = projectScriptJson?.script?.versions?.[0]?.id ?? null;
-      }
-      if (!scriptVersionIdForSubmission) {
-        throw new Error("No project script version available for submission");
-      }
-      const result = await requestMutation.mutateAsync(scriptVersionIdForSubmission);
-      if (result?.checkoutUrl) {
-        window.location.href = result.checkoutUrl as string;
-        return;
-      }
-      void queryClient.invalidateQueries({ queryKey: ["project-script-review-script-v2", workingProjectId] });
-      setPaymentOpen(false);
-      setPaymentMessage("Redirecting to PayFast checkout…");
-    } catch (error) {
-      setPaymentMessage((error as Error).message);
-    } finally {
-      setProcessingPayment(false);
-    }
-  }
-
-  return (
-    <div className="space-y-4">
-      <header className="storytime-plan-card p-5 md:p-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div className="min-w-0 flex-1">
-            <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">
-              Pre-production workspace
-            </p>
-            <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
-              Select a project and draft, write internal notes, and submit for executive review when ready.
-              Use View to read script drafts and all review history without scrolling the workspace.
-            </p>
-          </div>
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            <ToolViewButton
-              onClick={() => setReviewsViewOpen(true)}
-              count={internalReviews.length + requests.length}
-              disabled={!hasProject || draftOptions.length === 0}
-            />
-          </div>
-        </div>
-      </header>
-
-      <section className="storytime-section p-4 md:p-5 space-y-3">
-        <div className="grid gap-3 md:grid-cols-2">
-          <div>
-            <label className="mb-1 block text-[11px] uppercase tracking-wide text-slate-500">Working project</label>
-            <select
-              value={workingProjectId}
-              onChange={(e) => {
-                setWorkingProjectId(e.target.value);
-                updateProjectRoute(e.target.value);
-              }}
-              className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-orange-500"
-            >
-              {creatorProjects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.title}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="mb-1 block text-[11px] uppercase tracking-wide text-slate-500">Script draft</label>
-            <select
-              value={selectedVersionId}
-              onChange={(e) => setSelectedVersionId(e.target.value)}
-              disabled={!hasProject || draftOptions.length === 0}
-              className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-orange-500 disabled:opacity-60"
-            >
-              {draftOptions.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </section>
-
-      {!hasProject ? (
-        <div className="rounded-xl border border-dashed border-slate-700 bg-slate-900/40 px-4 py-8 text-center text-sm text-slate-400">
-          Select a project to start script review.
-        </div>
-      ) : (
-        <Card className="creator-glass-panel border-0 bg-transparent text-slate-50 shadow-none max-w-3xl">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm">Internal review</CardTitle>
-            <p className="text-xs text-slate-500 font-normal mt-1">
-              Draft notes for <span className="text-slate-300">{selectedDraft?.label ?? "selected script"}</span>.
-              Open View for script preview and full review history.
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <textarea
-              rows={14}
-              value={internalDraft}
-              onChange={(e) => {
-                setInternalDraft(e.target.value);
-                setInternalDraftDirty(true);
-              }}
-              className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-orange-500 min-h-[280px]"
-              placeholder="Write internal review notes for this script draft..."
-            />
-            <div className="flex flex-wrap justify-between gap-2">
-              <span className="text-[11px] text-slate-500">
-                {notesSaving ? "Saving..." : internalDraftDirty ? "Unsaved changes" : "Saved"}
-              </span>
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" className="border-slate-600 text-xs text-slate-100" disabled={notesSaving || !internalDraftDirty} onClick={saveDraft}>
-                  Save draft notes
-                </Button>
-                <Button size="sm" className="bg-orange-500 text-xs text-white hover:bg-orange-600" disabled={notesSaving || !internalDraft.trim() || !selectedDraft} onClick={addInternalReview}>
-                  Add to internal history
-                </Button>
-              </div>
-            </div>
-            {notesSaveMessage ? (
-              <p className="text-[11px] text-slate-400">{notesSaveMessage}</p>
-            ) : null}
-          </CardContent>
-        </Card>
-      )}
-
-      {hasProject && (
-        <Card className="creator-glass-panel border-0 bg-transparent text-slate-50 shadow-none">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm">ADmkn executive submission</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-xs text-slate-300">
-            <p>Choose the script version to send, then pay to submit it to the executive review queue.</p>
-            <p className="font-medium text-orange-300">Price: {formatZar(EXECUTIVE_SCRIPT_REVIEW_FEE_ZAR)} per submission</p>
-            <select
-              value={payScriptVersionId}
-              onChange={(e) => setPayScriptVersionId(e.target.value)}
-              className="w-full max-w-md rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-white outline-none focus:border-orange-500"
-            >
-              {draftOptions.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.label}
-                </option>
-              ))}
-            </select>
-            <Button className="bg-orange-500 hover:bg-orange-600 text-white" disabled={hasOpenRequest || !reviewDraft || processingPayment} onClick={() => setPaymentOpen(true)}>
-              {processingPayment ? "Processing payment..." : "Pay & submit for executive review"}
-            </Button>
-            {hasOpenRequest && <p className="text-[11px] text-amber-300">You already have an open executive review for this project.</p>}
-            {paymentMessage && <p className="text-[11px] text-emerald-300">{paymentMessage}</p>}
-            {requestMutation.error && <p className="text-[11px] text-red-400">{(requestMutation.error as Error).message}</p>}
-
-            {paymentOpen && (
-              <div className="rounded-xl border border-orange-400/30 bg-slate-950/70 p-4 space-y-3">
-                <p className="text-xs font-medium text-orange-200">Payment gateway</p>
-                <Input value={paymentName} onChange={(e) => setPaymentName(e.target.value)} placeholder="Card holder name" />
-                <Input type="email" value={paymentEmail} onChange={(e) => setPaymentEmail(e.target.value)} placeholder="Billing email" />
-                <div className="flex justify-end gap-2">
-                  <Button size="sm" variant="outline" onClick={() => setPaymentOpen(false)}>Cancel</Button>
-                  <Button size="sm" className="bg-orange-500 hover:bg-orange-600 text-white" disabled={processingPayment || !paymentName.trim() || !paymentEmail.trim()} onClick={handleProcessPayment}>
-                    Confirm payment
-                  </Button>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      <ToolSavedViewSheet
-        open={reviewsViewOpen}
-        onClose={() => setReviewsViewOpen(false)}
-        title="Script & reviews"
-        subtitle={selectedDraft?.label ?? "Drafts and feedback for this project"}
-        tabs={[
-          { id: "script", label: "Script" },
-          { id: "internal", label: "Internal", badge: internalReviews.length },
-          { id: "executive", label: "Executive", badge: requests.length },
-        ]}
-        activeTab={reviewsViewTab}
-        onTabChange={setReviewsViewTab}
-      >
-        {reviewsViewTab === "script" ? (
-          scriptLoading ? (
-            <Skeleton className="h-64 bg-slate-800/60" />
-          ) : (
-            <ScriptReviewsViewer
-              scriptLabel={selectedDraft?.label}
-              scriptContent={selectedDraft?.content}
-              internalReviews={[]}
-              executiveReviews={[]}
-            />
-          )
-        ) : reviewsViewTab === "internal" ? (
-          <ScriptReviewsViewer
-            internalReviews={internalReviews}
-            executiveReviews={[]}
-          />
-        ) : (
-          <ScriptReviewsViewer
-            internalReviews={[]}
-            executiveReviews={requests.map((r) => ({
-              id: r.id,
-              status: r.status,
-              feeAmount: r.feeAmount,
-              submittedAt: r.submittedAt,
-              reviewedAt: r.reviewedAt,
-              feedbackNotes: r.feedbackNotes,
-              feedbackUrl: r.feedbackUrl,
-              scriptTitle: r.scriptVersion?.script?.title ?? scriptTitle,
-              versionLabel: r.scriptVersion?.versionLabel,
-            }))}
-          />
-        )}
-      </ToolSavedViewSheet>
     </div>
   );
 }
@@ -3454,6 +1962,9 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
 
   const [draftRows, setDraftRows] = useState<BudgetRow[]>([]);
   const [savedRows, setSavedRows] = useState<BudgetRow[]>([]);
+  const [budgetWorkspace, setBudgetWorkspace] = useState<BudgetWorkspaceId>("dashboard");
+  const [expandedBudgetScenes, setExpandedBudgetScenes] = useState<Set<string>>(new Set());
+  const [selectedSceneIntelId, setSelectedSceneIntelId] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState("");
   const [saveError, setSaveError] = useState("");
   const [initError, setInitError] = useState("");
@@ -3580,52 +2091,10 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
     if (!budget) return;
     const engineRows = buildTemplateRowsFromEngine();
     const template = engineRows.length > 0 ? engineRows : buildTemplateRowsFromBreakdown();
-    const saved = (budget.lines ?? []).map((line) => ({
-      key: `${line.department}|${line.name}`.toLowerCase(),
-      unitCost: Number(line.unitCost ?? 0),
-      quantity: Number(line.quantity ?? 1),
-      notes: line.notes ?? "",
-      id: line.id,
-    }));
-    const savedByKey = new Map(saved.map((s) => [s.key, s]));
-
-    const merged = template.map((row) => {
-      const lookup = `${row.department}|${row.name}`.toLowerCase();
-      const fromSaved = savedByKey.get(lookup);
-      if (!fromSaved) return row;
-      return {
-        ...row,
-        id: fromSaved.id,
-        quantity: fromSaved.quantity,
-        unitCost: fromSaved.unitCost,
-        notes: fromSaved.notes,
-        total: calcTotal(fromSaved.quantity, fromSaved.unitCost),
-      };
-    });
-
-    // Keep manual rows creators may have added previously.
-    const templateKeySet = new Set(merged.map((r) => `${r.department}|${r.name}`.toLowerCase()));
-    const manualRows = (budget.lines ?? [])
-      .filter((line) => !templateKeySet.has(`${line.department}|${line.name}`.toLowerCase()))
-      .map((line) => ({
-        id: line.id,
-        key: `manual|${line.id}`,
-        department: line.department,
-        name: line.name,
-        quantity: Number(line.quantity ?? 1),
-        unitCost: Number(line.unitCost ?? 0),
-        total: Number(line.total ?? 0),
-        notes: line.notes ?? "",
-        sceneId: null,
-        sceneNumber: null,
-        sceneHeading: null,
-        category: "MANUAL",
-      }));
-
-    const finalRows = normalizeRows([...merged, ...manualRows]);
+    const finalRows = mergeBudgetTemplateWithSaved(template, budget.lines ?? []);
     setDraftRows(finalRows);
     setSavedRows(JSON.parse(JSON.stringify(finalRows)));
-  }, [budget, breakdownData, scenesData, buildTemplateRowsFromBreakdown, buildTemplateRowsFromEngine, normalizeRows]);
+  }, [budget, breakdownData, scenesData, buildTemplateRowsFromBreakdown, buildTemplateRowsFromEngine]);
 
   const budgetDirty =
     draftRows.length > 0 || savedRows.length > 0
@@ -3709,15 +2178,18 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
 
   const saveMutation = useMutation({
     mutationFn: async (rows: BudgetRow[]) => {
-      const lines = rows.map((r) => ({
-        id: r.id,
-        department: r.department,
-        name: r.name,
-        quantity: r.quantity,
-        unitCost: r.unitCost,
-        total: r.total,
-        notes: r.notes || null,
-      }));
+      const lines = rows.map((r) => {
+        const key = budgetRowKey(r);
+        return {
+          id: r.id,
+          department: r.department,
+          name: r.name,
+          quantity: r.quantity,
+          unitCost: r.unitCost,
+          total: r.total,
+          notes: embedBudgetLineKey(r.notes, key) || null,
+        };
+      });
       if (!hasProject) {
         const draft = saveLocalBudgetDraft({
           template: (localBudgetDraft?.template ?? templateChoice) as LocalBudgetDraft["template"],
@@ -3806,6 +2278,45 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
     });
   }, [draftRows]);
 
+  const sceneSummaries = (
+    (engine as { sceneSummaries?: Array<{
+      sceneId: string;
+      sceneNumber: string;
+      sceneHeading: string | null;
+      estimatedTotal: number;
+      durationDays: number;
+      castCount: number;
+      crewCount: number;
+      isNight: boolean;
+      locationName: string | null;
+    }> } | undefined)?.sceneSummaries ?? []
+  );
+
+  const workspaceDeptFilter = budgetWorkspaceDepartments(budgetWorkspace);
+
+  const visibleRowsByScene = useMemo(() => {
+    if (budgetWorkspace === "dashboard" || budgetWorkspace === "cash-flow" || budgetWorkspace === "actuals" || budgetWorkspace === "reports" || budgetWorkspace === "versions") {
+      return [] as typeof rowsByScene;
+    }
+    let groups = rowsByScene;
+    if (budgetWorkspace === "scenes") {
+      groups = groups.filter(([label]) => label !== "UNASSIGNED");
+    }
+    if (!workspaceDeptFilter) return groups;
+    return groups
+      .map(([label, rows]) => [label, rows.filter((r) => workspaceDeptFilter.includes(r.department))] as const)
+      .filter(([, rows]) => rows.length > 0);
+  }, [rowsByScene, budgetWorkspace, workspaceDeptFilter]);
+
+  const toggleBudgetScene = (label: string) => {
+    setExpandedBudgetScenes((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      return next;
+    });
+  };
+
   const [budgetViewOpen, setBudgetViewOpen] = useState(false);
 
   return (
@@ -3818,16 +2329,23 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
             </p>
             <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
             <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
-            Build a department-based budget for this project using templates and editable line
-            items. Planned totals feed into the Production Expense Tracker.
+            AI Budget Studio — live financial command center connected to script, breakdown, schedule, cast, crew, and equipment. Ask the Virtual Assistant to generate or optimise budgets; changes propagate automatically.
           </p>
           {hasProject && projectId && (
-            <Link
-              href={`/creator/projects/${projectId}/production/expense-tracker`}
-              className="inline-block text-xs text-orange-400 hover:text-orange-300 mt-2"
-            >
-              Open Production Expense Tracker →
-            </Link>
+            <div className="mt-2 flex flex-wrap gap-3 text-xs">
+              <Link
+                href={`/creator/projects/${projectId}/production/expense-tracker`}
+                className="text-orange-400 hover:text-orange-300"
+              >
+                Expense tracker →
+              </Link>
+              <Link
+                href={`/creator/projects/${projectId}/pre-production/production-scheduling`}
+                className="text-orange-400 hover:text-orange-300"
+              >
+                Production schedule →
+              </Link>
+            </div>
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -3935,7 +2453,79 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
         </div>
       ) : (
         <div className="space-y-3">
-          {engine?.dashboard && (
+          <BudgetStudioNav active={budgetWorkspace} onChange={setBudgetWorkspace} />
+          <div className="rounded-xl border border-orange-500/20 bg-orange-500/5 px-3 py-2 text-[11px] text-orange-100/90">
+            Ask the Story Time VA: &quot;How can I reduce this budget by R500,000?&quot; or &quot;Show me the five most expensive scenes.&quot; — it simulates impact using this live budget.
+          </div>
+          {budgetWorkspace === "dashboard" && !!sceneSummaries.length && (
+            <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-3">
+              <p className="text-[11px] uppercase tracking-wide text-slate-400 mb-2">Scene cost intelligence</p>
+              <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                {sceneSummaries.slice(0, 9).map((s) => (
+                  <button
+                    key={s.sceneId}
+                    type="button"
+                    onClick={() => {
+                      setBudgetWorkspace("scenes");
+                      setExpandedBudgetScenes(new Set([`SCENE ${s.sceneNumber}`]));
+                      setSelectedSceneIntelId(s.sceneId);
+                    }}
+                    className={`rounded-lg border px-3 py-2 text-left text-[11px] transition ${
+                      selectedSceneIntelId === s.sceneId
+                        ? "border-orange-500/50 bg-orange-500/10"
+                        : "border-slate-800 bg-slate-950/70 hover:border-slate-600"
+                    }`}
+                  >
+                    <p className="font-medium text-slate-100">Sc. {s.sceneNumber}</p>
+                    <p className="text-slate-500 truncate">{s.sceneHeading || "—"}</p>
+                    <p className="mt-1 text-emerald-300">{formatZar(s.estimatedTotal)}</p>
+                    <p className="text-slate-500">
+                      {s.castCount} cast · {s.crewCount} crew{s.isNight ? " · night" : ""}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {budgetWorkspace === "cash-flow" && engine?.dashboard && (
+            <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4 text-sm text-slate-300">
+              <p className="font-medium text-white mb-2">Cash flow forecast</p>
+              <p className="text-[11px] text-slate-400 mb-3">
+                Based on {engine.dashboard.shootDaysCount} shoot day(s) at {formatZar(engine.dashboard.dailyBurnRate)}/day burn rate.
+              </p>
+              <div className="grid gap-2 md:grid-cols-3">
+                <div className="rounded-lg border border-slate-800 p-3">
+                  <p className="text-[10px] text-slate-500">Pre-production (est. 25%)</p>
+                  <p className="text-emerald-300">{formatZar(total * 0.25)}</p>
+                </div>
+                <div className="rounded-lg border border-slate-800 p-3">
+                  <p className="text-[10px] text-slate-500">Production (est. 55%)</p>
+                  <p className="text-emerald-300">{formatZar(total * 0.55)}</p>
+                </div>
+                <div className="rounded-lg border border-slate-800 p-3">
+                  <p className="text-[10px] text-slate-500">Post & delivery (est. 20%)</p>
+                  <p className="text-emerald-300">{formatZar(total * 0.2)}</p>
+                </div>
+              </div>
+            </div>
+          )}
+          {budgetWorkspace === "actuals" && projectId && (
+            <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+              <BudgetActualsPanel projectId={projectId} />
+            </div>
+          )}
+          {budgetWorkspace === "reports" && projectId && (
+            <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4 space-y-3">
+              <p className="text-[11px] text-slate-400">Export PDF, Excel, and CSV reports from the saved budget and expense data.</p>
+              <FinancialReportsPanel projectId={projectId} />
+            </div>
+          )}
+          {budgetWorkspace === "versions" && projectId && (
+            <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+              <BudgetVersionsPanel projectId={projectId} />
+            </div>
+          )}
+          {(budgetWorkspace === "dashboard" || budgetWorkspace === "departments") && engine?.dashboard && (
             <div className="grid gap-2 md:grid-cols-3">
               <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-3">
                 <p className="text-[11px] text-slate-400">Estimated budget</p>
@@ -4019,15 +2609,28 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
               Total planned: {formatZar(total)}
             </span>
           </div>
+          {visibleRowsByScene.length > 0 ? (
           <div className="space-y-3">
-            {rowsByScene.map(([sceneLabel, rows]) => (
+            {visibleRowsByScene.map(([sceneLabel, rows]) => {
+              const expanded = expandedBudgetScenes.has(sceneLabel);
+              return (
               <div key={sceneLabel} className="creator-glass-panel p-3">
-                <div className="mb-2 flex items-center justify-between">
-                  <p className="text-xs font-medium text-slate-200">{sceneLabel}</p>
+                <button
+                  type="button"
+                  className="mb-2 flex w-full items-center justify-between text-left"
+                  onClick={() => toggleBudgetScene(sceneLabel)}
+                  aria-expanded={expanded}
+                >
+                  <span className="flex items-center gap-1.5 text-xs font-medium text-slate-200">
+                    {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                    {sceneLabel}
+                    <span className="text-[10px] font-normal text-slate-500">({rows.length} lines)</span>
+                  </span>
                   <p className="text-[11px] text-slate-400">
                     Subtotal: {formatZar(rows.reduce((sum, r) => sum + r.total, 0))}
                   </p>
-                </div>
+                </button>
+                {expanded ? (
                 <div className="max-h-[320px] overflow-y-auto">
                   <table className="w-full border-collapse text-xs">
                     <thead className="sticky top-0 bg-slate-900/85 text-slate-300">
@@ -4043,9 +2646,10 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
                     </thead>
                     <tbody>
                       {rows.map((line) => {
-                        const idx = draftRows.findIndex((r) => r.key === line.key && r.name === line.name);
+                        const idx = draftRows.findIndex((r) => r.key === line.key);
+                        if (idx < 0) return null;
                         return (
-                          <tr key={`${line.key}-${idx}`} className="border-t border-slate-800">
+                          <tr key={line.key} className="border-t border-slate-800">
                             <td className="px-2 py-1.5 text-[11px] text-slate-300">{line.category}</td>
                             <td className="px-2 py-1.5">
                               <Input
@@ -4101,9 +2705,14 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
                     </tbody>
                   </table>
                 </div>
+                ) : null}
               </div>
-            ))}
+            );
+            })}
           </div>
+          ) : budgetWorkspace !== "dashboard" && budgetWorkspace !== "cash-flow" && budgetWorkspace !== "reports" && budgetWorkspace !== "versions" ? (
+            <p className="text-xs text-slate-500 py-4 text-center">No line items in this workspace yet.</p>
+          ) : null}
           <div className="flex items-center justify-between text-xs text-slate-400">
             <Button
               size="sm"
@@ -4189,6 +2798,8 @@ type ScheduleResponse = {
     }[];
   }[];
   scenes: ScheduleSceneDetail[];
+  crewNeeds?: { role: string; department: string }[];
+  equipmentItems?: { category: string; description?: string | null; quantity: number }[];
   productionDays?: {
     id: string;
     shootDayNumber: number;
@@ -4696,6 +3307,34 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
     !!savedSchedule &&
     scheduleFingerprint(draftDays) !== scheduleFingerprint(savedSchedule);
 
+  const draftPipelinePreview = useMemo(() => {
+    if (!selectedDay) return null;
+    const sceneLinks = selectedDay.scenes.map((s) => ({
+      sceneId: s.scene?.id ?? s.sceneId,
+      order: s.order,
+      scene: s.scene,
+    }));
+    return buildShootDayPipelinePreview({
+      unit: selectedDay.unit,
+      sceneLinks,
+      crewNeeds: data?.crewNeeds,
+      equipmentItems: data?.equipmentItems,
+    });
+  }, [selectedDay, data]);
+
+  const pipelineDisplay =
+    scheduleDirty && draftPipelinePreview
+      ? draftPipelinePreview
+      : selectedProductionDay
+        ? {
+            unit: selectedDay?.unit ?? null,
+            scenes: selectedProductionDay.scenes,
+            castRequired: selectedProductionDay.castRequired,
+            crewRequired: selectedProductionDay.crewRequired,
+            equipmentRequired: selectedProductionDay.equipmentRequired,
+          }
+        : draftPipelinePreview;
+
   const scheduleSaveBlocked = Boolean(data?.contractGate?.blocking);
 
   const persistSchedule = () => {
@@ -4853,8 +3492,7 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
             </p>
             <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
             <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
-            Plan your shoot days, call times, locations, and assign scenes. This schedule feeds call
-            sheets and the Production Control Center.
+            Plan shoot days with Unit A/B support, scene selection, and a live output pipeline linked to breakdown, budget, and call sheets.
           </p>
         </div>
         <div className="flex min-w-0 shrink-0 flex-col gap-2 md:w-auto lg:max-w-[min(100%,36rem)] xl:max-w-none">
@@ -5004,6 +3642,12 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
             </div>
           </div>
           <div className="flex flex-wrap gap-2 shrink-0">
+            <Link
+              href={`/creator/projects/${projectId}/pre-production/budget-builder`}
+              className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-slate-700 text-slate-200 hover:bg-slate-800 transition-colors"
+            >
+              AI Budget Studio
+            </Link>
             <Link
               href={`/creator/projects/${projectId}/pre-production/script-writing`}
               className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-slate-700 text-slate-200 hover:bg-slate-800 transition-colors"
@@ -5210,14 +3854,19 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
                       </div>
                       <div className="space-y-1">
                         <label className="text-slate-400">Unit</label>
-                        <Input
+                        <select
                           value={selectedDay.unit ?? ""}
                           onChange={(e) =>
                             updateDayField(selectedDay.id, "unit", e.target.value || null)
                           }
-                          placeholder="A, B..."
-                          className="bg-slate-900 border-slate-700 text-[11px]"
-                        />
+                          className="w-full h-9 rounded-md bg-slate-900 border border-slate-700 px-2 text-[11px] text-white outline-none focus:border-orange-500"
+                        >
+                          <option value="">—</option>
+                          <option value="A">Unit A (main)</option>
+                          <option value="B">Unit B (second)</option>
+                          <option value="C">Unit C</option>
+                          <option value="2nd">2nd unit</option>
+                        </select>
                       </div>
                       <div className="space-y-1">
                         <label className="text-slate-400">Call time</label>
@@ -5322,6 +3971,11 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
                           className="bg-slate-900 border-slate-700 text-[11px]"
                         />
                       </div>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-[10px] text-slate-500">
+                        Logistics fields sync to call sheets and feed transport/accommodation budget lines.
+                      </p>
                     </div>
                     <div className="space-y-1">
                       <label className="text-xs text-slate-400">Location summary</label>
@@ -5490,6 +4144,31 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
                             </p>
                           </CardHeader>
                           <CardContent className="space-y-2">
+                            <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                              {unassignedScenes.slice(0, 12).map((scene) => {
+                                const picked = scenePickerIds.includes(scene.id);
+                                return (
+                                  <button
+                                    key={scene.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setScenePickerIds((prev) =>
+                                        picked
+                                          ? prev.filter((id) => id !== scene.id)
+                                          : [...prev, scene.id],
+                                      );
+                                    }}
+                                    className={`rounded-full px-2 py-0.5 text-[10px] border transition ${
+                                      picked
+                                        ? "border-orange-500/60 bg-orange-500/15 text-orange-100"
+                                        : "border-slate-700 text-slate-400 hover:border-slate-500"
+                                    }`}
+                                  >
+                                    Sc. {scene.number}
+                                  </button>
+                                );
+                              })}
+                            </div>
                             <select
                               multiple
                               value={scenePickerIds}
@@ -5579,12 +4258,15 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
                       </Card>
                       )}
 
-                      {selectedProductionDay && (
+                      {pipelineDisplay && (
                         <Card className="creator-glass-panel border-0 bg-transparent text-slate-50 shadow-none">
                           <CardHeader className="pb-2">
                             <CardTitle className="text-sm">Production day output pipeline</CardTitle>
                             <p className="text-[11px] text-slate-500 font-normal mt-1">
-                              Structured output auto-generated from scenes, cast, crew, locations, and equipment.
+                              {scheduleDirty
+                                ? "Live preview from your draft — save to persist."
+                                : "Structured output from scenes, cast, crew, locations, and equipment."}
+                              {pipelineDisplay.unit ? ` · Unit ${pipelineDisplay.unit}` : ""}
                             </p>
                           </CardHeader>
                           <CardContent className="space-y-3 text-[11px]">
@@ -5592,7 +4274,7 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
                               <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-2.5">
                                 <p className="text-[10px] uppercase tracking-wide text-slate-400 mb-1">Scenes</p>
                                 <ul className="space-y-1 text-slate-300 max-h-36 overflow-y-auto">
-                                  {selectedProductionDay.scenes.map((s) => (
+                                  {pipelineDisplay.scenes.map((s) => (
                                     <li key={`${s.sceneId}-${s.order}`}>
                                       Sc. {s.number} · {s.estimatedShootDurationMinutes}m
                                       {s.heading ? ` · ${s.heading}` : ""}
@@ -5603,13 +4285,12 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
                               <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-2.5">
                                 <p className="text-[10px] uppercase tracking-wide text-slate-400 mb-1">Cast required</p>
                                 <ul className="space-y-1 text-slate-300 max-h-36 overflow-y-auto">
-                                  {selectedProductionDay.castRequired.length === 0 ? (
+                                  {pipelineDisplay.castRequired.length === 0 ? (
                                     <li className="text-slate-500">No cast linked yet.</li>
                                   ) : (
-                                    selectedProductionDay.castRequired.map((c) => (
+                                    pipelineDisplay.castRequired.map((c) => (
                                       <li key={c.key}>
                                         {c.name} · {c.roleOrCharacter}
-                                        {c.callTime ? ` · ${c.callTime}` : ""}
                                       </li>
                                     ))
                                   )}
@@ -5618,13 +4299,13 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
                               <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-2.5">
                                 <p className="text-[10px] uppercase tracking-wide text-slate-400 mb-1">Crew required</p>
                                 <ul className="space-y-1 text-slate-300 max-h-36 overflow-y-auto">
-                                  {selectedProductionDay.crewRequired.length === 0 ? (
+                                  {pipelineDisplay.crewRequired.length === 0 ? (
                                     <li className="text-slate-500">No crew roles linked yet.</li>
                                   ) : (
-                                    selectedProductionDay.crewRequired.map((c) => (
+                                    pipelineDisplay.crewRequired.map((c) => (
                                       <li key={c.key}>
                                         {c.role} · {c.department}
-                                        {c.name ? ` · ${c.name}` : ""}
+                                        {"name" in c && c.name ? ` · ${c.name}` : ""}
                                       </li>
                                     ))
                                   )}
@@ -5633,10 +4314,10 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
                               <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-2.5">
                                 <p className="text-[10px] uppercase tracking-wide text-slate-400 mb-1">Equipment</p>
                                 <ul className="space-y-1 text-slate-300 max-h-36 overflow-y-auto">
-                                  {selectedProductionDay.equipmentRequired.length === 0 ? (
+                                  {pipelineDisplay.equipmentRequired.length === 0 ? (
                                     <li className="text-slate-500">No equipment items linked yet.</li>
                                   ) : (
-                                    selectedProductionDay.equipmentRequired.map((e) => (
+                                    pipelineDisplay.equipmentRequired.map((e) => (
                                       <li key={e.key}>
                                         {e.equipmentName} · {e.category} · Qty {e.quantity}
                                       </li>

@@ -639,7 +639,20 @@ exports.Prisma.CrewMemberScalarFieldEnum = {
   role: 'role',
   bio: 'bio',
   createdAt: 'createdAt',
-  contentId: 'contentId'
+  contentId: 'contentId',
+  creditPersonId: 'creditPersonId'
+};
+
+exports.Prisma.CreditPersonScalarFieldEnum = {
+  id: 'id',
+  displayName: 'displayName',
+  normalizedName: 'normalizedName',
+  bio: 'bio',
+  imageUrl: 'imageUrl',
+  externalLinks: 'externalLinks',
+  userId: 'userId',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
 };
 
 exports.Prisma.AuditionPostScalarFieldEnum = {
@@ -1532,6 +1545,38 @@ exports.Prisma.ScriptReviewRequestScalarFieldEnum = {
   reviewedAt: 'reviewedAt'
 };
 
+exports.Prisma.ScriptReviewSessionScalarFieldEnum = {
+  id: 'id',
+  projectId: 'projectId',
+  draftKey: 'draftKey',
+  creatorScriptId: 'creatorScriptId',
+  scriptVersionId: 'scriptVersionId',
+  reviewRequestId: 'reviewRequestId',
+  reviewStatus: 'reviewStatus',
+  coverageReport: 'coverageReport',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.ScriptReviewAnnotationScalarFieldEnum = {
+  id: 'id',
+  sessionId: 'sessionId',
+  authorId: 'authorId',
+  type: 'type',
+  layer: 'layer',
+  pageIndex: 'pageIndex',
+  lineIndex: 'lineIndex',
+  anchorText: 'anchorText',
+  body: 'body',
+  data: 'data',
+  priority: 'priority',
+  status: 'status',
+  resolved: 'resolved',
+  parentId: 'parentId',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
 exports.Prisma.BreakdownCharacterScalarFieldEnum = {
   id: 'id',
   projectId: 'projectId',
@@ -1641,7 +1686,8 @@ exports.Prisma.ProjectBudgetScalarFieldEnum = {
   inferredRegion: 'inferredRegion',
   estimatedShootDays: 'estimatedShootDays',
   createdAt: 'createdAt',
-  updatedAt: 'updatedAt'
+  updatedAt: 'updatedAt',
+  activeVersionId: 'activeVersionId'
 };
 
 exports.Prisma.ProjectProductionContextScalarFieldEnum = {
@@ -1686,12 +1732,219 @@ exports.Prisma.ProductionExpenseScalarFieldEnum = {
   id: 'id',
   projectId: 'projectId',
   budgetLineId: 'budgetLineId',
+  vendorId: 'vendorId',
+  purchaseOrderId: 'purchaseOrderId',
+  payrollLineItemId: 'payrollLineItemId',
+  pettyCashFundId: 'pettyCashFundId',
   department: 'department',
   vendor: 'vendor',
   description: 'description',
   amount: 'amount',
   spentAt: 'spentAt',
   createdById: 'createdById',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.ProjectVendorScalarFieldEnum = {
+  id: 'id',
+  projectId: 'projectId',
+  globalVendorId: 'globalVendorId',
+  displayName: 'displayName',
+  vendorType: 'vendorType',
+  crewTeamId: 'crewTeamId',
+  locationListingId: 'locationListingId',
+  equipmentListingId: 'equipmentListingId',
+  cateringCompanyId: 'cateringCompanyId',
+  counterpartyUserId: 'counterpartyUserId',
+  contactEmail: 'contactEmail',
+  contactPhone: 'contactPhone',
+  taxNumber: 'taxNumber',
+  paymentTerms: 'paymentTerms',
+  bankDetails: 'bankDetails',
+  status: 'status',
+  notes: 'notes',
+  createdById: 'createdById',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.PurchaseOrderScalarFieldEnum = {
+  id: 'id',
+  projectId: 'projectId',
+  vendorId: 'vendorId',
+  poNumber: 'poNumber',
+  status: 'status',
+  budgetLineId: 'budgetLineId',
+  department: 'department',
+  subtotal: 'subtotal',
+  vatAmount: 'vatAmount',
+  total: 'total',
+  currency: 'currency',
+  description: 'description',
+  requestedById: 'requestedById',
+  approvedById: 'approvedById',
+  approvedAt: 'approvedAt',
+  rejectedAt: 'rejectedAt',
+  rejectionReason: 'rejectionReason',
+  sentAt: 'sentAt',
+  dueDate: 'dueDate',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.PurchaseOrderLineScalarFieldEnum = {
+  id: 'id',
+  poId: 'poId',
+  description: 'description',
+  quantity: 'quantity',
+  unitCost: 'unitCost',
+  total: 'total',
+  budgetLineId: 'budgetLineId',
+  receivedQty: 'receivedQty',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.PurchaseOrderEventScalarFieldEnum = {
+  id: 'id',
+  poId: 'poId',
+  userId: 'userId',
+  eventType: 'eventType',
+  detail: 'detail',
+  metadata: 'metadata',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.PayrollRunScalarFieldEnum = {
+  id: 'id',
+  projectId: 'projectId',
+  label: 'label',
+  periodStart: 'periodStart',
+  periodEnd: 'periodEnd',
+  status: 'status',
+  currency: 'currency',
+  totalGross: 'totalGross',
+  totalTax: 'totalTax',
+  totalNet: 'totalNet',
+  approvedById: 'approvedById',
+  approvedAt: 'approvedAt',
+  paidAt: 'paidAt',
+  createdById: 'createdById',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.PayrollLineItemScalarFieldEnum = {
+  id: 'id',
+  payrollRunId: 'payrollRunId',
+  personLabel: 'personLabel',
+  role: 'role',
+  department: 'department',
+  shootDayId: 'shootDayId',
+  castingInvitationId: 'castingInvitationId',
+  crewInvitationId: 'crewInvitationId',
+  daysWorked: 'daysWorked',
+  dayRate: 'dayRate',
+  grossAmount: 'grossAmount',
+  taxWithheld: 'taxWithheld',
+  netAmount: 'netAmount',
+  unit: 'unit',
+  notes: 'notes',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.ProjectBudgetVersionScalarFieldEnum = {
+  id: 'id',
+  budgetId: 'budgetId',
+  version: 'version',
+  label: 'label',
+  status: 'status',
+  totalPlanned: 'totalPlanned',
+  currency: 'currency',
+  generationSource: 'generationSource',
+  notes: 'notes',
+  createdById: 'createdById',
+  createdAt: 'createdAt',
+  lockedAt: 'lockedAt'
+};
+
+exports.Prisma.ProjectBudgetVersionLineScalarFieldEnum = {
+  id: 'id',
+  versionId: 'versionId',
+  department: 'department',
+  name: 'name',
+  quantity: 'quantity',
+  unitCost: 'unitCost',
+  total: 'total',
+  notes: 'notes'
+};
+
+exports.Prisma.PettyCashFundScalarFieldEnum = {
+  id: 'id',
+  projectId: 'projectId',
+  custodianUserId: 'custodianUserId',
+  name: 'name',
+  floatAmount: 'floatAmount',
+  balance: 'balance',
+  currency: 'currency',
+  status: 'status',
+  lowBalanceThreshold: 'lowBalanceThreshold',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.FinanceApprovalStepScalarFieldEnum = {
+  id: 'id',
+  entityType: 'entityType',
+  entityId: 'entityId',
+  stepOrder: 'stepOrder',
+  approverUserId: 'approverUserId',
+  approverRole: 'approverRole',
+  status: 'status',
+  comment: 'comment',
+  decidedAt: 'decidedAt',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.GlobalVendorScalarFieldEnum = {
+  id: 'id',
+  displayName: 'displayName',
+  normalizedName: 'normalizedName',
+  taxNumber: 'taxNumber',
+  country: 'country',
+  vendorType: 'vendorType',
+  totalSpendAcrossProjects: 'totalSpendAcrossProjects',
+  projectCount: 'projectCount',
+  avgPaymentDays: 'avgPaymentDays',
+  riskScore: 'riskScore',
+  metadata: 'metadata',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.BankImportBatchScalarFieldEnum = {
+  id: 'id',
+  projectId: 'projectId',
+  source: 'source',
+  fileName: 'fileName',
+  importedById: 'importedById',
+  status: 'status',
+  rowCount: 'rowCount',
+  matchedCount: 'matchedCount',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.BankTransactionScalarFieldEnum = {
+  id: 'id',
+  batchId: 'batchId',
+  projectId: 'projectId',
+  transactionDate: 'transactionDate',
+  description: 'description',
+  amount: 'amount',
+  currency: 'currency',
+  reference: 'reference',
+  matchStatus: 'matchStatus',
+  expenseId: 'expenseId',
+  purchaseOrderId: 'purchaseOrderId',
   createdAt: 'createdAt'
 };
 
@@ -1810,9 +2063,33 @@ exports.Prisma.ProjectContractScalarFieldEnum = {
   locationListingId: 'locationListingId',
   vendorName: 'vendorName',
   subject: 'subject',
+  recipientType: 'recipientType',
+  recipientLabel: 'recipientLabel',
+  recipientEmail: 'recipientEmail',
+  jurisdiction: 'jurisdiction',
+  catalogEntryId: 'catalogEntryId',
+  signingMode: 'signingMode',
+  approvalRequired: 'approvalRequired',
+  executedDocumentUrl: 'executedDocumentUrl',
+  esignProvider: 'esignProvider',
+  esignEnvelopeId: 'esignEnvelopeId',
+  signatureDeadline: 'signatureDeadline',
+  sentAt: 'sentAt',
+  viewedAt: 'viewedAt',
+  executedAt: 'executedAt',
   createdById: 'createdById',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
+};
+
+exports.Prisma.ProjectContractEventScalarFieldEnum = {
+  id: 'id',
+  contractId: 'contractId',
+  userId: 'userId',
+  eventType: 'eventType',
+  detail: 'detail',
+  metadata: 'metadata',
+  createdAt: 'createdAt'
 };
 
 exports.Prisma.ProjectContractVersionScalarFieldEnum = {
@@ -1834,6 +2111,67 @@ exports.Prisma.ProjectSignatureScalarFieldEnum = {
   role: 'role',
   signedAt: 'signedAt',
   ipAddress: 'ipAddress'
+};
+
+exports.Prisma.ContractClauseScalarFieldEnum = {
+  id: 'id',
+  projectId: 'projectId',
+  title: 'title',
+  category: 'category',
+  jurisdiction: 'jurisdiction',
+  body: 'body',
+  tags: 'tags',
+  createdById: 'createdById',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.ContractApprovalStepScalarFieldEnum = {
+  id: 'id',
+  contractId: 'contractId',
+  stepOrder: 'stepOrder',
+  approverUserId: 'approverUserId',
+  approverRole: 'approverRole',
+  status: 'status',
+  comment: 'comment',
+  decidedAt: 'decidedAt',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.ContractSignerScalarFieldEnum = {
+  id: 'id',
+  contractId: 'contractId',
+  signOrder: 'signOrder',
+  partyRole: 'partyRole',
+  label: 'label',
+  email: 'email',
+  userId: 'userId',
+  required: 'required',
+  status: 'status',
+  signedAt: 'signedAt'
+};
+
+exports.Prisma.ContractGuestTokenScalarFieldEnum = {
+  id: 'id',
+  contractId: 'contractId',
+  signerId: 'signerId',
+  email: 'email',
+  token: 'token',
+  expiresAt: 'expiresAt',
+  usedAt: 'usedAt',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.ContractEsignEnvelopeScalarFieldEnum = {
+  id: 'id',
+  contractId: 'contractId',
+  provider: 'provider',
+  externalId: 'externalId',
+  status: 'status',
+  signersJson: 'signersJson',
+  completedAt: 'completedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
 };
 
 exports.Prisma.FundingRequestScalarFieldEnum = {
@@ -2409,6 +2747,29 @@ exports.Prisma.CreatorScriptScalarFieldEnum = {
   title: 'title',
   type: 'type',
   content: 'content',
+  studioMeta: 'studioMeta',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.CreatorScriptVersionScalarFieldEnum = {
+  id: 'id',
+  scriptId: 'scriptId',
+  versionLabel: 'versionLabel',
+  content: 'content',
+  createdById: 'createdById',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.CreatorScriptCommentScalarFieldEnum = {
+  id: 'id',
+  scriptId: 'scriptId',
+  authorId: 'authorId',
+  body: 'body',
+  lineIndex: 'lineIndex',
+  sceneHeading: 'sceneHeading',
+  resolved: 'resolved',
+  parentId: 'parentId',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 };
@@ -2534,6 +2895,61 @@ exports.Prisma.OpsIncidentScalarFieldEnum = {
   createdAt: 'createdAt'
 };
 
+exports.Prisma.CastingTalentPortalTokenScalarFieldEnum = {
+  id: 'id',
+  talentId: 'talentId',
+  token: 'token',
+  expiresAt: 'expiresAt',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.LocationListingManagerScalarFieldEnum = {
+  id: 'id',
+  listingId: 'listingId',
+  userId: 'userId',
+  role: 'role',
+  canApproveBookings: 'canApproveBookings',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.EquipmentInventoryTagScalarFieldEnum = {
+  id: 'id',
+  equipmentId: 'equipmentId',
+  companyId: 'companyId',
+  rfidTag: 'rfidTag',
+  serialNumber: 'serialNumber',
+  status: 'status',
+  lastScanAt: 'lastScanAt',
+  lastScanLocation: 'lastScanLocation',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.CateringMealForecastScalarFieldEnum = {
+  id: 'id',
+  cateringCompanyId: 'cateringCompanyId',
+  projectId: 'projectId',
+  eventDate: 'eventDate',
+  headCount: 'headCount',
+  breakfastCount: 'breakfastCount',
+  lunchCount: 'lunchCount',
+  dinnerCount: 'dinnerCount',
+  specialDiets: 'specialDiets',
+  notes: 'notes',
+  status: 'status',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.StakeholderSyncEventScalarFieldEnum = {
+  id: 'id',
+  projectId: 'projectId',
+  eventType: 'eventType',
+  targetUserIds: 'targetUserIds',
+  payload: 'payload',
+  createdAt: 'createdAt'
+};
+
 exports.Prisma.SortOrder = {
   asc: 'asc',
   desc: 'desc'
@@ -2605,6 +3021,7 @@ exports.Prisma.ModelName = {
   Message: 'Message',
   SyncRequest: 'SyncRequest',
   CrewMember: 'CrewMember',
+  CreditPerson: 'CreditPerson',
   AuditionPost: 'AuditionPost',
   OriginalProject: 'OriginalProject',
   CreatorCalendarEvent: 'CreatorCalendarEvent',
@@ -2669,6 +3086,8 @@ exports.Prisma.ModelName = {
   ProjectScene: 'ProjectScene',
   ProjectActivity: 'ProjectActivity',
   ScriptReviewRequest: 'ScriptReviewRequest',
+  ScriptReviewSession: 'ScriptReviewSession',
+  ScriptReviewAnnotation: 'ScriptReviewAnnotation',
   BreakdownCharacter: 'BreakdownCharacter',
   BreakdownProp: 'BreakdownProp',
   BreakdownLocation: 'BreakdownLocation',
@@ -2683,6 +3102,19 @@ exports.Prisma.ModelName = {
   ProjectBudgetAssumption: 'ProjectBudgetAssumption',
   ProjectBudgetLine: 'ProjectBudgetLine',
   ProductionExpense: 'ProductionExpense',
+  ProjectVendor: 'ProjectVendor',
+  PurchaseOrder: 'PurchaseOrder',
+  PurchaseOrderLine: 'PurchaseOrderLine',
+  PurchaseOrderEvent: 'PurchaseOrderEvent',
+  PayrollRun: 'PayrollRun',
+  PayrollLineItem: 'PayrollLineItem',
+  ProjectBudgetVersion: 'ProjectBudgetVersion',
+  ProjectBudgetVersionLine: 'ProjectBudgetVersionLine',
+  PettyCashFund: 'PettyCashFund',
+  FinanceApprovalStep: 'FinanceApprovalStep',
+  GlobalVendor: 'GlobalVendor',
+  BankImportBatch: 'BankImportBatch',
+  BankTransaction: 'BankTransaction',
   ShootDay: 'ShootDay',
   ShootDayControlBoard: 'ShootDayControlBoard',
   ShootDayScene: 'ShootDayScene',
@@ -2692,8 +3124,14 @@ exports.Prisma.ModelName = {
   CrewRoleNeed: 'CrewRoleNeed',
   CrewInvitation: 'CrewInvitation',
   ProjectContract: 'ProjectContract',
+  ProjectContractEvent: 'ProjectContractEvent',
   ProjectContractVersion: 'ProjectContractVersion',
   ProjectSignature: 'ProjectSignature',
+  ContractClause: 'ContractClause',
+  ContractApprovalStep: 'ContractApprovalStep',
+  ContractSigner: 'ContractSigner',
+  ContractGuestToken: 'ContractGuestToken',
+  ContractEsignEnvelope: 'ContractEsignEnvelope',
   FundingRequest: 'FundingRequest',
   FunderProfile: 'FunderProfile',
   FunderVerification: 'FunderVerification',
@@ -2742,6 +3180,8 @@ exports.Prisma.ModelName = {
   ModocMessage: 'ModocMessage',
   ScriptReviewNote: 'ScriptReviewNote',
   CreatorScript: 'CreatorScript',
+  CreatorScriptVersion: 'CreatorScriptVersion',
+  CreatorScriptComment: 'CreatorScriptComment',
   IPAsset: 'IPAsset',
   IPVersion: 'IPVersion',
   IPOwnershipStructure: 'IPOwnershipStructure',
@@ -2751,7 +3191,12 @@ exports.Prisma.ModelName = {
   PasswordResetToken: 'PasswordResetToken',
   AnalyticsEvent: 'AnalyticsEvent',
   AnalyticsDailyRollup: 'AnalyticsDailyRollup',
-  OpsIncident: 'OpsIncident'
+  OpsIncident: 'OpsIncident',
+  CastingTalentPortalToken: 'CastingTalentPortalToken',
+  LocationListingManager: 'LocationListingManager',
+  EquipmentInventoryTag: 'EquipmentInventoryTag',
+  CateringMealForecast: 'CateringMealForecast',
+  StakeholderSyncEvent: 'StakeholderSyncEvent'
 };
 
 /**

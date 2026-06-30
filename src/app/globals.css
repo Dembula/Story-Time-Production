@@ -157,6 +157,90 @@ img {
   color: hsl(var(--foreground));
 }
 
+/* Remove native OS select chrome (harsh divider before chevron on Windows). */
+.storytime-select:not(.storytime-select--embedded),
+.creator-tool-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.7rem center;
+  background-size: 0.9rem;
+  padding-right: 2.25rem;
+  cursor: pointer;
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    background-color 180ms ease;
+}
+
+.storytime-select:not(.storytime-select--embedded):focus,
+.creator-tool-select:focus {
+  border-color: rgba(251, 146, 60, 0.45);
+  outline: none;
+  box-shadow:
+    0 0 0 1px rgba(255, 170, 51, 0.12),
+    0 0 0 4px rgba(255, 145, 0, 0.1);
+}
+
+.storytime-select--embedded,
+#creator-workspace-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: none;
+  box-shadow: none;
+}
+
+.creator-tool-select {
+  min-height: 2.5rem;
+  font-size: 0.875rem;
+}
+
+.creator-tool-select--sm {
+  min-height: 2rem;
+  font-size: 0.75rem;
+  border-radius: 0.625rem;
+  padding-right: 2rem;
+  background-position: right 0.5rem center;
+}
+
+/* Legacy tool selects inside creator workspace */
+[data-storytime-creator] select:not(#creator-workspace-select):not(.storytime-select--embedded) {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  border-color: rgba(255, 255, 255, 0.1);
+  background-color: rgba(255, 255, 255, 0.03);
+  color: hsl(var(--foreground));
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.65rem center;
+  background-size: 0.9rem;
+  padding-right: 2.25rem;
+  cursor: pointer;
+}
+
+[data-storytime-creator] select:not(#creator-workspace-select):not(.storytime-select--embedded):focus {
+  border-color: rgba(251, 146, 60, 0.45);
+  outline: none;
+  box-shadow:
+    0 0 0 1px rgba(255, 170, 51, 0.12),
+    0 0 0 4px rgba(255, 145, 0, 0.1);
+}
+
+/* Soft panel dividers — inset glow instead of hard 1px rules */
+.storytime-panel-divider-r {
+  border-right: none !important;
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.05);
+}
+
+.storytime-panel-divider-l {
+  border-left: none !important;
+  box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.05);
+}
+
 .storytime-section {
   background: linear-gradient(180deg, rgba(14, 14, 14, 0.98), rgba(0, 0, 0, 0.98));
   border: 1px solid rgba(255, 255, 255, 0.08);

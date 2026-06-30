@@ -240,8 +240,15 @@ export async function POST(request: NextRequest) {
   if (body.crew && Array.isArray(body.crew)) {
     for (const c of body.crew) {
       if (c.name && c.role) {
+        const { resolveOrCreateCreditPerson } = await import("@/lib/credit-person");
+        const person = await resolveOrCreateCreditPerson({ name: c.name, bio: null });
         await prisma.crewMember.create({
-          data: { name: c.name, role: c.role, contentId: content.id },
+          data: {
+            name: c.name,
+            role: c.role,
+            contentId: content.id,
+            creditPersonId: person.id,
+          },
         });
       }
     }

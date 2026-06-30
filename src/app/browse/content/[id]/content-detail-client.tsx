@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ContentDetailHero } from "@/components/browse/content-detail-hero";
 import { ContentInfoModal } from "@/components/browse/content-info-modal";
 import { ContentEpisodesSection, type SeasonItem } from "@/components/browse/content-episodes-section";
+import { ContentCreditsSection } from "@/components/person/content-credits-section";
 import { HorizontalScrollRow } from "@/components/layout/horizontal-scroll-row";
 import { isLongFormType } from "@/lib/content-types";
 import { CheckoutModal } from "@/components/payments/checkout-modal";
@@ -60,7 +61,14 @@ type Content = {
   otherCreatorContent?: { id: string; title: string; posterUrl: string | null; type: string; year: number | null }[];
   relatedContent?: { id: string; title: string; posterUrl: string | null; type: string; year: number | null }[];
   soundtrack?: { id: string; title: string; artistName: string; genre: string | null; coverUrl: string | null; creatorId: string }[];
-  crewMembers?: { id: string; name: string; role: string; bio: string | null }[];
+  crewMembers?: {
+    id: string;
+    name: string;
+    role: string;
+    bio: string | null;
+    creditPersonId: string | null;
+    creditPerson?: { id: string; imageUrl: string | null; userId: string | null } | null;
+  }[];
   minAge?: number;
   ageRating?: string | null;
   advisory?: unknown | null;
@@ -654,37 +662,9 @@ export function ContentDetailClient({
         </HorizontalScrollRow>
       )}
 
-      {/* Cast & Crew horizontal rail */}
-      {content.crewMembers && content.crewMembers.length > 0 && (
-        <HorizontalScrollRow
-          className="mt-10"
-          title={<h3 className="text-xl font-semibold text-white">Cast & Crew</h3>}
-          headerEnd={
-            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-slate-300">
-              {content.crewMembers.length} credits
-            </span>
-          }
-          scrollClassName="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 [-webkit-overflow-scrolling:touch] scrollbar-hide"
-        >
-          {content.crewMembers.map((member) => {
-            const initials = member.name
-              .split(/\s+/)
-              .map((part) => part[0] ?? "")
-              .join("")
-              .slice(0, 2)
-              .toUpperCase();
-            return (
-              <div key={member.id} className="w-[7rem] shrink-0 snap-start text-center sm:w-[7.5rem]">
-                <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full border border-white/10 bg-gradient-to-br from-slate-700/70 to-slate-900 text-base font-semibold text-white shadow-lg sm:h-24 sm:w-24">
-                  {initials}
-                </div>
-                <p className="mt-2 line-clamp-1 text-sm font-medium text-white">{member.name}</p>
-                <p className="line-clamp-1 text-xs text-slate-400">{member.role}</p>
-              </div>
-            );
-          })}
-        </HorizontalScrollRow>
-      )}
+      {content.crewMembers && content.crewMembers.length > 0 ? (
+        <ContentCreditsSection members={content.crewMembers} />
+      ) : null}
 
       {isSubscriber && subscriptionExpired && (
         <div className="mt-10 rounded-xl overflow-hidden border border-slate-700/50 bg-slate-900/50">

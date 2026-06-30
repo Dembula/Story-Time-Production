@@ -38,6 +38,12 @@ export type OrchestrationPlan = {
   taskKind: ModocTaskKind;
   /** Human-readable routing reason for observability. */
   routingReason: string;
+  /** Classified user intent for response mode and tooling. */
+  intentCategory?: string;
+  responseMode?: "conversational" | "production_protocol";
+  needsWebSearch?: boolean;
+  webSearchQuery?: string;
+  webSearchUsed?: boolean;
 };
 
 export type ModocChatOrchestratorInput = {

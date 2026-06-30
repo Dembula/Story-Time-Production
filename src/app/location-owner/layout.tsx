@@ -7,14 +7,20 @@ import { CompanyPackageGate } from "@/components/layout/company-package-gate";
 import { DashboardSidebarShell } from "@/components/layout/dashboard-sidebar-shell";
 import { NotificationBell } from "@/components/layout/notification-bell";
 
-const navItems = [
+import { mergeStakeholderNavSections } from "@/lib/stakeholder-ecosystem/portal-nav";
+
+const businessNavItems = [
   { href: "/location-owner/dashboard", label: "Dashboard" },
   { href: "/location-owner/listings", label: "Properties" },
+  { href: "/location-owner/manager", label: "Manager view" },
+  { href: "/location-owner/managers", label: "Site managers" },
   { href: "/location-owner/deals", label: "Booking pipeline" },
   { href: "/location-owner/bookings", label: "Booking inbox" },
+  { href: "/location-owner/contracts", label: "Contracts" },
   { href: "/location-owner/messages", label: "Messages" },
   { href: "/location-owner/wallet", label: "Wallet" },
   { href: "/location-owner/account", label: "Account" },
+  { href: "/location-owner/originals", label: "Production invites" },
 ];
 
 export default function LocationOwnerLayout({ children }: { children: React.ReactNode }) {
@@ -45,7 +51,7 @@ export default function LocationOwnerLayout({ children }: { children: React.Reac
           </button>
         </>
       }
-      navSections={[{ items: navItems }]}
+      navSections={mergeStakeholderNavSections("location-owner", businessNavItems)}
       sidebarFooter={
         <button
           onClick={handleSignOut}

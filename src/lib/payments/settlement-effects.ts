@@ -169,6 +169,20 @@ export async function applyPaymentRecordSettlementEffects(paymentRecord: {
       },
       include: { project: { select: { title: true } } },
     });
+    if (review?.scriptVersionId) {
+      const draftKey = `project-version:${review.scriptVersionId}`;
+      await db.scriptReviewSession.upsert({
+        where: { projectId_draftKey: { projectId: review.projectId, draftKey } },
+        create: {
+          projectId: review.projectId,
+          draftKey,
+          scriptVersionId: review.scriptVersionId,
+          reviewRequestId: review.id,
+          reviewStatus: "PENDING_REVIEW",
+        },
+        update: { reviewRequestId: review.id },
+      });
+    }
     if (review?.requesterId) {
       await db.notification.create({
         data: {
@@ -179,6 +193,26 @@ export async function applyPaymentRecordSettlementEffects(paymentRecord: {
           metadata: JSON.stringify({
             projectId: review.projectId,
             reviewRequestId: review.id,
+            url: `/creator/projects/${review.projectId}/pre-production/script-review?executiveRequestId=${review.id}`,
+          }),
+        },
+      });
+    }
+    const admins = await db.user.findMany({
+      where: { role: "ADMIN" },
+      select: { id: true },
+    });
+    for (const admin of admins) {
+      await db.notification.create({
+        data: {
+          userId: admin.id,
+          type: "SYSTEM_RELEASE",
+          title: "New executive script review",
+          body: `Paid script review queued for "${review.project?.title ?? "a project"}". Open the admin review queue to claim it.`,
+          metadata: JSON.stringify({
+            url: `/admin/script-reviews?requestId=${review.id}`,
+            reviewRequestId: review.id,
+            projectId: review.projectId,
           }),
         },
       });

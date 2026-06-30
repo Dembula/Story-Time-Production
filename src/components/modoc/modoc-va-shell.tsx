@@ -80,6 +80,28 @@ export function ModocVaShell() {
     runPulse();
   }, [modoc?.attentionPulseKey, modoc]);
 
+  useEffect(() => {
+    if (!modoc) return;
+    const openFromEvent = () => {
+      modoc.consumeActivityNudge();
+      setThrobActive(false);
+      pulseRunRef.current += 1;
+      setOpen(true);
+    };
+    const handler = (e: Event) => {
+      const ev = e as CustomEvent<{ prompt?: string }>;
+      openFromEvent();
+      const prompt = ev.detail?.prompt?.trim();
+      if (prompt) {
+        window.setTimeout(() => {
+          void modoc.append({ role: "user", content: prompt });
+        }, 150);
+      }
+    };
+    window.addEventListener("modoc:open-creator", handler);
+    return () => window.removeEventListener("modoc:open-creator", handler);
+  }, [modoc]);
+
   if (!modoc || !available) return null;
 
   if (!canShowCreatorVa({ sessionStatus, role, pathname })) {

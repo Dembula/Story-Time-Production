@@ -55,6 +55,7 @@ import { ModocOrchestratorError, runModocChatOrchestrator } from "@/lib/ai-os";
 import { buildRagPromptBlock } from "@/lib/ai-os/rag/build-rag-prompt";
 import { buildSaLanguagePromptBlock } from "@/lib/ai-os/languages/build-language-context";
 import { resolveViewerProfileContext } from "@/lib/modoc/viewer-profile-resolver";
+import { buildProactiveIntelligenceBlock } from "@/lib/modoc/proactive-intelligence";
 
 export const maxDuration = 60;
 
@@ -174,7 +175,7 @@ export async function POST(req: Request) {
           ? await buildProductionGraph(userId, focusProjectId).catch(() => null)
           : null;
 
-      const [workspaceBlob, databaseBlob, awarenessBlob, memory, slicedContext] =
+      const [workspaceBlob, databaseBlob, awarenessBlob, memory, slicedContext, proactiveBlob] =
         await Promise.all([
           buildCreatorWorkspaceContext(userId, focusProjectId).catch(
             () => "**Creator workspace:** context temporarily unavailable.",
@@ -199,6 +200,7 @@ export async function POST(req: Request) {
                 task: taskSlug,
               }).catch(() => "")
             : Promise.resolve(""),
+          buildProactiveIntelligenceBlock(userId, focusProjectId).catch(() => ""),
         ]);
 
       memoryCacheHit = memory.cacheHit;
@@ -222,6 +224,8 @@ ${databaseBlob}
 
 ## Live awareness & playbook
 ${awarenessBlob}
+
+${proactiveBlob ? `\n${proactiveBlob}\n` : ""}
 
 ## Runtime adaptation
 Behavioral memory tracks action acceptance and success rates. Prefer actions with high success probability for this creator.

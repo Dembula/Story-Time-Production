@@ -129,6 +129,7 @@ model User {
   projectIdeas           ProjectIdea[]
 
   locationListings       LocationListing[]
+  locationManagerAssignments LocationListingManager[]
   locationBookingsSent    LocationBooking[] @relation("LocationRequester")
   locationBookingsRecv   LocationBooking[]  @relation("LocationOwner")
 
@@ -182,9 +183,23 @@ model User {
   scriptReviewRequestsRequested ScriptReviewRequest[]
   scriptReviewRequestsReviewed ScriptReviewRequest[] @relation("ScriptReviewReviewer")
   productionExpensesCreated ProductionExpense[]
+  projectVendorsCreated     ProjectVendor[] @relation("ProjectVendorCreator")
+  projectVendorsAsCounterparty ProjectVendor[] @relation("ProjectVendorCounterparty")
+  purchaseOrdersRequested   PurchaseOrder[] @relation("PurchaseOrderRequester")
+  purchaseOrdersApproved    PurchaseOrder[] @relation("PurchaseOrderApprover")
+  purchaseOrderEvents       PurchaseOrderEvent[] @relation("PurchaseOrderEventActor")
+  payrollRunsCreated        PayrollRun[] @relation("PayrollRunCreator")
+  budgetVersionsCreated     ProjectBudgetVersion[] @relation("BudgetVersionCreator")
+  pettyCashCustodian        PettyCashFund[] @relation("PettyCashCustodian")
+  financeApprovalSteps      FinanceApprovalStep[] @relation("FinanceApprovalStepApprover")
+  bankImportBatches         BankImportBatch[] @relation("BankImportBatchUser")
   projectContractsAsCounterparty ProjectContract[]
   projectContractsCreated ProjectContract[]  @relation("ProjectContractCreator")
+  projectContractEvents ProjectContractEvent[] @relation("ProjectContractEventActor")
   projectContractVersionsCreated ProjectContractVersion[] @relation("ProjectContractVersionCreator")
+  contractClausesCreated ContractClause[] @relation("ContractClauseCreator")
+  contractApprovalSteps ContractApprovalStep[] @relation("ContractApprovalStepApprover")
+  contractSigners ContractSigner[] @relation("ContractSignerUser")
   projectSignatures     ProjectSignature[]
   pitchDecksCreated     PitchDeck[]
   projectChatThreadsCreated ProjectChatThread[]
@@ -200,6 +215,7 @@ model User {
   // Network (social / follow, connect, posts, DMs)
   following             CreatorFollow[]    @relation("CreatorFollowing")
   followers             CreatorFollow[]    @relation("CreatorFollower")
+  creditPerson          CreditPerson?
   connectionRequestsSent     ConnectionRequest[] @relation("ConnectionRequestFrom")
   connectionRequestsReceived ConnectionRequest[] @relation("ConnectionRequestTo")
   networkPosts          NetworkPost[]
@@ -220,7 +236,10 @@ model User {
 
   // Creator-owned script and notes
   creatorScripts        CreatorScript[]
+  creatorScriptVersions CreatorScriptVersion[]
+  creatorScriptComments CreatorScriptComment[]
   scriptReviewNotes     ScriptReviewNote[]
+  scriptReviewAnnotations ScriptReviewAnnotation[]
 
   // Admin audit logs for privileged actions
   adminAuditLogs        AdminAuditLog[]
@@ -860,6 +879,8 @@ model EquipmentListing {
   requests    EquipmentRequest[]
 
   planItems   EquipmentPlanItem[]
+  projectVendors ProjectVendor[]
+  inventoryTags EquipmentInventoryTag[]
 
   @@index([companyId])
 }
@@ -966,7 +987,29 @@ model CrewMember {
   contentId String
   content   Content  @relation(fields: [contentId], references: [id], onDelete: Cascade)
 
+  creditPersonId String?
+  creditPerson   CreditPerson? @relation(fields: [creditPersonId], references: [id], onDelete: SetNull)
+
   @@index([contentId])
+  @@index([creditPersonId])
+}
+
+/// Platform-wide credit identity (linked creator or lightweight credits profile).
+model CreditPerson {
+  id             String   @id @default(cuid())
+  displayName    String
+  normalizedName String
+  bio            String?  @db.Text
+  imageUrl       String?
+  externalLinks  Json?
+  userId         String?  @unique
+  user           User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  crewMembers    CrewMember[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([normalizedName])
+  @@index([userId])
 }
 
 model AuditionPost {
@@ -1022,6 +1065,7 @@ model OriginalProject {
   scenes       ProjectScene[]
   projectActivities ProjectActivity[]
   scriptReviewRequests ScriptReviewRequest[]
+  scriptReviewSessions ScriptReviewSession[]
   breakdownCharacters BreakdownCharacter[]
   breakdownProps BreakdownProp[]
   breakdownLocations BreakdownLocation[]
@@ -1033,13 +1077,21 @@ model OriginalProject {
   breakdownMakeups BreakdownMakeup[]
   projectBudget ProjectBudget?
   productionExpenses ProductionExpense[]
+  projectVendors   ProjectVendor[]
+  purchaseOrders   PurchaseOrder[]
+  payrollRuns      PayrollRun[]
+  pettyCashFunds   PettyCashFund[]
+  bankImportBatches BankImportBatch[]
   shootDays     ShootDay[]
+  cateringMealForecasts CateringMealForecast[]
+  stakeholderSyncEvents StakeholderSyncEvent[]
   callSheets    CallSheet[]
   castingRoles CastingRole[]
   castingInvitations CastingInvitation[]
   crewRoleNeeds CrewRoleNeed[]
   crewInvitations CrewInvitation[]
   projectContracts ProjectContract[]
+  contractClauses ContractClause[]
   fundingRequest FundingRequest?
   pitchDeck     PitchDeck?
   chatThreads   ProjectChatThread[]
@@ -1187,6 +1239,8 @@ model LocationListing {
   bookings     LocationBooking[]
   breakdownLocations BreakdownLocation[]
   projectContracts ProjectContract[]
+  projectVendors   ProjectVendor[]
+  managers     LocationListingManager[]
 
   @@index([companyId])
   @@index([type])
@@ -1247,6 +1301,7 @@ model CrewTeam {
   requests        CrewTeamRequest[]
   crewInvitations CrewInvitation[]
   projectContracts ProjectContract[]
+  projectVendors   ProjectVendor[]
 
   @@index([userId])
   @@index([city])
@@ -1387,6 +1442,7 @@ model CastingTalent {
   projectContracts ProjectContract[]
   auditionSubmissions CastingAuditionSubmission[]
   availabilityBlocks  CastingTalentAvailability[]
+  portalTokens        CastingTalentPortalToken[]
 
   @@index([castingAgencyId])
 }
@@ -1593,6 +1649,8 @@ model CateringCompany {
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   bookings        CateringBooking[]
+  projectVendors  ProjectVendor[]
+  mealForecasts   CateringMealForecast[]
 
   @@index([userId])
   @@index([city])
@@ -2362,10 +2420,60 @@ model ScriptReviewRequest {
   submittedAt DateTime @default(now())
   reviewedAt  DateTime?
 
+  session     ScriptReviewSession?
+
   @@index([projectId])
   @@index([requesterId])
   @@index([reviewerId])
   @@index([status])
+}
+
+model ScriptReviewSession {
+  id              String   @id @default(cuid())
+  projectId       String
+  project         OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  draftKey        String
+  creatorScriptId String?
+  scriptVersionId String?
+  reviewRequestId String?  @unique
+  reviewRequest   ScriptReviewRequest? @relation(fields: [reviewRequestId], references: [id], onDelete: SetNull)
+  reviewStatus    String   @default("IN_REVIEW")
+  coverageReport  String?  @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  annotations     ScriptReviewAnnotation[]
+
+  @@unique([projectId, draftKey])
+  @@index([projectId])
+}
+
+model ScriptReviewAnnotation {
+  id          String   @id @default(cuid())
+  sessionId   String
+  session     ScriptReviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  type        String
+  layer       String   @default("producer")
+  pageIndex   Int      @default(0)
+  lineIndex   Int?
+  anchorText  String?
+  body        String?  @db.Text
+  data        Json?
+  priority    String?
+  status      String   @default("open")
+  resolved    Boolean  @default(false)
+  parentId    String?
+  parent      ScriptReviewAnnotation? @relation("ReviewAnnotationReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies     ScriptReviewAnnotation[] @relation("ReviewAnnotationReplies")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([sessionId])
+  @@index([authorId])
+  @@index([parentId])
+  @@index([layer])
 }
 
 // --- Script breakdown items ---
@@ -2540,9 +2648,13 @@ model ProjectBudget {
 
   lines       ProjectBudgetLine[]
   assumptions ProjectBudgetAssumption[]
+  versions    ProjectBudgetVersion[]
+  activeVersionId String?
+  activeVersion   ProjectBudgetVersion? @relation("ActiveBudgetVersion", fields: [activeVersionId], references: [id], onDelete: SetNull)
 
   @@index([projectId])
   @@index([lastGeneratedById])
+  @@index([activeVersionId])
 }
 
 /// Cached script/region inference for VA and budget tools (refreshed on smart budget / breakdown).
@@ -2594,6 +2706,7 @@ model ProjectBudgetLine {
   notes       String?
 
   productionExpenses ProductionExpense[]
+  purchaseOrders     PurchaseOrder[]
 
   @@index([budgetId])
   @@index([department])
@@ -2605,6 +2718,14 @@ model ProductionExpense {
   project     OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
   budgetLineId String?
   budgetLine  ProjectBudgetLine? @relation(fields: [budgetLineId], references: [id], onDelete: SetNull)
+  vendorId    String?
+  vendorRef   ProjectVendor? @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  purchaseOrderId String?
+  purchaseOrder   PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  payrollLineItemId String? @unique
+  payrollLineItem   PayrollLineItem? @relation(fields: [payrollLineItemId], references: [id], onDelete: SetNull)
+  pettyCashFundId   String?
+  pettyCashFund     PettyCashFund? @relation(fields: [pettyCashFundId], references: [id], onDelete: SetNull)
   department  String?
   vendor      String?
   description String?
@@ -2614,9 +2735,314 @@ model ProductionExpense {
   createdBy   User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
   createdAt   DateTime @default(now())
 
+  bankTransactions BankTransaction[]
+
   @@index([projectId])
   @@index([budgetLineId])
+  @@index([vendorId])
+  @@index([purchaseOrderId])
+  @@index([pettyCashFundId])
   @@index([department])
+}
+
+// --- Financial operations: vendors, POs, payroll, budget versions ---
+
+model ProjectVendor {
+  id                  String   @id @default(cuid())
+  projectId           String
+  project             OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  globalVendorId      String?
+  globalVendor        GlobalVendor? @relation(fields: [globalVendorId], references: [id], onDelete: SetNull)
+  displayName         String
+  vendorType          String   @default("GENERAL") // CREW, EQUIPMENT, LOCATION, CATERING, GENERAL
+  crewTeamId          String?
+  crewTeam            CrewTeam? @relation(fields: [crewTeamId], references: [id], onDelete: SetNull)
+  locationListingId   String?
+  locationListing     LocationListing? @relation(fields: [locationListingId], references: [id], onDelete: SetNull)
+  equipmentListingId  String?
+  equipmentListing    EquipmentListing? @relation(fields: [equipmentListingId], references: [id], onDelete: SetNull)
+  cateringCompanyId   String?
+  cateringCompany     CateringCompany? @relation(fields: [cateringCompanyId], references: [id], onDelete: SetNull)
+  counterpartyUserId  String?
+  counterpartyUser    User? @relation("ProjectVendorCounterparty", fields: [counterpartyUserId], references: [id], onDelete: SetNull)
+  contactEmail        String?
+  contactPhone        String?
+  taxNumber           String?
+  paymentTerms        String?
+  bankDetails         String?
+  status              String   @default("ACTIVE") // ACTIVE, INACTIVE, BLOCKED
+  notes               String?
+  createdById         String?
+  createdBy           User? @relation("ProjectVendorCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  expenses            ProductionExpense[]
+  purchaseOrders      PurchaseOrder[]
+
+  @@index([projectId])
+  @@index([status])
+  @@index([globalVendorId])
+  @@index([crewTeamId])
+  @@index([locationListingId])
+}
+
+model PurchaseOrder {
+  id              String   @id @default(cuid())
+  projectId       String
+  project         OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  vendorId        String?
+  vendor          ProjectVendor? @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  poNumber        String
+  status          String   @default("DRAFT") // DRAFT, PENDING_APPROVAL, APPROVED, SENT, PARTIAL, CLOSED, CANCELLED, REJECTED
+  budgetLineId    String?
+  budgetLine      ProjectBudgetLine? @relation(fields: [budgetLineId], references: [id], onDelete: SetNull)
+  department      String?
+  subtotal        Float    @default(0)
+  vatAmount       Float?
+  total           Float    @default(0)
+  currency        String   @default("ZAR")
+  description     String?
+  requestedById   String?
+  requestedBy     User? @relation("PurchaseOrderRequester", fields: [requestedById], references: [id], onDelete: SetNull)
+  approvedById    String?
+  approvedBy      User? @relation("PurchaseOrderApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt      DateTime?
+  rejectedAt      DateTime?
+  rejectionReason String?
+  sentAt          DateTime?
+  dueDate         DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  lines           PurchaseOrderLine[]
+  events          PurchaseOrderEvent[]
+  expenses        ProductionExpense[]
+  bankTransactions BankTransaction[]
+
+  @@unique([projectId, poNumber])
+  @@index([projectId, status])
+  @@index([vendorId])
+  @@index([budgetLineId])
+}
+
+model PurchaseOrderLine {
+  id           String   @id @default(cuid())
+  poId         String
+  po           PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+  description  String
+  quantity     Float    @default(1)
+  unitCost     Float    @default(0)
+  total        Float    @default(0)
+  budgetLineId String?
+  receivedQty  Float    @default(0)
+  createdAt    DateTime @default(now())
+
+  @@index([poId])
+}
+
+model PurchaseOrderEvent {
+  id        String   @id @default(cuid())
+  poId      String
+  po        PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User? @relation("PurchaseOrderEventActor", fields: [userId], references: [id], onDelete: SetNull)
+  eventType String   // CREATED, SUBMITTED, APPROVED, REJECTED, SENT, RECEIVED, CLOSED, CANCELLED
+  detail    String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([poId])
+  @@index([eventType])
+}
+
+model PayrollRun {
+  id           String   @id @default(cuid())
+  projectId    String
+  project      OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  label        String?
+  periodStart  DateTime
+  periodEnd    DateTime
+  status       String   @default("DRAFT") // DRAFT, PENDING_APPROVAL, APPROVED, PAID, CANCELLED
+  currency     String   @default("ZAR")
+  totalGross   Float    @default(0)
+  totalTax     Float    @default(0)
+  totalNet     Float    @default(0)
+  approvedById String?
+  approvedAt   DateTime?
+  paidAt       DateTime?
+  createdById  String?
+  createdBy    User? @relation("PayrollRunCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  lines        PayrollLineItem[]
+
+  @@index([projectId])
+  @@index([status])
+}
+
+model PayrollLineItem {
+  id                  String   @id @default(cuid())
+  payrollRunId        String
+  payrollRun          PayrollRun @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  personLabel         String
+  role                String?
+  department          String?
+  shootDayId          String?
+  shootDay            ShootDay? @relation(fields: [shootDayId], references: [id], onDelete: SetNull)
+  castingInvitationId String?
+  castingInvitation   CastingInvitation? @relation(fields: [castingInvitationId], references: [id], onDelete: SetNull)
+  crewInvitationId    String?
+  crewInvitation      CrewInvitation? @relation(fields: [crewInvitationId], references: [id], onDelete: SetNull)
+  daysWorked          Float    @default(1)
+  dayRate             Float    @default(0)
+  grossAmount         Float    @default(0)
+  taxWithheld         Float    @default(0)
+  netAmount           Float    @default(0)
+  unit                String?
+  notes               String?
+  createdAt           DateTime @default(now())
+
+  expense             ProductionExpense?
+
+  @@index([payrollRunId])
+  @@index([shootDayId])
+}
+
+model ProjectBudgetVersion {
+  id               String   @id @default(cuid())
+  budgetId         String
+  budget           ProjectBudget @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  version          Int
+  label            String?
+  status           String   @default("DRAFT") // DRAFT, LOCKED, ARCHIVED
+  totalPlanned     Float    @default(0)
+  currency         String   @default("ZAR")
+  generationSource String?
+  notes            String?
+  createdById      String?
+  createdBy        User? @relation("BudgetVersionCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt        DateTime @default(now())
+  lockedAt         DateTime?
+
+  lines            ProjectBudgetVersionLine[]
+  activeForBudgets ProjectBudget[] @relation("ActiveBudgetVersion")
+
+  @@unique([budgetId, version])
+  @@index([budgetId])
+  @@index([status])
+}
+
+model ProjectBudgetVersionLine {
+  id         String   @id @default(cuid())
+  versionId  String
+  version    ProjectBudgetVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  department String
+  name       String
+  quantity   Float?   @default(1)
+  unitCost   Float?   @default(0)
+  total      Float    @default(0)
+  notes      String?
+
+  @@index([versionId])
+  @@index([department])
+}
+
+model PettyCashFund {
+  id                   String   @id @default(cuid())
+  projectId            String
+  project              OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  custodianUserId      String
+  custodian            User     @relation("PettyCashCustodian", fields: [custodianUserId], references: [id], onDelete: Cascade)
+  name                 String   @default("Petty cash")
+  floatAmount          Float
+  balance              Float
+  currency             String   @default("ZAR")
+  status               String   @default("ACTIVE")
+  lowBalanceThreshold  Float?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  expenses             ProductionExpense[]
+
+  @@index([projectId])
+  @@index([custodianUserId])
+}
+
+model FinanceApprovalStep {
+  id             String   @id @default(cuid())
+  entityType     String   // EXPENSE | PO | PAYROLL
+  entityId       String
+  stepOrder      Int
+  approverUserId String?
+  approver       User?    @relation("FinanceApprovalStepApprover", fields: [approverUserId], references: [id], onDelete: SetNull)
+  approverRole   String?
+  status         String   @default("PENDING")
+  comment        String?
+  decidedAt      DateTime?
+  createdAt      DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([approverUserId])
+}
+
+model GlobalVendor {
+  id                       String   @id @default(cuid())
+  displayName              String
+  normalizedName           String   @unique
+  taxNumber                String?
+  country                  String?
+  vendorType               String?
+  totalSpendAcrossProjects Float    @default(0)
+  projectCount             Int      @default(0)
+  avgPaymentDays           Float?
+  riskScore                Float?
+  metadata                 Json?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  projectVendors           ProjectVendor[]
+}
+
+model BankImportBatch {
+  id           String   @id @default(cuid())
+  projectId    String
+  project      OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  source       String   @default("CSV")
+  fileName     String?
+  importedById String?
+  importedBy   User?    @relation("BankImportBatchUser", fields: [importedById], references: [id], onDelete: SetNull)
+  status       String   @default("PENDING")
+  rowCount     Int      @default(0)
+  matchedCount Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  transactions BankTransaction[]
+
+  @@index([projectId])
+}
+
+model BankTransaction {
+  id              String   @id @default(cuid())
+  batchId         String
+  batch           BankImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  projectId       String
+  transactionDate DateTime
+  description     String?
+  amount          Float
+  currency        String   @default("ZAR")
+  reference       String?
+  matchStatus     String   @default("UNMATCHED")
+  expenseId       String?
+  expense         ProductionExpense? @relation(fields: [expenseId], references: [id], onDelete: SetNull)
+  purchaseOrderId String?
+  purchaseOrder   PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  createdAt       DateTime @default(now())
+
+  @@index([projectId])
+  @@index([batchId])
+  @@index([matchStatus])
 }
 
 // --- Scheduling & call sheets ---
@@ -2645,8 +3071,10 @@ model ShootDay {
   dailiesBatches  DailiesBatch[]
   projectTasks  ProjectTask[]
   controlBoard    ShootDayControlBoard?
+  payrollLineItems PayrollLineItem[]
 
   @@index([projectId])
+  @@index([projectId, date, unit])
   @@index([date])
 }
 
@@ -2741,6 +3169,8 @@ model CastingInvitation {
   createdAt   DateTime @default(now())
   respondedAt DateTime?
 
+  payrollLineItems PayrollLineItem[]
+
   @@index([projectId])
   @@index([roleId])
   @@index([creatorId])
@@ -2784,6 +3214,8 @@ model CrewInvitation {
   createdAt   DateTime @default(now())
   respondedAt DateTime?
 
+  payrollLineItems PayrollLineItem[]
+
   @@index([projectId])
   @@index([needId])
   @@index([creatorId])
@@ -2808,6 +3240,20 @@ model ProjectContract {
   locationListing   LocationListing? @relation(fields: [locationListingId], references: [id], onDelete: SetNull)
   vendorName   String?
   subject      String?
+  recipientType  String?
+  recipientLabel String?
+  recipientEmail String?
+  jurisdiction   String?  @default("South Africa")
+  catalogEntryId String?
+  signingMode    String   @default("PARALLEL") // PARALLEL | SEQUENTIAL
+  approvalRequired Boolean @default(false)
+  executedDocumentUrl String?
+  esignProvider  String?  // STORYTIME | DOCUSIGN | HELLOSIGN
+  esignEnvelopeId String?
+  signatureDeadline DateTime?
+  sentAt       DateTime?
+  viewedAt     DateTime?
+  executedAt   DateTime?
   createdById  String?
   createdBy    User?   @relation("ProjectContractCreator", fields: [createdById], references: [id], onDelete: SetNull)
   createdAt    DateTime @default(now())
@@ -2815,12 +3261,32 @@ model ProjectContract {
 
   versions     ProjectContractVersion[]
   signatures   ProjectSignature[]
+  events       ProjectContractEvent[]
+  approvalSteps ContractApprovalStep[]
+  signers      ContractSigner[]
+  guestTokens  ContractGuestToken[]
+  esignEnvelopes ContractEsignEnvelope[]
 
   @@index([projectId])
   @@index([counterpartyUserId])
   @@index([castingTalentId])
   @@index([crewTeamId])
   @@index([locationListingId])
+}
+
+model ProjectContractEvent {
+  id          String   @id @default(cuid())
+  contractId  String
+  contract    ProjectContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  userId      String?
+  user        User?    @relation("ProjectContractEventActor", fields: [userId], references: [id], onDelete: SetNull)
+  eventType   String
+  detail      String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([contractId])
+  @@index([eventType])
 }
 
 model ProjectContractVersion {
@@ -2855,6 +3321,94 @@ model ProjectSignature {
   @@index([contractId])
   @@index([versionId])
   @@index([userId])
+}
+
+model ContractClause {
+  id            String   @id @default(cuid())
+  projectId     String?
+  project       OriginalProject? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title         String
+  category      String
+  jurisdiction  String?
+  body          String
+  tags          String[] @default([])
+  createdById   String?
+  createdBy     User?    @relation("ContractClauseCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([category])
+  @@index([jurisdiction])
+}
+
+model ContractApprovalStep {
+  id             String   @id @default(cuid())
+  contractId     String
+  contract       ProjectContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  stepOrder      Int
+  approverUserId String?
+  approver       User?    @relation("ContractApprovalStepApprover", fields: [approverUserId], references: [id], onDelete: SetNull)
+  approverRole   String?
+  status         String   @default("PENDING") // PENDING | APPROVED | REJECTED | SKIPPED
+  comment        String?
+  decidedAt      DateTime?
+  createdAt      DateTime @default(now())
+
+  @@index([contractId])
+  @@index([approverUserId])
+}
+
+model ContractSigner {
+  id          String   @id @default(cuid())
+  contractId  String
+  contract    ProjectContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  signOrder   Int      @default(0)
+  partyRole   String
+  label       String
+  email       String?
+  userId      String?
+  user        User?    @relation("ContractSignerUser", fields: [userId], references: [id], onDelete: SetNull)
+  required    Boolean  @default(true)
+  status      String   @default("PENDING") // PENDING | SIGNED | DECLINED | SKIPPED
+  signedAt    DateTime?
+  guestTokens ContractGuestToken[]
+
+  @@index([contractId])
+  @@index([userId])
+  @@index([email])
+}
+
+model ContractGuestToken {
+  id         String   @id @default(cuid())
+  contractId String
+  contract   ProjectContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  signerId   String?
+  signer     ContractSigner? @relation(fields: [signerId], references: [id], onDelete: SetNull)
+  email      String
+  token      String   @unique
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([contractId])
+  @@index([email])
+}
+
+model ContractEsignEnvelope {
+  id          String   @id @default(cuid())
+  contractId  String
+  contract    ProjectContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  provider    String
+  externalId  String?
+  status      String   @default("CREATED")
+  signersJson Json?
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([contractId])
+  @@index([provider])
 }
 
 // --- Funding & pitch decks ---
@@ -3745,12 +4299,52 @@ model CreatorScript {
   title     String
   type      String   // FEATURE, SHORT, EPISODE, OTHER
   content   String   @db.Text
+  /// Story cards, scene colours, locked scenes (Script Writing Studio metadata)
+  studioMeta Json?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  versions  CreatorScriptVersion[]
+  comments  CreatorScriptComment[]
 
   @@index([userId])
   @@index([projectId])
   @@index([userId, projectId])
+}
+
+model CreatorScriptVersion {
+  id          String   @id @default(cuid())
+  scriptId    String
+  script      CreatorScript @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+  versionLabel String?
+  content     String   @db.Text
+  createdById String?
+  createdBy   User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+
+  @@index([scriptId])
+  @@index([createdById])
+}
+
+model CreatorScriptComment {
+  id         String   @id @default(cuid())
+  scriptId   String
+  script     CreatorScript @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+  authorId   String
+  author     User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  body       String   @db.Text
+  lineIndex  Int?
+  sceneHeading String?
+  resolved   Boolean  @default(false)
+  parentId   String?
+  parent     CreatorScriptComment? @relation("ScriptCommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies    CreatorScriptComment[] @relation("ScriptCommentReplies")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([scriptId])
+  @@index([authorId])
+  @@index([parentId])
 }
 
 model IPAsset {
@@ -3938,4 +4532,86 @@ model OpsIncident {
   @@map("ops_incidents")
 }
 
+/// Guest portal access for represented talent (no TALENT user role — agency-managed).
+model CastingTalentPortalToken {
+  id        String   @id @default(cuid())
+  talentId  String
+  talent    CastingTalent @relation(fields: [talentId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([talentId])
+}
+
+/// On-site managers for location listings (distinct from portfolio owner).
+model LocationListingManager {
+  id                 String   @id @default(cuid())
+  listingId          String
+  listing            LocationListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  userId             String
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role               String   @default("MANAGER")
+  canApproveBookings Boolean  @default(false)
+  createdAt          DateTime @default(now())
+
+  @@unique([listingId, userId])
+  @@index([userId])
+}
+
+/// RFID / asset tag tracking for equipment fleet inventory.
+model EquipmentInventoryTag {
+  id               String   @id @default(cuid())
+  equipmentId      String
+  equipment        EquipmentListing @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  companyId        String
+  rfidTag          String   @unique
+  serialNumber     String?
+  status           String   @default("AVAILABLE")
+  lastScanAt       DateTime?
+  lastScanLocation String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([equipmentId])
+  @@index([companyId])
+  @@index([status])
+}
+
+/// Shoot-day meal forecasting for catering companies.
+model CateringMealForecast {
+  id                String   @id @default(cuid())
+  cateringCompanyId String
+  cateringCompany   CateringCompany @relation(fields: [cateringCompanyId], references: [id], onDelete: Cascade)
+  projectId         String?
+  project           OriginalProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  eventDate         String
+  headCount         Int
+  breakfastCount    Int      @default(0)
+  lunchCount        Int      @default(0)
+  dinnerCount       Int      @default(0)
+  specialDiets      Int      @default(0)
+  notes             String?
+  status            String   @default("DRAFT")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([cateringCompanyId])
+  @@index([projectId])
+  @@index([eventDate])
+}
+
+/// Cross-stakeholder sync events (SSE / calendar invalidation when creator changes schedule).
+model StakeholderSyncEvent {
+  id            String   @id @default(cuid())
+  projectId     String
+  project       OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  eventType     String
+  targetUserIds String[]
+  payload       Json?
+  createdAt     DateTime @default(now())
+
+  @@index([projectId])
+  @@index([createdAt])
+}
 

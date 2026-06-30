@@ -5,12 +5,14 @@ export type NotificationItem = {
 };
 
 type NotificationMeta = {
+  reviewRequestId?: string;
   url?: string;
   requestId?: string;
   bookingId?: string;
   inquiryId?: string;
   contentId?: string;
   projectId?: string;
+  contractId?: string;
   pitchId?: string;
   threadId?: string;
   conversationId?: string;
@@ -32,7 +34,15 @@ export function resolveNotificationUrl(
   role?: string | null,
 ): string | null {
   const meta = parseMeta(n.metadata);
+  if (meta.reviewRequestId && meta.projectId) {
+    if (role === "ADMIN" && meta.url?.startsWith("/admin")) return meta.url;
+    return `/creator/projects/${meta.projectId}/pre-production/script-review?executiveRequestId=${meta.reviewRequestId}`;
+  }
   if (meta.url && typeof meta.url === "string") return meta.url;
+
+  if (meta.contractId) {
+    return `/creator/legal/inbox/${meta.contractId}${meta.projectId ? `?projectId=${encodeURIComponent(meta.projectId)}` : ""}`;
+  }
 
   if (meta.contentId) {
     if (role === "CONTENT_CREATOR" || role === "ADMIN") {

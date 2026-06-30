@@ -26,9 +26,42 @@ const COMPANY_PROMPTS = [
   "Tips for my company profile",
 ];
 
+const CASTING_AGENCY_PROMPTS = [
+  "Which talent matches this casting call?",
+  "Summarize open auditions and callbacks",
+  "Flag availability conflicts this week",
+  "Help me respond to the latest inquiry",
+];
+
+const CREW_TEAM_PROMPTS = [
+  "What crew requests need a response today?",
+  "Summarize upcoming project invitations",
+  "Help me quote a day rate for a new job",
+];
+
+const LOCATION_OWNER_PROMPTS = [
+  "Which bookings need approval?",
+  "Summarize permit requirements for my locations",
+  "Forecast revenue from pending bookings",
+];
+
+const EQUIPMENT_PROMPTS = [
+  "Which kit items have overlapping rental requests?",
+  "Summarize fleet utilization this month",
+  "Draft a package quote for a multi-day shoot",
+];
+
+const CATERING_PROMPTS = [
+  "Estimate meal headcount for upcoming events",
+  "Summarize dietary requirements from bookings",
+  "What events are pending confirmation?",
+];
+
 const FUNDER_PROMPTS = [
-  "Explain the funding workflow",
-  "What deals are available?",
+  "Summarize portfolio ROI and milestones",
+  "Which deals need my attention?",
+  "Explain SA production tax incentives",
+  "What opportunities match my investment thesis?",
 ];
 
 const MUSIC_PROMPTS = [
@@ -63,16 +96,44 @@ export function getModocRoleProfile(role: string | null | undefined): ModocRoleP
         quickPrompts: FUNDER_PROMPTS,
       };
     case "CASTING_AGENCY":
+      return {
+        label: "MODOC",
+        subtitle: "Talent · Auditions · Contracts · Pipeline",
+        emptyHint: "Ask about talent matching, auditions, inquiries, contracts, or casting industry questions.",
+        scope: "casting-agency",
+        quickPrompts: CASTING_AGENCY_PROMPTS,
+      };
     case "CREW_TEAM":
-    case "CATERING_COMPANY":
-    case "EQUIPMENT_COMPANY":
+      return {
+        label: "MODOC",
+        subtitle: "Jobs · Call sheets · Crew roster",
+        emptyHint: "Ask about hire requests, project invites, schedules, rates, or production crew workflows.",
+        scope: "crew-team",
+        quickPrompts: CREW_TEAM_PROMPTS,
+      };
     case "LOCATION_OWNER":
       return {
         label: "MODOC",
-        subtitle: "Bookings · Requests · Marketplace",
-        emptyHint: "Ask about your dashboard, open requests, bookings, or how Story Time marketplace works.",
-        scope: role.toLowerCase().replace(/_/g, "-"),
-        quickPrompts: COMPANY_PROMPTS,
+        subtitle: "Properties · Bookings · Permits",
+        emptyHint: "Ask about location bookings, permits, pricing, or property management on Story Time.",
+        scope: "location-owner",
+        quickPrompts: LOCATION_OWNER_PROMPTS,
+      };
+    case "EQUIPMENT_COMPANY":
+      return {
+        label: "MODOC",
+        subtitle: "Fleet · Rentals · Inventory",
+        emptyHint: "Ask about rental requests, fleet availability, pricing packages, or equipment logistics.",
+        scope: "equipment-company",
+        quickPrompts: EQUIPMENT_PROMPTS,
+      };
+    case "CATERING_COMPANY":
+      return {
+        label: "MODOC",
+        subtitle: "Menus · Events · Production meals",
+        emptyHint: "Ask about catering bookings, headcounts, dietary needs, or on-set meal planning.",
+        scope: "catering-company",
+        quickPrompts: CATERING_PROMPTS,
       };
     case "ADMIN":
       return {

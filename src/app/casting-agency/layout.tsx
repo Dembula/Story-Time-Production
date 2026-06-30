@@ -6,7 +6,9 @@ import { useRouter } from "next/navigation";
 import { CompanyPackageGate } from "@/components/layout/company-package-gate";
 import { DashboardSidebarShell } from "@/components/layout/dashboard-sidebar-shell";
 import { NotificationBell } from "@/components/layout/notification-bell";
-const navItems = [
+import { mergeStakeholderNavSections } from "@/lib/stakeholder-ecosystem/portal-nav";
+
+const businessNavItems = [
   { href: "/casting-agency/dashboard", label: "Dashboard" },
   { href: "/casting-agency/talent", label: "Talent roster" },
   { href: "/casting-agency/auditions", label: "Auditions" },
@@ -47,7 +49,7 @@ export default function CastingAgencyLayout({ children }: { children: React.Reac
           </button>
         </>
       }
-      navSections={[{ items: navItems }]}
+      navSections={mergeStakeholderNavSections("casting-agency", businessNavItems)}
       sidebarFooter={
         <button
           onClick={handleSignOut}

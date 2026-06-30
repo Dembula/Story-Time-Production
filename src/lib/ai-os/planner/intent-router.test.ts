@@ -30,6 +30,19 @@ describe("planModocOrchestration", () => {
     assert.equal(plan.taskKind, "chat");
   });
 
+  it("routes web current-events intent to agent.search", () => {
+    const plan = planModocOrchestration({
+      sessionRole: CREATOR_VA_ROLE,
+      scope: "creator",
+      path: "/creator",
+      lastUserText: "What is the latest film industry news this week?",
+    });
+
+    assert.equal(plan.primaryAgentId, "agent.search");
+    assert.equal(plan.needsWebSearch, true);
+    assert.equal(plan.responseMode, "conversational");
+  });
+
   it("defaults to modoc.legacy for ambiguous scope", () => {
     const plan = planModocOrchestration({
       sessionRole: "ADMIN",

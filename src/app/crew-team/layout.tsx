@@ -6,12 +6,15 @@ import { useRouter } from "next/navigation";
 import { CompanyPackageGate } from "@/components/layout/company-package-gate";
 import { DashboardSidebarShell } from "@/components/layout/dashboard-sidebar-shell";
 import { NotificationBell } from "@/components/layout/notification-bell";
-const navItems = [
+import { mergeStakeholderNavSections } from "@/lib/stakeholder-ecosystem/portal-nav";
+
+const businessNavItems = [
   { href: "/crew-team/dashboard", label: "Dashboard" },
   { href: "/crew-team/team", label: "Crew roster" },
   { href: "/crew-team/deals", label: "Jobs pipeline" },
   { href: "/crew-team/invitations", label: "Project invites" },
   { href: "/crew-team/requests", label: "Request inbox" },
+  { href: "/crew-team/contracts", label: "Contracts" },
   { href: "/crew-team/profile", label: "Company profile" },
   { href: "/crew-team/wallet", label: "Wallet" },
 ];
@@ -44,7 +47,7 @@ export default function CrewTeamLayout({ children }: { children: React.ReactNode
           </button>
         </>
       }
-      navSections={[{ items: navItems }]}
+      navSections={mergeStakeholderNavSections("crew-team", businessNavItems)}
       sidebarFooter={
         <button
           onClick={handleSignOut}

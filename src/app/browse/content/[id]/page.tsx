@@ -71,7 +71,14 @@ export default async function ContentDetailPage({
           },
         },
       },
-      crewMembers: { orderBy: { createdAt: "asc" } },
+      crewMembers: {
+        orderBy: { createdAt: "asc" },
+        include: {
+          creditPerson: {
+            select: { id: true, imageUrl: true, userId: true },
+          },
+        },
+      },
       seasons: {
         where: { published: true },
         orderBy: { seasonNumber: "asc" },

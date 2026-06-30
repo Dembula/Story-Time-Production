@@ -5,6 +5,7 @@ import { ensureProjectAccess } from "@/lib/project-access";
 import { suggestScriptBreakdownAfterSave } from "@/lib/modoc/proactive";
 import type { ModocActionPayload, ModocActionType } from "./action-types";
 import type { ModocActionResult } from "./actions";
+import { findExpenseByIdOrTitle, softDeleteProductionExpense, updateProductionExpense } from "@/lib/expense-service";
 import { parseVaActionDate, resolveVaProjectId } from "./va-scheduling";
 
 async function projectCtx(
@@ -326,19 +327,17 @@ export async function executeVaCrudAction(
       if (!payload.taskId && !payload.title) {
         return { ok: false, error: "expense id (taskId) or title required", status: 400 };
       }
-      const expense = payload.taskId
-        ? await prisma.productionExpense.findFirst({ where: { id: payload.taskId, projectId: ctx.projectId } })
-        : await prisma.productionExpense.findFirst({
-            where: { projectId: ctx.projectId, description: payload.title!.trim() },
-          });
+      const expense = await findExpenseByIdOrTitle(ctx.projectId, payload.taskId, payload.title);
       if (!expense) return { ok: false, error: "Expense not found", status: 404 };
-      await prisma.productionExpense.update({
-        where: { id: expense.id },
-        data: {
-          ...(payload.description !== undefined ? { description: payload.description } : {}),
-          ...(payload.amount !== undefined ? { amount: payload.amount } : {}),
+      await updateProductionExpense(ctx.projectId, expense.id, userId, {
+        ...(payload.amount !== undefined ? { amount: payload.amount } : {}),
+        ...(payload.vendor !== undefined ? { vendor: payload.vendor } : {}),
+        ...(payload.description !== undefined || payload.title !== undefined
+          ? { description: payload.description ?? payload.title }
+          : {}),
+        meta: {
           ...(payload.category !== undefined ? { category: payload.category } : {}),
-          ...(payload.vendor !== undefined ? { vendor: payload.vendor } : {}),
+          ...(payload.department !== undefined ? { category: payload.department } : {}),
         },
       });
       return { ok: true, message: "Production expense updated.", data: { expenseId: expense.id } };
@@ -347,14 +346,14 @@ export async function executeVaCrudAction(
     case "delete_production_expense": {
       const ctx = await projectCtx(userId, payload);
       if ("ok" in ctx) return ctx;
-      const expense = payload.taskId
-        ? await prisma.productionExpense.findFirst({ where: { id: payload.taskId, projectId: ctx.projectId } })
-        : await prisma.productionExpense.findFirst({
-            where: { projectId: ctx.projectId, description: payload.title?.trim() ?? payload.description?.trim() ?? "" },
-          });
+      const expense = await findExpenseByIdOrTitle(
+        ctx.projectId,
+        payload.taskId,
+        payload.title ?? payload.description,
+      );
       if (!expense) return { ok: false, error: "Expense not found", status: 404 };
-      await prisma.productionExpense.delete({ where: { id: expense.id } });
-      return { ok: true, message: "Production expense removed.", data: { expenseId: expense.id } };
+      await softDeleteProductionExpense(ctx.projectId, expense.id, userId);
+      return { ok: true, message: "Production expense archived.", data: { expenseId: expense.id } };
     }
 
     case "update_incident_report":

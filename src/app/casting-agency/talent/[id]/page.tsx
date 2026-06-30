@@ -45,6 +45,8 @@ export default function CastingAgencyTalentDetailPage() {
   const [saveError, setSaveError] = useState("");
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [loadError, setLoadError] = useState("");
+  const [portalUrl, setPortalUrl] = useState("");
+  const [portalLoading, setPortalLoading] = useState(false);
   const [form, setForm] = useState({
     name: "",
     plainBio: "",
@@ -272,6 +274,30 @@ export default function CastingAgencyTalentDetailPage() {
             <Link href="/casting-agency/availability" className="text-sm text-violet-400">
               Manage availability blocks →
             </Link>
+            <div className="rounded-xl border border-orange-500/20 bg-orange-500/5 p-3">
+              <p className="text-xs font-medium text-orange-200">Talent portal (no login required)</p>
+              <p className="mt-1 text-[11px] text-slate-400">Share a secure link so talent can view their schedule and contracts — agency-managed, no TALENT role.</p>
+              <button
+                type="button"
+                disabled={portalLoading}
+                onClick={async () => {
+                  setPortalLoading(true);
+                  const r = await fetch(`/api/casting-agency/talent/${id}/portal-token`, { method: "POST" });
+                  const data = await r.json();
+                  setPortalLoading(false);
+                  if (data.url) {
+                    setPortalUrl(data.url);
+                    await navigator.clipboard.writeText(data.url).catch(() => {});
+                  }
+                }}
+                className="mt-2 rounded bg-orange-500/20 px-3 py-1.5 text-xs text-orange-200 hover:bg-orange-500/30 disabled:opacity-50"
+              >
+                {portalLoading ? "Generating…" : "Generate & copy portal link"}
+              </button>
+              {portalUrl && (
+                <p className="mt-2 break-all text-[10px] text-slate-500">{portalUrl}</p>
+              )}
+            </div>
           </div>
         </OpsSection>
       </div>

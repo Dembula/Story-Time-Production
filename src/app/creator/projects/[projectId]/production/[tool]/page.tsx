@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Suspense, useState, useEffect, useRef, useMemo, useCallback } from "react";
 import Link from "next/link";
@@ -21,6 +21,7 @@ import { formatZar } from "@/lib/format-currency-zar";
 import { CreatorCateringClient } from "@/app/creator/catering/creator-catering-client";
 import { mutationErrorMessage, projectToolFetch, projectToolQueryFn } from "@/lib/project-tool-fetch";
 import { ToolActionError } from "@/components/project-tools/tool-action-error";
+import { ExpenseTrackerStudio } from "@/components/expense/expense-tracker-studio";
 
 interface ProductionToolPageProps {
   params: Promise<{ projectId?: string; tool: string }>;
@@ -130,7 +131,7 @@ export default function ProductionToolPage({ params }: ProductionToolPageProps) 
     return (
       <>
         {!hasProject && <UnlinkedBanner />}
-        <ExpenseTracker projectId={projectId} title={title} />
+        <ExpenseTrackerStudio projectId={projectId} title={title} />
       </>
     );
   }
@@ -353,7 +354,7 @@ function OnSetTasks({ projectId, title }: { projectId?: string; title: string })
         <div>
           <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
           <p className="text-sm text-slate-400 mt-1">
-            Kanban for on-set tasks. Create tasks, move them through To do → In progress → Done. Tasks created from Risk, Table Reads, or Dailies can appear here.
+            Kanban for on-set tasks. Create tasks, move them through To do â†’ In progress â†’ Done. Tasks created from Risk, Table Reads, or Dailies can appear here.
           </p>
         </div>
         
@@ -407,7 +408,7 @@ function OnSetTasks({ projectId, title }: { projectId?: string; title: string })
               if (newTitle.trim()) createMutation.mutate();
             }}
           >
-            {createMutation.isPending ? "Adding…" : "Add task"}
+            {createMutation.isPending ? "Addingâ€¦" : "Add task"}
           </Button>
         </div>
         <div className="flex flex-wrap items-end gap-3 mt-3 pt-3 border-t border-slate-800">
@@ -437,7 +438,7 @@ function OnSetTasks({ projectId, title }: { projectId?: string; title: string })
               {scenesList.map((s) => (
                 <option key={s.id} value={s.id}>
                   Sc. {s.number}
-                  {s.heading ? ` — ${s.heading.slice(0, 24)}` : ""}
+                  {s.heading ? ` â€” ${s.heading.slice(0, 24)}` : ""}
                 </option>
               ))}
             </select>
@@ -674,12 +675,12 @@ function Column({
                   onClick={() => onDelete(t.id)}
                   aria-label="Delete task"
                 >
-                  ×
+                  Ã—
                 </Button>
               )}
               {onStatus && (
                 <Button size="sm" variant="ghost" className="text-xs text-slate-400 shrink-0" onClick={() => onStatus(t.id)}>
-                  →
+                  â†’
                 </Button>
               )}
             </div>
@@ -883,7 +884,7 @@ function EquipmentTracking({ projectId, title }: { projectId?: string; title: st
           <select value={dayFilter} onChange={(e) => setDayFilter(e.target.value)} className="h-9 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white">
             <option value="">All shoot days</option>
             {shootDays.map((d) => (
-              <option key={d.id} value={d.id}>{new Date(d.date).toLocaleDateString()} · {d.status}</option>
+              <option key={d.id} value={d.id}>{new Date(d.date).toLocaleDateString()} Â· {d.status}</option>
             ))}
           </select>
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-9 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white">
@@ -910,8 +911,8 @@ function EquipmentTracking({ projectId, title }: { projectId?: string; title: st
             <ul className="space-y-1">
               {daySnapshot.map((row) => (
                 <li key={`${row.id}-${row.status}`} className="rounded-lg border border-slate-800 bg-slate-900/70 px-2 py-1 text-xs text-slate-200">
-                  {row.category} · Qty {row.quantity} · {row.status.replaceAll("_", " ")}
-                  {row.assignedCrewName ? ` · ${row.assignedCrewName}` : ""}
+                  {row.category} Â· Qty {row.quantity} Â· {row.status.replaceAll("_", " ")}
+                  {row.assignedCrewName ? ` Â· ${row.assignedCrewName}` : ""}
                 </li>
               ))}
             </ul>
@@ -927,7 +928,7 @@ function EquipmentTracking({ projectId, title }: { projectId?: string; title: st
               {allDaysSnapshot.map(({ day, rows }) => (
                 <div key={day.id} className="rounded-lg border border-slate-800 bg-slate-900/60 p-2">
                   <p className="text-[11px] font-medium text-slate-200">
-                    {new Date(day.date).toLocaleDateString()} · {day.status}
+                    {new Date(day.date).toLocaleDateString()} Â· {day.status}
                   </p>
                   {rows.length === 0 ? (
                     <p className="text-[11px] text-slate-500 mt-1">No equipment assigned.</p>
@@ -935,8 +936,8 @@ function EquipmentTracking({ projectId, title }: { projectId?: string; title: st
                     <ul className="space-y-1 mt-1">
                       {rows.map((row) => (
                         <li key={`${day.id}-${row.id}-${row.status}`} className="rounded border border-slate-800 bg-slate-900/70 px-2 py-1 text-[11px] text-slate-200">
-                          {row.category} · Qty {row.quantity} · {row.status.replaceAll("_", " ")}
-                          {row.assignedCrewName ? ` · ${row.assignedCrewName}` : ""}
+                          {row.category} Â· Qty {row.quantity} Â· {row.status.replaceAll("_", " ")}
+                          {row.assignedCrewName ? ` Â· ${row.assignedCrewName}` : ""}
                         </li>
                       ))}
                     </ul>
@@ -962,7 +963,7 @@ function EquipmentTracking({ projectId, title }: { projectId?: string; title: st
                   href={`/creator/projects/${projectId}/pre-production/equipment-planning`}
                   className="text-xs text-orange-400 hover:underline"
                 >
-                  Add equipment in Pre-Production Equipment Planning →
+                  Add equipment in Pre-Production Equipment Planning â†’
                 </Link>
               )}
             </div>
@@ -977,10 +978,10 @@ function EquipmentTracking({ projectId, title }: { projectId?: string; title: st
                         <span className="text-white">{i.category}</span>
                         {i.description && <p className="text-[11px] text-slate-500 mt-0.5">{i.description}</p>}
                         <p className="text-[11px] text-slate-400 mt-0.5">
-                          Tag {i.tracking.uniqueTag || "—"} · Provider {i.tracking.ownerProviderName || i.equipmentListing?.companyName || "—"} · Daily rate {formatZar(Math.round(i.market?.dailyRate ?? 0), { maximumFractionDigits: 0 })}
+                          Tag {i.tracking.uniqueTag || "â€”"} Â· Provider {i.tracking.ownerProviderName || i.equipmentListing?.companyName || "â€”"} Â· Daily rate {formatZar(Math.round(i.market?.dailyRate ?? 0), { maximumFractionDigits: 0 })}
                         </p>
                         <p className="text-[11px] text-slate-400">
-                          Assigned crew {i.tracking.assignedCrewName || "Unassigned"} · Open issues {i.tracking.openIssueCount}
+                          Assigned crew {i.tracking.assignedCrewName || "Unassigned"} Â· Open issues {i.tracking.openIssueCount}
                         </p>
                       </div>
                       <div className="mt-2 flex flex-wrap items-center gap-1">
@@ -1083,8 +1084,8 @@ function EquipmentTracking({ projectId, title }: { projectId?: string; title: st
                             <ul className="space-y-1 mt-2">
                               {i.tracking.issues.slice().reverse().slice(0, 5).map((issue) => (
                                 <li key={issue.id} className="rounded border border-slate-800 bg-slate-900/60 px-2 py-1 text-[11px] text-slate-300">
-                                  [{issue.severity}] {issue.type.replaceAll("_", " ")} — {issue.description}
-                                  <span className="text-slate-500"> · {new Date(issue.createdAt).toLocaleString()}</span>
+                                  [{issue.severity}] {issue.type.replaceAll("_", " ")} â€” {issue.description}
+                                  <span className="text-slate-500"> Â· {new Date(issue.createdAt).toLocaleString()}</span>
                                   {issue.status === "OPEN" && (
                                     <button
                                       type="button"
@@ -1196,8 +1197,8 @@ function EquipmentTracking({ projectId, title }: { projectId?: string; title: st
                             <ul className="space-y-1 mt-2">
                               {i.tracking.checklistEntries.slice().reverse().slice(0, 4).map((entry) => (
                                 <li key={entry.id} className="rounded border border-slate-800 bg-slate-900/60 px-2 py-1 text-[11px] text-slate-300">
-                                  {entry.physicallyPresent ? "Present" : "Missing"} · {entry.label}
-                                  <span className="text-slate-500"> · {new Date(entry.checkedAt).toLocaleString()}</span>
+                                  {entry.physicallyPresent ? "Present" : "Missing"} Â· {entry.label}
+                                  <span className="text-slate-500"> Â· {new Date(entry.checkedAt).toLocaleString()}</span>
                                   {entry.photoUrl ? (
                                     <a href={entry.photoUrl} target="_blank" rel="noreferrer" className="ml-2 text-orange-300 hover:underline">
                                       Proof photo
@@ -1213,7 +1214,7 @@ function EquipmentTracking({ projectId, title }: { projectId?: string; title: st
                       </div>
                       {i.tracking.movementLogs.length > 0 && (
                         <p className="text-[11px] text-slate-500 mt-2">
-                          Last movement: {i.tracking.movementLogs[i.tracking.movementLogs.length - 1]?.event.replaceAll("_", " ")} ·{" "}
+                          Last movement: {i.tracking.movementLogs[i.tracking.movementLogs.length - 1]?.event.replaceAll("_", " ")} Â·{" "}
                           {new Date(i.tracking.movementLogs[i.tracking.movementLogs.length - 1]?.at || Date.now()).toLocaleString()}
                         </p>
                       )}
@@ -1400,7 +1401,7 @@ function ShootProgress({ projectId, title }: { projectId?: string; title: string
         <div className="creator-glass-panel p-3">
           <p className="text-[11px] text-slate-400">Timeline drift</p>
           <p className="text-xl font-semibold text-white">{overall.scheduleDriftDays ?? 0}d</p>
-          <p className="text-[11px] text-slate-500">plan {overall.estimatedTimelineDays ?? 0}d · actual {overall.actualTimelineDays ?? 0}d</p>
+          <p className="text-[11px] text-slate-500">plan {overall.estimatedTimelineDays ?? 0}d Â· actual {overall.actualTimelineDays ?? 0}d</p>
         </div>
         <div className="creator-glass-panel p-3">
           <p className="text-[11px] text-slate-400">Remaining scenes</p>
@@ -1446,11 +1447,11 @@ function ShootProgress({ projectId, title }: { projectId?: string; title: string
               <div key={d.shootDayId} className="rounded-lg border border-slate-800 bg-slate-900/60 p-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-sm text-white">
-                    {new Date(d.date).toLocaleDateString()} · {d.status}
+                    {new Date(d.date).toLocaleDateString()} Â· {d.status}
                     {d.behindSchedule ? <span className="ml-2 text-red-300">Behind schedule</span> : null}
                   </p>
                   <p className="text-xs text-slate-400">
-                    {d.scenesCompleted}/{d.totalScenesScheduled} scenes · {d.completionPercent}% · delay {d.delayMinutes}m
+                    {d.scenesCompleted}/{d.totalScenesScheduled} scenes Â· {d.completionPercent}% Â· delay {d.delayMinutes}m
                   </p>
                 </div>
                 <div className="mt-1 h-1.5 rounded-full bg-slate-800 overflow-hidden">
@@ -1476,7 +1477,7 @@ function ShootProgress({ projectId, title }: { projectId?: string; title: string
                 return (
                   <div key={`timeline-${d.shootDayId}`} className="rounded-lg border border-slate-800 bg-slate-900/60 p-2">
                     <p className="text-[11px] text-slate-300 mb-1">
-                      {new Date(d.date).toLocaleDateString()} · {d.status} · {d.completionPercent}%
+                      {new Date(d.date).toLocaleDateString()} Â· {d.status} Â· {d.completionPercent}%
                     </p>
                     <div className="flex flex-wrap gap-1">
                       {dayScenes.map((s) => (
@@ -1492,7 +1493,7 @@ function ShootProgress({ projectId, title }: { projectId?: string; title: string
                                   : "bg-slate-700/40 text-slate-300"
                           }`}
                         >
-                          S{s.sceneNumber} · {s.completionPercent}%
+                          S{s.sceneNumber} Â· {s.completionPercent}%
                         </span>
                       ))}
                       {dayScenes.length === 0 && <span className="text-[10px] text-slate-500">No scenes linked</span>}
@@ -1514,7 +1515,7 @@ function ShootProgress({ projectId, title }: { projectId?: string; title: string
           >
             <option value="">All shoot days</option>
             {days.map((d) => (
-              <option key={d.shootDayId} value={d.shootDayId}>{new Date(d.date).toLocaleDateString()} · {d.status}</option>
+              <option key={d.shootDayId} value={d.shootDayId}>{new Date(d.date).toLocaleDateString()} Â· {d.status}</option>
             ))}
           </select>
           <select
@@ -1536,9 +1537,9 @@ function ShootProgress({ projectId, title }: { projectId?: string; title: string
             {filteredScenes.map((s) => (
               <div key={s.shootDaySceneId} className="rounded-lg border border-slate-800 bg-slate-900/60 p-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm text-white">Scene {s.sceneNumber}{s.heading ? ` · ${s.heading}` : ""}</p>
+                  <p className="text-sm text-white">Scene {s.sceneNumber}{s.heading ? ` Â· ${s.heading}` : ""}</p>
                   <p className="text-xs text-slate-400">
-                    {s.status.replaceAll("_", " ")} · {s.completionPercent}% · est {s.estimatedDurationMinutes}m / act {s.actualDurationMinutes ?? "—"}m
+                    {s.status.replaceAll("_", " ")} Â· {s.completionPercent}% Â· est {s.estimatedDurationMinutes}m / act {s.actualDurationMinutes ?? "â€”"}m
                   </p>
                 </div>
                 <div className="mt-1 h-1.5 rounded-full bg-slate-800 overflow-hidden">
@@ -1556,8 +1557,8 @@ function ShootProgress({ projectId, title }: { projectId?: string; title: string
                   />
                 </div>
                 <p className="mt-1 text-[11px] text-slate-500">
-                  Task progress {s.taskProgressPercent ?? "—"}% · Equipment ready {s.equipmentReadyPercent ?? "—"}% · incidents {s.relatedIncidentCount}
-                  {s.hasBlockers ? " · blockers active" : ""}
+                  Task progress {s.taskProgressPercent ?? "â€”"}% Â· Equipment ready {s.equipmentReadyPercent ?? "â€”"}% Â· incidents {s.relatedIncidentCount}
+                  {s.hasBlockers ? " Â· blockers active" : ""}
                 </p>
                 <div className="mt-2 grid gap-1 md:grid-cols-[130px_80px_1fr_1fr_1fr_auto]">
                   <select
@@ -1825,11 +1826,11 @@ function ContinuityManager({ projectId, title }: { projectId?: string; title: st
         <div className="grid gap-2 md:grid-cols-4">
           <select value={sceneFilter} onChange={(e) => setSceneFilter(e.target.value)} className="h-9 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white">
             <option value="">All scenes</option>
-            {scenes.map((s) => <option key={s.id} value={s.id}>Scene {s.number}{s.heading ? ` · ${s.heading}` : ""}</option>)}
+            {scenes.map((s) => <option key={s.id} value={s.id}>Scene {s.number}{s.heading ? ` Â· ${s.heading}` : ""}</option>)}
           </select>
           <select value={dayFilter} onChange={(e) => setDayFilter(e.target.value)} className="h-9 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white">
             <option value="">All shoot days</option>
-            {shootDays.map((d) => <option key={d.id} value={d.id}>{new Date(d.date).toLocaleDateString()} · {d.status}</option>)}
+            {shootDays.map((d) => <option key={d.id} value={d.id}>{new Date(d.date).toLocaleDateString()} Â· {d.status}</option>)}
           </select>
           <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="h-9 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white">
             <option value="">All categories</option>
@@ -1922,17 +1923,17 @@ function ContinuityManager({ projectId, title }: { projectId?: string; title: st
                   return (
                     <div key={scene.id} className="rounded-lg border border-slate-800 bg-slate-900/60 p-2">
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="text-sm text-white">Scene {scene.number}{scene.heading ? ` · ${scene.heading}` : ""}</p>
-                        <span className="text-[11px] text-slate-400">{scene.intExt ?? "—"} · {scene.dayNight ?? "—"} · {list.length} notes</span>
+                        <p className="text-sm text-white">Scene {scene.number}{scene.heading ? ` Â· ${scene.heading}` : ""}</p>
+                        <span className="text-[11px] text-slate-400">{scene.intExt ?? "â€”"} Â· {scene.dayNight ?? "â€”"} Â· {list.length} notes</span>
                       </div>
-                      <p className="text-[11px] text-slate-500">Characters: {scene.characters.map((c) => c.name).join(", ") || "—"}</p>
+                      <p className="text-[11px] text-slate-500">Characters: {scene.characters.map((c) => c.name).join(", ") || "â€”"}</p>
                       {list.length > 0 ? (
                         <div className="mt-2 grid gap-2 md:grid-cols-2">
                           {list.slice(0, 6).map((n) => (
                             <div key={n.id} className={`rounded border px-2 py-1.5 text-[11px] ${flags.inconsistentNoteIds?.includes(n.id) ? "border-red-600/60 bg-red-950/20" : "border-slate-800 bg-slate-900/80"}`}>
-                              <p className="text-slate-300">[{n.meta.category.replaceAll("_"," ")}]{n.meta.takeNumber ? ` Take ${n.meta.takeNumber}` : ""} {n.meta.takeStatus ? `· ${n.meta.takeStatus}` : ""}</p>
+                              <p className="text-slate-300">[{n.meta.category.replaceAll("_"," ")}]{n.meta.takeNumber ? ` Take ${n.meta.takeNumber}` : ""} {n.meta.takeStatus ? `Â· ${n.meta.takeStatus}` : ""}</p>
                               <p className="text-slate-200 mt-0.5">{n.body}</p>
-                              <p className="text-slate-500 mt-0.5">{new Date(n.createdAt).toLocaleString()} · {n.createdBy?.name ?? n.createdBy?.email ?? "Unknown"}</p>
+                              <p className="text-slate-500 mt-0.5">{new Date(n.createdAt).toLocaleString()} Â· {n.createdBy?.name ?? n.createdBy?.email ?? "Unknown"}</p>
                               {(n.meta.linkedImageUrls.length > 0 || n.meta.linkedVideoUrls.length > 0) && (
                                 <div className="mt-1 flex flex-wrap gap-1">
                                   {n.meta.linkedImageUrls.slice(0, 3).map((url, idx) => (
@@ -1980,11 +1981,11 @@ function ContinuityManager({ projectId, title }: { projectId?: string; title: st
             <p className="text-xs text-slate-400 uppercase tracking-wide">Side-by-side compare</p>
             <select value={compareLeftId} onChange={(e) => setCompareLeftId(e.target.value)} className="h-9 w-full rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white">
               <option value="">Previous reference</option>
-              {notes.map((n) => <option key={`L-${n.id}`} value={n.id}>S{n.scene?.number ?? "?"} · {n.meta.category} · {new Date(n.createdAt).toLocaleDateString()}</option>)}
+              {notes.map((n) => <option key={`L-${n.id}`} value={n.id}>S{n.scene?.number ?? "?"} Â· {n.meta.category} Â· {new Date(n.createdAt).toLocaleDateString()}</option>)}
             </select>
             <select value={compareRightId} onChange={(e) => setCompareRightId(e.target.value)} className="h-9 w-full rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white">
               <option value="">Current capture</option>
-              {notes.map((n) => <option key={`R-${n.id}`} value={n.id}>S{n.scene?.number ?? "?"} · {n.meta.category} · {new Date(n.createdAt).toLocaleDateString()}</option>)}
+              {notes.map((n) => <option key={`R-${n.id}`} value={n.id}>S{n.scene?.number ?? "?"} Â· {n.meta.category} Â· {new Date(n.createdAt).toLocaleDateString()}</option>)}
             </select>
             {compare?.left && compare?.right ? (
               <div className="grid grid-cols-2 gap-2">
@@ -2007,7 +2008,7 @@ function ContinuityManager({ projectId, title }: { projectId?: string; title: st
                   )}
                 </div>
                 <div className="col-span-2 rounded border border-slate-800 bg-slate-900/70 p-2 text-[11px] text-slate-300">
-                  {compare.left.meta.category} → {compare.right.meta.category} · Take {compare.left.meta.takeNumber ?? "—"} → {compare.right.meta.takeNumber ?? "—"}
+                  {compare.left.meta.category} â†’ {compare.right.meta.category} Â· Take {compare.left.meta.takeNumber ?? "â€”"} â†’ {compare.right.meta.takeNumber ?? "â€”"}
                 </div>
               </div>
             ) : (
@@ -2087,436 +2088,6 @@ function DailiesReview({ projectId, title }: { projectId?: string; title: string
   );
 }
 
-function ExpenseTracker({ projectId, title }: { projectId?: string; title: string }) {
-  const { deviceClass, orientation } = useAdaptiveUi();
-  const queryClient = useQueryClient();
-  const hasProject = !!projectId;
-  const [toast, setToast] = useState<string | null>(null);
-  const [categoryFilter, setCategoryFilter] = useState("");
-  const [approvalFilter, setApprovalFilter] = useState("");
-  const [paymentFilter, setPaymentFilter] = useState("");
-  const [receiptUploading, setReceiptUploading] = useState(false);
-  const [proofUploading, setProofUploading] = useState(false);
-  const [form, setForm] = useState({
-    title: "",
-    category: "MISCELLANEOUS",
-    department: "MISCELLANEOUS",
-    sceneId: "",
-    shootDayId: "",
-    amount: "",
-    vendor: "",
-    paymentMethod: "OTHER",
-    notes: "",
-    fundingSource: "",
-    paymentDueAt: "",
-  });
-  const [receiptUrls, setReceiptUrls] = useState<string[]>([]);
-  const [paymentProofUrls, setPaymentProofUrls] = useState<string[]>([]);
-
-  const { data: expensesData, isFetching } = useQuery({
-    queryKey: ["project-expenses", projectId],
-    queryFn: async () => {
-      const r = await fetch(`/api/creator/projects/${projectId}/expenses`);
-      if (!r.ok) throw new Error("Failed to load expenses");
-      return r.json();
-    },
-    enabled: hasProject,
-    refetchInterval: 5000,
-    refetchOnWindowFocus: true,
-  });
-  const { data: budgetData } = useQuery({
-    queryKey: ["project-budget", projectId],
-    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/budget`),
-    enabled: hasProject,
-  });
-  const { data: scheduleData } = useQuery({
-    queryKey: ["project-schedule", projectId],
-    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/schedule`),
-    enabled: hasProject,
-  });
-  const scenes = (scheduleData?.scenes ?? []) as Array<{ id: string; number: string; heading: string | null }>;
-  const shootDays = (scheduleData?.shootDays ?? []) as Array<{ id: string; date: string; status: string }>;
-
-  const expenses = useMemo(
-    () =>
-      ((expensesData?.expenses ?? []) as Array<{
-        id: string;
-        amount: number;
-        vendor: string | null;
-        department: string | null;
-        spentAt: string;
-        meta: {
-          title: string;
-          category: string;
-          sceneId: string | null;
-          shootDayId: string | null;
-          paymentMethod: string | null;
-          notes: string | null;
-          receiptUrls: string[];
-          paymentProofUrls: string[];
-          fundingSource: string | null;
-          approvalStatus: string;
-          paymentStatus: string;
-          paymentDueAt: string | null;
-        };
-      }>),
-    [expensesData?.expenses],
-  );
-  const dashboard = (expensesData?.dashboard ?? {}) as {
-    totalBudget: number;
-    totalSpend: number;
-    remainingFunds: number;
-    fundingLimit: number;
-    fundingRemaining: number | null;
-    burnRateDaily: number;
-    topCostDrivers: Array<{ category: string; amount: number }>;
-    pendingApproval: number;
-    unpaidCount: number;
-  };
-  const comparison = (expensesData?.comparison ?? {}) as {
-    byDepartment?: Array<{ key: string; budgeted: number; actual: number; remaining: number; variance: number }>;
-    byScene?: Array<{ sceneId: string; sceneNumber: string; actual: number; variance: number }>;
-    byProductionDay?: Array<{ shootDayId: string; date: string | null; actual: number; variance: number }>;
-    overall?: { budgeted: number; actual: number; remaining: number; variance: number };
-  };
-  const alerts = (expensesData?.alerts ?? []) as Array<{ type: string; severity: string; message: string }>;
-  const burnRate = (expensesData?.burnRate ?? []) as Array<{ date: string; amount: number }>;
-
-  const filteredExpenses = useMemo(
-    () =>
-      expenses.filter((e) => {
-        if (categoryFilter && (e.meta.category ?? "").toUpperCase() !== categoryFilter) return false;
-        if (approvalFilter && (e.meta.approvalStatus ?? "") !== approvalFilter) return false;
-        if (paymentFilter && (e.meta.paymentStatus ?? "") !== paymentFilter) return false;
-        return true;
-      }),
-    [expenses, categoryFilter, approvalFilter, paymentFilter],
-  );
-
-  const createMutation = useMutation({
-    mutationFn: async () => {
-      const amount = Number(form.amount);
-      const res = await fetch(`/api/creator/projects/${projectId}/expenses`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: form.title,
-          category: form.category,
-          department: form.department,
-          sceneId: form.sceneId || null,
-          shootDayId: form.shootDayId || null,
-          amount,
-          vendor: form.vendor || null,
-          paymentMethod: form.paymentMethod,
-          notes: form.notes || null,
-          fundingSource: form.fundingSource || null,
-          paymentDueAt: form.paymentDueAt ? new Date(form.paymentDueAt).toISOString() : null,
-          receiptUrls,
-          paymentProofUrls,
-          approvalStatus: "PENDING",
-          paymentStatus: "UNPAID",
-          spentAt: new Date().toISOString(),
-        }),
-      });
-      if (!res.ok) throw new Error("Failed to create expense");
-      return res.json();
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["project-expenses", projectId] });
-      setForm({
-        title: "",
-        category: "MISCELLANEOUS",
-        department: "MISCELLANEOUS",
-        sceneId: "",
-        shootDayId: "",
-        amount: "",
-        vendor: "",
-        paymentMethod: "OTHER",
-        notes: "",
-        fundingSource: "",
-        paymentDueAt: "",
-      });
-      setReceiptUrls([]);
-      setPaymentProofUrls([]);
-      setToast("Expense logged.");
-    },
-    onError: (e) => setToast((e as Error).message),
-  });
-
-  const patchMutation = useMutation({
-    mutationFn: async (payload: Record<string, unknown>) => {
-      const res = await fetch(`/api/creator/projects/${projectId}/expenses`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) throw new Error("Failed to update expense");
-      return res.json();
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["project-expenses", projectId] });
-      setToast("Expense updated.");
-    },
-    onError: (e) => setToast((e as Error).message),
-  });
-
-  const autoCaptureMutation = useMutation({
-    mutationFn: async (source: "SIGNED_CONTRACTS" | "EQUIPMENT_USAGE") => {
-      const res = await fetch(`/api/creator/projects/${projectId}/expenses`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "AUTO_CAPTURE", autoSource: source }),
-      });
-      if (!res.ok) throw new Error("Auto-capture failed");
-      return res.json();
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["project-expenses", projectId] });
-      setToast("Auto-captured expenses generated.");
-    },
-    onError: (e) => setToast((e as Error).message),
-  });
-
-  const uploadFile = async (file: File, type: "receipt" | "proof") => {
-    if (type === "receipt") setReceiptUploading(true);
-    else setProofUploading(true);
-    try {
-      const publicUrl = await uploadContentMediaViaApi(file);
-      if (type === "receipt") setReceiptUrls((prev) => [...prev, publicUrl]);
-      else setPaymentProofUrls((prev) => [...prev, publicUrl]);
-    } finally {
-      if (type === "receipt") setReceiptUploading(false);
-      else setProofUploading(false);
-    }
-  };
-
-  const budget = budgetData?.budget as { totalPlanned?: number } | null;
-  const engine = budgetData?.engine as
-    | {
-        dashboard?: { estimatedTotal: number; actualSpend: number; variance: number };
-        byDepartment?: Array<{
-          department: string;
-          estimated: number;
-          actual: number;
-          variance: number;
-        }>;
-      }
-    | undefined;
-  const totalSpent = dashboard.totalSpend ?? expenses.reduce((s, e) => s + e.amount, 0);
-  const planned = dashboard.totalBudget ?? engine?.dashboard?.estimatedTotal ?? budget?.totalPlanned ?? 0;
-  const compactMode = deviceClass === "mobile" || (deviceClass === "tablet" && orientation === "portrait");
-  const tvMode = deviceClass === "tv";
-
-  return (
-    <div className={`space-y-4 ${tvMode ? "adaptive-tv-surface" : ""}`}>
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
-          <p className="text-sm text-slate-400 mt-1">Real-time financial control: budget vs actual, burn rate, approvals, and payment tracking.</p>
-        </div>
-        
-      </header>
-      
-      {toast && <div className="rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs text-slate-200">{toast}</div>}
-      {hasProject && projectId && (
-        <div className="flex flex-wrap items-center gap-3 text-xs">
-          <Link
-            href={`/creator/projects/${projectId}/pre-production/budget-builder`}
-            className="text-orange-400 hover:text-orange-300"
-          >
-            Budget builder →
-          </Link>
-          <Link
-            href={`/creator/projects/${projectId}/pre-production/production-scheduling`}
-            className="text-slate-400 hover:text-slate-200"
-          >
-            Production schedule →
-          </Link>
-          <Link href={`/api/creator/projects/${projectId}/expenses?format=csv`} className="text-slate-400 hover:text-slate-200">
-            Export expenses CSV →
-          </Link>
-        </div>
-      )}
-      <div className={`grid gap-3 ${compactMode ? "" : "md:grid-cols-5"}`}>
-        <div className="creator-glass-panel p-3"><p className="text-[11px] text-slate-400">Budget</p><p className="text-lg font-semibold text-white">{formatZar(planned, { maximumFractionDigits: 0 })}</p></div>
-        <div className="creator-glass-panel p-3"><p className="text-[11px] text-slate-400">Actual spend</p><p className="text-lg font-semibold text-white">{formatZar(totalSpent, { maximumFractionDigits: 0 })}</p></div>
-        <div className="creator-glass-panel p-3"><p className="text-[11px] text-slate-400">Remaining</p><p className={`text-lg font-semibold ${(dashboard.remainingFunds ?? planned - totalSpent) < planned * 0.15 ? "text-amber-300" : "text-emerald-300"}`}>{formatZar(dashboard.remainingFunds ?? planned - totalSpent, { maximumFractionDigits: 0 })}</p></div>
-        <div className="creator-glass-panel p-3"><p className="text-[11px] text-slate-400">Daily burn rate</p><p className="text-lg font-semibold text-white">{formatZar(dashboard.burnRateDaily ?? 0, { maximumFractionDigits: 0 })}</p></div>
-        <div className="creator-glass-panel p-3"><p className="text-[11px] text-slate-400">Pending approval / unpaid</p><p className="text-lg font-semibold text-white">{dashboard.pendingApproval ?? 0} / {dashboard.unpaidCount ?? 0}</p></div>
-      </div>
-
-      {alerts.length > 0 && (
-        <div className="rounded-xl border border-red-500/30 bg-red-950/20 p-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-red-200 mb-2">Financial alerts</p>
-          <ul className="space-y-1">
-            {alerts.map((a, idx) => (
-              <li key={`${a.type}-${idx}`} className="text-xs text-red-50">{a.message}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      <div className="creator-glass-panel p-3 space-y-2">
-        <p className="text-xs uppercase tracking-wide text-slate-400">Real-time expense entry</p>
-        <div className={`grid gap-2 ${compactMode ? "" : "md:grid-cols-4"}`}>
-          <Input value={form.title} onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))} placeholder="Expense title" className="bg-slate-900 border-slate-700 text-xs" />
-          <select value={form.category} onChange={(e) => setForm((p) => ({ ...p, category: e.target.value, department: e.target.value }))} className="h-9 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white">
-            {["CAST","CREW","EQUIPMENT","LOCATIONS","TRANSPORT","CATERING","POST_PRODUCTION","MISCELLANEOUS"].map((c)=><option key={c} value={c}>{c.replaceAll("_"," ")}</option>)}
-          </select>
-          <select value={form.sceneId} onChange={(e) => setForm((p) => ({ ...p, sceneId: e.target.value }))} className="h-9 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white">
-            <option value="">Scene (optional)</option>
-            {scenes.map((s) => <option key={s.id} value={s.id}>Scene {s.number}</option>)}
-          </select>
-          <select value={form.shootDayId} onChange={(e) => setForm((p) => ({ ...p, shootDayId: e.target.value }))} className="h-9 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white">
-            <option value="">Production day (optional)</option>
-            {shootDays.map((d) => <option key={d.id} value={d.id}>{new Date(d.date).toLocaleDateString()}</option>)}
-          </select>
-        </div>
-        <div className={`grid gap-2 ${compactMode ? "" : "md:grid-cols-5"}`}>
-          <Input value={form.amount} onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))} placeholder="Amount (R)" type="number" className="bg-slate-900 border-slate-700 text-xs" />
-          <Input value={form.vendor} onChange={(e) => setForm((p) => ({ ...p, vendor: e.target.value }))} placeholder="Vendor / payee" className="bg-slate-900 border-slate-700 text-xs" />
-          <select value={form.paymentMethod} onChange={(e) => setForm((p) => ({ ...p, paymentMethod: e.target.value }))} className="h-9 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white">
-            {["CASH","TRANSFER","CARD","MOBILE","OTHER"].map((m)=><option key={m} value={m}>{m}</option>)}
-          </select>
-          <Input value={form.fundingSource} onChange={(e) => setForm((p) => ({ ...p, fundingSource: e.target.value }))} placeholder="Funding source" className="bg-slate-900 border-slate-700 text-xs" />
-          <Input type="date" value={form.paymentDueAt} onChange={(e) => setForm((p) => ({ ...p, paymentDueAt: e.target.value }))} className="bg-slate-900 border-slate-700 text-xs" />
-        </div>
-        <textarea value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} placeholder="Notes / payment terms / context" rows={2} className="w-full rounded-md bg-slate-900 border border-slate-700 px-3 py-2 text-sm text-white" />
-        <div className="flex flex-wrap items-center gap-2">
-          <label className="inline-flex h-8 cursor-pointer items-center rounded-md border border-slate-700 bg-slate-900 px-3 text-xs text-slate-200 hover:border-slate-500">
-            {receiptUploading ? "Uploading..." : "Upload receipt(s)"}
-            <input type="file" multiple accept="image/*,application/pdf" className="hidden" onChange={async (e) => {
-              const files = Array.from(e.target.files ?? []);
-              for (const file of files) await uploadFile(file, "receipt");
-              e.currentTarget.value = "";
-            }} />
-          </label>
-          <label className="inline-flex h-8 cursor-pointer items-center rounded-md border border-slate-700 bg-slate-900 px-3 text-xs text-slate-200 hover:border-slate-500">
-            {proofUploading ? "Uploading..." : "Upload payment proof"}
-            <input type="file" multiple accept="image/*,application/pdf" className="hidden" onChange={async (e) => {
-              const files = Array.from(e.target.files ?? []);
-              for (const file of files) await uploadFile(file, "proof");
-              e.currentTarget.value = "";
-            }} />
-          </label>
-          <span className="text-xs text-slate-500">{receiptUrls.length} receipt(s), {paymentProofUrls.length} proof file(s)</span>
-          <Button
-            size="sm"
-            className="adaptive-focus-target adaptive-interactive bg-orange-500 hover:bg-orange-600"
-            disabled={!form.title.trim() || !form.amount || createMutation.isPending}
-            onClick={() => createMutation.mutate()}
-            aria-label="Log expense"
-          >
-            Log expense
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="adaptive-focus-target adaptive-interactive border-slate-700 text-slate-200"
-            disabled={autoCaptureMutation.isPending}
-            onClick={() => autoCaptureMutation.mutate("SIGNED_CONTRACTS")}
-            aria-label="Auto capture expenses from signed contracts"
-          >
-            Auto-capture signed contracts
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="adaptive-focus-target adaptive-interactive border-slate-700 text-slate-200"
-            disabled={autoCaptureMutation.isPending}
-            onClick={() => autoCaptureMutation.mutate("EQUIPMENT_USAGE")}
-            aria-label="Auto capture expenses from equipment usage"
-          >
-            Auto-capture equipment usage
-          </Button>
-        </div>
-      </div>
-      <div className="creator-glass-panel p-3 space-y-2">
-        <p className="text-xs uppercase tracking-wide text-slate-400">Filters</p>
-        <div className={`grid gap-2 ${compactMode ? "" : "md:grid-cols-3"}`}>
-          <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="h-9 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white">
-            <option value="">All categories</option>
-            {["CAST","CREW","EQUIPMENT","LOCATIONS","TRANSPORT","CATERING","POST_PRODUCTION","MISCELLANEOUS"].map((c)=><option key={c} value={c}>{c.replaceAll("_"," ")}</option>)}
-          </select>
-          <select value={approvalFilter} onChange={(e) => setApprovalFilter(e.target.value)} className="h-9 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white">
-            <option value="">All approval states</option>
-            {["PENDING","APPROVED","REJECTED"].map((s)=><option key={s} value={s}>{s}</option>)}
-          </select>
-          <select value={paymentFilter} onChange={(e) => setPaymentFilter(e.target.value)} className="h-9 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white">
-            <option value="">All payment states</option>
-            {["UNPAID","PARTIAL","PAID"].map((s)=><option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
-      </div>
-
-      <div className="creator-glass-panel p-3 space-y-2 max-h-96 overflow-y-auto">
-        {filteredExpenses.length === 0 ? (
-          <p className="text-sm text-slate-500 p-4">No expenses logged yet.</p>
-        ) : (
-          filteredExpenses.map((e) => (
-            <div key={e.id} className="rounded-lg bg-slate-900/80 border border-slate-800 px-3 py-2 text-sm">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-slate-200 font-medium">{e.meta.title || e.department || "Expense"}</span>
-                <span className="text-white">{formatZar(e.amount)}</span>
-              </div>
-              <p className="text-[11px] text-slate-500 mt-1">
-                {e.meta.category} · {e.vendor ?? "—"} · {new Date(e.spentAt).toLocaleString()} · approval {e.meta.approvalStatus} · payment {e.meta.paymentStatus}
-              </p>
-              {(e.meta.receiptUrls.length > 0 || e.meta.paymentProofUrls.length > 0) && (
-                <div className="mt-1 flex flex-wrap gap-2 text-[11px]">
-                  {e.meta.receiptUrls.length > 0 ? <span className="text-slate-400">{e.meta.receiptUrls.length} receipt(s)</span> : null}
-                  {e.meta.paymentProofUrls.length > 0 ? <span className="text-slate-400">{e.meta.paymentProofUrls.length} payment proof(s)</span> : null}
-                </div>
-              )}
-              <div className="mt-2 flex flex-wrap gap-1">
-                <Button size="sm" variant="outline" className="h-6 px-2 text-[10px] border-slate-700 text-slate-200" onClick={() => patchMutation.mutate({ id: e.id, meta: { approvalStatus: "APPROVED" } })}>
-                  Approve
-                </Button>
-                <Button size="sm" variant="outline" className="h-6 px-2 text-[10px] border-slate-700 text-slate-200" onClick={() => patchMutation.mutate({ id: e.id, meta: { approvalStatus: "REJECTED" } })}>
-                  Reject
-                </Button>
-                <Button size="sm" variant="outline" className="h-6 px-2 text-[10px] border-slate-700 text-slate-200" onClick={() => patchMutation.mutate({ id: e.id, meta: { paymentStatus: "PAID" } })}>
-                  Mark paid
-                </Button>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-
-      {!!comparison.byDepartment?.length && (
-        <div className="creator-glass-panel p-3 space-y-2">
-          <p className="text-xs uppercase tracking-wide text-slate-400">
-            Budget vs actual by department
-          </p>
-          {comparison.byDepartment.map((dept) => (
-            <div
-              key={dept.key}
-              className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/80 px-3 py-2 text-xs"
-            >
-              <span className="text-slate-300">{dept.key.replaceAll("_", " ")}</span>
-              <span className={dept.variance < 0 ? "text-red-300" : dept.remaining < dept.budgeted * 0.15 ? "text-amber-300" : "text-emerald-300"}>
-                Est {formatZar(dept.budgeted, { maximumFractionDigits: 0 })} · Act {formatZar(dept.actual, { maximumFractionDigits: 0 })} · Var {formatZar(dept.variance, { maximumFractionDigits: 0 })}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-      {burnRate.length > 0 && (
-        <div className="creator-glass-panel p-3 space-y-2">
-          <p className="text-xs uppercase tracking-wide text-slate-400">Daily burn rate trend</p>
-          {burnRate.slice(-10).map((d) => (
-            <div key={d.date} className="flex items-center justify-between rounded bg-slate-900/70 px-2 py-1 text-xs">
-              <span className="text-slate-400">{d.date}</span>
-              <span className="text-slate-200">{formatZar(d.amount, { maximumFractionDigits: 0 })}</span>
-            </div>
-          ))}
-        </div>
-      )}
-      <p className="text-xs text-slate-500">Integrated with budget, schedule, contracts, equipment usage, and production alerts.</p>
-    </div>
-  );
-}
 
 function IncidentReporting({ projectId, title }: { projectId?: string; title: string }) {
   const { deviceClass, orientation } = useAdaptiveUi();
@@ -2713,7 +2284,7 @@ function IncidentReporting({ projectId, title }: { projectId?: string; title: st
       {hasProject && projectId ? (
         <div className="flex flex-wrap gap-3 text-xs">
           <Link href={`/api/creator/projects/${projectId}/incidents?format=csv`} className="text-slate-400 hover:text-slate-200">
-            Export incident log CSV →
+            Export incident log CSV â†’
           </Link>
         </div>
       ) : null}
@@ -2825,8 +2396,8 @@ function IncidentReporting({ projectId, title }: { projectId?: string; title: st
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-sm font-medium text-white">{i.title}</p>
-                  <p className="text-xs text-slate-200">{i.category.replaceAll("_", " ")} · {i.severity} · {i.meta.priority} · {i.meta.status.replaceAll("_", " ")}</p>
-                  <p className="text-[11px] text-slate-400 mt-1">{new Date(i.meta.occurredAt || i.createdAt).toLocaleString()} · {i.location ?? "Location not set"}</p>
+                  <p className="text-xs text-slate-200">{i.category.replaceAll("_", " ")} Â· {i.severity} Â· {i.meta.priority} Â· {i.meta.status.replaceAll("_", " ")}</p>
+                  <p className="text-[11px] text-slate-400 mt-1">{new Date(i.meta.occurredAt || i.createdAt).toLocaleString()} Â· {i.location ?? "Location not set"}</p>
                 </div>
                 <div className="flex flex-wrap gap-1">
                   <Button size="sm" variant="outline" className="h-6 px-2 text-[10px]" onClick={() => patchMutation.mutate({ id: i.id, status: "IN_PROGRESS", timelineEvent: { action: "STATUS_SET_IN_PROGRESS" } })}>In progress</Button>
@@ -2844,7 +2415,7 @@ function IncidentReporting({ projectId, title }: { projectId?: string; title: st
                 <div className="mt-2">
                   <p className="text-[11px] uppercase tracking-wide text-slate-400">Action steps</p>
                   {i.meta.actionSteps.slice(0, 4).map((step, idx) => (
-                    <p key={`${i.id}-step-${idx}`} className="text-[11px] text-slate-200">• {step}</p>
+                    <p key={`${i.id}-step-${idx}`} className="text-[11px] text-slate-200">â€¢ {step}</p>
                   ))}
                 </div>
               ) : null}
@@ -2854,7 +2425,7 @@ function IncidentReporting({ projectId, title }: { projectId?: string; title: st
                   <div className="max-h-24 overflow-y-auto pr-1 space-y-1 mt-1">
                     {(i.meta.timeline ?? []).slice(-5).reverse().map((event, idx) => (
                       <p key={`${i.id}-event-${idx}`} className="text-[11px] text-slate-300">
-                        {new Date(event.at).toLocaleString()} · {event.action.replaceAll("_", " ")}
+                        {new Date(event.at).toLocaleString()} Â· {event.action.replaceAll("_", " ")}
                       </p>
                     ))}
                   </div>
@@ -2862,8 +2433,8 @@ function IncidentReporting({ projectId, title }: { projectId?: string; title: st
                 <div>
                   <p className="text-[11px] uppercase tracking-wide text-slate-400">Resolution</p>
                   <p className="text-[11px] text-slate-200 mt-1">
-                    Owner: {i.resolutionOwner?.name ?? i.resolutionOwner?.email ?? "Unassigned"} ·
-                    {" "}Time to resolve: {i.meta.timeToResolveMinutes != null ? `${i.meta.timeToResolveMinutes} min` : "—"}
+                    Owner: {i.resolutionOwner?.name ?? i.resolutionOwner?.email ?? "Unassigned"} Â·
+                    {" "}Time to resolve: {i.meta.timeToResolveMinutes != null ? `${i.meta.timeToResolveMinutes} min` : "â€”"}
                   </p>
                   {i.meta.resolutionNotes ? <p className="text-[11px] text-slate-300 mt-1">{i.meta.resolutionNotes}</p> : null}
                 </div>
@@ -2987,7 +2558,7 @@ function ProductionWrap({ projectId, title }: { projectId?: string; title: strin
                 {checklist.map((item) => (
                   <div key={item.key} className={`rounded-lg border px-3 py-2 ${item.pass ? "border-emerald-500/40 bg-emerald-950/15" : "border-red-500/40 bg-red-950/20"}`}>
                     <p className="text-sm font-medium text-white">
-                      {item.pass ? "PASS" : "FAIL"} · {item.label}
+                      {item.pass ? "PASS" : "FAIL"} Â· {item.label}
                     </p>
                     <p className="text-xs text-slate-300 mt-1">{item.detail}</p>
                   </div>

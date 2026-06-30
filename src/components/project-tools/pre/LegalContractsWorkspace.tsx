@@ -30,6 +30,17 @@ import {
   saveLocalContractDraft,
   type LocalContractDraft,
 } from "@/lib/contract-local-drafts";
+import { ContractDocumentViewer } from "@/components/legal/contract-document-viewer";
+import {
+  LegalEnterprisePanels,
+  type LegalEnterpriseTab,
+} from "@/components/legal/legal-enterprise-panels";
+import { SUPPORTED_JURISDICTIONS } from "@/lib/contract-template-catalog";
+import {
+  ContractRecipientPicker,
+  type RecipientOption,
+} from "@/components/legal/contract-recipient-picker";
+import type { RecipientType } from "@/lib/contract-lifecycle";
 
 type ContractTemplateMeta = {
   type: string;
@@ -59,6 +70,11 @@ type ContractRow = {
   crewTeam?: { id: string; name: string } | null;
   location?: { id: string; name: string } | null;
   vendorName?: string | null;
+  recipientType?: string | null;
+  recipientLabel?: string | null;
+  recipientEmail?: string | null;
+  jurisdiction?: string | null;
+  counterparty?: { id: string; name: string | null; email: string | null } | null;
 };
 
 type ResourceOption = {
@@ -77,6 +93,7 @@ type ResourceOption = {
   equipmentList: string;
   shootDaysCount: string;
   serviceDuration: string;
+  counterpartyUserId?: string | null;
 };
 
 type FilterTab = "ALL" | "DRAFT" | "SENT" | "SIGNED" | "REJECTED";
@@ -144,6 +161,13 @@ export function LegalContractsWorkspace({ projectId, title }: LegalContractsWork
   const [fields, setFields] = useState<ContractFieldValues>(emptyFieldValues());
   const [editorTerms, setEditorTerms] = useState("");
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [recipientType, setRecipientType] = useState<RecipientType>("CAST_MEMBER");
+  const [counterpartyUserId, setCounterpartyUserId] = useState<string | null>(null);
+  const [recipientLabel, setRecipientLabel] = useState("");
+  const [recipientEmail, setRecipientEmail] = useState("");
+  const [jurisdiction, setJurisdiction] = useState("South Africa");
+  const [enterpriseTab, setEnterpriseTab] = useState<LegalEnterpriseTab>("analytics");
+  const [countersignConfirmed, setCountersignConfirmed] = useState(false);
 
   const selectedTemplate = templates.find((t) => t.type === newType) ?? templates[0] ?? null;
 
@@ -168,6 +192,31 @@ export function LegalContractsWorkspace({ projectId, title }: LegalContractsWork
   }, [resourceContext, resourceType]);
 
   const selectedResource = selectedResources.find((r) => r.id === resourceId) ?? null;
+
+  const recipientOptions = useMemo((): RecipientOption[] => {
+    if (!resourceContext?.resources) return [];
+    const opts: RecipientOption[] = [];
+    const push = (list: ResourceOption[], type: RecipientType) => {
+      for (const r of list) {
+        opts.push({
+          id: `${type}-${r.id}`,
+          label: r.partyName || r.label,
+          sublabel: r.role ? `${r.role} · ${r.label}` : r.label,
+          recipientType: type,
+          counterpartyUserId: r.counterpartyUserId ?? null,
+          source: "resource",
+        });
+      }
+    };
+    push((resourceContext.resources.actors ?? []) as ResourceOption[], "CAST_MEMBER");
+    push((resourceContext.resources.crew ?? []) as ResourceOption[], "CREW_MEMBER");
+    push((resourceContext.resources.locations ?? []) as ResourceOption[], "LOCATION_OWNER");
+    push((resourceContext.resources.equipment ?? []) as ResourceOption[], "VENDOR");
+    push((resourceContext.resources.catering ?? []) as ResourceOption[], "VENDOR");
+    push((resourceContext.resources.funding ?? []) as ResourceOption[], "INVESTOR");
+    return opts;
+  }, [resourceContext]);
+
   const selectedContract = contracts.find((c) => c.id === selectedContractId) ?? null;
   const isEditorViewOnly = selectedContract ? isContractViewOnly(selectedContract.status) : false;
   const isEditorEditable = selectedContract ? isContractEditable(selectedContract.status) : true;
@@ -179,6 +228,10 @@ export function LegalContractsWorkspace({ projectId, title }: LegalContractsWork
   useEffect(() => {
     refreshLocalDrafts();
   }, [refreshLocalDrafts]);
+
+  useEffect(() => {
+    setCountersignConfirmed(false);
+  }, [selectedContractId]);
 
   useEffect(() => {
     if (deepLinkTemplate) {
@@ -248,6 +301,21 @@ export function LegalContractsWorkspace({ projectId, title }: LegalContractsWork
   }, [showComposer, selectedTemplate, resourceContext, selectedResource, rebuildPreview]);
 
   useEffect(() => {
+    if (!selectedResource) return;
+    setRecipientLabel(selectedResource.partyName || selectedResource.label);
+    setCounterpartyUserId(selectedResource.counterpartyUserId ?? null);
+    const typeMap: Record<string, RecipientType> = {
+      ACTOR: "CAST_MEMBER",
+      CREW: "CREW_MEMBER",
+      LOCATION: "LOCATION_OWNER",
+      FUNDING: "INVESTOR",
+      EQUIPMENT: "VENDOR",
+      CATERING: "VENDOR",
+    };
+    setRecipientType(typeMap[resourceType] ?? "MANUAL");
+  }, [selectedResource, resourceType]);
+
+  useEffect(() => {
     if (selectedResources.length === 0) {
       setResourceId("");
       return;
@@ -286,6 +354,11 @@ export function LegalContractsWorkspace({ projectId, title }: LegalContractsWork
           fields,
           terms: editorTerms,
           sendContract: !!sendContract,
+          counterpartyUserId,
+          recipientType,
+          recipientLabel: recipientLabel || null,
+          recipientEmail: recipientEmail || null,
+          jurisdiction,
         }),
       });
     },
@@ -342,20 +415,20 @@ export function LegalContractsWorkspace({ projectId, title }: LegalContractsWork
       action,
     }: {
       contractId: string;
-      kind: "status" | "respond";
-      action: string;
+      kind: "send" | "countersign";
+      action?: string;
     }) => {
-      if (kind === "status") {
-        return projectToolFetch(`/api/creator/projects/${projectId}/contracts`, {
-          method: "PATCH",
+      if (kind === "send") {
+        return projectToolFetch(`/api/creator/projects/${projectId}/contracts/${contractId}/send`, {
+          method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: contractId, status: action }),
+          body: JSON.stringify({}),
         });
       }
-      return projectToolFetch(`/api/creator/projects/${projectId}/contracts/${contractId}/respond`, {
+      return projectToolFetch(`/api/creator/projects/${projectId}/contracts/${contractId}/countersign`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ signerRole: action ?? "Producer" }),
       });
     },
     onSuccess: () => {
@@ -461,6 +534,34 @@ export function LegalContractsWorkspace({ projectId, title }: LegalContractsWork
               <p className={`mt-1 text-xl font-semibold ${cls}`}>{val as number}</p>
             </div>
           ))}
+        </div>
+      )}
+
+      {hasProject && (
+        <div className="creator-glass-panel space-y-3 p-4">
+          <div className="flex flex-wrap gap-2">
+            {(
+              [
+                ["analytics", "Analytics"],
+                ["clauses", "Clause library"],
+                ["approvals", "Approvals"],
+                ["signers", "Signers"],
+                ["versions", "Version compare"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setEnterpriseTab(id)}
+                className={`rounded-full px-3 py-1 text-[11px] ${
+                  enterpriseTab === id ? "bg-orange-500/20 text-orange-200 border border-orange-500/40" : "border border-slate-700 text-slate-400"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <LegalEnterprisePanels projectId={projectId!} contractId={selectedContractId} tab={enterpriseTab} />
         </div>
       )}
 
@@ -572,6 +673,46 @@ export function LegalContractsWorkspace({ projectId, title }: LegalContractsWork
               className="bg-slate-900 border-slate-700"
             />
 
+            {hasProject && (
+              <ContractRecipientPicker
+                options={recipientOptions}
+                recipientType={recipientType}
+                counterpartyUserId={counterpartyUserId}
+                recipientLabel={recipientLabel}
+                recipientEmail={recipientEmail}
+                onRecipientTypeChange={setRecipientType}
+                onSelect={(opt) => {
+                  if (!opt) return;
+                  setCounterpartyUserId(opt.counterpartyUserId);
+                  setRecipientLabel(opt.label);
+                  setRecipientType(opt.recipientType);
+                  if (opt.email) setRecipientEmail(opt.email);
+                }}
+                onManualLabelChange={setRecipientLabel}
+                onManualEmailChange={setRecipientEmail}
+              />
+            )}
+
+            <div className="grid gap-2 md:grid-cols-2">
+              <div className="space-y-1">
+                <label className="text-[11px] text-slate-400">Jurisdiction</label>
+                <select
+                  value={jurisdiction}
+                  onChange={(e) => {
+                    setJurisdiction(e.target.value);
+                    updateField("governing_law", e.target.value);
+                  }}
+                  className="h-10 w-full rounded-md bg-slate-900 border border-slate-700 px-2 text-sm text-white"
+                >
+                  {SUPPORTED_JURISDICTIONS.map((j) => (
+                    <option key={j} value={j}>
+                      {j}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
             <div className="grid gap-3 md:grid-cols-2">
               {EDITABLE_CONTRACT_FIELDS.map((field) => (
                 <div key={field.key} className="space-y-1">
@@ -602,11 +743,15 @@ export function LegalContractsWorkspace({ projectId, title }: LegalContractsWork
                 </label>
                 {previewLoading && <span className="text-[10px] text-slate-500">Refreshing…</span>}
               </div>
-              <textarea
-                value={editorTerms}
-                onChange={(e) => setEditorTerms(e.target.value)}
-                rows={16}
-                className="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2 text-xs text-slate-200 font-mono leading-relaxed"
+              <ContractDocumentViewer
+                title={newSubject || selectedTemplate?.label || "Draft contract"}
+                terms={editorTerms}
+                status="DRAFT"
+                projectTitle={resourceContext?.project?.title}
+                productionCompany={resourceContext?.project?.productionCompany}
+                recipientLabel={recipientLabel || null}
+                editable
+                onTermsChange={setEditorTerms}
               />
             </div>
 
@@ -674,12 +819,16 @@ export function LegalContractsWorkspace({ projectId, title }: LegalContractsWork
                 {selectedContract.signatures.map((s) => `${s.name}${s.role ? ` (${s.role})` : ""}`).join(" · ")}
               </div>
             )}
-            <textarea
-              value={editorTerms}
-              onChange={(e) => setEditorTerms(e.target.value)}
-              readOnly={isEditorViewOnly}
-              rows={18}
-              className="w-full rounded-md bg-slate-950 border border-slate-700 px-3 py-2 text-xs text-slate-200 font-mono leading-relaxed read-only:opacity-90"
+            <ContractDocumentViewer
+              title={selectedContract.subject ?? selectedContract.normalizedType.replaceAll("_", " ")}
+              terms={editorTerms}
+              status={selectedContract.status}
+              projectTitle={resourceContext?.project?.title}
+              productionCompany={resourceContext?.project?.productionCompany}
+              recipientLabel={selectedContract.recipientLabel ?? selectedContract.vendorName}
+              signatures={selectedContract.signatures}
+              editable={isEditorEditable}
+              onTermsChange={setEditorTerms}
             />
             <div className="flex flex-wrap gap-2">
               {isEditorEditable && (
@@ -717,17 +866,32 @@ export function LegalContractsWorkspace({ projectId, title }: LegalContractsWork
                   Reopen as draft
                 </Button>
               )}
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="border-slate-700 text-xs"
-                onClick={() =>
-                  downloadTerms(selectedContract.subject ?? "contract", editorTerms)
-                }
-              >
-                Download
-              </Button>
+              {selectedContract.status === "PARTIALLY_SIGNED" && (
+                <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-900/40 p-3">
+                  <label className="flex cursor-pointer items-start gap-2 text-xs text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={countersignConfirmed}
+                      onChange={(e) => setCountersignConfirmed(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 rounded accent-emerald-500"
+                    />
+                    <span>
+                      I confirm I have reviewed this contract and authorize counter-signature on behalf of the production.
+                    </span>
+                  </label>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-xs"
+                    onClick={() =>
+                      contractActionMutation.mutate({ contractId: selectedContract.id, kind: "countersign" })
+                    }
+                    disabled={contractActionMutation.isPending || !countersignConfirmed}
+                  >
+                    Counter-sign & execute
+                  </Button>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -806,40 +970,31 @@ export function LegalContractsWorkspace({ projectId, title }: LegalContractsWork
                           size="sm"
                           className="h-7 bg-orange-500 hover:bg-orange-600 text-[10px]"
                           onClick={() =>
-                            contractActionMutation.mutate({ contractId: c.id, kind: "status", action: "SENT" })
+                            contractActionMutation.mutate({ contractId: c.id, kind: "send" })
                           }
                           disabled={contractActionMutation.isPending}
                         >
                           Send
                         </Button>
                       )}
-                      {!c.viewOnly && (
-                        <>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className="h-7 border-emerald-600/60 px-2 text-[10px] text-emerald-200"
-                            onClick={() =>
-                              contractActionMutation.mutate({ contractId: c.id, kind: "respond", action: "ACCEPT" })
-                            }
-                            disabled={contractActionMutation.isPending}
-                          >
-                            Sign
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className="h-7 border-rose-600/60 px-2 text-[10px] text-rose-200"
-                            onClick={() =>
-                              contractActionMutation.mutate({ contractId: c.id, kind: "respond", action: "REJECT" })
-                            }
-                            disabled={contractActionMutation.isPending}
-                          >
-                            Reject
-                          </Button>
-                        </>
+                      {c.status === "PARTIALLY_SIGNED" && (
+                        <p className="text-[10px] text-slate-500 w-full">
+                          Open the contract to counter-sign with the in-app confirmation checkbox.
+                        </p>
+                      )}
+                      {c.status === "PARTIALLY_SIGNED" && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="h-7 bg-emerald-600 hover:bg-emerald-700 text-[10px]"
+                          onClick={() => {
+                            setSelectedContractId(c.id);
+                            setShowComposer(false);
+                          }}
+                          disabled={contractActionMutation.isPending}
+                        >
+                          Counter-sign
+                        </Button>
                       )}
                       <Button
                         type="button"

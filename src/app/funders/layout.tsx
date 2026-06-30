@@ -6,9 +6,12 @@ import { signOut, useSession } from "next-auth/react";
 import { Bell, ChevronLeft, Handshake, LayoutDashboard, LogOut, ShieldCheck, WalletCards } from "lucide-react";
 import { DashboardSidebarShell } from "@/components/layout/dashboard-sidebar-shell";
 import { NotificationBell } from "@/components/layout/notification-bell";
-const NAV_ITEMS = [
+import { mergeStakeholderNavSections } from "@/lib/stakeholder-ecosystem/portal-nav";
+
+const businessNavItems = [
   { href: "/funders", label: "Dashboard", icon: LayoutDashboard },
   { href: "/funders/opportunities", label: "Opportunities", icon: Bell },
+  { href: "/funders/analytics", label: "Market analytics", icon: WalletCards },
   { href: "/funders/deals", label: "Deals", icon: Handshake },
   { href: "/funders/portfolio", label: "Portfolio", icon: WalletCards },
   { href: "/funders/wallet", label: "Wallet", icon: WalletCards },
@@ -52,7 +55,7 @@ export default function FundersLayout({ children }: { children: React.ReactNode 
           </button>
         </>
       }
-      navSections={[{ title: "Funder workspace", items: NAV_ITEMS }]}
+      navSections={mergeStakeholderNavSections("funders", businessNavItems.filter((i) => i.href !== "/funders"))}
       sidebarFooter={
         <>
           <div className="mb-3 rounded-lg border border-white/8 bg-white/[0.03] p-3 text-xs text-slate-400">

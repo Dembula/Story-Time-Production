@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { DollarSign, LineChart, Shield, Sparkles } from "lucide-react";
 import { OpsMetricCard, OpsPageHeader, OpsQuickActions } from "@/components/ecosystem/ops-shell";
+import { StakeholderEcosystemHome } from "@/components/ecosystem/stakeholder-ecosystem-home";
 
 export default function FundersHomePage() {
   const { data } = useQuery({
@@ -45,6 +46,8 @@ export default function FundersHomePage() {
           </>
         }
       />
+
+      <StakeholderEcosystemHome portalPrefix="/funders" />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <OpsMetricCard

@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { formatZar } from "@/lib/format-currency-zar";
 import { OpsMetricCard, OpsPageHeader, OpsQuickActions, OpsSection } from "@/components/ecosystem/ops-shell";
+import { StakeholderEcosystemHome } from "@/components/ecosystem/stakeholder-ecosystem-home";
 
 type Overview = {
   agency: { id: string; agencyName: string; counts: { talent: number; inquiries: number; castingInvitations: number; auditionSubmissions: number } };
@@ -111,6 +112,8 @@ export function CastingDashboardClient() {
       {loadError && (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">{loadError}</div>
       )}
+
+      <StakeholderEcosystemHome portalPrefix="/casting-agency" />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
         <OpsMetricCard label="Talent roster" value={metrics.talentTotal} icon={Users} accent="violet" sub={`${metrics.availableTalent} available · ${metrics.bookedTalent} booked`} />

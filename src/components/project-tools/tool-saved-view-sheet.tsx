@@ -72,7 +72,7 @@ export function ToolSavedViewSheet({
             role="dialog"
             aria-modal="true"
             aria-labelledby="tool-view-title"
-            className="fixed z-[2110] flex flex-col border-l border-orange-500/20 bg-gradient-to-b from-slate-950 via-slate-950 to-black shadow-2xl shadow-black/40"
+            className="storytime-panel-divider-l fixed z-[2110] flex flex-col bg-gradient-to-b from-slate-950 via-slate-950 to-black shadow-2xl shadow-black/40"
             style={{
               top: 0,
               right: 0,

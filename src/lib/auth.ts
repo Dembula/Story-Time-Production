@@ -259,6 +259,10 @@ export const authOptions: NextAuthOptions = {
         await ensureUserRole(user.id, role);
         await prisma.pendingCreatorSignup.delete({ where: { id: pending.id } });
         (user as { role?: string }).role = role;
+        const { linkUserToCreditProfiles } = await import("@/lib/credit-person");
+        void linkUserToCreditProfiles(user.id).catch((err) => {
+          console.warn("[auth/signIn] credit profile link failed:", err);
+        });
         if (user.email) {
           try {
             await sendWelcomeEmail(user.email, user.name, { role, registrationType: "creator_upgrade" });

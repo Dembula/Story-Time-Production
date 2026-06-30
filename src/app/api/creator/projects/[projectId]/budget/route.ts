@@ -6,6 +6,7 @@ import {
   type BudgetTemplate,
   runBudgetEngine,
 } from "@/lib/budget-engine";
+import { filterSupplementalManualLines } from "@/lib/budget-line-keys";
 
 async function ensureAccess(projectId: string) {
   const session = await getServerSession(authOptions);
@@ -180,12 +181,21 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ projec
       makeupsCount: scene.breakdownMakeups.length,
       shootDaysAssigned: shootDayCounts.get(scene.id) ?? 0,
     })),
-    manualLines: (budget?.lines ?? []).map((line) => ({
+    manualLines: filterSupplementalManualLines(
+      (budget?.lines ?? []).map((line) => ({
+        department: line.department,
+        name: line.name,
+        quantity: line.quantity,
+        unitCost: line.unitCost,
+        total: line.total,
+        notes: line.notes,
+      })),
+    ).map((line) => ({
       department: line.department,
       name: line.name,
-      quantity: line.quantity,
-      unitCost: line.unitCost,
-      total: line.total,
+      quantity: line.quantity ?? null,
+      unitCost: line.unitCost ?? null,
+      total: line.total ?? null,
     })),
     expenses: project.productionExpenses,
     crewNeeds: project.crewRoleNeeds,

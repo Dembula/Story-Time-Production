@@ -26,9 +26,29 @@ import {
   buildContractResourceContext,
   findResourceInContext,
 } from "@/lib/contract-resource-context";
+import { sendProjectContract, logContractEvent, contractStatusLabel } from "@/lib/contract-lifecycle";
+import type { RecipientType } from "@/lib/contract-lifecycle";
+import { CONTRACT_TEMPLATE_CATALOG } from "@/lib/contract-template-catalog";
+import { mergeClausesForContract } from "@/lib/legal/clause-library-service";
+import { defaultContractApprovalChain } from "@/lib/legal/contract-approval-service";
 
 interface Params {
   params: Promise<{ projectId: string }>;
+}
+
+function resourceTypeToRecipient(
+  resourceType?: string | null,
+): RecipientType | null {
+  const map: Record<string, RecipientType> = {
+    ACTOR: "CAST_MEMBER",
+    CREW: "CREW_MEMBER",
+    LOCATION: "LOCATION_OWNER",
+    EQUIPMENT: "VENDOR",
+    CATERING: "VENDOR",
+    FUNDING: "INVESTOR",
+    GENERAL: "MANUAL",
+  };
+  return resourceType ? map[resourceType] ?? null : null;
 }
 
 function buildTermsFromBody(
@@ -51,10 +71,14 @@ export async function GET(_req: NextRequest, { params }: Params) {
       include: {
         versions: { orderBy: { version: "desc" } },
         signatures: { orderBy: { signedAt: "asc" } },
+        events: { orderBy: { createdAt: "desc" }, take: 20 },
+        approvalSteps: { orderBy: { stepOrder: "asc" }, include: { approver: { select: { id: true, name: true } } } },
+        signers: { orderBy: { signOrder: "asc" } },
         castingTalent: { select: { id: true, name: true } },
         crewTeam: { select: { id: true, companyName: true } },
         locationListing: { select: { id: true, name: true } },
         createdBy: { select: { id: true, name: true } },
+        counterpartyUser: { select: { id: true, name: true, email: true } },
       },
     }),
     buildContractResourceContext(projectId, access.userId!),
@@ -76,6 +100,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
       resourceKinds: t.resourceKinds,
       legalReferences: t.legalReferences,
     })),
+    catalog: CONTRACT_TEMPLATE_CATALOG,
     defaultDisclaimer: getDefaultDisclaimer(),
     resourceContext: context,
     metrics: {
@@ -125,6 +150,47 @@ export async function GET(_req: NextRequest, { params }: Params) {
           ? { id: c.locationListing.id, name: (c.locationListing as { name: string }).name }
           : null,
       vendorName: c.vendorName,
+      recipientType: c.recipientType,
+      recipientLabel: c.recipientLabel,
+      recipientEmail: c.recipientEmail,
+      jurisdiction: c.jurisdiction,
+      catalogEntryId: c.catalogEntryId,
+      signingMode: c.signingMode,
+      approvalRequired: c.approvalRequired,
+      esignProvider: c.esignProvider,
+      signatureDeadline: c.signatureDeadline?.toISOString() ?? null,
+      sentAt: c.sentAt?.toISOString() ?? null,
+      viewedAt: c.viewedAt?.toISOString() ?? null,
+      executedAt: c.executedAt?.toISOString() ?? null,
+      statusLabel: contractStatusLabel(c.status),
+      counterparty: c.counterpartyUser
+        ? { id: c.counterpartyUser.id, name: c.counterpartyUser.name, email: c.counterpartyUser.email }
+        : null,
+      events: c.events.map((e) => ({
+        id: e.id,
+        eventType: e.eventType,
+        detail: e.detail,
+        createdAt: e.createdAt.toISOString(),
+      })),
+      approvalSteps: c.approvalSteps.map((s) => ({
+        id: s.id,
+        stepOrder: s.stepOrder,
+        status: s.status,
+        approverRole: s.approverRole,
+        approver: s.approver,
+        comment: s.comment,
+        decidedAt: s.decidedAt?.toISOString() ?? null,
+      })),
+      signers: c.signers.map((s) => ({
+        id: s.id,
+        partyRole: s.partyRole,
+        label: s.label,
+        email: s.email,
+        signOrder: s.signOrder,
+        status: s.status,
+        required: s.required,
+        signedAt: s.signedAt?.toISOString() ?? null,
+      })),
     })),
   });
 }
@@ -147,10 +213,19 @@ export async function POST(req: NextRequest, { params }: Params) {
         crewTeamId?: string | null;
         locationListingId?: string | null;
         vendorName?: string | null;
+        recipientType?: RecipientType | null;
+        recipientLabel?: string | null;
+        recipientEmail?: string | null;
+        jurisdiction?: string | null;
+        signatureDeadline?: string | null;
         terms?: string;
         fields?: Record<string, string>;
         templateBody?: string | null;
         customClauses?: string | null;
+        clauseIds?: string[];
+        catalogEntryId?: string | null;
+        signingMode?: "PARALLEL" | "SEQUENTIAL";
+        approvalRequired?: boolean;
         paymentTerms?: string | null;
         startDate?: string | null;
         endDate?: string | null;
@@ -177,38 +252,56 @@ export async function POST(req: NextRequest, { params }: Params) {
     body.resourceId,
   );
 
-  const mergedFields = mergeFieldValues(
-    emptyFieldValues(),
-    projectFieldValues(resourceContext.project),
-    selectedResource ? resourceFieldValues(selectedResource) : {},
-    body.fields ?? {},
-    {
-      role: body.role ?? undefined,
-      rate: body.rate ?? undefined,
-      payment_terms: body.paymentTerms ?? undefined,
-      start_date: body.startDate ?? undefined,
-      end_date: body.endDate ?? undefined,
-      custom_clauses: body.customClauses ?? undefined,
-      party_name: body.vendorName ?? undefined,
-    },
-  );
+  const jurisdiction = body.jurisdiction ?? "South Africa";
+  const mergedFields = await mergeClausesForContract({
+    projectId,
+    jurisdiction,
+    fields: mergeFieldValues(
+      emptyFieldValues(),
+      projectFieldValues(resourceContext.project),
+      selectedResource ? resourceFieldValues(selectedResource) : {},
+      body.fields ?? {},
+      {
+        role: body.role ?? undefined,
+        rate: body.rate ?? undefined,
+        payment_terms: body.paymentTerms ?? undefined,
+        start_date: body.startDate ?? undefined,
+        end_date: body.endDate ?? undefined,
+        custom_clauses: body.customClauses ?? undefined,
+        party_name: body.vendorName ?? undefined,
+      },
+    ),
+    clauseIds: body.clauseIds,
+  });
 
   const termsForVersion =
     body.terms?.trim() ||
     buildTermsFromBody(templateType, mergedFields, body.templateBody ?? template.body);
 
   const contractType = body.type ?? template.type;
-  const initialStatus = body.sendContract ? CONTRACT_STATUS.SENT : CONTRACT_STATUS.DRAFT;
+  const recipientLabel =
+    body.recipientLabel?.trim() ||
+    selectedResource?.partyName ||
+    body.vendorName?.trim() ||
+    null;
 
   const contract = await prisma.projectContract.create({
     data: {
       projectId,
       type: contractType,
-      status: initialStatus,
+      status: CONTRACT_STATUS.DRAFT,
       subject:
         body.subject ??
         `${template.label}${selectedResource?.partyName ? ` · ${selectedResource.partyName}` : body.vendorName ? ` · ${body.vendorName}` : ""}`,
       counterpartyUserId: body.counterpartyUserId ?? selectedResource?.counterpartyUserId ?? null,
+      recipientType: body.recipientType ?? (resourceTypeToRecipient(body.resourceType) ?? null),
+      recipientLabel,
+      recipientEmail: body.recipientEmail?.trim() || null,
+      jurisdiction,
+      catalogEntryId: body.catalogEntryId ?? null,
+      signingMode: body.signingMode ?? "PARALLEL",
+      approvalRequired: body.approvalRequired ?? false,
+      signatureDeadline: body.signatureDeadline ? new Date(body.signatureDeadline) : null,
       castingTalentId: body.castingTalentId ?? selectedResource?.castingTalentId ?? null,
       crewTeamId: body.crewTeamId ?? selectedResource?.crewTeamId ?? null,
       locationListingId: body.locationListingId ?? selectedResource?.locationListingId ?? null,
@@ -231,34 +324,45 @@ export async function POST(req: NextRequest, { params }: Params) {
     data: { currentVersionId: version.id },
   });
 
+  await logContractEvent(contract.id, "CREATED", {
+    userId,
+    detail: "Generated from legal template + production data",
+  });
+
+  if (body.approvalRequired) {
+    await defaultContractApprovalChain(projectId, contract.id);
+  }
+
   await prisma.projectActivity.create({
     data: {
       projectId,
       userId,
-      type: body.sendContract ? "CONTRACT_SENT" : "CONTRACT_DRAFT_CREATED",
-      message: `${template.label} created${body.sendContract ? " and sent" : ""}.`,
+      type: "CONTRACT_DRAFT_CREATED",
+      message: `${template.label} created.`,
       metadata: JSON.stringify({
         contractId: contract.id,
         type: contract.type,
-        status: initialStatus,
+        status: CONTRACT_STATUS.DRAFT,
       }),
     },
   });
 
-  if (initialStatus === CONTRACT_STATUS.SENT && contract.counterpartyUserId) {
-    await prisma.notification.create({
-      data: {
-        userId: contract.counterpartyUserId,
-        type: "CONTRACT_EVENT",
-        title: "New contract received",
-        body: `You received ${template.label} for project ${resourceContext.project.title}.`,
-        metadata: JSON.stringify({
+  if (body.sendContract) {
+    try {
+      await sendProjectContract(contract.id, userId);
+      await prisma.projectActivity.create({
+        data: {
           projectId,
-          contractId: contract.id,
-          status: initialStatus,
-        }),
-      },
-    });
+          userId,
+          type: "CONTRACT_SENT",
+          message: `${template.label} sent for signature.`,
+          metadata: JSON.stringify({ contractId: contract.id }),
+        },
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Could not send contract";
+      return NextResponse.json({ error: message, contract }, { status: 400 });
+    }
   }
 
   const updated = await prisma.projectContract.findUnique({
@@ -319,7 +423,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   if (body.reopenAsDraft && (existing.status === CONTRACT_STATUS.REJECTED || existing.status === CONTRACT_STATUS.CHANGES_REQUESTED)) {
     updateData.status = CONTRACT_STATUS.DRAFT;
-  } else if (body.status !== undefined) {
+  } else if (body.status !== undefined && body.status.toUpperCase() !== CONTRACT_STATUS.SENT) {
     updateData.status = body.status;
   }
 
@@ -348,28 +452,20 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 
   if (body.status && body.status.toUpperCase() === CONTRACT_STATUS.ACCEPTED) {
-    await prisma.projectContract.update({
-      where: { id: body.id },
-      data: { status: CONTRACT_STATUS.SIGNED },
-    });
-    const fresh = await prisma.projectContract.findUnique({
-      where: { id: body.id },
-      include: { versions: { orderBy: { version: "desc" }, take: 1 } },
-    });
-    if (fresh?.versions[0]) {
-      await prisma.projectSignature.create({
-        data: {
-          contractId: fresh.id,
-          versionId: fresh.versions[0].id,
-          userId,
-          name: "Story Time Platform Signature",
-          role: "Creator",
-        },
-      });
-    }
+    return NextResponse.json(
+      { error: "Use counter-sign endpoint after recipient signature." },
+      { status: 400 },
+    );
   }
 
-  if (body.status || body.reopenAsDraft) {
+  if (body.status && body.status.toUpperCase() === CONTRACT_STATUS.SENT) {
+    try {
+      await sendProjectContract(body.id, userId);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Could not send contract";
+      return NextResponse.json({ error: message }, { status: 400 });
+    }
+  } else if (body.status || body.reopenAsDraft) {
     await prisma.projectActivity.create({
       data: {
         projectId,

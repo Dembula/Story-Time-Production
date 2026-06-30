@@ -36,7 +36,7 @@ export function ProjectContextBar({
           value={projectId}
           onChange={(e) => handleChange(e.target.value)}
           aria-label="Active project"
-          className="min-w-0 max-w-full flex-1 truncate rounded-lg border border-white/12 bg-slate-950/60 px-3 py-1.5 text-sm font-medium text-white outline-none transition focus:border-orange-400/50 sm:max-w-md"
+          className="storytime-select min-w-0 max-w-full flex-1 truncate px-3 py-1.5 text-sm font-medium text-white sm:max-w-md"
         >
           <option value="">No project selected</option>
           {switchableProjects.map((p) => (
@@ -83,7 +83,7 @@ export function ProjectContextBarStandalone({
           id="project-context-standalone"
           value={projectId}
           onChange={(e) => onChange(e.target.value)}
-          className="min-w-0 w-full max-w-md truncate rounded-lg border border-white/12 bg-slate-950/60 px-3 py-1.5 text-sm font-medium text-white outline-none transition focus:border-orange-400/50"
+          className="storytime-select min-w-0 w-full max-w-md truncate px-3 py-1.5 text-sm font-medium text-white"
         >
           <option value="">No project selected</option>
           {projects.map((p) => (

@@ -17,6 +17,8 @@ import {
   buildContractResourceContext,
   findResourceInContext,
 } from "@/lib/contract-resource-context";
+import { sendProjectContract, logContractEvent } from "@/lib/contract-lifecycle";
+import type { RecipientType } from "@/lib/contract-lifecycle";
 import { patchBreakdownMakeups } from "@/lib/breakdown-makeup-db";
 import type { ModocActionPayload, ModocActionType } from "./action-types";
 import type { ModocActionResult } from "./actions";
@@ -229,10 +231,21 @@ export async function executeVaLegalPostAction(
         data: {
           projectId: ctx.projectId,
           type: template.type,
-          status: sendNow ? CONTRACT_STATUS.SENT : CONTRACT_STATUS.DRAFT,
+          status: CONTRACT_STATUS.DRAFT,
           subject:
             payload.title?.trim() ??
             `${template.label}${selectedResource?.partyName ? ` · ${selectedResource.partyName}` : ""}`,
+          counterpartyUserId: selectedResource?.counterpartyUserId ?? null,
+          recipientType: (resourceType === "ACTOR"
+            ? "CAST_MEMBER"
+            : resourceType === "CREW"
+              ? "CREW_MEMBER"
+              : resourceType === "LOCATION"
+                ? "LOCATION_OWNER"
+                : resourceType === "FUNDING"
+                  ? "INVESTOR"
+                  : "VENDOR") as RecipientType,
+          recipientLabel: selectedResource?.partyName ?? payload.vendor ?? null,
           castingTalentId: selectedResource?.castingTalentId ?? null,
           crewTeamId: selectedResource?.crewTeamId ?? null,
           locationListingId: selectedResource?.locationListingId ?? null,
@@ -252,6 +265,16 @@ export async function executeVaLegalPostAction(
         where: { id: contract.id },
         data: { currentVersionId: version.id },
       });
+      await logContractEvent(contract.id, "CREATED", { userId: ctx.userId, detail: "Created via Virtual Assistant" });
+
+      if (sendNow) {
+        try {
+          await sendProjectContract(contract.id, ctx.userId);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : "Recipient required before send";
+          return { ok: false, error: message, status: 400 };
+        }
+      }
       return {
         ok: true,
         message: sendNow
@@ -266,12 +289,11 @@ export async function executeVaLegalPostAction(
       if ("ok" in ctx) return ctx;
       const contractId = payload.contractId ?? payload.taskId;
       if (!contractId) return { ok: false, error: "contractId required", status: 400 };
-      const result = await prisma.projectContract.updateMany({
-        where: { id: contractId, projectId: ctx.projectId, status: CONTRACT_STATUS.DRAFT },
-        data: { status: CONTRACT_STATUS.SENT },
-      });
-      if (result.count === 0) {
-        return { ok: false, error: "Draft contract not found", status: 404 };
+      try {
+        await sendProjectContract(contractId, ctx.userId);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Could not send contract";
+        return { ok: false, error: message, status: 400 };
       }
       return { ok: true, message: "Contract sent for signature.", data: { contractId } };
     }

@@ -159,7 +159,7 @@ export function CreatorStudioActingLabel() {
         <UserCircle2 className="h-3.5 w-3.5 shrink-0 text-orange-400 sm:h-4 sm:w-4" aria-hidden />
         <select
           id="creator-workspace-select"
-          className="storytime-select min-w-0 flex-1 appearance-none truncate border-0 bg-transparent py-0 pl-0 pr-4 text-[11px] font-medium text-white focus:outline-none focus:ring-0 disabled:opacity-60 sm:text-xs"
+          className="storytime-select storytime-select--embedded min-w-0 flex-1 truncate border-0 bg-transparent py-0 pl-0 pr-4 text-[11px] font-medium text-white focus:outline-none focus:ring-0 disabled:opacity-60 sm:text-xs"
           value={selectValue}
           disabled={switching}
           onChange={(e) => void onSelectProfile(e.target.value)}

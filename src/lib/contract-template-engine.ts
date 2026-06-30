@@ -374,7 +374,7 @@ ${COMMON_SECTIONS}`,
   },
 };
 
-export const SIGNED_CONTRACT_STATUSES = new Set<string>(["SIGNED", "EXECUTED", "CLOSED", "ACCEPTED"]);
+export const SIGNED_CONTRACT_STATUSES = new Set<string>(["SIGNED", "EXECUTED", "CLOSED", "ACCEPTED", "COMPLETED"]);
 
 export function mapLegacyContractType(type: string): ContractTemplateType {
   const normalized = (type || "").toUpperCase();
@@ -427,8 +427,9 @@ export function getDefaultDisclaimer() {
 export function statusToTone(status: string): "slate" | "blue" | "amber" | "emerald" | "red" {
   const normalized = status.toUpperCase();
   if (normalized === "DRAFT") return "slate";
-  if (normalized === "SENT" || normalized === "VIEWED") return "blue";
-  if (normalized === "ACCEPTED" || normalized === "SIGNED" || normalized === "EXECUTED" || normalized === "CLOSED") {
+  if (normalized === "SENT" || normalized === "VIEWED" || normalized === "AWAITING_SIGNATURE") return "blue";
+  if (normalized === "PARTIALLY_SIGNED") return "amber";
+  if (normalized === "ACCEPTED" || normalized === "SIGNED" || normalized === "EXECUTED" || normalized === "CLOSED" || normalized === "COMPLETED") {
     return "emerald";
   }
   if (normalized === "CHANGES_REQUESTED") return "amber";
