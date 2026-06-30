@@ -152,9 +152,21 @@ img {
   color: rgba(163, 163, 163, 0.75);
 }
 
-.storytime-select option {
-  background: #000000;
-  color: hsl(var(--foreground));
+/* Native select dropdown lists use a light OS surface — keep option text dark for contrast */
+select option,
+select optgroup {
+  background-color: #ffffff;
+  color: #0f172a;
+}
+
+select option:checked {
+  background-color: #e2e8f0;
+  color: #020617;
+}
+
+select optgroup {
+  color: #334155;
+  font-weight: 600;
 }
 
 /* Remove native OS select chrome (harsh divider before chevron on Windows). */
@@ -163,6 +175,7 @@ img {
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
+  color-scheme: light;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 0.7rem center;
@@ -211,6 +224,7 @@ img {
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
+  color-scheme: light;
   border-color: rgba(255, 255, 255, 0.1);
   background-color: rgba(255, 255, 255, 0.03);
   color: hsl(var(--foreground));

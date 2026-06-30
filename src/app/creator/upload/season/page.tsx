@@ -227,7 +227,7 @@ function AddSeasonInner() {
               className="storytime-select w-full max-w-xs rounded-xl px-4 py-3 text-sm text-white"
             >
               {Array.from({ length: 24 }, (_, i) => i + 1).map((n) => (
-                <option key={n} value={n} className="bg-slate-900">
+                <option key={n} value={n}>
                   {n} episode{n !== 1 ? "s" : ""}
                 </option>
               ))}

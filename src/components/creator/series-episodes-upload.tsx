@@ -125,7 +125,7 @@ export function SeriesEpisodesUpload({
             className={inputClass}
           >
             {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-              <option key={n} value={n} className="bg-slate-900">
+              <option key={n} value={n}>
                 {n} season{n !== 1 ? "s" : ""}
               </option>
             ))}
@@ -149,7 +149,7 @@ export function SeriesEpisodesUpload({
                 className={inputClass}
               >
                 {Array.from({ length: 24 }, (_, i) => i + 1).map((n) => (
-                  <option key={n} value={n} className="bg-slate-900">
+                  <option key={n} value={n}>
                     {n} episode{n !== 1 ? "s" : ""}
                   </option>
                 ))}

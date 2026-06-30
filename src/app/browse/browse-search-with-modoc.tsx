@@ -295,7 +295,7 @@ export function BrowseSearchWithModoc({ defaultSearch = "", type, filter, sticky
                 aria-label="Content type filter"
               >
                 {CONTENT_TYPES.map((t) => (
-                  <option key={t.value || "all"} value={t.value} className="bg-slate-900">
+                  <option key={t.value || "all"} value={t.value}>
                     {t.label}
                   </option>
                 ))}
