@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ensureProjectAccess } from "@/lib/project-access";
 import { ensureScriptAccess } from "@/lib/script-studio/collaboration-access";
+import { publishCreatorScriptToProject } from "@/lib/project-script-sync";
 
 type ScriptType = "FEATURE" | "SHORT" | "EPISODE" | "OTHER";
 
@@ -204,6 +205,12 @@ export async function PATCH(req: NextRequest) {
         message: `Screenplay "${script.title}" was updated.`,
         metadata: JSON.stringify({ scriptId: script.id }),
       },
+    });
+
+    await publishCreatorScriptToProject({
+      projectId: script.projectId,
+      creatorScriptId: script.id,
+      userId: gate.access.userId,
     });
   }
 

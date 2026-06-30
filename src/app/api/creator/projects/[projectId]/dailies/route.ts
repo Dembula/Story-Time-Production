@@ -1,69 +1,44 @@
 import { NextRequest, NextResponse } from "next/server";
 import { after } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import type { Prisma } from "@/generated/prisma";
+import { ensureProjectAccess, projectAccessDenied } from "@/lib/project-access";
 import { prisma } from "@/lib/prisma";
 import { validateStorageUrlField } from "@/lib/storage-origin";
 import { linkOrIngestStreamForUrl } from "@/lib/stream-ingest-link";
-
-async function ensureAccess(projectId: string) {
-  const session = await getServerSession(authOptions);
-  const role = (session?.user as { role?: string })?.role;
-  const userId = (session?.user as { id?: string })?.id;
-
-  if (!session || !userId || (role !== "CONTENT_CREATOR" && role !== "ADMIN")) {
-    return {
-      error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
-      userId: null as string | null,
-    };
-  }
-
-  const project = await prisma.originalProject.findUnique({
-    where: { id: projectId },
-    include: { members: true, pitches: true },
-  });
-
-  if (!project) {
-    return {
-      error: NextResponse.json({ error: "Not found" }, { status: 404 }),
-      userId: null as string | null,
-    };
-  }
-
-  const isCreatorMember =
-    role === "ADMIN" ||
-    project.members.some((m) => m.userId === userId) ||
-    project.pitches.some((p) => p.creatorId === userId);
-
-  if (!isCreatorMember) {
-    return {
-      error: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
-      userId: null as string | null,
-    };
-  }
-
-  return { error: null as NextResponse | null, userId };
-}
+import { ensureLegacyClipsFromBatches } from "@/lib/dailies/build-intelligence-payload";
 
 export async function GET(
   _req: NextRequest,
   context: { params: Promise<{ projectId: string }> },
 ) {
   const { projectId } = await context.params;
-  const access = await ensureAccess(projectId);
-  if (access.error) return access.error;
+  const access = await ensureProjectAccess(projectId);
+  if (projectAccessDenied(access)) return access.error;
 
-  const batches = await prisma.dailiesBatch.findMany({
-    where: { projectId },
-    orderBy: { createdAt: "desc" },
-    include: {
-      scene: true,
-      shootDay: true,
-      reviewNotes: true,
-    },
-  });
+  await ensureLegacyClipsFromBatches(projectId);
 
-  return NextResponse.json({ batches });
+  const [batches, clips] = await Promise.all([
+    prisma.dailiesBatch.findMany({
+      where: { projectId },
+      orderBy: { createdAt: "desc" },
+      include: {
+        scene: { select: { number: true, heading: true } },
+        shootDay: { select: { id: true, date: true, unit: true } },
+        reviewNotes: { orderBy: { createdAt: "desc" } },
+        clips: { select: { id: true, title: true, takeStatus: true } },
+      },
+    }),
+    prisma.dailiesClip.findMany({
+      where: { projectId },
+      orderBy: { createdAt: "desc" },
+      include: {
+        scene: { select: { number: true, heading: true } },
+        shootDay: { select: { id: true, date: true } },
+      },
+    }),
+  ]);
+
+  return NextResponse.json({ batches, clips });
 }
 
 export async function POST(
@@ -71,8 +46,8 @@ export async function POST(
   context: { params: Promise<{ projectId: string }> },
 ) {
   const { projectId } = await context.params;
-  const access = await ensureAccess(projectId);
-  if (access.error) return access.error;
+  const access = await ensureProjectAccess(projectId);
+  if (projectAccessDenied(access)) return access.error;
 
   const body = (await req.json().catch(() => null)) as
     | {
@@ -81,11 +56,19 @@ export async function POST(
         title?: string;
         videoUrl?: string;
         notes?: string;
+        unit?: string;
+        cameraCard?: string;
+        shotNumber?: string;
+        takeNumber?: number;
+        camera?: string;
+        lens?: string;
+        metadata?: Record<string, unknown>;
+        createClip?: boolean;
       }
     | null;
 
   const videoUrl = body?.videoUrl?.trim() || null;
-  const videoErr = validateStorageUrlField(videoUrl, "videoUrl");
+  const videoErr = validateStorageUrlField(videoUrl, "videoUrl", { allowNull: true });
   if (videoErr) return NextResponse.json({ error: videoErr }, { status: 400 });
 
   const batch = await prisma.dailiesBatch.create({
@@ -96,8 +79,34 @@ export async function POST(
       title: body?.title ?? null,
       videoUrl,
       notes: body?.notes ?? null,
+      unit: body?.unit ?? null,
+      cameraCard: body?.cameraCard ?? null,
+      uploadStatus: videoUrl ? "complete" : "uploading",
+      metadata: body?.metadata ? (body.metadata as Prisma.InputJsonValue) : undefined,
     },
   });
+
+  let clip = null;
+  if (videoUrl || body?.createClip !== false) {
+    clip = await prisma.dailiesClip.create({
+      data: {
+        projectId,
+        batchId: batch.id,
+        sceneId: body?.sceneId ?? null,
+        shootDayId: body?.shootDayId ?? null,
+        unit: body?.unit ?? null,
+        title: body?.title ?? null,
+        videoUrl,
+        streamStatus: videoUrl ? "processing" : "pending",
+        shotNumber: body?.shotNumber ?? null,
+        takeNumber: body?.takeNumber ?? null,
+        camera: body?.camera ?? null,
+        lens: body?.lens ?? null,
+        metadata: body?.metadata ? (body.metadata as Prisma.InputJsonValue) : undefined,
+        takeStatus: "pending",
+      },
+    });
+  }
 
   if (videoUrl) {
     after(async () => {
@@ -105,8 +114,14 @@ export async function POST(
         area: "dailies",
         projectId,
       });
+      if (clip) {
+        await prisma.dailiesClip.update({
+          where: { id: clip.id },
+          data: { streamStatus: "ready" },
+        });
+      }
     });
   }
 
-  return NextResponse.json({ batch }, { status: 201 });
+  return NextResponse.json({ batch, clip }, { status: 201 });
 }

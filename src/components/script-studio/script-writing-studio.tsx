@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -36,7 +35,6 @@ import {
 } from "@/components/project-tools";
 import { useModocOptional } from "@/components/modoc/use-modoc";
 import { useModocToolRefresh } from "@/components/modoc/use-modoc-tool-refresh";
-import { formatZar } from "@/lib/format-currency-zar";
 import { projectToolQueryFn } from "@/lib/project-tool-fetch";
 import { SCREENPLAY_ELEMENT_LABELS, snippetForElement, STUDIO_FONTS } from "@/lib/script-studio/elements";
 import {
@@ -104,7 +102,6 @@ export interface ScriptWritingStudioProps {
 }
 
 export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioProps) {
-  const router = useRouter();
   const queryClient = useQueryClient();
   const hasProject = !!projectId;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -240,6 +237,12 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
         savedUpdatedAtRef.current = result.script.updatedAt;
         collabMarkSavedRef.current(result.script.updatedAt);
       }
+      if (hasProject && projectId) {
+        void queryClient.invalidateQueries({ queryKey: ["project-script", projectId] });
+        void queryClient.invalidateQueries({ queryKey: ["project-scenes", projectId] });
+        void queryClient.invalidateQueries({ queryKey: ["project-breakdown", projectId] });
+        void queryClient.invalidateQueries({ queryKey: ["project-script-breakdown", projectId] });
+      }
     },
     onError: (err: Error & { script?: { content: string; title: string; updatedAt: string } }) => {
       if (err.message === "conflict" && err.script) {
@@ -252,28 +255,6 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
     onSettled: () => {
       setSaving(false);
       void queryClient.invalidateQueries({ queryKey: ["creator-scripts", projectId ?? null] });
-    },
-  });
-
-  const publishToProjectMutation = useMutation({
-    mutationFn: async (creatorScriptId: string) => {
-      const res = await fetch(
-        `/api/creator/projects/${projectId}/script/publish-from-creator-script`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ creatorScriptId }),
-        },
-      );
-      const json = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(json?.error || "Publish failed");
-      return json as { scenesSynced?: number };
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["project-schedule", projectId] });
-      void queryClient.invalidateQueries({ queryKey: ["project-script", projectId] });
-      void queryClient.invalidateQueries({ queryKey: ["project-scenes", projectId] });
-      void queryClient.invalidateQueries({ queryKey: ["project-breakdown", projectId] });
     },
   });
 
@@ -317,7 +298,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
     modoc.setRequestContext({
       scope: "script-writing",
       clientContext: hasProject
-        ? `Script Writing Studio for project ${projectId}. Creator can publish to project scenes, then run breakdown, budget, and schedule in Story Time.`
+        ? `Script Writing Studio for project ${projectId}. Creator writes and saves scripts, then uses breakdown, budget, and schedule in Story Time.`
         : "Script Writing Studio — standalone script library.",
       pageContext: {
         tool: "script-writing",
@@ -457,64 +438,6 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
       ? "bg-slate-950 border-slate-800 text-slate-100"
       : "bg-[#faf8f5] border-slate-300 text-slate-900";
 
-  const { data: marketplaceData } = useQuery({
-    queryKey: ["ip-marketplace", projectId ?? null],
-    queryFn: projectToolQueryFn(
-      projectId ? `/api/creator/ip-marketplace?projectId=${projectId}` : "/api/creator/ip-marketplace",
-    ),
-  });
-
-  const [listingPrice, setListingPrice] = useState("15000");
-  const [listingSynopsis, setListingSynopsis] = useState("");
-  const [listingThemes, setListingThemes] = useState("");
-  const [listingGenre, setListingGenre] = useState("");
-  const [listingModel, setListingModel] = useState<"SALE_FULL_RIGHTS" | "LICENSE" | "CO_PRODUCE">(
-    "SALE_FULL_RIGHTS",
-  );
-
-  const listToMarketplaceMutation = useMutation({
-    mutationFn: async (creatorScriptId: string) => {
-      const res = await fetch("/api/creator/ip-marketplace", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          creatorScriptId,
-          title: draft?.title || selected?.title || "Untitled script",
-          synopsis: listingSynopsis,
-          themes: listingThemes,
-          genre: listingGenre || draft?.type || "OTHER",
-          language: "EN",
-          monetizationModel: listingModel,
-          listingPrice: Number.parseFloat(listingPrice),
-          listingCurrency: "ZAR",
-        }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error((json as { error?: string }).error || "Could not list script");
-      return json;
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["ip-marketplace", projectId ?? null] });
-    },
-  });
-
-  const purchaseMutation = useMutation({
-    mutationFn: async (ipAssetId: string) => {
-      const res = await fetch("/api/creator/ip-marketplace/purchase", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ipAssetId }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error((json as { error?: string }).error || "Could not purchase script");
-      return json;
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["ip-marketplace", projectId ?? null] });
-      void queryClient.invalidateQueries({ queryKey: ["creator-scripts", projectId ?? null] });
-    },
-  });
-
   const studioRoot = (
     <div
       className={`space-y-4 ${fullscreen ? "fixed inset-0 z-[100] overflow-y-auto bg-slate-950 p-4" : ""}`}
@@ -533,7 +456,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                 Professional screenplay workspace with industry formatting, scene navigation, import/export,
                 PDF reader, and Story Time AI.{" "}
                 {hasProject
-                  ? "Publish to project scenes to unlock breakdown, budget, and schedule tools."
+                  ? "Save links your draft to breakdown, budget, and schedule in the project pipeline."
                   : "Link a project to connect production pipeline tools."}
               </p>
             </div>
@@ -998,14 +921,6 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                   </Button>
                   {hasProject && selected?.id ? (
                     <>
-                      <Button
-                        size="sm"
-                        className="bg-cyan-700 hover:bg-cyan-600 text-white text-xs"
-                        disabled={publishToProjectMutation.isPending || dirty}
-                        onClick={() => publishToProjectMutation.mutate(selected.id)}
-                      >
-                        {publishToProjectMutation.isPending ? "Publishing…" : "Publish to scenes"}
-                      </Button>
                       <Link
                         href={`/creator/projects/${projectId}/pre-production/script-breakdown`}
                         className="inline-flex h-8 items-center rounded-md border border-slate-600 px-3 text-xs text-slate-100 hover:bg-slate-800"
@@ -1019,7 +934,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                         Budget
                       </Link>
                       <Link
-                        href={`/creator/projects/${projectId}/pre-production/schedule`}
+                        href={`/creator/projects/${projectId}/pre-production/production-scheduling`}
                         className="inline-flex h-8 items-center rounded-md border border-slate-600 px-3 text-xs text-slate-100 hover:bg-slate-800"
                       >
                         Schedule
@@ -1028,9 +943,6 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                   ) : null}
                 </div>
               </div>
-              {hasProject && dirty ? (
-                <p className="text-[11px] text-amber-400/90">Save before publishing so production tools get the latest script.</p>
-              ) : null}
             </>
           ) : (
             <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/40 p-8 text-center text-sm text-slate-400">
@@ -1068,7 +980,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                 <>
                   <p className="font-medium text-slate-200">Production pipeline</p>
                   <p className="text-slate-500 leading-relaxed">
-                    Write → Publish to scenes → Breakdown → Budget → Schedule
+                    Write → Breakdown → Budget → Schedule
                   </p>
                   {hasProject && collab.collaborators.length > 0 ? (
                     <div>
@@ -1120,100 +1032,6 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
           </aside>
         ) : null}
       </div>
-
-      {!focusMode && !fullscreen ? (
-        <>
-          <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-            <Card className="creator-glass-panel border-0 bg-transparent text-slate-50 shadow-none xl:col-span-2">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Script marketplace</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3 text-xs text-slate-300">
-                {((marketplaceData?.listedAssets as Array<{
-                  id: string;
-                  title: string;
-                  synopsis: string | null;
-                  themes: string | null;
-                  listingPrice: number | null;
-                  currentOwner: { name: string | null; professionalName: string | null };
-                }>) ?? []).length === 0 ? (
-                  <p className="text-slate-500">No marketplace listings right now.</p>
-                ) : (
-                  ((marketplaceData?.listedAssets as Array<{
-                    id: string;
-                    title: string;
-                    synopsis: string | null;
-                    themes: string | null;
-                    listingPrice: number | null;
-                    currentOwner: { name: string | null; professionalName: string | null };
-                  }>) ?? []).map((asset) => (
-                    <div key={asset.id} className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-medium text-slate-100">{asset.title}</p>
-                          <p className="text-[11px] text-slate-500">
-                            by {asset.currentOwner.professionalName || asset.currentOwner.name || "Creator"}
-                          </p>
-                        </div>
-                        <Button
-                          size="sm"
-                          className="bg-orange-500 hover:bg-orange-600 text-white text-xs"
-                          disabled={purchaseMutation.isPending}
-                          onClick={() => purchaseMutation.mutate(asset.id)}
-                        >
-                          Buy {formatZar(asset.listingPrice ?? 0)}
-                        </Button>
-                      </div>
-                      <p className="mt-2 text-slate-300">{asset.synopsis || "No synopsis."}</p>
-                    </div>
-                  ))
-                )}
-              </CardContent>
-            </Card>
-
-            <Card className="creator-glass-panel border-0 bg-transparent text-slate-50 shadow-none">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm">List selected script</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-xs text-slate-300">
-                <Input value={listingPrice} onChange={(e) => setListingPrice(e.target.value)} placeholder="Price (ZAR)" />
-                <select
-                  value={listingModel}
-                  onChange={(e) => setListingModel(e.target.value as typeof listingModel)}
-                  className={creatorToolSelect("w-full text-xs")}
-                >
-                  <option value="SALE_FULL_RIGHTS">Sell full rights</option>
-                  <option value="LICENSE">License</option>
-                  <option value="CO_PRODUCE">Co-produce</option>
-                </select>
-                <Input value={listingGenre} onChange={(e) => setListingGenre(e.target.value)} placeholder="Genre" />
-                <textarea
-                  rows={3}
-                  value={listingSynopsis}
-                  onChange={(e) => setListingSynopsis(e.target.value)}
-                  className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-white"
-                  placeholder="Synopsis"
-                />
-                <Input value={listingThemes} onChange={(e) => setListingThemes(e.target.value)} placeholder="Themes" />
-                <Button
-                  className="w-full bg-cyan-700 hover:bg-cyan-600 text-white text-xs"
-                  disabled={!selected?.id || listToMarketplaceMutation.isPending || dirty}
-                  onClick={() => selected?.id && listToMarketplaceMutation.mutate(selected.id)}
-                >
-                  List on marketplace
-                </Button>
-                <Button
-                  variant="outline"
-                  className="w-full border-slate-600 text-slate-100 text-xs"
-                  onClick={() => router.push("/creator/ip-marketplace")}
-                >
-                  Open marketplace
-                </Button>
-              </CardContent>
-            </Card>
-          </section>
-        </>
-      ) : null}
     </div>
   );
 

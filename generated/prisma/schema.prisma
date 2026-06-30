@@ -1103,6 +1103,7 @@ model OriginalProject {
   riskPlan                RiskPlan?
   continuityNotes         ContinuityNote[]
   dailiesBatches          DailiesBatch[]
+  dailiesClips            DailiesClip[]
   scriptReviewNotes       ScriptReviewNote[]
   creatorScripts          CreatorScript[]
   linkedCatalogueContent  Content[]
@@ -2382,6 +2383,7 @@ model ProjectScene {
   shootDayLinks         ShootDayScene[]
   continuityNotes       ContinuityNote[]
   dailies               DailiesBatch[]
+  dailiesClips          DailiesClip[]
   footageAssets         FootageAsset[]
   projectTasks          ProjectTask[]
   networkPosts          NetworkPost[]
@@ -3077,6 +3079,7 @@ model ShootDay {
   incidents        IncidentReport[]
   continuityNotes  ContinuityNote[]
   dailiesBatches   DailiesBatch[]
+  dailiesClips     DailiesClip[]
   projectTasks     ProjectTask[]
   controlBoard     ShootDayControlBoard?
   payrollLineItems PayrollLineItem[]
@@ -3965,18 +3968,24 @@ model ContinuityNote {
 }
 
 model DailiesBatch {
-  id         String          @id @default(cuid())
-  projectId  String
-  project    OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  sceneId    String?
-  scene      ProjectScene?   @relation(fields: [sceneId], references: [id], onDelete: SetNull)
-  shootDayId String?
-  shootDay   ShootDay?       @relation(fields: [shootDayId], references: [id], onDelete: SetNull)
-  title      String?
-  videoUrl   String?
-  notes      String?
-  createdAt  DateTime        @default(now())
+  id           String          @id @default(cuid())
+  projectId    String
+  project      OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sceneId      String?
+  scene        ProjectScene?   @relation(fields: [sceneId], references: [id], onDelete: SetNull)
+  shootDayId   String?
+  shootDay     ShootDay?       @relation(fields: [shootDayId], references: [id], onDelete: SetNull)
+  title        String?
+  videoUrl     String?
+  notes        String?
+  unit         String?
+  cameraCard   String?
+  uploadStatus String          @default("complete") // uploading, processing, complete, failed
+  metadata     Json?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
 
+  clips       DailiesClip[]
   reviewNotes DailiesNote[]
 
   @@index([projectId])
@@ -3984,17 +3993,74 @@ model DailiesBatch {
   @@index([shootDayId])
 }
 
+model DailiesClip {
+  id            String          @id @default(cuid())
+  projectId     String
+  project       OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  batchId       String?
+  batch         DailiesBatch?   @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  sceneId       String?
+  scene         ProjectScene?   @relation(fields: [sceneId], references: [id], onDelete: SetNull)
+  shootDayId    String?
+  shootDay      ShootDay?       @relation(fields: [shootDayId], references: [id], onDelete: SetNull)
+  unit          String?
+  title         String?
+  videoUrl      String?
+  proxyUrl      String?
+  streamStatus  String          @default("pending") // pending, processing, ready, failed
+  shotNumber    String?
+  takeNumber    Int?
+  camera        String?
+  lens          String?
+  slate         String?
+  location      String?
+  sequence      String?
+  editorBin     String?
+  durationMs    Int?
+  fileSizeBytes BigInt?
+  metadata      Json?
+  takeStatus    String          @default("pending") // pending, approved, circle, rejected, reshoot, safety, alt
+  takeFlags     Json?
+  aiAnalysis    Json?
+  sortOrder     Int             @default(0)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  notes DailiesNote[]
+
+  @@index([projectId])
+  @@index([batchId])
+  @@index([sceneId])
+  @@index([shootDayId])
+  @@index([takeStatus])
+}
+
 model DailiesNote {
-  id        String       @id @default(cuid())
-  batchId   String
-  batch     DailiesBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
-  userId    String?
-  user      User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
-  body      String
-  createdAt DateTime     @default(now())
+  id           String        @id @default(cuid())
+  batchId      String?
+  batch        DailiesBatch? @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  clipId       String?
+  clip         DailiesClip?  @relation(fields: [clipId], references: [id], onDelete: Cascade)
+  userId       String?
+  user         User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  body         String
+  timestampMs  Int?
+  frameNumber  Int?
+  department   String?
+  priority     String        @default("normal") // low, normal, high, critical
+  status       String        @default("open") // open, in_review, resolved
+  category     String?
+  resolved     Boolean       @default(false)
+  parentNoteId String?
+  parentNote   DailiesNote?  @relation("DailiesNoteReplies", fields: [parentNoteId], references: [id], onDelete: SetNull)
+  replies      DailiesNote[] @relation("DailiesNoteReplies")
+  drawings     Json?
+  createdAt    DateTime      @default(now())
 
   @@index([batchId])
+  @@index([clipId])
   @@index([userId])
+  @@index([parentNoteId])
 }
 
 model IncidentReport {

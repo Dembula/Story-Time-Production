@@ -271,7 +271,7 @@ export const PRODUCTION_TOOLS: ProjectToolMeta[] = [
     id: "dailies-review",
     phase: "PRODUCTION",
     label: "Dailies Review",
-    description: "Dailies batches with review notes.",
+    description: "Studio-grade dailies review with AI analysis, circle takes, and editorial handoff.",
     toolSlug: "dailies-review",
     pipelineStep: "ON_SET",
   },
@@ -419,6 +419,52 @@ export function getProjectToolHref(
     return `/creator/projects/${projectId}/production/${tool.toolSlug}`;
   }
   return `/creator/projects/${projectId}/post-production/${tool.toolSlug}`;
+}
+
+const CREATOR_PIPELINE_PHASE_HUBS = new Set([
+  "/creator/pre-production",
+  "/creator/production",
+  "/creator/post-production",
+]);
+
+/** Standalone creator routes that map to a pipeline tool (excludes /creator/upload — shared with catalogue). */
+const CREATOR_PIPELINE_TOOL_ALIASES = new Set([
+  "/creator/cast",
+  "/creator/crew",
+  "/creator/locations",
+  "/creator/equipment",
+  "/creator/catering",
+  "/creator/music",
+]);
+
+/** True when the creator is inside a pre/production/post pipeline tool (not a phase hub). */
+export function isCreatorPipelineToolPath(pathname: string): boolean {
+  if (CREATOR_PIPELINE_PHASE_HUBS.has(pathname)) return false;
+  if (CREATOR_PIPELINE_TOOL_ALIASES.has(pathname)) return true;
+
+  const postStandalone = pathname.match(/^\/creator\/post\/([^/?]+)/);
+  if (postStandalone && findToolBySlug(postStandalone[1])) return true;
+
+  const preStandalone = pathname.match(/^\/creator\/pre\/([^/?]+)/);
+  if (preStandalone && findToolBySlug(preStandalone[1])) return true;
+
+  const prodStandalone = pathname.match(/^\/creator\/production\/([^/?]+)/);
+  if (prodStandalone && findToolBySlug(prodStandalone[1])) return true;
+
+  const prodShortStandalone = pathname.match(/^\/creator\/prod\/([^/?]+)/);
+  if (prodShortStandalone && findToolBySlug(prodShortStandalone[1])) return true;
+
+  const projectScoped = pathname.match(
+    /^\/creator\/projects\/(?!pre-production|production|post-production)([^/]+)\/(pre-production|production|post-production)\/([^/?]+)/,
+  );
+  if (projectScoped && findToolBySlug(projectScoped[3])) return true;
+
+  const projectsFolder = pathname.match(
+    /^\/creator\/projects\/(pre-production|production|post-production)\/([^/?]+)/,
+  );
+  if (projectsFolder && findToolBySlug(projectsFolder[2])) return true;
+
+  return false;
 }
 
 /** When leaving a linked project workspace, open the same tool standalone (no project). */

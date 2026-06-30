@@ -2539,14 +2539,59 @@ exports.Prisma.DailiesBatchScalarFieldEnum = {
   title: 'title',
   videoUrl: 'videoUrl',
   notes: 'notes',
-  createdAt: 'createdAt'
+  unit: 'unit',
+  cameraCard: 'cameraCard',
+  uploadStatus: 'uploadStatus',
+  metadata: 'metadata',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.DailiesClipScalarFieldEnum = {
+  id: 'id',
+  projectId: 'projectId',
+  batchId: 'batchId',
+  sceneId: 'sceneId',
+  shootDayId: 'shootDayId',
+  unit: 'unit',
+  title: 'title',
+  videoUrl: 'videoUrl',
+  proxyUrl: 'proxyUrl',
+  streamStatus: 'streamStatus',
+  shotNumber: 'shotNumber',
+  takeNumber: 'takeNumber',
+  camera: 'camera',
+  lens: 'lens',
+  slate: 'slate',
+  location: 'location',
+  sequence: 'sequence',
+  editorBin: 'editorBin',
+  durationMs: 'durationMs',
+  fileSizeBytes: 'fileSizeBytes',
+  metadata: 'metadata',
+  takeStatus: 'takeStatus',
+  takeFlags: 'takeFlags',
+  aiAnalysis: 'aiAnalysis',
+  sortOrder: 'sortOrder',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
 };
 
 exports.Prisma.DailiesNoteScalarFieldEnum = {
   id: 'id',
   batchId: 'batchId',
+  clipId: 'clipId',
   userId: 'userId',
   body: 'body',
+  timestampMs: 'timestampMs',
+  frameNumber: 'frameNumber',
+  department: 'department',
+  priority: 'priority',
+  status: 'status',
+  category: 'category',
+  resolved: 'resolved',
+  parentNoteId: 'parentNoteId',
+  drawings: 'drawings',
   createdAt: 'createdAt'
 };
 
@@ -3163,6 +3208,7 @@ exports.Prisma.ModelName = {
   RiskChecklistItem: 'RiskChecklistItem',
   ContinuityNote: 'ContinuityNote',
   DailiesBatch: 'DailiesBatch',
+  DailiesClip: 'DailiesClip',
   DailiesNote: 'DailiesNote',
   IncidentReport: 'IncidentReport',
   FootageAsset: 'FootageAsset',

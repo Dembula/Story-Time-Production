@@ -94,6 +94,7 @@ export function DashboardSidebarShell({
   headerClassName = "",
   contentClassName = "",
   mainClassName = "",
+  sidebarAutoCollapse,
 }: {
   brandHref: string;
   brandLabel: ReactNode;
@@ -106,6 +107,8 @@ export function DashboardSidebarShell({
   headerClassName?: string;
   contentClassName?: string;
   mainClassName?: string;
+  /** When this returns true for the current path, the sidebar collapses (desktop dock + overlay). */
+  sidebarAutoCollapse?: (pathname: string) => boolean;
 }) {
   const pathname = usePathname();
   const overlayMode = useOverlayNavMode();
@@ -119,6 +122,15 @@ export function DashboardSidebarShell({
   useEffect(() => {
     if (overlayMode) setSidebarOpen(false);
   }, [pathname, overlayMode]);
+
+  useEffect(() => {
+    if (!sidebarAutoCollapse) return;
+    if (sidebarAutoCollapse(pathname)) {
+      setSidebarOpen(false);
+    } else if (!overlayMode) {
+      setSidebarOpen(true);
+    }
+  }, [pathname, sidebarAutoCollapse, overlayMode]);
 
   useEffect(() => {
     if (!overlayMode || !sidebarOpen) return;

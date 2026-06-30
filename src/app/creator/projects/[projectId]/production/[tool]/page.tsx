@@ -22,6 +22,7 @@ import { CreatorCateringClient } from "@/app/creator/catering/creator-catering-c
 import { mutationErrorMessage, projectToolFetch, projectToolQueryFn } from "@/lib/project-tool-fetch";
 import { ToolActionError } from "@/components/project-tools/tool-action-error";
 import { ExpenseTrackerStudio } from "@/components/expense/expense-tracker-studio";
+import { DailiesReviewStudio } from "@/components/dailies";
 
 interface ProductionToolPageProps {
   params: Promise<{ projectId?: string; tool: string }>;
@@ -123,7 +124,9 @@ export default function ProductionToolPage({ params }: ProductionToolPageProps) 
     return (
       <>
         {!hasProject && <UnlinkedBanner />}
-        <DailiesReview projectId={projectId} title={title} />
+        <Suspense fallback={<Skeleton className="h-64 bg-slate-800/60" />}>
+          <DailiesReviewStudio projectId={projectId} title={title} />
+        </Suspense>
       </>
     );
   }
@@ -2015,73 +2018,6 @@ function ContinuityManager({ projectId, title }: { projectId?: string; title: st
               <p className="text-[11px] text-slate-500">Select two entries to compare visual references and notes.</p>
             )}
           </aside>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function DailiesReview({ projectId, title }: { projectId?: string; title: string }) {
-  const queryClient = useQueryClient();
-  const hasProject = !!projectId;
-  const { data, isLoading } = useQuery({
-    queryKey: ["project-dailies", projectId],
-    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/dailies`),
-    enabled: hasProject,
-  });
-  const batches = (data?.batches ?? []) as {
-    id: string;
-    title: string | null;
-    videoUrl: string | null;
-    notes: string | null;
-    createdAt: string;
-    scene?: { number: string };
-    shootDay?: { date: string };
-    reviewNotes: { body: string }[];
-  }[];
-
-  return (
-    <div className="space-y-4">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
-          <p className="text-sm text-slate-400 mt-1">
-            Dailies batches and review notes.
-          </p>
-        </div>
-        
-      </header>
-      
-      {isLoading ? (
-        <Skeleton className="h-48 bg-slate-800/60" />
-      ) : (
-        <div className="creator-glass-panel p-3 space-y-3">
-          {batches.length === 0 ? (
-            <p className="text-sm text-slate-500 p-4">
-              {!hasProject ? "Link a project above to see dailies." : "No dailies yet. Add batches when footage is ready."}
-            </p>
-          ) : (
-            batches.map((b) => (
-              <div key={b.id} className="rounded-xl bg-slate-900/80 border border-slate-800 p-3">
-                <p className="text-sm font-medium text-white">{b.title || "Untitled batch"}</p>
-                <p className="text-xs text-slate-400 mt-1">
-                  {b.scene ? `Scene ${b.scene.number}` : ""} {b.shootDay ? new Date(b.shootDay.date).toLocaleDateString() : ""}
-                </p>
-                {b.videoUrl && (
-                  <a href={b.videoUrl} target="_blank" rel="noreferrer" className="text-xs text-orange-400 hover:underline mt-1 block">
-                    Watch
-                  </a>
-                )}
-                {b.reviewNotes?.length > 0 && (
-                  <ul className="mt-2 space-y-1 text-xs text-slate-400">
-                    {b.reviewNotes.map((rn, i) => (
-                      <li key={i}>{rn.body}</li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            ))
-          )}
         </div>
       )}
     </div>
