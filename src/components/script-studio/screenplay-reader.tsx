@@ -110,14 +110,13 @@ export function ScreenplayReader({
   const pageShell = (lines: string[], pageNum: number) => (
     <div
       key={pageNum}
-      className={`mx-auto w-full max-w-[8.5in] min-h-[11in] shadow-2xl ${
+      className={`mx-auto w-full shadow-2xl p-4 sm:p-6 md:min-h-[11in] md:max-w-[8.5in] md:p-[1in] md:pl-[1.5in] ${
         darkRead ? "bg-[#1a1a1a] text-slate-100" : "bg-white text-black"
       }`}
       style={{
         fontFamily: fontCss,
         fontSize: `${(12 * zoom) / 100}pt`,
         lineHeight: 1.2,
-        padding: "1in 1in 1in 1.5in",
       }}
     >
       <div className="text-right text-[10px] opacity-50 mb-4">{pageNum + 1}.</div>
@@ -246,8 +245,11 @@ export function ScreenplayReader({
 
             <main className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 md:p-8">
               <div
-                className={`mx-auto space-y-8 ${spread ? "max-w-[17in] grid grid-cols-1 xl:grid-cols-2 gap-8" : "max-w-[min(8.5in,100%)]"}`}
-                style={{ transform: `scale(${zoom / 100})`, transformOrigin: "top center" }}
+                className={`mx-auto w-full space-y-8 ${
+                  spread
+                    ? "max-w-[17in] grid grid-cols-1 xl:grid-cols-2 gap-8"
+                    : "md:max-w-[8.5in]"
+                }`}
               >
                 {spread && page + 1 < totalPages ? (
                   <>

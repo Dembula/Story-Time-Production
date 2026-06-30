@@ -13,8 +13,7 @@ export type ExpenseWorkspaceId =
   | "payroll"
   | "analytics"
   | "budget-versions"
-  | "petty-cash"
-  | "bank-import";
+  | "petty-cash";
 
 const WORKSPACES: { id: ExpenseWorkspaceId; label: string }[] = [
   { id: "dashboard", label: "Dashboard" },
@@ -26,7 +25,6 @@ const WORKSPACES: { id: ExpenseWorkspaceId; label: string }[] = [
   { id: "purchase-orders", label: "Purchase orders" },
   { id: "payroll", label: "Payroll" },
   { id: "petty-cash", label: "Petty cash" },
-  { id: "bank-import", label: "Bank import" },
   { id: "entry", label: "New expense" },
   { id: "expenses", label: "All expenses" },
   { id: "receipts", label: "Receipts" },

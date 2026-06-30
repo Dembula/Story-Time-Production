@@ -16,8 +16,6 @@ import {
   FileUp,
   Focus,
   LayoutTemplate,
-  Maximize,
-  Minimize,
   Moon,
   Sun,
   Users,
@@ -158,7 +156,6 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
   const [fontId, setFontId] = useState("courier-prime");
   const [zoom, setZoom] = useState(100);
   const [focusMode, setFocusMode] = useState(false);
-  const [fullscreen, setFullscreen] = useState(false);
   const [splitOutline, setSplitOutline] = useState(true);
   const [sidebarTab, setSidebarTab] = useState<"scenes" | "characters" | "outline">("scenes");
   const [highlightCharacter, setHighlightCharacter] = useState<string | null>(null);
@@ -179,26 +176,13 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
   }, [scripts, selectedId]);
 
   useEffect(() => {
-    if (!fullscreen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [fullscreen]);
-
-  useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key !== "Escape") return;
-      if (fullscreen) {
-        setFullscreen(false);
-        return;
-      }
       if (focusMode) setFocusMode(false);
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [fullscreen, focusMode]);
+  }, [focusMode]);
 
   useEffect(() => {
     if (selected) {
@@ -471,18 +455,13 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
   const studioGridClass = focusMode
     ? "grid grid-cols-1 gap-3"
     : splitOutline
-      ? "grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,220px)_minmax(0,1fr)_minmax(0,240px)]"
-      : "grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,220px)_minmax(0,1fr)]";
+      ? "grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,220px)_minmax(0,1fr)_minmax(0,240px)]"
+      : "grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,220px)_minmax(0,1fr)]";
 
   const readerContent = useMemo(() => draft?.content ?? "", [draft?.content]);
 
   const studioRoot = (
-    <div
-      className={cn(
-        "creator-tool-studio space-y-4",
-        fullscreen && "fixed inset-0 z-[120] overflow-y-auto bg-slate-950 p-3 sm:p-4 md:p-6",
-      )}
-    >
+    <div className="creator-tool-studio space-y-4">
       {focusMode ? (
         <div className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/80 px-3 py-2 text-xs text-slate-400">
           <span>Focus mode — side panels hidden</span>
@@ -567,7 +546,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
 
       <div className={studioGridClass}>
         {!focusMode ? (
-          <aside className="creator-glass-panel creator-tool-studio-panel flex flex-col overflow-hidden creator-tool-studio-panel-scroll xl:max-h-[calc(100vh-12rem)]">
+          <aside className="creator-glass-panel creator-tool-studio-panel hidden lg:flex flex-col overflow-hidden lg:max-h-[calc(100vh-12rem)]">
             <div className="flex border-b border-slate-800 text-[10px]">
               {(["scenes", "characters", "outline"] as const).map((tab) => (
                 <button
@@ -752,18 +731,6 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                     onClick={() => setSplitOutline((s) => !s)}
                   >
                     <Columns2 className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    className={studioToggleButtonClass(fullscreen)}
-                    aria-pressed={fullscreen}
-                    aria-label={fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-                    title={fullscreen ? "Exit fullscreen (Esc)" : "Fullscreen (Esc to exit)"}
-                    onClick={() => setFullscreen((f) => !f)}
-                  >
-                    {fullscreen ? <Minimize className="h-3.5 w-3.5" /> : <Maximize className="h-3.5 w-3.5" />}
                   </Button>
                   <div className="relative">
                     <Button
@@ -1034,7 +1001,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
         </section>
 
         {splitOutline && !focusMode ? (
-          <aside className="creator-glass-panel creator-tool-studio-panel flex min-h-[240px] flex-col overflow-hidden text-[11px] creator-tool-studio-panel-scroll xl:min-h-0 xl:max-h-[calc(100vh-12rem)]">
+          <aside className="creator-glass-panel creator-tool-studio-panel hidden lg:flex flex-col overflow-hidden text-[11px] lg:max-h-[calc(100vh-12rem)]">
             <div className="flex border-b border-slate-800 text-[9px]">
               {(
                 [

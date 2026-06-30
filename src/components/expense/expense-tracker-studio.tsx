@@ -29,7 +29,6 @@ import {
   VendorsPanel,
 } from "@/components/financial-ops/financial-ops-panels";
 import {
-  BankImportPanel,
   OfflineSyncBanner,
   PettyCashPanel,
   FinancialReportsPanel,
@@ -381,7 +380,6 @@ export function ExpenseTrackerStudio({ projectId, title }: ExpenseTrackerStudioP
           {workspace === "purchase-orders" && projectId && <PurchaseOrdersPanel projectId={projectId} />}
           {workspace === "payroll" && projectId && <PayrollPanel projectId={projectId} />}
           {workspace === "petty-cash" && projectId && <PettyCashPanel projectId={projectId} />}
-          {workspace === "bank-import" && projectId && <BankImportPanel projectId={projectId} />}
           {workspace === "reports" && projectId && <FinancialReportsPanel projectId={projectId} />}
           {workspace === "budget-versions" && projectId && <BudgetVersionsPanel projectId={projectId} />}
 

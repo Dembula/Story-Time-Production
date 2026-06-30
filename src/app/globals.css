@@ -251,14 +251,7 @@ select optgroup {
   max-width: 100%;
 }
 
-@media (max-width: 1279px) {
-  .creator-tool-studio-panel-scroll {
-    max-height: min(42vh, 28rem);
-    overflow-y: auto;
-  }
-}
-
-@media (min-width: 1280px) {
+@media (min-width: 1024px) {
   .creator-tool-studio-panel-scroll {
     max-height: calc(100vh - 12rem);
     overflow-y: auto;
