@@ -56,8 +56,16 @@ import { ScriptCommentsPanel } from "./script-comments-panel";
 import { ScriptVersionsPanel } from "./script-versions-panel";
 import { StoryCardsBoard } from "./story-cards-board";
 import { useScriptCollaboration } from "./use-script-collaboration";
+import { cn } from "@/lib/utils";
 
 const AUTO_SAVE_MS = 30_000;
+
+function studioToggleButtonClass(active: boolean) {
+  return cn(
+    "h-7 w-7 shrink-0 p-0 text-slate-300 hover:translate-y-0 active:translate-y-0",
+    active && "bg-orange-500/15 text-orange-200 hover:bg-orange-500/20",
+  );
+}
 
 const VA_QUICK_ACTIONS: Array<{ label: string; prompt: string }> = [
   {
@@ -169,6 +177,28 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
   useEffect(() => {
     if (!selectedId && scripts.length > 0) setSelectedId(scripts[0].id);
   }, [scripts, selectedId]);
+
+  useEffect(() => {
+    if (!fullscreen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [fullscreen]);
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== "Escape") return;
+      if (fullscreen) {
+        setFullscreen(false);
+        return;
+      }
+      if (focusMode) setFocusMode(false);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [fullscreen, focusMode]);
 
   useEffect(() => {
     if (selected) {
@@ -438,10 +468,31 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
       ? "bg-slate-950 border-slate-800 text-slate-100"
       : "bg-[#faf8f5] border-slate-300 text-slate-900";
 
+  const studioGridClass = focusMode
+    ? "grid grid-cols-1 gap-3"
+    : splitOutline
+      ? "grid gap-3 lg:grid-cols-[minmax(0,220px)_minmax(0,1fr)_minmax(0,240px)]"
+      : "grid gap-3 lg:grid-cols-[minmax(0,220px)_minmax(0,1fr)]";
+
   const studioRoot = (
     <div
-      className={`space-y-4 ${fullscreen ? "fixed inset-0 z-[100] overflow-y-auto bg-slate-950 p-4" : ""}`}
+      className={cn(
+        "space-y-4",
+        fullscreen && "fixed inset-0 z-[120] overflow-y-auto bg-slate-950 p-4 md:p-6",
+      )}
     >
+      {focusMode ? (
+        <div className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/80 px-3 py-2 text-xs text-slate-400">
+          <span>Focus mode — side panels hidden</span>
+          <button
+            type="button"
+            className="rounded-md px-2 py-1 text-orange-300 hover:bg-slate-800 hover:text-orange-200"
+            onClick={() => setFocusMode(false)}
+          >
+            Exit focus
+          </button>
+        </div>
+      ) : null}
       {!focusMode ? (
         <header className="storytime-plan-card p-5 md:p-6">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -512,7 +563,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
         fontCss={fontCss}
       />
 
-      <div className={`grid gap-3 ${splitOutline && !focusMode ? "lg:grid-cols-[220px_1fr_240px]" : "lg:grid-cols-[220px_1fr]"}`}>
+      <div className={studioGridClass}>
         {!focusMode ? (
           <aside className="creator-glass-panel flex flex-col max-h-[calc(100vh-12rem)] overflow-hidden">
             <div className="flex border-b border-slate-800 text-[10px]">
@@ -675,13 +726,41 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                   <Button size="sm" variant="ghost" className="h-7 text-slate-300" onClick={() => setStudioTheme((t) => (t === "dark" ? "light" : "dark"))}>
                     {studioTheme === "dark" ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
                   </Button>
-                  <Button size="sm" variant="ghost" className="h-7 text-slate-300" onClick={() => setFocusMode((f) => !f)}>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className={studioToggleButtonClass(focusMode)}
+                    aria-pressed={focusMode}
+                    aria-label={focusMode ? "Exit focus mode" : "Enter focus mode"}
+                    title={focusMode ? "Exit focus mode" : "Focus mode"}
+                    onClick={() => setFocusMode((f) => !f)}
+                  >
                     <Focus className="h-3.5 w-3.5" />
                   </Button>
-                  <Button size="sm" variant="ghost" className="h-7 text-slate-300" onClick={() => setSplitOutline((s) => !s)}>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className={studioToggleButtonClass(splitOutline && !focusMode)}
+                    aria-pressed={splitOutline && !focusMode}
+                    aria-label={splitOutline ? "Hide pipeline panel" : "Show pipeline panel"}
+                    title={focusMode ? "Exit focus mode to toggle pipeline panel" : splitOutline ? "Hide pipeline panel" : "Show pipeline panel"}
+                    disabled={focusMode}
+                    onClick={() => setSplitOutline((s) => !s)}
+                  >
                     <Columns2 className="h-3.5 w-3.5" />
                   </Button>
-                  <Button size="sm" variant="ghost" className="h-7 text-slate-300" onClick={() => setFullscreen((f) => !f)}>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className={studioToggleButtonClass(fullscreen)}
+                    aria-pressed={fullscreen}
+                    aria-label={fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+                    title={fullscreen ? "Exit fullscreen (Esc)" : "Fullscreen (Esc to exit)"}
+                    onClick={() => setFullscreen((f) => !f)}
+                  >
                     {fullscreen ? <Minimize className="h-3.5 w-3.5" /> : <Maximize className="h-3.5 w-3.5" />}
                   </Button>
                   <div className="relative">
@@ -953,7 +1032,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
         </section>
 
         {splitOutline && !focusMode ? (
-          <aside className="creator-glass-panel p-0 overflow-hidden text-[11px] hidden lg:flex lg:flex-col">
+          <aside className="creator-glass-panel flex min-h-[280px] flex-col overflow-hidden text-[11px] lg:min-h-0 lg:max-h-[calc(100vh-12rem)]">
             <div className="flex border-b border-slate-800 text-[9px]">
               {(
                 [
