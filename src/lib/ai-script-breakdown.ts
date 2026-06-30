@@ -2,7 +2,9 @@
  * Prompt + JSON extraction for full-script breakdown automation (server-side AI).
  */
 
-export const AI_SCRIPT_BREAKDOWN_SYSTEM = `You are an expert script supervisor and line producer. You read feature-style screenplays and output structured production breakdown data as JSON only.
+export const AI_SCRIPT_BREAKDOWN_SYSTEM = `You are an expert script supervisor, line producer, and production manager. You read feature-style screenplays and output structured production breakdown data as JSON only.
+
+Think like a real AD/UPM: infer context, not just keywords. Example: "John grabs his father's revolver" → character John, prop revolver, weapon/safety flag, wardrobe interaction, possible insurance note.
 
 Rules:
 - Output a single JSON object. No markdown fences, no commentary before or after.
@@ -12,7 +14,10 @@ Rules:
 - storyDay is an integer: narrative day in story order (increment when the script clearly moves to a new calendar/story day).
 - summary: 2–5 sentences of actionable scene description (what happens, who is present, key beats). Not slugline copy.
 - For every breakdown item, include sceneNumbers listing every scene where that element appears (dedupe names across scenes into one row per unique entity when the same name recurs).
-- Be conservative: if unsure, omit an item rather than inventing.`;
+- characters.importance: LEAD, SUPPORTING, or EXTRA when inferable.
+- props.special: true for hero props, weapons, critical plot devices.
+- Per scene include sceneAnalysis with production intelligence: purpose, risks, aiFlags (permits, animals, child actors, drones, stunts, weather, intimacy, licensed music, etc.).
+- Be thorough but conservative: omit uncertain items rather than inventing.`;
 
 export function buildAiScriptBreakdownUserPrompt(scriptTitle: string, screenplay: string): string {
   return `Script title: ${scriptTitle}
@@ -26,10 +31,22 @@ Read the entire screenplay and fill this JSON shape (all keys optional except fo
       "summary": "string",
       "storyDay": 1,
       "intExt": "INT",
-      "timeOfDay": "DAY"
+      "timeOfDay": "DAY",
+      "sceneAnalysis": {
+        "purpose": "string",
+        "storyImportance": "low|medium|high|pivotal",
+        "emotionalTone": "string",
+        "actionLevel": "minimal|moderate|heavy",
+        "dialogueIntensity": "none|light|moderate|heavy",
+        "productionRisks": ["string"],
+        "aiFlags": ["string"],
+        "departmentPrep": ["string"],
+        "continuityRisks": ["string"],
+        "budgetDrivers": ["string"]
+      }
     }
   ],
-  "characters": [ { "name": "string", "sceneNumbers": ["1","2"] } ],
+  "characters": [ { "name": "string", "importance": "LEAD|SUPPORTING|EXTRA", "sceneNumbers": ["1","2"] } ],
   "props": [ { "name": "string", "description": "string", "special": false, "sceneNumbers": ["1"] } ],
   "locations": [ { "name": "string", "description": "string", "sceneNumbers": ["1"] } ],
   "wardrobe": [ { "description": "string", "character": "string or null", "sceneNumbers": ["1"] } ],
@@ -54,8 +71,21 @@ export type AiParsedBreakdown = {
     storyDay?: number | null;
     intExt?: string | null;
     timeOfDay?: string | null;
+    sceneAnalysis?: {
+      purpose?: string | null;
+      storyImportance?: string | null;
+      emotionalTone?: string | null;
+      actionLevel?: string | null;
+      dialogueIntensity?: string | null;
+      productionRisks?: string[];
+      aiFlags?: string[];
+      departmentPrep?: string[];
+      continuityRisks?: string[];
+      budgetDrivers?: string[];
+      recommendedPrep?: string[];
+    } | null;
   }>;
-  characters?: Array<{ name: string; sceneNumbers?: string[] }>;
+  characters?: Array<{ name: string; importance?: string | null; sceneNumbers?: string[] }>;
   props?: Array<{
     name: string;
     description?: string | null;
@@ -129,13 +159,18 @@ export function normalizeAiBreakdown(parsed: AiParsedBreakdown): AiParsedBreakdo
       storyDay: s.storyDay == null || Number.isNaN(Number(s.storyDay)) ? null : Number(s.storyDay),
       intExt: s.intExt ? String(s.intExt).toUpperCase() : null,
       timeOfDay: s.timeOfDay ? String(s.timeOfDay).toUpperCase() : null,
+      sceneAnalysis: s.sceneAnalysis ?? null,
     }))
     .filter((s) => s.sceneNumber);
 
   return {
     scenes,
     characters: (parsed.characters ?? [])
-      .map((c) => ({ name: String(c.name ?? "").trim(), sceneNumbers: normSceneNums(c.sceneNumbers) }))
+      .map((c) => ({
+        name: String(c.name ?? "").trim(),
+        importance: c.importance ? String(c.importance).toUpperCase() : null,
+        sceneNumbers: normSceneNums(c.sceneNumbers),
+      }))
       .filter((c) => c.name),
     props: (parsed.props ?? [])
       .map((p) => ({

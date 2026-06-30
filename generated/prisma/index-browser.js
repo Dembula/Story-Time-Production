@@ -1466,6 +1466,7 @@ exports.Prisma.ProjectVisualAssetScalarFieldEnum = {
   title: 'title',
   caption: 'caption',
   sortOrder: 'sortOrder',
+  sceneId: 'sceneId',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 };
@@ -1514,6 +1515,7 @@ exports.Prisma.ProjectSceneScalarFieldEnum = {
   timeOfDay: 'timeOfDay',
   summary: 'summary',
   pageCount: 'pageCount',
+  breakdownAnalysis: 'breakdownAnalysis',
   status: 'status',
   primaryLocationId: 'primaryLocationId',
   createdAt: 'createdAt',

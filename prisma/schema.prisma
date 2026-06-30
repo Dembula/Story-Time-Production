@@ -2281,11 +2281,14 @@ model ProjectVisualAsset {
   /// Tone, direction, feel — freeform notes for the team
   caption     String?
   sortOrder   Int      @default(0)
+  sceneId     String?
+  scene       ProjectScene? @relation(fields: [sceneId], references: [id], onDelete: SetNull)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@index([projectId])
   @@index([projectId, category])
+  @@index([sceneId])
 }
 
 model ProjectIdea {
@@ -2357,6 +2360,8 @@ model ProjectScene {
   timeOfDay   String?
   summary     String?
   pageCount   Float?
+  /// AI + computed production analysis (purpose, risks, flags, prep notes)
+  breakdownAnalysis Json?
   status      String   @default("PLANNED") // PLANNED, SCHEDULED, SHOOTING, WRAPPED
   primaryLocationId String?  @unique
   primaryLocation   BreakdownLocation? @relation("PrimaryLocation", fields: [primaryLocationId], references: [id], onDelete: SetNull)
@@ -2379,6 +2384,7 @@ model ProjectScene {
   projectTasks  ProjectTask[]
   networkPosts  NetworkPost[]
   networkPortfolioItems NetworkPortfolioItem[]
+  visualAssets  ProjectVisualAsset[]
 
   @@index([projectId])
   @@index([scriptId])

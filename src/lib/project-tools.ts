@@ -107,8 +107,8 @@ export const PRE_PRODUCTION_TOOLS: ProjectToolMeta[] = [
   {
     id: "script-breakdown",
     phase: "PRE_PRODUCTION",
-    label: "Script Breakdown",
-    description: "Tag characters, props, locations, wardrobe, and SFX for scheduling.",
+    label: "Script Breakdown Studio",
+    description: "AI-powered production breakdown hub — scenes, catalog, scheduling, and budget prep.",
     toolSlug: "script-breakdown",
     pipelineStep: "BREAKDOWN",
   },

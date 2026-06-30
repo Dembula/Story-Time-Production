@@ -6,6 +6,7 @@ const PRE_PRODUCTION_TOOL_QUERY_KEYS: Record<string, string[]> = {
   "script-review": ["script-review", "script-review-v2", "project-script-review-script-v2"],
   "script-breakdown": [
     "project-breakdown",
+    "project-breakdown-intelligence",
     "project-scenes",
     "project-script-breakdown",
     "creator-scripts-breakdown",

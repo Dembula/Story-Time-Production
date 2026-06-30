@@ -40,7 +40,7 @@ import {
   ContractRecipientPicker,
   type RecipientOption,
 } from "@/components/legal/contract-recipient-picker";
-import type { RecipientType } from "@/lib/contract-lifecycle";
+import type { RecipientType } from "@/lib/contract-lifecycle-shared";
 
 type ContractTemplateMeta = {
   type: string;

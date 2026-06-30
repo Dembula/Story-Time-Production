@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
 
-import { ensureReviewProjectAccess } from "@/lib/script-review/access";
+import { ensureReviewProjectAccess, reviewAccessDenied } from "@/lib/script-review/access";
 
 import { canUseLayer } from "@/lib/script-review/permissions";
 
@@ -20,7 +20,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
   const gate = await ensureReviewProjectAccess(projectId);
 
-  if (gate.error || !gate.access) return gate.error;
+  if (reviewAccessDenied(gate)) return gate.error;
 
 
 
@@ -152,7 +152,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
   const gate = await ensureReviewProjectAccess(projectId);
 
-  if (gate.error || !gate.access) return gate.error;
+  if (reviewAccessDenied(gate)) return gate.error;
 
 
 

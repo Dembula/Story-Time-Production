@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ensureProjectAccess } from "@/lib/project-access";
+import { ensureProjectAccess, projectAccessDenied } from "@/lib/project-access";
 import { createProjectClause, listProjectClauses, seedDefaultClauseLibrary, seedJurisdictionClausePacks } from "@/lib/legal/clause-library-service";
 import { getClausePack, listClausePackJurisdictions } from "@/lib/legal/clause-packs-data";
 
@@ -23,7 +23,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ project
 export async function POST(req: NextRequest, context: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await context.params;
   const access = await ensureProjectAccess(projectId);
-  if (access.error || !access.userId) return access.error;
+  if (projectAccessDenied(access)) return access.error;
 
   const body = await req.json().catch(() => ({}));
   if (body.action === "seed_defaults") {

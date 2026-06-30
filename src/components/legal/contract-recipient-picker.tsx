@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Search, User } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { RECIPIENT_TYPES, recipientTypeLabel, type RecipientType } from "@/lib/contract-lifecycle";
+import { RECIPIENT_TYPES, recipientTypeLabel, type RecipientType } from "@/lib/contract-lifecycle-shared";
 
 export type RecipientOption = {
   id: string;

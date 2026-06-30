@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ensureProjectAccess } from "@/lib/project-access";
+import { ensureProjectAccess, projectAccessDenied } from "@/lib/project-access";
 import { prisma } from "@/lib/prisma";
 import {
   decideApprovalStep,
@@ -28,7 +28,7 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ projec
 export async function POST(req: NextRequest, context: { params: Promise<{ projectId: string; contractId: string }> }) {
   const { projectId, contractId } = await context.params;
   const access = await ensureProjectAccess(projectId);
-  if (access.error || !access.userId) return access.error;
+  if (projectAccessDenied(access)) return access.error;
 
   const body = await req.json().catch(() => ({}));
   const contract = await prisma.projectContract.findFirst({ where: { id: contractId, projectId } });

@@ -129,6 +129,7 @@ export async function executeScriptBreakdown(
           storyDay: s.storyDay,
           intExt: s.intExt,
           timeOfDay: s.timeOfDay,
+          breakdownAnalysis: s.sceneAnalysis ?? undefined,
         } as Record<string, unknown>,
       });
     }
@@ -158,7 +159,13 @@ export async function executeScriptBreakdown(
     for (const c of parsed.characters ?? []) {
       for (const sid of resolve(c.sceneNumbers)) {
         await tx.breakdownCharacter.create({
-          data: { projectId, name: c.name, sceneId: sid, description: null, importance: null },
+          data: {
+            projectId,
+            name: c.name,
+            sceneId: sid,
+            description: null,
+            importance: c.importance ?? null,
+          },
         });
       }
     }

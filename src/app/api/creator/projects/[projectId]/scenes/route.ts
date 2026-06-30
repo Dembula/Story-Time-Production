@@ -14,6 +14,7 @@ function sceneApiShape(s: unknown) {
     summary: typeof r.summary === "string" ? r.summary : null,
     status: String(r.status),
     scriptId: typeof r.scriptId === "string" ? r.scriptId : null,
+    breakdownAnalysis: r.breakdownAnalysis ?? null,
   };
 }
 
@@ -49,6 +50,7 @@ export async function PATCH(
       timeOfDay?: string | null;
       summary?: string | null;
       heading?: string | null;
+      breakdownAnalysis?: Record<string, unknown> | null;
     }>;
   } | null;
 
@@ -71,6 +73,7 @@ export async function PATCH(
     if ("timeOfDay" in s) data.timeOfDay = s.timeOfDay;
     if ("summary" in s) data.summary = s.summary;
     if ("heading" in s) data.heading = s.heading;
+    if ("breakdownAnalysis" in s) data.breakdownAnalysis = s.breakdownAnalysis;
     if (Object.keys(data).length > 0) {
       await prisma.projectScene.update({ where: { id: s.id }, data: data as any });
     }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ensureProjectFinanceAccess } from "@/lib/financial-ops-access";
+import { ensureProjectFinanceAccess, financeAccessDenied } from "@/lib/financial-ops-access";
 import {
   createPettyCashFund,
   listPettyCashFunds,
@@ -18,7 +18,7 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ projec
 export async function POST(req: NextRequest, context: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await context.params;
   const access = await ensureProjectFinanceAccess(projectId);
-  if (access.error || !access.userId) return access.error;
+  if (financeAccessDenied(access)) return access.error;
 
   const body = await req.json().catch(() => ({}));
 

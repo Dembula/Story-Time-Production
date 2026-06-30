@@ -8,6 +8,8 @@ import {
 
   ensureReviewProjectAccessForExecutive,
 
+  reviewAccessDenied,
+
 } from "@/lib/script-review/access";
 
 
@@ -172,7 +174,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
   const gate = await ensureReviewProjectAccess(projectId);
 
-  if (gate.error || !gate.access) return gate.error;
+  if (reviewAccessDenied(gate)) return gate.error;
 
 
 

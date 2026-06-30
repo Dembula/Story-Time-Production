@@ -32,6 +32,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         imageUrl: string;
         title?: string | null;
         caption?: string | null;
+        sceneId?: string | null;
       }
     | null;
 
@@ -53,6 +54,17 @@ export async function POST(req: NextRequest, { params }: Params) {
   });
   const sortOrder = (agg._max.sortOrder ?? -1) + 1;
 
+  let sceneId: string | null = body.sceneId?.trim() || null;
+  if (sceneId) {
+    const scene = await prisma.projectScene.findFirst({
+      where: { id: sceneId, projectId },
+      select: { id: true },
+    });
+    if (!scene) {
+      return NextResponse.json({ error: "sceneId not found on this project" }, { status: 400 });
+    }
+  }
+
   const asset = await prisma.projectVisualAsset.create({
     data: {
       projectId,
@@ -60,6 +72,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       imageUrl: url,
       title: body.title?.trim() || null,
       caption: body.caption?.trim() || null,
+      sceneId,
       sortOrder,
     },
   });

@@ -14,7 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { paginateContractTerms } from "@/lib/contract-document-format";
-import { watermarkForStatus } from "@/lib/contract-lifecycle";
+import { watermarkForStatus } from "@/lib/contract-lifecycle-shared";
 
 export type ContractDocumentViewerProps = {
   title: string;

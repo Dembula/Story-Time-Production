@@ -3,6 +3,10 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { suggestScriptBreakdownAfterSave } from "@/lib/modoc/proactive";
+import {
+  analyzeScriptRevisionImpact,
+  notifyBreakdownRevisionImpact,
+} from "@/lib/breakdown/script-revision-impact";
 
 async function requireProjectMember(projectId: string, req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -101,6 +105,12 @@ export async function PATCH(
   }
 
   if (body.content) {
+    const previousVersion = await prisma.projectScriptVersion.findFirst({
+      where: { scriptId: script.id },
+      orderBy: { createdAt: "desc" },
+    });
+    const previousContent = previousVersion?.content ?? "";
+
     if (body.createNewVersion) {
       const version = await prisma.projectScriptVersion.create({
         data: {
@@ -145,6 +155,19 @@ export async function PATCH(
             autoSavedAt: new Date(),
           },
         });
+      }
+    }
+
+    const contentChanged = previousContent.trim() !== body.content.trim();
+    if (contentChanged && previousContent.trim()) {
+      const impact = await analyzeScriptRevisionImpact(projectId, previousContent, body.content);
+      if (impact.summary.added + impact.summary.removed + impact.summary.changed > 0) {
+        void notifyBreakdownRevisionImpact({
+          projectId,
+          userId,
+          scriptTitle: script.title,
+          impact,
+        }).catch(() => {});
       }
     }
   }

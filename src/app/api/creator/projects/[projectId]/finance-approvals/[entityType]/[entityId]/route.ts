@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ensureProjectFinanceAccess } from "@/lib/financial-ops-access";
+import { ensureProjectFinanceAccess, financeAccessDenied } from "@/lib/financial-ops-access";
 import {
   decideFinanceApprovalStep,
   listFinanceApprovalSteps,
@@ -25,7 +25,7 @@ export async function POST(
 ) {
   const { projectId, entityType, entityId } = await context.params;
   const access = await ensureProjectFinanceAccess(projectId);
-  if (access.error || !access.userId) return access.error;
+  if (financeAccessDenied(access)) return access.error;
 
   const body = await req.json().catch(() => ({}));
   const type = entityType as FinanceEntityType;

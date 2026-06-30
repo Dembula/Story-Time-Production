@@ -39,6 +39,15 @@ import { mutationErrorMessage, projectToolFetch, projectToolQueryFn } from "@/li
 import { ToolActionError } from "@/components/project-tools/tool-action-error";
 import { ScriptWritingStudio } from "@/components/script-studio/script-writing-studio";
 import { ScriptReviewStudio } from "@/components/script-review/script-review-studio";
+import { BreakdownStudioShell, type BreakdownStudioTab } from "@/components/breakdown";
+import type {
+  BreakdownIntelligencePayload,
+  CatalogAsset,
+  BreakdownCategoryKey,
+  BreakdownDepartmentId,
+} from "@/lib/breakdown/types";
+import type { ScriptRevisionImpact } from "@/lib/breakdown/script-revision-impact";
+import type { DepartmentWorkspacePayload } from "@/lib/breakdown/department-workspace";
 import { parseScriptReviewNoteBodyV2 } from "@/lib/script-review/notes";
 import {
   ToolSavedViewSheet,
@@ -716,6 +725,7 @@ function attachSceneIdToBreakdownRows<T extends { sceneId?: string | null }>(
 
 function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspaceProps) {
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
   const hasProject = !!projectId;
   const { data, isLoading } = useQuery({
     queryKey: ["project-breakdown", projectId],
@@ -923,6 +933,7 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
       setSceneEdits({});
       void queryClient.invalidateQueries({ queryKey: ["project-scenes", projectId] });
       void queryClient.invalidateQueries({ queryKey: ["project-breakdown", projectId] });
+      void queryClient.invalidateQueries({ queryKey: ["project-breakdown-intelligence", projectId] });
       const w = (out.warnings ?? []).filter(Boolean);
       setAiPopulateMessage(
         w.length > 0 ? `Done. Notes: ${w.slice(0, 6).join(" · ")}${w.length > 6 ? "…" : ""}` : "AI breakdown applied.",
@@ -935,6 +946,46 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
 
   const [tab, setTab] = useState<BreakdownTab>("scenes");
   const [breakdownViewOpen, setBreakdownViewOpen] = useState(false);
+  const [studioTab, setStudioTab] = useState<BreakdownStudioTab>("command");
+  const [selectedAsset, setSelectedAsset] = useState<CatalogAsset | null>(null);
+  const [activeDepartment, setActiveDepartment] = useState<BreakdownDepartmentId | null>(null);
+  const [highlightCategory, setHighlightCategory] = useState<BreakdownCategoryKey | null>(null);
+
+  const { data: intelligenceData, isLoading: intelligenceLoading } = useQuery({
+    queryKey: ["project-breakdown-intelligence", projectId],
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/breakdown/intelligence`),
+    enabled: hasProject,
+  });
+  const intelligence = (intelligenceData ?? null) as BreakdownIntelligencePayload | null;
+
+  const { data: revisionData, isLoading: revisionLoading } = useQuery({
+    queryKey: ["project-breakdown-revision-impact", projectId],
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/breakdown/revision-impact`),
+    enabled: hasProject,
+  });
+  const revisionImpact = ((revisionData as { impact?: ScriptRevisionImpact | null } | null)?.impact ??
+    null) as ScriptRevisionImpact | null;
+
+  const { data: departmentWsData, isLoading: departmentWsLoading } = useQuery({
+    queryKey: ["project-breakdown-department", projectId, activeDepartment],
+    queryFn: projectToolQueryFn(
+      `/api/creator/projects/${projectId}/breakdown/departments?department=${activeDepartment}`,
+    ),
+    enabled: hasProject && !!activeDepartment,
+  });
+  const departmentWorkspace = ((departmentWsData as { workspace?: DepartmentWorkspacePayload } | null)?.workspace ??
+    null) as DepartmentWorkspacePayload | null;
+
+  useEffect(() => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam === "revisions") setStudioTab("revisions");
+    else if (tabParam === "screenplay") setStudioTab("screenplay");
+    else if (tabParam === "departments") setStudioTab("departments");
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!hasProject && studioTab !== "editor") setStudioTab("editor");
+  }, [hasProject, studioTab]);
 
   const [draft, setDraft] = useState<BreakdownPayload | null>(null);
   const [savedSnapshot, setSavedSnapshot] = useState<BreakdownPayload | null>(null);
@@ -1007,7 +1058,8 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
     },
     onSettled: () => {
       setSaving(false);
-      queryClient.invalidateQueries({ queryKey: ["project-breakdown", projectId] });
+      void queryClient.invalidateQueries({ queryKey: ["project-breakdown", projectId] });
+      void queryClient.invalidateQueries({ queryKey: ["project-breakdown-intelligence", projectId] });
     },
   });
 
@@ -1138,9 +1190,8 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
             </p>
             <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
             <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
-              Build a scene-by-scene breakdown: scenes come from your project screenplay (Script Writing).
-              Tag characters, props, locations, wardrobe, extras, vehicles, stunts, SFX, and makeup per scene.
-              This powers casting, locations, equipment, and risk tools later.
+              Professional Script Breakdown Studio — AI analyzes your screenplay, tags every production element, and
+              powers scheduling, budgeting, casting, call sheets, and department workflows.
               {!hasProject && (
                 <span className="block mt-2 text-amber-200/90">
                   Working without a linked project — changes save locally in this browser. Link a project above to sync to your production workspace.
@@ -1216,6 +1267,48 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
         />
       </ToolSavedViewSheet>
 
+      <BreakdownStudioShell
+        studioTab={studioTab}
+        onStudioTabChange={setStudioTab}
+        intelligence={intelligence}
+        intelligenceLoading={hasProject && intelligenceLoading}
+        projectId={projectId}
+        selectedSceneId={activeSceneId || null}
+        onSelectScene={(id) => {
+          setActiveSceneId(id);
+          setStudioTab("editor");
+          setTab("characters");
+        }}
+        selectedAsset={selectedAsset}
+        onSelectAsset={setSelectedAsset}
+        onCloseAsset={() => setSelectedAsset(null)}
+        activeDepartment={activeDepartment}
+        onActiveDepartment={setActiveDepartment}
+        highlightCategory={highlightCategory}
+        onHighlightCategory={(cat) => {
+          setHighlightCategory(cat);
+          if (cat) setTab(cat);
+        }}
+        onRunAi={() => {
+          if (
+            !window.confirm(
+              "AI will replace all breakdown rows and refresh scene intelligence. Continue?",
+            )
+          ) {
+            return;
+          }
+          setAiPopulateMessage("");
+          autoPopulateMutation.mutate({ mode: "full" });
+        }}
+        aiRunning={autoPopulateMutation.isPending}
+        screenplayContent={latestProjectScriptContent || selectedScript?.content || ""}
+        breakdownDraft={draft}
+        revisionImpact={revisionImpact}
+        revisionLoading={revisionLoading}
+        departmentWorkspace={departmentWorkspace}
+        departmentWorkspaceLoading={departmentWsLoading}
+        editor={
+          <>
       {breakdownScriptOptions.length > 0 && (
         <div className="rounded-lg border border-slate-800 bg-slate-900/50 px-4 py-3">
           <label className="text-xs font-medium text-slate-400 block mb-2">Script for this breakdown</label>
@@ -1815,6 +1908,10 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
           <p className="mt-2 text-xs text-slate-500">No script review notes yet.</p>
         )}
       </section>
+
+          </>
+        }
+      />
 
       
     </div>

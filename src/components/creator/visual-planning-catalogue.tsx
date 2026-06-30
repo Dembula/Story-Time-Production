@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ImagePlus, Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,7 @@ export type VisualPlanningAsset = {
   title: string | null;
   caption: string | null;
   sortOrder: number;
+  sceneId: string | null;
 };
 
 const VISUAL_UPLOAD_ACCEPT =
@@ -29,8 +31,10 @@ async function uploadToStorage(file: File): Promise<string> {
 
 export function VisualPlanningCatalogue({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
   const fileRef = useRef<HTMLInputElement>(null);
   const [filter, setFilter] = useState<VisualPlanningCategoryId | "all">("all");
+  const [sceneFilterId, setSceneFilterId] = useState<string | null>(null);
   const [uploadCategory, setUploadCategory] = useState<VisualPlanningCategoryId>("moodboard");
   const [pasteUrl, setPasteUrl] = useState("");
   const [uploadError, setUploadError] = useState("");
@@ -48,8 +52,36 @@ export function VisualPlanningCatalogue({ projectId }: { projectId: string }) {
 
   const assets = data?.assets ?? [];
 
+  const { data: scenesData } = useQuery({
+    queryKey: ["project-scenes", projectId],
+    queryFn: async () => {
+      const res = await fetch(`/api/creator/projects/${projectId}/scenes`);
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((j as { error?: string }).error || "Failed to load scenes");
+      return j as { scenes: Array<{ id: string; number: string }> };
+    },
+  });
+
+  useEffect(() => {
+    const categoryParam = searchParams.get("category");
+    if (categoryParam && VISUAL_PLANNING_CATEGORIES.some((c) => c.id === categoryParam)) {
+      setFilter(categoryParam as VisualPlanningCategoryId);
+      if (categoryParam === "scene") setUploadCategory("scene");
+    }
+    const sceneNum = searchParams.get("scene")?.trim();
+    if (sceneNum && scenesData?.scenes) {
+      const match = scenesData.scenes.find((s) => s.number === sceneNum);
+      setSceneFilterId(match?.id ?? null);
+    }
+  }, [searchParams, scenesData?.scenes]);
+
   const createMutation = useMutation({
-    mutationFn: async (payload: { category: VisualPlanningCategoryId; imageUrl: string; title?: string }) => {
+    mutationFn: async (payload: {
+      category: VisualPlanningCategoryId;
+      imageUrl: string;
+      title?: string;
+      sceneId?: string | null;
+    }) => {
       const res = await fetch(`/api/creator/projects/${projectId}/visual-assets`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -104,11 +136,21 @@ export function VisualPlanningCatalogue({ projectId }: { projectId: string }) {
     },
   });
 
-  const filtered =
-    filter === "all" ? assets : assets.filter((a) => a.category === filter);
+  const filtered = assets.filter((a) => {
+    if (filter !== "all" && a.category !== filter) return false;
+    if (sceneFilterId && a.sceneId !== sceneFilterId) return false;
+    return true;
+  });
 
   const labelFor = (cat: string) =>
     VISUAL_PLANNING_CATEGORIES.find((c) => c.id === cat)?.label ?? cat;
+
+  function uploadPayload(base: { category: VisualPlanningCategoryId; imageUrl: string; title?: string }) {
+    return {
+      ...base,
+      sceneId: uploadCategory === "scene" ? sceneFilterId : null,
+    };
+  }
 
   async function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -121,7 +163,9 @@ export function VisualPlanningCatalogue({ projectId }: { projectId: string }) {
     setUploadError("");
     try {
       const imageUrl = await uploadToStorage(file);
-      createMutation.mutate({ category: uploadCategory, imageUrl, title: file.name.replace(/\.[^.]+$/, "") });
+      createMutation.mutate(
+        uploadPayload({ category: uploadCategory, imageUrl, title: file.name.replace(/\.[^.]+$/, "") }),
+      );
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : "Upload failed");
     }
@@ -134,7 +178,7 @@ export function VisualPlanningCatalogue({ projectId }: { projectId: string }) {
       return;
     }
     setUploadError("");
-    createMutation.mutate({ category: uploadCategory, imageUrl: u });
+    createMutation.mutate(uploadPayload({ category: uploadCategory, imageUrl: u }));
   }
 
   return (
