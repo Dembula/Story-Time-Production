@@ -414,7 +414,7 @@ export function ScriptReviewStudio({ projectId, title }: ScriptReviewStudioProps
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="creator-tool-studio space-y-4">
       <header className="storytime-plan-card p-5 md:p-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
@@ -527,7 +527,7 @@ export function ScriptReviewStudio({ projectId, title }: ScriptReviewStudioProps
             </p>
           ) : null}
 
-          <div className="flex flex-wrap items-center gap-1 rounded-xl border border-slate-800 bg-slate-900/80 px-2 py-2">
+          <div className="creator-tool-studio-toolbar rounded-xl border border-slate-800 bg-slate-900/80 px-2 py-2">
             {toolbarTools.map((t) => (
               <button
                 key={t.id}
@@ -613,9 +613,9 @@ export function ScriptReviewStudio({ projectId, title }: ScriptReviewStudioProps
             </Button>
           </div>
 
-          <div className="grid gap-3 lg:grid-cols-[1fr_260px]">
+          <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,260px)]">
             <div
-              className={`rounded-xl border border-slate-800 p-4 overflow-y-auto max-h-[calc(100vh-14rem)] ${darkRead ? "bg-slate-950" : "bg-slate-200"}`}
+              className={`creator-tool-studio-panel min-h-[min(55vh,720px)] rounded-xl border border-slate-800 p-3 sm:p-4 overflow-y-auto max-h-[min(72vh,900px)] xl:max-h-[calc(100vh-14rem)] ${darkRead ? "bg-slate-950" : "bg-slate-200"}`}
               style={{ transform: `scale(${zoom / 100})`, transformOrigin: "top center" }}
             >
               {compareDraft ? (
@@ -659,19 +659,19 @@ export function ScriptReviewStudio({ projectId, title }: ScriptReviewStudioProps
               ))}
 
               <div className="flex items-center justify-center gap-3 py-4 sticky bottom-0 bg-slate-900/90 rounded-lg mt-2">
-                <Button size="sm" variant="ghost" disabled={page <= 0} onClick={() => setPage((p) => p - 1)}>
+                <Button type="button" size="sm" variant="ghost" disabled={page <= 0} onClick={() => setPage((p) => p - 1)}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <span className="text-xs text-slate-300">
                   Page {page + 1} / {pages.length}
                 </span>
-                <Button size="sm" variant="ghost" disabled={page >= pages.length - 1} onClick={() => setPage((p) => p + 1)}>
+                <Button type="button" size="sm" variant="ghost" disabled={page >= pages.length - 1} onClick={() => setPage((p) => p + 1)}>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
             </div>
 
-            <aside className="creator-glass-panel flex flex-col overflow-hidden max-h-[calc(100vh-14rem)]">
+            <aside className="creator-glass-panel creator-tool-studio-panel flex min-h-[280px] flex-col overflow-hidden max-h-[min(50vh,28rem)] xl:max-h-[calc(100vh-14rem)]">
               <div className="flex border-b border-slate-800 text-[9px]">
                 {(
                   [

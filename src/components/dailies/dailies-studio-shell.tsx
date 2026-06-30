@@ -103,14 +103,14 @@ export function DailiesStudioShell({
   const selectedClip = intelligence?.clips.find((c) => c.id === selectedClipId) ?? null;
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap gap-2 border-b border-slate-800 pb-3">
+    <div className="creator-tool-studio space-y-4">
+      <div className="creator-tool-studio-tabs border-b border-slate-800 pb-3">
         {TABS.map((t) => (
           <button
             key={t.id}
             type="button"
             onClick={() => onStudioTabChange(t.id)}
-            className={`rounded-lg px-3 py-2 text-xs font-medium transition ${
+            className={`shrink-0 rounded-lg px-3 py-2 text-xs font-medium transition ${
               studioTab === t.id
                 ? "bg-orange-500 text-white"
                 : "bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-slate-200"

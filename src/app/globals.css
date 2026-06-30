@@ -219,6 +219,52 @@ select optgroup {
   background-position: right 0.5rem center;
 }
 
+/* Creator pipeline tools — constrain width and allow horizontal scroll on small toolbars */
+.creator-tool-studio {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+}
+
+.creator-tool-studio-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.creator-tool-studio-tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.5rem;
+  max-width: 100%;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+  -webkit-overflow-scrolling: touch;
+}
+
+.creator-tool-studio-panel {
+  min-width: 0;
+  max-width: 100%;
+}
+
+@media (max-width: 1279px) {
+  .creator-tool-studio-panel-scroll {
+    max-height: min(42vh, 28rem);
+    overflow-y: auto;
+  }
+}
+
+@media (min-width: 1280px) {
+  .creator-tool-studio-panel-scroll {
+    max-height: calc(100vh - 12rem);
+    overflow-y: auto;
+  }
+}
+
 /* Legacy tool selects inside creator workspace */
 [data-storytime-creator] select:not(#creator-workspace-select):not(.storytime-select--embedded) {
   appearance: none;

@@ -471,14 +471,16 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
   const studioGridClass = focusMode
     ? "grid grid-cols-1 gap-3"
     : splitOutline
-      ? "grid gap-3 lg:grid-cols-[minmax(0,220px)_minmax(0,1fr)_minmax(0,240px)]"
-      : "grid gap-3 lg:grid-cols-[minmax(0,220px)_minmax(0,1fr)]";
+      ? "grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,220px)_minmax(0,1fr)_minmax(0,240px)]"
+      : "grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,220px)_minmax(0,1fr)]";
+
+  const readerContent = useMemo(() => draft?.content ?? "", [draft?.content]);
 
   const studioRoot = (
     <div
       className={cn(
-        "space-y-4",
-        fullscreen && "fixed inset-0 z-[120] overflow-y-auto bg-slate-950 p-4 md:p-6",
+        "creator-tool-studio space-y-4",
+        fullscreen && "fixed inset-0 z-[120] overflow-y-auto bg-slate-950 p-3 sm:p-4 md:p-6",
       )}
     >
       {focusMode ? (
@@ -559,13 +561,13 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
         open={readerOpen}
         onClose={() => setReaderOpen(false)}
         title={draft?.title ?? "Screenplay"}
-        content={draft?.content ?? ""}
+        content={readerContent}
         fontCss={fontCss}
       />
 
       <div className={studioGridClass}>
         {!focusMode ? (
-          <aside className="creator-glass-panel flex flex-col max-h-[calc(100vh-12rem)] overflow-hidden">
+          <aside className="creator-glass-panel creator-tool-studio-panel flex flex-col overflow-hidden creator-tool-studio-panel-scroll xl:max-h-[calc(100vh-12rem)]">
             <div className="flex border-b border-slate-800 text-[10px]">
               {(["scenes", "characters", "outline"] as const).map((tab) => (
                 <button
@@ -668,10 +670,10 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
           </aside>
         ) : null}
 
-        <section className="space-y-2 min-w-0">
+        <section className="creator-tool-studio-panel min-w-0 space-y-2">
           {draft ? (
             <>
-              <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/60 px-2 py-2">
+              <div className="creator-tool-studio-toolbar rounded-xl border border-slate-800 bg-slate-900/60 px-2 py-2">
                 <select
                   value={selectedElement}
                   onChange={(e) => setSelectedElement(e.target.value as ScreenplayElementType)}
@@ -715,7 +717,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                   <option value="EPISODE">Episode</option>
                   <option value="OTHER">Other</option>
                 </select>
-                <div className="flex items-center gap-1 ml-auto">
+                <div className="flex items-center gap-1 ml-auto shrink-0">
                   <Button size="sm" variant="ghost" className="h-7 text-slate-300" onClick={() => setZoom((z) => Math.max(80, z - 10))}>
                     −
                   </Button>
@@ -948,7 +950,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                   }}
                   readOnly={!effectiveCanWrite}
                   spellCheck
-                  className={`w-full min-h-[420px] rounded-2xl border px-4 py-3 outline-none focus:border-orange-500 leading-relaxed resize-y ${editorSurface} ${!effectiveCanWrite ? "opacity-90" : ""}`}
+                  className={`w-full min-h-[min(50vh,420px)] max-w-full rounded-2xl border px-3 py-3 sm:px-4 outline-none focus:border-orange-500 leading-relaxed resize-y ${editorSurface} ${!effectiveCanWrite ? "opacity-90" : ""}`}
                   style={{
                     fontFamily: fontCss,
                     fontSize: `${(13 * zoom) / 100}px`,
@@ -1032,7 +1034,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
         </section>
 
         {splitOutline && !focusMode ? (
-          <aside className="creator-glass-panel flex min-h-[280px] flex-col overflow-hidden text-[11px] lg:min-h-0 lg:max-h-[calc(100vh-12rem)]">
+          <aside className="creator-glass-panel creator-tool-studio-panel flex min-h-[240px] flex-col overflow-hidden text-[11px] creator-tool-studio-panel-scroll xl:min-h-0 xl:max-h-[calc(100vh-12rem)]">
             <div className="flex border-b border-slate-800 text-[9px]">
               {(
                 [

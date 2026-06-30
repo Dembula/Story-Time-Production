@@ -202,9 +202,9 @@ export function BreakdownStudioShell({
 
   return (
 
-    <div className="space-y-4">
+    <div className="creator-tool-studio space-y-4">
 
-      <div className="flex flex-wrap gap-2 border-b border-slate-800 pb-3">
+      <div className="creator-tool-studio-tabs border-b border-slate-800 pb-3">
 
         {TABS.map((t) => (
 
@@ -216,7 +216,7 @@ export function BreakdownStudioShell({
 
             onClick={() => onStudioTabChange(t.id)}
 
-            className={`rounded-lg px-3 py-2 text-xs font-medium transition ${
+            className={`shrink-0 rounded-lg px-3 py-2 text-xs font-medium transition ${
 
               studioTab === t.id
 

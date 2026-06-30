@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -54,19 +54,33 @@ export function ScreenplayReader({
   const [fullscreen, setFullscreen] = useState(false);
   const [search, setSearch] = useState("");
   const [searchHit, setSearchHit] = useState(0);
+  const onCloseRef = useRef(onClose);
+  const wasOpenRef = useRef(false);
 
   const pages = useMemo(() => paginateScreenplay(content), [content]);
   const totalPages = pages.length;
 
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
   useEffect(() => setMounted(true), []);
 
   useEffect(() => {
+    if (open && !wasOpenRef.current) {
+      setPage(0);
+      setSearch("");
+      setSearchHit(0);
+    }
+    wasOpenRef.current = open;
+  }, [open]);
+
+  useEffect(() => {
     if (!open) return;
-    setPage(0);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") onCloseRef.current();
       if (e.key === "ArrowRight") setPage((p) => Math.min(totalPages - 1, p + 1));
       if (e.key === "ArrowLeft") setPage((p) => Math.max(0, p - 1));
     };
@@ -75,7 +89,7 @@ export function ScreenplayReader({
       document.body.style.overflow = prev;
       window.removeEventListener("keydown", onKey);
     };
-  }, [open, onClose, totalPages]);
+  }, [open, totalPages]);
 
   const searchPages = useMemo(() => {
     if (!search.trim()) return [];
@@ -87,8 +101,9 @@ export function ScreenplayReader({
   }, [pages, search]);
 
   useEffect(() => {
-    if (searchPages.length > 0) setPage(searchPages[searchHit % searchPages.length] ?? 0);
-  }, [searchPages, searchHit]);
+    if (!search.trim() || searchPages.length === 0) return;
+    setPage(searchPages[searchHit % searchPages.length] ?? 0);
+  }, [search, searchHit, searchPages]);
 
   if (!mounted) return null;
 
@@ -229,9 +244,9 @@ export function ScreenplayReader({
               ))}
             </aside>
 
-            <main className="flex-1 overflow-y-auto p-4 md:p-8">
+            <main className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 md:p-8">
               <div
-                className={`mx-auto space-y-8 ${spread ? "max-w-[17in] grid grid-cols-1 xl:grid-cols-2 gap-8" : "max-w-[8.5in]"}`}
+                className={`mx-auto space-y-8 ${spread ? "max-w-[17in] grid grid-cols-1 xl:grid-cols-2 gap-8" : "max-w-[min(8.5in,100%)]"}`}
                 style={{ transform: `scale(${zoom / 100})`, transformOrigin: "top center" }}
               >
                 {spread && page + 1 < totalPages ? (
@@ -246,8 +261,9 @@ export function ScreenplayReader({
             </main>
           </div>
 
-          <footer className="flex items-center justify-center gap-4 border-t border-slate-800 bg-slate-900/95 py-2">
+          <footer className="flex shrink-0 items-center justify-center gap-4 border-t border-slate-800 bg-slate-900/95 py-2">
             <Button
+              type="button"
               size="sm"
               variant="ghost"
               disabled={page <= 0}
@@ -271,6 +287,7 @@ export function ScreenplayReader({
               className="h-7 w-16 text-center text-xs bg-slate-800 border-slate-700 text-white"
             />
             <Button
+              type="button"
               size="sm"
               variant="ghost"
               disabled={page >= totalPages - 1}

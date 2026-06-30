@@ -172,7 +172,7 @@ export function DailiesReviewStudio({ projectId, title }: { projectId?: string; 
   }
 
   return (
-    <div className="space-y-4">
+    <div className="creator-tool-studio space-y-4">
       <header className="storytime-plan-card p-5 md:p-6">
         <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">
           Production workspace
