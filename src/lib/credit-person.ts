@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma";
 import { getFollowerCount, getFollowingCount } from "@/lib/network-db";
 import { normalizeCreditName, type PersonPreview } from "@/lib/credit-person-types";
+import { ensureCreditPersonBlurb } from "@/lib/credit-person-blurb";
 
 const CREATOR_ROLES = ["CONTENT_CREATOR", "MUSIC_CREATOR", "ADMIN"] as const;
 
@@ -213,12 +214,15 @@ export async function buildPersonPreview(personId: string): Promise<PersonPrevie
 
   const verified = isCreator && productionCount > 0;
 
+  const blurb = (await ensureCreditPersonBlurb(person.id)) ?? bio ?? person.user?.headline ?? null;
+
   return {
     personId: person.id,
     displayName,
     imageUrl,
     roles: roles.length > 0 ? roles : person.user?.primaryRole ? [person.user.primaryRole] : [],
     bio: bio ?? person.user?.headline ?? null,
+    blurb,
     productionCount,
     followerCount,
     followingCount,

@@ -4,6 +4,7 @@ export type PersonPreview = {
   imageUrl: string | null;
   roles: string[];
   bio: string | null;
+  blurb: string | null;
   productionCount: number;
   followerCount: number | null;
   followingCount: number | null;
