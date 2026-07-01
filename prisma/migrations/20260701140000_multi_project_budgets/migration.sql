@@ -12,5 +12,6 @@ WHERE pb.id IN (
 );
 
 ALTER TABLE "ProjectBudget" DROP CONSTRAINT IF EXISTS "ProjectBudget_projectId_key";
+DROP INDEX IF EXISTS "ProjectBudget_projectId_key";
 
 CREATE INDEX IF NOT EXISTS "ProjectBudget_projectId_isDefault_idx" ON "ProjectBudget"("projectId", "isDefault");

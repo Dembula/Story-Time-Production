@@ -10,6 +10,7 @@ import { filterSupplementalManualLines } from "@/lib/budget-line-keys";
 import {
   createProjectBudget,
   listProjectBudgets,
+  ProjectBudgetLimitError,
   renameProjectBudget,
   resolveProjectBudget,
   setDefaultProjectBudget,
@@ -265,14 +266,22 @@ export async function POST(req: NextRequest, context: { params: Promise<{ projec
     }
   }
 
-  const budget = await createProjectBudget({
-    projectId,
-    template,
-    name: body.name,
-    isDefault: body.isDefault,
-  });
+  try {
+    const budget = await createProjectBudget({
+      projectId,
+      template,
+      name: body.name,
+      isDefault: body.isDefault,
+    });
 
-  return NextResponse.json({ budget }, { status: 201 });
+    return NextResponse.json({ budget }, { status: 201 });
+  } catch (error) {
+    if (error instanceof ProjectBudgetLimitError) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
+    console.error("[budget] create failed", error);
+    return NextResponse.json({ error: "Could not create budget" }, { status: 500 });
+  }
 }
 
 export async function PATCH(req: NextRequest, context: { params: Promise<{ projectId: string }> }) {

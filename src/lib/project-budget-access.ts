@@ -1,7 +1,14 @@
 import { prisma } from "@/lib/prisma";
-import type { Prisma } from "../../generated/prisma";
+import { Prisma } from "../../generated/prisma";
 
 const budgetWithLines = { lines: true } satisfies Prisma.ProjectBudgetInclude;
+
+export class ProjectBudgetLimitError extends Error {
+  constructor() {
+    super("This project cannot have another budget until the multi-budget database update is applied.");
+    this.name = "ProjectBudgetLimitError";
+  }
+}
 
 export type ProjectBudgetWithLines = Prisma.ProjectBudgetGetPayload<{
   include: typeof budgetWithLines;
@@ -76,17 +83,28 @@ export async function createProjectBudget(params: {
     });
   }
 
-  return prisma.projectBudget.create({
-    data: {
-      projectId: params.projectId,
-      template: params.template,
-      name,
-      currency: "ZAR",
-      totalPlanned: 0,
-      isDefault,
-    },
-    include: budgetWithLines,
-  });
+  try {
+    return await prisma.projectBudget.create({
+      data: {
+        projectId: params.projectId,
+        template: params.template,
+        name,
+        currency: "ZAR",
+        totalPlanned: 0,
+        isDefault,
+      },
+      include: budgetWithLines,
+    });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002" &&
+      JSON.stringify(error.meta?.target ?? "").includes("projectId")
+    ) {
+      throw new ProjectBudgetLimitError();
+    }
+    throw error;
+  }
 }
 
 export async function setDefaultProjectBudget(projectId: string, budgetId: string) {
