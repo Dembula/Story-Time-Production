@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
+import { resolveDefaultProjectBudget } from "@/lib/project-budget-access";
 
 export type GraphNodeType =
   | "project"

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { parseExpenseRow } from "@/lib/expense-service";
+import { resolveDefaultProjectBudget } from "@/lib/project-budget-access";
 import { poPipelineSummary } from "@/lib/purchase-order-service";
 
 export type FinancialAnalyticsDashboard = {

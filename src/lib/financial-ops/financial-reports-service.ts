@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { resolveDefaultProjectBudget } from "@/lib/project-budget-access";
 import { buildExpenseDashboard, parseExpenseRow } from "@/lib/expense-service";
 import { buildFinancialAnalyticsDashboard } from "@/lib/financial-analytics-service";
 import { contractTermsToPdfBuffer } from "@/lib/legal/contract-pdf-export";

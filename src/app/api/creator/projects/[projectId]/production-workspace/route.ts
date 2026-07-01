@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ensureProjectAccess } from "@/lib/project-access";
 import { prisma } from "@/lib/prisma";
+import { resolveDefaultProjectBudget } from "@/lib/project-budget-access";
 import { buildProductionDataEngine } from "@/lib/production-day-engine";
 
 interface Params {

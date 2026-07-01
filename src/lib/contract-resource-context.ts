@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { resolveDefaultProjectBudget } from "@/lib/project-budget-access";
 import { parseEmbeddedMeta, type ActorMarketMeta, type EquipmentMarketMeta } from "@/lib/marketplace-profile-meta";
 import { parseFundingDetails } from "@/lib/funding-hub-db";
 import type { ContractProjectContext, ContractResourceOption } from "@/lib/contract-prefill";

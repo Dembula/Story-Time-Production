@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
+import { resolveDefaultProjectBudget } from "@/lib/project-budget-access";
 
 /** Proactive alerts surfaced to the VA for creator scope. */
 export async function buildProactiveIntelligenceBlock(
