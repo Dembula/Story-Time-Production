@@ -75,7 +75,7 @@ export function useMarketplacePay(options?: { onPaid?: (transactionId: string) =
         setPaying(false);
       }
     },
-    [options],
+    [options, pollPaymentRecord],
   );
 
   return {
