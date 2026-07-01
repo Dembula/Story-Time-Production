@@ -10,6 +10,10 @@ import type { ModocActionPayload } from "./action-types";
 import type { ModocActionResult } from "./actions";
 import { createProductionExpense, findExpenseByIdOrTitle, softDeleteProductionExpense, updateProductionExpense } from "@/lib/expense-service";
 import { CAST_DAY_RATES_ZAR } from "./va-smart-budget";
+import {
+  createProjectBudget,
+  resolveDefaultProjectBudget,
+} from "@/lib/project-budget-access";
 
 const BUDGET_TEMPLATES = new Set<string>([
   "SHORT_FILM",
@@ -35,7 +39,6 @@ async function loadProjectBudgetInput(projectId: string) {
         take: 1,
         orderBy: { createdAt: "desc" },
       },
-      projectBudget: { include: { lines: true } },
       productionExpenses: { select: { amount: true, department: true } },
       crewRoleNeeds: {
         select: { department: true, role: true, seniority: true, notes: true },
@@ -72,7 +75,7 @@ async function runEngineForProject(projectId: string, templateOverride?: string)
   const project = await loadProjectBudgetInput(projectId);
   if (!project) return null;
 
-  const budget = project.projectBudget;
+  const budget = await resolveDefaultProjectBudget(projectId);
   const salaryByRoleName = new Map<string, number>();
   for (const line of budget?.lines ?? []) {
     if ((line.department ?? "").toUpperCase() !== "CAST") continue;
@@ -153,18 +156,16 @@ export async function vaCreateBudget(
   if (access.error) return { ok: false, error: "Project access denied", status: 403 };
 
   const template = resolveBudgetTemplate(payload.template);
-  const existing = await prisma.projectBudget.findUnique({ where: { projectId } });
+  const existing = await resolveDefaultProjectBudget(projectId);
   if (existing) {
     return {
       ok: true,
-      message: `Budget already exists (${existing.template}). Open Budget Builder to review or ask me to generate lines from your breakdown.`,
+      message: `Budget already exists (${existing.name ?? existing.template}). Open Budget Builder to review or ask me to generate lines from your breakdown.`,
       data: { budgetId: existing.id },
     };
   }
 
-  const budget = await prisma.projectBudget.create({
-    data: { projectId, template, currency: "ZAR", totalPlanned: 0 },
-  });
+  const budget = await createProjectBudget({ projectId, template });
   return {
     ok: true,
     message: `Created ${template.replace(/_/g, " ").toLowerCase()} budget shell. Say "generate budget from breakdown" to populate line items.`,
@@ -189,11 +190,9 @@ export async function vaGenerateBudgetFromBreakdown(
   }
 
   const template = resolveBudgetTemplate(payload.template);
-  let budget = await prisma.projectBudget.findUnique({ where: { projectId } });
+  let budget = await resolveDefaultProjectBudget(projectId);
   if (!budget) {
-    budget = await prisma.projectBudget.create({
-      data: { projectId, template, currency: "ZAR", totalPlanned: 0 },
-    });
+    budget = await createProjectBudget({ projectId, template, isDefault: true });
   }
 
   const engine = await runEngineForProject(projectId, template);
@@ -251,14 +250,11 @@ export async function vaAddBudgetLine(
   }
 
   const budget =
-    (await prisma.projectBudget.findUnique({ where: { projectId } })) ??
-    (await prisma.projectBudget.create({
-      data: {
-        projectId,
-        template: resolveBudgetTemplate(payload.template),
-        currency: "ZAR",
-        totalPlanned: 0,
-      },
+    (await resolveDefaultProjectBudget(projectId)) ??
+    (await createProjectBudget({
+      projectId,
+      template: resolveBudgetTemplate(payload.template),
+      isDefault: true,
     }));
 
   const qty = payload.quantity ?? 1;

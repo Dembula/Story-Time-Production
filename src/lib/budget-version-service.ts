@@ -1,10 +1,8 @@
 import { prisma } from "@/lib/prisma";
+import { resolveDefaultProjectBudget } from "@/lib/project-budget-access";
 
 export async function listBudgetVersions(projectId: string) {
-  const budget = await prisma.projectBudget.findUnique({
-    where: { projectId },
-    select: { id: true, activeVersionId: true },
-  });
+  const budget = await resolveDefaultProjectBudget(projectId);
   if (!budget) return { budget: null, versions: [] };
 
   const versions = await prisma.projectBudgetVersion.findMany({
@@ -25,10 +23,7 @@ export async function snapshotBudgetVersion(input: {
   label?: string | null;
   notes?: string | null;
 }) {
-  const budget = await prisma.projectBudget.findUnique({
-    where: { projectId: input.projectId },
-    include: { lines: true },
-  });
+  const budget = await resolveDefaultProjectBudget(input.projectId);
   if (!budget) return { error: "No budget" as const, version: null };
 
   const last = await prisma.projectBudgetVersion.findFirst({
@@ -81,7 +76,7 @@ export async function compareBudgetVersions(
   versionAId: string,
   versionBId: string,
 ): Promise<BudgetVersionDiff[]> {
-  const budget = await prisma.projectBudget.findUnique({ where: { projectId } });
+  const budget = await resolveDefaultProjectBudget(projectId);
   if (!budget) return [];
 
   const [a, b] = await Promise.all([
@@ -121,7 +116,7 @@ export async function compareBudgetVersions(
 }
 
 export async function setActiveBudgetVersion(projectId: string, versionId: string) {
-  const budget = await prisma.projectBudget.findUnique({ where: { projectId } });
+  const budget = await resolveDefaultProjectBudget(projectId);
   if (!budget) return null;
 
   const version = await prisma.projectBudgetVersion.findFirst({

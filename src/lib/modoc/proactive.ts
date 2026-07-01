@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { resolveDefaultProjectBudget } from "@/lib/project-budget-access";
 import { notifyUser } from "@/lib/notify-user";
 
 const COOLDOWN_MS = 24 * 60 * 60 * 1000;
@@ -89,13 +90,10 @@ export async function suggestProductionReadiness(params: {
 
   const [charCount, budget, scheduleDays] = await Promise.all([
     prisma.breakdownCharacter.count({ where: { projectId: params.projectId } }),
-    prisma.projectBudget.findUnique({
-      where: { projectId: params.projectId },
-      select: { _count: { select: { lines: true } } },
-    }),
+    resolveDefaultProjectBudget(params.projectId),
     prisma.shootDay.count({ where: { projectId: params.projectId } }),
   ]);
-  const budgetCount = budget?._count.lines ?? 0;
+  const budgetCount = budget?.lines.length ?? 0;
 
   if (charCount < 1 || budgetCount < 1 || scheduleDays < 1) return;
 

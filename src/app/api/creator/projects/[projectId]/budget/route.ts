@@ -7,6 +7,13 @@ import {
   runBudgetEngine,
 } from "@/lib/budget-engine";
 import { filterSupplementalManualLines } from "@/lib/budget-line-keys";
+import {
+  createProjectBudget,
+  listProjectBudgets,
+  renameProjectBudget,
+  resolveProjectBudget,
+  setDefaultProjectBudget,
+} from "@/lib/project-budget-access";
 
 async function ensureAccess(projectId: string) {
   const session = await getServerSession(authOptions);
@@ -47,12 +54,22 @@ async function ensureAccess(projectId: string) {
   return { error: null as NextResponse | null, userId };
 }
 
-export async function GET(_req: NextRequest, context: { params: Promise<{ projectId: string }> }) {
-  const { projectId } = await context.params;
+const VALID_TEMPLATES = [
+  "SHORT_FILM",
+  "INDIE_FILM",
+  "FEATURE_FILM",
+  "TV_EPISODE",
+  "SERIES_PILOT",
+  "STUDENT_PRODUCTION",
+  "COMMERCIAL_SHOOT",
+] as const;
 
-  const access = await ensureAccess(projectId);
-  if (access.error) return access.error;
+function normalizeTemplate(value: string | undefined | null): BudgetTemplate {
+  const candidate = (value ?? "SHORT_FILM") as BudgetTemplate;
+  return VALID_TEMPLATES.includes(candidate) ? candidate : "SHORT_FILM";
+}
 
+async function buildBudgetEngine(projectId: string, budgetId?: string | null) {
   const project = await prisma.originalProject.findUnique({
     where: { id: projectId },
     include: {
@@ -60,9 +77,6 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ projec
         select: { duration: true },
         take: 1,
         orderBy: { createdAt: "desc" },
-      },
-      projectBudget: {
-        include: { lines: true },
       },
       productionExpenses: {
         select: { amount: true, department: true },
@@ -115,11 +129,9 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ projec
       },
     },
   });
-  if (!project) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
+  if (!project) return null;
 
-  const budget = project.projectBudget;
+  const budget = await resolveProjectBudget(projectId, budgetId);
   const salaryByRoleName = new Map<string, number>();
   for (const line of budget?.lines ?? []) {
     if ((line.department ?? "").toUpperCase() !== "CAST") continue;
@@ -132,20 +144,8 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ projec
     if (!normalized) continue;
     salaryByRoleName.set(normalized, amount);
   }
-  const templateCandidate = (budget?.template ?? "SHORT_FILM") as BudgetTemplate;
-  const template: BudgetTemplate =
-    [
-      "SHORT_FILM",
-      "INDIE_FILM",
-      "FEATURE_FILM",
-      "TV_EPISODE",
-      "SERIES_PILOT",
-      "STUDENT_PRODUCTION",
-      "COMMERCIAL_SHOOT",
-    ].includes(templateCandidate)
-      ? templateCandidate
-      : "SHORT_FILM";
 
+  const template = normalizeTemplate(budget?.template);
   const shootDayCounts = new Map<string, number>();
   for (const day of project.shootDays) {
     for (const link of day.scenes) {
@@ -211,9 +211,29 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ projec
     })),
   });
 
+  return { budget, engine };
+}
+
+export async function GET(req: NextRequest, context: { params: Promise<{ projectId: string }> }) {
+  const { projectId } = await context.params;
+  const budgetId = req.nextUrl.searchParams.get("budgetId");
+
+  const access = await ensureAccess(projectId);
+  if (access.error) return access.error;
+
+  const [budgets, payload] = await Promise.all([
+    listProjectBudgets(projectId),
+    buildBudgetEngine(projectId, budgetId),
+  ]);
+
+  if (!payload) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
   return NextResponse.json({
-    budget,
-    engine,
+    budgets,
+    budget: payload.budget,
+    engine: payload.engine,
   });
 }
 
@@ -226,6 +246,9 @@ export async function POST(req: NextRequest, context: { params: Promise<{ projec
   const body = (await req.json().catch(() => null)) as
     | {
         template: BudgetTemplate;
+        name?: string;
+        createNew?: boolean;
+        isDefault?: boolean;
       }
     | null;
 
@@ -233,23 +256,22 @@ export async function POST(req: NextRequest, context: { params: Promise<{ projec
     return NextResponse.json({ error: "Missing template" }, { status: 400 });
   }
 
-  const existing = await prisma.projectBudget.findUnique({
-    where: { projectId },
-    include: { lines: true },
-  });
-  if (existing) {
-    return NextResponse.json({ budget: existing }, { status: 200 });
+  const template = normalizeTemplate(body.template);
+
+  if (!body.createNew) {
+    const existing = await resolveProjectBudget(projectId, null);
+    if (existing) {
+      return NextResponse.json({ budget: existing }, { status: 200 });
+    }
   }
 
-  const budget = await prisma.projectBudget.create({
-    data: {
-      projectId,
-      template: body.template,
-      currency: "ZAR",
-      totalPlanned: 0,
-    },
-    include: { lines: true },
+  const budget = await createProjectBudget({
+    projectId,
+    template,
+    name: body.name,
+    isDefault: body.isDefault,
   });
+
   return NextResponse.json({ budget }, { status: 201 });
 }
 
@@ -261,7 +283,10 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ proje
 
   const body = (await req.json().catch(() => null)) as
     | {
-        lines: {
+        budgetId?: string;
+        name?: string;
+        setDefault?: boolean;
+        lines?: {
           id?: string;
           department?: string;
           name?: string;
@@ -273,91 +298,98 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ proje
       }
     | null;
 
-  if (!body?.lines) {
-    return NextResponse.json({ error: "Missing lines" }, { status: 400 });
+  if (!body) {
+    return NextResponse.json({ error: "Missing body" }, { status: 400 });
   }
 
-  const budget = await prisma.projectBudget.upsert({
-    where: { projectId },
-    create: {
+  let budget = await resolveProjectBudget(projectId, body.budgetId ?? null);
+  if (!budget && body.lines) {
+    budget = await createProjectBudget({
       projectId,
       template: "SHORT_FILM",
-      currency: "ZAR",
-      totalPlanned: 0,
-    },
-    update: {},
-  });
-
-  await prisma.$transaction(async (tx) => {
-    const submittedIds = new Set(
-      body.lines.map((l) => l.id).filter((id): id is string => Boolean(id)),
-    );
-    const existingLines = await tx.projectBudgetLine.findMany({
-      where: { budgetId: budget.id },
-      select: { id: true },
     });
-    for (const row of existingLines) {
-      if (!submittedIds.has(row.id)) {
-        await tx.projectBudgetLine.delete({ where: { id: row.id } });
+  }
+  if (!budget) {
+    return NextResponse.json({ error: "Budget not found" }, { status: 404 });
+  }
+
+  if (body.name?.trim()) {
+    await renameProjectBudget(projectId, budget.id, body.name);
+  }
+  if (body.setDefault) {
+    await setDefaultProjectBudget(projectId, budget.id);
+  }
+
+  if (body.lines) {
+    await prisma.$transaction(async (tx) => {
+      const submittedIds = new Set(
+        body.lines!.map((l) => l.id).filter((id): id is string => Boolean(id)),
+      );
+      const existingLines = await tx.projectBudgetLine.findMany({
+        where: { budgetId: budget!.id },
+        select: { id: true },
+      });
+      for (const row of existingLines) {
+        if (!submittedIds.has(row.id)) {
+          await tx.projectBudgetLine.delete({ where: { id: row.id } });
+        }
       }
-    }
 
-    for (const line of body.lines) {
-      const data: {
-        department?: string;
-        name?: string;
-        quantity?: number | null;
-        unitCost?: number | null;
-        total?: number;
-        notes?: string | null;
-      } = {};
+      for (const line of body.lines!) {
+        const data: {
+          department?: string;
+          name?: string;
+          quantity?: number | null;
+          unitCost?: number | null;
+          total?: number;
+          notes?: string | null;
+        } = {};
 
-      if (line.department !== undefined) data.department = line.department ?? "";
-      if (line.name !== undefined) data.name = line.name ?? "";
-      if (line.quantity !== undefined) data.quantity = line.quantity ?? 1;
-      if (line.unitCost !== undefined) data.unitCost = line.unitCost ?? 0;
-      if (line.total !== undefined) data.total = line.total ?? 0;
-      if (line.notes !== undefined) data.notes = line.notes ?? null;
+        if (line.department !== undefined) data.department = line.department ?? "";
+        if (line.name !== undefined) data.name = line.name ?? "";
+        if (line.quantity !== undefined) data.quantity = line.quantity ?? 1;
+        if (line.unitCost !== undefined) data.unitCost = line.unitCost ?? 0;
+        if (line.total !== undefined) data.total = line.total ?? 0;
+        if (line.notes !== undefined) data.notes = line.notes ?? null;
 
-      if (line.id) {
-        await tx.projectBudgetLine.updateMany({
-          where: { id: line.id, budgetId: budget.id },
-          data,
-        });
-      } else {
-        await tx.projectBudgetLine.create({
-          data: {
-            budgetId: budget.id,
-            department: line.department ?? "",
-            name: line.name ?? "",
-            quantity: line.quantity ?? 1,
-            unitCost: line.unitCost ?? 0,
-            total: line.total ?? 0,
-            notes: line.notes ?? null,
-          },
-        });
+        if (line.id) {
+          await tx.projectBudgetLine.updateMany({
+            where: { id: line.id, budgetId: budget!.id },
+            data,
+          });
+        } else {
+          await tx.projectBudgetLine.create({
+            data: {
+              budgetId: budget!.id,
+              department: line.department ?? "",
+              name: line.name ?? "",
+              quantity: line.quantity ?? 1,
+              unitCost: line.unitCost ?? 0,
+              total: line.total ?? 0,
+              notes: line.notes ?? null,
+            },
+          });
+        }
       }
-    }
 
-    const freshLines = await tx.projectBudgetLine.findMany({
-      where: { budgetId: budget.id },
-      select: { total: true, quantity: true, unitCost: true },
-    });
-    const totalPlanned = freshLines.reduce((acc, line) => {
-      const explicit = line.total ?? null;
-      if (explicit != null && Number.isFinite(explicit)) return acc + explicit;
-      return acc + (line.quantity ?? 0) * (line.unitCost ?? 0);
-    }, 0);
-    await tx.projectBudget.update({
-      where: { id: budget.id },
-      data: { totalPlanned },
-    });
-  }, { timeout: 60000, maxWait: 10000 });
+      const freshLines = await tx.projectBudgetLine.findMany({
+        where: { budgetId: budget!.id },
+        select: { total: true, quantity: true, unitCost: true },
+      });
+      const totalPlanned = freshLines.reduce((acc, line) => {
+        const explicit = line.total ?? null;
+        if (explicit != null && Number.isFinite(explicit)) return acc + explicit;
+        return acc + (line.quantity ?? 0) * (line.unitCost ?? 0);
+      }, 0);
+      await tx.projectBudget.update({
+        where: { id: budget!.id },
+        data: { totalPlanned },
+      });
+    }, { timeout: 60000, maxWait: 10000 });
+  }
 
-  const updatedBudget = await prisma.projectBudget.findUnique({
-    where: { id: budget.id },
-    include: { lines: true },
-  });
+  const updatedBudget = await resolveProjectBudget(projectId, budget.id);
+  const budgets = await listProjectBudgets(projectId);
 
-  return NextResponse.json({ budget: updatedBudget });
+  return NextResponse.json({ budget: updatedBudget, budgets });
 }

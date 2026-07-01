@@ -87,7 +87,7 @@ async function buildWorkspaceSnapshot(projectId: string) {
         },
       }),
       prisma.fundingRequest.findUnique({ where: { projectId } }),
-      prisma.projectBudget.findUnique({ where: { projectId }, include: { lines: true } }),
+      resolveDefaultProjectBudget(projectId),
       prisma.productionExpense.findMany({ where: { projectId }, orderBy: { spentAt: "desc" }, take: 200 }),
       prisma.projectTask.findMany({
         where: { projectId },

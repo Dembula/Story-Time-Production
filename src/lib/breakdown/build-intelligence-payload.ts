@@ -46,9 +46,13 @@ export async function buildBreakdownIntelligence(projectId: string): Promise<Bre
     prisma.castingRole.count({ where: { projectId, breakdownCharacterId: { not: null } } }),
     prisma.shootDay.count({ where: { projectId } }),
     prisma.projectBudget.findFirst({
-      where: { projectId },
+      where: { projectId, isDefault: true },
       include: { _count: { select: { lines: true } } },
-    }),
+    }).then((b) => b ?? prisma.projectBudget.findFirst({
+      where: { projectId },
+      orderBy: { createdAt: "asc" },
+      include: { _count: { select: { lines: true } } },
+    })),
   ]);
 
   const countItems: Array<{ sceneId: string | null; category: BreakdownCategoryKey }> = [

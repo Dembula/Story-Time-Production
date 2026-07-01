@@ -26,8 +26,9 @@ export function CreatorSignInClient({
     setError("");
     setLoading(true);
     try {
+      const normalizedEmail = email.trim().toLowerCase();
       const res = await signIn("credentials-creator", {
-        email,
+        email: normalizedEmail,
         password,
         selectedRole,
         redirect: false,
@@ -35,7 +36,7 @@ export function CreatorSignInClient({
       if (!res?.ok) {
         setError(
           res?.error === "CredentialsSignin"
-            ? "Invalid email or password, or this account type is not enabled for your profile."
+            ? "Invalid email or password, or you do not have an account for the selected type with this email."
             : "Sign in failed. Please try again.",
         );
         return;

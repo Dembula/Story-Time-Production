@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveDefaultProjectBudget } from "@/lib/project-budget-access";
 import { ensureProjectAccess } from "@/lib/project-access";
 import { prisma } from "@/lib/prisma";
 import {
@@ -109,10 +110,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
         crewRoleNeeds: { select: { id: true } },
       },
     }),
-    prisma.projectBudget.findUnique({
-      where: { projectId },
-      include: { lines: true },
-    }),
+    resolveDefaultProjectBudget(projectId),
     prisma.projectContract.findMany({
       where: { projectId },
       select: { id: true, type: true, status: true, subject: true, createdAt: true },
@@ -494,7 +492,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       num(body?.amount, existing.amount ?? 0),
       structured.sources.reduce((sum, s) => sum + num(s.amountCommitted), 0),
     ) || 0;
-  const budget = await prisma.projectBudget.findUnique({ where: { projectId }, include: { lines: true } });
+  const budget = await resolveDefaultProjectBudget(projectId);
   const budgetTotal =
     budget?.totalPlanned ??
     budget?.lines.reduce((sum, line) => sum + num(line.total), 0) ??

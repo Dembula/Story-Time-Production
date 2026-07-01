@@ -34,7 +34,11 @@ import {
 import { useModocOptional } from "@/components/modoc/use-modoc";
 import { useModocToolRefresh } from "@/components/modoc/use-modoc-tool-refresh";
 import { projectToolQueryFn } from "@/lib/project-tool-fetch";
-import { SCREENPLAY_ELEMENT_LABELS, snippetForElement, STUDIO_FONTS } from "@/lib/script-studio/elements";
+import {
+  getElementSnippet,
+  SCREENPLAY_ELEMENT_LABELS,
+  STUDIO_FONTS,
+} from "@/lib/script-studio/elements";
 import {
   downloadTextFile,
   exportAsFountain,
@@ -162,6 +166,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
   const [readerOpen, setReaderOpen] = useState(false);
   const [scriptsViewOpen, setScriptsViewOpen] = useState(false);
   const [selectedElement, setSelectedElement] = useState<ScreenplayElementType>("scene_heading");
+  const elementAutoInsertReady = useRef(false);
   const [rightPanelTab, setRightPanelTab] = useState<
     "pipeline" | "comments" | "versions" | "cards"
   >("pipeline");
@@ -401,13 +406,75 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
     STUDIO_FONTS.find((f) => f.id === fontId)?.css ??
     "'Courier Prime', 'Courier New', monospace";
 
-  const insertElement = (type: ScreenplayElementType) => {
-    if (!draft) return;
-    const snippet = snippetForElement(type);
-    setDraft({ ...draft, content: (draft.content || "") + snippet });
-    setDirty(true);
-    setSelectedElement(type);
-  };
+  useEffect(() => {
+    elementAutoInsertReady.current = true;
+  }, []);
+
+  const insertElement = useCallback(
+    (type: ScreenplayElementType) => {
+      if (!draft || !effectiveCanWrite) return;
+
+      const { text: snippetText, select } = getElementSnippet(type);
+      const el = textareaRef.current;
+      const content = draft.content ?? "";
+
+      let newContent: string;
+      let selectionStart: number;
+      let selectionEnd: number;
+
+      if (el) {
+        const start = el.selectionStart;
+        const end = el.selectionEnd;
+        const before = content.slice(0, start);
+        const after = content.slice(end);
+        const needsLeadingNewline = before.length > 0 && !before.endsWith("\n");
+        const insertText = (needsLeadingNewline ? "\n" : "") + snippetText;
+        const snippetStart = before.length + (needsLeadingNewline ? 1 : 0);
+
+        newContent = before + insertText + after;
+        if (select) {
+          selectionStart = snippetStart + select.start;
+          selectionEnd = snippetStart + select.end;
+        } else {
+          selectionStart = snippetStart + snippetText.length;
+          selectionEnd = selectionStart;
+        }
+      } else {
+        const needsLeadingNewline = content.length > 0 && !content.endsWith("\n");
+        const insertText = (needsLeadingNewline ? "\n" : "") + snippetText;
+        const snippetStart = content.length + (needsLeadingNewline ? 1 : 0);
+
+        newContent = content + insertText;
+        if (select) {
+          selectionStart = snippetStart + select.start;
+          selectionEnd = snippetStart + select.end;
+        } else {
+          selectionStart = newContent.length;
+          selectionEnd = selectionStart;
+        }
+      }
+
+      setDraft({ ...draft, content: newContent });
+      setDirty(true);
+
+      requestAnimationFrame(() => {
+        const textarea = textareaRef.current;
+        if (!textarea) return;
+        textarea.focus();
+        textarea.setSelectionRange(selectionStart, selectionEnd);
+      });
+    },
+    [draft, effectiveCanWrite],
+  );
+
+  const handleElementSelect = useCallback(
+    (type: ScreenplayElementType) => {
+      setSelectedElement(type);
+      if (!elementAutoInsertReady.current || !effectiveCanWrite) return;
+      insertElement(type);
+    },
+    [insertElement, effectiveCanWrite],
+  );
 
   const jumpToLineIndex = (lineIndex: number) => {
     const el = textareaRef.current;
@@ -695,8 +762,10 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
               <div className="creator-tool-studio-toolbar rounded-xl border border-slate-800 bg-slate-900/60 px-2 py-2">
                 <select
                   value={selectedElement}
-                  onChange={(e) => setSelectedElement(e.target.value as ScreenplayElementType)}
+                  onChange={(e) => handleElementSelect(e.target.value as ScreenplayElementType)}
+                  title="Select a format to insert at the cursor"
                   className={creatorToolSelectSm("text-[10px]")}
+                  disabled={!effectiveCanWrite}
                 >
                   {(Object.keys(SCREENPLAY_ELEMENT_LABELS) as ScreenplayElementType[]).map((k) => (
                     <option key={k} value={k}>
@@ -704,14 +773,6 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                     </option>
                   ))}
                 </select>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 border-slate-700 text-[10px] text-slate-100"
-                  onClick={() => insertElement(selectedElement)}
-                >
-                  Insert
-                </Button>
                 <select
                   value={fontId}
                   onChange={(e) => setFontId(e.target.value)}
@@ -922,7 +983,9 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                 placeholder="Script title"
               />
 
-              <div className="relative">
+              <div
+                className={`relative mx-auto w-full max-w-[60ch] rounded-2xl border px-2 py-3 sm:px-3 focus-within:border-orange-500 ${editorSurface}`}
+              >
                 {collab.peers.length > 0 ? (
                   <div className="pointer-events-none absolute right-2 top-2 z-10 space-y-1">
                     {collab.peers
@@ -958,10 +1021,12 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                   readOnly={!effectiveCanWrite}
                   spellCheck
                   rows={20}
-                  className={`w-full min-h-[65dvh] sm:min-h-[60dvh] lg:min-h-[min(50vh,420px)] max-w-full rounded-2xl border px-3 py-3 sm:px-4 outline-none focus:border-orange-500 leading-relaxed resize-y ${editorSurface} ${!effectiveCanWrite ? "opacity-90" : ""}`}
+                  className={`w-full min-h-[65dvh] sm:min-h-[60dvh] lg:min-h-[min(50vh,420px)] border-0 bg-transparent px-0 outline-none focus:ring-0 resize-y whitespace-pre-wrap ${!effectiveCanWrite ? "opacity-90" : ""}`}
                   style={{
                     fontFamily: fontCss,
-                    fontSize: `${(13 * zoom) / 100}px`,
+                    fontSize: `${(12 * zoom) / 100}pt`,
+                    lineHeight: 1.2,
+                    color: "inherit",
                   }}
                   placeholder="INT. LOCATION - DAY&#10;&#10;Action, CHARACTER, dialogue…"
                 />

@@ -11,7 +11,7 @@ function csvEscape(v: string | number): string {
 
 export async function buildBudgetActualsReport(projectId: string) {
   const [budget, expensesRaw, funding, project] = await Promise.all([
-    prisma.projectBudget.findUnique({ where: { projectId }, include: { lines: true } }),
+    resolveDefaultProjectBudget(projectId),
     prisma.productionExpense.findMany({
       where: { projectId },
       include: { createdBy: { select: { id: true, name: true, email: true } } },

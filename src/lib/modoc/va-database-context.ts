@@ -125,6 +125,7 @@ export async function buildCreatorDatabaseContext(
       }),
       prisma.projectBudget.findMany({
         where: { projectId: { in: projectIds } },
+        orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
         select: {
           projectId: true,
           _count: { select: { lines: true } },
@@ -255,7 +256,10 @@ export async function buildCreatorDatabaseContext(
   const scriptByProject = new Map(scripts.map((s) => [s.projectId, s]));
   const scenesByProject = new Map(sceneCounts.map((s) => [s.projectId, s._count.id]));
   const charsByProject = new Map(charCounts.map((c) => [c.projectId, c._count.id]));
-  const budgetByProject = new Map(budgets.map((b) => [b.projectId, b]));
+  const budgetByProject = new Map<string, (typeof budgets)[number]>();
+  for (const b of budgets) {
+    if (!budgetByProject.has(b.projectId)) budgetByProject.set(b.projectId, b);
+  }
 
   const lines: string[] = [
     "**Database access (read-only, creator-scoped)** — use these real records when answering about scripts, breakdowns, schedules, and production data. Never invent IDs.",

@@ -22,11 +22,9 @@ import { EXPENSE_CATEGORIES, categoryLabel } from "@/lib/expense-types";
 import { ExpenseStudioNav, type ExpenseWorkspaceId } from "@/components/expense/expense-studio-nav";
 import { BudgetComparePanel } from "@/components/expense/budget-compare-panel";
 import {
-  BudgetVersionsPanel,
-  FinancialAnalyticsPanel,
-  PayrollPanel,
   PurchaseOrdersPanel,
   VendorsPanel,
+  PayrollPanel,
 } from "@/components/financial-ops/financial-ops-panels";
 import {
   OfflineSyncBanner,
@@ -75,7 +73,6 @@ export function ExpenseTrackerStudio({ projectId, title }: ExpenseTrackerStudioP
   const [categoryFilter, setCategoryFilter] = useState("");
   const [approvalFilter, setApprovalFilter] = useState("");
   const [paymentFilter, setPaymentFilter] = useState("");
-  const [deptFilter, setDeptFilter] = useState("");
   const [receiptUploading, setReceiptUploading] = useState(false);
   const [ocrPreview, setOcrPreview] = useState<Record<string, { value: unknown; confidence: number } | null> | null>(null);
   const [ocrRawText, setOcrRawText] = useState<string | null>(null);
@@ -135,12 +132,11 @@ export function ExpenseTrackerStudio({ projectId, title }: ExpenseTrackerStudioP
     () =>
       expenses.filter((e) => {
         if (categoryFilter && e.meta.category.toUpperCase() !== categoryFilter) return false;
-        if (deptFilter && e.meta.category.toUpperCase() !== deptFilter) return false;
         if (approvalFilter && e.meta.approvalStatus !== approvalFilter) return false;
         if (paymentFilter && e.meta.paymentStatus !== paymentFilter) return false;
         return true;
       }),
-    [expenses, categoryFilter, approvalFilter, paymentFilter, deptFilter],
+    [expenses, categoryFilter, approvalFilter, paymentFilter],
   );
 
   const invalidate = () => {
@@ -341,7 +337,7 @@ export function ExpenseTrackerStudio({ projectId, title }: ExpenseTrackerStudioP
             <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">Production finance</p>
             <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
             <p className="mt-2 max-w-3xl text-sm text-slate-400">
-              Real-time actuals vs AI Budget Studio — receipt capture, approvals, reconciliation, and cash flow in one place.
+              Track what you spend on set, upload receipts, and see how actual costs compare to your budget.
             </p>
           </div>
           <div className="flex flex-wrap gap-2 text-xs">
@@ -368,29 +364,25 @@ export function ExpenseTrackerStudio({ projectId, title }: ExpenseTrackerStudioP
       ) : (
         <>
           {workspace === "dashboard" && (
-            <DashboardView dashboard={dashboard} planned={planned} alerts={alerts} cashFlow={cashFlowTimeline} compact={compactMode} />
+            <DashboardView
+              dashboard={dashboard}
+              planned={planned}
+              alerts={alerts}
+              cashFlow={cashFlowTimeline}
+              compact={compactMode}
+              onUploadReceipt={() => setWorkspace("entry")}
+            />
           )}
 
           {workspace === "budget-compare" && (
             <BudgetComparePanel rows={comparison.byDepartment ?? dashboard.comparisonByDepartment ?? []} overall={comparison.overall} />
           )}
 
-          {workspace === "analytics" && projectId && <FinancialAnalyticsPanel projectId={projectId} />}
+          {workspace === "reports" && projectId && <FinancialReportsPanel projectId={projectId} />}
           {workspace === "vendors" && projectId && <VendorsPanel projectId={projectId} />}
           {workspace === "purchase-orders" && projectId && <PurchaseOrdersPanel projectId={projectId} />}
           {workspace === "payroll" && projectId && <PayrollPanel projectId={projectId} />}
           {workspace === "petty-cash" && projectId && <PettyCashPanel projectId={projectId} />}
-          {workspace === "reports" && projectId && <FinancialReportsPanel projectId={projectId} />}
-          {workspace === "budget-versions" && projectId && <BudgetVersionsPanel projectId={projectId} />}
-
-          {workspace === "departments" && (
-            <DepartmentsView
-              rows={comparison.byDepartment ?? dashboard.comparisonByDepartment ?? []}
-              expenses={filteredExpenses}
-              deptFilter={deptFilter}
-              onDeptFilter={setDeptFilter}
-            />
-          )}
 
           {workspace === "entry" && (
             <EntryForm
@@ -413,10 +405,10 @@ export function ExpenseTrackerStudio({ projectId, title }: ExpenseTrackerStudioP
             />
           )}
 
-          {(workspace === "expenses" || workspace === "receipts") && (
+          {workspace === "expenses" && (
             <ExpenseList
               projectId={projectId}
-              expenses={workspace === "receipts" ? expenses.filter((e) => e.meta.receiptUrls.length > 0 || e.meta.paymentProofUrls.length > 0) : filteredExpenses}
+              expenses={filteredExpenses}
               categoryFilter={categoryFilter}
               approvalFilter={approvalFilter}
               paymentFilter={paymentFilter}
@@ -425,7 +417,6 @@ export function ExpenseTrackerStudio({ projectId, title }: ExpenseTrackerStudioP
               onPaymentFilter={setPaymentFilter}
               onPatch={(p) => patchMutation.mutate(p)}
               onDelete={(id) => deleteMutation.mutate(id)}
-              showReceiptsOnly={workspace === "receipts"}
             />
           )}
 
@@ -441,31 +432,38 @@ function DashboardView({
   alerts,
   cashFlow,
   compact,
+  onUploadReceipt,
 }: {
   dashboard: Record<string, unknown>;
   planned: number;
   alerts: Array<{ message: string }>;
   cashFlow: Array<{ date: string; amount: number; cumulative: number }>;
   compact: boolean;
+  onUploadReceipt: () => void;
 }) {
   const d = dashboard;
   const kpis = [
     ["Total budget", planned, "text-white"],
     ["Total spent", d.totalSpend, "text-white"],
     ["Remaining", d.remainingBudget, "text-emerald-300"],
-    ["Committed", d.committedCosts, "text-amber-200"],
     ["Pending approval", d.pendingApprovals, "text-sky-200"],
-    ["Daily burn", d.burnRateDaily, "text-white"],
-    ["Budget health", `${d.budgetHealthScore ?? 0}%`, Number(d.budgetHealthScore) > 70 ? "text-emerald-300" : "text-amber-300"],
-    ["Risk score", d.financialRiskScore, Number(d.financialRiskScore) > 50 ? "text-red-300" : "text-slate-200"],
-    ["Weekly spend", d.weeklySpend, "text-white"],
-    ["Forecast", d.forecastSpend, "text-orange-200"],
     ["Missing receipts", d.missingReceipts, "text-amber-200"],
-    ["Petty cash", d.pettyCashSpent, "text-white"],
+    ["Budget health", `${d.budgetHealthScore ?? 0}%`, Number(d.budgetHealthScore) > 70 ? "text-emerald-300" : "text-amber-300"],
   ] as const;
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-orange-500/20 bg-orange-500/5 px-4 py-3">
+        <div>
+          <p className="text-sm font-medium text-orange-100">Log a new expense</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">Upload a receipt photo or PDF — we&apos;ll scan it and fill in the details.</p>
+        </div>
+        <Button size="sm" className="bg-orange-500 hover:bg-orange-600 text-white shrink-0" onClick={onUploadReceipt}>
+          <Camera className="h-3.5 w-3.5 mr-1.5" />
+          Upload receipt
+        </Button>
+      </div>
+
       {alerts.length > 0 && (
         <div className="rounded-xl border border-red-500/30 bg-red-950/20 p-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-red-200 mb-2 flex items-center gap-1">
@@ -479,7 +477,7 @@ function DashboardView({
         </div>
       )}
 
-      <div className={`grid gap-2 ${compact ? "grid-cols-2" : "md:grid-cols-4 lg:grid-cols-6"}`}>
+      <div className={`grid gap-2 ${compact ? "grid-cols-2" : "md:grid-cols-3 lg:grid-cols-6"}`}>
         {kpis.map(([label, val, cls]) => (
           <div key={label} className="creator-glass-panel p-3">
             <p className="text-[10px] text-slate-500 uppercase tracking-wide">{label}</p>
@@ -505,13 +503,14 @@ function DashboardView({
 
       <div className="grid gap-4 md:grid-cols-2">
         <div className="creator-glass-panel p-3 space-y-2">
-          <p className="text-xs uppercase tracking-wide text-slate-400">Cash flow timeline</p>
-          {cashFlow.slice(-14).map((c) => (
+          <p className="text-xs uppercase tracking-wide text-slate-400">Recent spend</p>
+          {cashFlow.slice(-7).map((c) => (
             <div key={c.date} className="flex justify-between text-xs rounded bg-slate-900/70 px-2 py-1">
               <span className="text-slate-400">{c.date}</span>
-              <span className="text-slate-200">{formatZar(c.amount, { maximumFractionDigits: 0 })} · cum {formatZar(c.cumulative, { maximumFractionDigits: 0 })}</span>
+              <span className="text-slate-200">{formatZar(c.amount, { maximumFractionDigits: 0 })}</span>
             </div>
           ))}
+          {cashFlow.length === 0 ? <p className="text-xs text-slate-500">No spend recorded yet.</p> : null}
         </div>
         <div className="creator-glass-panel p-3 space-y-2">
           <p className="text-xs uppercase tracking-wide text-slate-400">Upcoming payments</p>
@@ -580,69 +579,67 @@ function EntryForm({
   autoPending: boolean;
   compact: boolean;
 }) {
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
   return (
-    <div className="creator-glass-panel p-4 space-y-3">
-      <p className="text-xs uppercase tracking-wide text-slate-400 flex items-center gap-1">
-        <Camera className="h-3.5 w-3.5" /> Intelligent expense entry
-      </p>
-      <div className={`grid gap-2 ${compact ? "" : "md:grid-cols-4"}`}>
-        <Input value={form.title} onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))} placeholder="Expense title" className="bg-slate-900 border-slate-700 text-xs" />
-        <select value={form.category} onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))} className="h-9 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white">
-          {EXPENSE_CATEGORIES.map((c) => (
-            <option key={c} value={c}>{categoryLabel(c)}</option>
-          ))}
-        </select>
-        <select value={form.budgetLineId} onChange={(e) => setForm((p) => ({ ...p, budgetLineId: e.target.value }))} className="h-9 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white">
-          <option value="">Link budget line (optional)</option>
-          {budgetLines.map((l) => (
-            <option key={l.id} value={l.id}>{l.name}</option>
-          ))}
-        </select>
-        <select value={form.sceneId} onChange={(e) => setForm((p) => ({ ...p, sceneId: e.target.value }))} className="h-9 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white">
-          <option value="">Scene (optional)</option>
-          {scenes.map((s) => <option key={s.id} value={s.id}>Scene {s.number}</option>)}
-        </select>
+    <div className="creator-glass-panel p-4 space-y-4">
+      <div>
+        <p className="text-sm font-medium text-white">Upload receipt</p>
+        <p className="text-[11px] text-slate-400 mt-1">Take a photo or upload a PDF. We&apos;ll read the amount and vendor when possible.</p>
       </div>
-      <div className={`grid gap-2 ${compact ? "" : "md:grid-cols-5"}`}>
-        <Input value={form.amount} onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))} placeholder="Amount (R)" type="number" className="bg-slate-900 border-slate-700 text-xs" />
-        <Input value={form.vendor} onChange={(e) => setForm((p) => ({ ...p, vendor: e.target.value }))} placeholder="Vendor" className="bg-slate-900 border-slate-700 text-xs" />
-        <select value={form.paymentMethod} onChange={(e) => setForm((p) => ({ ...p, paymentMethod: e.target.value }))} className="h-9 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white">
-          {["CASH", "PETTY_CASH", "CARD", "CREDIT_CARD", "TRANSFER", "MOBILE", "OTHER"].map((m) => (
-            <option key={m} value={m}>{m.replaceAll("_", " ")}</option>
-          ))}
-        </select>
-        <select value={form.shootDayId} onChange={(e) => setForm((p) => ({ ...p, shootDayId: e.target.value }))} className="h-9 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white">
-          <option value="">Shoot day</option>
-          {shootDays.map((d) => <option key={d.id} value={d.id}>{new Date(d.date).toLocaleDateString()}</option>)}
-        </select>
-        <Input type="date" value={form.paymentDueAt} onChange={(e) => setForm((p) => ({ ...p, paymentDueAt: e.target.value }))} className="bg-slate-900 border-slate-700 text-xs" />
-      </div>
-      <textarea value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} placeholder="Notes" rows={2} className="w-full rounded-md bg-slate-900 border border-slate-700 px-3 py-2 text-sm text-white" />
+
+      <label className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-700 bg-slate-950/50 px-6 py-8 cursor-pointer hover:border-orange-500/40 hover:bg-slate-900/50 transition">
+        <Camera className="h-8 w-8 text-orange-400/80" />
+        <span className="text-sm font-medium text-slate-200">
+          {receiptUploading ? "Scanning receipt…" : "Tap to upload receipt"}
+        </span>
+        <span className="text-[11px] text-slate-500">Image or PDF</span>
+        <input
+          type="file"
+          accept="image/*,application/pdf"
+          className="hidden"
+          onChange={async (e) => {
+            const f = e.target.files?.[0];
+            if (f) await onUpload(f, "receipt");
+            e.currentTarget.value = "";
+          }}
+        />
+      </label>
+
+      {receiptUrls.length > 0 ? (
+        <p className="text-[11px] text-emerald-300">{receiptUrls.length} receipt file(s) attached</p>
+      ) : null}
 
       {ocrPreview && (
         <div className="rounded-lg border border-sky-500/30 bg-sky-500/5 px-3 py-2 text-[11px] text-sky-100">
-          AI receipt scan — review fields before saving.
+          Scanned from receipt — check these before saving:
           <div className="mt-1 flex flex-wrap gap-2 text-slate-400">
             {Object.entries(ocrPreview).map(([k, v]) =>
               v ? (
-                <span key={k}>{k}: {String(v.value)} ({Math.round(v.confidence * 100)}%)</span>
+                <span key={k}>{k}: {String(v.value)}</span>
               ) : null,
             )}
           </div>
         </div>
       )}
 
+      <div className={`grid gap-2 ${compact ? "" : "md:grid-cols-2"}`}>
+        <Input value={form.title} onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))} placeholder="What was this for?" className="bg-slate-900 border-slate-700 text-sm" />
+        <Input value={form.amount} onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))} placeholder="Amount (R)" type="number" className="bg-slate-900 border-slate-700 text-sm" />
+        <Input value={form.vendor} onChange={(e) => setForm((p) => ({ ...p, vendor: e.target.value }))} placeholder="Vendor / supplier" className="bg-slate-900 border-slate-700 text-sm" />
+        <select value={form.category} onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))} className="h-10 rounded-md border border-slate-700 bg-slate-900 px-2 text-sm text-white">
+          {EXPENSE_CATEGORIES.map((c) => (
+            <option key={c} value={c}>{categoryLabel(c)}</option>
+          ))}
+        </select>
+      </div>
+
       <div className="flex flex-wrap gap-2">
+        <Button size="sm" className="bg-orange-500 hover:bg-orange-600" disabled={!form.title.trim() || !form.amount || pending} onClick={onSubmit}>
+          Save expense
+        </Button>
         <label className="inline-flex h-8 cursor-pointer items-center rounded-md border border-slate-700 bg-slate-900 px-3 text-xs text-slate-200">
           <Receipt className="h-3.5 w-3.5 mr-1" />
-          {receiptUploading ? "Scanning…" : "Scan receipt"}
-          <input type="file" accept="image/*,application/pdf" className="hidden" onChange={async (e) => {
-            const f = e.target.files?.[0];
-            if (f) await onUpload(f, "receipt");
-            e.currentTarget.value = "";
-          }} />
-        </label>
-        <label className="inline-flex h-8 cursor-pointer items-center rounded-md border border-slate-700 bg-slate-900 px-3 text-xs text-slate-200">
           Payment proof
           <input type="file" accept="image/*,application/pdf" className="hidden" onChange={async (e) => {
             const f = e.target.files?.[0];
@@ -650,20 +647,56 @@ function EntryForm({
             e.currentTarget.value = "";
           }} />
         </label>
-        <span className="text-xs text-slate-500 self-center">{receiptUrls.length} receipt(s)</span>
-        <Button size="sm" className="bg-orange-500 hover:bg-orange-600" disabled={!form.title.trim() || !form.amount || pending} onClick={onSubmit}>
-          Log expense
-        </Button>
-        <Button size="sm" variant="outline" className="border-amber-600/50 text-amber-200" disabled={pending} onClick={onForceSubmit}>
-          Save anyway (ignore duplicates)
-        </Button>
-        <Button size="sm" variant="outline" className="border-slate-700" disabled={autoPending} onClick={() => onAutoCapture("SIGNED_CONTRACTS")}>
-          Auto-capture contracts
-        </Button>
-        <Button size="sm" variant="outline" className="border-slate-700" disabled={autoPending} onClick={() => onAutoCapture("EQUIPMENT_USAGE")}>
-          Auto-capture equipment
-        </Button>
       </div>
+
+      <button
+        type="button"
+        onClick={() => setShowAdvanced((v) => !v)}
+        className="text-[11px] text-slate-500 hover:text-slate-300"
+      >
+        {showAdvanced ? "Hide" : "Show"} more options (budget line, scene, shoot day…)
+      </button>
+
+      {showAdvanced ? (
+        <div className="space-y-2 border-t border-slate-800 pt-3">
+          <div className={`grid gap-2 ${compact ? "" : "md:grid-cols-3"}`}>
+            <select value={form.budgetLineId} onChange={(e) => setForm((p) => ({ ...p, budgetLineId: e.target.value }))} className="h-9 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white">
+              <option value="">Link budget line (optional)</option>
+              {budgetLines.map((l) => (
+                <option key={l.id} value={l.id}>{l.name}</option>
+              ))}
+            </select>
+            <select value={form.sceneId} onChange={(e) => setForm((p) => ({ ...p, sceneId: e.target.value }))} className="h-9 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white">
+              <option value="">Scene (optional)</option>
+              {scenes.map((s) => <option key={s.id} value={s.id}>Scene {s.number}</option>)}
+            </select>
+            <select value={form.shootDayId} onChange={(e) => setForm((p) => ({ ...p, shootDayId: e.target.value }))} className="h-9 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white">
+              <option value="">Shoot day</option>
+              {shootDays.map((d) => <option key={d.id} value={d.id}>{new Date(d.date).toLocaleDateString()}</option>)}
+            </select>
+          </div>
+          <div className={`grid gap-2 ${compact ? "" : "md:grid-cols-2"}`}>
+            <select value={form.paymentMethod} onChange={(e) => setForm((p) => ({ ...p, paymentMethod: e.target.value }))} className="h-9 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white">
+              {["CASH", "PETTY_CASH", "CARD", "CREDIT_CARD", "TRANSFER", "MOBILE", "OTHER"].map((m) => (
+                <option key={m} value={m}>{m.replaceAll("_", " ")}</option>
+              ))}
+            </select>
+            <Input type="date" value={form.paymentDueAt} onChange={(e) => setForm((p) => ({ ...p, paymentDueAt: e.target.value }))} className="bg-slate-900 border-slate-700 text-xs" />
+          </div>
+          <textarea value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} placeholder="Notes (optional)" rows={2} className="w-full rounded-md bg-slate-900 border border-slate-700 px-3 py-2 text-sm text-white" />
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" className="border-amber-600/50 text-amber-200 text-xs" disabled={pending} onClick={onForceSubmit}>
+              Save anyway (ignore duplicates)
+            </Button>
+            <Button size="sm" variant="outline" className="border-slate-700 text-xs" disabled={autoPending} onClick={() => onAutoCapture("SIGNED_CONTRACTS")}>
+              Import from contracts
+            </Button>
+            <Button size="sm" variant="outline" className="border-slate-700 text-xs" disabled={autoPending} onClick={() => onAutoCapture("EQUIPMENT_USAGE")}>
+              Import from equipment
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -679,7 +712,6 @@ function ExpenseList({
   onPaymentFilter,
   onPatch,
   onDelete,
-  showReceiptsOnly,
 }: {
   projectId: string;
   expenses: ExpenseRow[];
@@ -691,14 +723,12 @@ function ExpenseList({
   onPaymentFilter: (v: string) => void;
   onPatch: (p: Record<string, unknown>) => void;
   onDelete: (id: string) => void;
-  showReceiptsOnly?: boolean;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   return (
     <div className="space-y-3">
-      {!showReceiptsOnly && (
-        <div className="grid gap-2 md:grid-cols-3">
+      <div className="grid gap-2 md:grid-cols-3">
           <select value={categoryFilter} onChange={(e) => onCategoryFilter(e.target.value)} className="h-9 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white">
             <option value="">All categories</option>
             {EXPENSE_CATEGORIES.map((c) => <option key={c} value={c}>{categoryLabel(c)}</option>)}
@@ -711,8 +741,7 @@ function ExpenseList({
             <option value="">All payments</option>
             {["UNPAID", "PARTIAL", "PAID"].map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
-        </div>
-      )}
+      </div>
 
       <div className="creator-glass-panel p-3 space-y-2 max-h-[32rem] overflow-y-auto">
         {expenses.length === 0 ? (
@@ -767,56 +796,6 @@ function ExpenseList({
             </div>
             );
           })
-        )}
-      </div>
-    </div>
-  );
-}
-
-function DepartmentsView({
-  rows,
-  expenses,
-  deptFilter,
-  onDeptFilter,
-}: {
-  rows: Array<{ key: string; budgeted: number; actual: number; remaining: number; pctUsed?: number; health?: string }>;
-  expenses: ExpenseRow[];
-  deptFilter: string;
-  onDeptFilter: (v: string) => void;
-}) {
-  const selected = deptFilter || rows[0]?.key || "";
-  const deptExpenses = expenses.filter((e) => e.meta.category === selected);
-
-  return (
-    <div className="grid gap-4 md:grid-cols-3">
-      <div className="md:col-span-1 space-y-1">
-        {rows.map((d) => (
-          <button
-            key={d.key}
-            type="button"
-            onClick={() => onDeptFilter(d.key)}
-            className={`w-full rounded-lg border px-3 py-2 text-left text-xs transition ${
-              selected === d.key ? "border-orange-500/40 bg-orange-500/10" : "border-slate-800 bg-slate-900/70"
-            }`}
-          >
-            <span className="text-white font-medium">{categoryLabel(d.key)}</span>
-            <span className={`block mt-0.5 ${d.health === "over" ? "text-red-300" : d.health === "watch" ? "text-amber-300" : "text-emerald-300"}`}>
-              {formatZar(d.actual, { maximumFractionDigits: 0 })} / {formatZar(d.budgeted, { maximumFractionDigits: 0 })}
-            </span>
-          </button>
-        ))}
-      </div>
-      <div className="md:col-span-2 creator-glass-panel p-3 space-y-2 max-h-96 overflow-y-auto">
-        <p className="text-xs text-slate-400">{categoryLabel(selected)} — recent transactions</p>
-        {deptExpenses.length === 0 ? (
-          <p className="text-xs text-slate-500">No expenses in this department.</p>
-        ) : (
-          deptExpenses.slice(0, 20).map((e) => (
-            <div key={e.id} className="flex justify-between text-xs border-b border-slate-800 py-1">
-              <span className="text-slate-300">{e.meta.title}</span>
-              <span className="text-white">{formatZar(e.amount)}</span>
-            </div>
-          ))
         )}
       </div>
     </div>

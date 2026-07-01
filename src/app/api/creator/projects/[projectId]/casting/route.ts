@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import {
+  ensureDefaultProjectBudgetInTx,
+  resolveDefaultProjectBudget,
+} from "@/lib/project-budget-access";
 import { parseEmbeddedMeta, type ActorMarketMeta, listIncludes, embedMeta } from "@/lib/marketplace-profile-meta";
 
 type CastingRoleMeta = {
@@ -92,10 +96,7 @@ export async function GET(
 
   const roleMarkers = roles.map((r) => roleMarker(r.id));
   const [budget, roster] = await Promise.all([
-    prisma.projectBudget.findUnique({
-      where: { projectId },
-      include: { lines: true },
-    }),
+    resolveDefaultProjectBudget(projectId),
     prisma.creatorCastRoster.findMany({
       where: { creatorId: access.userId! },
       orderBy: { updatedAt: "desc" },
@@ -335,16 +336,7 @@ export async function PATCH(
     });
 
     if (body.salaryAmount !== undefined && body.salaryAmount !== null) {
-      const budget = await tx.projectBudget.upsert({
-        where: { projectId },
-        create: {
-          projectId,
-          template: "SHORT_FILM",
-          currency: "ZAR",
-          totalPlanned: 0,
-        },
-        update: {},
-      });
+      const budget = await ensureDefaultProjectBudgetInTx(tx, projectId);
       const existingLine = await tx.projectBudgetLine.findFirst({
         where: {
           budgetId: budget.id,

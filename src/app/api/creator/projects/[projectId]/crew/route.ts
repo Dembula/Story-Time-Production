@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import {
+  ensureDefaultProjectBudgetInTx,
+  resolveDefaultProjectBudget,
+} from "@/lib/project-budget-access";
 
 const NEED_LINK_MARKER_PREFIX = "crewNeedId:";
 
@@ -65,10 +69,7 @@ export async function GET(
       invitations: true,
     },
   });
-  const budget = await prisma.projectBudget.findUnique({
-    where: { projectId },
-    include: { lines: true },
-  });
+  const budget = await resolveDefaultProjectBudget(projectId);
   const roster = await prisma.creatorCrewRoster.findMany({
     where: { creatorId: access.userId! },
     orderBy: { updatedAt: "desc" },
@@ -171,16 +172,7 @@ export async function PATCH(
     });
 
     if (body.dailyRate !== undefined && body.dailyRate !== null) {
-      const budget = await tx.projectBudget.upsert({
-        where: { projectId },
-        create: {
-          projectId,
-          template: "SHORT_FILM",
-          currency: "ZAR",
-          totalPlanned: 0,
-        },
-        update: {},
-      });
+      const budget = await ensureDefaultProjectBudgetInTx(tx, projectId);
       const existingLine = await tx.projectBudgetLine.findFirst({
         where: { budgetId: budget.id, notes: { contains: marker } },
       });

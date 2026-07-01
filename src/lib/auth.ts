@@ -119,10 +119,20 @@ export const authOptions: NextAuthOptions = {
         if (!ok) return null;
         const roles = await getUserRoles(user.id, user.role);
         const selectedRoleRaw = (credentials as Record<string, unknown> | undefined)?.selectedRole;
-        const selectedRole = typeof selectedRoleRaw === "string" ? selectedRoleRaw : null;
-        const role = selectedRole && CREATOR_ROLES.has(selectedRole) && roles.has(selectedRole)
-          ? selectedRole
-          : pickCreatorRole(roles, user.role);
+        const selectedRole =
+          typeof selectedRoleRaw === "string" && selectedRoleRaw.trim()
+            ? selectedRoleRaw.trim().toUpperCase()
+            : null;
+
+        let role: string | null = null;
+        if (selectedRole) {
+          if (!CREATOR_ROLES.has(selectedRole) || !roles.has(selectedRole)) {
+            return null;
+          }
+          role = selectedRole;
+        } else {
+          role = pickCreatorRole(roles, user.role);
+        }
         if (!role) return null;
         if (user.role !== role) {
           await prisma.user.update({ where: { id: user.id }, data: { role } });

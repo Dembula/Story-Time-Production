@@ -1683,6 +1683,8 @@ exports.Prisma.BreakdownMakeupScalarFieldEnum = {
 exports.Prisma.ProjectBudgetScalarFieldEnum = {
   id: 'id',
   projectId: 'projectId',
+  name: 'name',
+  isDefault: 'isDefault',
   template: 'template',
   currency: 'currency',
   totalPlanned: 'totalPlanned',

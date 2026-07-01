@@ -39,6 +39,7 @@ import type { ModocUserContext } from "@/lib/modoc";
 import { getCreatorAnalytics } from "@/lib/creator-analytics";
 import type { UIMessage } from "ai";
 import { prisma } from "@/lib/prisma";
+import { resolveDefaultProjectBudget } from "@/lib/project-budget-access";
 import { CREATOR_VA_ROLE } from "@/lib/modoc/creator-va";
 import { VIEWER_VA_ROLE } from "@/lib/modoc/viewer-va";
 import { buildCreatorWorkspaceContext } from "@/lib/modoc/creator-workspace-context";
@@ -674,10 +675,7 @@ Summarize feedback, suggest editorial next steps, and use create_post_review / a
       if (task === "funding_hub" && project) {
         const [funding, budget, ideas] = await Promise.all([
           prisma.fundingRequest.findUnique({ where: { projectId: project.id } }),
-          prisma.projectBudget.findUnique({
-            where: { projectId: project.id },
-            select: { template: true, totalPlanned: true },
-          }),
+          resolveDefaultProjectBudget(project.id),
           prisma.projectIdea.findMany({
             where: { projectId: project.id },
             take: 5,
@@ -847,7 +845,7 @@ Assess risks and suggest insurance coverage and contingency plans. Frame as poin
       if (task === "production_readiness" && project) {
         const [budget, castRoles, crewNeeds, locations, equipmentPlan, riskPlan, contracts] =
           await Promise.all([
-            prisma.projectBudget.findUnique({ where: { projectId: project.id } }),
+            resolveDefaultProjectBudget(project.id),
             prisma.castingRole.count({ where: { projectId: project.id } }),
             prisma.crewRoleNeed.count({ where: { projectId: project.id } }),
             prisma.breakdownLocation.count({ where: { projectId: project.id } }),
@@ -1206,10 +1204,7 @@ Analyze for quality and consistency; suggest what to flag before post-production
             take: 150,
             select: { id: true, description: true, amount: true, department: true, spentAt: true, vendor: true },
           }),
-          prisma.projectBudget.findUnique({
-            where: { projectId: project.id },
-            select: { totalPlanned: true },
-          }),
+          resolveDefaultProjectBudget(project.id),
         ]);
         const totalSpent = expenses.reduce((s, e) => s + e.amount, 0);
         const planned = budget?.totalPlanned ?? 0;

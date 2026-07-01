@@ -34,7 +34,7 @@ const REQUIRED_PRISMA_DELEGATES = [
   "studioCompany",
   "creatorStudioProfile",
   "projectScene",
-  "projectBudget",
+  "projectBudgets",
   "callSheet",
   "projectTask",
   "breakdownCharacter",

@@ -27,7 +27,11 @@ export async function GET(_req: NextRequest, { params }: Params) {
       where: { id: projectId },
       include: {
         scripts: { select: { id: true, title: true } },
-        projectBudget: { include: { lines: true } },
+        projectBudgets: {
+          orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
+          take: 1,
+          include: { lines: true },
+        },
         castingRoles: { select: { id: true } },
         crewRoleNeeds: { select: { id: true } },
       },

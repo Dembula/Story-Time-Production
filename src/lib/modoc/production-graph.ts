@@ -147,10 +147,7 @@ export async function buildProductionGraph(
       select: { id: true, name: true, sceneId: true },
       take: 30,
     }),
-    prisma.projectBudget.findUnique({
-      where: { projectId },
-      include: { lines: { select: { id: true, name: true, department: true }, take: 30 } },
-    }),
+    resolveDefaultProjectBudget(projectId),
     prisma.shootDay.findMany({
       where: { projectId },
       select: { id: true, date: true, unit: true },

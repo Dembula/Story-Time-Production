@@ -1080,7 +1080,7 @@ model OriginalProject {
   breakdownStunts BreakdownStunt[]
   breakdownSfxs BreakdownSfx[]
   breakdownMakeups BreakdownMakeup[]
-  projectBudget ProjectBudget?
+  projectBudgets ProjectBudget[]
   productionExpenses ProductionExpense[]
   projectVendors   ProjectVendor[]
   purchaseOrders   PurchaseOrder[]
@@ -2644,8 +2644,10 @@ model BreakdownMakeup {
 
 model ProjectBudget {
   id          String   @id @default(cuid())
-  projectId   String   @unique
+  projectId   String
   project     OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String   @default("Main budget")
+  isDefault   Boolean  @default(false)
   template    String   // SHORT_FILM, INDIE_FILM, FEATURE_FILM, TV_EPISODE
   currency    String   @default("ZAR")
   totalPlanned Float   @default(0)
@@ -2666,6 +2668,7 @@ model ProjectBudget {
   activeVersion   ProjectBudgetVersion? @relation("ActiveBudgetVersion", fields: [activeVersionId], references: [id], onDelete: SetNull)
 
   @@index([projectId])
+  @@index([projectId, isDefault])
   @@index([lastGeneratedById])
   @@index([activeVersionId])
 }

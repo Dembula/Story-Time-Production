@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveDefaultProjectBudget } from "@/lib/project-budget-access";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -66,7 +67,7 @@ export async function GET(
       orderBy: { spentAt: "desc" },
       include: { createdBy: { select: { id: true, name: true, email: true } } },
     }),
-    prisma.projectBudget.findUnique({ where: { projectId }, include: { lines: true } }),
+    resolveDefaultProjectBudget(projectId),
     prisma.fundingRequest.findUnique({ where: { projectId } }),
     prisma.shootDay.findMany({ where: { projectId }, select: { id: true, date: true, status: true } }),
     prisma.projectScene.findMany({ where: { projectId }, select: { id: true, number: true, heading: true } }),

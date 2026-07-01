@@ -168,11 +168,13 @@ export function BreakdownSceneDashboard({
   projectId,
   selectedSceneId,
   onSelectScene,
+  onEditScene,
 }: {
   intelligence: BreakdownIntelligencePayload;
   projectId?: string;
   selectedSceneId: string | null;
   onSelectScene: (id: string) => void;
+  onEditScene?: (sceneId: string, mode: "scene" | "items") => void;
 }) {
   const active = intelligence.scenes.find((s) => s.sceneId === selectedSceneId) ?? intelligence.scenes[0];
 
@@ -296,6 +298,25 @@ export function BreakdownSceneDashboard({
                 ))}
             </div>
           </div>
+
+          {onEditScene ? (
+            <div className="flex flex-wrap gap-2 border-t border-slate-800 pt-4">
+              <button
+                type="button"
+                onClick={() => onEditScene(active.sceneId, "scene")}
+                className="rounded-lg bg-orange-500/20 px-3 py-1.5 text-[11px] font-medium text-orange-200 ring-1 ring-orange-500/40 hover:bg-orange-500/30"
+              >
+                Edit scene details
+              </button>
+              <button
+                type="button"
+                onClick={() => onEditScene(active.sceneId, "items")}
+                className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 text-[11px] font-medium text-slate-200 hover:border-slate-600 hover:bg-slate-900"
+              >
+                Edit breakdown items
+              </button>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>

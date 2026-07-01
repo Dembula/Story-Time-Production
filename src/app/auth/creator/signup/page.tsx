@@ -192,9 +192,20 @@ function CreatorSignUpPageInner() {
         setError((regData?.error as string) || "Registration failed. Please try again.");
         return;
       }
+      const signupRoleByType: Record<string, string> = {
+        content: "CONTENT_CREATOR",
+        music: "MUSIC_CREATOR",
+        equipment: "EQUIPMENT_COMPANY",
+        location: "LOCATION_OWNER",
+        crew: "CREW_TEAM",
+        casting: "CASTING_AGENCY",
+        catering: "CATERING_COMPANY",
+        funder: "FUNDER",
+      };
       const res = await signIn("credentials-creator", {
         email: trimmedEmail,
         password,
+        selectedRole: signupRoleByType[type] ?? "CONTENT_CREATOR",
         redirect: false,
       });
       setLoading(false);

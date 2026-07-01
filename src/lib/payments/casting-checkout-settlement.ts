@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { ensureDefaultProjectBudgetInTx } from "@/lib/project-budget-access";
 import { AUDITION_LISTING_FEE_ZAR } from "@/lib/pricing";
 
 const ROLE_LINK_MARKER_PREFIX = "castingRoleId:";
@@ -110,11 +111,7 @@ export async function finalizeCastingHirePayment(paymentRecord: {
       }
     }
 
-    const budget = await tx.projectBudget.upsert({
-      where: { projectId },
-      create: { projectId, template: "SHORT_FILM", currency: "ZAR", totalPlanned: 0 },
-      update: {},
-    });
+    const budget = await ensureDefaultProjectBudgetInTx(tx, projectId);
 
     const existingLine = await tx.projectBudgetLine.findFirst({
       where: { budgetId: budget.id, notes: { contains: marker } },

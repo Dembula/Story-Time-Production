@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
+import { resolveDefaultProjectBudget } from "@/lib/project-budget-access";
 import { resolveScriptText } from "./va-script-text";
 
 const SLICE_LIMITS = {
@@ -77,16 +78,12 @@ export async function buildSlicedContext(params: {
   }
 
   if (needsBudget) {
-    const budget = await prisma.projectBudget.findUnique({
-      where: { projectId },
-      include: {
-        lines: { take: SLICE_LIMITS.budgetLines, select: { name: true, department: true, total: true } },
-      },
-    });
+    const budget = await resolveDefaultProjectBudget(projectId);
     if (budget?.lines.length) {
+      const lines = budget.lines.slice(0, SLICE_LIMITS.budgetLines);
       sections.push(
         "**Budget lines (slice):**",
-        budget.lines.map((l) => `- ${l.department ?? "—"}: ${l.name} (${l.total ?? "—"})`).join("\n"),
+        lines.map((l) => `- ${l.department ?? "—"}: ${l.name} (${l.total ?? "—"})`).join("\n"),
       );
     }
   }

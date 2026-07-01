@@ -19,10 +19,7 @@ export async function buildProactiveIntelligenceBlock(
       select: { amount: true, description: true },
       take: 200,
     }),
-    prisma.projectBudget.findUnique({
-      where: { projectId },
-      select: { totalPlanned: true },
-    }),
+    resolveDefaultProjectBudget(projectId),
     prisma.shootDay.findMany({
       where: { projectId, date: { gte: new Date() } },
       orderBy: { date: "asc" },

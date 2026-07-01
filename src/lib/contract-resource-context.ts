@@ -47,10 +47,7 @@ export async function buildContractResourceContext(
           shootDays: { orderBy: { date: "asc" }, select: { date: true } },
         },
       }),
-      prisma.projectBudget.findUnique({
-        where: { projectId },
-        include: { lines: true },
-      }),
+      resolveDefaultProjectBudget(projectId),
       prisma.castingRole.findMany({
         where: { projectId },
         orderBy: { createdAt: "asc" },

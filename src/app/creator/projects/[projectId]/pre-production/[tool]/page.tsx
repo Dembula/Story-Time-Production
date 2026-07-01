@@ -23,12 +23,10 @@ import { mergeBudgetTemplateWithSaved } from "@/lib/budget-merge";
 import { budgetRowKey, embedBudgetLineKey } from "@/lib/budget-line-keys";
 import {
   BudgetStudioNav,
-  budgetWorkspaceDepartments,
+  friendlyDepartmentName,
   type BudgetWorkspaceId,
 } from "@/components/budget/budget-studio-nav";
-import { BudgetVersionsPanel } from "@/components/financial-ops/financial-ops-panels";
 import { BudgetActualsPanel } from "@/components/budget/budget-actuals-panel";
-import { FinancialReportsPanel } from "@/components/financial-ops/financial-roadmap-panels";
 import { buildShootDayPipelinePreview } from "@/lib/schedule-day-preview";
 import {
   AUDITION_LISTING_FEE_ZAR,
@@ -950,6 +948,33 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
   const [selectedAsset, setSelectedAsset] = useState<CatalogAsset | null>(null);
   const [activeDepartment, setActiveDepartment] = useState<BreakdownDepartmentId | null>(null);
   const [highlightCategory, setHighlightCategory] = useState<BreakdownCategoryKey | null>(null);
+  const [editingSceneMeta, setEditingSceneMeta] = useState(false);
+  const [editingCategoryRows, setEditingCategoryRows] = useState(false);
+
+  const openBreakdownEditor = useCallback(
+    (sceneId: string, mode: "scene" | "items", category?: BreakdownCategoryTab) => {
+      setActiveSceneId(sceneId);
+      setStudioTab("editor");
+      if (mode === "scene") {
+        setTab("scenes");
+        setEditingSceneMeta(true);
+        setEditingCategoryRows(false);
+      } else {
+        setTab(category ?? "characters");
+        setEditingCategoryRows(true);
+        setEditingSceneMeta(false);
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    setEditingCategoryRows(false);
+  }, [tab]);
+
+  useEffect(() => {
+    setEditingSceneMeta(false);
+  }, [activeSceneId]);
 
   const { data: intelligenceData, isLoading: intelligenceLoading } = useQuery({
     queryKey: ["project-breakdown-intelligence", projectId],
@@ -1274,11 +1299,8 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
         intelligenceLoading={hasProject && intelligenceLoading}
         projectId={projectId}
         selectedSceneId={activeSceneId || null}
-        onSelectScene={(id) => {
-          setActiveSceneId(id);
-          setStudioTab("editor");
-          setTab("characters");
-        }}
+        onSelectScene={(id) => setActiveSceneId(id)}
+        onEditScene={(id, mode) => openBreakdownEditor(id, mode)}
         selectedAsset={selectedAsset}
         onSelectAsset={setSelectedAsset}
         onCloseAsset={() => setSelectedAsset(null)}
@@ -1309,40 +1331,97 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
         departmentWorkspaceLoading={departmentWsLoading}
         editor={
           <>
-      {breakdownScriptOptions.length > 0 && (
-        <div className="rounded-lg border border-slate-800 bg-slate-900/50 px-4 py-3">
-          <label className="text-xs font-medium text-slate-400 block mb-2">Script for this breakdown</label>
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2 text-xs">
+        {projectScenesForBreakdown.length > 0 ? (
+          <select
+            value={activeSceneId}
+            onChange={(e) => setActiveSceneId(e.target.value)}
+            className="rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-[11px] text-white outline-none focus:border-orange-500 min-w-[200px]"
+          >
+            {projectScenesForBreakdown.map((s) => (
+              <option key={s.id} value={s.id}>
+                Sc. {s.number}
+                {s.heading ? ` — ${s.heading.slice(0, 36)}${s.heading.length > 36 ? "…" : ""}` : ""}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <span className="text-slate-500 text-[11px]">Sync scenes to start editing</span>
+        )}
+        {breakdownScriptOptions.length > 0 ? (
           <select
             value={breakdownScriptId || breakdownScriptOptions[0]?.id || ""}
             onChange={(e) => setBreakdownScriptId(e.target.value)}
-            className="w-full max-w-md rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-cyan-500"
+            className="rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-[11px] text-white outline-none focus:border-cyan-500 max-w-[220px]"
+            title="Script used for AI breakdown"
           >
-            <option value="">Select a script</option>
             {breakdownScriptOptions.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.label}
               </option>
             ))}
           </select>
-          <p className="text-[11px] text-slate-500 mt-1">AI will use the selected script to detect elements and can auto-fill the breakdown when you click &quot;Add to breakdown&quot;.</p>
+        ) : null}
+        <div className="flex flex-wrap gap-1.5 sm:ml-auto">
+          <Button
+            type="button"
+            size="sm"
+            className="bg-orange-500 hover:bg-orange-600 text-white text-[10px] h-7"
+            disabled={syncScenesMutation.isPending}
+            onClick={() => {
+              setSceneSyncMessage("");
+              syncScenesMutation.mutate();
+            }}
+          >
+            {syncScenesMutation.isPending ? "Syncing…" : "Sync scenes"}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            className="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] h-7 disabled:opacity-40"
+            disabled={!latestProjectScriptContent.trim() || autoPopulateMutation.isPending}
+            onClick={() => {
+              if (
+                !window.confirm(
+                  "AI will replace all breakdown rows for this project. Continue?",
+                )
+              ) {
+                return;
+              }
+              setAiPopulateMessage("");
+              autoPopulateMutation.mutate({ mode: "full" });
+            }}
+          >
+            {autoPopulateMutation.isPending ? "AI…" : "AI breakdown"}
+          </Button>
         </div>
-      )}
+      </div>
+      {sceneSyncMessage ? <p className="text-[11px] text-slate-400">{sceneSyncMessage}</p> : null}
+      {aiPopulateMessage ? (
+        <p
+          className={`text-[11px] ${
+            /\b(fail|error|could not)\b/i.test(aiPopulateMessage) ? "text-amber-200/90" : "text-emerald-200/90"
+          }`}
+        >
+          {aiPopulateMessage}
+        </p>
+      ) : null}
 
-      {hasProject && projectId && (
+      {hasProject && projectId ? (
         <ModocBreakdownIncorporateBar projectId={projectId} sceneId={activeSceneId || null} />
-      )}
+      ) : null}
 
       <div className="flex flex-wrap gap-2 text-xs">
         <button
           type="button"
           onClick={() => setTab("scenes")}
-          className={`px-3 py-1.5 rounded-full border text-[11px] ${
+          className={`px-3 py-1.5 rounded-lg border text-[11px] ${
             tab === "scenes"
               ? "bg-orange-500 border-orange-500 text-white"
               : "bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800"
           }`}
         >
-          Scene breakdown
+          Scene details
         </button>
         {(
           [
@@ -1361,7 +1440,7 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
             key={key}
             type="button"
             onClick={() => setTab(key)}
-            className={`px-3 py-1.5 rounded-full border text-[11px] ${
+            className={`px-3 py-1.5 rounded-lg border text-[11px] ${
               tab === key
                 ? "bg-orange-500 border-orange-500 text-white"
                 : "bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800"
@@ -1372,316 +1451,296 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
         ))}
       </div>
 
-      <div className="rounded-lg border border-slate-800 bg-slate-900/50 px-4 py-3 space-y-3">
-        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-          <div className="space-y-1 min-w-0">
-            <p className="text-xs font-medium text-slate-200">Scenes from your screenplay</p>
-            <p className="text-[11px] text-slate-500">
-              Scene rows are created from <strong className="text-slate-400">INT.</strong> /{" "}
-              <strong className="text-slate-400">EXT.</strong> slug lines in the project script (Script Writing).
-              Your latest draft shows <strong className="text-slate-300">{detectedSceneHeadingsInScript}</strong>{" "}
-              scene heading{detectedSceneHeadingsInScript === 1 ? "" : "s"} detected.
-            </p>
-            {projectId ? (
-              <Link
-                href={`/creator/projects/${projectId}/pre-production/script-writing`}
-                className="inline-block text-[11px] font-medium text-cyan-400 hover:text-cyan-300"
-              >
-                Open Script Writing →
-              </Link>
-            ) : null}
-          </div>
-          <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center shrink-0">
-            <Button
-              type="button"
-              size="sm"
-              className="bg-orange-500 hover:bg-orange-600 text-white text-[11px]"
-              disabled={syncScenesMutation.isPending}
-              onClick={() => {
-                setSceneSyncMessage("");
-                syncScenesMutation.mutate();
-              }}
-            >
-              {syncScenesMutation.isPending ? "Syncing…" : "Sync scenes from screenplay"}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              className="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] disabled:opacity-40"
-              disabled={!latestProjectScriptContent.trim() || autoPopulateMutation.isPending}
-              onClick={() => {
-                if (
-                  !window.confirm(
-                    "AI will replace all breakdown rows (characters, props, locations, wardrobe, extras, vehicles, stunts, SFX, makeup) for this project. Scene slug metadata will be updated from the analysis. Continue?",
-                  )
-                ) {
-                  return;
-                }
-                setAiPopulateMessage("");
-                autoPopulateMutation.mutate({ mode: "full" });
-              }}
-            >
-              {autoPopulateMutation.isPending ? "Running AI…" : "AI: full breakdown"}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="border-slate-600 text-slate-200 hover:bg-slate-800 text-[11px] disabled:opacity-40"
-              disabled={!latestProjectScriptContent.trim() || autoPopulateMutation.isPending}
-              onClick={() => {
-                setAiPopulateMessage("");
-                autoPopulateMutation.mutate({ mode: "scenes" });
-              }}
-            >
-              AI: scene fields only
-            </Button>
-          </div>
-        </div>
-        {projectScenesForBreakdown.length > 0 && tab !== "scenes" ? (
-          <div className="flex flex-wrap items-center gap-2 border-t border-slate-800 pt-3 text-xs">
-            <span className="text-slate-400">Editing scene</span>
-            <select
-              value={activeSceneId}
-              onChange={(e) => setActiveSceneId(e.target.value)}
-              className="rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-[11px] text-white outline-none focus:border-orange-500 min-w-[220px]"
-            >
-              {projectScenesForBreakdown.map((s) => (
-                <option key={s.id} value={s.id}>
-                  Sc. {s.number}
-                  {s.heading ? ` — ${s.heading.slice(0, 40)}${s.heading.length > 40 ? "…" : ""}` : ""}
-                </option>
-              ))}
-            </select>
-          </div>
-        ) : null}
-        {sceneSyncMessage ? <p className="text-[11px] text-slate-400">{sceneSyncMessage}</p> : null}
-        {aiPopulateMessage ? (
-          <p
-            className={`text-[11px] ${
-              /\b(fail|error|could not)\b/i.test(aiPopulateMessage) ? "text-amber-200/90" : "text-emerald-200/90"
-            }`}
-          >
-            {aiPopulateMessage}
-          </p>
-        ) : null}
-        {!latestProjectScriptContent.trim() ? (
-          <p className="text-[11px] text-slate-500">
-            Save a project screenplay in Script Writing to enable AI breakdown (full script is read from the latest project draft).
-          </p>
-        ) : null}
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.35fr_1fr]">
-        <div className="creator-glass-panel p-3 space-y-2">
+      <div className="creator-glass-panel p-3 space-y-3">
           {tab === "scenes" ? (
-            <>
-              <p className="text-xs text-slate-400 mb-2">
-                Set story day, INT/EXT, time of day, and a short description per scene (or use <strong className="text-slate-300">AI: full breakdown</strong> /{" "}
-                <strong className="text-slate-300">AI: scene fields only</strong> above). Category tabs tag characters, props, locations, and the rest per scene.
-              </p>
-              <div className="max-h-[520px] overflow-y-auto space-y-3 text-xs">
-                {projectScenesForBreakdown.length === 0 ? (
-                  <p className="text-slate-500">
-                    No scenes yet. Add <strong className="text-slate-400">INT.</strong> / <strong className="text-slate-400">EXT.</strong>{" "}
-                    slug lines in Script Writing, save your draft, then use <strong className="text-slate-400">Sync scenes from screenplay</strong>{" "}
-                    above.
+            (() => {
+              const s = projectScenesForBreakdown.find((sc) => sc.id === activeSceneId);
+              if (!s) {
+                return (
+                  <p className="text-sm text-slate-500 py-6 text-center">
+                    Select a scene above or sync from your screenplay in Script Writing.
                   </p>
-                ) : (
-                  projectScenesForBreakdown.map((s) => {
-                    const ch = (draft.characters ?? []).filter((r) => r.sceneId === s.id);
-                    const pr = (draft.props ?? []).filter((r) => r.sceneId === s.id);
-                    const loc = (draft.locations ?? []).filter((r) => r.sceneId === s.id);
-                    const wd = (draft.wardrobe ?? []).filter((r) => r.sceneId === s.id);
-                    const ex = (draft.extras ?? []).filter((r) => r.sceneId === s.id);
-                    const vh = (draft.vehicles ?? []).filter((r) => r.sceneId === s.id);
-                    const st = (draft.stunts ?? []).filter((r) => r.sceneId === s.id);
-                    const fx = (draft.sfx ?? []).filter((r) => r.sceneId === s.id);
-                    const mu = (draft.makeups ?? []).filter((r) => r.sceneId === s.id);
-                    const line = (label: string, text: string) => (
-                      <li>
-                        <span className="text-slate-500">{label}</span> {text || "—"}
-                      </li>
-                    );
-                    const slugGuess = parseSluglineMeta(s.heading);
-                    const slugHintParts: string[] = [];
-                    if (!getSceneField(s, "intExt").trim() && slugGuess.intExt) slugHintParts.push(slugGuess.intExt);
-                    if (!getSceneField(s, "timeOfDay").trim() && slugGuess.timeOfDay) slugHintParts.push(slugGuess.timeOfDay);
-                    const slugHintText = slugHintParts.length ? `From slugline: ${slugHintParts.join(" · ")}` : null;
-                    return (
-                      <div key={s.id} className="rounded-xl border border-slate-800 bg-slate-900/80 p-3 space-y-3">
-                        <div className="flex flex-wrap items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="text-[11px] font-semibold text-white">Scene {s.number}</p>
-                            <p className="text-slate-400 text-[11px] mt-0.5 break-words">{s.heading || "—"}</p>
-                          </div>
+                );
+              }
+              const ch = (draft.characters ?? []).filter((r) => r.sceneId === s.id);
+              const pr = (draft.props ?? []).filter((r) => r.sceneId === s.id);
+              const loc = (draft.locations ?? []).filter((r) => r.sceneId === s.id);
+              const wd = (draft.wardrobe ?? []).filter((r) => r.sceneId === s.id);
+              const ex = (draft.extras ?? []).filter((r) => r.sceneId === s.id);
+              const vh = (draft.vehicles ?? []).filter((r) => r.sceneId === s.id);
+              const st = (draft.stunts ?? []).filter((r) => r.sceneId === s.id);
+              const fx = (draft.sfx ?? []).filter((r) => r.sceneId === s.id);
+              const mu = (draft.makeups ?? []).filter((r) => r.sceneId === s.id);
+              const line = (label: string, text: string) => (
+                <li>
+                  <span className="text-slate-500">{label}</span> {text || "—"}
+                </li>
+              );
+              const slugGuess = parseSluglineMeta(s.heading);
+              return (
+                <div className="space-y-3 text-xs">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="text-[11px] font-semibold text-white">Scene {s.number}</p>
+                      <p className="text-slate-400 text-[11px] mt-0.5 break-words">{s.heading || "—"}</p>
+                    </div>
+                    {!editingSceneMeta ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="bg-orange-500 hover:bg-orange-600 text-white text-[10px] h-7"
+                        onClick={() => setEditingSceneMeta(true)}
+                      >
+                        Manual edit
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="border-slate-600 text-slate-300 text-[10px] h-7"
+                        onClick={() => setEditingSceneMeta(false)}
+                      >
+                        Done editing
+                      </Button>
+                    )}
+                  </div>
+
+                  {!editingSceneMeta ? (
+                    <>
+                      <div className="grid grid-cols-2 gap-2 md:grid-cols-4 text-[11px]">
+                        <div className="rounded-lg border border-slate-800 bg-slate-950/60 px-2 py-1.5">
+                          <p className="text-[10px] text-slate-500">Story day</p>
+                          <p className="text-slate-200">{getSceneField(s, "storyDay") || "—"}</p>
+                        </div>
+                        <div className="rounded-lg border border-slate-800 bg-slate-950/60 px-2 py-1.5">
+                          <p className="text-[10px] text-slate-500">INT / EXT</p>
+                          <p className="text-slate-200">{getSceneField(s, "intExt") || slugGuess.intExt || "—"}</p>
+                        </div>
+                        <div className="rounded-lg border border-slate-800 bg-slate-950/60 px-2 py-1.5">
+                          <p className="text-[10px] text-slate-500">Time of day</p>
+                          <p className="text-slate-200">{getSceneField(s, "timeOfDay") || slugGuess.timeOfDay || "—"}</p>
+                        </div>
+                      </div>
+                      {getSceneField(s, "summary") ? (
+                        <div>
+                          <p className="text-[10px] uppercase text-slate-500 mb-1">Description</p>
+                          <p className="text-sm text-slate-200 whitespace-pre-wrap">{getSceneField(s, "summary")}</p>
+                        </div>
+                      ) : null}
+                    </>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 items-end">
+                        <div className="space-y-1">
+                          <label className="text-[10px] uppercase tracking-wide text-slate-500">Story day</label>
+                          <Input
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="e.g. 1"
+                            value={getSceneField(s, "storyDay")}
+                            onChange={(e) => setSceneField(s.id, "storyDay", e.target.value)}
+                            className="bg-slate-950 border-slate-700 text-[11px] h-8"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] uppercase tracking-wide text-slate-500">INT / EXT</label>
+                          <select
+                            value={getSceneField(s, "intExt")}
+                            onChange={(e) => setSceneField(s.id, "intExt", e.target.value)}
+                            className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-[11px] text-white outline-none focus:border-orange-500 h-8"
+                          >
+                            <option value="">—</option>
+                            <option value="INT">INT</option>
+                            <option value="EXT">EXT</option>
+                            <option value="INT_EXT">INT./EXT.</option>
+                            <option value="UNKNOWN">Unknown</option>
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] uppercase tracking-wide text-slate-500">Time of day</label>
+                          <select
+                            value={getSceneField(s, "timeOfDay")}
+                            onChange={(e) => setSceneField(s.id, "timeOfDay", e.target.value)}
+                            className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-[11px] text-white outline-none focus:border-orange-500 h-8"
+                          >
+                            <option value="">—</option>
+                            <option value="DAY">Day</option>
+                            <option value="NIGHT">Night</option>
+                            <option value="DAWN">Dawn</option>
+                            <option value="DUSK">Dusk</option>
+                            <option value="CONTINUOUS">Continuous</option>
+                            <option value="LATER">Later</option>
+                            <option value="SAME">Same</option>
+                            <option value="MORNING">Morning</option>
+                            <option value="AFTERNOON">Afternoon</option>
+                            <option value="EVENING">Evening</option>
+                          </select>
+                        </div>
+                        <div className="flex flex-wrap gap-2 lg:justify-end">
                           <Button
                             type="button"
                             size="sm"
                             variant="outline"
-                            className="border-slate-600 text-slate-200 hover:bg-slate-800 text-[10px] h-7 shrink-0"
+                            className="border-slate-600 text-slate-200 hover:bg-slate-800 text-[10px] h-8"
+                            disabled={!s.heading?.trim()}
                             onClick={() => {
-                              setActiveSceneId(s.id);
-                              setTab("characters");
+                              const meta = parseSluglineMeta(s.heading);
+                              setSceneEdits((prev) => ({
+                                ...prev,
+                                [s.id]: {
+                                  ...prev[s.id],
+                                  ...(meta.intExt ? { intExt: meta.intExt } : {}),
+                                  ...(meta.timeOfDay ? { timeOfDay: meta.timeOfDay } : {}),
+                                },
+                              }));
                             }}
                           >
-                            Edit breakdown rows
+                            Fill from slugline
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="bg-orange-500 hover:bg-orange-600 text-white text-[10px] h-8"
+                            disabled={
+                              saveSceneDetailsMutation.isPending &&
+                              saveSceneDetailsMutation.variables?.id === s.id
+                            }
+                            onClick={() =>
+                              saveSceneDetailsMutation.mutate({
+                                id: s.id,
+                                storyDay: getSceneField(s, "storyDay"),
+                                intExt: getSceneField(s, "intExt"),
+                                timeOfDay: getSceneField(s, "timeOfDay"),
+                                summary: getSceneField(s, "summary"),
+                              })
+                            }
+                          >
+                            {saveSceneDetailsMutation.isPending && saveSceneDetailsMutation.variables?.id === s.id
+                              ? "Saving…"
+                              : "Save scene"}
                           </Button>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 items-end">
-                          <div className="space-y-1">
-                            <label className="text-[10px] uppercase tracking-wide text-slate-500">Story day</label>
-                            <Input
-                              type="text"
-                              inputMode="numeric"
-                              placeholder="e.g. 1"
-                              value={getSceneField(s, "storyDay")}
-                              onChange={(e) => setSceneField(s.id, "storyDay", e.target.value)}
-                              className="bg-slate-950 border-slate-700 text-[11px] h-8"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[10px] uppercase tracking-wide text-slate-500">INT / EXT</label>
-                            <select
-                              value={getSceneField(s, "intExt")}
-                              onChange={(e) => setSceneField(s.id, "intExt", e.target.value)}
-                              className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-[11px] text-white outline-none focus:border-orange-500 h-8"
-                            >
-                              <option value="">—</option>
-                              <option value="INT">INT</option>
-                              <option value="EXT">EXT</option>
-                              <option value="INT_EXT">INT./EXT.</option>
-                              <option value="UNKNOWN">Unknown</option>
-                            </select>
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[10px] uppercase tracking-wide text-slate-500">Time of day</label>
-                            <select
-                              value={getSceneField(s, "timeOfDay")}
-                              onChange={(e) => setSceneField(s.id, "timeOfDay", e.target.value)}
-                              className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-[11px] text-white outline-none focus:border-orange-500 h-8"
-                            >
-                              <option value="">—</option>
-                              <option value="DAY">Day</option>
-                              <option value="NIGHT">Night</option>
-                              <option value="DAWN">Dawn</option>
-                              <option value="DUSK">Dusk</option>
-                              <option value="CONTINUOUS">Continuous</option>
-                              <option value="LATER">Later</option>
-                              <option value="SAME">Same</option>
-                              <option value="MORNING">Morning</option>
-                              <option value="AFTERNOON">Afternoon</option>
-                              <option value="EVENING">Evening</option>
-                            </select>
-                          </div>
-                          <div className="flex flex-wrap gap-2 lg:justify-end">
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              className="border-slate-600 text-slate-200 hover:bg-slate-800 text-[10px] h-8"
-                              disabled={!s.heading?.trim()}
-                              onClick={() => {
-                                const meta = parseSluglineMeta(s.heading);
-                                setSceneEdits((prev) => ({
-                                  ...prev,
-                                  [s.id]: {
-                                    ...prev[s.id],
-                                    ...(meta.intExt ? { intExt: meta.intExt } : {}),
-                                    ...(meta.timeOfDay ? { timeOfDay: meta.timeOfDay } : {}),
-                                  },
-                                }));
-                              }}
-                            >
-                              Fill INT/time from slugline
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              className="bg-orange-500 hover:bg-orange-600 text-white text-[10px] h-8"
-                              disabled={
-                                saveSceneDetailsMutation.isPending &&
-                                saveSceneDetailsMutation.variables?.id === s.id
-                              }
-                              onClick={() =>
-                                saveSceneDetailsMutation.mutate({
-                                  id: s.id,
-                                  storyDay: getSceneField(s, "storyDay"),
-                                  intExt: getSceneField(s, "intExt"),
-                                  timeOfDay: getSceneField(s, "timeOfDay"),
-                                  summary: getSceneField(s, "summary"),
-                                })
-                              }
-                            >
-                              {saveSceneDetailsMutation.isPending && saveSceneDetailsMutation.variables?.id === s.id
-                                ? "Saving…"
-                                : "Save scene"}
-                            </Button>
-                          </div>
-                        </div>
-                        {slugHintText ? <p className="text-[10px] text-slate-500">{slugHintText}</p> : null}
-                        <div className="space-y-1">
-                          <label className="text-[10px] uppercase tracking-wide text-slate-500">Description</label>
-                          <textarea
-                            value={getSceneField(s, "summary")}
-                            onChange={(e) => setSceneField(s.id, "summary", e.target.value)}
-                            placeholder="Short scene summary for production (or run AI to draft from the script)."
-                            rows={3}
-                            className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-2 text-[11px] text-slate-100 placeholder:text-slate-600 outline-none focus:border-orange-500 resize-y min-h-[4.5rem]"
-                          />
-                        </div>
-                        <ul className="space-y-1 text-[11px] text-slate-300 border-t border-slate-800 pt-2">
-                          {line("Characters:", ch.map((c) => c.name).filter(Boolean).join(", "))}
-                          {line("Props:", pr.map((p) => p.name).filter(Boolean).join(", "))}
-                          {line("Locations:", loc.map((l) => l.name).filter(Boolean).join(", "))}
-                          {line(
-                            "Wardrobe:",
-                            wd.map((w) => (w.character ? `${w.description} (${w.character})` : w.description)).join("; "),
-                          )}
-                          {line("Extras:", ex.map((e) => `${e.description}${e.quantity ? ` ×${e.quantity}` : ""}`).join("; "))}
-                          {line("Vehicles:", vh.map((v) => v.description).filter(Boolean).join(", "))}
-                          {line("Stunts:", st.map((x) => x.description).filter(Boolean).join(", "))}
-                          {line("SFX:", fx.map((x) => x.description).filter(Boolean).join(", "))}
-                          {line(
-                            "Makeup:",
-                            mu
-                              .map((m) => (m.character ? `${m.notes} (${m.character})` : m.notes))
-                              .filter(Boolean)
-                              .join("; "),
-                          )}
-                        </ul>
                       </div>
-                    );
-                  })
-                )}
-              </div>
-            </>
+                      <div className="space-y-1">
+                        <label className="text-[10px] uppercase tracking-wide text-slate-500">Description</label>
+                        <textarea
+                          value={getSceneField(s, "summary")}
+                          onChange={(e) => setSceneField(s.id, "summary", e.target.value)}
+                          placeholder="Short scene summary for production."
+                          rows={3}
+                          className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-2 text-[11px] text-slate-100 placeholder:text-slate-600 outline-none focus:border-orange-500 resize-y min-h-[4.5rem]"
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  <ul className="space-y-1 text-[11px] text-slate-300 border-t border-slate-800 pt-3">
+                    {line("Characters:", ch.map((c) => c.name).filter(Boolean).join(", "))}
+                    {line("Props:", pr.map((p) => p.name).filter(Boolean).join(", "))}
+                    {line("Locations:", loc.map((l) => l.name).filter(Boolean).join(", "))}
+                    {line(
+                      "Wardrobe:",
+                      wd.map((w) => (w.character ? `${w.description} (${w.character})` : w.description)).join("; "),
+                    )}
+                    {line("Extras:", ex.map((e) => `${e.description}${e.quantity ? ` ×${e.quantity}` : ""}`).join("; "))}
+                    {line("Vehicles:", vh.map((v) => v.description).filter(Boolean).join(", "))}
+                    {line("Stunts:", st.map((x) => x.description).filter(Boolean).join(", "))}
+                    {line("SFX:", fx.map((x) => x.description).filter(Boolean).join(", "))}
+                    {line(
+                      "Makeup:",
+                      mu.map((m) => (m.character ? `${m.notes} (${m.character})` : m.notes)).filter(Boolean).join("; "),
+                    )}
+                  </ul>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="border-slate-600 text-slate-200 text-[10px]"
+                    onClick={() => openBreakdownEditor(s.id, "items")}
+                  >
+                    Edit breakdown items for this scene
+                  </Button>
+                </div>
+              );
+            })()
           ) : (
             <>
-          <div className="flex items-center justify-between mb-1">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
             <p className="text-xs text-slate-400">
               {breakdownRowsDisplayed.length} item{breakdownRowsDisplayed.length === 1 ? "" : "s"}
               {projectScenesForBreakdown.length > 0 && activeSceneId
                 ? ` · Scene ${projectScenesForBreakdown.find((x) => x.id === activeSceneId)?.number ?? ""}`
                 : ""}
             </p>
-            <Button
-              size="sm"
-              variant="outline"
-              className="border-slate-700 text-slate-200 hover:bg-slate-800 text-[11px]"
-              onClick={addRow}
-              disabled={projectScenesForBreakdown.length > 0 && !activeSceneId}
-            >
-              Add row
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              {!editingCategoryRows ? (
+                <Button
+                  size="sm"
+                  className="bg-orange-500 hover:bg-orange-600 text-white text-[10px] h-7"
+                  onClick={() => setEditingCategoryRows(true)}
+                  disabled={projectScenesForBreakdown.length > 0 && !activeSceneId}
+                >
+                  Manual edit
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-slate-600 text-slate-300 text-[10px] h-7"
+                    onClick={() => setEditingCategoryRows(false)}
+                  >
+                    Done editing
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-slate-700 text-slate-200 hover:bg-slate-800 text-[10px] h-7"
+                    onClick={addRow}
+                    disabled={projectScenesForBreakdown.length > 0 && !activeSceneId}
+                  >
+                    Add row
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
-          <div className="max-h-[520px] overflow-y-auto space-y-2 text-xs">
+          <div className="max-h-[min(60vh,520px)] overflow-y-auto space-y-2 text-xs">
             {breakdownRowsDisplayed.length === 0 ? (
-              <p className="text-slate-500 text-xs">
+              <p className="text-slate-500 text-xs py-4 text-center">
                 {projectScenesForBreakdown.length > 0
-                  ? "No items for this scene yet. Add your first one."
-                  : "No items yet. Sync scenes from your screenplay to tag breakdown per scene."}
+                  ? "No items for this scene yet."
+                  : "Sync scenes from your screenplay to tag breakdown per scene."}
               </p>
+            ) : !editingCategoryRows ? (
+              <ul className="space-y-1.5">
+                {breakdownRowsDisplayed.map(({ row, idx }) => {
+                  let label = "";
+                  if (categoryTab === "characters") label = row.name || "Unnamed character";
+                  else if (categoryTab === "props") label = row.name || row.description || "Prop";
+                  else if (categoryTab === "locations") label = row.name || row.description || "Location";
+                  else if (categoryTab === "wardrobe")
+                    label = row.character ? `${row.description} (${row.character})` : row.description || "Wardrobe";
+                  else if (categoryTab === "extras")
+                    label = `${row.description || "Extras"}${row.quantity ? ` ×${row.quantity}` : ""}`;
+                  else if (categoryTab === "vehicles") label = row.description || "Vehicle";
+                  else if (categoryTab === "stunts") label = row.description || "Stunt";
+                  else if (categoryTab === "sfx") label = row.description || "SFX";
+                  else if (categoryTab === "makeups")
+                    label = (row as { character?: string; notes?: string }).character
+                      ? `${(row as { notes?: string }).notes} (${(row as { character?: string }).character})`
+                      : (row as { notes?: string }).notes || "Makeup";
+                  return (
+                    <li
+                      key={row.id ?? idx}
+                      className="rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-[11px] text-slate-200"
+                    >
+                      {label}
+                    </li>
+                  );
+                })}
+              </ul>
             ) : (
               breakdownRowsDisplayed.map(({ row, idx }) => (
                 <div
@@ -1872,42 +1931,7 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
           </div>
             </>
           )}
-        </div>
-
-        <Card className="creator-glass-panel border-0 bg-transparent text-slate-50 shadow-none">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm">Script preview</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {!selectedScript ? (
-              <p className="text-sm text-slate-500">
-                No script selected for this breakdown.
-              </p>
-            ) : (
-              <div className="rounded-lg border border-slate-700 bg-slate-950/60 p-4">
-                <p className="mb-2 text-xs text-slate-400">{selectedScript.label}</p>
-                <div className="max-h-[520px] overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed text-slate-200">
-                  {selectedScript.content || "This script is empty."}
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
       </div>
-
-      <section className="storytime-section p-4">
-        <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Latest script review note</p>
-        {latestInternalReviewNote ? (
-          <div className="mt-2 rounded-lg border border-slate-800 bg-slate-900/55 px-3 py-2">
-            {latestInternalReviewLabel ? (
-              <p className="text-[11px] text-slate-400 mb-1">{latestInternalReviewLabel}</p>
-            ) : null}
-            <p className="text-xs text-slate-200 whitespace-pre-wrap line-clamp-4">{latestInternalReviewNote}</p>
-          </div>
-        ) : (
-          <p className="mt-2 text-xs text-slate-500">No script review notes yet.</p>
-        )}
-      </section>
 
           </>
         }
@@ -1936,11 +1960,25 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
     }
   }, [hasProject]);
 
+  const [selectedBudgetId, setSelectedBudgetId] = useState<string | null>(null);
+  const [newBudgetName, setNewBudgetName] = useState("");
+  const [showNewBudgetForm, setShowNewBudgetForm] = useState(false);
+
   const { data, isLoading, isError: budgetLoadError, error: budgetLoadErr } = useQuery({
-    queryKey: ["project-budget", projectId],
-    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/budget`),
+    queryKey: ["project-budget", projectId, selectedBudgetId],
+    queryFn: projectToolQueryFn(
+      `/api/creator/projects/${projectId}/budget${selectedBudgetId ? `?budgetId=${selectedBudgetId}` : ""}`,
+    ),
     enabled: hasProject,
   });
+
+  const projectBudgets = (data?.budgets as Array<{
+    id: string;
+    name: string;
+    isDefault: boolean;
+    template: string;
+    totalPlanned: number;
+  }> | undefined) ?? [];
 
   const { data: breakdownData } = useQuery({
     queryKey: ["project-breakdown", projectId],
@@ -1955,6 +1993,8 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
   const apiBudget = data?.budget as
     | {
         id: string;
+        name?: string;
+        isDefault?: boolean;
         template: string;
         totalPlanned: number;
         lines: {
@@ -2059,9 +2099,7 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
 
   const [draftRows, setDraftRows] = useState<BudgetRow[]>([]);
   const [savedRows, setSavedRows] = useState<BudgetRow[]>([]);
-  const [budgetWorkspace, setBudgetWorkspace] = useState<BudgetWorkspaceId>("dashboard");
-  const [expandedBudgetScenes, setExpandedBudgetScenes] = useState<Set<string>>(new Set());
-  const [selectedSceneIntelId, setSelectedSceneIntelId] = useState<string | null>(null);
+  const [budgetWorkspace, setBudgetWorkspace] = useState<BudgetWorkspaceId>("overview");
   const [saveMessage, setSaveMessage] = useState("");
   const [saveError, setSaveError] = useState("");
   const [initError, setInitError] = useState("");
@@ -2236,14 +2274,21 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ template: templateChoice }),
+          body: JSON.stringify({
+            template: templateChoice,
+            name: newBudgetName.trim() || undefined,
+            createNew: projectBudgets.length > 0,
+          }),
         },
       );
     },
     onMutate: () => setInitError(""),
     onSuccess: (result) => {
       if (hasProject) {
-        queryClient.setQueryData(["project-budget", projectId], (prev: typeof data) => ({
+        setSelectedBudgetId(result.budget.id);
+        setShowNewBudgetForm(false);
+        setNewBudgetName("");
+        queryClient.setQueryData(["project-budget", projectId, result.budget.id], (prev: typeof data) => ({
           ...(prev ?? {}),
           budget: result.budget,
         }));
@@ -2301,7 +2346,7 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ lines }),
+          body: JSON.stringify({ budgetId: budget?.id, lines }),
         },
       );
     },
@@ -2358,61 +2403,26 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
     [draftRows]
   );
 
-  const rowsByScene = useMemo(() => {
-    const map = new Map<string, BudgetRow[]>();
-    for (const row of draftRows) {
-      const key = row.sceneNumber ? `SCENE ${row.sceneNumber}` : "UNASSIGNED";
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(row);
-    }
-    for (const [, rows] of map) {
-      rows.sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
-    }
-    return Array.from(map.entries()).sort((a, b) => {
-      if (a[0] === "UNASSIGNED") return 1;
-      if (b[0] === "UNASSIGNED") return -1;
-      return a[0].localeCompare(b[0], undefined, { numeric: true });
-    });
-  }, [draftRows]);
+  const visibleLineRows = useMemo(() => {
+    if (budgetWorkspace !== "line-items") return [] as BudgetRow[];
+    return [...draftRows].sort(
+      (a, b) =>
+        a.department.localeCompare(b.department) ||
+        a.name.localeCompare(b.name),
+    );
+  }, [draftRows, budgetWorkspace]);
 
-  const sceneSummaries = (
-    (engine as { sceneSummaries?: Array<{
-      sceneId: string;
-      sceneNumber: string;
-      sceneHeading: string | null;
-      estimatedTotal: number;
-      durationDays: number;
-      castCount: number;
-      crewCount: number;
-      isNight: boolean;
-      locationName: string | null;
-    }> } | undefined)?.sceneSummaries ?? []
-  );
-
-  const workspaceDeptFilter = budgetWorkspaceDepartments(budgetWorkspace);
-
-  const visibleRowsByScene = useMemo(() => {
-    if (budgetWorkspace === "dashboard" || budgetWorkspace === "cash-flow" || budgetWorkspace === "actuals" || budgetWorkspace === "reports" || budgetWorkspace === "versions") {
-      return [] as typeof rowsByScene;
-    }
-    let groups = rowsByScene;
-    if (budgetWorkspace === "scenes") {
-      groups = groups.filter(([label]) => label !== "UNASSIGNED");
-    }
-    if (!workspaceDeptFilter) return groups;
-    return groups
-      .map(([label, rows]) => [label, rows.filter((r) => workspaceDeptFilter.includes(r.department))] as const)
-      .filter(([, rows]) => rows.length > 0);
-  }, [rowsByScene, budgetWorkspace, workspaceDeptFilter]);
-
-  const toggleBudgetScene = (label: string) => {
-    setExpandedBudgetScenes((prev) => {
-      const next = new Set(prev);
-      if (next.has(label)) next.delete(label);
-      else next.add(label);
-      return next;
-    });
-  };
+  const setDefaultBudgetMutation = useMutation({
+    mutationFn: async (budgetId: string) =>
+      projectToolFetch(`/api/creator/projects/${projectId}/budget`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ budgetId, setDefault: true }),
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["project-budget", projectId] });
+    },
+  });
 
   const [budgetViewOpen, setBudgetViewOpen] = useState(false);
 
@@ -2426,7 +2436,7 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
             </p>
             <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
             <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
-            AI Budget Studio — live financial command center connected to script, breakdown, schedule, cast, crew, and equipment. Ask the Virtual Assistant to generate or optimise budgets; changes propagate automatically.
+            Build and edit production budgets for this project. Create multiple versions (e.g. lean vs full), add your own line items, and ask the Virtual Assistant to generate or optimise a budget from your script.
           </p>
           {hasProject && projectId && (
             <div className="mt-2 flex flex-wrap gap-3 text-xs">
@@ -2446,6 +2456,77 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {hasProject && projectBudgets.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={selectedBudgetId ?? budget?.id ?? ""}
+                onChange={(e) => setSelectedBudgetId(e.target.value || null)}
+                className="rounded-md bg-slate-900 border border-slate-700 px-2 py-1 text-[11px] text-white max-w-[180px]"
+              >
+                {projectBudgets.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                    {b.isDefault ? " (VA default)" : ""}
+                  </option>
+                ))}
+              </select>
+              {budget && !budget.isDefault && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="text-[10px] text-slate-400"
+                  disabled={setDefaultBudgetMutation.isPending}
+                  onClick={() => setDefaultBudgetMutation.mutate(budget.id)}
+                >
+                  Set as VA default
+                </Button>
+              )}
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="border-slate-600 text-[10px]"
+                onClick={() => setShowNewBudgetForm((v) => !v)}
+              >
+                New budget
+              </Button>
+              {showNewBudgetForm ? (
+                <>
+                  <Input
+                    value={newBudgetName}
+                    onChange={(e) => setNewBudgetName(e.target.value)}
+                    placeholder="Budget name"
+                    className="h-8 w-36 bg-slate-900 border-slate-700 text-[11px]"
+                  />
+                  <select
+                    value={templateChoice}
+                    onChange={(e) =>
+                      setTemplateChoice(e.target.value as typeof templateChoice)
+                    }
+                    className="rounded-md bg-slate-900 border border-slate-700 px-2 py-1 text-[10px] text-white"
+                  >
+                    <option value="SHORT_FILM">Short film</option>
+                    <option value="INDIE_FILM">Indie film</option>
+                    <option value="FEATURE_FILM">Feature film</option>
+                    <option value="TV_EPISODE">TV episode</option>
+                    <option value="SERIES_PILOT">Series pilot</option>
+                    <option value="STUDENT_PRODUCTION">Student production</option>
+                    <option value="COMMERCIAL_SHOOT">Commercial</option>
+                  </select>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="bg-orange-500 hover:bg-orange-600 text-white text-[10px]"
+                    onClick={() => initMutation.mutate()}
+                    disabled={initMutation.isPending}
+                  >
+                    {initMutation.isPending ? "Creating…" : "Create"}
+                  </Button>
+                </>
+              ) : null}
+            </div>
+          )}
           <ToolViewButton
             onClick={() => setBudgetViewOpen(true)}
             count={budget?.lines?.length ?? 0}
@@ -2478,7 +2559,15 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
             </>
           )}
           {!budget && (
-            <div className="flex items-center gap-2 text-xs text-slate-300">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-300">
+              {showNewBudgetForm && hasProject ? (
+                <Input
+                  value={newBudgetName}
+                  onChange={(e) => setNewBudgetName(e.target.value)}
+                  placeholder="Budget name (optional)"
+                  className="h-8 w-40 bg-slate-900 border-slate-700 text-xs"
+                />
+              ) : null}
               <select
                 value={templateChoice}
                 onChange={(e) =>
@@ -2501,7 +2590,7 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
                 onClick={() => initMutation.mutate()}
                 disabled={initMutation.isPending}
               >
-                {initMutation.isPending ? "Creating..." : "Create budget"}
+                {initMutation.isPending ? "Creating..." : hasProject && projectBudgets.length > 0 ? "Create another" : "Create budget"}
               </Button>
             </div>
           )}
@@ -2552,77 +2641,14 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
         <div className="space-y-3">
           <BudgetStudioNav active={budgetWorkspace} onChange={setBudgetWorkspace} />
           <div className="rounded-xl border border-orange-500/20 bg-orange-500/5 px-3 py-2 text-[11px] text-orange-100/90">
-            Ask the Story Time VA: &quot;How can I reduce this budget by R500,000?&quot; or &quot;Show me the five most expensive scenes.&quot; — it simulates impact using this live budget.
+            Ask the Story Time VA: &quot;How can I reduce this budget by R500,000?&quot; or &quot;What are my biggest costs?&quot; — it uses your <strong className="font-medium">VA default</strong> budget and live project data.
           </div>
-          {budgetWorkspace === "dashboard" && !!sceneSummaries.length && (
-            <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-3">
-              <p className="text-[11px] uppercase tracking-wide text-slate-400 mb-2">Scene cost intelligence</p>
-              <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-                {sceneSummaries.slice(0, 9).map((s) => (
-                  <button
-                    key={s.sceneId}
-                    type="button"
-                    onClick={() => {
-                      setBudgetWorkspace("scenes");
-                      setExpandedBudgetScenes(new Set([`SCENE ${s.sceneNumber}`]));
-                      setSelectedSceneIntelId(s.sceneId);
-                    }}
-                    className={`rounded-lg border px-3 py-2 text-left text-[11px] transition ${
-                      selectedSceneIntelId === s.sceneId
-                        ? "border-orange-500/50 bg-orange-500/10"
-                        : "border-slate-800 bg-slate-950/70 hover:border-slate-600"
-                    }`}
-                  >
-                    <p className="font-medium text-slate-100">Sc. {s.sceneNumber}</p>
-                    <p className="text-slate-500 truncate">{s.sceneHeading || "—"}</p>
-                    <p className="mt-1 text-emerald-300">{formatZar(s.estimatedTotal)}</p>
-                    <p className="text-slate-500">
-                      {s.castCount} cast · {s.crewCount} crew{s.isNight ? " · night" : ""}
-                    </p>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          {budgetWorkspace === "cash-flow" && engine?.dashboard && (
-            <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4 text-sm text-slate-300">
-              <p className="font-medium text-white mb-2">Cash flow forecast</p>
-              <p className="text-[11px] text-slate-400 mb-3">
-                Based on {engine.dashboard.shootDaysCount} shoot day(s) at {formatZar(engine.dashboard.dailyBurnRate)}/day burn rate.
-              </p>
-              <div className="grid gap-2 md:grid-cols-3">
-                <div className="rounded-lg border border-slate-800 p-3">
-                  <p className="text-[10px] text-slate-500">Pre-production (est. 25%)</p>
-                  <p className="text-emerald-300">{formatZar(total * 0.25)}</p>
-                </div>
-                <div className="rounded-lg border border-slate-800 p-3">
-                  <p className="text-[10px] text-slate-500">Production (est. 55%)</p>
-                  <p className="text-emerald-300">{formatZar(total * 0.55)}</p>
-                </div>
-                <div className="rounded-lg border border-slate-800 p-3">
-                  <p className="text-[10px] text-slate-500">Post & delivery (est. 20%)</p>
-                  <p className="text-emerald-300">{formatZar(total * 0.2)}</p>
-                </div>
-              </div>
-            </div>
-          )}
           {budgetWorkspace === "actuals" && projectId && (
             <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
               <BudgetActualsPanel projectId={projectId} />
             </div>
           )}
-          {budgetWorkspace === "reports" && projectId && (
-            <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4 space-y-3">
-              <p className="text-[11px] text-slate-400">Export PDF, Excel, and CSV reports from the saved budget and expense data.</p>
-              <FinancialReportsPanel projectId={projectId} />
-            </div>
-          )}
-          {budgetWorkspace === "versions" && projectId && (
-            <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
-              <BudgetVersionsPanel projectId={projectId} />
-            </div>
-          )}
-          {(budgetWorkspace === "dashboard" || budgetWorkspace === "departments") && engine?.dashboard && (
+          {budgetWorkspace === "overview" && engine?.dashboard && (
             <div className="grid gap-2 md:grid-cols-3">
               <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-3">
                 <p className="text-[11px] text-slate-400">Estimated budget</p>
@@ -2667,10 +2693,10 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
               </div>
             </div>
           )}
-          {!!engine?.byDepartment?.length && (
+          {budgetWorkspace === "overview" && !!engine?.byDepartment?.length && (
             <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-3">
               <p className="text-[11px] uppercase tracking-wide text-slate-400">
-                Department summaries
+                Cost breakdown
               </p>
               <div className="mt-2 grid gap-1.5 md:grid-cols-2">
                 {engine.byDepartment.map((dept) => (
@@ -2678,16 +2704,16 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
                     key={dept.department}
                     className="flex items-center justify-between rounded-md border border-slate-800 bg-slate-950/70 px-2 py-1.5 text-[11px]"
                   >
-                    <span className="text-slate-300">{dept.department.replaceAll("_", " ")}</span>
+                    <span className="text-slate-300">{friendlyDepartmentName(dept.department)}</span>
                     <span className="text-slate-100">
-                      Est {formatZar(dept.estimated, { maximumFractionDigits: 0 })} · Act {formatZar(dept.actual, { maximumFractionDigits: 0 })}
+                      Est {formatZar(dept.estimated, { maximumFractionDigits: 0 })} · Spent {formatZar(dept.actual, { maximumFractionDigits: 0 })}
                     </span>
                   </div>
                 ))}
               </div>
             </div>
           )}
-          {!!engine?.optimizationSuggestions?.length && (
+          {budgetWorkspace === "overview" && !!engine?.optimizationSuggestions?.length && (
             <div className="rounded-xl border border-cyan-500/30 bg-cyan-500/5 p-3">
               <p className="text-[11px] uppercase tracking-wide text-cyan-200">Optimization insights</p>
               <ul className="mt-2 space-y-1 text-[11px] text-slate-200">
@@ -2699,117 +2725,102 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
           )}
           <div className="flex items-center justify-between text-xs text-slate-300">
             <span>
+              {budget.name ? (
+                <>
+                  Budget: <span className="font-medium text-slate-100">{budget.name}</span>
+                  {" · "}
+                </>
+              ) : null}
               Template:{" "}
-              <span className="font-medium text-slate-100">{budget.template}</span>
+              <span className="font-medium text-slate-100">{budget.template.replaceAll("_", " ")}</span>
             </span>
             <span className="font-semibold text-emerald-400">
               Total planned: {formatZar(total)}
             </span>
           </div>
-          {visibleRowsByScene.length > 0 ? (
-          <div className="space-y-3">
-            {visibleRowsByScene.map(([sceneLabel, rows]) => {
-              const expanded = expandedBudgetScenes.has(sceneLabel);
-              return (
-              <div key={sceneLabel} className="creator-glass-panel p-3">
-                <button
-                  type="button"
-                  className="mb-2 flex w-full items-center justify-between text-left"
-                  onClick={() => toggleBudgetScene(sceneLabel)}
-                  aria-expanded={expanded}
-                >
-                  <span className="flex items-center gap-1.5 text-xs font-medium text-slate-200">
-                    {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                    {sceneLabel}
-                    <span className="text-[10px] font-normal text-slate-500">({rows.length} lines)</span>
-                  </span>
-                  <p className="text-[11px] text-slate-400">
-                    Subtotal: {formatZar(rows.reduce((sum, r) => sum + r.total, 0))}
-                  </p>
-                </button>
-                {expanded ? (
-                <div className="max-h-[320px] overflow-y-auto">
-                  <table className="w-full border-collapse text-xs">
-                    <thead className="sticky top-0 bg-slate-900/85 text-slate-300">
-                      <tr>
-                        <th className="px-2 py-2 text-left font-medium text-[11px] w-28">Category</th>
-                        <th className="px-2 py-2 text-left font-medium text-[11px] w-28">Department</th>
-                        <th className="px-2 py-2 text-left font-medium text-[11px]">Item</th>
-                        <th className="px-2 py-2 text-right font-medium text-[11px] w-16">Qty</th>
-                        <th className="px-2 py-2 text-right font-medium text-[11px] w-24">Unit</th>
-                        <th className="px-2 py-2 text-right font-medium text-[11px] w-24">Total</th>
-                        <th className="px-2 py-2 text-right font-medium text-[11px] w-16" />
+          {budgetWorkspace === "line-items" && visibleLineRows.length > 0 ? (
+          <div className="creator-glass-panel p-3">
+            <div className="max-h-[min(60vh,520px)] overflow-y-auto">
+              <table className="w-full border-collapse text-xs">
+                <thead className="sticky top-0 bg-slate-900/85 text-slate-300">
+                  <tr>
+                    <th className="px-2 py-2 text-left font-medium text-[11px] w-28">Category</th>
+                    <th className="px-2 py-2 text-left font-medium text-[11px] w-28">Type</th>
+                    <th className="px-2 py-2 text-left font-medium text-[11px]">Item</th>
+                    <th className="px-2 py-2 text-right font-medium text-[11px] w-16">Qty</th>
+                    <th className="px-2 py-2 text-right font-medium text-[11px] w-24">Unit</th>
+                    <th className="px-2 py-2 text-right font-medium text-[11px] w-24">Total</th>
+                    <th className="px-2 py-2 text-right font-medium text-[11px] w-16" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleLineRows.map((line) => {
+                    const idx = draftRows.findIndex((r) => r.key === line.key);
+                    if (idx < 0) return null;
+                    return (
+                      <tr key={line.key} className="border-t border-slate-800">
+                        <td className="px-2 py-1.5 text-[11px] text-slate-300">{friendlyDepartmentName(line.category)}</td>
+                        <td className="px-2 py-1.5">
+                          <Input
+                            value={line.department}
+                            onChange={(e) => updateLine(idx, "department", e.target.value)}
+                            className="bg-slate-950 border-slate-800 text-[11px]"
+                            placeholder="e.g. Cast"
+                          />
+                        </td>
+                        <td className="px-2 py-1.5 space-y-1">
+                          <Input
+                            value={line.name}
+                            onChange={(e) => updateLine(idx, "name", e.target.value)}
+                            className="bg-slate-950 border-slate-800 text-[11px]"
+                            placeholder="Description"
+                          />
+                          <Input
+                            value={line.notes ?? ""}
+                            onChange={(e) => updateLine(idx, "notes", e.target.value)}
+                            className="bg-slate-950 border-slate-800 text-[10px]"
+                            placeholder="Notes (optional)"
+                          />
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <Input
+                            type="number"
+                            value={line.quantity}
+                            onChange={(e) => updateLine(idx, "quantity", Number(e.target.value || 0))}
+                            className="bg-slate-950 border-slate-800 text-[11px] text-right"
+                          />
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <Input
+                            type="number"
+                            value={line.unitCost}
+                            onChange={(e) => updateLine(idx, "unitCost", Number(e.target.value || 0))}
+                            className="bg-slate-950 border-slate-800 text-[11px] text-right"
+                          />
+                        </td>
+                        <td className="px-2 py-1.5 text-right text-slate-100">
+                          {formatZar(line.total)}
+                        </td>
+                        <td className="px-2 py-1.5 text-right">
+                          <button
+                            type="button"
+                            className="text-[10px] font-medium text-red-400 hover:text-red-300"
+                            onClick={() => removeLine(idx)}
+                          >
+                            Remove
+                          </button>
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {rows.map((line) => {
-                        const idx = draftRows.findIndex((r) => r.key === line.key);
-                        if (idx < 0) return null;
-                        return (
-                          <tr key={line.key} className="border-t border-slate-800">
-                            <td className="px-2 py-1.5 text-[11px] text-slate-300">{line.category}</td>
-                            <td className="px-2 py-1.5">
-                              <Input
-                                value={line.department}
-                                onChange={(e) => updateLine(idx, "department", e.target.value)}
-                                className="bg-slate-950 border-slate-800 text-[11px]"
-                              />
-                            </td>
-                            <td className="px-2 py-1.5 space-y-1">
-                              <Input
-                                value={line.name}
-                                onChange={(e) => updateLine(idx, "name", e.target.value)}
-                                className="bg-slate-950 border-slate-800 text-[11px]"
-                              />
-                              <Input
-                                value={line.notes ?? ""}
-                                onChange={(e) => updateLine(idx, "notes", e.target.value)}
-                                className="bg-slate-950 border-slate-800 text-[10px]"
-                                placeholder="Notes (e.g. rental days, supplier)"
-                              />
-                            </td>
-                            <td className="px-2 py-1.5">
-                              <Input
-                                type="number"
-                                value={line.quantity}
-                                onChange={(e) => updateLine(idx, "quantity", Number(e.target.value || 0))}
-                                className="bg-slate-950 border-slate-800 text-[11px] text-right"
-                              />
-                            </td>
-                            <td className="px-2 py-1.5">
-                              <Input
-                                type="number"
-                                value={line.unitCost}
-                                onChange={(e) => updateLine(idx, "unitCost", Number(e.target.value || 0))}
-                                className="bg-slate-950 border-slate-800 text-[11px] text-right"
-                              />
-                            </td>
-                            <td className="px-2 py-1.5 text-right text-slate-100">
-                              {formatZar(line.total)}
-                            </td>
-                            <td className="px-2 py-1.5 text-right">
-                              <button
-                                type="button"
-                                className="text-[10px] font-medium text-red-400 hover:text-red-300"
-                                onClick={() => removeLine(idx)}
-                              >
-                                Remove
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-                ) : null}
-              </div>
-            );
-            })}
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
-          ) : budgetWorkspace !== "dashboard" && budgetWorkspace !== "cash-flow" && budgetWorkspace !== "reports" && budgetWorkspace !== "versions" ? (
-            <p className="text-xs text-slate-500 py-4 text-center">No line items in this workspace yet.</p>
+          ) : budgetWorkspace === "line-items" ? (
+            <p className="text-xs text-slate-500 py-4 text-center">No line items yet. Add your first cost below.</p>
           ) : null}
+          {budgetWorkspace === "line-items" ? (
           <div className="flex items-center justify-between text-xs text-slate-400">
             <Button
               size="sm"
@@ -2821,9 +2832,10 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
             </Button>
             {saveMessage ? <span className="text-[11px] text-slate-400">{saveMessage}</span> : null}
             <span className="text-[11px]">
-              Save to sync with the Production Expense Tracker.
+              Save to sync with the Expense Tracker.
             </span>
           </div>
+          ) : null}
         </div>
       )}
     </div>

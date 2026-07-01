@@ -11,6 +11,10 @@ import {
   locationKeywordsForBreakdown,
 } from "./va-script-inference";
 import { resolveScriptText } from "./va-script-text";
+import {
+  createProjectBudget,
+  resolveDefaultProjectBudget,
+} from "@/lib/project-budget-access";
 
 const BUDGET_TEMPLATES = new Set<string>([
   "SHORT_FILM",
@@ -232,7 +236,6 @@ export async function vaGenerateSmartBudget(
     where: { id: projectId },
     include: {
       linkedCatalogueContent: { select: { duration: true }, take: 1 },
-      projectBudget: { include: { lines: true } },
       productionExpenses: { select: { amount: true, department: true } },
       crewRoleNeeds: { select: { department: true, role: true, seniority: true, notes: true, dailyRate: true } },
       castingRoles: { select: { name: true, status: true, dailyRate: true } },
@@ -260,11 +263,12 @@ export async function vaGenerateSmartBudget(
     return { ok: false, error: "Project not found", status: 404 };
   }
 
-  let budget = fullProject.projectBudget;
+  let budget = await resolveDefaultProjectBudget(projectId);
   if (!budget) {
-    budget = await prisma.projectBudget.create({
-      data: { projectId, template, currency: "ZAR", totalPlanned: 0 },
-      include: { lines: true },
+    budget = await createProjectBudget({
+      projectId,
+      template,
+      isDefault: true,
     });
   }
 

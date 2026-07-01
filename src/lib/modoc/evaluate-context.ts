@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { resolveDefaultProjectBudget } from "@/lib/project-budget-access";
 import type { ModocActionType } from "@/lib/modoc/action-types";
 import type { ModocLearningProfile } from "@/lib/modoc/learning";
 import { getModocLearning } from "@/lib/modoc/learning";
@@ -85,11 +86,8 @@ export async function evaluateModocContext(params: {
     }
 
     if (hasScript && sceneCount > 0 && charCount > 0) {
-      const budgetCheck = await prisma.projectBudget.findUnique({
-        where: { projectId: project.id },
-        select: { _count: { select: { lines: true } } },
-      });
-      if ((budgetCheck?._count.lines ?? 0) === 0) {
+      const budgetCheck = await resolveDefaultProjectBudget(project.id);
+      if ((budgetCheck?.lines.length ?? 0) === 0) {
         suggestions.push({
           id: `budget-${project.id}`,
           title: "Build your budget",
@@ -118,11 +116,8 @@ export async function evaluateModocContext(params: {
     }
 
     if (project.status !== "IN_PRODUCTION" && charCount > 0 && shootDays > 0) {
-      const budget = await prisma.projectBudget.findUnique({
-        where: { projectId: project.id },
-        select: { _count: { select: { lines: true } } },
-      });
-      if ((budget?._count.lines ?? 0) > 0) {
+      const budget = await resolveDefaultProjectBudget(project.id);
+      if ((budget?.lines.length ?? 0) > 0) {
         suggestions.push({
           id: `production-${project.id}`,
           title: "Move to production",

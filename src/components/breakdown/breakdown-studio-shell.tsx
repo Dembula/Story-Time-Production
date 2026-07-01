@@ -98,6 +98,8 @@ export function BreakdownStudioShell({
 
   onSelectScene,
 
+  onEditScene,
+
   selectedAsset,
 
   onSelectAsset,
@@ -145,6 +147,8 @@ export function BreakdownStudioShell({
   selectedSceneId: string | null;
 
   onSelectScene: (id: string) => void;
+
+  onEditScene?: (sceneId: string, mode: "scene" | "items") => void;
 
   selectedAsset: CatalogAsset | null;
 
@@ -279,6 +283,8 @@ export function BreakdownStudioShell({
           selectedSceneId={selectedSceneId}
 
           onSelectScene={onSelectScene}
+
+          onEditScene={onEditScene}
 
         />
 

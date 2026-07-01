@@ -6,6 +6,7 @@ import { suggestScriptBreakdownAfterSave } from "@/lib/modoc/proactive";
 import type { ModocActionPayload, ModocActionType } from "./action-types";
 import type { ModocActionResult } from "./actions";
 import { findExpenseByIdOrTitle, softDeleteProductionExpense, updateProductionExpense } from "@/lib/expense-service";
+import { resolveDefaultProjectBudget } from "@/lib/project-budget-access";
 import { parseVaActionDate, resolveVaProjectId } from "./va-scheduling";
 
 async function projectCtx(
@@ -128,7 +129,7 @@ export async function executeVaCrudAction(
       if ("ok" in ctx) return ctx;
       const lineId = payload.lineId ?? payload.taskId;
       if (!lineId) return { ok: false, error: "lineId required", status: 400 };
-      const budget = await prisma.projectBudget.findUnique({ where: { projectId: ctx.projectId } });
+      const budget = await resolveDefaultProjectBudget(ctx.projectId);
       if (!budget) return { ok: false, error: "Budget not found", status: 404 };
       const result = await prisma.projectBudgetLine.updateMany({
         where: { id: lineId, budgetId: budget.id },
@@ -152,7 +153,7 @@ export async function executeVaCrudAction(
       if (!lineId && !payload.name) {
         return { ok: false, error: "lineId or name required", status: 400 };
       }
-      const budget = await prisma.projectBudget.findUnique({ where: { projectId: ctx.projectId } });
+      const budget = await resolveDefaultProjectBudget(ctx.projectId);
       if (!budget) return { ok: false, error: "Budget not found", status: 404 };
       const line = lineId
         ? await prisma.projectBudgetLine.findFirst({ where: { id: lineId, budgetId: budget.id } })

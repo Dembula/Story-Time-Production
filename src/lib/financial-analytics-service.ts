@@ -43,7 +43,7 @@ function weekKey(d: Date): string {
 
 export async function buildFinancialAnalyticsDashboard(projectId: string): Promise<FinancialAnalyticsDashboard> {
   const [budget, expensesRaw, pos, payrollRuns, shootDays] = await Promise.all([
-    prisma.projectBudget.findUnique({ where: { projectId }, include: { lines: true } }),
+    resolveDefaultProjectBudget(projectId),
     prisma.productionExpense.findMany({
       where: { projectId },
       include: { createdBy: { select: { id: true, name: true, email: true } } },

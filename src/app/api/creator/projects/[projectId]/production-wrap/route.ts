@@ -251,10 +251,7 @@ async function buildWrapState(projectId: string) {
   ];
 
   const totalBudget = (
-    await prisma.projectBudget.findUnique({
-      where: { projectId },
-      select: { totalPlanned: true },
-    })
+    await resolveDefaultProjectBudget(projectId)
   )?.totalPlanned ?? 0;
   const totalSpend = expenses.reduce((sum, e) => sum + (e.amount ?? 0), 0);
   const signedContracts = contracts.filter((c) => ["SIGNED", "EXECUTED", "CLOSED", "COMPLETED"].includes(c.status)).length;
