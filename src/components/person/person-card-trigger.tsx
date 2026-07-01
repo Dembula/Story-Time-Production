@@ -1,10 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState } from "react";
-import Link from "next/link";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Image from "next/image";
-import { AnimatePresence, motion } from "framer-motion";
-import { BadgeCheck, Info, X } from "lucide-react";
+import { BadgeCheck } from "lucide-react";
 import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
 import { PersonCardPreview } from "./person-card-preview";
 import { prefetchPersonPreview, usePersonPreview } from "./use-person-preview";
@@ -15,7 +14,6 @@ export type PersonCardTriggerProps = {
   name: string;
   roles: string[];
   imageUrl?: string | null;
-  profileHref?: string | null;
   verified?: boolean;
 };
 
@@ -34,75 +32,81 @@ export function PersonCardTrigger({
   name,
   roles,
   imageUrl,
-  profileHref,
   verified,
 }: PersonCardTriggerProps) {
   const { inputMode } = useAdaptiveUi();
   const isTouch = inputMode === "touch";
-  const tooltipId = useId();
-
-  const [hoverOpen, setHoverOpen] = useState(false);
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const previewEnabled = hoverOpen || sheetOpen;
+  const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [anchor, setAnchor] = useState<{ top: number; left: number } | null>(null);
+
   const { preview, loading, load } = usePersonPreview({
     personId,
     crewMemberId,
-    enabled: previewEnabled,
+    enabled: open,
   });
 
-  const href = profileHref ?? preview?.profileHref ?? (personId ? `/browse/people/${personId}` : undefined);
   const rolesLabel = roles.join(" • ");
 
-  const openHover = useCallback(() => {
-    if (isTouch) return;
-    if (closeTimer.current) clearTimeout(closeTimer.current);
-    setHoverOpen(true);
-    prefetchPersonPreview(personId, crewMemberId);
-  }, [isTouch, personId, crewMemberId]);
+  useEffect(() => setMounted(true), []);
 
-  const closeHover = useCallback(() => {
-    if (isTouch) return;
-    closeTimer.current = setTimeout(() => setHoverOpen(false), 120);
-  }, [isTouch]);
-
-  const openSheet = useCallback(() => {
-    setSheetOpen(true);
-    void load();
-  }, [load]);
-
-  const closeSheet = useCallback(() => setSheetOpen(false), []);
+  const updateAnchor = useCallback(() => {
+    const el = cardRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    setAnchor({
+      top: rect.bottom + 8,
+      left: rect.left + rect.width / 2,
+    });
+  }, []);
 
   const openPreview = useCallback(() => {
-    if (isTouch) {
-      openSheet();
-    } else {
-      if (closeTimer.current) clearTimeout(closeTimer.current);
-      setHoverOpen(true);
-      prefetchPersonPreview(personId, crewMemberId);
-      void load();
-    }
-  }, [isTouch, openSheet, personId, crewMemberId, load]);
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+    updateAnchor();
+    setOpen(true);
+    prefetchPersonPreview(personId, crewMemberId);
+    void load();
+  }, [updateAnchor, personId, crewMemberId, load]);
 
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        openPreview();
-      }
-    },
-    [openPreview],
-  );
+  const closePreview = useCallback(() => {
+    closeTimer.current = setTimeout(() => setOpen(false), 120);
+  }, []);
+
+  const togglePreview = useCallback(() => {
+    if (open) {
+      if (closeTimer.current) clearTimeout(closeTimer.current);
+      setOpen(false);
+      return;
+    }
+    openPreview();
+  }, [open, openPreview]);
 
   useEffect(() => {
-    if (!sheetOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeSheet();
+    if (!open) return;
+    const onScrollOrResize = () => {
+      updateAnchor();
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [sheetOpen, closeSheet]);
+    window.addEventListener("scroll", onScrollOrResize, true);
+    window.addEventListener("resize", onScrollOrResize);
+    return () => {
+      window.removeEventListener("scroll", onScrollOrResize, true);
+      window.removeEventListener("resize", onScrollOrResize);
+    };
+  }, [open, updateAnchor]);
+
+  useEffect(() => {
+    if (!open || !isTouch) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (cardRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [open, isTouch]);
 
   const avatar = (
     <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full border border-white/15 bg-gradient-to-br from-slate-700/80 to-slate-900 shadow-lg sm:h-20 sm:w-20">
@@ -126,111 +130,45 @@ export function PersonCardTrigger({
     </div>
   );
 
+  const popover =
+    mounted && open && anchor
+      ? createPortal(
+          <div
+            className="fixed z-[180] w-[min(18rem,calc(100vw-1.5rem))] -translate-x-1/2"
+            style={{ top: anchor.top, left: anchor.left }}
+            onMouseEnter={() => {
+              if (closeTimer.current) clearTimeout(closeTimer.current);
+            }}
+            onMouseLeave={closePreview}
+          >
+            <PersonCardPreview preview={preview} loading={loading} />
+          </div>,
+          document.body,
+        )
+      : null;
+
   return (
     <>
       <div
-        className="group relative w-[8.5rem] shrink-0 snap-start sm:w-[9rem]"
-        onMouseEnter={openHover}
-        onMouseLeave={closeHover}
+        ref={cardRef}
+        className="relative w-[8.5rem] shrink-0 sm:w-[9rem]"
+        onMouseEnter={isTouch ? undefined : openPreview}
+        onMouseLeave={isTouch ? undefined : closePreview}
       >
-        <div className="flex flex-col items-center gap-2 rounded-xl p-2 transition hover:bg-white/[0.04]">
-          {href ? (
-            <Link
-              href={href}
-              className="flex flex-col items-center gap-2 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60"
-              aria-describedby={!isTouch && hoverOpen ? tooltipId : undefined}
-              aria-label={`${name}, ${rolesLabel}`}
-              onFocus={openHover}
-              onBlur={closeHover}
-              onKeyDown={handleKeyDown}
-            >
-              {avatar}
-              {nameBlock}
-            </Link>
-          ) : (
-            <button
-              type="button"
-              className="flex flex-col items-center gap-2 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-orange-500/60"
-              onClick={isTouch ? openSheet : undefined}
-              onFocus={openHover}
-              onBlur={closeHover}
-              onKeyDown={handleKeyDown}
-              aria-haspopup="dialog"
-              aria-expanded={sheetOpen || hoverOpen}
-              aria-label={`${name}, ${rolesLabel}`}
-            >
-              {avatar}
-              {nameBlock}
-            </button>
-          )}
-
-          {isTouch ? (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                openSheet();
-              }}
-              className="absolute right-0 top-0 flex h-6 w-6 items-center justify-center rounded-full border border-white/15 bg-slate-900/90 text-slate-300 shadow"
-              aria-label={`More about ${name}`}
-            >
-              <Info className="h-3.5 w-3.5" />
-            </button>
-          ) : null}
-        </div>
-
-        {!isTouch && hoverOpen ? (
-          <div
-            id={tooltipId}
-            role="tooltip"
-            className="absolute left-1/2 top-full z-50 mt-2 -translate-x-1/2"
-            onMouseEnter={openHover}
-            onMouseLeave={closeHover}
-          >
-            <PersonCardPreview preview={preview} loading={loading} />
-          </div>
-        ) : null}
+        <button
+          type="button"
+          className={`flex w-full flex-col items-center gap-2 rounded-xl p-2 outline-none transition focus-visible:ring-2 focus-visible:ring-orange-500/60 ${
+            open ? "bg-white/[0.06]" : "hover:bg-white/[0.04]"
+          }`}
+          aria-expanded={open}
+          aria-label={`${name}, ${rolesLabel}`}
+          onClick={isTouch ? togglePreview : undefined}
+        >
+          {avatar}
+          {nameBlock}
+        </button>
       </div>
-
-      <AnimatePresence>
-        {sheetOpen ? (
-          <>
-            <motion.button
-              type="button"
-              aria-label="Close profile preview"
-              className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-[2px]"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={closeSheet}
-            />
-            <motion.div
-              role="dialog"
-              aria-modal="true"
-              aria-label={`${name} profile`}
-              className="fixed inset-x-0 bottom-0 z-[201] max-h-[85dvh] overflow-y-auto rounded-t-2xl border border-white/10 bg-slate-950 p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl"
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 28, stiffness: 320 }}
-            >
-              <div className="mb-4 flex items-center justify-between">
-                <p className="text-sm font-medium text-slate-400">Credits profile</p>
-                <button
-                  type="button"
-                  onClick={closeSheet}
-                  className="rounded-lg p-2 text-slate-400 hover:bg-white/5 hover:text-white"
-                  aria-label="Close"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-              <PersonCardPreview preview={preview} loading={loading} className="w-full" />
-            </motion.div>
-          </>
-        ) : null}
-      </AnimatePresence>
+      {popover}
     </>
   );
 }

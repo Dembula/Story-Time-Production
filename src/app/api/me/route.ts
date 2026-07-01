@@ -7,6 +7,7 @@ import { normalizeAvatarImageUrl } from "@/lib/avatar-image-url";
 import { completeViewerAccountOnboarding, isViewerAccountOnboardingComplete } from "@/lib/viewer-account-onboarding";
 import { loadViewerBillingAddress, upsertViewerBillingAddress } from "@/lib/user-settings-persistence";
 import { mergeCreatorGoalsForSave } from "@/lib/creator-profile-goals";
+import { sanitizeCreatorEducation } from "@/lib/creator-viewer-profile";
 import { buildPlatformRoleOptions, loadUserPlatformRoles } from "@/lib/platform-roles";
 
 export async function GET() {
@@ -30,6 +31,7 @@ export async function GET() {
       isAfdaStudent: true,
       institutionName: true,
       studentId: true,
+      showCreatorAboutOnTitles: true,
       headline: true,
       location: true,
       website: true,
@@ -95,6 +97,7 @@ export async function PATCH(req: NextRequest) {
     isAfdaStudent,
     institutionName,
     studentId,
+    showCreatorAboutOnTitles,
     image,
     residentialAddress,
     city,
@@ -118,7 +121,16 @@ export async function PATCH(req: NextRequest) {
   }
   if (bio !== undefined) data.bio = bio;
   if (socialLinks !== undefined) data.socialLinks = typeof socialLinks === "string" ? socialLinks : JSON.stringify(socialLinks);
-  if (education !== undefined) data.education = education;
+  if (education !== undefined) {
+    const existingUser = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { institutionName: true },
+    });
+    data.education =
+      typeof education === "string"
+        ? sanitizeCreatorEducation(education, existingUser?.institutionName)
+        : null;
+  }
   if (goals !== undefined) {
     const existing = await prisma.user.findUnique({
       where: { id: session.user.id },
@@ -136,6 +148,9 @@ export async function PATCH(req: NextRequest) {
   }
   if (studentId !== undefined) {
     data.studentId = typeof studentId === "string" ? studentId.trim() || null : null;
+  }
+  if (typeof showCreatorAboutOnTitles === "boolean") {
+    data.showCreatorAboutOnTitles = showCreatorAboutOnTitles;
   }
 
   if (email !== undefined) {
@@ -185,6 +200,7 @@ export async function PATCH(req: NextRequest) {
     isAfdaStudent: true,
     institutionName: true,
     studentId: true,
+    showCreatorAboutOnTitles: true,
     headline: true,
     location: true,
     website: true,

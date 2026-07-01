@@ -166,6 +166,7 @@ exports.Prisma.UserScalarFieldEnum = {
   isAfdaStudent: 'isAfdaStudent',
   institutionName: 'institutionName',
   studentId: 'studentId',
+  showCreatorAboutOnTitles: 'showCreatorAboutOnTitles',
   passwordHash: 'passwordHash',
   headline: 'headline',
   location: 'location',
@@ -650,6 +651,9 @@ exports.Prisma.CreditPersonScalarFieldEnum = {
   bio: 'bio',
   imageUrl: 'imageUrl',
   externalLinks: 'externalLinks',
+  generatedBlurb: 'generatedBlurb',
+  blurbCreditsHash: 'blurbCreditsHash',
+  blurbUpdatedAt: 'blurbUpdatedAt',
   userId: 'userId',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'

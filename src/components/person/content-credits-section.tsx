@@ -36,25 +36,20 @@ export function ContentCreditsSection({ members }: ContentCreditsSectionProps) {
   return (
     <HorizontalScrollRow
       className="mt-10"
+      sideArrows={false}
       title={<h3 className="text-xl font-semibold text-white">Cast & Crew</h3>}
       headerEnd={
         <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-slate-300">
           {grouped.length} credited
         </span>
       }
-      scrollClassName="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 pt-1 [-webkit-overflow-scrolling:touch] scrollbar-hide"
+      scrollClassName="flex gap-3 overflow-x-auto pb-2 pt-1 [-webkit-overflow-scrolling:touch] scrollbar-hide"
     >
       {grouped.map((entry) => {
         const sample = members.find((m) => entry.crewMemberIds.includes(m.id));
         const imageUrl = sample?.creditPerson?.imageUrl ?? null;
         const personId = entry.personId ?? sample?.creditPersonId ?? null;
         const creatorUserId = sample?.creditPerson?.userId ?? null;
-        const profileHref = creatorUserId
-          ? `/creator/profile/${creatorUserId}`
-          : personId
-            ? `/browse/people/${personId}`
-            : null;
-
         return (
           <PersonCardTrigger
             key={entry.key}
@@ -63,7 +58,6 @@ export function ContentCreditsSection({ members }: ContentCreditsSectionProps) {
             name={entry.name}
             roles={entry.roles}
             imageUrl={imageUrl}
-            profileHref={profileHref}
             verified={Boolean(creatorUserId)}
           />
         );

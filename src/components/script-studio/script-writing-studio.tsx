@@ -522,7 +522,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
         open={scriptsViewOpen}
         onClose={() => setScriptsViewOpen(false)}
         title="Script library"
-        subtitle="Read-only preview of saved screenplays."
+        subtitle="Switch scripts or preview saved screenplays."
       >
         <ScriptsSavedViewer
           scripts={scripts.map((s) => ({
@@ -652,6 +652,46 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
         <section className="creator-tool-studio-panel min-w-0 space-y-2">
           {draft ? (
             <>
+              <div className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2 lg:hidden">
+                <label htmlFor="mobile-script-picker" className="sr-only">
+                  Select script
+                </label>
+                <select
+                  id="mobile-script-picker"
+                  value={selectedId ?? ""}
+                  onChange={(e) => setSelectedId(e.target.value || null)}
+                  className={creatorToolSelect("min-w-0 flex-1 text-xs")}
+                  disabled={isLoading || scripts.length === 0}
+                >
+                  {scripts.length === 0 ? (
+                    <option value="">No scripts yet</option>
+                  ) : (
+                    scripts.map((script) => (
+                      <option key={script.id} value={script.id}>
+                        {script.title || "Untitled script"}
+                      </option>
+                    ))
+                  )}
+                </select>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 shrink-0 border-slate-700 text-[11px] text-slate-100"
+                  onClick={() => createMutation.mutate()}
+                >
+                  New
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 shrink-0 text-[11px] text-slate-300"
+                  onClick={() => setScriptsViewOpen(true)}
+                  disabled={scripts.length === 0}
+                >
+                  Library
+                </Button>
+              </div>
+
               <div className="creator-tool-studio-toolbar rounded-xl border border-slate-800 bg-slate-900/60 px-2 py-2">
                 <select
                   value={selectedElement}
@@ -917,7 +957,8 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                   }}
                   readOnly={!effectiveCanWrite}
                   spellCheck
-                  className={`w-full min-h-[min(50vh,420px)] max-w-full rounded-2xl border px-3 py-3 sm:px-4 outline-none focus:border-orange-500 leading-relaxed resize-y ${editorSurface} ${!effectiveCanWrite ? "opacity-90" : ""}`}
+                  rows={20}
+                  className={`w-full min-h-[65dvh] sm:min-h-[60dvh] lg:min-h-[min(50vh,420px)] max-w-full rounded-2xl border px-3 py-3 sm:px-4 outline-none focus:border-orange-500 leading-relaxed resize-y ${editorSurface} ${!effectiveCanWrite ? "opacity-90" : ""}`}
                   style={{
                     fontFamily: fontCss,
                     fontSize: `${(13 * zoom) / 100}px`,

@@ -64,6 +64,8 @@ model User {
   isAfdaStudent                Boolean                @default(false)
   institutionName              String?
   studentId                    String?
+  /// When true, the About the Creator card may appear on published title pages (requires profile content).
+  showCreatorAboutOnTitles     Boolean                @default(false)
   passwordHash                 String?
   headline                     String? // network profile tagline
   location                     String? // city/region for network
@@ -996,17 +998,20 @@ model CrewMember {
 
 /// Platform-wide credit identity (linked creator or lightweight credits profile).
 model CreditPerson {
-  id             String       @id @default(cuid())
-  displayName    String
-  normalizedName String
-  bio            String?      @db.Text
-  imageUrl       String?
-  externalLinks  Json?
-  userId         String?      @unique
-  user           User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
-  crewMembers    CrewMember[]
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  id               String       @id @default(cuid())
+  displayName      String
+  normalizedName   String
+  bio              String?      @db.Text
+  imageUrl         String?
+  externalLinks    Json?
+  generatedBlurb   String?      @db.Text
+  blurbCreditsHash String?
+  blurbUpdatedAt   DateTime?
+  userId           String?      @unique
+  user             User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  crewMembers      CrewMember[]
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
 
   @@unique([normalizedName])
   @@index([userId])

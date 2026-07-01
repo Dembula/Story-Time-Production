@@ -64,6 +64,8 @@ model User {
   isAfdaStudent Boolean   @default(false)
   institutionName String?
   studentId       String?
+  /// When true, the About the Creator card may appear on published title pages (requires profile content).
+  showCreatorAboutOnTitles Boolean @default(false)
   passwordHash String?
   headline      String?   // network profile tagline
   location      String?   // city/region for network
@@ -1002,6 +1004,9 @@ model CreditPerson {
   bio            String?  @db.Text
   imageUrl       String?
   externalLinks  Json?
+  generatedBlurb String?  @db.Text
+  blurbCreditsHash String?
+  blurbUpdatedAt DateTime?
   userId         String?  @unique
   user           User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   crewMembers    CrewMember[]

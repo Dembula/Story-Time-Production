@@ -3,6 +3,10 @@ import { enforceSignupRateLimit, rateLimitedResponse } from "@/lib/auth-rate-lim
 import { prisma } from "@/lib/prisma";
 import { hash } from "bcryptjs";
 import { embedMeta } from "@/lib/marketplace-profile-meta";
+import {
+  sanitizeCreatorEducation,
+  shouldEnableCreatorAboutOnSignup,
+} from "@/lib/creator-viewer-profile";
 import { validateStorageUrlField, validateStorageUrlList } from "@/lib/storage-origin";
 import { after } from "next/server";
 import { ensureVideoIngested } from "@/lib/stream-ingest-link";
@@ -217,6 +221,17 @@ export async function POST(request: NextRequest) {
       goalsMeta.companyName = normalizedCompanyName || null;
     }
 
+    const cleanEducation = isStudioCreator
+      ? sanitizeCreatorEducation(education, institutionName)
+      : null;
+    const showCreatorAboutOnTitles = shouldEnableCreatorAboutOnSignup({
+      bio,
+      education: cleanEducation,
+      goals,
+      previousWork,
+      institutionName,
+    });
+
     const runCreatorRegistrationTx = async (
       persistStudioColumns: boolean,
       persistStudioProfiles: boolean,
@@ -231,11 +246,12 @@ export async function POST(request: NextRequest) {
                 passwordHash: existing.passwordHash ? undefined : passwordHash,
                 bio: bio?.trim() || null,
                 socialLinks: socialLinks?.trim() || null,
-                education: isStudioCreator ? education?.trim() || null : null,
+                education: cleanEducation,
                 goals: isStudioCreator
                   ? embedMeta(goals?.trim() || null, goalsMeta)
                   : embedMeta(null, goalsMeta),
                 previousWork: isStudioCreator ? previousWork?.trim() || null : null,
+                showCreatorAboutOnTitles,
                 isAfdaStudent: isStudioCreator && Boolean(isAfda),
                 institutionName:
                   isStudioCreator && isAfda ? institutionName?.trim() || null : null,
@@ -256,11 +272,12 @@ export async function POST(request: NextRequest) {
                 passwordHash,
                 bio: bio?.trim() || null,
                 socialLinks: socialLinks?.trim() || null,
-                education: isStudioCreator ? education?.trim() || null : null,
+                education: cleanEducation,
                 goals: isStudioCreator
                   ? embedMeta(goals?.trim() || null, goalsMeta)
                   : embedMeta(null, goalsMeta),
                 previousWork: isStudioCreator ? previousWork?.trim() || null : null,
+                showCreatorAboutOnTitles,
                 isAfdaStudent: isStudioCreator && Boolean(isAfda),
                 institutionName:
                   isStudioCreator && isAfda ? institutionName?.trim() || null : null,

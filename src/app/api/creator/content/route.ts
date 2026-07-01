@@ -252,6 +252,8 @@ export async function POST(request: NextRequest) {
         });
       }
     }
+    const { refreshCreditPersonBlurbsForContent } = await import("@/lib/credit-person-blurb");
+    void refreshCreditPersonBlurbsForContent(content.id);
   }
 
   const createdEpisodes: Array<{ id: string; videoUrl: string | null; title: string }> = [];

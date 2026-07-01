@@ -53,6 +53,8 @@ export default async function ContentDetailPage({
           education: true,
           goals: true,
           previousWork: true,
+          institutionName: true,
+          showCreatorAboutOnTitles: true,
           isAfdaStudent: true,
         },
       },

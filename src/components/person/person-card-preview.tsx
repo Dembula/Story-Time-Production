@@ -1,22 +1,20 @@
 "use client";
 
-import Link from "next/link";
 import Image from "next/image";
-import { BadgeCheck, Film, Loader2 } from "lucide-react";
+import { BadgeCheck, Loader2 } from "lucide-react";
 import type { PersonPreview } from "@/lib/credit-person-types";
 
 type PersonCardPreviewProps = {
   preview: PersonPreview | null;
   loading?: boolean;
-  compact?: boolean;
   className?: string;
 };
 
-export function PersonCardPreview({ preview, loading, compact, className = "" }: PersonCardPreviewProps) {
+export function PersonCardPreview({ preview, loading, className = "" }: PersonCardPreviewProps) {
   if (loading && !preview) {
     return (
       <div
-        className={`flex items-center justify-center rounded-xl border border-white/10 bg-slate-950/95 p-6 shadow-2xl backdrop-blur-md ${className}`}
+        className={`flex items-center justify-center rounded-xl border border-white/15 bg-slate-950/70 p-6 shadow-2xl backdrop-blur-xl ${className}`}
         role="status"
         aria-label="Loading profile"
       >
@@ -35,17 +33,18 @@ export function PersonCardPreview({ preview, loading, compact, className = "" }:
     .toUpperCase();
 
   const rolesLabel = preview.roles.slice(0, 4).join(" • ");
+  const blurb = preview.blurb ?? preview.bio;
 
   return (
     <div
-      className={`rounded-xl border border-white/10 bg-slate-950/95 p-4 shadow-2xl backdrop-blur-md ${compact ? "w-[17rem]" : "w-[19rem]"} ${className}`}
-      role="region"
-      aria-label={`${preview.displayName} profile preview`}
+      className={`rounded-xl border border-white/15 bg-slate-950/75 p-4 shadow-2xl backdrop-blur-xl ${className}`}
+      role="tooltip"
+      aria-label={`${preview.displayName} credits`}
     >
       <div className="flex gap-3">
-        <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full border border-white/15 bg-slate-800">
+        <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-full border border-white/15 bg-slate-800/80">
           {preview.imageUrl ? (
-            <Image src={preview.imageUrl} alt="" fill className="object-cover" sizes="56px" />
+            <Image src={preview.imageUrl} alt="" fill className="object-cover" sizes="48px" />
           ) : (
             <span className="flex h-full w-full items-center justify-center text-sm font-semibold text-slate-300">
               {initials}
@@ -63,35 +62,14 @@ export function PersonCardPreview({ preview, loading, compact, className = "" }:
             <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-orange-200/90">{rolesLabel}</p>
           ) : null}
           <p className="mt-1 text-[10px] text-slate-500">
-            {preview.productionCount} production{preview.productionCount === 1 ? "" : "s"}
-            {preview.followerCount != null ? ` · ${preview.followerCount} followers` : ""}
+            {preview.productionCount} production{preview.productionCount === 1 ? "" : "s"} on Story Time
           </p>
         </div>
       </div>
 
-      {preview.bio ? (
-        <p className="mt-3 line-clamp-3 text-xs leading-relaxed text-slate-400">{preview.bio}</p>
+      {blurb ? (
+        <p className="mt-3 text-xs leading-relaxed text-slate-300/95">{blurb}</p>
       ) : null}
-
-      {preview.latestProject ? (
-        <div className="mt-3 flex items-center gap-2 rounded-lg border border-white/8 bg-white/[0.03] p-2">
-          <Film className="h-3.5 w-3.5 shrink-0 text-slate-500" />
-          <p className="min-w-0 truncate text-[11px] text-slate-300">
-            Latest: <span className="text-white">{preview.latestProject.title}</span>
-          </p>
-        </div>
-      ) : null}
-
-      {preview.topGenres.length > 0 ? (
-        <p className="mt-2 text-[10px] text-slate-500">Genres: {preview.topGenres.join(", ")}</p>
-      ) : null}
-
-      <Link
-        href={preview.profileHref}
-        className="mt-3 inline-flex w-full items-center justify-center rounded-lg bg-orange-500 px-3 py-2 text-xs font-medium text-white transition hover:bg-orange-600"
-      >
-        View profile
-      </Link>
     </div>
   );
 }

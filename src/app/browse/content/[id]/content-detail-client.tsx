@@ -21,7 +21,10 @@ import { useWatchlist } from "@/hooks/use-watchlist";
 import { usePlaybackPrefetch } from "@/hooks/use-playback-prefetch";
 import { isOfflineDownloadEnabled } from "@/lib/platform/offline-downloads";
 import { startDownload, getDownload } from "@/lib/offline/download-manager";
-import { displayCreatorGoals } from "@/lib/creator-profile-goals";
+import {
+  getCreatorAboutDisplayFields,
+  shouldShowCreatorAboutSection,
+} from "@/lib/creator-viewer-profile";
 import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
 import { getDisplayBackdropUrl } from "@/lib/content-media-urls";
 import { markPlaybackPlayIntent } from "@/lib/player/play-intent";
@@ -54,6 +57,8 @@ type Content = {
     education?: string | null;
     goals?: string | null;
     previousWork?: string | null;
+    institutionName?: string | null;
+    showCreatorAboutOnTitles?: boolean;
     isAfdaStudent?: boolean;
   };
   btsVideos: { id: string; title: string; videoUrl: string | null; thumbnail: string | null }[];
@@ -216,13 +221,6 @@ export function ContentDetailClient({
   function handleLockedPlay() {
     handlePlay();
   }
-
-  let socialLinks: Record<string, string> = {};
-  try {
-    if (content.creator?.socialLinks) {
-      socialLinks = JSON.parse(content.creator.socialLinks);
-    }
-  } catch {}
 
   async function handlePpvPurchase() {
     setPpvError("");
@@ -483,10 +481,9 @@ export function ContentDetailClient({
       ) : null}
 
       {/* Creator Profile Card */}
-      {content.creator && (() => {
-        const creatorGoalsPlain = displayCreatorGoals(content.creator.goals);
-        return content.creator.bio || content.creator.education || creatorGoalsPlain || content.creator.previousWork;
-      })() && (
+      {content.creator && shouldShowCreatorAboutSection(content.creator) && (() => {
+        const about = getCreatorAboutDisplayFields(content.creator);
+        return (
         <div className="mt-12 p-6 rounded-2xl bg-slate-800/30 border border-slate-700/50">
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
             About the Creator
@@ -498,14 +495,14 @@ export function ContentDetailClient({
           </h3>
           <div className="flex flex-col md:flex-row gap-6">
             <div className="flex-shrink-0">
-              <div className="w-20 h-20 rounded-2xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center">
+              <div className="relative w-20 h-20 rounded-2xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center overflow-hidden">
                 {content.creator.image ? (
                   <Image
                     src={content.creator.image}
                     alt=""
                     fill
                     sizes="80px"
-                    className="w-full h-full rounded-2xl object-cover"
+                    className="object-cover"
                   />
                 ) : (
                   <span className="text-2xl font-bold text-orange-500">{(content.creator.name || "?")[0]}</span>
@@ -514,42 +511,42 @@ export function ContentDetailClient({
             </div>
             <div className="flex-1 space-y-3">
               <p className="font-semibold text-white text-lg">{content.creator.name}</p>
-              {content.creator.bio && <p className="text-slate-400 text-sm leading-relaxed">{content.creator.bio}</p>}
+              {about.bio && <p className="text-slate-400 text-sm leading-relaxed">{about.bio}</p>}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {content.creator.education && (
+                {about.education && (
                   <div className="flex items-start gap-2">
                     <BookOpen className="w-4 h-4 text-slate-500 mt-0.5 flex-shrink-0" />
                     <div>
                       <p className="text-xs text-slate-500 uppercase tracking-wider">Education</p>
-                      <p className="text-sm text-slate-300">{content.creator.education}</p>
+                      <p className="text-sm text-slate-300">{about.education}</p>
                     </div>
                   </div>
                 )}
-                {content.creator.previousWork && (
+                {about.previousWork && (
                   <div className="flex items-start gap-2">
                     <Briefcase className="w-4 h-4 text-slate-500 mt-0.5 flex-shrink-0" />
                     <div>
                       <p className="text-xs text-slate-500 uppercase tracking-wider">Previous Work</p>
-                      <p className="text-sm text-slate-300">{content.creator.previousWork}</p>
+                      <p className="text-sm text-slate-300">{about.previousWork}</p>
                     </div>
                   </div>
                 )}
-                {displayCreatorGoals(content.creator.goals) ? (
+                {about.goals ? (
                   <div className="flex items-start gap-2">
                     <Target className="w-4 h-4 text-slate-500 mt-0.5 flex-shrink-0" />
                     <div>
                       <p className="text-xs text-slate-500 uppercase tracking-wider">Goals</p>
-                      <p className="text-sm text-slate-300">{displayCreatorGoals(content.creator.goals)}</p>
+                      <p className="text-sm text-slate-300">{about.goals}</p>
                     </div>
                   </div>
                 ) : null}
-                {Object.keys(socialLinks).length > 0 && (
+                {Object.keys(about.socialLinks).length > 0 && (
                   <div className="flex items-start gap-2">
                     <Globe className="w-4 h-4 text-slate-500 mt-0.5 flex-shrink-0" />
                     <div>
                       <p className="text-xs text-slate-500 uppercase tracking-wider">Social Media</p>
                       <div className="flex flex-wrap gap-2 mt-1">
-                        {Object.entries(socialLinks).map(([platform, handle]) => (
+                        {Object.entries(about.socialLinks).map(([platform, handle]) => (
                           <span key={platform} className="px-2 py-0.5 rounded bg-slate-700/50 text-xs text-slate-300">
                             {platform}: {handle}
                           </span>
@@ -569,14 +566,14 @@ export function ContentDetailClient({
               <div className="flex gap-3 overflow-x-auto pb-2">
                 {content.otherCreatorContent.map((c) => (
                   <Link key={c.id} href={`/browse/content/${c.id}`} className="flex-shrink-0 group">
-                    <div className="w-28 aspect-[2/3] rounded-lg overflow-hidden bg-slate-800 border border-slate-700/50 group-hover:border-orange-500/50 transition">
+                    <div className="relative w-28 aspect-[2/3] rounded-lg overflow-hidden bg-slate-800 border border-slate-700/50 group-hover:border-orange-500/50 transition">
                       {c.posterUrl ? (
                         <Image
                           src={c.posterUrl}
                           alt={c.title}
                           fill
                           sizes="112px"
-                          className="w-full h-full object-cover"
+                          className="object-cover"
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-xs text-slate-500">{c.title}</div>
@@ -589,7 +586,8 @@ export function ContentDetailClient({
             </div>
           )}
         </div>
-      )}
+        );
+      })()}
 
       {/* Soundtrack Section */}
       {content.soundtrack && content.soundtrack.length > 0 && (

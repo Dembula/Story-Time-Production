@@ -187,6 +187,7 @@ export function CreatorAccountClient({ backHref = "/creator/command-center" }: {
     isAfdaStudent: false,
     institutionName: "",
     studentId: "",
+    showCreatorAboutOnTitles: false,
   });
   const [security, setSecurity] = useState({
     email: "",
@@ -256,6 +257,7 @@ export function CreatorAccountClient({ backHref = "/creator/command-center" }: {
           isAfdaStudent: Boolean(user.isAfdaStudent),
           institutionName: user.institutionName ?? "",
           studentId: user.studentId ?? "",
+          showCreatorAboutOnTitles: Boolean(user.showCreatorAboutOnTitles),
         });
         setInitialEmail(user.email ?? "");
         setInitialPhone(user.phoneNumber ?? "");
@@ -373,6 +375,7 @@ export function CreatorAccountClient({ backHref = "/creator/command-center" }: {
           isAfdaStudent: profile.isAfdaStudent,
           institutionName: profile.institutionName,
           studentId: profile.studentId,
+          showCreatorAboutOnTitles: profile.showCreatorAboutOnTitles,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -626,6 +629,32 @@ export function CreatorAccountClient({ backHref = "/creator/command-center" }: {
             className="storytime-input w-full px-4 py-2.5 resize-none"
             placeholder="Tell viewers and collaborators about yourself"
           />
+        </div>
+        <div className="rounded-xl border border-white/8 bg-white/[0.03] p-4">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium text-white">Show on title pages</p>
+              <p className="mt-1 text-sm text-slate-400">
+                Display the About the Creator card on your published films and shows when you have profile details filled in.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() =>
+                setProfile((p) => ({
+                  ...p,
+                  showCreatorAboutOnTitles: !p.showCreatorAboutOnTitles,
+                }))
+              }
+              className={`rounded-xl border px-4 py-2 text-sm font-medium transition ${
+                profile.showCreatorAboutOnTitles
+                  ? "border-orange-500/40 bg-orange-500/10 text-orange-200"
+                  : "border-white/10 bg-white/[0.03] text-slate-300 hover:bg-white/[0.05]"
+              }`}
+            >
+              {profile.showCreatorAboutOnTitles ? "Shown on titles" : "Hidden on titles"}
+            </button>
+          </div>
         </div>
         <div className="rounded-xl border border-white/8 bg-white/[0.03] p-4 space-y-4">
           <div className="flex flex-wrap items-start justify-between gap-4">

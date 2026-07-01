@@ -219,6 +219,9 @@ export async function PATCH(req: NextRequest) {
         return content;
       });
 
+      const { refreshCreditPersonBlurbsForContent } = await import("@/lib/credit-person-blurb");
+      void refreshCreditPersonBlurbsForContent(contentId);
+
       try {
         await prisma.adminAuditLog.create({
           data: {
