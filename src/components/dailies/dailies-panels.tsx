@@ -17,9 +17,16 @@ import {
   TAKE_STATUS_LABELS,
 } from "@/lib/dailies/departments";
 import { buildDailyReport } from "@/lib/dailies/ai-footage-analysis";
-import { resolveDailiesClipPlaybackUrl } from "@/lib/dailies/resolve-playback-url";
 import type { DailiesHealthPayload } from "@/lib/dailies/dailies-health";
-import { DailiesVideoPlayer, type DailiesPlaybackHandle } from "@/components/dailies/dailies-video-player";
+import { DailiesMediaViewer } from "@/components/dailies/dailies-media-viewer";
+import type { DailiesPlaybackHandle } from "@/components/dailies/dailies-video-player";
+import {
+  DAILIES_UPLOAD_ACCEPT,
+  dailiesMediaTypeLabel,
+  inferDailiesMediaTypeFromFile,
+  isDailiesStillMedia,
+  resolveDailiesMediaType,
+} from "@/lib/dailies/media";
 
 function StatCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (
@@ -219,7 +226,7 @@ export function DailiesClipBrowser({
 
       {filtered.length === 0 ? (
         <p className="rounded-xl border border-dashed border-slate-700 px-4 py-10 text-center text-sm text-slate-500">
-          No footage uploaded yet. Use Upload to add camera clips.
+          No dailies uploaded yet. Use Upload to add camera clips or stills.
         </p>
       ) : (
         <div className="max-h-[560px] space-y-4 overflow-y-auto">
@@ -238,7 +245,10 @@ export function DailiesClipBrowser({
                         : "border-slate-800 bg-slate-950/50 text-slate-300 hover:border-slate-600"
                     }`}
                   >
-                    <span className="font-medium">{c.title ?? "Untitled clip"}</span>
+                    <span className="font-medium">{c.title ?? "Untitled"}</span>
+                    <span className="ml-2 rounded bg-slate-800 px-1.5 py-0.5 text-[9px] uppercase text-slate-400">
+                      {dailiesMediaTypeLabel(c.mediaType)}
+                    </span>
                     <span className="ml-2 text-[10px] text-slate-500">
                       {c.shotNumber ? `${c.shotNumber} · ` : ""}
                       Take {c.takeNumber ?? "—"} · {TAKE_STATUS_LABELS[c.takeStatus] ?? c.takeStatus}
@@ -317,12 +327,14 @@ export function DailiesReviewWorkspace({
     );
   }
 
+  const isStill = isDailiesStillMedia(resolveDailiesMediaType(clip));
+
   return (
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.4fr_1fr]">
       <div className="space-y-3">
-        <DailiesVideoPlayer
+        <DailiesMediaViewer
           ref={playerRef}
-          src={resolveDailiesClipPlaybackUrl(clip)}
+          clip={clip}
           onTimeUpdate={setCurrentMs}
           className="w-full"
         />
@@ -386,8 +398,9 @@ export function DailiesReviewWorkspace({
             <MetaRow label="Take" value={clip.takeNumber != null ? String(clip.takeNumber) : "—"} />
             <MetaRow label="Camera" value={clip.camera ?? "—"} />
             <MetaRow label="Lens" value={clip.lens ?? "—"} />
-            <MetaRow label="Duration" value={clip.durationMs ? `${(clip.durationMs / 1000).toFixed(1)}s` : "—"} />
-            <MetaRow label="Stream" value={clip.streamStatus} />
+            <MetaRow label="Media" value={dailiesMediaTypeLabel(clip.mediaType)} />
+            <MetaRow label="Duration" value={clip.durationMs ? `${(clip.durationMs / 1000).toFixed(1)}s` : isStill ? "Still" : "—"} />
+            <MetaRow label="Stream" value={isStill ? "Ready (image)" : clip.streamStatus} />
             <MetaRow label="Editor bin" value={clip.editorBin ?? "—"} />
           </div>
           {projectId && clip.sceneNumber ? (
@@ -422,13 +435,17 @@ export function DailiesReviewWorkspace({
 
         <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-3 space-y-2">
           <p className="text-[10px] uppercase text-slate-500">
-            Timecoded notes · {formatMs(currentMs)}
+            {isStill ? "Review notes" : `Timecoded notes · ${formatMs(currentMs)}`}
           </p>
           <textarea
             value={noteBody}
             onChange={(e) => setNoteBody(e.target.value)}
             rows={3}
-            placeholder="Performance peaks here… Boom visible… Use Take 4…"
+            placeholder={
+              isStill
+                ? "Continuity issue on wardrobe… Composition feels tight…"
+                : "Performance peaks here… Boom visible… Use Take 4…"
+            }
             className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white"
           />
           <div className="flex flex-wrap gap-2">
@@ -473,7 +490,7 @@ export function DailiesReviewWorkspace({
               onClick={() => {
                 onAddNote({
                   body: noteBody.trim(),
-                  timestampMs: currentMs,
+                  timestampMs: isStill ? undefined : currentMs,
                   department,
                   priority,
                   category,
@@ -482,14 +499,16 @@ export function DailiesReviewWorkspace({
               }}
               className="rounded-lg bg-orange-500 px-3 py-1 text-[11px] font-medium text-white disabled:opacity-40"
             >
-              Add at playhead
+              {isStill ? "Add note" : "Add at playhead"}
             </button>
           </div>
 
           {notesLoading ? (
             <p className="text-xs text-slate-500">Loading notes…</p>
           ) : notes.length === 0 ? (
-            <p className="text-xs text-slate-500">No notes yet — click the timeline or add at current timecode.</p>
+            <p className="text-xs text-slate-500">
+              {isStill ? "No notes yet — add feedback on this still." : "No notes yet — click the timeline or add at current timecode."}
+            </p>
           ) : (
             <ul className="max-h-48 space-y-2 overflow-y-auto">
               {notes.map((n) => (
@@ -580,7 +599,7 @@ function CompareColumn({
           </option>
         ))}
       </select>
-      <DailiesVideoPlayer src={resolveDailiesClipPlaybackUrl(clip)} />
+      <DailiesMediaViewer clip={clip} className="w-full" />
       {clip ? (
         <p className="text-[10px] text-slate-500">
           {TAKE_STATUS_LABELS[clip.takeStatus]} · {clip.camera ?? "—"}
@@ -755,35 +774,52 @@ export function DailiesUploadPanel({
     },
   });
 
-  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    if (!file.type.startsWith("video/")) {
-      setError("Please choose a video file.");
-      return;
+  async function uploadOneFile(file: File) {
+    const mediaType = inferDailiesMediaTypeFromFile(file);
+    const isImage = mediaType === "still";
+
+    if (!file.type.startsWith("video/") && !file.type.startsWith("image/")) {
+      const ext = file.name.split(".").pop()?.toLowerCase();
+      const allowedStill = ["jpg", "jpeg", "png", "gif", "webp", "heic", "heif", "avif", "bmp", "tif", "tiff", "dng"];
+      const allowedVideo = ["mp4", "mov", "webm", "mkv", "m4v", "avi", "mpeg", "mpg", "3gp"];
+      if (!ext || (!allowedStill.includes(ext) && !allowedVideo.includes(ext))) {
+        throw new Error("Please choose a video clip or image still (JPEG, PNG, HEIC, etc.).");
+      }
     }
+
+    const { uploadContentMediaViaApi } = await import("@/lib/upload-content-media-client");
+    const videoUrl = await uploadContentMediaViaApi(file);
+    const res = await fetch(`/api/creator/projects/${projectId}/dailies/clips`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        videoUrl,
+        mediaType,
+        title: title.trim() || file.name.replace(/\.[^.]+$/, ""),
+        sceneId: sceneId || null,
+        shootDayId: shootDayId || null,
+        shotNumber: shotNumber || null,
+        takeNumber: takeNumber ? Number.parseInt(takeNumber, 10) : null,
+        camera: camera || null,
+        durationMs: isImage ? null : null,
+        fileSizeBytes: file.size,
+      }),
+    });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((j as { error?: string }).error || "Upload failed");
+  }
+
+  async function onFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = [...(e.target.files ?? [])];
+    e.target.value = "";
+    if (files.length === 0) return;
+
     setError("");
     setUploading(true);
     try {
-      const { uploadContentMediaViaApi } = await import("@/lib/upload-content-media-client");
-      const videoUrl = await uploadContentMediaViaApi(file);
-      const res = await fetch(`/api/creator/projects/${projectId}/dailies/clips`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          videoUrl,
-          title: title.trim() || file.name.replace(/\.[^.]+$/, ""),
-          sceneId: sceneId || null,
-          shootDayId: shootDayId || null,
-          shotNumber: shotNumber || null,
-          takeNumber: takeNumber ? Number.parseInt(takeNumber, 10) : null,
-          camera: camera || null,
-          durationMs: null,
-        }),
-      });
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error((j as { error?: string }).error || "Upload failed");
+      for (const file of files) {
+        await uploadOneFile(file);
+      }
       setTitle("");
       setTakeNumber("");
       onUploaded();
@@ -807,7 +843,8 @@ export function DailiesUploadPanel({
         </div>
       ) : null}
       <p className="text-xs text-slate-400">
-        Upload camera clips — automatically linked to shoot days, scenes, and editorial bins. Proxies process in the background.
+        Upload camera clips <strong className="font-medium text-slate-300">or stills</strong> (JPEG, PNG, HEIC, RAW exports, etc.).
+        Link to shoot days and scenes; video proxies process in the background — photos are ready immediately.
       </p>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <label className="text-[11px] text-slate-400">
@@ -874,9 +911,17 @@ export function DailiesUploadPanel({
         </label>
       </div>
       <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-orange-500 px-4 py-2 text-xs font-medium text-white hover:bg-orange-600">
-        {uploading ? "Uploading…" : "Choose video file"}
-        <input type="file" accept="video/*" className="hidden" disabled={uploading} onChange={onFile} />
+        {uploading ? "Uploading…" : "Choose clips or stills"}
+        <input
+          type="file"
+          accept={DAILIES_UPLOAD_ACCEPT}
+          multiple
+          className="hidden"
+          disabled={uploading}
+          onChange={onFiles}
+        />
       </label>
+      <p className="text-[10px] text-slate-500">You can select multiple files at once. Mix of video and photos is supported.</p>
       {error ? <p className="text-xs text-red-300">{error}</p> : null}
     </div>
   );

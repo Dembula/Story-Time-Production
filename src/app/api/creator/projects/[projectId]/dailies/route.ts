@@ -1,11 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { after } from "next/server";
-import type { Prisma } from "@/generated/prisma";
+import type { Prisma } from "../../../../../../../generated/prisma";
 import { ensureProjectAccess, projectAccessDenied } from "@/lib/project-access";
 import { prisma } from "@/lib/prisma";
 import { validateStorageUrlField } from "@/lib/storage-origin";
 import { ensureLegacyClipsFromBatches } from "@/lib/dailies/build-intelligence-payload";
 import { finalizeDailiesBatchStream } from "@/lib/dailies/finalize-clip-stream";
+import {
+  dailiesStreamStatusForUpload,
+  inferDailiesMediaTypeFromUrl,
+  type DailiesMediaType,
+} from "@/lib/dailies/media";
+
+function parseBatchMediaType(
+  body: { mediaType?: string; metadata?: Record<string, unknown> } | null,
+  videoUrl: string | null,
+): DailiesMediaType {
+  if (body?.mediaType === "still" || body?.mediaType === "video") return body.mediaType;
+  const metaType = body?.metadata?.mediaType;
+  if (metaType === "still" || metaType === "video") return metaType;
+  return inferDailiesMediaTypeFromUrl(videoUrl);
+}
 
 export async function GET(
   _req: NextRequest,
@@ -64,12 +79,16 @@ export async function POST(
         lens?: string;
         metadata?: Record<string, unknown>;
         createClip?: boolean;
+        mediaType?: string;
       }
     | null;
 
   const videoUrl = body?.videoUrl?.trim() || null;
   const videoErr = validateStorageUrlField(videoUrl, "videoUrl", { allowNull: true });
   if (videoErr) return NextResponse.json({ error: videoErr }, { status: 400 });
+
+  const mediaType = parseBatchMediaType(body, videoUrl);
+  const streamStatus = dailiesStreamStatusForUpload(mediaType, !!videoUrl);
 
   const batch = await prisma.dailiesBatch.create({
     data: {
@@ -97,7 +116,8 @@ export async function POST(
         unit: body?.unit ?? null,
         title: body?.title ?? null,
         videoUrl,
-        streamStatus: videoUrl ? "processing" : "pending",
+        mediaType,
+        streamStatus,
         shotNumber: body?.shotNumber ?? null,
         takeNumber: body?.takeNumber ?? null,
         camera: body?.camera ?? null,
@@ -108,7 +128,7 @@ export async function POST(
     });
   }
 
-  if (videoUrl) {
+  if (videoUrl && mediaType === "video") {
     after(async () => {
       try {
         await finalizeDailiesBatchStream({

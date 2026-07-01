@@ -2563,6 +2563,7 @@ exports.Prisma.DailiesClipScalarFieldEnum = {
   title: 'title',
   videoUrl: 'videoUrl',
   proxyUrl: 'proxyUrl',
+  mediaType: 'mediaType',
   streamStatus: 'streamStatus',
   shotNumber: 'shotNumber',
   takeNumber: 'takeNumber',

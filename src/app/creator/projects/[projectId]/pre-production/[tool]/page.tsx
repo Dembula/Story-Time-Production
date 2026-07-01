@@ -27,6 +27,7 @@ import {
   type BudgetWorkspaceId,
 } from "@/components/budget/budget-studio-nav";
 import { BudgetActualsPanel } from "@/components/budget/budget-actuals-panel";
+import { BudgetLinesEditor } from "@/components/budget/budget-lines-editor";
 import { buildShootDayPipelinePreview } from "@/lib/schedule-day-preview";
 import {
   AUDITION_LISTING_FEE_ZAR,
@@ -2363,22 +2364,13 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
     },
   });
 
-  const addLine = () => {
+  const addLine = (line: Omit<BudgetRow, "key" | "total">) => {
     setDraftRows([
       ...draftRows,
       {
-        key: `manual-${Date.now()}`,
-        id: undefined,
-        department: "MANUAL",
-        name: "",
-        quantity: 1,
-        unitCost: 0,
-        total: 0,
-        notes: "",
-        sceneId: null,
-        sceneNumber: null,
-        sceneHeading: null,
-        category: "MANUAL",
+        ...line,
+        key: `manual-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        total: calcTotal(line.quantity, line.unitCost),
       },
     ]);
   };
@@ -2403,15 +2395,6 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
     [draftRows]
   );
 
-  const visibleLineRows = useMemo(() => {
-    if (budgetWorkspace !== "line-items") return [] as BudgetRow[];
-    return [...draftRows].sort(
-      (a, b) =>
-        a.department.localeCompare(b.department) ||
-        a.name.localeCompare(b.name),
-    );
-  }, [draftRows, budgetWorkspace]);
-
   const setDefaultBudgetMutation = useMutation({
     mutationFn: async (budgetId: string) =>
       projectToolFetch(`/api/creator/projects/${projectId}/budget`, {
@@ -2428,18 +2411,17 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
 
   return (
     <div className="space-y-4">
-      <header className="storytime-plan-card p-5 md:p-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div className="min-w-0 flex-1">
-            <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">
-              Pre-production workspace
-            </p>
-            <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
+      <header className="storytime-plan-card p-5 md:p-6 space-y-5">
+        <div className="min-w-0">
+          <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">
+            Pre-production workspace
+          </p>
+          <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
             Build and edit production budgets for this project. Create multiple versions (e.g. lean vs full), add your own line items, and ask the Virtual Assistant to generate or optimise a budget from your script.
           </p>
           {hasProject && projectId && (
-            <div className="mt-2 flex flex-wrap gap-3 text-xs">
+            <div className="mt-3 flex flex-wrap gap-4 text-xs">
               <Link
                 href={`/creator/projects/${projectId}/production/expense-tracker`}
                 className="text-orange-400 hover:text-orange-300"
@@ -2455,117 +2437,138 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
             </div>
           )}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {hasProject && projectBudgets.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2">
-              <select
-                value={selectedBudgetId ?? budget?.id ?? ""}
-                onChange={(e) => setSelectedBudgetId(e.target.value || null)}
-                className="rounded-md bg-slate-900 border border-slate-700 px-2 py-1 text-[11px] text-white max-w-[180px]"
-              >
-                {projectBudgets.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                    {b.isDefault ? " (VA default)" : ""}
-                  </option>
-                ))}
-              </select>
-              {budget && !budget.isDefault && (
+
+        {budget ? (
+          <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4 space-y-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div className="space-y-2 min-w-0 flex-1">
+                <p className="text-[10px] uppercase tracking-wide text-slate-500">Active budget</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  {hasProject && projectBudgets.length > 0 ? (
+                    <select
+                      value={selectedBudgetId ?? budget?.id ?? ""}
+                      onChange={(e) => setSelectedBudgetId(e.target.value || null)}
+                      className="rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-xs text-white min-w-[200px] max-w-full"
+                    >
+                      {projectBudgets.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.name}
+                          {b.isDefault ? " (VA default)" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span className="text-sm text-slate-200 font-medium">{budget.name ?? "Budget"}</span>
+                  )}
+                  {budget && !budget.isDefault && hasProject && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="text-[11px] text-slate-400 h-8"
+                      disabled={setDefaultBudgetMutation.isPending}
+                      onClick={() => setDefaultBudgetMutation.mutate(budget.id)}
+                    >
+                      Set as VA default
+                    </Button>
+                  )}
+                  {hasProject && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="border-slate-600 text-[11px] h-8"
+                      onClick={() => setShowNewBudgetForm((v) => !v)}
+                    >
+                      {showNewBudgetForm ? "Cancel new budget" : "New budget"}
+                    </Button>
+                  )}
+                </div>
+                {showNewBudgetForm && hasProject ? (
+                  <div className="flex flex-wrap items-end gap-2 pt-1">
+                    <label className="space-y-1">
+                      <span className="text-[10px] text-slate-500">Name</span>
+                      <Input
+                        value={newBudgetName}
+                        onChange={(e) => setNewBudgetName(e.target.value)}
+                        placeholder="e.g. Lean version"
+                        className="h-9 w-44 bg-slate-900 border-slate-700 text-xs"
+                      />
+                    </label>
+                    <label className="space-y-1">
+                      <span className="text-[10px] text-slate-500">Template</span>
+                      <select
+                        value={templateChoice}
+                        onChange={(e) =>
+                          setTemplateChoice(e.target.value as typeof templateChoice)
+                        }
+                        className="h-9 rounded-lg bg-slate-900 border border-slate-700 px-3 text-xs text-white"
+                      >
+                        <option value="SHORT_FILM">Short film</option>
+                        <option value="INDIE_FILM">Indie film</option>
+                        <option value="FEATURE_FILM">Feature film</option>
+                        <option value="TV_EPISODE">TV episode</option>
+                        <option value="SERIES_PILOT">Series pilot</option>
+                        <option value="STUDENT_PRODUCTION">Student production</option>
+                        <option value="COMMERCIAL_SHOOT">Commercial</option>
+                      </select>
+                    </label>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="bg-orange-500 hover:bg-orange-600 text-white text-xs h-9"
+                      onClick={() => initMutation.mutate()}
+                      disabled={initMutation.isPending}
+                    >
+                      {initMutation.isPending ? "Creating…" : "Create budget"}
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 lg:justify-end shrink-0">
+                <ToolViewButton
+                  onClick={() => setBudgetViewOpen(true)}
+                  count={budget?.lines?.length ?? 0}
+                  disabled={!budget?.lines?.length}
+                />
+                <span className="text-[11px] text-slate-400 px-1">
+                  {saveMutation.isPending ? "Saving…" : budgetDirty ? "Unsaved changes" : "Saved"}
+                </span>
                 <Button
                   type="button"
                   size="sm"
-                  variant="ghost"
-                  className="text-[10px] text-slate-400"
-                  disabled={setDefaultBudgetMutation.isPending}
-                  onClick={() => setDefaultBudgetMutation.mutate(budget.id)}
+                  variant="outline"
+                  className="border-slate-600 text-[11px] h-8"
+                  disabled={!budgetDirty || saveMutation.isPending}
+                  onClick={() => setDraftRows(JSON.parse(JSON.stringify(savedRows)))}
                 >
-                  Set as VA default
+                  Discard
                 </Button>
-              )}
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="border-slate-600 text-[10px]"
-                onClick={() => setShowNewBudgetForm((v) => !v)}
-              >
-                New budget
-              </Button>
-              {showNewBudgetForm ? (
-                <>
-                  <Input
-                    value={newBudgetName}
-                    onChange={(e) => setNewBudgetName(e.target.value)}
-                    placeholder="Budget name"
-                    className="h-8 w-36 bg-slate-900 border-slate-700 text-[11px]"
-                  />
-                  <select
-                    value={templateChoice}
-                    onChange={(e) =>
-                      setTemplateChoice(e.target.value as typeof templateChoice)
-                    }
-                    className="rounded-md bg-slate-900 border border-slate-700 px-2 py-1 text-[10px] text-white"
-                  >
-                    <option value="SHORT_FILM">Short film</option>
-                    <option value="INDIE_FILM">Indie film</option>
-                    <option value="FEATURE_FILM">Feature film</option>
-                    <option value="TV_EPISODE">TV episode</option>
-                    <option value="SERIES_PILOT">Series pilot</option>
-                    <option value="STUDENT_PRODUCTION">Student production</option>
-                    <option value="COMMERCIAL_SHOOT">Commercial</option>
-                  </select>
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="bg-orange-500 hover:bg-orange-600 text-white text-[10px]"
-                    onClick={() => initMutation.mutate()}
-                    disabled={initMutation.isPending}
-                  >
-                    {initMutation.isPending ? "Creating…" : "Create"}
-                  </Button>
-                </>
-              ) : null}
+                <Button
+                  type="button"
+                  size="sm"
+                  className="bg-orange-500 hover:bg-orange-600 text-white text-[11px] h-8"
+                  disabled={!budgetDirty || saveMutation.isPending}
+                  onClick={() => saveMutation.mutate(draftRows)}
+                >
+                  Save budget
+                </Button>
+              </div>
             </div>
-          )}
-          <ToolViewButton
-            onClick={() => setBudgetViewOpen(true)}
-            count={budget?.lines?.length ?? 0}
-            disabled={!budget?.lines?.length}
-          />
-          {budget && (
-            <>
-              <span className="text-[11px] text-slate-400">
-                {saveMutation.isPending ? "Saving…" : budgetDirty ? "Unsaved changes" : "Saved"}
-              </span>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="border-slate-600 text-[11px]"
-                disabled={!budgetDirty || saveMutation.isPending}
-                onClick={() => setDraftRows(JSON.parse(JSON.stringify(savedRows)))}
-              >
-                Discard
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                className="bg-orange-500 hover:bg-orange-600 text-white text-[11px]"
-                disabled={!budgetDirty || saveMutation.isPending}
-                onClick={() => saveMutation.mutate(draftRows)}
-              >
-                Save
-              </Button>
-            </>
-          )}
-          {!budget && (
-            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-300">
+          </div>
+        ) : (
+          <div className="rounded-xl border border-dashed border-slate-700 bg-slate-950/30 p-4">
+            <p className="text-xs text-slate-400 mb-3">
+              Choose a template to start your first budget{hasProject ? " for this project" : " (saved locally until you link a project)"}.
+            </p>
+            <div className="flex flex-wrap items-end gap-2">
               {showNewBudgetForm && hasProject ? (
                 <Input
                   value={newBudgetName}
                   onChange={(e) => setNewBudgetName(e.target.value)}
                   placeholder="Budget name (optional)"
-                  className="h-8 w-40 bg-slate-900 border-slate-700 text-xs"
+                  className="h-9 w-44 bg-slate-900 border-slate-700 text-xs"
                 />
               ) : null}
               <select
@@ -2573,7 +2576,7 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
                 onChange={(e) =>
                   setTemplateChoice(e.target.value as typeof templateChoice)
                 }
-                className="rounded-md bg-slate-900 border border-slate-700 px-2 py-1 text-xs text-white"
+                className="h-9 rounded-lg bg-slate-900 border border-slate-700 px-3 text-xs text-white"
               >
                 <option value="SHORT_FILM">Short film</option>
                 <option value="INDIE_FILM">Indie film</option>
@@ -2586,16 +2589,15 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
               <Button
                 type="button"
                 size="sm"
-                className="bg-orange-500 hover:bg-orange-600 text-white text-xs"
+                className="bg-orange-500 hover:bg-orange-600 text-white text-xs h-9"
                 onClick={() => initMutation.mutate()}
                 disabled={initMutation.isPending}
               >
-                {initMutation.isPending ? "Creating..." : hasProject && projectBudgets.length > 0 ? "Create another" : "Create budget"}
+                {initMutation.isPending ? "Creating…" : hasProject && projectBudgets.length > 0 ? "Create another" : "Create budget"}
               </Button>
             </div>
-          )}
-        </div>
-        </div>
+          </div>
+        )}
       </header>
 
       <ToolSavedViewSheet
@@ -2633,11 +2635,7 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
 
       {hasProject && isLoading ? (
         <Skeleton className="h-64 bg-slate-800/60" />
-      ) : !budget ? (
-        <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/40 p-6 text-sm text-slate-400">
-          Choose a template and create a budget{hasProject ? " for this project" : " (saved locally until you link a project)"}.
-        </div>
-      ) : (
+      ) : !budget ? null : (
         <div className="space-y-3">
           <BudgetStudioNav active={budgetWorkspace} onChange={setBudgetWorkspace} />
           <div className="rounded-xl border border-orange-500/20 bg-orange-500/5 px-3 py-2 text-[11px] text-orange-100/90">
@@ -2738,103 +2736,20 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
               Total planned: {formatZar(total)}
             </span>
           </div>
-          {budgetWorkspace === "line-items" && visibleLineRows.length > 0 ? (
-          <div className="creator-glass-panel p-3">
-            <div className="max-h-[min(60vh,520px)] overflow-y-auto">
-              <table className="w-full border-collapse text-xs">
-                <thead className="sticky top-0 bg-slate-900/85 text-slate-300">
-                  <tr>
-                    <th className="px-2 py-2 text-left font-medium text-[11px] w-28">Category</th>
-                    <th className="px-2 py-2 text-left font-medium text-[11px] w-28">Type</th>
-                    <th className="px-2 py-2 text-left font-medium text-[11px]">Item</th>
-                    <th className="px-2 py-2 text-right font-medium text-[11px] w-16">Qty</th>
-                    <th className="px-2 py-2 text-right font-medium text-[11px] w-24">Unit</th>
-                    <th className="px-2 py-2 text-right font-medium text-[11px] w-24">Total</th>
-                    <th className="px-2 py-2 text-right font-medium text-[11px] w-16" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {visibleLineRows.map((line) => {
-                    const idx = draftRows.findIndex((r) => r.key === line.key);
-                    if (idx < 0) return null;
-                    return (
-                      <tr key={line.key} className="border-t border-slate-800">
-                        <td className="px-2 py-1.5 text-[11px] text-slate-300">{friendlyDepartmentName(line.category)}</td>
-                        <td className="px-2 py-1.5">
-                          <Input
-                            value={line.department}
-                            onChange={(e) => updateLine(idx, "department", e.target.value)}
-                            className="bg-slate-950 border-slate-800 text-[11px]"
-                            placeholder="e.g. Cast"
-                          />
-                        </td>
-                        <td className="px-2 py-1.5 space-y-1">
-                          <Input
-                            value={line.name}
-                            onChange={(e) => updateLine(idx, "name", e.target.value)}
-                            className="bg-slate-950 border-slate-800 text-[11px]"
-                            placeholder="Description"
-                          />
-                          <Input
-                            value={line.notes ?? ""}
-                            onChange={(e) => updateLine(idx, "notes", e.target.value)}
-                            className="bg-slate-950 border-slate-800 text-[10px]"
-                            placeholder="Notes (optional)"
-                          />
-                        </td>
-                        <td className="px-2 py-1.5">
-                          <Input
-                            type="number"
-                            value={line.quantity}
-                            onChange={(e) => updateLine(idx, "quantity", Number(e.target.value || 0))}
-                            className="bg-slate-950 border-slate-800 text-[11px] text-right"
-                          />
-                        </td>
-                        <td className="px-2 py-1.5">
-                          <Input
-                            type="number"
-                            value={line.unitCost}
-                            onChange={(e) => updateLine(idx, "unitCost", Number(e.target.value || 0))}
-                            className="bg-slate-950 border-slate-800 text-[11px] text-right"
-                          />
-                        </td>
-                        <td className="px-2 py-1.5 text-right text-slate-100">
-                          {formatZar(line.total)}
-                        </td>
-                        <td className="px-2 py-1.5 text-right">
-                          <button
-                            type="button"
-                            className="text-[10px] font-medium text-red-400 hover:text-red-300"
-                            onClick={() => removeLine(idx)}
-                          >
-                            Remove
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-          ) : budgetWorkspace === "line-items" ? (
-            <p className="text-xs text-slate-500 py-4 text-center">No line items yet. Add your first cost below.</p>
-          ) : null}
           {budgetWorkspace === "line-items" ? (
-          <div className="flex items-center justify-between text-xs text-slate-400">
-            <Button
-              size="sm"
-              variant="outline"
-              className="border-slate-700 text-slate-200 hover:bg-slate-800 text-[11px]"
-              onClick={addLine}
-            >
-              Add line
-            </Button>
-            {saveMessage ? <span className="text-[11px] text-slate-400">{saveMessage}</span> : null}
-            <span className="text-[11px]">
-              Save to sync with the Expense Tracker.
-            </span>
-          </div>
+            <>
+              <BudgetLinesEditor
+                rows={draftRows}
+                scenes={projectScenes}
+                onUpdateLine={updateLine}
+                onRemoveLine={removeLine}
+                onAddLine={addLine}
+              />
+              <div className="flex items-center justify-between text-xs text-slate-400 pt-1">
+                {saveMessage ? <span className="text-[11px] text-emerald-400/90">{saveMessage}</span> : <span />}
+                <span className="text-[11px]">Save your budget to sync with the Expense Tracker.</span>
+              </div>
+            </>
           ) : null}
         </div>
       )}

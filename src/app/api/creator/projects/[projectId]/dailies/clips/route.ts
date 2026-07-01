@@ -1,11 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { after } from "next/server";
-import type { Prisma } from "@/generated/prisma";
+import type { Prisma } from "../../../../../../../../generated/prisma";
 import { ensureProjectAccess, projectAccessDenied } from "@/lib/project-access";
 import { prisma } from "@/lib/prisma";
 import { validateStorageUrlField } from "@/lib/storage-origin";
 import { analyzeFootageClip } from "@/lib/dailies/ai-footage-analysis";
 import { finalizeDailiesClipStream } from "@/lib/dailies/finalize-clip-stream";
+import {
+  dailiesStreamStatusForUpload,
+  inferDailiesMediaTypeFromUrl,
+  type DailiesMediaType,
+} from "@/lib/dailies/media";
+
+function parseMediaType(body: Record<string, unknown> | null, videoUrl: string | null): DailiesMediaType {
+  const raw = body?.mediaType;
+  if (raw === "still" || raw === "video") return raw;
+  const meta =
+    body?.metadata && typeof body.metadata === "object"
+      ? (body.metadata as { mediaType?: string })
+      : null;
+  if (meta?.mediaType === "still" || meta?.mediaType === "video") return meta.mediaType;
+  return inferDailiesMediaTypeFromUrl(videoUrl);
+}
 
 export async function GET(
   req: NextRequest,
@@ -48,6 +64,11 @@ export async function POST(
   const videoErr = validateStorageUrlField(videoUrl, "videoUrl", { allowNull: true });
   if (videoErr) return NextResponse.json({ error: videoErr }, { status: 400 });
 
+  const mediaType = parseMediaType(body, videoUrl);
+  const streamStatus = dailiesStreamStatusForUpload(mediaType, !!videoUrl);
+  const fileSizeBytes =
+    typeof body?.fileSizeBytes === "number" ? BigInt(Math.max(0, body.fileSizeBytes)) : undefined;
+
   const clip = await prisma.dailiesClip.create({
     data: {
       projectId,
@@ -57,6 +78,7 @@ export async function POST(
       unit: typeof body?.unit === "string" ? body.unit : null,
       title: typeof body?.title === "string" ? body.title : null,
       videoUrl,
+      mediaType,
       shotNumber: typeof body?.shotNumber === "string" ? body.shotNumber : null,
       takeNumber: typeof body?.takeNumber === "number" ? body.takeNumber : null,
       camera: typeof body?.camera === "string" ? body.camera : null,
@@ -66,11 +88,12 @@ export async function POST(
       sequence: typeof body?.sequence === "string" ? body.sequence : null,
       editorBin: typeof body?.editorBin === "string" ? body.editorBin : null,
       durationMs: typeof body?.durationMs === "number" ? body.durationMs : null,
+      fileSizeBytes,
       metadata:
         body?.metadata && typeof body.metadata === "object"
           ? (body.metadata as Prisma.InputJsonValue)
           : undefined,
-      streamStatus: videoUrl ? "processing" : "pending",
+      streamStatus,
       takeStatus: "pending",
     },
   });
@@ -86,7 +109,7 @@ export async function POST(
     data: { aiAnalysis: aiAnalysis as Prisma.InputJsonValue },
   });
 
-  if (videoUrl) {
+  if (videoUrl && mediaType === "video") {
     after(async () => {
       try {
         await finalizeDailiesClipStream({ clipId: clip.id, videoUrl, projectId });

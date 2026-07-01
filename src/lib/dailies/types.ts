@@ -91,6 +91,7 @@ export type DailiesClipRecord = {
   title: string | null;
   videoUrl: string | null;
   proxyUrl: string | null;
+  mediaType: "video" | "still";
   streamStatus: string;
   shotNumber: string | null;
   takeNumber: number | null;

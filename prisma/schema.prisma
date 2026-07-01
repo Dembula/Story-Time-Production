@@ -4013,6 +4013,8 @@ model DailiesClip {
   title         String?
   videoUrl      String?
   proxyUrl      String?
+  /// video = camera clip; still = photograph / frame grab
+  mediaType     String   @default("video")
   streamStatus  String   @default("pending") // pending, processing, ready, failed
   shotNumber    String?
   takeNumber    Int?

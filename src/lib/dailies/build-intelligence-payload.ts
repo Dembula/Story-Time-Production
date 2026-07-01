@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getStreamAssetsByUrls } from "@/lib/stream-asset-store";
 import { resolveStreamPlaybackUrl } from "@/lib/stream-ingest-link";
+import { inferDailiesMediaTypeFromUrl, resolveDailiesMediaType } from "@/lib/dailies/media";
 import {
   analyzeFootageClip,
   generateProductionInsights,
@@ -112,6 +113,11 @@ export async function buildDailiesIntelligence(projectId: string): Promise<Daili
       title: c.title,
       videoUrl: c.videoUrl,
       proxyUrl: c.proxyUrl ?? resolveStreamPlaybackUrl(c.videoUrl ? streamByUrl.get(c.videoUrl) : undefined),
+      mediaType: resolveDailiesMediaType({
+        mediaType: c.mediaType,
+        metadata: c.metadata,
+        videoUrl: c.videoUrl,
+      }),
       streamStatus: c.streamStatus,
       shotNumber: c.shotNumber,
       takeNumber: c.takeNumber,
@@ -299,6 +305,7 @@ export async function ensureLegacyClipsFromBatches(projectId: string): Promise<v
         shootDayId: b.shootDayId,
         title: b.title ?? "Legacy batch clip",
         videoUrl: b.videoUrl,
+        mediaType: inferDailiesMediaTypeFromUrl(b.videoUrl),
         streamStatus: "ready",
         takeStatus: "pending",
       },
