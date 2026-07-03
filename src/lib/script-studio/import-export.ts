@@ -24,7 +24,7 @@ export function importScreenplayText(raw: string, filename: string): ImportResul
   }
 
   if (filename.toLowerCase().endsWith(".fdx")) {
-    fixes.push("FDX imported as plain text — review scene headings.");
+    fixes.push("FDX imported — review scene headings and formatting.");
   }
 
   const lines = text.split("\n");

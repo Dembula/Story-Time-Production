@@ -505,63 +505,54 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
   const handleImport = async (file: File) => {
     setImportError(null);
     setImportSummary(null);
-
-    const lower = file.name.toLowerCase();
-    const needsServerExtract =
-      file.type === "application/pdf" ||
-      lower.endsWith(".pdf") ||
-      file.type.includes("wordprocessingml") ||
-      lower.endsWith(".docx");
-
     setImporting(true);
+
     try {
-      let raw: string;
-      if (needsServerExtract) {
-        const form = new FormData();
-        form.append("file", file);
-        const res = await fetch("/api/creator/scripts/import-extract", {
-          method: "POST",
-          body: form,
-        });
-        const data = (await res.json().catch(() => ({}))) as { text?: string; error?: string };
-        if (!res.ok) {
-          throw new Error(data.error || "Could not extract text from this file.");
-        }
-        if (!data.text?.trim()) {
-          throw new Error("No readable screenplay text found in this file.");
-        }
-        raw = data.text;
-        if (lower.endsWith(".pdf") || file.type === "application/pdf") {
-          setImportSummary(["Extracted screenplay text from PDF"]);
-        }
-      } else {
-        raw = await file.text();
-        if (raw.trimStart().startsWith("%PDF-")) {
-          const form = new FormData();
-          form.append("file", file);
-          const res = await fetch("/api/creator/scripts/import-extract", {
-            method: "POST",
-            body: form,
-          });
-          const data = (await res.json().catch(() => ({}))) as { text?: string; error?: string };
-          if (!res.ok || !data.text?.trim()) {
-            throw new Error(data.error || "This file looks like a PDF — import the .pdf directly.");
-          }
-          raw = data.text;
-          setImportSummary(["Extracted screenplay text from PDF"]);
-        }
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/creator/scripts/import-extract", {
+        method: "POST",
+        body: form,
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        text?: string;
+        error?: string;
+        sourceType?: string;
+      };
+      if (!res.ok) {
+        throw new Error(data.error || "Could not extract text from this file.");
+      }
+      if (!data.text?.trim()) {
+        throw new Error("No readable screenplay text found in this file.");
       }
 
-      const { text, fixes } = importScreenplayText(raw, file.name);
+      const lower = file.name.toLowerCase();
+      const sourceLabel =
+        data.sourceType === "pdf" || lower.endsWith(".pdf")
+          ? "Extracted screenplay text from PDF"
+          : data.sourceType === "docx" || lower.endsWith(".docx")
+            ? "Extracted screenplay text from Word document"
+            : data.sourceType === "fdx" || lower.endsWith(".fdx")
+              ? "Imported Final Draft (FDX) screenplay"
+              : data.sourceType === "rtf" || lower.endsWith(".rtf")
+                ? "Extracted screenplay text from RTF"
+                : data.sourceType === "odt" || lower.endsWith(".odt")
+                  ? "Extracted screenplay text from OpenDocument"
+                  : null;
+
+      const { text, fixes } = importScreenplayText(data.text, file.name);
       if (!text.trim()) {
         throw new Error(
-          fixes[0] || "Import produced no readable screenplay text. Try PDF, DOCX, Fountain, or plain text.",
+          fixes[0] ||
+            "Import produced no readable screenplay text. Try PDF, DOCX, FDX, Fountain, RTF, ODT, or plain text.",
         );
       }
       if (draft) {
         setDraft({ ...draft, content: text });
         setDirty(true);
-        setImportSummary((prev) => [...(prev ?? []), ...fixes].filter(Boolean).slice(0, 12));
+        setImportSummary(
+          [sourceLabel, ...fixes].filter((item): item is string => Boolean(item)).slice(0, 12),
+        );
       }
     } catch (err) {
       setImportError(err instanceof Error ? err.message : "Import failed");

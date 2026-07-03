@@ -1,5 +1,13 @@
+import "server-only";
+
 import mammoth from "mammoth";
-import { PDFParse } from "pdf-parse";
+import { extractPdfTextFromBuffer } from "@/lib/ai-metadata/pdf-text-extract";
+import {
+  decodePlainTextBuffer,
+  extractFdxText,
+  extractOdtText,
+  extractRtfText,
+} from "@/lib/ai-metadata/screenplay-format-extract";
 
 const MAX_SCRIPT_BYTES = 12 * 1024 * 1024;
 const MAX_SCRIPT_CHARS = 80_000;
@@ -31,6 +39,8 @@ function detectScriptType(contentType: string, url: string): ScriptTextExtractio
   ) {
     return "docx";
   }
+  if (type.includes("rtf") || ext === "rtf") return "text";
+  if (type.includes("opendocument.text") || ext === "odt") return "text";
   if (type.startsWith("text/") || ["txt", "fountain", "fdx"].includes(ext)) return "text";
   return "unsupported";
 }
@@ -88,7 +98,18 @@ export async function extractScriptTextFromUrl(
     }
 
     if (sourceType === "text") {
-      return { sourceType, ...normalizeExtractedText(buffer.toString("utf8")) };
+      const ext = extensionFromUrl(url);
+      const decoded = decodePlainTextBuffer(buffer);
+      if (ext === "fdx" || decoded.includes("<FinalDraft")) {
+        return { sourceType, ...normalizeExtractedText(extractFdxText(decoded)) };
+      }
+      if (ext === "rtf" || decoded.trimStart().startsWith("{\\rtf")) {
+        return { sourceType, ...normalizeExtractedText(extractRtfText(decoded)) };
+      }
+      if (ext === "odt") {
+        return { sourceType, ...normalizeExtractedText(await extractOdtText(buffer)) };
+      }
+      return { sourceType, ...normalizeExtractedText(decoded) };
     }
 
     if (sourceType === "docx") {
@@ -96,13 +117,16 @@ export async function extractScriptTextFromUrl(
       return { sourceType, ...normalizeExtractedText(result.value) };
     }
 
-    const parser = new PDFParse({ data: new Uint8Array(buffer) });
-    try {
-      const result = await parser.getText();
-      return { sourceType, ...normalizeExtractedText(result.text) };
-    } finally {
-      await parser.destroy().catch(() => {});
+    const pdfText = await extractPdfTextFromBuffer(buffer);
+    if (!pdfText) {
+      return {
+        text: "",
+        sourceType: "pdf",
+        truncated: false,
+        error: "Could not extract readable text from PDF",
+      };
     }
+    return { sourceType, ...normalizeExtractedText(pdfText) };
   } catch (err) {
     return {
       text: "",

@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { extractScreenplayFromFileBuffer } from "@/lib/ai-metadata/extract-script-document";
 
+export const runtime = "nodejs";
+
 async function ensureCreatorSession() {
   const session = await getServerSession(authOptions);
   const role = (session?.user as { role?: string })?.role;
