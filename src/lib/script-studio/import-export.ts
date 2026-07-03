@@ -1,9 +1,11 @@
+import { normalizeImportedScreenplayLayout } from "@/lib/script-studio/screenplay-layout-repair";
+
 export type ImportResult = {
   text: string;
   fixes: string[];
 };
 
-/** Basic client-side import repair for Fountain / plain text / rough FDX text. */
+/** Client-side import repair for Fountain / plain text / PDF-extracted screenplays. */
 export function importScreenplayText(raw: string, filename: string): ImportResult {
   const fixes: string[] = [];
   let text = raw.replace(/\r\n/g, "\n").trim();
@@ -15,13 +17,9 @@ export function importScreenplayText(raw: string, filename: string): ImportResul
     };
   }
 
-  if (!text.includes("\n") || text.split("\n").length < 4) {
-    const reflowed = text.replace(/\s+(?=(?:INT\.|EXT\.|INT\/EXT\.|I\/E\.)\s)/gi, "\n\n");
-    if (reflowed !== text) {
-      text = reflowed;
-      fixes.push("Reflowed PDF lines into screenplay structure");
-    }
-  }
+  const layout = normalizeImportedScreenplayLayout(text);
+  text = layout.text;
+  fixes.push(...layout.fixes);
 
   if (filename.toLowerCase().endsWith(".fountain")) {
     text = text.replace(/^\.([A-Z][^\n]+)$/gm, (_, heading: string) => {
@@ -35,22 +33,7 @@ export function importScreenplayText(raw: string, filename: string): ImportResul
     fixes.push("FDX imported — review scene headings and formatting.");
   }
 
-  const lines = text.split("\n");
-  const repaired: string[] = [];
-  for (const line of lines) {
-    const t = line.trim();
-    if (/^(INT|EXT|I\/E)/i.test(t) && !/^(INT\.|EXT\.)/i.test(t)) {
-      repaired.push(t.replace(/^(INT|EXT)/i, (m) => `${m.toUpperCase()}.`));
-      fixes.push("Repaired slugline punctuation");
-    } else if (/^[A-Z]{2,}$/.test(t) && t.length < 40 && !t.includes(".")) {
-      repaired.push(t);
-      fixes.push(`Detected character cue: ${t}`);
-    } else {
-      repaired.push(line);
-    }
-  }
-
-  return { text: repaired.join("\n"), fixes: [...new Set(fixes)].slice(0, 12) };
+  return { text, fixes: [...new Set(fixes)].slice(0, 12) };
 }
 
 export function exportAsFountain(title: string, content: string): string {

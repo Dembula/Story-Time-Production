@@ -37,6 +37,105 @@ function inflateStreamIfNeeded(streamBody: string, header: string): string {
   }
 }
 
+type PlacedText = { x: number; y: number; text: string };
+
+function decodeTjOperand(operand: string): string {
+  const trimmed = operand.trim();
+  if (trimmed.startsWith("(")) {
+    return decodePdfLiteral(trimmed.replace(/\)\s*Tj\s*$/i, "").slice(1));
+  }
+  if (trimmed.startsWith("<")) {
+    return decodePdfHex(trimmed.replace(/>\s*Tj\s*$/i, "").slice(1));
+  }
+  return "";
+}
+
+function decodeTJArray(block: string): string {
+  const parts: string[] = [];
+  const literalRe = /\(((?:\\.|[^\\)])*)\)/g;
+  let m = literalRe.exec(block);
+  while (m) {
+    const decoded = decodePdfLiteral(m[1] ?? "").trim();
+    if (decoded) parts.push(decoded);
+    m = literalRe.exec(block);
+  }
+  const hexRe = /<([0-9A-Fa-f\s]+)>/g;
+  let hx = hexRe.exec(block);
+  while (hx) {
+    const decoded = decodePdfHex(hx[1] ?? "").trim();
+    if (decoded) parts.push(decoded);
+    hx = hexRe.exec(block);
+  }
+  return parts.join("");
+}
+
+function parsePositionedText(content: string): PlacedText[] {
+  const placed: PlacedText[] = [];
+  const blocks = content.split(/\bBT\b/);
+
+  for (const block of blocks.slice(1)) {
+    const segment = (block.split(/\bET\b/)[0] ?? block).trim();
+    if (!segment) continue;
+
+    let x = 0;
+    let y = 0;
+
+    const opRe =
+      /(-?\d*\.?\d+)\s+(-?\d*\.?\d+)\s+(-?\d*\.?\d+)\s+(-?\d*\.?\d+)\s+(-?\d*\.?\d+)\s+(-?\d*\.?\d+)\s+Tm|(-?\d*\.?\d+)\s+(-?\d*\.?\d+)\s+Td|\(((?:\\.|[^\\)])*)\)\s*Tj|<([0-9A-Fa-f\s]+)>\s*Tj|\[([\s\S]*?)\]\s*TJ/g;
+
+    let match = opRe.exec(segment);
+    while (match) {
+      if (match[6] !== undefined) {
+        x = parseFloat(match[5]!);
+        y = parseFloat(match[6]!);
+      } else if (match[8] !== undefined) {
+        x += parseFloat(match[7]!);
+        y += parseFloat(match[8]!);
+      } else if (match[9] !== undefined) {
+        const text = decodePdfLiteral(match[9]).trim();
+        if (text) placed.push({ x, y, text });
+      } else if (match[10] !== undefined) {
+        const text = decodePdfHex(match[10]).trim();
+        if (text) placed.push({ x, y, text });
+      } else if (match[11] !== undefined) {
+        const text = decodeTJArray(match[11]).trim();
+        if (text) placed.push({ x, y, text });
+      }
+      match = opRe.exec(segment);
+    }
+  }
+
+  return placed;
+}
+
+function groupPlacedTextToLines(placed: PlacedText[]): string[] {
+  if (placed.length === 0) return [];
+
+  const yTolerance = 3;
+  const rows: Array<{ y: number; parts: Array<{ x: number; text: string }> }> = [];
+
+  for (const item of placed) {
+    const existing = rows.find((row) => Math.abs(row.y - item.y) <= yTolerance);
+    if (existing) {
+      existing.parts.push({ x: item.x, text: item.text });
+    } else {
+      rows.push({ y: item.y, parts: [{ x: item.x, text: item.text }] });
+    }
+  }
+
+  return rows
+    .sort((a, b) => b.y - a.y)
+    .map((row) =>
+      row.parts
+        .sort((a, b) => a.x - b.x)
+        .map((part) => part.text)
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim(),
+    )
+    .filter(Boolean);
+}
+
 function extractStringsFromOperators(content: string): string[] {
   const strings: string[] = [];
 
@@ -59,90 +158,61 @@ function extractStringsFromOperators(content: string): string[] {
   const tjArray = /\[([\s\S]*?)\]\s*TJ/g;
   match = tjArray.exec(content);
   while (match) {
-    const block = match[1] ?? "";
-    const innerLiteral = /\(((?:\\.|[^\\)])*)\)/g;
-    let innerMatch = innerLiteral.exec(block);
-    while (innerMatch) {
-      const decoded = decodePdfLiteral(innerMatch[1] ?? "").trim();
-      if (decoded) strings.push(decoded);
-      innerMatch = innerLiteral.exec(block);
-    }
-    const innerHex = /<([0-9A-Fa-f\s]+)>/g;
-    let hexMatch = innerHex.exec(block);
-    while (hexMatch) {
-      const decoded = decodePdfHex(hexMatch[1] ?? "").trim();
-      if (decoded) strings.push(decoded);
-      hexMatch = innerHex.exec(block);
-    }
+    const decoded = decodeTJArray(match[1] ?? "").trim();
+    if (decoded) strings.push(decoded);
     match = tjArray.exec(content);
   }
 
   return strings;
 }
 
-function reflowScreenplayChunks(chunks: string[]): string {
-  const lines: string[] = [];
-  for (const chunk of chunks) {
-    const pieces = chunk
-      .split(/\s+(?=(?:INT\.|EXT\.|INT\/EXT\.|I\/E\.)\s)/i)
-      .map((part) => part.trim())
-      .filter(Boolean);
-    if (pieces.length > 1) {
-      lines.push(...pieces);
-      continue;
-    }
-  if (/^(INT\.|EXT\.|INT\/EXT\.|I\/E\.)/i.test(chunk.trim())) {
-      lines.push(chunk.trim());
-    } else if (/^[A-Z0-9 '().\-]{2,}$/.test(chunk.trim()) && chunk.trim().length < 40) {
-      lines.push(chunk.trim());
-    } else {
-      lines.push(chunk.trim());
-    }
-  }
-  return lines.join("\n");
+function joinSequentialChunks(chunks: string[]): string {
+  return chunks
+    .map((chunk) => chunk.trim())
+    .filter(Boolean)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 /**
  * Fallback for TeX / custom-font PDFs where pdf-parse and pdfjs return empty text.
- * Reads literal strings from PDF content streams (common in pdfTeX screenplays).
+ * Uses positioned text operators when available; otherwise joins sequential tokens.
  */
 export function extractPdfTextFromContentStreams(buffer: Buffer): string {
   const latin1 = buffer.toString("latin1");
   const streamRe = /([\s\S]{0,240}\bstream\b[\s\r\n]*)([\s\S]*?)\r?\nendstream/g;
-  const allStrings: string[] = [];
+  const positioned: PlacedText[] = [];
+  const sequential: string[] = [];
 
   let match = streamRe.exec(latin1);
   while (match) {
     const header = match[1] ?? "";
     const body = match[2] ?? "";
     const content = inflateStreamIfNeeded(body, header);
-    allStrings.push(...extractStringsFromOperators(content));
+    positioned.push(...parsePositionedText(content));
+    sequential.push(...extractStringsFromOperators(content));
     match = streamRe.exec(latin1);
   }
 
-  if (allStrings.length === 0) {
-    const globalLiteral = /\(((?:\\.|[^\\)])*)\)/g;
-    let literal = globalLiteral.exec(latin1);
-    while (literal) {
-      const decoded = decodePdfLiteral(literal[1] ?? "").trim();
-      if (decoded.length >= 2 && /[A-Za-z]/.test(decoded)) {
-        allStrings.push(decoded);
-      }
-      literal = globalLiteral.exec(latin1);
+  if (positioned.length > 0) {
+    return groupPlacedTextToLines(positioned).join("\n\n").trim();
+  }
+
+  if (sequential.length > 0) {
+    return joinSequentialChunks(sequential);
+  }
+
+  const globalLiteral = /\(((?:\\.|[^\\)])*)\)/g;
+  let literal = globalLiteral.exec(latin1);
+  const fallback: string[] = [];
+  while (literal) {
+    const decoded = decodePdfLiteral(literal[1] ?? "").trim();
+    if (decoded.length >= 1 && /[A-Za-z0-9]/.test(decoded)) {
+      fallback.push(decoded);
     }
+    literal = globalLiteral.exec(latin1);
   }
 
-  const unique: string[] = [];
-  const seen = new Set<string>();
-  for (const item of allStrings) {
-    const key = item.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    unique.push(item);
-  }
-
-  return reflowScreenplayChunks(unique)
-    .replace(/\r\n/g, "\n")
-    .replace(/\n{4,}/g, "\n\n\n")
-    .trim();
+  return joinSequentialChunks(fallback);
 }

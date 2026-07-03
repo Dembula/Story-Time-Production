@@ -2,6 +2,10 @@ import "server-only";
 
 import { createRequire } from "node:module";
 import { extractPdfTextFromContentStreams } from "@/lib/ai-metadata/pdf-stream-text-extract";
+import {
+  normalizeImportedScreenplayLayout,
+  scoreScreenplayLayout,
+} from "@/lib/script-studio/screenplay-layout-repair";
 
 const require = createRequire(import.meta.url);
 
@@ -31,12 +35,8 @@ function normalizePdfLines(text: string): string {
     .trim();
 }
 
-function reflowDenseScreenplayText(text: string): string {
-  if (text.split("\n").length >= 4) return text;
-  return text
-    .replace(/\s+(?=(?:INT\.|EXT\.|INT\/EXT\.|I\/E\.)\s)/gi, "\n\n")
-    .replace(/([.!?])\s+(?=[A-Z][a-z])/g, "$1\n")
-    .trim();
+function finalizePdfText(raw: string): string {
+  return normalizeImportedScreenplayLayout(normalizePdfLines(raw)).text;
 }
 
 function textContentToScreenplayText(items: PdfTextItem[]): string {
@@ -47,7 +47,7 @@ function textContentToScreenplayText(items: PdfTextItem[]): string {
     if (item.hasEOL) parts.push("\n");
   }
   const joined = parts.join("");
-  if (hasMeaningfulText(joined)) return normalizePdfLines(reflowDenseScreenplayText(joined));
+  if (hasMeaningfulText(joined)) return finalizePdfText(joined);
 
   const rows = new Map<number, { x: number; str: string }[]>();
   for (const item of items) {
@@ -61,9 +61,9 @@ function textContentToScreenplayText(items: PdfTextItem[]): string {
 
   const lines = [...rows.entries()]
     .sort((a, b) => b[0] - a[0])
-    .map(([, rowItems]) => rowItems.sort((a, b) => a.x - b.x).map((part) => part.str).join(""));
+    .map(([, rowItems]) => rowItems.sort((a, b) => a.x - b.x).map((part) => part.str).join(" "));
 
-  return normalizePdfLines(reflowDenseScreenplayText(lines.join("\n")));
+  return finalizePdfText(lines.join("\n"));
 }
 
 let pdfParseWorkerReady = false;
@@ -91,7 +91,7 @@ async function extractWithPdfParse(buffer: Buffer, disableNormalization = false)
       pageJoiner: "\n",
       disableNormalization,
     });
-    return normalizePdfLines(reflowDenseScreenplayText(result.text ?? ""));
+    return finalizePdfText(result.text ?? "");
   } finally {
     await parser.destroy().catch(() => {});
   }
@@ -114,22 +114,21 @@ async function extractWithPdfJs(buffer: Buffer): Promise<string> {
       const pageText = textContentToScreenplayText(content.items as PdfTextItem[]);
       if (pageText) pageTexts.push(pageText);
     }
-    return normalizePdfLines(pageTexts.join("\n\n"));
+    return finalizePdfText(pageTexts.join("\n\n"));
   } finally {
     await doc.destroy().catch(() => {});
   }
 }
 
 function extractWithPdfStreams(buffer: Buffer): string {
-  return normalizePdfLines(reflowDenseScreenplayText(extractPdfTextFromContentStreams(buffer)));
+  return finalizePdfText(extractPdfTextFromContentStreams(buffer));
 }
 
 function extractWithPdfAsciiSniff(buffer: Buffer): string {
   const raw = buffer.toString("latin1");
-  const sluglines = raw.match(/(?:INT\.|EXT\.|INT\/EXT\.|I\/E\.)[^\x00-\x08\x0b\x0c\x0e-\x1f]{3,140}/gi) ?? [];
-  const cues = raw.match(/\b[A-Z][A-Z0-9 '().\-]{2,36}\b/g) ?? [];
-  const prose = raw.match(/[A-Za-z][A-Za-z0-9 ,.'"()\-:;!?]{20,180}/g) ?? [];
-  const merged = [...sluglines, ...cues, ...prose]
+  const sluglines = raw.match(/(?:INT\.|EXT\.|INT\/EXT\.|I\/E\.)[^\x00-\x08\x0b\x0c\x0e-\x1f]{3,180}/gi) ?? [];
+  const prose = raw.match(/[A-Za-z][A-Za-z0-9 ,.'"()\-:;!?]{24,220}/g) ?? [];
+  const merged = [...sluglines, ...prose]
     .map((part) => part.replace(/\s+/g, " ").trim())
     .filter((part) => /[A-Za-z]{3,}/.test(part));
   const unique: string[] = [];
@@ -140,7 +139,7 @@ function extractWithPdfAsciiSniff(buffer: Buffer): string {
     seen.add(key);
     unique.push(line);
   }
-  return normalizePdfLines(reflowDenseScreenplayText(unique.join("\n")));
+  return finalizePdfText(unique.join("\n\n"));
 }
 
 /** Extract readable text from a PDF buffer using multiple strategies. */
@@ -153,18 +152,18 @@ export async function extractPdfTextFromBuffer(buffer: Buffer): Promise<PdfExtra
     { method: "pdf-ascii-sniff", run: () => extractWithPdfAsciiSniff(buffer) },
   ];
 
-  let best = "";
+  let bestText = "";
   let bestMethod: string | null = null;
+  let bestScore = -1;
 
   for (const strategy of strategies) {
     try {
       const text = await strategy.run();
-      if (!text) continue;
-      if (hasMeaningfulText(text)) {
-        return { text, method: strategy.method };
-      }
-      if (text.length > best.length) {
-        best = text;
+      if (!text || !hasMeaningfulText(text)) continue;
+      const score = scoreScreenplayLayout(text);
+      if (score > bestScore) {
+        bestScore = score;
+        bestText = text;
         bestMethod = strategy.method;
       }
     } catch (err) {
@@ -172,8 +171,8 @@ export async function extractPdfTextFromBuffer(buffer: Buffer): Promise<PdfExtra
     }
   }
 
-  if (hasMeaningfulText(best, 4)) {
-    return { text: best, method: bestMethod };
+  if (bestText) {
+    return { text: bestText, method: bestMethod };
   }
 
   return { text: null, method: null };
