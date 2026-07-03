@@ -70,6 +70,11 @@ import {
   getLocalBreakdownDraft,
   saveLocalBreakdownDraft,
 } from "@/lib/breakdown-local-draft";
+import {
+  draftHasNoSceneLinkedItems,
+  mergeSeededBreakdownIntoDraft,
+  seedBreakdownFromScreenplay,
+} from "@/lib/breakdown/seed-from-screenplay";
 
 interface PreProductionToolPageProps {
   params: Promise<{ projectId?: string; tool: string }>;
@@ -722,6 +727,29 @@ function attachSceneIdToBreakdownRows<T extends { sceneId?: string | null }>(
   return rows.map((r) => ({ ...r, sceneId: r.sceneId ?? sid }));
 }
 
+/** Match rows linked to a scene; also include unlinked rows so they are not invisible. */
+function breakdownRowMatchesScene(
+  row: { sceneId?: string | null },
+  sceneId: string,
+): boolean {
+  if (!row.sceneId) return true;
+  return row.sceneId === sceneId;
+}
+
+function payloadFromBreakdownData(data: Record<string, unknown> | null | undefined): BreakdownPayload {
+  return {
+    characters: (data?.characters as BreakdownPayload["characters"]) ?? [],
+    props: (data?.props as BreakdownPayload["props"]) ?? [],
+    locations: (data?.locations as BreakdownPayload["locations"]) ?? [],
+    wardrobe: (data?.wardrobe as BreakdownPayload["wardrobe"]) ?? [],
+    extras: (data?.extras as BreakdownPayload["extras"]) ?? [],
+    vehicles: (data?.vehicles as BreakdownPayload["vehicles"]) ?? [],
+    stunts: (data?.stunts as BreakdownPayload["stunts"]) ?? [],
+    sfx: (data?.sfx as BreakdownPayload["sfx"]) ?? [],
+    makeups: (data?.makeups as BreakdownPayload["makeups"]) ?? [],
+  };
+}
+
 function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspaceProps) {
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
@@ -1017,24 +1045,34 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
   const [savedSnapshot, setSavedSnapshot] = useState<BreakdownPayload | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
+  const seededFromScriptRef = useRef(false);
 
   useEffect(() => {
-    if (data && !draft && hasProject) {
-      const initial: BreakdownPayload = {
-        characters: data.characters ?? [],
-        props: data.props ?? [],
-        locations: data.locations ?? [],
-        wardrobe: data.wardrobe ?? [],
-        extras: data.extras ?? [],
-        vehicles: data.vehicles ?? [],
-        stunts: data.stunts ?? [],
-        sfx: data.sfx ?? [],
-        makeups: (data as { makeups?: BreakdownPayload["makeups"] }).makeups ?? [],
-      };
-      setDraft(initial);
-      setSavedSnapshot(JSON.parse(JSON.stringify(initial)) as BreakdownPayload);
-    }
-  }, [data, draft, hasProject]);
+    seededFromScriptRef.current = false;
+    setDraft(null);
+    setSavedSnapshot(null);
+  }, [projectId]);
+
+  const breakdownDirty =
+    !!draft &&
+    !!savedSnapshot &&
+    JSON.stringify(draft) !== JSON.stringify(savedSnapshot);
+
+  // Keep local draft in sync with server breakdown data (unless the user has unsaved edits).
+  useEffect(() => {
+    if (!hasProject || !data) return;
+    if (breakdownDirty) return;
+    const initial = payloadFromBreakdownData(data as Record<string, unknown>);
+    const serialized = JSON.stringify(initial);
+    setDraft((prev) => {
+      if (prev && JSON.stringify(prev) === serialized) return prev;
+      return initial;
+    });
+    setSavedSnapshot((prev) => {
+      if (prev && JSON.stringify(prev) === serialized) return prev;
+      return JSON.parse(serialized) as BreakdownPayload;
+    });
+  }, [data, hasProject, breakdownDirty]);
 
   useEffect(() => {
     if (!hasProject && !draft) {
@@ -1044,11 +1082,6 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
       setSavedSnapshot(JSON.parse(JSON.stringify(initial)) as BreakdownPayload);
     }
   }, [hasProject, draft]);
-
-  const breakdownDirty =
-    !!draft &&
-    !!savedSnapshot &&
-    JSON.stringify(draft) !== JSON.stringify(savedSnapshot);
 
   const saveMutation = useMutation({
     mutationFn: async (payload: BreakdownPayload) => {
@@ -1089,6 +1122,44 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
     },
   });
 
+  // When scenes exist but nothing is linked to them, seed characters/locations from the screenplay.
+  useEffect(() => {
+    if (!hasProject || !draft || breakdownDirty || seededFromScriptRef.current) return;
+    if (projectScenesForBreakdown.length === 0) return;
+    if (!draftHasNoSceneLinkedItems(draft)) {
+      seededFromScriptRef.current = true;
+      return;
+    }
+
+    const scriptContent =
+      selectedScript?.content?.trim() || latestProjectScriptContent.trim() || "";
+    if (!scriptContent) return;
+
+    const seeded = seedBreakdownFromScreenplay(
+      scriptContent,
+      projectScenesForBreakdown.map((s) => ({
+        id: s.id,
+        number: s.number,
+        heading: s.heading,
+      })),
+    );
+    const { draft: merged, added } = mergeSeededBreakdownIntoDraft(draft, seeded);
+    seededFromScriptRef.current = true;
+    if (added === 0) return;
+
+    setDraft(merged);
+    setSaveMessage(`Linked ${added} breakdown items from screenplay`);
+    saveMutation.mutate(merged);
+  }, [
+    hasProject,
+    draft,
+    breakdownDirty,
+    projectScenesForBreakdown,
+    selectedScript?.content,
+    latestProjectScriptContent,
+    saveMutation,
+  ]);
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "s") return;
@@ -1126,9 +1197,9 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
   const breakdownRowsDisplayed = breakdownRowsRaw
     .map((row, idx) => ({ row, idx }))
     .filter(({ row }) =>
-      projectScenesForBreakdown.length === 0
+      projectScenesForBreakdown.length === 0 || !activeSceneId
         ? true
-        : (row as { sceneId?: string | null }).sceneId === activeSceneId,
+        : breakdownRowMatchesScene(row as { sceneId?: string | null }, activeSceneId),
     );
 
   const sceneForNewRow =
@@ -1463,15 +1534,15 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
                   </p>
                 );
               }
-              const ch = (draft.characters ?? []).filter((r) => r.sceneId === s.id);
-              const pr = (draft.props ?? []).filter((r) => r.sceneId === s.id);
-              const loc = (draft.locations ?? []).filter((r) => r.sceneId === s.id);
-              const wd = (draft.wardrobe ?? []).filter((r) => r.sceneId === s.id);
-              const ex = (draft.extras ?? []).filter((r) => r.sceneId === s.id);
-              const vh = (draft.vehicles ?? []).filter((r) => r.sceneId === s.id);
-              const st = (draft.stunts ?? []).filter((r) => r.sceneId === s.id);
-              const fx = (draft.sfx ?? []).filter((r) => r.sceneId === s.id);
-              const mu = (draft.makeups ?? []).filter((r) => r.sceneId === s.id);
+              const ch = (draft.characters ?? []).filter((r) => breakdownRowMatchesScene(r, s.id));
+              const pr = (draft.props ?? []).filter((r) => breakdownRowMatchesScene(r, s.id));
+              const loc = (draft.locations ?? []).filter((r) => breakdownRowMatchesScene(r, s.id));
+              const wd = (draft.wardrobe ?? []).filter((r) => breakdownRowMatchesScene(r, s.id));
+              const ex = (draft.extras ?? []).filter((r) => breakdownRowMatchesScene(r, s.id));
+              const vh = (draft.vehicles ?? []).filter((r) => breakdownRowMatchesScene(r, s.id));
+              const st = (draft.stunts ?? []).filter((r) => breakdownRowMatchesScene(r, s.id));
+              const fx = (draft.sfx ?? []).filter((r) => breakdownRowMatchesScene(r, s.id));
+              const mu = (draft.makeups ?? []).filter((r) => breakdownRowMatchesScene(r, s.id));
               const line = (label: string, text: string) => (
                 <li>
                   <span className="text-slate-500">{label}</span> {text || "—"}
