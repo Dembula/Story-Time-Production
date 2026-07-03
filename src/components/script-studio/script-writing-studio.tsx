@@ -155,6 +155,8 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
   const [dirty, setDirty] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [importSummary, setImportSummary] = useState<string[] | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
 
   const [studioTheme, setStudioTheme] = useState<StudioTheme>("dark");
   const [fontId, setFontId] = useState("courier-prime");
@@ -500,18 +502,72 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
     setDirty(true);
   };
 
-  const handleImport = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const raw = String(reader.result ?? "");
+  const handleImport = async (file: File) => {
+    setImportError(null);
+    setImportSummary(null);
+
+    const lower = file.name.toLowerCase();
+    const needsServerExtract =
+      file.type === "application/pdf" ||
+      lower.endsWith(".pdf") ||
+      file.type.includes("wordprocessingml") ||
+      lower.endsWith(".docx");
+
+    setImporting(true);
+    try {
+      let raw: string;
+      if (needsServerExtract) {
+        const form = new FormData();
+        form.append("file", file);
+        const res = await fetch("/api/creator/scripts/import-extract", {
+          method: "POST",
+          body: form,
+        });
+        const data = (await res.json().catch(() => ({}))) as { text?: string; error?: string };
+        if (!res.ok) {
+          throw new Error(data.error || "Could not extract text from this file.");
+        }
+        if (!data.text?.trim()) {
+          throw new Error("No readable screenplay text found in this file.");
+        }
+        raw = data.text;
+        if (lower.endsWith(".pdf") || file.type === "application/pdf") {
+          setImportSummary(["Extracted screenplay text from PDF"]);
+        }
+      } else {
+        raw = await file.text();
+        if (raw.trimStart().startsWith("%PDF-")) {
+          const form = new FormData();
+          form.append("file", file);
+          const res = await fetch("/api/creator/scripts/import-extract", {
+            method: "POST",
+            body: form,
+          });
+          const data = (await res.json().catch(() => ({}))) as { text?: string; error?: string };
+          if (!res.ok || !data.text?.trim()) {
+            throw new Error(data.error || "This file looks like a PDF — import the .pdf directly.");
+          }
+          raw = data.text;
+          setImportSummary(["Extracted screenplay text from PDF"]);
+        }
+      }
+
       const { text, fixes } = importScreenplayText(raw, file.name);
+      if (!text.trim()) {
+        throw new Error(
+          fixes[0] || "Import produced no readable screenplay text. Try PDF, DOCX, Fountain, or plain text.",
+        );
+      }
       if (draft) {
         setDraft({ ...draft, content: text });
         setDirty(true);
-        setImportSummary(fixes);
+        setImportSummary((prev) => [...(prev ?? []), ...fixes].filter(Boolean).slice(0, 12));
       }
-    };
-    reader.readAsText(file);
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : "Import failed");
+    } finally {
+      setImporting(false);
+    }
   };
 
   const editorSurface =
@@ -880,10 +936,11 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                     size="sm"
                     variant="outline"
                     className="h-7 border-slate-700 text-[10px] text-slate-100"
+                    disabled={importing}
                     onClick={() => importRef.current?.click()}
                   >
                     <FileUp className="h-3 w-3 mr-1" />
-                    Import
+                    {importing ? "Importing…" : "Import"}
                   </Button>
                   <Button
                     size="sm"
@@ -909,6 +966,9 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                 </div>
               </div>
 
+              {importError ? (
+                <p className="text-[10px] text-red-300">{importError}</p>
+              ) : null}
               {importSummary?.length ? (
                 <div className="rounded-lg border border-cyan-800/50 bg-cyan-950/30 px-3 py-2 text-[11px] text-cyan-200">
                   Import repairs: {importSummary.join(" · ")}

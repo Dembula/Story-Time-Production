@@ -8,6 +8,13 @@ export function importScreenplayText(raw: string, filename: string): ImportResul
   const fixes: string[] = [];
   let text = raw.replace(/\r\n/g, "\n").trim();
 
+  if (text.startsWith("%PDF-")) {
+    return {
+      text: "",
+      fixes: ["PDF files must be parsed as PDF — re-import using the .pdf file, not raw bytes."],
+    };
+  }
+
   if (filename.toLowerCase().endsWith(".fountain")) {
     text = text.replace(/^\.([A-Z][^\n]+)$/gm, (_, heading: string) => {
       fixes.push(`Converted Fountain scene: ${heading}`);
