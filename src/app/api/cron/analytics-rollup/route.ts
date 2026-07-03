@@ -1,12 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-
-function isAuthorizedCronCall(request: NextRequest): boolean {
-  const expected = process.env.CRON_SECRET;
-  if (!expected) return true;
-  const authHeader = request.headers.get("authorization") || "";
-  return authHeader === `Bearer ${expected}`;
-}
+import { isAuthorizedCronCall } from "@/lib/cron-auth";
 
 const UTC_DAY_MS = 24 * 60 * 60 * 1000;
 

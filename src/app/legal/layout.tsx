@@ -9,6 +9,7 @@ const legalLinks = [
   { href: "/legal/refund-policy", label: "Refunds" },
   { href: "/legal/subscription-terms", label: "Subscriptions" },
   { href: "/legal/content-policy", label: "Content Policy" },
+  { href: "/legal/content-standards", label: "Content Standards" },
   { href: "/legal/copyright", label: "Copyright" },
   { href: "/legal/cookies", label: "Cookies" },
   { href: "/legal/acceptable-use", label: "Acceptable Use" },

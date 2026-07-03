@@ -1,13 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "../../../../../generated/prisma";
-
-function isAuthorizedCronCall(request: NextRequest): boolean {
-  const expected = process.env.CRON_SECRET;
-  if (!expected) return true;
-  const authHeader = request.headers.get("authorization") || "";
-  return authHeader === `Bearer ${expected}`;
-}
+import { isAuthorizedCronCall } from "@/lib/cron-auth";
 
 function dayKey(date = new Date()): string {
   return date.toISOString().slice(0, 10);

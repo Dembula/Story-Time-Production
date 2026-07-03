@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Briefcase, Save, ArrowLeft, Upload, Loader2 } from "lucide-react";
+import { AccountPrivacyControls } from "@/components/account/account-privacy-controls";
 import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
 
 type Team = {
@@ -187,6 +188,8 @@ export default function CrewTeamProfilePage() {
           </button>
         </div>
       </div>
+
+      <AccountPrivacyControls variant="marketplace" className="mt-8" />
     </div>
   );
 }

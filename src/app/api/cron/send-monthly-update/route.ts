@@ -1,13 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { sendMonthlyUpdateEmail } from "@/lib/sendgrid";
-
-function isAuthorizedCronCall(request: NextRequest): boolean {
-  const expected = process.env.CRON_SECRET;
-  if (!expected) return true;
-  const authHeader = request.headers.get("authorization") || "";
-  return authHeader === `Bearer ${expected}`;
-}
+import { isAuthorizedCronCall } from "@/lib/cron-auth";
 
 export async function GET(request: NextRequest) {
   if (!isAuthorizedCronCall(request)) {

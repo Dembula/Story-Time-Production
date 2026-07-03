@@ -57,6 +57,7 @@ import { buildRagPromptBlock } from "@/lib/ai-os/rag/build-rag-prompt";
 import { buildSaLanguagePromptBlock } from "@/lib/ai-os/languages/build-language-context";
 import { resolveViewerProfileContext } from "@/lib/modoc/viewer-profile-resolver";
 import { buildProactiveIntelligenceBlock } from "@/lib/modoc/proactive-intelligence";
+import { enforceUserRateLimit } from "@/lib/api-rate-limit";
 
 export const maxDuration = 60;
 
@@ -100,6 +101,16 @@ export async function POST(req: Request) {
 
   const userId = (session.user as { id?: string })?.id;
   const sessionRole = (session.user as { role?: string })?.role;
+
+  if (userId) {
+    const limited = enforceUserRateLimit({
+      key: "modoc-chat",
+      userId,
+      maxAttempts: 60,
+      windowMs: 5 * 60 * 1000,
+    });
+    if (limited) return limited;
+  }
 
   if ((scope === "creator" || sessionRole === CREATOR_VA_ROLE) && sessionRole !== CREATOR_VA_ROLE && sessionRole !== "ADMIN") {
     return new Response(

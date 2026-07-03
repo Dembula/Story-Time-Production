@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { defaultHomeForRole } from "@/lib/auth-sign-in-path";
 import { LandingHeader } from "@/components/landing/LandingHeader";
 import { Hero } from "@/components/landing/Hero";
 import { Stats } from "@/components/landing/Stats";
@@ -21,7 +22,8 @@ export default async function HomePage() {
   if (session?.user?.role === "CREW_TEAM") redirect("/company/onboarding/subscription");
   if (session?.user?.role === "CASTING_AGENCY") redirect("/company/onboarding/subscription");
   if (session?.user?.role === "CATERING_COMPANY") redirect("/company/onboarding/subscription");
-  if (session) redirect("/profiles");
+  if (session?.user?.role === "FUNDER") redirect(defaultHomeForRole("FUNDER"));
+  if (session) redirect(defaultHomeForRole(session.user.role));
 
   return (
     <div className="min-h-screen bg-background text-white">

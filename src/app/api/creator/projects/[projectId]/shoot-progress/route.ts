@@ -102,15 +102,39 @@ export async function GET(req: NextRequest, context: { params: Promise<{ project
 
   const format = req.nextUrl.searchParams.get("format")?.toLowerCase() ?? "json";
 
-  const [shootDays, boards, tasks, equipmentItems, incidents, riskPlan, contracts, castRoles, crewNeeds] =
-    await Promise.all([
+  const [
+    shootDays,
+    boards,
+    tasks,
+    equipmentItems,
+    incidents,
+    riskPlan,
+    contracts,
+    castRoles,
+    crewNeeds,
+    allScenes,
+    continuityNotes,
+    dailiesClips,
+  ] = await Promise.all([
       prisma.shootDay.findMany({
         where: { projectId },
         orderBy: { date: "asc" },
         include: {
           scenes: {
             orderBy: { order: "asc" },
-            include: { scene: { select: { id: true, number: true, heading: true, storyDay: true, timeOfDay: true, pageCount: true } } },
+            include: {
+              scene: {
+                select: {
+                  id: true,
+                  number: true,
+                  heading: true,
+                  storyDay: true,
+                  timeOfDay: true,
+                  pageCount: true,
+                  breakdownCharacters: { select: { id: true, name: true } },
+                },
+              },
+            },
           },
         },
       }),
@@ -142,18 +166,61 @@ export async function GET(req: NextRequest, context: { params: Promise<{ project
       }),
       prisma.castingRole.findMany({
         where: { projectId },
-        select: { id: true, status: true },
+        select: { id: true, status: true, name: true, breakdownCharacterId: true },
       }),
       prisma.crewRoleNeed.findMany({
         where: { projectId },
-        select: { id: true, notes: true },
+        select: { id: true, notes: true, role: true, department: true },
+      }),
+      prisma.projectScene.findMany({
+        where: { projectId },
+        orderBy: { number: "asc" },
+        select: {
+          id: true,
+          number: true,
+          heading: true,
+          storyDay: true,
+          timeOfDay: true,
+          pageCount: true,
+          breakdownCharacters: { select: { id: true, name: true } },
+        },
+      }),
+      prisma.continuityNote.findMany({
+        where: { projectId },
+        select: { id: true, sceneId: true },
+      }),
+      prisma.dailiesClip.findMany({
+        where: { projectId },
+        select: { id: true, sceneId: true, mediaType: true },
       }),
     ]);
 
   const boardByDay = new Map(boards.map((b) => [b.shootDayId, asRecord(b.sceneProgress)]));
+  const continuityByScene = new Map<string, number>();
+  for (const note of continuityNotes) {
+    if (!note.sceneId) continue;
+    continuityByScene.set(note.sceneId, (continuityByScene.get(note.sceneId) ?? 0) + 1);
+  }
+  const dailiesByScene = new Map<string, { total: number; stills: number; videos: number }>();
+  for (const clip of dailiesClips) {
+    if (!clip.sceneId) continue;
+    const cur = dailiesByScene.get(clip.sceneId) ?? { total: 0, stills: 0, videos: 0 };
+    cur.total += 1;
+    if (clip.mediaType === "still") cur.stills += 1;
+    else cur.videos += 1;
+    dailiesByScene.set(clip.sceneId, cur);
+  }
+  const castRoleByCharacterId = new Map(
+    castRoles
+      .filter((r) => r.breakdownCharacterId)
+      .map((r) => [r.breakdownCharacterId!, r]),
+  );
+  const castRoleByName = new Map(castRoles.map((r) => [r.name.trim().toLowerCase(), r]));
+
   const sceneRows: Array<Record<string, unknown>> = [];
   const dayRows: Array<Record<string, unknown>> = [];
   const todayMs = new Date().setHours(0, 0, 0, 0);
+  const scheduledSceneIds = new Set<string>();
 
   const equipmentByScene = new Map<string, { total: number; ready: number }>();
   for (const eq of equipmentItems) {
@@ -193,12 +260,23 @@ export async function GET(req: NextRequest, context: { params: Promise<{ project
       const eq = equipmentByScene.get(link.sceneId ?? "") ?? { total: 0, ready: 0 };
       const equipmentReadyPercent = eq.total > 0 ? Math.round((eq.ready / eq.total) * 100) : null;
       const relatedIncidents = incidents.filter((i) => i.shootDayId === day.id);
+      const castNames = (link.scene?.breakdownCharacters ?? []).map((ch) => {
+        const role =
+          castRoleByCharacterId.get(ch.id) ??
+          castRoleByName.get(ch.name.trim().toLowerCase());
+        return {
+          character: ch.name,
+          roleStatus: role?.status ?? null,
+        };
+      });
+      const dailies = dailiesByScene.get(link.sceneId ?? "") ?? { total: 0, stills: 0, videos: 0 };
 
       if (completionPercent >= 100 || status === "COMPLETED") completed += 1;
       if (status === "DELAYED") delayed += 1;
       totalCompletion += completionPercent;
       totalEstimated += est;
       totalActual += actualDurationMinutes ?? 0;
+      if (link.sceneId) scheduledSceneIds.add(link.sceneId);
 
       sceneRows.push({
         shootDayId: day.id,
@@ -230,6 +308,12 @@ export async function GET(req: NextRequest, context: { params: Promise<{ project
         equipmentReadyPercent,
         relatedIncidentCount: relatedIncidents.length,
         hasBlockers: sceneTasks.some((t) => t.status === "BLOCKED"),
+        cast: castNames,
+        continuityNoteCount: continuityByScene.get(link.sceneId ?? "") ?? 0,
+        dailiesClipCount: dailies.total,
+        dailiesStillCount: dailies.stills,
+        dailiesVideoCount: dailies.videos,
+        scheduled: true,
       });
     }
 
@@ -252,7 +336,59 @@ export async function GET(req: NextRequest, context: { params: Promise<{ project
     });
   }
 
-  const totalScenes = sceneRows.length;
+  // Include unscheduled project scenes so the tracker shows the full slate.
+  for (const scene of allScenes) {
+    if (scheduledSceneIds.has(scene.id)) continue;
+    const dailies = dailiesByScene.get(scene.id) ?? { total: 0, stills: 0, videos: 0 };
+    const castNames = (scene.breakdownCharacters ?? []).map((ch) => {
+      const role =
+        castRoleByCharacterId.get(ch.id) ??
+        castRoleByName.get(ch.name.trim().toLowerCase());
+      return {
+        character: ch.name,
+        roleStatus: role?.status ?? null,
+      };
+    });
+    sceneRows.push({
+      shootDayId: "",
+      shootDayDate: "",
+      shootDayStatus: "UNSCHEDULED",
+      shootDayNumber: 0,
+      shootDaySceneId: `unscheduled-${scene.id}`,
+      sceneId: scene.id,
+      sceneNumber: scene.number,
+      heading: scene.heading,
+      intExt: scene.storyDay,
+      dayNight: scene.timeOfDay,
+      plannedShootDayId: null,
+      actualShootDayId: null,
+      status: "NOT_STARTED",
+      estimatedDurationMinutes: Math.max(15, Math.round((scene.pageCount ?? 1) * 8)),
+      actualDurationMinutes: null,
+      completionPercent: 0,
+      delayMinutes: 0,
+      overrunMinutes: 0,
+      earlyMinutes: 0,
+      notes: null,
+      actualStartAt: null,
+      actualEndAt: null,
+      manualUpdatedAt: null,
+      manualUpdatedByUserId: null,
+      auditHistory: [],
+      taskProgressPercent: null,
+      equipmentReadyPercent: null,
+      relatedIncidentCount: 0,
+      hasBlockers: false,
+      cast: castNames,
+      continuityNoteCount: continuityByScene.get(scene.id) ?? 0,
+      dailiesClipCount: dailies.total,
+      dailiesStillCount: dailies.stills,
+      dailiesVideoCount: dailies.videos,
+      scheduled: false,
+    });
+  }
+
+  const totalScenes = allScenes.length > 0 ? allScenes.length : sceneRows.length;
   const scenesCompleted = sceneRows.filter((s) => toNum(s.completionPercent) >= 100 || s.status === "COMPLETED").length;
   const scenesRemaining = Math.max(0, totalScenes - scenesCompleted);
   const overallPercent = totalScenes > 0 ? Math.round((scenesCompleted / totalScenes) * 100) : 0;

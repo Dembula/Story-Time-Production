@@ -18,6 +18,7 @@ const businessNavItems = [
   { href: "/catering-company/messages", label: "Messages" },
   { href: "/catering-company/revenue", label: "Revenue" },
   { href: "/catering-company/wallet", label: "Wallet" },
+  { href: "/catering-company/profile#account", label: "Account & privacy" },
 ];
 
 export default function CateringCompanyLayout({ children }: { children: React.ReactNode }) {

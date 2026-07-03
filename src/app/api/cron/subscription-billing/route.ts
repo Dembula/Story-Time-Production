@@ -2,13 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { processDueViewerBilling } from "@/lib/payments/subscription-billing";
 import { processDueCompanySubscriptions } from "@/lib/payments/company-subscription-billing";
 import { processDueCreatorLicenseRenewals } from "@/lib/payments/creator-license-billing";
-
-function isAuthorizedCronCall(request: NextRequest): boolean {
-  const expected = process.env.CRON_SECRET?.trim();
-  if (!expected) return true;
-  const authHeader = request.headers.get("authorization") || "";
-  return authHeader === `Bearer ${expected}`;
-}
+import { isAuthorizedCronCall } from "@/lib/cron-auth";
 
 export async function GET(request: NextRequest) {
   if (!isAuthorizedCronCall(request)) {

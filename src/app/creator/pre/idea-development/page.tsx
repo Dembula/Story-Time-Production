@@ -1,28 +1,54 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { IdeaDevelopmentTool } from "@/components/project-tools/pre/IdeaDevelopmentTool";
 import { Skeleton } from "@/components/ui/skeleton";
+import { setActiveProjectId, sortProjectsWithActiveFirst } from "@/lib/active-project";
+import { useActiveProjectId, useDefaultCreatorProjectId } from "@/hooks/use-active-project";
 
 function PreIdeaDevelopmentContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const projectId = searchParams.get("projectId") ?? "";
+  const projectIdFromUrl = searchParams.get("projectId") ?? "";
+  const activeProjectId = useActiveProjectId();
 
   const { data, isLoading } = useQuery({
     queryKey: ["creator-projects"],
     queryFn: () => fetch("/api/creator/projects").then((r) => r.json()),
   });
 
-  const projects = (data?.projects ?? []) as { id: string; title: string }[];
+  const projectsRaw = (data?.projects ?? []) as {
+    id: string;
+    title: string;
+    createdAt?: string;
+    updatedAt?: string;
+  }[];
+  const projects = sortProjectsWithActiveFirst(projectsRaw, activeProjectId);
+  const defaultProjectId = useDefaultCreatorProjectId(projectsRaw);
+  const projectId = projectIdFromUrl || defaultProjectId || "";
+
+  useEffect(() => {
+    if (isLoading) return;
+    if (projectIdFromUrl) {
+      setActiveProjectId(projectIdFromUrl);
+      return;
+    }
+    if (!defaultProjectId) return;
+    setActiveProjectId(defaultProjectId);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("projectId", defaultProjectId);
+    router.replace(`?${params.toString()}`);
+  }, [isLoading, projectIdFromUrl, defaultProjectId, router, searchParams]);
 
   const handleProjectChange = (value: string) => {
     const params = new URLSearchParams(searchParams.toString());
     if (!value) {
+      setActiveProjectId(null);
       params.delete("projectId");
     } else {
+      setActiveProjectId(value);
       params.set("projectId", value);
     }
     const qs = params.toString();
@@ -73,4 +99,3 @@ export default function PreIdeaDevelopmentPage() {
     </Suspense>
   );
 }
-

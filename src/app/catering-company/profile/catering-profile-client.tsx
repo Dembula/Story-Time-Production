@@ -5,6 +5,7 @@ import { StoryTimeLoader, StoryTimeLoadingCenter } from "@/components/ui/storyti
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { UtensilsCrossed, Upload } from "lucide-react";
+import { AccountPrivacyControls } from "@/components/account/account-privacy-controls";
 import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
 
 type CateringProfile = {
@@ -335,6 +336,10 @@ export function CateringProfileClient() {
         </button>
       </form>
       {!company && <p className="mt-4 text-sm text-slate-500">Complete your profile so creators can browse your menu and gallery.</p>}
+
+      <div id="account">
+        <AccountPrivacyControls variant="marketplace" className="mt-8" />
+      </div>
     </div>
   );
 }

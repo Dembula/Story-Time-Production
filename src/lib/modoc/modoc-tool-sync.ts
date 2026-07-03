@@ -1,5 +1,28 @@
 import type { ModocActionType } from "./action-types";
 
+/**
+ * Pipeline cascade keys: mutating an upstream stage must refresh every
+ * downstream consumer, otherwise tools show stale data until manual reload.
+ */
+const BREAKDOWN_CASCADE = [
+  "project-breakdown",
+  "project-scenes",
+  "project-casting",
+  "project-schedule",
+  "project-budget",
+  "project-breakdown-intelligence",
+];
+const SCHEDULE_CASCADE = [
+  "project-schedule",
+  "project-shoot-progress",
+  "project-call-sheets",
+  "project-budget",
+  "production-control-center",
+  "command-center-calendar",
+];
+const CASTING_CASCADE = ["project-casting", "project-schedule", "project-budget"];
+const CREW_CASCADE = ["project-crew", "project-schedule", "project-budget"];
+
 /** React Query keys to invalidate when a VA action mutates creator data. */
 const ACTION_QUERY_KEYS: Partial<Record<ModocActionType, string[]>> = {
   update_idea_notes: ["project-ideas", "creator-ideas"],
@@ -23,30 +46,30 @@ const ACTION_QUERY_KEYS: Partial<Record<ModocActionType, string[]>> = {
   add_budget_line: ["project-budget"],
   update_budget_line: ["project-budget"],
   delete_budget_line: ["project-budget"],
-  create_shoot_day: ["project-schedule", "command-center-calendar"],
-  auto_schedule_shoot_days: ["project-schedule", "command-center-calendar"],
-  update_shoot_day: ["project-schedule", "command-center-calendar"],
-  delete_shoot_day: ["project-schedule", "command-center-calendar"],
-  assign_scenes_by_location: ["project-schedule", "project-breakdown"],
-  assign_scenes_to_shoot_day: ["project-schedule"],
-  sync_casting_from_breakdown: ["project-casting"],
-  create_casting_role: ["project-casting"],
-  update_casting_role: ["project-casting"],
-  delete_casting_role: ["project-casting"],
-  create_crew_need: ["project-crew"],
-  update_crew_need: ["project-crew"],
-  delete_crew_need: ["project-crew"],
-  sync_starter_crew_needs: ["project-crew"],
+  create_shoot_day: SCHEDULE_CASCADE,
+  auto_schedule_shoot_days: SCHEDULE_CASCADE,
+  update_shoot_day: SCHEDULE_CASCADE,
+  delete_shoot_day: SCHEDULE_CASCADE,
+  assign_scenes_by_location: [...SCHEDULE_CASCADE, "project-breakdown"],
+  assign_scenes_to_shoot_day: SCHEDULE_CASCADE,
+  sync_casting_from_breakdown: CASTING_CASCADE,
+  create_casting_role: CASTING_CASCADE,
+  update_casting_role: CASTING_CASCADE,
+  delete_casting_role: CASTING_CASCADE,
+  create_crew_need: CREW_CASCADE,
+  update_crew_need: CREW_CASCADE,
+  delete_crew_need: CREW_CASCADE,
+  sync_starter_crew_needs: CREW_CASCADE,
   add_breakdown_location: ["project-breakdown"],
   update_breakdown_location: ["project-breakdown"],
   delete_breakdown_location: ["project-breakdown"],
   add_equipment_plan_item: ["project-equipment"],
   update_equipment_plan_item: ["project-equipment"],
   delete_equipment_plan_item: ["project-equipment"],
-  breakdown_full: ["project-breakdown"],
-  breakdown_scenes: ["project-breakdown"],
-  auto_populate_breakdown: ["project-breakdown"],
-  sync_scenes_from_script: ["project-breakdown", "project-script"],
+  breakdown_full: BREAKDOWN_CASCADE,
+  breakdown_scenes: ["project-breakdown", "project-scenes"],
+  auto_populate_breakdown: BREAKDOWN_CASCADE,
+  sync_scenes_from_script: [...BREAKDOWN_CASCADE, "project-script"],
   create_production_expense: ["project-expenses"],
   update_production_expense: ["project-expenses"],
   delete_production_expense: ["project-expenses"],

@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { ensureProjectAccess } from "@/lib/project-access";
 
 /** Heuristic receipt field extraction — flags low-confidence fields for review. */
-export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export async function POST(req: NextRequest, context: { params: Promise<{ projectId: string }> }) {
+  const { projectId } = await context.params;
+  const access = await ensureProjectAccess(projectId);
+  if (access.error) return access.error;
 
   const body = (await req.json().catch(() => null)) as
     | { ocrText?: string; fileName?: string; hintVendor?: string }

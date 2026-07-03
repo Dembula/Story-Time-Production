@@ -10,6 +10,7 @@ import {
   normalizeAiBreakdown,
 } from "@/lib/ai-script-breakdown";
 import { deleteBreakdownMakeupsForProject, patchBreakdownMakeups } from "@/lib/breakdown-makeup-db";
+import { syncCastingRolesFromBreakdown, type CastingSyncResult } from "@/lib/casting-sync";
 
 const openRouter = createOpenAI({
   apiKey: process.env.OPENROUTER_API_KEY ?? "",
@@ -53,7 +54,10 @@ export async function loadProjectScreenplay(
 export async function executeScriptBreakdown(
   projectId: string,
   mode: BreakdownMode = "full",
-): Promise<{ ok: true; warnings: string[] } | { ok: false; error: string; status?: number }> {
+): Promise<
+  | { ok: true; warnings: string[]; castingSync: CastingSyncResult | null }
+  | { ok: false; error: string; status?: number }
+> {
   if (!process.env.OPENROUTER_API_KEY) {
     return { ok: false, error: "AI is not configured. Set OPENROUTER_API_KEY.", status: 503 };
   }
@@ -274,5 +278,20 @@ export async function executeScriptBreakdown(
     }
   });
 
-  return { ok: true, warnings };
+  // Full breakdown wipes BreakdownCharacter rows, which SetNulls casting role
+  // links. Re-sync so cast keeps flowing to schedule / call sheets.
+  let castingSync: CastingSyncResult | null = null;
+  if (mode === "full") {
+    try {
+      castingSync = await syncCastingRolesFromBreakdown(projectId);
+    } catch (e) {
+      warnings.push(
+        `Breakdown succeeded but casting sync failed: ${
+          e instanceof Error ? e.message : "unknown error"
+        }. Run "Sync from Script Breakdown" in Casting.`,
+      );
+    }
+  }
+
+  return { ok: true, warnings, castingSync };
 }

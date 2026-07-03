@@ -29,13 +29,12 @@ export function isPayFastConfigured(): boolean {
 }
 
 /**
- * Demo checkout runs when no live gateway is configured.
- * Set PAYMENTS_DEMO_MODE=false to disable even without PayFast.
+ * Demo checkout only when explicitly enabled via PAYMENTS_DEMO_MODE=true.
+ * Production without PayFast credentials is unconfigured (fail closed).
  */
 export function isDemoPaymentsMode(): boolean {
   if (isPayFastConfigured()) return false;
-  if (process.env.PAYMENTS_DEMO_MODE === "false") return false;
-  return true;
+  return process.env.PAYMENTS_DEMO_MODE === "true";
 }
 
 export type PaymentGatewayMode = "payfast" | "demo" | "unconfigured";

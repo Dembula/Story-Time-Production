@@ -433,6 +433,7 @@ export function CallSheetGenerator({ projectId, title }: { projectId?: string; t
     title: string | null;
     notes: string | null;
     createdAt: string;
+    stale?: boolean;
     shootDay?: { date: string };
     formats?: { shareablePath: string; mobilePath: string };
   }[];
@@ -492,14 +493,19 @@ export function CallSheetGenerator({ projectId, title }: { projectId?: string; t
   const previewConflicts = (previewPayload?.conflicts ?? []) as { type: string; severity: string; message: string }[];
 
   const createMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (override?: { shootDayId: string; title?: string }) => {
+      const dayId = override?.shootDayId ?? selectedDayId;
+      const day = shootDays.find((d) => d.id === dayId);
       const res = await fetch(`/api/creator/projects/${projectId}/call-sheets`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          shootDayId: selectedDayId,
-          title: sheetTitle.trim() || `Call sheet – ${selectedDay ? new Date(selectedDay.date).toLocaleDateString() : "Day"}`,
-          notes: notes.trim() || undefined,
+          shootDayId: dayId,
+          title:
+            override?.title?.trim() ||
+            sheetTitle.trim() ||
+            `Call sheet – ${day ? new Date(day.date).toLocaleDateString() : "Day"}`,
+          notes: override ? undefined : notes.trim() || undefined,
         }),
       });
       const body = await res.json().catch(() => ({}));
@@ -657,7 +663,7 @@ export function CallSheetGenerator({ projectId, title }: { projectId?: string; t
                     size="sm"
                     className="bg-orange-500 hover:bg-orange-600"
                     disabled={!selectedDayId || createMutation.isPending}
-                    onClick={() => createMutation.mutate()}
+                    onClick={() => createMutation.mutate(undefined)}
                   >
                     {createMutation.isPending ? "Saving…" : "Save snapshot (new version)"}
                   </Button>
@@ -722,12 +728,35 @@ export function CallSheetGenerator({ projectId, title }: { projectId?: string; t
             ) : (
               <ul className="space-y-2 max-h-[70vh] overflow-y-auto pr-1">
                 {callSheets.slice(0, 24).map((c) => (
-                  <li key={c.id} className="rounded-xl bg-slate-900/80 border border-slate-800 px-3 py-2 text-sm">
+                  <li
+                    key={c.id}
+                    className={`rounded-xl bg-slate-900/80 border px-3 py-2 text-sm ${
+                      c.stale ? "border-amber-500/40" : "border-slate-800"
+                    }`}
+                  >
                     <p className="text-white font-medium truncate">{c.title || "Call sheet"}</p>
                     <p className="text-[11px] text-slate-500">
                       v{c.version} · {c.shootDay?.date ? new Date(c.shootDay.date).toLocaleDateString() : ""} ·{" "}
                       {new Date(c.createdAt).toLocaleString()}
                     </p>
+                    {c.stale && (
+                      <p className="mt-1 text-[11px] text-amber-400">
+                        Schedule changed after this version —{" "}
+                        <button
+                          type="button"
+                          className="underline hover:text-amber-300"
+                          disabled={createMutation.isPending}
+                          onClick={() =>
+                            createMutation.mutate({
+                              shootDayId: c.shootDayId,
+                              title: c.title || undefined,
+                            })
+                          }
+                        >
+                          regenerate
+                        </button>
+                      </p>
+                    )}
                     {c.formats && (
                       <div className="mt-1.5 flex flex-wrap gap-2 text-[11px]">
                         <Link href={c.formats.shareablePath} className="text-orange-400 hover:text-orange-300">

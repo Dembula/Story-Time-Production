@@ -6,6 +6,7 @@ import { getStorageConfig } from "@/lib/storage-config";
 import { prisma } from "@/lib/prisma";
 import { requiresPayoutKyc } from "@/lib/payout-kyc";
 import { registerFunderKycUpload, registerPayoutKycUpload } from "@/lib/kyc-verification-sync";
+import { enforceUserRateLimit } from "@/lib/api-rate-limit";
 
 export const runtime = "nodejs";
 
@@ -49,6 +50,15 @@ export async function POST(request: NextRequest) {
     if (!canUpload) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+
+    const limited = enforceUserRateLimit({
+      key: "upload-kyc",
+      userId: user.id!,
+      maxAttempts: 20,
+      windowMs: 60 * 60 * 1000,
+    });
+    if (limited) return limited;
+
     const bucket = storage.bucket;
     if (!bucket || !storage.region) {
       return NextResponse.json(

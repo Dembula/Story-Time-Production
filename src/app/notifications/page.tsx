@@ -26,7 +26,9 @@ export default async function NotificationsPage() {
                   ? "/equipment-company/dashboard"
                   : role === "CASTING_AGENCY"
                     ? "/casting-agency/dashboard"
-                    : "/browse";
+                    : role === "FUNDER"
+                      ? "/funders"
+                      : "/browse";
   return (
     <NotificationCenterClient
       role={role}

@@ -4,11 +4,29 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { PAYMENT_PROVIDER } from "@/lib/payments/config";
 import { getPaymentGateway } from "@/lib/payments/gateway";
-import { calculatePlatformTransactionFee, splitViewerRevenue } from "@/lib/payments/fees";
+import {
+  resolveMarketplaceSettlement,
+  type MarketplaceEntityType,
+} from "@/lib/payments/marketplace-settlement";
 import { toGatewaySafeReference } from "@/lib/payments/reference";
 import { appendPaymentRecordToReturnUrl } from "@/lib/payments/return-url";
+
 const db = prisma as any;
 
+const MARKETPLACE_ENTITY_TYPES: ReadonlySet<string> = new Set([
+  "EquipmentRequest",
+  "LocationBooking",
+  "CateringBooking",
+  "CrewTeamRequest",
+  "CastingInquiry",
+]);
+
+/**
+ * Generic checkout for marketplace entities. The amount is ALWAYS priced
+ * server-side from the referenced entity — client-supplied amounts are never
+ * trusted. Purpose-specific flows (viewer subscription, casting fees, etc.)
+ * have their own server-priced endpoints.
+ */
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   const user = session?.user as { id?: string; email?: string | null; name?: string | null } | undefined;
@@ -16,9 +34,6 @@ export async function POST(req: NextRequest) {
 
   const body = (await req.json().catch(() => null)) as
     | {
-        purpose?: string;
-        amount?: number;
-        currency?: string;
         referenceType?: string;
         referenceId?: string;
         returnUrl?: string;
@@ -26,33 +41,45 @@ export async function POST(req: NextRequest) {
       }
     | null;
 
-  if (!body?.purpose || !body.amount || !body.referenceType || !body.referenceId) {
-    return NextResponse.json({ error: "purpose, amount, referenceType and referenceId are required." }, { status: 400 });
+  if (!body?.referenceType || !body.referenceId) {
+    return NextResponse.json(
+      { error: "referenceType and referenceId are required." },
+      { status: 400 },
+    );
   }
 
-  const amount = Number(body.amount);
-  if (!Number.isFinite(amount) || amount <= 0) {
-    return NextResponse.json({ error: "Invalid amount." }, { status: 400 });
+  if (!MARKETPLACE_ENTITY_TYPES.has(body.referenceType)) {
+    return NextResponse.json(
+      { error: `Unsupported referenceType "${body.referenceType}". Use the purpose-specific payment endpoint.` },
+      { status: 400 },
+    );
   }
 
-  const platformTxFee = calculatePlatformTransactionFee(amount);
-  const viewerSplit = splitViewerRevenue(amount);
+  const resolved = await resolveMarketplaceSettlement(
+    body.referenceType as MarketplaceEntityType,
+    body.referenceId,
+    user.id,
+  );
+  if (!resolved.ok) {
+    return NextResponse.json({ error: resolved.error }, { status: resolved.status });
+  }
+  const quote = resolved.quote;
+
   const record = await db.paymentRecord.create({
     data: {
       userId: user.id,
       provider: PAYMENT_PROVIDER,
-      purpose: body.purpose,
+      purpose: quote.purpose,
       status: "PENDING",
-      amount,
-      currency: body.currency || "ZAR",
+      amount: quote.totalAmount,
+      currency: "ZAR",
       email: user.email ?? undefined,
-      relatedEntityType: body.referenceType,
-      relatedEntityId: body.referenceId,
+      relatedEntityType: quote.entityType,
+      relatedEntityId: quote.entityId,
       metadata: {
-        ...(body.metadata ?? {}),
-        platformTxFee,
-        viewerCreatorSplitAmount: viewerSplit.creator,
-        viewerPlatformSplitAmount: viewerSplit.platform,
+        marketplace: true,
+        baseAmount: quote.baseAmount,
+        feeAmount: quote.feeAmount,
       },
     },
   });
@@ -61,16 +88,16 @@ export async function POST(req: NextRequest) {
   let checkout: Awaited<ReturnType<typeof gateway.createCheckoutSession>>;
   try {
     checkout = await gateway.createCheckoutSession({
-      amount,
-      currency: body.currency || "ZAR",
+      amount: quote.totalAmount,
+      currency: "ZAR",
       reference: toGatewaySafeReference("pf", record.id),
       returnUrl: appendPaymentRecordToReturnUrl(body.returnUrl, record.id),
       customer: { email: user.email, name: user.name },
       metadata: {
         paymentRecordId: record.id,
-        purpose: body.purpose,
-        referenceType: body.referenceType,
-        referenceId: body.referenceId,
+        purpose: quote.purpose,
+        referenceType: quote.entityType,
+        referenceId: quote.entityId,
       },
     });
   } catch (error) {
@@ -87,8 +114,8 @@ export async function POST(req: NextRequest) {
   await db.gatewayReference.create({
     data: {
       provider: checkout.provider,
-      referenceType: body.referenceType,
-      referenceId: body.referenceId,
+      referenceType: quote.entityType,
+      referenceId: quote.entityId,
       externalRef: checkout.externalRef,
       metadata: {
         paymentRecordId: record.id,
@@ -100,6 +127,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     ok: true,
     paymentRecordId: record.id,
+    amount: quote.totalAmount,
     provider: checkout.provider,
     checkoutUrl: checkout.checkoutUrl,
     externalRef: checkout.externalRef,

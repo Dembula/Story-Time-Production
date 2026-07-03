@@ -92,16 +92,57 @@ export function FootageIngestion({
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project-footage", projectId] }),
   });
 
+  const [promoteMessage, setPromoteMessage] = useState("");
+  const promoteDailiesMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/creator/projects/${projectId}/footage/promote-dailies`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((json as { error?: string }).error || "Promote failed");
+      return json as { promoted: number; skipped: number; message?: string };
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["project-footage", projectId] });
+      setPromoteMessage(
+        result.message ??
+          (result.promoted > 0
+            ? `Imported ${result.promoted} approved dailies clip${result.promoted === 1 ? "" : "s"} as raw footage.`
+            : "All approved dailies clips are already imported."),
+      );
+    },
+    onError: (e) => setPromoteMessage((e as Error).message),
+  });
+
   const rawCount = assets.filter((a) => a.type === "RAW_FOOTAGE").length;
 
   return (
     <div className="space-y-4">
-      <header>
-        <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
-        <p className="text-sm text-slate-400 mt-1">
-          Upload files (video, PDF, or images) to storage, or paste a direct link. Tag scenes when available.
-        </p>
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
+          <p className="text-sm text-slate-400 mt-1">
+            Upload files (video, PDF, or images) to storage, or paste a direct link. Tag scenes when available.
+          </p>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          className="border-slate-600 text-slate-200 hover:bg-slate-800"
+          disabled={!hasProject || promoteDailiesMutation.isPending}
+          onClick={() => promoteDailiesMutation.mutate()}
+          title="Copy approved / circle-take dailies clips from production into post as raw footage"
+        >
+          {promoteDailiesMutation.isPending ? "Importing…" : "Import approved dailies"}
+        </Button>
       </header>
+      {promoteMessage && (
+        <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+          {promoteMessage}
+        </p>
+      )}
 
       <Card className="creator-glass-panel border-0 bg-transparent shadow-none">
         <CardContent className="pt-6 space-y-2">

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { ensureProjectAccess } from "@/lib/project-access";
 import { extractReceiptWithVision } from "@/lib/financial-ops/receipt-vision-ocr";
+import { enforceUserRateLimit } from "@/lib/api-rate-limit";
 
 function heuristicParse(text: string, hintVendor?: string) {
   const amountMatch =
@@ -31,9 +31,18 @@ function heuristicParse(text: string, hintVendor?: string) {
 
 /** AI vision OCR + heuristic fallback for receipt field extraction. */
 export async function POST(_req: NextRequest, context: { params: Promise<{ projectId: string }> }) {
-  void context;
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { projectId } = await context.params;
+  // Project membership required — this endpoint spends vision-model credits.
+  const access = await ensureProjectAccess(projectId);
+  if (access.error) return access.error;
+
+  const limited = enforceUserRateLimit({
+    key: "expense-vision-ocr",
+    userId: access.userId,
+    maxAttempts: 30,
+    windowMs: 60 * 60 * 1000,
+  });
+  if (limited) return limited;
 
   const body = (await _req.json().catch(() => null)) as {
     imageUrl?: string;

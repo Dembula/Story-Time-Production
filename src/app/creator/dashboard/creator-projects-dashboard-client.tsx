@@ -16,6 +16,8 @@ import {
 } from "@/lib/project-tools";
 import { CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY, formatCreatorLicenseSummary } from "@/lib/pricing";
 import { CreatorToolNavCard, type CreatorToolNavStatus } from "@/components/creator/creator-tool-nav-card";
+import { setActiveProjectId, sortProjectsWithActiveFirst } from "@/lib/active-project";
+import { useActiveProjectId } from "@/hooks/use-active-project";
 
 type ToolProgress = { toolId: string; phase: string; status: string; percent: number };
 
@@ -425,6 +427,10 @@ export function CreatorProjectsDashboardClient() {
   const openProjectId = searchParams.get("openProject");
   const showPipelineUpgrade = searchParams.get("upgrade") === "pipeline";
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (openProjectId) setActiveProjectId(openProjectId);
+  }, [openProjectId]);
   const { data: licensePayload } = useQuery({
     queryKey: [...CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY],
     queryFn: () => fetch("/api/creator/distribution-license").then((r) => r.json()),
@@ -500,7 +506,12 @@ export function CreatorProjectsDashboardClient() {
       if (!res.ok) throw new Error("Failed to create project");
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (result: { project?: { id?: string } }) => {
+      const newId = result?.project?.id;
+      if (newId) {
+        // Newest project becomes the default selection across all tools.
+        setActiveProjectId(newId);
+      }
       setCreating(false);
       setTitle("");
       setLogline("");
@@ -511,7 +522,8 @@ export function CreatorProjectsDashboardClient() {
     },
   });
 
-  const projects: Project[] = data?.projects ?? [];
+  const activeProjectId = useActiveProjectId();
+  const projects: Project[] = sortProjectsWithActiveFirst(data?.projects ?? [], activeProjectId);
 
   useEffect(() => {
     if (!creating || !isCollaboration) return;

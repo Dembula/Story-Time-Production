@@ -50,8 +50,8 @@ export async function ensureProjectFinanceAccess(projectId: string): Promise<Fin
 
   const isCreatorMember =
     role === "ADMIN" ||
-    project.members.some((m) => m.userId === userId) ||
-    project.pitches.some((p) => p.creatorId === userId);
+    project.pitches.some((p) => p.creatorId === userId) ||
+    project.members.some((m) => m.userId === userId && m.status === "ACCEPTED");
 
   if (!isCreatorMember) {
     return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }), userId: null };

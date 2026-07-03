@@ -10,6 +10,7 @@ import {
 import { SIGNED_CONTRACT_STATUSES } from "@/lib/contract-template-engine";
 import { SCHEDULE_BLOCKING_STATUSES } from "@/lib/contract-lifecycle";
 import { publishStakeholderSyncEvent } from "@/lib/stakeholder-ecosystem/sync-events";
+import { ensureAllCastingRolesLinkedToScenes } from "@/lib/casting-scene-link";
 
 async function ensureAccess(projectId: string) {
   const session = await getServerSession(authOptions);
@@ -127,12 +128,17 @@ async function buildContractGate(projectId: string) {
 }
 
 async function loadSchedulePayload(projectId: string, userId: string | null) {
+  // Make sure saved casting roles are attached to scene breakdown characters
+  // so shoot-day "Cast required" is populated for selected scenes.
+  await ensureAllCastingRolesLinkedToScenes(prisma, projectId);
+
   const productionData = await buildProductionDataEngine(prisma, projectId, userId);
   if (!productionData) {
     return null;
   }
 
-  const [shootDays, scenes, contractGate, crewNeeds, equipmentItems] = await Promise.all([
+  const [shootDays, scenes, contractGate, crewNeeds, equipmentItems, castingRoles] =
+    await Promise.all([
     prisma.shootDay.findMany({
       where: { projectId },
       orderBy: { date: "asc" },
@@ -155,7 +161,36 @@ async function loadSchedulePayload(projectId: string, userId: string | null) {
       select: { category: true, description: true, quantity: true },
       orderBy: { createdAt: "asc" },
     }),
+    prisma.castingRole.findMany({
+      where: { projectId },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        breakdownCharacterId: true,
+      },
+      orderBy: { createdAt: "asc" },
+    }),
   ]);
+
+  // Resolve assigned actor names from roster markers for client-side previews.
+  const roster = userId
+    ? await prisma.creatorCastRoster.findMany({
+        where: { creatorId: userId },
+        select: { name: true, notes: true },
+      })
+    : [];
+  const castingRolesWithActors = castingRoles.map((role) => {
+    const marker = `castingRoleId:${role.id}`;
+    const actor = roster.find((r) => (r.notes ?? "").includes(marker));
+    return {
+      id: role.id,
+      name: role.name,
+      status: role.status,
+      breakdownCharacterId: role.breakdownCharacterId,
+      actorName: actor?.name ?? null,
+    };
+  });
 
   scenes.sort((a, b) =>
     a.number.localeCompare(b.number, undefined, { numeric: true, sensitivity: "base" }),
@@ -197,6 +232,7 @@ async function loadSchedulePayload(projectId: string, userId: string | null) {
     conflicts: productionData.conflicts,
     contractGate,
     crewNeeds,
+    castingRoles: castingRolesWithActors,
     equipmentItems: equipmentItems.map((e) => ({
       category: e.category,
       description: e.description,
@@ -273,14 +309,16 @@ export async function POST(
   }
 
   const dateIso = body?.date ?? new Date().toISOString();
-  const day = await prisma.shootDay.create({
+  await prisma.shootDay.create({
     data: {
       projectId,
       date: new Date(dateIso),
       status: "PLANNED",
     },
   });
-  return NextResponse.json({ day }, { status: 201 });
+  const payload = await loadSchedulePayload(projectId, access.userId);
+  if (!payload) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  return NextResponse.json(payload, { status: 201 });
 }
 
 export async function PATCH(

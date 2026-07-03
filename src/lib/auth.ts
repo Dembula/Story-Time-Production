@@ -196,14 +196,16 @@ export const authOptions: NextAuthOptions = {
         };
       },
     }),
-    EmailProvider({
-      server: process.env.EMAIL_SERVER || {
-        host: "localhost",
-        port: 25,
-        auth: { user: "user", pass: "pass" },
-      },
-      from: process.env.EMAIL_FROM || "noreply@storytime.com",
-    }),
+    // Magic-link sign-in only when SMTP is actually configured — a localhost
+    // fallback in production silently swallows sign-in emails.
+    ...(process.env.EMAIL_SERVER && process.env.EMAIL_FROM
+      ? [
+          EmailProvider({
+            server: process.env.EMAIL_SERVER,
+            from: process.env.EMAIL_FROM,
+          }),
+        ]
+      : []),
     ...oauthProviders,
   ],
   session: {

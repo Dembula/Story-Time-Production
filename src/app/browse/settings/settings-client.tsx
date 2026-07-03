@@ -4,6 +4,7 @@ import { StoryTimeLoader, StoryTimeLoadingCenter } from "@/components/ui/storyti
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Bell, CreditCard, Gauge, Lock, Mail, MapPin, Plus, Smartphone, Star, Trash2, User, Users } from "lucide-react";
+import { AccountPrivacyControls } from "@/components/account/account-privacy-controls";
 import { VIEWER_PLAN_CONFIG } from "@/lib/pricing";
 import { formatZar } from "@/lib/format-currency-zar";
 import { getBirthDateOptionSets } from "@/lib/viewer-profiles";
@@ -935,6 +936,12 @@ export function SettingsClient() {
           ) : null}
         </div>
       </section>
+
+      <AccountPrivacyControls
+        variant="viewer"
+        onError={setError}
+        onSuccess={setSuccess}
+      />
 
       {showPlanModal ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">

@@ -59,8 +59,8 @@ export async function ensureProjectAccess(projectId: string): Promise<ProjectAcc
 
   const isCreatorMember =
     role === "ADMIN" ||
-    project.members.some((m) => m.userId === userId) ||
-    project.pitches.some((p) => p.creatorId === userId);
+    project.pitches.some((p) => p.creatorId === userId) ||
+    project.members.some((m) => m.userId === userId && m.status === "ACCEPTED");
 
   if (!isCreatorMember) {
     return {

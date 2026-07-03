@@ -119,13 +119,19 @@ export default function PrivacyPage() {
                 deletion where retention is no longer required.
               </p>
               <p>
-                Rights requests are handled in line with POPIA (including sections
+                Signed-in users can download a machine-readable copy of their account
+                data and permanently delete their account from Privacy &amp; account
+                control in Settings (viewers), Account → Security (creators and music
+                creators), or Profile / Account pages for marketplace stakeholders.
+                Rights requests are also handled in line with POPIA (including sections
                 23-25) and PAIA processes where applicable. We may verify identity
                 before actioning a request to protect account security.
               </p>
               <p>
                 We may need to retain some records where required for legal, safety,
-                fraud, tax, audit, or operational reasons.
+                fraud, tax, audit, or operational reasons. When hard deletion is blocked
+                by legal or operational constraints, personal identifiers are
+                anonymised so the account can no longer be used to sign in.
               </p>
             </>
           ),

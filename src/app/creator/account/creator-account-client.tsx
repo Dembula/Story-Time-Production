@@ -25,6 +25,7 @@ import {
   Upload,
   Loader2,
 } from "lucide-react";
+import { AccountPrivacyControls } from "@/components/account/account-privacy-controls";
 import { CreatorAccountVaultHub } from "@/components/creator/creator-account-vault-hub";
 import { PayoutKycBanner } from "@/components/payout-kyc/payout-kyc-banner";
 import { CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY } from "@/lib/pricing";
@@ -814,6 +815,12 @@ export function CreatorAccountClient({ backHref = "/creator/command-center" }: {
         >
           <Save className="w-4 h-4" /> {savingSecurity ? "Saving…" : "Save security & contact"}
         </button>
+        <AccountPrivacyControls
+          variant="creator"
+          className="mt-6"
+          onError={flashError}
+          onSuccess={flashSuccess}
+        />
       </form>
       )}
 

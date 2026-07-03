@@ -4,7 +4,7 @@ export type SchedulePreviewScene = {
   id: string;
   number: string;
   heading: string | null;
-  breakdownCharacters: { name: string }[];
+  breakdownCharacters: { id?: string; name: string }[];
 };
 
 export type SchedulePreviewCrewNeed = {
@@ -16,6 +16,14 @@ export type SchedulePreviewEquipment = {
   category: string;
   description?: string | null;
   quantity: number;
+};
+
+export type SchedulePreviewCastingRole = {
+  id: string;
+  name: string;
+  status?: string | null;
+  breakdownCharacterId?: string | null;
+  actorName?: string | null;
 };
 
 export type ShootDayPipelinePreview = {
@@ -37,21 +45,53 @@ export function buildShootDayPipelinePreview(input: {
   sceneLinks: Array<{ sceneId: string; order: number; scene?: SchedulePreviewScene | null }>;
   crewNeeds?: SchedulePreviewCrewNeed[];
   equipmentItems?: SchedulePreviewEquipment[];
+  castingRoles?: SchedulePreviewCastingRole[];
 }): ShootDayPipelinePreview {
   const ordered = input.sceneLinks.slice().sort((a, b) => a.order - b.order);
   const castMap = new Map<string, { name: string; roleOrCharacter: string }>();
 
+  const characterNamesOnDay = new Set<string>();
+  const characterIdsOnDay = new Set<string>();
+
   for (const link of ordered) {
     const sc = link.scene;
     if (!sc) continue;
-    for (const c of sc.breakdownCharacters) {
+    for (const c of sc.breakdownCharacters ?? []) {
       const name = c.name.trim();
       if (!name) continue;
       const key = name.toLowerCase();
+      characterNamesOnDay.add(key);
+      if (c.id) characterIdsOnDay.add(c.id);
       if (!castMap.has(key)) {
         castMap.set(key, { name, roleOrCharacter: `Character · Sc. ${sc.number}` });
       }
     }
+  }
+
+  // Enrich / add from project casting roles linked to those characters.
+  for (const role of input.castingRoles ?? []) {
+    const roleKey = role.name.trim().toLowerCase();
+    if (!roleKey) continue;
+    const linked =
+      (role.breakdownCharacterId && characterIdsOnDay.has(role.breakdownCharacterId)) ||
+      characterNamesOnDay.has(roleKey);
+    if (!linked && castMap.size > 0) continue;
+    if (!linked && ordered.length === 0) continue;
+    // If no breakdown cast on selected scenes, still show project casting roles.
+    if (!linked && castMap.size === 0 && ordered.length > 0) {
+      const displayName = role.actorName?.trim() || role.name.trim();
+      castMap.set(role.id, {
+        name: displayName,
+        roleOrCharacter: role.name.trim(),
+      });
+      continue;
+    }
+    if (!linked) continue;
+    const displayName = role.actorName?.trim() || role.name.trim();
+    castMap.set(roleKey, {
+      name: displayName,
+      roleOrCharacter: role.name.trim(),
+    });
   }
 
   const scenes = ordered

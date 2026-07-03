@@ -27,7 +27,7 @@ export async function GET() {
         orderBy: { createdAt: "desc" },
       },
     },
-    orderBy: { updatedAt: "desc" },
+    orderBy: [{ createdAt: "desc" }, { updatedAt: "desc" }],
   });
 
   const ideaCounts = await prisma.projectIdea.groupBy({
@@ -46,6 +46,7 @@ export async function GET() {
     }
   }
 
+  // Newest projects first so a freshly created project is the platform default.
   const withActivity = projects.map((p) => {
     const latestPitch = p.pitches[0];
     const isOriginal = isStoryTimeOriginalGreenlit(latestPitch);
@@ -58,15 +59,7 @@ export async function GET() {
     };
   });
 
-  // Sort: projects with activity (ideas or tool progress) first, then by updatedAt
-  const sorted = [...withActivity].sort((a, b) => {
-    const aActivity = (a.ideasCount ?? 0) + (a.projectToolProgress?.length ?? 0);
-    const bActivity = (b.ideasCount ?? 0) + (b.projectToolProgress?.length ?? 0);
-    if (bActivity !== aActivity) return bActivity - aActivity;
-    return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
-  });
-
-  return NextResponse.json({ projects: sorted });
+  return NextResponse.json({ projects: withActivity });
 }
 
 export async function POST(request: NextRequest) {

@@ -7,6 +7,10 @@ import {
   resolveDefaultProjectBudget,
 } from "@/lib/project-budget-access";
 import { parseEmbeddedMeta, type ActorMarketMeta, listIncludes, embedMeta } from "@/lib/marketplace-profile-meta";
+import {
+  ensureAllCastingRolesLinkedToScenes,
+  ensureCastingRoleLinkedToScenes,
+} from "@/lib/casting-scene-link";
 
 type CastingRoleMeta = {
   ageRange?: string | null;
@@ -70,6 +74,9 @@ export async function GET(
 
   const access = await ensureCastingAccess(projectId);
   if (access.error) return access.error;
+
+  // Keep roles linked to scene breakdown characters for schedule/cast planning.
+  await ensureAllCastingRolesLinkedToScenes(prisma, projectId);
 
   const roles = await prisma.castingRole.findMany({
     where: { projectId },
@@ -254,7 +261,13 @@ export async function POST(
     },
   });
 
-  return NextResponse.json({ role }, { status: 201 });
+  // Link role into per-scene breakdown characters so shoot-day planning can resolve cast.
+  const linked = await ensureCastingRoleLinkedToScenes(prisma, projectId, role);
+  const hydrated = linked.breakdownCharacterId
+    ? await prisma.castingRole.findUnique({ where: { id: role.id } })
+    : role;
+
+  return NextResponse.json({ role: hydrated ?? role }, { status: 201 });
 }
 
 // Lightweight updates for role status/description
@@ -410,7 +423,14 @@ export async function PATCH(
       }
     }
 
-    return nextRole;
+    // Keep casting roles linked to scene breakdown characters for schedule/cast planning.
+    await ensureCastingRoleLinkedToScenes(tx, projectId, {
+      id: nextRole.id,
+      name: nextRole.name,
+      breakdownCharacterId: nextRole.breakdownCharacterId,
+    });
+
+    return tx.castingRole.findUnique({ where: { id: nextRole.id } });
   });
 
   return NextResponse.json({ role });

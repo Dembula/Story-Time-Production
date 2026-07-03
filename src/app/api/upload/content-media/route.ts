@@ -14,6 +14,7 @@ import {
   ingestVideoStreamForContentMedia,
 } from "@/lib/content-media-post-upload";
 import { createContentMediaS3Client } from "@/lib/content-media-s3";
+import { enforceUserRateLimit } from "@/lib/api-rate-limit";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -25,6 +26,14 @@ export async function POST(request: NextRequest) {
     if (!session || !userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const limited = enforceUserRateLimit({
+      key: "upload-content-media",
+      userId,
+      maxAttempts: 120,
+      windowMs: 60 * 60 * 1000,
+    });
+    if (limited) return limited;
 
     const { client: s3Client, storage } = createContentMediaS3Client();
     const bucket = storage.bucket;

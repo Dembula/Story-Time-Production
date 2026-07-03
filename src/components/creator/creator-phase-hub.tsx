@@ -11,12 +11,16 @@ import {
   type ProjectToolMeta,
 } from "@/lib/project-tools";
 import { CreatorToolNavCard } from "@/components/creator/creator-tool-nav-card";
+import { sortProjectsWithActiveFirst } from "@/lib/active-project";
+import { useActiveProjectId, useDefaultCreatorProjectId } from "@/hooks/use-active-project";
 
 type Project = {
   id: string;
   title: string;
   status: string;
   phase: string;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 function standaloneToolHref(phase: ProjectPhase, slug: string): string {
@@ -69,12 +73,15 @@ export function CreatorPhaseHub({
     queryFn: () => fetch("/api/creator/projects").then((r) => r.json()),
   });
 
-  const projects: Project[] = data?.projects ?? [];
+  const projectsRaw: Project[] = data?.projects ?? [];
+  const activeProjectId = useActiveProjectId();
+  const projects = sortProjectsWithActiveFirst(projectsRaw, activeProjectId);
+  const defaultProjectId = useDefaultCreatorProjectId(projectsRaw);
   const PIcon = ProjectsIcon ?? ClipboardList;
 
   const primaryHref = (tool: ProjectToolMeta) =>
-    projects[0]
-      ? getProjectToolHref(projects[0].id, { phase, toolSlug: tool.toolSlug })
+    defaultProjectId
+      ? getProjectToolHref(defaultProjectId, { phase, toolSlug: tool.toolSlug })
       : standaloneToolHref(phase, tool.toolSlug);
 
   return (
@@ -105,10 +112,19 @@ export function CreatorPhaseHub({
             {projects.map((project) => (
               <div
                 key={project.id}
-                className="creator-glass-panel flex min-w-[220px] flex-col justify-between px-4 py-3 transition hover:border-orange-400/25"
+                className={`creator-glass-panel flex min-w-[220px] flex-col justify-between px-4 py-3 transition hover:border-orange-400/25 ${
+                  project.id === defaultProjectId ? "border-orange-400/35 ring-1 ring-orange-400/20" : ""
+                }`}
               >
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-white">{project.title}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="truncate text-sm font-semibold text-white">{project.title}</p>
+                    {project.id === defaultProjectId ? (
+                      <span className="shrink-0 rounded-full bg-orange-500/15 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-orange-200">
+                        Active
+                      </span>
+                    ) : null}
+                  </div>
                   <p className="mt-0.5 text-[11px] text-slate-500">
                     {project.status} · {project.phase}
                   </p>

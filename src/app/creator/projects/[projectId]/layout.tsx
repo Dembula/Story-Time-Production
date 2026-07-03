@@ -57,7 +57,7 @@ export default async function ProjectLayout({ children, params }: ProjectLayoutP
       title: true,
       updatedAt: true,
     },
-    orderBy: { updatedAt: "desc" },
+    orderBy: [{ createdAt: "desc" }, { updatedAt: "desc" }],
   });
 
   return (

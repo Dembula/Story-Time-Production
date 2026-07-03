@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { Suspense, useState, useEffect, useRef, useMemo, useCallback } from "react";
 import Link from "next/link";
@@ -1285,12 +1285,46 @@ function ShootProgress({ projectId, title }: { projectId?: string; title: string
       if (!res.ok) throw new Error((j as { error?: string }).error || "Update failed");
       return j;
     },
+    onMutate: async (payload) => {
+      await queryClient.cancelQueries({ queryKey: ["project-shoot-progress", projectId] });
+      const previous = queryClient.getQueryData(["project-shoot-progress", projectId]);
+      queryClient.setQueryData(["project-shoot-progress", projectId], (prev: any) => {
+        if (!prev?.scenes) return prev;
+        const shootDaySceneId = payload.shootDaySceneId as string | undefined;
+        if (!shootDaySceneId) return prev;
+        return {
+          ...prev,
+          scenes: prev.scenes.map((s: any) =>
+            s.shootDaySceneId === shootDaySceneId
+              ? {
+                  ...s,
+                  ...(payload.status ? { status: payload.status } : {}),
+                  ...(payload.completionPercent !== undefined
+                    ? { completionPercent: Number(payload.completionPercent) }
+                    : {}),
+                  ...(payload.notes !== undefined ? { notes: payload.notes } : {}),
+                  ...(payload.actualStartAt !== undefined
+                    ? { actualStartAt: payload.actualStartAt }
+                    : {}),
+                  ...(payload.actualEndAt !== undefined ? { actualEndAt: payload.actualEndAt } : {}),
+                }
+              : s,
+          ),
+        };
+      });
+      return { previous };
+    },
+    onError: (e, _payload, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(["project-shoot-progress", projectId], context.previous);
+      }
+      setToast((e as Error).message);
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["project-shoot-progress", projectId] });
       void queryClient.invalidateQueries({ queryKey: ["production-control-center", projectId] });
       setToast("Shoot progress updated.");
     },
-    onError: (e) => setToast((e as Error).message),
   });
 
   const overall = (data?.overall ?? {}) as {
@@ -1339,6 +1373,12 @@ function ShootProgress({ projectId, title }: { projectId?: string; title: string
         equipmentReadyPercent: number | null;
         relatedIncidentCount: number;
         hasBlockers: boolean;
+        cast?: Array<{ character: string; roleStatus: string | null }>;
+        continuityNoteCount?: number;
+        dailiesClipCount?: number;
+        dailiesStillCount?: number;
+        dailiesVideoCount?: number;
+        scheduled?: boolean;
       }>),
     [data?.scenes],
   );
@@ -1347,7 +1387,11 @@ function ShootProgress({ projectId, title }: { projectId?: string; title: string
   const filteredScenes = useMemo(
     () =>
       scenes.filter((s) => {
-        if (dayFilter && s.shootDayId !== dayFilter) return false;
+        if (dayFilter === "unscheduled") {
+          if (s.scheduled !== false && s.shootDayId) return false;
+        } else if (dayFilter && s.shootDayId !== dayFilter) {
+          return false;
+        }
         if (statusFilter && s.status !== statusFilter) return false;
         return true;
       }),
@@ -1369,12 +1413,31 @@ function ShootProgress({ projectId, title }: { projectId?: string; title: string
         <div>
           <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
           <p className="text-sm text-slate-400 mt-1">
-            Real-time progress intelligence: planned vs actual execution across scenes and shoot days.
+            Track every project scene across shoot days — update progress manually, and pull in cast, continuity, and
+            dailies as the day unfolds. Ask the Virtual Assistant to help update statuses from on-set notes.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {projectId && (
             <>
+              <Link
+                href={`/creator/projects/${projectId}/pre-production/production-scheduling`}
+                className="inline-flex h-8 items-center rounded-md border border-slate-700 bg-slate-900 px-3 text-[11px] text-slate-200 hover:border-orange-500/40 hover:text-orange-200"
+              >
+                Plan shoot days
+              </Link>
+              <Link
+                href={`/creator/projects/${projectId}/production/dailies-review`}
+                className="inline-flex h-8 items-center rounded-md border border-slate-700 bg-slate-900 px-3 text-[11px] text-slate-200 hover:border-orange-500/40 hover:text-orange-200"
+              >
+                Dailies
+              </Link>
+              <Link
+                href={`/creator/projects/${projectId}/production/continuity-manager`}
+                className="inline-flex h-8 items-center rounded-md border border-slate-700 bg-slate-900 px-3 text-[11px] text-slate-200 hover:border-orange-500/40 hover:text-orange-200"
+              >
+                Continuity
+              </Link>
               <Link
                 href={`/api/creator/projects/${projectId}/shoot-progress?format=csv`}
                 className="inline-flex h-8 items-center rounded-md border border-slate-700 bg-slate-900 px-3 text-[11px] text-slate-200 hover:border-slate-500"
@@ -1389,7 +1452,6 @@ function ShootProgress({ projectId, title }: { projectId?: string; title: string
               </Link>
             </>
           )}
-          
         </div>
       </header>
       
@@ -1404,7 +1466,9 @@ function ShootProgress({ projectId, title }: { projectId?: string; title: string
         <div className="creator-glass-panel p-3">
           <p className="text-[11px] text-slate-400">Timeline drift</p>
           <p className="text-xl font-semibold text-white">{overall.scheduleDriftDays ?? 0}d</p>
-          <p className="text-[11px] text-slate-500">plan {overall.estimatedTimelineDays ?? 0}d Â· actual {overall.actualTimelineDays ?? 0}d</p>
+          <p className="text-[11px] text-slate-500">
+            plan {overall.estimatedTimelineDays ?? 0}d · actual {overall.actualTimelineDays ?? 0}d
+          </p>
         </div>
         <div className="creator-glass-panel p-3">
           <p className="text-[11px] text-slate-400">Remaining scenes</p>
@@ -1450,11 +1514,12 @@ function ShootProgress({ projectId, title }: { projectId?: string; title: string
               <div key={d.shootDayId} className="rounded-lg border border-slate-800 bg-slate-900/60 p-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-sm text-white">
-                    {new Date(d.date).toLocaleDateString()} Â· {d.status}
+                    {new Date(d.date).toLocaleDateString()} · {d.status}
                     {d.behindSchedule ? <span className="ml-2 text-red-300">Behind schedule</span> : null}
                   </p>
                   <p className="text-xs text-slate-400">
-                    {d.scenesCompleted}/{d.totalScenesScheduled} scenes Â· {d.completionPercent}% Â· delay {d.delayMinutes}m
+                    {d.scenesCompleted}/{d.totalScenesScheduled} scenes · {d.completionPercent}% · delay{" "}
+                    {d.delayMinutes}m
                   </p>
                 </div>
                 <div className="mt-1 h-1.5 rounded-full bg-slate-800 overflow-hidden">
@@ -1480,7 +1545,7 @@ function ShootProgress({ projectId, title }: { projectId?: string; title: string
                 return (
                   <div key={`timeline-${d.shootDayId}`} className="rounded-lg border border-slate-800 bg-slate-900/60 p-2">
                     <p className="text-[11px] text-slate-300 mb-1">
-                      {new Date(d.date).toLocaleDateString()} Â· {d.status} Â· {d.completionPercent}%
+                      {new Date(d.date).toLocaleDateString()} · {d.status} · {d.completionPercent}%
                     </p>
                     <div className="flex flex-wrap gap-1">
                       {dayScenes.map((s) => (
@@ -1496,7 +1561,7 @@ function ShootProgress({ projectId, title }: { projectId?: string; title: string
                                   : "bg-slate-700/40 text-slate-300"
                           }`}
                         >
-                          S{s.sceneNumber} Â· {s.completionPercent}%
+                          S{s.sceneNumber} · {s.completionPercent}%
                         </span>
                       ))}
                       {dayScenes.length === 0 && <span className="text-[10px] text-slate-500">No scenes linked</span>}
@@ -1517,8 +1582,11 @@ function ShootProgress({ projectId, title }: { projectId?: string; title: string
             className="h-9 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white"
           >
             <option value="">All shoot days</option>
+            <option value="unscheduled">Unscheduled scenes</option>
             {days.map((d) => (
-              <option key={d.shootDayId} value={d.shootDayId}>{new Date(d.date).toLocaleDateString()} Â· {d.status}</option>
+              <option key={d.shootDayId} value={d.shootDayId}>
+                {new Date(d.date).toLocaleDateString()} · {d.status}
+              </option>
             ))}
           </select>
           <select
@@ -1532,7 +1600,9 @@ function ShootProgress({ projectId, title }: { projectId?: string; title: string
             ))}
           </select>
         </div>
-        <p className="text-xs text-slate-400 uppercase tracking-wide">Scene-level progress and manual on-set input</p>
+        <p className="text-xs text-slate-400 uppercase tracking-wide">
+          All project scenes — manual on-set input, cast, continuity, and dailies
+        </p>
         {isLoading ? (
           <Skeleton className="h-24 bg-slate-800/60" />
         ) : (
@@ -1540,9 +1610,18 @@ function ShootProgress({ projectId, title }: { projectId?: string; title: string
             {filteredScenes.map((s) => (
               <div key={s.shootDaySceneId} className="rounded-lg border border-slate-800 bg-slate-900/60 p-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm text-white">Scene {s.sceneNumber}{s.heading ? ` Â· ${s.heading}` : ""}</p>
+                  <p className="text-sm text-white">
+                    Scene {s.sceneNumber}
+                    {s.heading ? ` · ${s.heading}` : ""}
+                    {!s.scheduled ? (
+                      <span className="ml-2 rounded-full bg-slate-700/50 px-2 py-0.5 text-[10px] text-slate-300">
+                        Unscheduled
+                      </span>
+                    ) : null}
+                  </p>
                   <p className="text-xs text-slate-400">
-                    {s.status.replaceAll("_", " ")} Â· {s.completionPercent}% Â· est {s.estimatedDurationMinutes}m / act {s.actualDurationMinutes ?? "â€”"}m
+                    {s.status.replaceAll("_", " ")} · {s.completionPercent}% · est {s.estimatedDurationMinutes}m / act{" "}
+                    {s.actualDurationMinutes ?? "—"}m
                   </p>
                 </div>
                 <div className="mt-1 h-1.5 rounded-full bg-slate-800 overflow-hidden">
@@ -1560,9 +1639,42 @@ function ShootProgress({ projectId, title }: { projectId?: string; title: string
                   />
                 </div>
                 <p className="mt-1 text-[11px] text-slate-500">
-                  Task progress {s.taskProgressPercent ?? "â€”"}% Â· Equipment ready {s.equipmentReadyPercent ?? "â€”"}% Â· incidents {s.relatedIncidentCount}
-                  {s.hasBlockers ? " Â· blockers active" : ""}
+                  Cast:{" "}
+                  {(s.cast ?? []).length > 0
+                    ? (s.cast ?? []).map((c) => c.character).join(", ")
+                    : "—"}{" "}
+                  · Continuity notes {s.continuityNoteCount ?? 0} · Dailies {s.dailiesClipCount ?? 0}
+                  {(s.dailiesStillCount ?? 0) > 0 || (s.dailiesVideoCount ?? 0) > 0
+                    ? ` (${s.dailiesVideoCount ?? 0} video / ${s.dailiesStillCount ?? 0} still)`
+                    : ""}{" "}
+                  · Tasks {s.taskProgressPercent ?? "—"}% · Equipment {s.equipmentReadyPercent ?? "—"}% · incidents{" "}
+                  {s.relatedIncidentCount}
+                  {s.hasBlockers ? " · blockers active" : ""}
                 </p>
+                {projectId ? (
+                  <div className="mt-1 flex flex-wrap gap-2 text-[10px]">
+                    <Link
+                      href={`/creator/projects/${projectId}/production/continuity-manager`}
+                      className="text-orange-300/90 hover:text-orange-200"
+                    >
+                      Continuity →
+                    </Link>
+                    <Link
+                      href={`/creator/projects/${projectId}/production/dailies-review`}
+                      className="text-orange-300/90 hover:text-orange-200"
+                    >
+                      Dailies →
+                    </Link>
+                    {!s.scheduled ? (
+                      <Link
+                        href={`/creator/projects/${projectId}/pre-production/production-scheduling`}
+                        className="text-orange-300/90 hover:text-orange-200"
+                      >
+                        Schedule this scene →
+                      </Link>
+                    ) : null}
+                  </div>
+                ) : null}
                 <div className="mt-2 grid gap-1 md:grid-cols-[130px_80px_1fr_1fr_1fr_auto]">
                   <select
                     defaultValue={s.status}

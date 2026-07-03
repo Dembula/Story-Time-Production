@@ -4,6 +4,7 @@ import { StoryTimeLoader, StoryTimeLoadingCenter } from "@/components/ui/storyti
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { User, Save, ArrowLeft } from "lucide-react";
+import { AccountPrivacyControls } from "@/components/account/account-privacy-controls";
 
 export function CompanyAccountClient({
   backHref,
@@ -112,6 +113,13 @@ export function CompanyAccountClient({
           <Save className="w-4 h-4" /> {saving ? "Saving..." : "Save changes"}
         </button>
       </form>
+
+      <AccountPrivacyControls
+        variant="marketplace"
+        className="mt-8"
+        onError={setError}
+        onSuccess={setSuccess}
+      />
     </div>
   );
 }

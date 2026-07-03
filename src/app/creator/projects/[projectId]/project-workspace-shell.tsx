@@ -1,12 +1,14 @@
 "use client";
 
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useMemo } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
 import {
   ProjectContextBar,
 } from "@/components/creator/project-context-bar";
 import { resolveStandaloneFromProjectPath } from "@/lib/project-tools";
+import { setActiveProjectId, sortProjectsWithActiveFirst } from "@/lib/active-project";
+import { useActiveProjectId } from "@/hooks/use-active-project";
 
 type OriginalProject = {
   id: string;
@@ -30,9 +32,21 @@ export function ProjectWorkspaceShell({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const activeProjectId = useActiveProjectId();
   const currentProjectPrefix = `/creator/projects/${project.id}`;
 
+  // Visiting a project workspace makes it the platform default selection.
+  useEffect(() => {
+    setActiveProjectId(project.id);
+  }, [project.id]);
+
+  const orderedProjects = useMemo(
+    () => sortProjectsWithActiveFirst(switchableProjects, activeProjectId ?? project.id),
+    [switchableProjects, activeProjectId, project.id],
+  );
+
   const handleSwitchProject = (nextProjectId: string) => {
+    setActiveProjectId(nextProjectId);
     const nextProjectPrefix = `/creator/projects/${nextProjectId}`;
     const nextPath = pathname.startsWith(currentProjectPrefix)
       ? pathname.replace(currentProjectPrefix, nextProjectPrefix)
@@ -42,6 +56,7 @@ export function ProjectWorkspaceShell({
   };
 
   const handleClearProject = () => {
+    setActiveProjectId(null);
     router.push(resolveStandaloneFromProjectPath(pathname));
   };
 
@@ -51,7 +66,7 @@ export function ProjectWorkspaceShell({
     >
       <ProjectContextBar
         projectId={project.id}
-        switchableProjects={switchableProjects}
+        switchableProjects={orderedProjects}
         isOriginal={project.isOriginal}
         adminNote={project.adminNote}
         onSwitchProject={handleSwitchProject}

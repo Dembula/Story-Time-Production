@@ -51,6 +51,7 @@ export async function PATCH(
       summary?: string | null;
       heading?: string | null;
       breakdownAnalysis?: Record<string, unknown> | null;
+      primaryLocationId?: string | null;
     }>;
   } | null;
 
@@ -74,6 +75,21 @@ export async function PATCH(
     if ("summary" in s) data.summary = s.summary;
     if ("heading" in s) data.heading = s.heading;
     if ("breakdownAnalysis" in s) data.breakdownAnalysis = s.breakdownAnalysis;
+    if ("primaryLocationId" in s) {
+      if (s.primaryLocationId) {
+        const loc = await prisma.breakdownLocation.findFirst({
+          where: { id: s.primaryLocationId, projectId },
+          select: { id: true },
+        });
+        if (!loc) {
+          return NextResponse.json(
+            { error: `Location not found: ${s.primaryLocationId}` },
+            { status: 404 },
+          );
+        }
+      }
+      data.primaryLocationId = s.primaryLocationId;
+    }
     if (Object.keys(data).length > 0) {
       await prisma.projectScene.update({ where: { id: s.id }, data: data as any });
     }

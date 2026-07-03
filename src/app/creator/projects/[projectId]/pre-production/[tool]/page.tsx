@@ -14,6 +14,7 @@ import { ModocFieldPopover } from "@/components/modoc";
 import { ModocBreakdownIncorporateBar } from "@/components/modoc/modoc-breakdown-incorporate-bar";
 import { useModocToolRefresh } from "@/components/modoc/use-modoc-tool-refresh";
 import { queryKeysForProjectTool } from "@/lib/modoc/project-tool-query-keys";
+import { invalidateProjectPipeline } from "@/lib/project-pipeline-invalidation";
 import { parseScenesFromScreenplay } from "@/lib/scene-parser";
 import { parseSluglineMeta } from "@/lib/slugline-meta";
 import { VisualPlanningCatalogue } from "@/components/creator/visual-planning-catalogue";
@@ -890,7 +891,7 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
           ? `Synced ${result.count} scene${result.count === 1 ? "" : "s"} from your project screenplay.`
           : "Scenes are up to date with the screenplay.",
       );
-      void queryClient.invalidateQueries({ queryKey: ["project-scenes", projectId] });
+      invalidateProjectPipeline(queryClient, projectId, ["scenes"]);
     },
     onError: (error) => {
       setSceneSyncMessage((error as Error).message);
@@ -963,9 +964,7 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
     },
     onSuccess: (out) => {
       setSceneEdits({});
-      void queryClient.invalidateQueries({ queryKey: ["project-scenes", projectId] });
-      void queryClient.invalidateQueries({ queryKey: ["project-breakdown", projectId] });
-      void queryClient.invalidateQueries({ queryKey: ["project-breakdown-intelligence", projectId] });
+      invalidateProjectPipeline(queryClient, projectId, ["breakdown", "casting"]);
       const w = (out.warnings ?? []).filter(Boolean);
       setAiPopulateMessage(
         w.length > 0 ? `Done. Notes: ${w.slice(0, 6).join(" · ")}${w.length > 6 ? "…" : ""}` : "AI breakdown applied.",
@@ -1122,8 +1121,7 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
     },
     onSettled: () => {
       setSaving(false);
-      void queryClient.invalidateQueries({ queryKey: ["project-breakdown", projectId] });
-      void queryClient.invalidateQueries({ queryKey: ["project-breakdown-intelligence", projectId] });
+      invalidateProjectPipeline(queryClient, projectId, ["breakdown"]);
     },
   });
 
@@ -3078,6 +3076,13 @@ type ScheduleResponse = {
     message: string;
     dayIds: string[];
   }[];
+  castingRoles?: {
+    id: string;
+    name: string;
+    status?: string | null;
+    breakdownCharacterId?: string | null;
+    actorName?: string | null;
+  }[];
   contractGate?: {
     totalContracts: number;
     signedContracts: number;
@@ -3352,16 +3357,41 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
   const [scheduleMessage, setScheduleMessage] = useState("");
   const [scenePickerIds, setScenePickerIds] = useState<string[]>([]);
 
-  useEffect(() => {
-    if (data && !draftDays) {
-      const copy = JSON.parse(JSON.stringify(data.shootDays)) as ScheduleResponse["shootDays"];
+  const applySchedulePayload = useCallback(
+    (payload: ScheduleResponse, selectDayId?: string | null) => {
+      const copy = JSON.parse(JSON.stringify(payload.shootDays)) as ScheduleResponse["shootDays"];
       setDraftDays(copy);
-      setSavedSchedule(JSON.parse(JSON.stringify(data.shootDays)) as ScheduleResponse["shootDays"]);
-      if (!selectedDayId && data.shootDays.length > 0) {
-        setSelectedDayId(data.shootDays[0].id);
+      setSavedSchedule(JSON.parse(JSON.stringify(payload.shootDays)) as ScheduleResponse["shootDays"]);
+      queryClient.setQueryData(["project-schedule", projectId], payload);
+      if (selectDayId) {
+        setSelectedDayId(selectDayId);
+      } else {
+        setSelectedDayId((prev) => {
+          if (prev && copy.some((d) => d.id === prev)) return prev;
+          return copy[copy.length - 1]?.id ?? copy[0]?.id ?? null;
+        });
       }
-    }
-  }, [data, draftDays, selectedDayId]);
+    },
+    [projectId, queryClient],
+  );
+
+  const scheduleDirty =
+    !!draftDays &&
+    !!savedSchedule &&
+    scheduleFingerprint(draftDays) !== scheduleFingerprint(savedSchedule);
+
+  // Keep local schedule draft in sync with server unless the user has unsaved edits.
+  useEffect(() => {
+    if (!data) return;
+    if (scheduleDirty) return;
+    const copy = JSON.parse(JSON.stringify(data.shootDays)) as ScheduleResponse["shootDays"];
+    setDraftDays(copy);
+    setSavedSchedule(JSON.parse(JSON.stringify(data.shootDays)) as ScheduleResponse["shootDays"]);
+    setSelectedDayId((prev) => {
+      if (prev && copy.some((d) => d.id === prev)) return prev;
+      return copy[0]?.id ?? null;
+    });
+  }, [data, scheduleDirty]);
 
   const selectedDay =
     draftDays?.find((d) => d.id === selectedDayId) ?? draftDays?.[0] ?? null;
@@ -3401,16 +3431,18 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
   const createDayMutation = useMutation({
     mutationFn: async () => {
       const today = new Date();
-      return projectToolFetch(`/api/creator/projects/${projectId}/schedule`, {
+      return projectToolFetch<ScheduleResponse>(`/api/creator/projects/${projectId}/schedule`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ date: today.toISOString() }),
       });
     },
     onMutate: () => setScheduleMessage(""),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["project-schedule", projectId] });
-      setDraftDays(null);
+    onSuccess: (payload) => {
+      const newestId = payload.shootDays[payload.shootDays.length - 1]?.id ?? null;
+      applySchedulePayload(payload, newestId);
+      setScheduleMessage("Shoot day added.");
+      invalidateProjectPipeline(queryClient, projectId, ["scheduleDownstream"]);
     },
     onError: (err) => {
       setScheduleMessage(mutationErrorMessage(err, "Could not create shoot day. Try again."));
@@ -3421,7 +3453,7 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
     mutationFn: async (sourceDayId: string) => {
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
-      const res = await fetch(`/api/creator/projects/${projectId}/schedule`, {
+      return projectToolFetch<ScheduleResponse>(`/api/creator/projects/${projectId}/schedule`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -3429,49 +3461,33 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
           date: tomorrow.toISOString(),
         }),
       });
-      if (!res.ok) throw new Error("Failed to duplicate shoot day");
-      return res.json() as Promise<ScheduleResponse>;
     },
     onSuccess: (fresh) => {
-      queryClient.setQueryData(["project-schedule", projectId], fresh);
-      const next = JSON.parse(JSON.stringify(fresh.shootDays)) as ScheduleResponse["shootDays"];
-      setDraftDays(next);
-      setSavedSchedule(JSON.parse(JSON.stringify(fresh.shootDays)) as ScheduleResponse["shootDays"]);
-      setSelectedDayId(next[next.length - 1]?.id ?? null);
+      const newestId = fresh.shootDays[fresh.shootDays.length - 1]?.id ?? null;
+      applySchedulePayload(fresh, newestId);
+      setScheduleMessage("Shoot day duplicated.");
+      invalidateProjectPipeline(queryClient, projectId, ["scheduleDownstream"]);
     },
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ["project-schedule", projectId] });
+    onError: (err) => {
+      setScheduleMessage(mutationErrorMessage(err, "Could not duplicate shoot day."));
     },
   });
 
   const saveMutation = useMutation({
     mutationFn: async (payload: { days: any[] }) => {
-      const res = await fetch(`/api/creator/projects/${projectId}/schedule`, {
+      return projectToolFetch<ScheduleResponse>(`/api/creator/projects/${projectId}/schedule`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const json = (await res.json().catch(() => ({}))) as ScheduleResponse & { error?: string };
-      if (!res.ok) {
-        throw new Error(
-          json?.error ||
-            "Failed to save schedule",
-        );
-      }
-      return json;
     },
     onSuccess: (fresh) => {
-      queryClient.setQueryData(["project-schedule", projectId], fresh);
-      const next = JSON.parse(JSON.stringify(fresh.shootDays)) as ScheduleResponse["shootDays"];
-      setDraftDays(next);
-      setSavedSchedule(JSON.parse(JSON.stringify(fresh.shootDays)) as ScheduleResponse["shootDays"]);
+      applySchedulePayload(fresh, selectedDayId);
       setScheduleMessage("Schedule saved.");
+      invalidateProjectPipeline(queryClient, projectId, ["scheduleDownstream"]);
     },
     onError: (error) => {
       setScheduleMessage((error as Error).message);
-    },
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ["project-schedule", projectId] });
     },
   });
   const createCallSheetMutation = useMutation({
@@ -3508,30 +3524,21 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
 
   const deleteDayMutation = useMutation({
     mutationFn: async (dayId: string) => {
-      const res = await fetch(
+      return projectToolFetch<ScheduleResponse>(
         `/api/creator/projects/${projectId}/schedule?dayId=${encodeURIComponent(dayId)}`,
         { method: "DELETE" },
       );
-      if (!res.ok) throw new Error("Failed to delete shoot day");
-      return res.json() as Promise<ScheduleResponse>;
     },
     onSuccess: (fresh) => {
-      queryClient.setQueryData(["project-schedule", projectId], fresh);
-      const next = JSON.parse(JSON.stringify(fresh.shootDays)) as ScheduleResponse["shootDays"];
-      setDraftDays(next);
-      setSavedSchedule(JSON.parse(JSON.stringify(fresh.shootDays)) as ScheduleResponse["shootDays"]);
-      setSelectedDayId(next[0]?.id ?? null);
+      applySchedulePayload(fresh, fresh.shootDays[0]?.id ?? null);
       setExpandedSceneRowId(null);
+      setScheduleMessage("Shoot day deleted.");
+      invalidateProjectPipeline(queryClient, projectId, ["scheduleDownstream"]);
     },
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ["project-schedule", projectId] });
+    onError: (err) => {
+      setScheduleMessage(mutationErrorMessage(err, "Could not delete shoot day."));
     },
   });
-
-  const scheduleDirty =
-    !!draftDays &&
-    !!savedSchedule &&
-    scheduleFingerprint(draftDays) !== scheduleFingerprint(savedSchedule);
 
   const draftPipelinePreview = useMemo(() => {
     if (!selectedDay) return null;
@@ -3545,6 +3552,7 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
       sceneLinks,
       crewNeeds: data?.crewNeeds,
       equipmentItems: data?.equipmentItems,
+      castingRoles: data?.castingRoles,
     });
   }, [selectedDay, data]);
 
@@ -4794,8 +4802,7 @@ function CastingPortalWorkspace({
     },
     onSuccess: () => {
       setPortalMessage("Role and salary saved.");
-      queryClient.invalidateQueries({ queryKey: ["project-casting", projectId] });
-      queryClient.invalidateQueries({ queryKey: ["project-budget", projectId] });
+      invalidateProjectPipeline(queryClient, projectId, ["casting"]);
     },
   });
   const confirmHireMutation = useMutation({
@@ -4819,7 +4826,7 @@ function CastingPortalWorkspace({
       setPortalMessage(
         `Hire confirmed. Contract draft created and acquisition fee paid (${formatZar(CASTING_ACQUISITION_FEE_ZAR)}).`,
       );
-      queryClient.invalidateQueries({ queryKey: ["project-casting", projectId] });
+      invalidateProjectPipeline(queryClient, projectId, ["casting", "contracts"]);
       queryClient.invalidateQueries({ queryKey: ["project-casting-invitations", projectId] });
     },
   });
@@ -4923,7 +4930,7 @@ function CastingPortalWorkspace({
                 method: "POST",
               });
               if (res.ok) {
-                queryClient.invalidateQueries({ queryKey: ["project-casting", projectId] });
+                invalidateProjectPipeline(queryClient, projectId, ["casting"]);
               } else {
                 const data = await res.json().catch(() => null);
                 alert(data?.error || "Could not sync from Script Breakdown. Make sure you have characters saved.");
@@ -5887,6 +5894,12 @@ function LocationMarketplaceWorkspace({
   const [bookingCrewSize, setBookingCrewSize] = useState("");
   const [bookingNote, setBookingNote] = useState("");
   const [portalMessage, setPortalMessage] = useState("");
+  const [ownLocationName, setOwnLocationName] = useState("");
+  const [ownLocationAddress, setOwnLocationAddress] = useState("");
+  const [ownLocationCity, setOwnLocationCity] = useState("");
+  const [ownLocationNotes, setOwnLocationNotes] = useState("");
+  const [ownLocationSceneIds, setOwnLocationSceneIds] = useState<string[]>([]);
+  const [ownLocationSetPrimary, setOwnLocationSetPrimary] = useState(true);
 
   const listingQueryUrl = useMemo(() => {
     const params = new URLSearchParams();
@@ -5904,6 +5917,11 @@ function LocationMarketplaceWorkspace({
     queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/breakdown`),
     enabled: hasProject,
   });
+  const { data: scenesData } = useQuery({
+    queryKey: ["project-scenes", projectId],
+    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/scenes`),
+    enabled: hasProject,
+  });
   const { data: listingsData, isLoading: isListingsLoading } = useQuery({
     queryKey: ["locations-directory", listingQueryUrl],
     queryFn: projectToolQueryFn(listingQueryUrl),
@@ -5914,6 +5932,17 @@ function LocationMarketplaceWorkspace({
     queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/schedule`),
     enabled: hasProject,
   });
+  const projectScenes = useMemo(
+    () =>
+      ((scenesData?.scenes ?? []) as Array<{
+        id: string;
+        number: string;
+        heading: string | null;
+      }>).slice().sort((a, b) =>
+        a.number.localeCompare(b.number, undefined, { numeric: true, sensitivity: "base" }),
+      ),
+    [scenesData?.scenes],
+  );
   const locations = useMemo(
     () =>
       ((breakdown?.locations ?? []) as Array<{
@@ -5924,6 +5953,10 @@ function LocationMarketplaceWorkspace({
         locationListingId?: string | null;
       }>),
     [breakdown?.locations],
+  );
+  const sceneLabelById = useMemo(
+    () => new Map(projectScenes.map((s) => [s.id, `Sc. ${s.number}${s.heading ? ` · ${s.heading}` : ""}`])),
+    [projectScenes],
   );
   const listings = (listingsData ?? []) as Array<{
     id: string;
@@ -5978,7 +6011,7 @@ function LocationMarketplaceWorkspace({
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["project-breakdown", projectId] });
+      invalidateProjectPipeline(queryClient, projectId, ["locations"]);
       setPortalMessage("Marketplace location linked to breakdown.");
     },
   });
@@ -6005,6 +6038,95 @@ function LocationMarketplaceWorkspace({
     onSuccess: () => setPortalMessage("Location booking request sent."),
   });
 
+  const createOwnLocationMutation = useMutation({
+    mutationFn: async () => {
+      if (!hasProject || !projectId) throw new Error("Link a project first");
+      const name = ownLocationName.trim();
+      if (!name) throw new Error("Location name is required");
+
+      const detailParts = [
+        ownLocationAddress.trim() ? `Address: ${ownLocationAddress.trim()}` : "",
+        ownLocationCity.trim() ? `City: ${ownLocationCity.trim()}` : "",
+        ownLocationNotes.trim() || "",
+        "Source: Creator-owned location (not marketplace)",
+      ].filter(Boolean);
+      const description = detailParts.join("\n") || null;
+
+      const sceneIds =
+        ownLocationSceneIds.length > 0 ? ownLocationSceneIds : [null as string | null];
+
+      const payloadLocations = sceneIds.map((sceneId) => ({
+        name,
+        description,
+        sceneId,
+        locationListingId: null,
+      }));
+
+      const res = await fetch(`/api/creator/projects/${projectId}/breakdown`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ locations: payloadLocations }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.error || "Failed to save your location");
+      }
+
+      // Reload locations to get created ids, then optionally set primary on scenes.
+      const refreshed = await fetch(`/api/creator/projects/${projectId}/breakdown`).then((r) =>
+        r.json(),
+      );
+      const created = ((refreshed?.locations ?? []) as Array<{
+        id: string;
+        name: string;
+        sceneId?: string | null;
+        description?: string | null;
+      }>)
+        .filter((l) => l.name.trim().toLowerCase() === name.toLowerCase())
+        .filter((l) => (l.description ?? "").includes("Creator-owned location"));
+
+      if (ownLocationSetPrimary && ownLocationSceneIds.length > 0) {
+        const sceneUpdates = ownLocationSceneIds
+          .map((sceneId) => {
+            const match =
+              created.find((l) => l.sceneId === sceneId) ??
+              created.find((l) => !l.sceneId);
+            if (!match) return null;
+            return { id: sceneId, primaryLocationId: match.id };
+          })
+          .filter(Boolean) as Array<{ id: string; primaryLocationId: string }>;
+
+        if (sceneUpdates.length > 0) {
+          const sceneRes = await fetch(`/api/creator/projects/${projectId}/scenes`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ scenes: sceneUpdates }),
+          });
+          if (!sceneRes.ok) {
+            const err = await sceneRes.json().catch(() => null);
+            throw new Error(err?.error || "Location saved, but could not set primary scene location");
+          }
+        }
+      }
+
+      return { createdCount: payloadLocations.length };
+    },
+    onSuccess: (result) => {
+      invalidateProjectPipeline(queryClient, projectId, ["locations", "scenes"]);
+      setOwnLocationName("");
+      setOwnLocationAddress("");
+      setOwnLocationCity("");
+      setOwnLocationNotes("");
+      setOwnLocationSceneIds([]);
+      setPortalMessage(
+        `Saved ${result.createdCount} creator-owned location link${result.createdCount === 1 ? "" : "s"} to this project.`,
+      );
+    },
+    onError: (err) => {
+      setPortalMessage((err as Error).message || "Could not save your location.");
+    },
+  });
+
   useEffect(() => {
     if (!selectedBreakdownLocationId && locations.length > 0) {
       setSelectedBreakdownLocationId(locations[0].id);
@@ -6021,40 +6143,199 @@ function LocationMarketplaceWorkspace({
             </p>
             <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
             <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
-              Run location discovery, assignment, booking requests, and logistics checks from one robust workspace.
+              Add your own places, link marketplace venues, and attach locations to the project scenes that need them.
             </p>
-          </div>
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            
           </div>
         </div>
       </header>
-      
+
       {portalMessage && (
         <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
           {portalMessage}
         </p>
       )}
+
       <div className="creator-glass-panel p-4 space-y-4">
-        <h3 className="text-sm font-semibold text-white">Required locations from script breakdown</h3>
+        <div>
+          <h3 className="text-sm font-semibold text-white">Add your own location</h3>
+          <p className="mt-1 text-xs text-slate-400">
+            Not using the marketplace? Save a place you already have (home, office, private venue) and link it to the
+            project scenes that need it.
+          </p>
+        </div>
+        {!hasProject ? (
+          <p className="text-xs text-amber-200/90">Link a project above to save your own locations.</p>
+        ) : (
+          <div className="space-y-3">
+            <div className="grid gap-2 md:grid-cols-2">
+              <label className="space-y-1">
+                <span className="text-[10px] uppercase tracking-wide text-slate-500">Location name *</span>
+                <Input
+                  value={ownLocationName}
+                  onChange={(e) => setOwnLocationName(e.target.value)}
+                  placeholder="e.g. My apartment, Family farm, Studio warehouse"
+                  className="bg-slate-900 border-slate-700 text-xs"
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="text-[10px] uppercase tracking-wide text-slate-500">City / area</span>
+                <Input
+                  value={ownLocationCity}
+                  onChange={(e) => setOwnLocationCity(e.target.value)}
+                  placeholder="e.g. Durban, Cape Town"
+                  className="bg-slate-900 border-slate-700 text-xs"
+                />
+              </label>
+              <label className="space-y-1 md:col-span-2">
+                <span className="text-[10px] uppercase tracking-wide text-slate-500">Address</span>
+                <Input
+                  value={ownLocationAddress}
+                  onChange={(e) => setOwnLocationAddress(e.target.value)}
+                  placeholder="Street address or directions"
+                  className="bg-slate-900 border-slate-700 text-xs"
+                />
+              </label>
+              <label className="space-y-1 md:col-span-2">
+                <span className="text-[10px] uppercase tracking-wide text-slate-500">Notes / logistics</span>
+                <Input
+                  value={ownLocationNotes}
+                  onChange={(e) => setOwnLocationNotes(e.target.value)}
+                  placeholder="Parking, access hours, power, restrictions…"
+                  className="bg-slate-900 border-slate-700 text-xs"
+                />
+              </label>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-[10px] uppercase tracking-wide text-slate-500">
+                Link to scenes (optional — leave empty for project-wide)
+              </p>
+              {projectScenes.length === 0 ? (
+                <p className="text-[11px] text-slate-500">
+                  No scenes yet. Sync scenes from Script Writing / Breakdown first to attach this location to specific
+                  scenes.
+                </p>
+              ) : (
+                <div className="max-h-40 overflow-y-auto rounded-lg border border-slate-800 bg-slate-950/50 p-2 space-y-1">
+                  {projectScenes.map((scene) => {
+                    const checked = ownLocationSceneIds.includes(scene.id);
+                    return (
+                      <label
+                        key={scene.id}
+                        className="flex items-start gap-2 rounded-md px-2 py-1.5 text-xs text-slate-300 hover:bg-slate-900/80"
+                      >
+                        <input
+                          type="checkbox"
+                          className="mt-0.5"
+                          checked={checked}
+                          onChange={(e) => {
+                            setOwnLocationSceneIds((prev) =>
+                              e.target.checked
+                                ? [...prev, scene.id]
+                                : prev.filter((id) => id !== scene.id),
+                            );
+                          }}
+                        />
+                        <span>
+                          Sc. {scene.number}
+                          {scene.heading ? ` · ${scene.heading}` : ""}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+              <label className="flex items-center gap-2 text-[11px] text-slate-400">
+                <input
+                  type="checkbox"
+                  checked={ownLocationSetPrimary}
+                  onChange={(e) => setOwnLocationSetPrimary(e.target.checked)}
+                />
+                Set as primary location on selected scenes (used in schedule / call sheets)
+              </label>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                className="bg-orange-500 hover:bg-orange-600 text-white text-xs"
+                disabled={!ownLocationName.trim() || createOwnLocationMutation.isPending}
+                onClick={() => createOwnLocationMutation.mutate()}
+              >
+                {createOwnLocationMutation.isPending ? "Saving…" : "Save my location to project"}
+              </Button>
+              {ownLocationSceneIds.length > 0 ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="border-slate-700 text-xs text-slate-300"
+                  onClick={() => setOwnLocationSceneIds([])}
+                >
+                  Clear scene selection
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="creator-glass-panel p-4 space-y-4">
+        <h3 className="text-sm font-semibold text-white">Project locations</h3>
+        <p className="text-xs text-slate-400">
+          Locations from your script breakdown and any places you added yourself. Link marketplace listings only when you
+          need an external venue.
+        </p>
         {locations.length === 0 ? (
           <p className="text-xs text-slate-500 p-4">
-            {!hasProject ? "Link a project above to see locations from Script Breakdown." : "Add locations in Script Breakdown first."}
+            {!hasProject
+              ? "Link a project above to manage locations."
+              : "No locations yet. Add your own above, or create them in Script Breakdown."}
           </p>
         ) : (
           <div className="space-y-2">
             {locations.map((loc) => {
               const linked = listings.find((l) => l.id === loc.locationListingId);
-              const usageCount = shootDays.filter((d) => (d.locationSummary ?? "").toLowerCase().includes(loc.name.toLowerCase())).length;
+              const isOwn = !loc.locationListingId;
+              const usageCount = shootDays.filter((d) =>
+                (d.locationSummary ?? "").toLowerCase().includes(loc.name.toLowerCase()),
+              ).length;
+              const sceneLabel = loc.sceneId ? sceneLabelById.get(loc.sceneId) : null;
               return (
-                <div key={loc.id} className="rounded-xl bg-slate-900/80 border border-slate-800 px-3 py-2.5 text-sm space-y-1.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-white font-medium">{loc.name}</span>
-                    <span className="text-[11px] text-slate-500">{usageCount} shoot day(s) currently referencing this location</span>
+                <div
+                  key={loc.id}
+                  className="rounded-xl bg-slate-900/80 border border-slate-800 px-3 py-2.5 text-sm space-y-1.5"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-2 min-w-0">
+                      <span className="text-white font-medium">{loc.name}</span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                          isOwn
+                            ? "bg-cyan-500/15 text-cyan-200 border border-cyan-500/30"
+                            : "bg-orange-500/15 text-orange-200 border border-orange-500/30"
+                        }`}
+                      >
+                        {isOwn ? "Your location" : "Marketplace"}
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-slate-500">
+                      {usageCount} shoot day(s) currently referencing this location
+                    </span>
                   </div>
-                  <p className="text-xs text-slate-400">{loc.description || "No description provided."}</p>
+                  <p className="text-xs text-slate-400 whitespace-pre-wrap">
+                    {loc.description || "No description provided."}
+                  </p>
                   <p className="text-[11px] text-slate-500">
-                    Linked marketplace listing: {linked ? `${linked.name} (${linked.city ?? "Unknown city"})` : "Not linked"}
+                    Scene: {sceneLabel ?? "Project-wide (not scene-specific)"}
+                  </p>
+                  <p className="text-[11px] text-slate-500">
+                    {linked
+                      ? `Linked marketplace listing: ${linked.name} (${linked.city ?? "Unknown city"})`
+                      : isOwn
+                        ? "Creator-owned — no marketplace listing required"
+                        : "Not linked to a marketplace listing"}
                   </p>
                 </div>
               );

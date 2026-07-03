@@ -323,6 +323,21 @@ export async function buildProductionDataEngine(
       .filter((role: any) => role.breakdownCharacterId)
       .map((role: any) => [role.breakdownCharacterId!, role]),
   );
+  const castRoleByName = new Map(
+    project.castingRoles.map((role: any) => [String(role.name ?? "").trim().toLowerCase(), role]),
+  );
+
+  // Map character name -> all breakdown character rows (one per scene).
+  const breakdownCharsByName = new Map<string, any[]>();
+  for (const scene of scenes) {
+    for (const ch of scene.breakdownCharacters as any[]) {
+      const key = String(ch.name ?? "").trim().toLowerCase();
+      if (!key) continue;
+      const list = breakdownCharsByName.get(key) ?? [];
+      list.push({ ...ch, sceneId: scene.id, sceneNumber: scene.number });
+      breakdownCharsByName.set(key, list);
+    }
+  }
 
   const equipmentAvailability = new Map<string, number>();
   for (const item of project.equipmentPlanItems) {
@@ -348,23 +363,90 @@ export async function buildProductionDataEngine(
       })
       .filter((v: any): v is NonNullable<typeof v> => Boolean(v));
 
+    const daySceneIds = new Set(dayScenes.map((s: any) => s.sceneId));
+
     const castMap = new Map<string, ProductionDayRecord["castRequired"][number]>();
+
+    const addCastEntry = (role: any | null | undefined, characterName: string, characterId?: string) => {
+      const roleName = String(role?.name ?? characterName).trim();
+      const charName = String(characterName ?? roleName).trim();
+      if (!charName && !roleName) return;
+      const accepted = role?.invitations?.[0];
+      const actorFromRoster = castRoster.find((r: any) => {
+        const marker = role?.id ? `castingRoleId:${role.id}` : "";
+        return (
+          (marker && String(r.notes ?? "").includes(marker)) ||
+          (accepted?.talent?.name &&
+            r.name.toLowerCase() === String(accepted.talent.name).toLowerCase())
+        );
+      });
+      const displayName =
+        actorFromRoster?.name ??
+        accepted?.talent?.name ??
+        charName;
+      const key = role?.id ?? (characterId ? `character:${characterId}` : `character:${charName.toLowerCase()}`);
+      if (castMap.has(key)) return;
+      castMap.set(key, {
+        key,
+        name: displayName,
+        roleOrCharacter: roleName || charName,
+        callTime: day.callTime,
+        wrapTime: day.wrapTime,
+        contactInfo:
+          actorFromRoster?.contactEmail ??
+          accepted?.talent?.contactEmail ??
+          null,
+      });
+    };
+
+    // 1) Characters linked on the day's scenes via breakdown.
     for (const s of dayScenes) {
       for (const ch of s.source.breakdownCharacters as any[]) {
-        const role: any = castRoleByCharacterId.get(ch.id);
-        const accepted = role?.invitations?.[0];
-        const rosterMatch = castRoster.find((r: any) => r.name.toLowerCase() === (accepted?.talent?.name ?? "").toLowerCase());
-        const key = role?.id ?? `character:${ch.id}`;
-        if (!castMap.has(key)) {
-          castMap.set(key, {
-            key,
-            name: accepted?.talent?.name ?? ch.name,
-            roleOrCharacter: role?.name ?? ch.name,
-            callTime: day.callTime,
-            wrapTime: day.wrapTime,
-            contactInfo: rosterMatch?.contactEmail ?? accepted?.talent?.contactEmail ?? null,
-          });
-        }
+        const role: any =
+          castRoleByCharacterId.get(ch.id) ??
+          castRoleByName.get(String(ch.name ?? "").trim().toLowerCase());
+        addCastEntry(role, ch.name, ch.id);
+      }
+    }
+
+    // 2) Casting roles for characters that appear on this day's scenes (match by name or linked id).
+    const characterIdsOnDay = new Set(
+      dayScenes.flatMap((s: any) =>
+        (s.source.breakdownCharacters as any[]).map((ch) => ch.id),
+      ),
+    );
+    const characterNamesOnDay = new Set(
+      dayScenes.flatMap((s: any) =>
+        (s.source.breakdownCharacters as any[])
+          .map((ch) => String(ch.name ?? "").trim().toLowerCase())
+          .filter(Boolean),
+      ),
+    );
+
+    for (const role of project.castingRoles as any[]) {
+      const roleNameKey = String(role.name ?? "").trim().toLowerCase();
+      const linkedRows = roleNameKey ? breakdownCharsByName.get(roleNameKey) ?? [] : [];
+      const appearsOnDay =
+        (role.breakdownCharacterId && characterIdsOnDay.has(role.breakdownCharacterId)) ||
+        (roleNameKey && characterNamesOnDay.has(roleNameKey)) ||
+        linkedRows.some((row) => daySceneIds.has(row.sceneId));
+      if (appearsOnDay) {
+        addCastEntry(role, role.name, role.breakdownCharacterId ?? undefined);
+      }
+    }
+
+    // 3) Fallback: if scenes have no breakdown cast yet, still surface project casting roles
+    //    that are cast/assigned so shoot planning is not empty.
+    if (castMap.size === 0 && dayScenes.length > 0) {
+      for (const role of project.castingRoles as any[]) {
+        const hasActor =
+          role.status === "CAST" ||
+          (role.invitations?.length ?? 0) > 0 ||
+          castRoster.some((r: any) =>
+            String(r.notes ?? "").includes(`castingRoleId:${role.id}`),
+          );
+        if (!hasActor && !role.name) continue;
+        addCastEntry(role, role.name, role.breakdownCharacterId ?? undefined);
       }
     }
 

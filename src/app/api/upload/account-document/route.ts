@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { ALLOWED_CONTENT_MEDIA_MIME_TYPES, resolveContentTypeForUpload } from "@/lib/content-media-shared";
 import { getStorageConfig } from "@/lib/storage-config";
 import { prisma } from "@/lib/prisma";
+import { enforceUserRateLimit } from "@/lib/api-rate-limit";
 
 export const runtime = "nodejs";
 
@@ -59,6 +60,14 @@ export async function POST(request: NextRequest) {
     ) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+
+    const limited = enforceUserRateLimit({
+      key: "upload-account-doc",
+      userId,
+      maxAttempts: 30,
+      windowMs: 60 * 60 * 1000,
+    });
+    if (limited) return limited;
 
     const bucket = storage.bucket;
     if (!bucket || !storage.region) {
