@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { extractScreenplayFromFileBuffer } from "@/lib/ai-metadata/extract-script-document";
+import { persistScriptImport } from "@/lib/script-studio/script-import-service";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 async function ensureCreatorSession() {
   const session = await getServerSession(authOptions);
@@ -13,10 +14,11 @@ async function ensureCreatorSession() {
   if (!session || !userId || (role !== "CONTENT_CREATOR" && role !== "ADMIN")) {
     return {
       error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+      userId: null as string | null,
     };
   }
 
-  return { error: null as NextResponse | null };
+  return { error: null as NextResponse | null, userId };
 }
 
 export async function POST(req: NextRequest) {
@@ -29,18 +31,46 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing script file" }, { status: 400 });
   }
 
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const result = await extractScreenplayFromFileBuffer(buffer, file.name, file.type);
+  const scriptId = typeof form?.get("scriptId") === "string" ? form.get("scriptId")?.trim() || null : null;
+  const projectId = typeof form?.get("projectId") === "string" ? form.get("projectId")?.trim() || null : null;
 
-  if (result.error || !result.text.trim()) {
+  try {
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const result = await persistScriptImport({
+      userId: access.userId!,
+      buffer,
+      fileName: file.name || "screenplay",
+      mimeType: file.type || "",
+      scriptId,
+      projectId,
+    });
+
+    const { extraction } = result;
+    if (extraction.error || !extraction.text.trim()) {
+      return NextResponse.json(
+        {
+          error: extraction.error ?? "No readable screenplay text found in this file.",
+          importId: result.importId,
+          storageUrl: result.storageUrl,
+          sourceType: extraction.sourceType,
+          extractionMethod: extraction.extractionMethod,
+        },
+        { status: 422 },
+      );
+    }
+
+    return NextResponse.json({
+      text: extraction.text,
+      sourceType: extraction.sourceType,
+      extractionMethod: extraction.extractionMethod,
+      importId: result.importId,
+      storageUrl: result.storageUrl,
+    });
+  } catch (err) {
+    console.error("Script import failed:", err);
     return NextResponse.json(
-      { error: result.error ?? "No readable screenplay text found in this file." },
-      { status: 422 },
+      { error: err instanceof Error ? err.message : "Import failed" },
+      { status: 500 },
     );
   }
-
-  return NextResponse.json({
-    text: result.text,
-    sourceType: result.sourceType,
-  });
 }

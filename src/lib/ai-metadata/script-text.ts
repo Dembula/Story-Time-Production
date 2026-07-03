@@ -118,7 +118,7 @@ export async function extractScriptTextFromUrl(
     }
 
     const pdfText = await extractPdfTextFromBuffer(buffer);
-    if (!pdfText) {
+    if (!pdfText.text) {
       return {
         text: "",
         sourceType: "pdf",
@@ -126,7 +126,7 @@ export async function extractScriptTextFromUrl(
         error: "Could not extract readable text from PDF",
       };
     }
-    return { sourceType, ...normalizeExtractedText(pdfText) };
+    return { sourceType, ...normalizeExtractedText(pdfText.text) };
   } catch (err) {
     return {
       text: "",

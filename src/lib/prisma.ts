@@ -50,6 +50,7 @@ const REQUIRED_PRISMA_DELEGATES = [
   "knowledgeEdge",
   "aiRequestLog",
   "adminAuditLog",
+  "creatorScriptImport",
 ] as const;
 function prismaSingletonIsStale(client: unknown): boolean {
   if (typeof window !== "undefined") return false;

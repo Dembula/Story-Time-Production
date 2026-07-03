@@ -238,6 +238,7 @@ model User {
 
   // Creator-owned script and notes
   creatorScripts          CreatorScript[]
+  creatorScriptImports    CreatorScriptImport[]
   creatorScriptVersions   CreatorScriptVersion[]
   creatorScriptComments   CreatorScriptComment[]
   scriptReviewNotes       ScriptReviewNote[]
@@ -1111,6 +1112,7 @@ model OriginalProject {
   dailiesClips            DailiesClip[]
   scriptReviewNotes       ScriptReviewNote[]
   creatorScripts          CreatorScript[]
+  creatorScriptImports    CreatorScriptImport[]
   linkedCatalogueContent  Content[]
   shootDayControlBoards   ShootDayControlBoard[]
   investmentOpportunities InvestmentOpportunity[]
@@ -4389,6 +4391,7 @@ model CreatorScript {
 
   versions CreatorScriptVersion[]
   comments CreatorScriptComment[]
+  imports  CreatorScriptImport[]
 
   @@index([userId])
   @@index([projectId])
@@ -4428,6 +4431,33 @@ model CreatorScriptComment {
   @@index([scriptId])
   @@index([authorId])
   @@index([parentId])
+}
+
+/// Original uploaded screenplay files (PDF, DOCX, etc.) retained for audit and re-import.
+model CreatorScriptImport {
+  id               String           @id @default(cuid())
+  userId           String
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scriptId         String?
+  script           CreatorScript?   @relation(fields: [scriptId], references: [id], onDelete: SetNull)
+  projectId        String?
+  project          OriginalProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  originalFileName String
+  mimeType         String?
+  fileSizeBytes    Int
+  storageKey       String?
+  storageUrl       String?
+  sourceType       String
+  extractionMethod String?
+  extractedChars   Int?
+  status           String
+  errorMessage     String?
+  createdAt        DateTime         @default(now())
+
+  @@index([userId])
+  @@index([scriptId])
+  @@index([projectId])
+  @@index([createdAt])
 }
 
 model IPAsset {

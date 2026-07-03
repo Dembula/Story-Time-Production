@@ -2828,6 +2828,24 @@ exports.Prisma.CreatorScriptCommentScalarFieldEnum = {
   updatedAt: 'updatedAt'
 };
 
+exports.Prisma.CreatorScriptImportScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  scriptId: 'scriptId',
+  projectId: 'projectId',
+  originalFileName: 'originalFileName',
+  mimeType: 'mimeType',
+  fileSizeBytes: 'fileSizeBytes',
+  storageKey: 'storageKey',
+  storageUrl: 'storageUrl',
+  sourceType: 'sourceType',
+  extractionMethod: 'extractionMethod',
+  extractedChars: 'extractedChars',
+  status: 'status',
+  errorMessage: 'errorMessage',
+  createdAt: 'createdAt'
+};
+
 exports.Prisma.IPAssetScalarFieldEnum = {
   id: 'id',
   creatorScriptId: 'creatorScriptId',
@@ -3237,6 +3255,7 @@ exports.Prisma.ModelName = {
   CreatorScript: 'CreatorScript',
   CreatorScriptVersion: 'CreatorScriptVersion',
   CreatorScriptComment: 'CreatorScriptComment',
+  CreatorScriptImport: 'CreatorScriptImport',
   IPAsset: 'IPAsset',
   IPVersion: 'IPVersion',
   IPOwnershipStructure: 'IPOwnershipStructure',

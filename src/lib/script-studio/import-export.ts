@@ -15,6 +15,14 @@ export function importScreenplayText(raw: string, filename: string): ImportResul
     };
   }
 
+  if (!text.includes("\n") || text.split("\n").length < 4) {
+    const reflowed = text.replace(/\s+(?=(?:INT\.|EXT\.|INT\/EXT\.|I\/E\.)\s)/gi, "\n\n");
+    if (reflowed !== text) {
+      text = reflowed;
+      fixes.push("Reflowed PDF lines into screenplay structure");
+    }
+  }
+
   if (filename.toLowerCase().endsWith(".fountain")) {
     text = text.replace(/^\.([A-Z][^\n]+)$/gm, (_, heading: string) => {
       fixes.push(`Converted Fountain scene: ${heading}`);

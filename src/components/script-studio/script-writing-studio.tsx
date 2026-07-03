@@ -510,6 +510,9 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
     try {
       const form = new FormData();
       form.append("file", file);
+      if (draft?.id) form.append("scriptId", draft.id);
+      if (projectId) form.append("projectId", projectId);
+
       const res = await fetch("/api/creator/scripts/import-extract", {
         method: "POST",
         body: form,
@@ -518,6 +521,9 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
         text?: string;
         error?: string;
         sourceType?: string;
+        extractionMethod?: string;
+        importId?: string;
+        storageUrl?: string;
       };
       if (!res.ok) {
         throw new Error(data.error || "Could not extract text from this file.");
@@ -529,7 +535,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
       const lower = file.name.toLowerCase();
       const sourceLabel =
         data.sourceType === "pdf" || lower.endsWith(".pdf")
-          ? "Extracted screenplay text from PDF"
+          ? `Extracted screenplay from PDF${data.extractionMethod ? ` (${data.extractionMethod})` : ""}`
           : data.sourceType === "docx" || lower.endsWith(".docx")
             ? "Extracted screenplay text from Word document"
             : data.sourceType === "fdx" || lower.endsWith(".fdx")
@@ -550,8 +556,9 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
       if (draft) {
         setDraft({ ...draft, content: text });
         setDirty(true);
+        const storedNote = data.storageUrl ? "Original file saved to your script vault" : null;
         setImportSummary(
-          [sourceLabel, ...fixes].filter((item): item is string => Boolean(item)).slice(0, 12),
+          [sourceLabel, storedNote, ...fixes].filter((item): item is string => Boolean(item)).slice(0, 12),
         );
       }
     } catch (err) {
@@ -959,7 +966,11 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
 
               {importError ? (
                 <p className="text-[10px] text-red-300">{importError}</p>
-              ) : null}
+              ) : (
+                <p className="text-[10px] text-slate-500">
+                  Import PDF, DOCX, FDX, Fountain, TXT, RTF, or ODT. Originals are archived to your script vault.
+                </p>
+              )}
               {importSummary?.length ? (
                 <div className="rounded-lg border border-cyan-800/50 bg-cyan-950/30 px-3 py-2 text-[11px] text-cyan-200">
                   Import repairs: {importSummary.join(" · ")}

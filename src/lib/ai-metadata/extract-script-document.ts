@@ -16,6 +16,7 @@ const MAX_SCRIPT_BYTES = 15 * 1024 * 1024;
 export type ScriptFileExtraction = {
   text: string;
   sourceType: "pdf" | "docx" | "fdx" | "rtf" | "odt" | "text";
+  extractionMethod?: string | null;
   error?: string;
 };
 
@@ -45,11 +46,7 @@ function detectUploadType(filename: string, mimeType: string, buffer: Buffer): D
   if (lower.endsWith(".fdx")) {
     return "fdx";
   }
-  if (
-    mime.startsWith("text/") ||
-    lower.endsWith(".txt") ||
-    lower.endsWith(".fountain")
-  ) {
+  if (mime.startsWith("text/") || lower.endsWith(".txt") || lower.endsWith(".fountain")) {
     return "text";
   }
 
@@ -65,8 +62,19 @@ function detectUploadType(filename: string, mimeType: string, buffer: Buffer): D
   return "unsupported";
 }
 
-function pdfImportError(): string {
-  return "Could not read text from this PDF. Export a text-based PDF (File → Print → Save as PDF), or try Fountain, FDX, or DOCX.";
+function pdfImportError(byteLength: number): string {
+  if (byteLength < 12_000) {
+    return "This PDF appears very small or image-only. Re-export from your writing app as a text PDF, or upload Fountain / FDX / DOCX instead.";
+  }
+  return "Could not read text from this PDF. Re-export as a text-based PDF, or try Fountain, FDX, or DOCX.";
+}
+
+async function extractPdfScreenplay(buffer: Buffer): Promise<Pick<ScriptFileExtraction, "text" | "extractionMethod" | "error">> {
+  const { text, method } = await extractPdfTextFromBuffer(buffer);
+  if (!text) {
+    return { text: "", extractionMethod: method, error: pdfImportError(buffer.byteLength) };
+  }
+  return { text: truncateScriptText(text), extractionMethod: method };
 }
 
 /** Extract screenplay text from an uploaded file buffer (import / analysis). */
@@ -92,11 +100,11 @@ export async function extractScreenplayFromFileBuffer(
   }
 
   if (kind === "pdf") {
-    const text = await extractPdfTextFromBuffer(buffer);
-    if (!text) {
-      return { text: "", sourceType: "pdf", error: pdfImportError() };
+    const pdf = await extractPdfScreenplay(buffer);
+    if (pdf.error) {
+      return { text: "", sourceType: "pdf", extractionMethod: pdf.extractionMethod, error: pdf.error };
     }
-    return { text: truncateScriptText(text), sourceType: "pdf" };
+    return { text: pdf.text, sourceType: "pdf", extractionMethod: pdf.extractionMethod };
   }
 
   if (kind === "docx") {
@@ -113,7 +121,7 @@ export async function extractScreenplayFromFileBuffer(
       if (!text) {
         return { text: "", sourceType: "docx", error: "No readable text found in this Word document." };
       }
-      return { text, sourceType: "docx" };
+      return { text, sourceType: "docx", extractionMethod: "mammoth" };
     } catch (err) {
       console.error("DOCX script extraction failed:", err);
       return { text: "", sourceType: "docx", error: "Could not read this Word document." };
@@ -125,7 +133,7 @@ export async function extractScreenplayFromFileBuffer(
     if (!text) {
       return { text: "", sourceType: "fdx", error: "No readable screenplay content found in this FDX file." };
     }
-    return { text, sourceType: "fdx" };
+    return { text, sourceType: "fdx", extractionMethod: "fdx-xml" };
   }
 
   if (kind === "rtf") {
@@ -133,7 +141,7 @@ export async function extractScreenplayFromFileBuffer(
     if (!text) {
       return { text: "", sourceType: "rtf", error: "No readable text found in this RTF file." };
     }
-    return { text, sourceType: "rtf" };
+    return { text, sourceType: "rtf", extractionMethod: "rtf-strip" };
   }
 
   if (kind === "odt") {
@@ -142,7 +150,7 @@ export async function extractScreenplayFromFileBuffer(
       if (!text) {
         return { text: "", sourceType: "odt", error: "No readable text found in this ODT file." };
       }
-      return { text, sourceType: "odt" };
+      return { text, sourceType: "odt", extractionMethod: "odt-xml" };
     } catch (err) {
       console.error("ODT script extraction failed:", err);
       return { text: "", sourceType: "odt", error: "Could not read this OpenDocument file." };
@@ -151,24 +159,26 @@ export async function extractScreenplayFromFileBuffer(
 
   const raw = decodePlainTextBuffer(buffer);
   if (raw.trimStart().startsWith("%PDF-")) {
-    const text = await extractPdfTextFromBuffer(buffer);
-    if (text) return { text: truncateScriptText(text), sourceType: "pdf" };
-    return { text: "", sourceType: "pdf", error: pdfImportError() };
+    const pdf = await extractPdfScreenplay(buffer);
+    if (pdf.text) {
+      return { text: pdf.text, sourceType: "pdf", extractionMethod: pdf.extractionMethod };
+    }
+    return { text: "", sourceType: "pdf", extractionMethod: pdf.extractionMethod, error: pdf.error };
   }
   if (raw.trimStart().startsWith("{\\rtf")) {
     const text = extractRtfText(raw);
-    if (text) return { text, sourceType: "rtf" };
+    if (text) return { text, sourceType: "rtf", extractionMethod: "rtf-strip" };
   }
   if (raw.includes("<FinalDraft") || raw.includes("<Paragraph")) {
     const text = extractFdxText(raw);
-    if (text) return { text, sourceType: "fdx" };
+    if (text) return { text, sourceType: "fdx", extractionMethod: "fdx-xml" };
   }
 
   const text = truncateScriptText(raw);
   if (!text) {
     return { text: "", sourceType: "text", error: "No readable text found in this file." };
   }
-  return { text, sourceType: "text" };
+  return { text, sourceType: "text", extractionMethod: "plain-text" };
 }
 
 /** Fetch an uploaded script document and return screenplay text. */
