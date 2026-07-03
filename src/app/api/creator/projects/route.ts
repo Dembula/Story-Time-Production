@@ -3,6 +3,11 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isStoryTimeOriginalGreenlit } from "@/lib/storytime-original";
+import { loadProjectUsageSignals } from "@/lib/project-usage-signals";
+import {
+  buildPipelineRollup,
+  resolveToolProgressForProject,
+} from "@/lib/project-tool-progress";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -21,21 +26,26 @@ export async function GET() {
       ],
     },
     include: {
-      members: true,
+      members: {
+        include: {
+          user: { select: { id: true, name: true, image: true } },
+        },
+        orderBy: [{ status: "asc" }, { createdAt: "asc" }],
+      },
       pitches: {
-        select: { id: true, status: true },
+        select: { id: true, status: true, creatorId: true },
         orderBy: { createdAt: "desc" },
       },
+      toolProgress: true,
     },
     orderBy: [{ createdAt: "desc" }, { updatedAt: "desc" }],
   });
 
+  const projectIds = projects.map((p) => p.id);
+
   const ideaCounts = await prisma.projectIdea.groupBy({
     by: ["projectId"],
-    where: {
-      userId,
-      projectId: { not: null },
-    },
+    where: { projectId: { in: projectIds } },
     _count: { _all: true },
   });
 
@@ -46,20 +56,62 @@ export async function GET() {
     }
   }
 
-  // Newest projects first so a freshly created project is the platform default.
+  const signalsByProject = await loadProjectUsageSignals(projectIds, ideaCountByProject);
+
   const withActivity = projects.map((p) => {
     const latestPitch = p.pitches[0];
     const isOriginal = isStoryTimeOriginalGreenlit(latestPitch);
+    const ideasCount = ideaCountByProject.get(p.id) ?? 0;
+    const signals = signalsByProject.get(p.id) ?? {
+      ideaCount: ideasCount,
+      scriptCount: 0,
+      scriptReviewCount: 0,
+      sceneCount: 0,
+      breakdownCharacterCount: 0,
+      budgetLineCount: 0,
+      shootDayCount: 0,
+      castingRoleCount: 0,
+      crewNeedCount: 0,
+      equipmentItemCount: 0,
+      contractCount: 0,
+      taskCount: 0,
+      tableReadCount: 0,
+      riskItemCount: 0,
+      callSheetCount: 0,
+      incidentCount: 0,
+      dailiesClipCount: 0,
+      contentLinked: false,
+    };
+
+    const stored = p.toolProgress.map((row) => ({
+      toolId: row.toolId,
+      phase: row.phase,
+      status: row.status,
+      percent: row.percent,
+    }));
+
+    const resolvedProgress = resolveToolProgressForProject({
+      projectStatus: p.status,
+      stored,
+      signals,
+      hubToolsOnly: true,
+    });
+
+    const pipelineRollup = buildPipelineRollup(resolvedProgress, p.status);
+
+    const { toolProgress: _toolProgress, ...rest } = p;
 
     return {
-      ...p,
-      projectToolProgress: [],
-      ideasCount: ideaCountByProject.get(p.id) ?? 0,
+      ...rest,
+      creatorId: latestPitch?.creatorId ?? null,
+      projectToolProgress: resolvedProgress,
+      pipelineRollup,
+      ideasCount,
       isOriginal,
     };
   });
 
-  return NextResponse.json({ projects: withActivity });
+  return NextResponse.json({ projects: withActivity, meId: userId });
 }
 
 export async function POST(request: NextRequest) {
@@ -126,4 +178,3 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({ project }, { status: 201 });
 }
-

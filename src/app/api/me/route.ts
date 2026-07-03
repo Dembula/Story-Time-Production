@@ -9,6 +9,7 @@ import { loadViewerBillingAddress, upsertViewerBillingAddress } from "@/lib/user
 import { mergeCreatorGoalsForSave } from "@/lib/creator-profile-goals";
 import { sanitizeCreatorEducation } from "@/lib/creator-viewer-profile";
 import { buildPlatformRoleOptions, loadUserPlatformRoles } from "@/lib/platform-roles";
+import { parseNetworkHandleInput } from "@/lib/creator-network-handle";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -35,6 +36,7 @@ export async function GET() {
       headline: true,
       location: true,
       website: true,
+      networkHandle: true,
       professionalName: true,
       bannerImageUrl: true,
       primaryRole: true,
@@ -94,6 +96,7 @@ export async function PATCH(req: NextRequest) {
     headline,
     location,
     website,
+    networkHandle,
     isAfdaStudent,
     institutionName,
     studentId,
@@ -185,6 +188,21 @@ export async function PATCH(req: NextRequest) {
   if (location !== undefined) data.location = location;
   if (website !== undefined) data.website = website;
 
+  if (networkHandle !== undefined) {
+    const parsed = parseNetworkHandleInput(networkHandle);
+    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+    if (parsed.value) {
+      const taken = await prisma.user.findFirst({
+        where: { networkHandle: parsed.value, id: { not: session.user.id } },
+        select: { id: true },
+      });
+      if (taken) {
+        return NextResponse.json({ error: "That handle is already taken." }, { status: 400 });
+      }
+    }
+    data.networkHandle = parsed.value;
+  }
+
   const userSelect = {
     id: true,
     name: true,
@@ -204,6 +222,7 @@ export async function PATCH(req: NextRequest) {
     headline: true,
     location: true,
     website: true,
+    networkHandle: true,
   } as const;
 
   let updated;

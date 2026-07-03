@@ -2,7 +2,7 @@ import Link from "next/link";
 import { CheckCircle, Circle, Loader2, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type CreatorToolNavStatus = "done" | "in_progress" | "not_started" | "linked";
+export type CreatorToolNavStatus = "done" | "in_progress" | "not_started" | "linked" | "skipped";
 
 export function CreatorToolNavCard({
   href,
@@ -40,6 +40,7 @@ export function CreatorToolNavCard({
   }
 
   const s = status ?? "not_started";
+  const skipped = s === "skipped";
   const done = s === "done" || s === "linked";
   const inProgress = s === "in_progress";
   const statusLabel =
@@ -47,9 +48,11 @@ export function CreatorToolNavCard({
       ? "Done"
       : s === "linked"
         ? "Linked"
-        : inProgress
-          ? "In progress"
-          : "Not started";
+        : skipped
+          ? "Skipped"
+          : inProgress
+            ? "In progress"
+            : "Not started";
 
 
   return (
@@ -61,9 +64,11 @@ export function CreatorToolNavCard({
         "hover:-translate-y-1 hover:scale-[1.01]",
         done
           ? "border-orange-400/40 bg-orange-500/[0.08] shadow-glow"
-          : inProgress
-            ? "border-amber-400/25 hover:border-amber-400/35"
-            : "hover:border-white/14"
+          : skipped
+            ? "border-slate-600/40 bg-slate-800/30 opacity-75"
+            : inProgress
+              ? "border-amber-400/25 hover:border-amber-400/35"
+              : "hover:border-white/14"
       )}
     >
       <div className="flex items-start justify-between gap-2">
@@ -71,6 +76,8 @@ export function CreatorToolNavCard({
           <div className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-400">
             {done ? (
               <CheckCircle className="h-3 w-3 shrink-0 text-emerald-400" />
+            ) : skipped ? (
+              <Circle className="h-3 w-3 shrink-0 text-slate-500" />
             ) : inProgress ? (
               <Loader2 className="h-3 w-3 shrink-0 animate-spin text-amber-400" />
             ) : (

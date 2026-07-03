@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
   }
 
   const activeMember = await prisma.originalMember.findFirst({
-    where: { projectId, userId, status: "ACTIVE" },
+    where: { projectId, userId, status: { in: ["ACTIVE", "ACCEPTED"] } },
   });
   const pitchOwner = await prisma.originalPitch.findFirst({
     where: { projectId, creatorId: userId },

@@ -4,12 +4,15 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { UserPlus, MessageCircle, Check, Loader2, Film, MapPin, Globe } from "lucide-react";
+import { resolveNetworkDisplayName, networkDisplayInitial } from "@/lib/network-display-name";
 import { NativeSafeVideo } from "@/components/player/native-safe-video";
 
 interface ProfileData {
   user: {
     id: string;
     name: string | null;
+    displayName?: string;
+    handle?: string | null;
     image: string | null;
     bio: string | null;
     socialLinks: string | null;
@@ -102,7 +105,7 @@ export function CreatorProfileClient({ userId }: { userId: string }) {
   const { user, contents, posts } = data;
   const isOwnProfile = myId === userId;
   const canFollowOrConnect = myId && !isOwnProfile;
-  const displayName = user.name || "Creator";
+  const displayName = user.displayName ?? resolveNetworkDisplayName(user);
 
   return (
     <div className="space-y-6">
@@ -112,11 +115,22 @@ export function CreatorProfileClient({ userId }: { userId: string }) {
             {user.image ? (
               <Image src={user.image} alt="" width={112} height={112} className="object-cover w-full h-full" />
             ) : (
-              <span className="text-3xl font-bold text-slate-400">{displayName[0]?.toUpperCase() ?? "C"}</span>
+              <span className="text-3xl font-bold text-slate-400">{networkDisplayInitial(user)}</span>
             )}
           </div>
           <div className="min-w-0 flex-1">
             <h1 className="text-2xl sm:text-3xl font-semibold text-white">{displayName}</h1>
+            {user.handle && (
+              <p className="text-sm text-orange-300/90 mt-0.5">@{user.handle}</p>
+            )}
+            {isOwnProfile && (
+              <Link
+                href="/creator/account?tab=public"
+                className="mt-2 inline-block text-xs text-slate-400 hover:text-orange-300"
+              >
+                Edit public profile &amp; handle →
+              </Link>
+            )}
             {user.headline && <p className="text-slate-300 mt-1">{user.headline}</p>}
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-500 mt-2">
               {user.location && (

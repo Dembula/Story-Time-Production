@@ -1,5 +1,95 @@
 import type { ProductionDayRecord } from "@/lib/production-day-engine";
 
+export type DayBreakdownSummary = {
+  characterCount: number;
+  characters: string[];
+  propCount: number;
+  props: string[];
+  locationCount: number;
+  locations: string[];
+  vehicleCount: number;
+  stuntCount: number;
+  sfxCount: number;
+};
+
+/** Persist shoot-day scene links from the production engine when the schedule has scenes planned but not saved. */
+export async function ensureShootDaySceneLinks(
+  prisma: {
+    shootDayScene: {
+      findMany: (args: unknown) => Promise<{ id: string; sceneId: string; order: number }[]>;
+      createMany: (args: unknown) => Promise<unknown>;
+    };
+  },
+  shootDayId: string,
+  productionDay: ProductionDayRecord | null,
+): Promise<boolean> {
+  if (!productionDay?.scenes.length) return false;
+  const existing = await prisma.shootDayScene.findMany({
+    where: { shootDayId },
+    select: { id: true },
+  });
+  if (existing.length > 0) return false;
+
+  await prisma.shootDayScene.createMany({
+    data: productionDay.scenes.map((s) => ({
+      shootDayId,
+      sceneId: s.sceneId,
+      order: s.order,
+    })),
+    skipDuplicates: true,
+  });
+  return true;
+}
+
+export function buildDayBreakdownSummary(
+  scenes: Array<{
+    breakdownCharacters?: { name: string }[];
+    breakdownProps?: { name: string }[];
+    primaryLocation?: { name: string } | null;
+    breakdownLocations?: { name: string }[];
+    breakdownVehicles?: { description: string }[];
+    breakdownStunts?: { description: string }[];
+    breakdownSfxs?: { description: string }[];
+  }>,
+): DayBreakdownSummary {
+  const charSet = new Set<string>();
+  const propSet = new Set<string>();
+  const locSet = new Set<string>();
+  let vehicleCount = 0;
+  let stuntCount = 0;
+  let sfxCount = 0;
+
+  for (const sc of scenes) {
+    for (const c of sc.breakdownCharacters ?? []) {
+      const n = c.name.trim();
+      if (n) charSet.add(n);
+    }
+    for (const p of sc.breakdownProps ?? []) {
+      const n = p.name.trim();
+      if (n) propSet.add(n);
+    }
+    if (sc.primaryLocation?.name?.trim()) locSet.add(sc.primaryLocation.name.trim());
+    for (const l of sc.breakdownLocations ?? []) {
+      if (l.name?.trim()) locSet.add(l.name.trim());
+    }
+    vehicleCount += sc.breakdownVehicles?.length ?? 0;
+    stuntCount += sc.breakdownStunts?.length ?? 0;
+    sfxCount += sc.breakdownSfxs?.length ?? 0;
+  }
+
+  return {
+    characterCount: charSet.size,
+    characters: [...charSet].slice(0, 12),
+    propCount: propSet.size,
+    props: [...propSet].slice(0, 8),
+    locationCount: locSet.size,
+    locations: [...locSet].slice(0, 6),
+    vehicleCount,
+    stuntCount,
+    sfxCount,
+  };
+}
+
 export type SceneLiveStatus = "NOT_STARTED" | "IN_PROGRESS" | "DONE";
 
 export type PersonLiveStatus =

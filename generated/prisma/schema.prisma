@@ -70,6 +70,8 @@ model User {
   headline                     String? // network profile tagline
   location                     String? // city/region for network
   website                      String? // personal or studio site
+  /// Discoverable @handle for Network search (unique, lowercase)
+  networkHandle                String?                @unique
   /// Public-facing professional name (falls back to name in UI)
   professionalName             String?
   bannerImageUrl               String?

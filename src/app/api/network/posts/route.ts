@@ -10,6 +10,21 @@ import {
 import { enrichNetworkPostsForFeed } from "@/lib/network-post-enrich";
 import { validateStorageUrlList } from "@/lib/storage-origin";
 
+function serializeUrlList(value: unknown): string | null {
+  if (value == null) return null;
+  if (Array.isArray(value)) {
+    const urls = value.filter((u): u is string => typeof u === "string" && u.trim().length > 0).map((u) => u.trim());
+    return urls.length > 0 ? JSON.stringify(urls) : null;
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    if (trimmed.startsWith("[")) return trimmed;
+    return JSON.stringify([trimmed]);
+  }
+  return null;
+}
+
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
   const { searchParams } = new URL(req.url);
@@ -36,29 +51,34 @@ export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => ({}))) as {
     body?: string;
     imageUrls?: string | string[];
+    videoUrls?: string | string[];
     contentId?: string;
   };
+
   const imageErr = validateStorageUrlList(body.imageUrls, "imageUrls");
   if (imageErr) return NextResponse.json({ error: imageErr }, { status: 400 });
+  const videoErr = validateStorageUrlList(body.videoUrls, "videoUrls");
+  if (videoErr) return NextResponse.json({ error: videoErr }, { status: 400 });
 
-  const imageStr =
-    body.imageUrls == null
-      ? null
-      : Array.isArray(body.imageUrls)
-        ? JSON.stringify(body.imageUrls)
-        : typeof body.imageUrls === "string"
-          ? body.imageUrls
-          : null;
+  const text = typeof body.body === "string" ? body.body.trim() : "";
+  const imageStr = serializeUrlList(body.imageUrls);
+  const videoStr = serializeUrlList(body.videoUrls);
+
+  if (!text && !imageStr && !videoStr && typeof body.contentId !== "string") {
+    return NextResponse.json({ error: "Post needs text, an image, or a video." }, { status: 400 });
+  }
+
+  const postType = videoStr ? "VIDEO" : imageStr ? "IMAGE" : "TEXT_UPDATE";
 
   const post = await createNetworkPost(session.user.id, {
-    body: typeof body.body === "string" ? body.body : null,
+    body: text || null,
     imageUrls: imageStr,
+    videoUrls: videoStr,
     contentId: typeof body.contentId === "string" ? body.contentId : null,
     projectId: null,
     sceneId: null,
     productionPhase: null,
-    postType: "TEXT_UPDATE",
-    videoUrls: null,
+    postType,
     metadata: null,
   });
 

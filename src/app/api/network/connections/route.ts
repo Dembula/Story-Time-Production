@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getConnectionRequestsReceived, getConnectionRequestsSent } from "@/lib/network-db";
+import { enrichNetworkUserRow } from "@/lib/network-display-name";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
@@ -20,7 +21,7 @@ export async function GET() {
     allUserIds.length > 0
       ? await prisma.user.findMany({
           where: { id: { in: allUserIds } },
-          select: { id: true, name: true, image: true },
+          select: { id: true, name: true, email: true, networkHandle: true, image: true },
         })
       : [];
   const userMap = Object.fromEntries(users.map((u) => [u.id, u]));
@@ -28,11 +29,11 @@ export async function GET() {
   return NextResponse.json({
     received: received.map((r) => ({
       ...r,
-      from: userMap[r.fromId] ?? { id: r.fromId, name: null, image: null },
+      from: enrichNetworkUserRow(userMap[r.fromId] ?? { id: r.fromId, name: null, email: null, networkHandle: null, image: null }),
     })),
     sent: sent.map((r) => ({
       ...r,
-      to: userMap[r.toId] ?? { id: r.toId, name: null, image: null },
+      to: enrichNetworkUserRow(userMap[r.toId] ?? { id: r.toId, name: null, email: null, networkHandle: null, image: null }),
     })),
   });
 }

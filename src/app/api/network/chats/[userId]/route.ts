@@ -3,9 +3,16 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { areConnected } from "@/lib/network-db";
+import { enrichNetworkUserRow } from "@/lib/network-display-name";
+
+const SENDER_SELECT = {
+  id: true,
+  name: true,
+  email: true,
+  networkHandle: true,
+} as const;
 
 async function getOrCreateConversation(me: string, otherId: string) {
-  // Find existing 1:1 conversation
   const existing = await prisma.networkConversation.findFirst({
     where: {
       participants: {
@@ -50,7 +57,7 @@ export async function GET(
     where: { conversationId: conversation.id },
     orderBy: { createdAt: "asc" },
     include: {
-      sender: { select: { id: true, name: true } },
+      sender: { select: SENDER_SELECT },
     },
   });
 
@@ -60,7 +67,7 @@ export async function GET(
       id: m.id,
       body: m.body,
       createdAt: m.createdAt,
-      sender: { id: m.sender.id, name: m.sender.name },
+      sender: enrichNetworkUserRow(m.sender),
     })),
   });
 }
@@ -93,7 +100,7 @@ export async function POST(
       body: body.body.trim(),
     },
     include: {
-      sender: { select: { id: true, name: true } },
+      sender: { select: SENDER_SELECT },
     },
   });
 
@@ -106,7 +113,6 @@ export async function POST(
     id: message.id,
     body: message.body,
     createdAt: message.createdAt,
-    sender: { id: message.sender.id, name: message.sender.name },
+    sender: enrichNetworkUserRow(message.sender),
   });
 }
-

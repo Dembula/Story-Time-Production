@@ -104,7 +104,7 @@ export async function POST(
     },
   });
 
-  const built = await buildCallSheetPayload(projectId, body.shootDayId);
+  const built = await buildCallSheetPayload(projectId, body.shootDayId, access.userId);
   if (!built) {
     return NextResponse.json({ error: "Shoot day not found" }, { status: 404 });
   }

@@ -63,9 +63,13 @@ export type CallSheetSafetyLine = {
 };
 
 /** Build call sheet JSON snapshots from schedule, breakdown, casting, crew, locations, equipment, tasks, contracts, and risk. */
-export async function buildCallSheetPayload(projectId: string, shootDayId: string) {
+export async function buildCallSheetPayload(
+  projectId: string,
+  shootDayId: string,
+  userId?: string | null,
+) {
   const [engine, signedContracts, projectBrief, tasks, riskPlan, unsignedContractCount] = await Promise.all([
-      buildProductionDataEngine(prisma, projectId, null),
+      buildProductionDataEngine(prisma, projectId, userId ?? null),
       prisma.projectContract.findMany({
         where: {
           projectId,
@@ -163,21 +167,26 @@ export async function buildCallSheetPayload(projectId: string, shootDayId: strin
     return nums;
   }
 
-  const castFiltered = day.castRequired.filter(
-    (c) => !hasActorContractGating || signedActorNames.has((c.name || "").trim().toLowerCase()),
-  );
-
-  const cast: CallSheetCastRow[] = castFiltered.map((c) => ({
-    characterName: c.roleOrCharacter,
-    roleName: c.roleOrCharacter,
-    talentName: c.name ?? null,
-    invitationStatus: c.name ? "CONFIRMED" : null,
-    callTime: c.callTime ?? day.callTime,
-    wrapTime: c.wrapTime ?? day.wrapTime,
-    scenesInvolved: scenesInvolvedForCast(day.scenes, c),
-    confirmed:
-      !hasActorContractGating || ((c.name || "").trim().length > 0 && signedActorNames.has((c.name || "").trim().toLowerCase())),
-  }));
+  const cast: CallSheetCastRow[] = day.castRequired.map((c) => {
+    const talentLower = (c.name || "").trim().toLowerCase();
+    const roleLower = (c.roleOrCharacter || "").trim().toLowerCase();
+    const contractMatch =
+      hasActorContractGating &&
+      (signedActorNames.has(talentLower) ||
+        [...signedActorNames].some(
+          (signed) => signed === roleLower || talentLower.includes(signed) || signed.includes(talentLower),
+        ));
+    return {
+      characterName: c.roleOrCharacter,
+      roleName: c.roleOrCharacter,
+      talentName: c.name ?? null,
+      invitationStatus: c.name ? "CONFIRMED" : null,
+      callTime: c.callTime ?? day.callTime,
+      wrapTime: c.wrapTime ?? day.wrapTime,
+      scenesInvolved: scenesInvolvedForCast(day.scenes, c),
+      confirmed: !hasActorContractGating || contractMatch || talentLower.length === 0,
+    };
+  });
 
   const crew = day.crewRequired.map((c) => ({
     role: c.role,
@@ -219,8 +228,11 @@ export async function buildCallSheetPayload(projectId: string, shootDayId: strin
   }
 
   let locations = [...locationByKey.values()];
-  if (hasLocationContractGating) {
-    locations = locations.filter((loc) => signedLocationNames.has((loc.name || "").trim().toLowerCase()));
+  if (hasLocationContractGating && locations.length > 1) {
+    const signedOnly = locations.filter((loc) =>
+      signedLocationNames.has((loc.name || "").trim().toLowerCase()),
+    );
+    if (signedOnly.length > 0) locations = signedOnly;
   }
   if (locations.length === 0) {
     locations = [

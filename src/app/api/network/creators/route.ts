@@ -1,8 +1,9 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isFollowing, getConnectionStatus, getFollowerCount } from "@/lib/network-db";
+import { enrichNetworkUserRow } from "@/lib/network-display-name";
 
 const CREATOR_ROLES = [
   "CONTENT_CREATOR",
@@ -14,23 +15,45 @@ const CREATOR_ROLES = [
   "CATERING_COMPANY",
 ];
 
-export async function GET() {
+const CREATOR_SELECT = {
+  id: true,
+  name: true,
+  email: true,
+  networkHandle: true,
+  image: true,
+  bio: true,
+  previousWork: true,
+  role: true,
+  headline: true,
+  location: true,
+} as const;
+
+function buildSearchWhere(q: string) {
+  const term = q.trim();
+  if (!term) return { role: { in: CREATOR_ROLES } };
+
+  const normalizedHandle = term.replace(/^@+/, "").toLowerCase();
+  return {
+    role: { in: CREATOR_ROLES },
+    OR: [
+      { networkHandle: { contains: normalizedHandle, mode: "insensitive" as const } },
+      { name: { contains: term, mode: "insensitive" as const } },
+      { headline: { contains: term, mode: "insensitive" as const } },
+      { email: { contains: term.toLowerCase(), mode: "insensitive" as const } },
+    ],
+  };
+}
+
+export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
+  const q = req.nextUrl.searchParams.get("q")?.trim() ?? "";
+  const searching = q.length > 0;
 
   const users = await prisma.user.findMany({
-    where: { role: { in: CREATOR_ROLES } },
-    select: {
-      id: true,
-      name: true,
-      image: true,
-      bio: true,
-      previousWork: true,
-      role: true,
-      headline: true,
-      location: true,
-    },
-    orderBy: { createdAt: "desc" },
-    take: 48,
+    where: buildSearchWhere(q),
+    select: CREATOR_SELECT,
+    orderBy: searching ? { name: "asc" } : { createdAt: "desc" },
+    take: searching ? 60 : 48,
   });
 
   const withExtra = await Promise.all(
@@ -40,14 +63,14 @@ export async function GET() {
         session?.user?.id ? getConnectionStatus(session.user.id, u.id) : ("NONE" as const),
         getFollowerCount(u.id),
       ]);
-      return {
+      return enrichNetworkUserRow({
         ...u,
         headline: u.headline ?? null,
         location: u.location ?? null,
         following,
         connectionStatus,
         followerCount,
-      };
+      });
     }),
   );
 

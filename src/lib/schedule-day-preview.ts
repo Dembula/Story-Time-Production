@@ -4,7 +4,13 @@ export type SchedulePreviewScene = {
   id: string;
   number: string;
   heading: string | null;
+  pageCount?: number | null;
   breakdownCharacters: { id?: string; name: string }[];
+  breakdownProps?: { name: string; special?: boolean }[];
+  breakdownVehicles?: { description: string; stuntRelated?: boolean }[];
+  breakdownStunts?: { description: string }[];
+  breakdownSfxs?: { description: string; practical?: boolean }[];
+  breakdownExtras?: { description: string; quantity?: number }[];
 };
 
 export type SchedulePreviewCrewNeed = {
@@ -36,13 +42,58 @@ export type ShootDayPipelinePreview = {
     estimatedShootDurationMinutes: number;
   }>;
   castRequired: Array<{ key: string; name: string; roleOrCharacter: string }>;
-  crewRequired: Array<{ key: string; role: string; department: string }>;
+  crewRequired: Array<{ key: string; role: string; department: string; name?: string }>;
   equipmentRequired: Array<{ key: string; equipmentName: string; category: string; quantity: number }>;
 };
 
+export type SchedulePreviewSceneLink = {
+  sceneId: string;
+  order: number;
+  scene?: SchedulePreviewScene | null;
+};
+
+/** Resolve scene links from picker ids or saved day links, hydrating full scene objects when possible. */
+export function buildEffectiveSceneLinksForPreview(args: {
+  scenePickerIds: string[];
+  savedSceneLinks: Array<{ sceneId: string; order: number; scene?: SchedulePreviewScene | null }>;
+  allScenes: SchedulePreviewScene[];
+}): SchedulePreviewSceneLink[] {
+  const sceneById = new Map(args.allScenes.map((s) => [s.id, s]));
+  const savedById = new Map(
+    args.savedSceneLinks.map((l) => [l.sceneId, l]),
+  );
+
+  const ids =
+    args.scenePickerIds.length > 0
+      ? args.scenePickerIds
+      : args.savedSceneLinks
+          .slice()
+          .sort((a, b) => a.order - b.order)
+          .map((l) => l.sceneId);
+
+  return ids.map((sceneId, order) => {
+    const saved = savedById.get(sceneId);
+    const scene = sceneById.get(sceneId) ?? saved?.scene ?? null;
+    return { sceneId, order, scene };
+  });
+}
+
+function estimateSceneDurationMinutes(scene: SchedulePreviewScene): number {
+  const pageFactor = Math.max(1, Number(scene.pageCount ?? 1));
+  const base = Math.round(pageFactor * 50);
+  const propPenalty = (scene.breakdownProps?.length ?? 0) * 4;
+  const stuntPenalty = (scene.breakdownStunts?.length ?? 0) * 20;
+  const sfxPenalty = (scene.breakdownSfxs?.length ?? 0) * 12;
+  const extrasPenalty = (scene.breakdownExtras ?? []).reduce(
+    (acc, e) => acc + Math.max(0, (e.quantity ?? 1) - 1) * 2,
+    0,
+  );
+  return Math.max(30, base + propPenalty + stuntPenalty + sfxPenalty + extrasPenalty);
+}
+
 export function buildShootDayPipelinePreview(input: {
   unit?: string | null;
-  sceneLinks: Array<{ sceneId: string; order: number; scene?: SchedulePreviewScene | null }>;
+  sceneLinks: SchedulePreviewSceneLink[];
   crewNeeds?: SchedulePreviewCrewNeed[];
   equipmentItems?: SchedulePreviewEquipment[];
   castingRoles?: SchedulePreviewCastingRole[];
@@ -68,30 +119,51 @@ export function buildShootDayPipelinePreview(input: {
     }
   }
 
-  // Enrich / add from project casting roles linked to those characters.
+  const roleAppearsOnDay = (role: SchedulePreviewCastingRole): boolean => {
+    const roleNameKey = role.name.trim().toLowerCase();
+    if (!roleNameKey && !role.breakdownCharacterId) return false;
+    if (role.breakdownCharacterId && characterIdsOnDay.has(role.breakdownCharacterId)) {
+      return true;
+    }
+    if (roleNameKey && characterNamesOnDay.has(roleNameKey)) {
+      return true;
+    }
+    return ordered.some((link) =>
+      (link.scene?.breakdownCharacters ?? []).some(
+        (c) =>
+          (role.breakdownCharacterId && c.id === role.breakdownCharacterId) ||
+          (roleNameKey && c.name.trim().toLowerCase() === roleNameKey),
+      ),
+    );
+  };
+
   for (const role of input.castingRoles ?? []) {
-    const roleKey = role.name.trim().toLowerCase();
-    if (!roleKey) continue;
-    const linked =
-      (role.breakdownCharacterId && characterIdsOnDay.has(role.breakdownCharacterId)) ||
-      characterNamesOnDay.has(roleKey);
-    if (!linked && castMap.size > 0) continue;
-    if (!linked && ordered.length === 0) continue;
-    // If no breakdown cast on selected scenes, still show project casting roles.
-    if (!linked && castMap.size === 0 && ordered.length > 0) {
+    const roleNameKey = role.name.trim().toLowerCase();
+    if (!roleNameKey && !role.breakdownCharacterId) continue;
+
+    if (roleAppearsOnDay(role)) {
+      const displayName = role.actorName?.trim() || role.name.trim();
+      const mapKey = role.id || roleNameKey;
+      castMap.set(mapKey, {
+        name: displayName,
+        roleOrCharacter: role.name.trim(),
+      });
+    }
+  }
+
+  if (castMap.size === 0 && ordered.length > 0) {
+    for (const role of input.castingRoles ?? []) {
+      const hasActor =
+        role.status === "CAST" ||
+        Boolean(role.actorName?.trim()) ||
+        Boolean(role.name?.trim());
+      if (!hasActor) continue;
       const displayName = role.actorName?.trim() || role.name.trim();
       castMap.set(role.id, {
         name: displayName,
         roleOrCharacter: role.name.trim(),
       });
-      continue;
     }
-    if (!linked) continue;
-    const displayName = role.actorName?.trim() || role.name.trim();
-    castMap.set(roleKey, {
-      name: displayName,
-      roleOrCharacter: role.name.trim(),
-    });
   }
 
   const scenes = ordered
@@ -101,28 +173,115 @@ export function buildShootDayPipelinePreview(input: {
       order: l.order,
       number: l.scene!.number,
       heading: l.scene!.heading,
-      estimatedShootDurationMinutes: Math.max(15, Math.round((l.scene!.heading?.length ?? 40) / 4) + 20),
+      estimatedShootDurationMinutes: estimateSceneDurationMinutes(l.scene!),
     }));
 
-  const crewRequired = (input.crewNeeds ?? []).map((c) => ({
-    key: `${c.department}|${c.role}`.toLowerCase(),
-    role: c.role,
-    department: c.department,
-  }));
+  const crewMap = new Map<string, { key: string; role: string; department: string; name?: string }>();
+  for (const c of input.crewNeeds ?? []) {
+    const key = `${c.department}|${c.role}`.toLowerCase();
+    crewMap.set(key, { key, role: c.role, department: c.department, name: c.role });
+  }
 
-  const equipmentRequired = (input.equipmentItems ?? []).map((e, i) => ({
-    key: `eq-${i}-${e.category}`,
-    equipmentName: e.description?.trim() || `${e.category} package`,
-    category: e.category,
-    quantity: e.quantity,
-  }));
+  for (const link of ordered) {
+    const sc = link.scene;
+    if (!sc) continue;
+    if ((sc.breakdownSfxs?.length ?? 0) > 0) {
+      const key = "auto:sound";
+      if (![...crewMap.values()].some((c) => c.department.toLowerCase().includes("sound"))) {
+        crewMap.set(key, {
+          key,
+          role: "Sound Mixer",
+          department: "Sound",
+          name: "Sound Team",
+        });
+      }
+    }
+    if ((sc.breakdownStunts?.length ?? 0) > 0) {
+      const key = "auto:stunt";
+      if (![...crewMap.values()].some((c) => c.role.toLowerCase().includes("stunt"))) {
+        crewMap.set(key, {
+          key,
+          role: "Stunt Coordinator",
+          department: "Safety",
+          name: "Stunt Coordinator",
+        });
+      }
+    }
+  }
 
-  const stuntBump = ordered.some((l) =>
-    (l.scene?.heading ?? "").toLowerCase().includes("stunt"),
-  );
-  if (stuntBump && !equipmentRequired.some((e) => e.category.toLowerCase().includes("grip"))) {
-    equipmentRequired.push({
-      key: "eq-stunt-grip",
+  const equipmentMap = new Map<
+    string,
+    { key: string; equipmentName: string; category: string; quantity: number }
+  >();
+
+  for (const [i, e] of (input.equipmentItems ?? []).entries()) {
+    const key = `plan-${i}-${e.category}`.toLowerCase();
+    equipmentMap.set(key, {
+      key,
+      equipmentName: e.description?.trim() || `${e.category} package`,
+      category: e.category,
+      quantity: Math.max(1, e.quantity),
+    });
+  }
+
+  for (const link of ordered) {
+    const sc = link.scene;
+    if (!sc) continue;
+
+    for (const v of sc.breakdownVehicles ?? []) {
+      const text = v.description.trim();
+      if (!text) continue;
+      const key = `vh:${text.toLowerCase()}`;
+      equipmentMap.set(key, {
+        key,
+        equipmentName: text,
+        category: v.stuntRelated ? "Transport / Stunt" : "Transport",
+        quantity: 1,
+      });
+    }
+
+    if ((sc.breakdownSfxs?.length ?? 0) > 0) {
+      const key = "category:sound";
+      const prev = equipmentMap.get(key);
+      equipmentMap.set(key, {
+        key,
+        equipmentName: prev?.equipmentName ?? "Sound package",
+        category: prev?.category ?? "Sound",
+        quantity: (prev?.quantity ?? 0) + 1,
+      });
+    }
+
+    if ((sc.breakdownStunts?.length ?? 0) > 0) {
+      const key = "category:safety";
+      const prev = equipmentMap.get(key);
+      equipmentMap.set(key, {
+        key,
+        equipmentName: prev?.equipmentName ?? "Safety / stunt rig",
+        category: prev?.category ?? "Safety",
+        quantity: (prev?.quantity ?? 0) + 1,
+      });
+    }
+
+    for (const p of sc.breakdownProps ?? []) {
+      if (!p.special) continue;
+      const name = p.name.trim();
+      if (!name) continue;
+      const key = `prop:${name.toLowerCase()}`;
+      equipmentMap.set(key, {
+        key,
+        equipmentName: `${name} (special prop)`,
+        category: "Props / Special",
+        quantity: 1,
+      });
+    }
+  }
+
+  if (
+    ordered.some((l) => (l.scene?.heading ?? "").toLowerCase().includes("stunt")) &&
+    !equipmentMap.has("category:safety")
+  ) {
+    equipmentMap.set("category:safety", {
+      key: "category:safety",
       equipmentName: "Grip / safety package",
       category: "Grip",
       quantity: 1,
@@ -133,7 +292,7 @@ export function buildShootDayPipelinePreview(input: {
     unit: input.unit ?? null,
     scenes,
     castRequired: [...castMap.entries()].map(([key, v]) => ({ key, ...v })),
-    crewRequired,
-    equipmentRequired,
+    crewRequired: [...crewMap.values()],
+    equipmentRequired: [...equipmentMap.values()],
   };
 }

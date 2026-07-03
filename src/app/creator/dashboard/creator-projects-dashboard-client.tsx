@@ -18,8 +18,32 @@ import { CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY, formatCreatorLicenseSummary } f
 import { CreatorToolNavCard, type CreatorToolNavStatus } from "@/components/creator/creator-tool-nav-card";
 import { setActiveProjectId, sortProjectsWithActiveFirst } from "@/lib/active-project";
 import { useActiveProjectId } from "@/hooks/use-active-project";
+import { toDisplayStatus } from "@/lib/project-tool-progress";
+import { resolveNetworkDisplayName, networkDisplayInitial } from "@/lib/network-display-name";
 
 type ToolProgress = { toolId: string; phase: string; status: string; percent: number };
+
+type ProjectMember = {
+  id: string;
+  userId: string;
+  role: string;
+  department?: string | null;
+  status: string;
+  user?: { id: string; name: string | null; image: string | null };
+};
+
+type PhaseSummary = { done: number; skipped: number; inProgress: number; total: number };
+
+type PipelineRollup = {
+  activeStep: 1 | 2 | 3;
+  totalTracked: number;
+  completeCount: number;
+  inProgressCount: number;
+  skippedCount: number;
+  notStartedCount: number;
+  progressPercent: number;
+  phaseSummaries: Record<"pre" | "prod" | "post", PhaseSummary>;
+};
 
 type Project = {
   id: string;
@@ -28,8 +52,10 @@ type Project = {
   phase: string;
   genre: string | null;
   updatedAt: string;
-  members: { id: string }[];
+  creatorId?: string | null;
+  members: ProjectMember[];
   projectToolProgress?: ToolProgress[];
+  pipelineRollup?: PipelineRollup;
   ideasCount?: number;
   isOriginal?: boolean;
 };
@@ -37,6 +63,8 @@ type Project = {
 type NetworkCreator = {
   id: string;
   name: string | null;
+  displayName?: string;
+  handle?: string | null;
   image: string | null;
   following: boolean;
   connectionStatus?: string;
@@ -59,11 +87,33 @@ const TRACKED_TOOL_IDS = new Set<string>([
   ...POST_PRODUCTION_HUB_TOOLS.map((t) => t.id),
 ]);
 
-/** Maps DB phase to pipeline step 1–3 for UI emphasis. */
-function pipelineStepFromPhase(phase: string): 1 | 2 | 3 {
-  if (phase === "POST_PRODUCTION") return 3;
-  if (phase === "PRODUCTION") return 2;
+const ACTIVE_MEMBER_STATUSES = new Set(["ACTIVE", "ACCEPTED"]);
+
+function projectStatusToStep(status: string): 1 | 2 | 3 {
+  const s = (status ?? "DEVELOPMENT").toUpperCase();
+  if (s === "POST_PRODUCTION") return 3;
+  if (s === "PRODUCTION") return 2;
   return 1;
+}
+
+function teamCounts(members: ProjectMember[]) {
+  const active = members.filter((m) => ACTIVE_MEMBER_STATUSES.has(m.status)).length;
+  const invited = members.filter((m) => m.status === "INVITED").length;
+  return { active, invited };
+}
+
+function memberStatusLabel(status: string): string {
+  if (status === "INVITED") return "Invited";
+  if (ACTIVE_MEMBER_STATUSES.has(status)) return "On team";
+  if (status === "DECLINED") return "Declined";
+  return status;
+}
+
+function memberStatusStyle(status: string): string {
+  if (status === "INVITED") return "border-violet-500/35 bg-violet-500/10 text-violet-200";
+  if (ACTIVE_MEMBER_STATUSES.has(status)) return "border-emerald-500/30 bg-emerald-500/10 text-emerald-200";
+  if (status === "DECLINED") return "border-slate-600/40 bg-slate-800/40 text-slate-500";
+  return "border-white/10 bg-white/[0.04] text-slate-400";
 }
 
 type ContentListRow = {
@@ -102,13 +152,23 @@ function ProjectRow({
   defaultOpen = false,
   linkedCatalogue,
   pipelineAccess = true,
+  networkCreators,
+  meId,
+  onInviteCollaborator,
+  invitePending,
 }: {
   project: Project;
   defaultOpen?: boolean;
   linkedCatalogue: LinkedCatalogueChip | null;
   pipelineAccess?: boolean;
+  networkCreators: NetworkCreator[];
+  meId?: string;
+  onInviteCollaborator: (projectId: string, inviteeUserId: string) => void;
+  invitePending: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  const [selectedInvitees, setSelectedInvitees] = useState<string[]>([]);
+  const [inviteMessage, setInviteMessage] = useState("");
   const rowRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -123,72 +183,52 @@ function ProjectRow({
   const progress = project.projectToolProgress ?? [];
   const progressMap = new Map(progress.map((p) => [p.toolId, p]));
   const ideasCount = project.ideasCount ?? 0;
+  const rollup = project.pipelineRollup;
+  const { active: teamActive, invited: teamInvited } = teamCounts(project.members);
 
   const updated = new Date(project.updatedAt);
   const stage = project.status || "DEVELOPMENT";
-  const activeStep = pipelineStepFromPhase(project.phase);
+  const activeStep = rollup?.activeStep ?? projectStatusToStep(stage);
 
-  const completedTracked = progress.filter((p) => TRACKED_TOOL_IDS.has(p.toolId) && p.status === "COMPLETE").length;
-  const ideaExtra =
-    ideasCount > 0 && progressMap.get("idea-development")?.status !== "COMPLETE" ? 1 : 0;
-  const doneCount = completedTracked + ideaExtra;
-  const totalTools = pipelineAccess
-    ? PRE_PRODUCTION_TOOLS.length + PRODUCTION_TOOLS.length + POST_PRODUCTION_HUB_TOOLS.length
-    : 1;
-  const distDone = progressMap.get("distribution")?.status === "COMPLETE";
   const progressPct = pipelineAccess
-    ? totalTools > 0
-      ? Math.round((doneCount / totalTools) * 100)
-      : 0
-    : distDone
+    ? rollup?.progressPercent ?? 0
+    : progressMap.get("distribution")?.status === "COMPLETE"
       ? 100
       : 0;
 
-  function phaseDoneTotal(
-    tools: { id: string; label: string; description: string; toolSlug: string; phase: ProjectPhase }[],
-  ): { done: number; total: number } {
-    let done = 0;
-    for (const t of tools) {
-      const prog = progressMap.get(t.id);
-      const isIdea = t.id === "idea-development" && ideasCount > 0;
-      if (prog?.status === "COMPLETE" || isIdea) done += 1;
-    }
-    return { done, total: tools.length };
-  }
+  const trackedSummary = rollup
+    ? `${rollup.completeCount} complete · ${rollup.skippedCount} skipped · ${rollup.inProgressCount} in progress`
+    : `${progress.filter((p) => TRACKED_TOOL_IDS.has(p.toolId) && p.status === "COMPLETE").length} complete`;
 
-  const pre = phaseDoneTotal(
-    PRE_PRODUCTION_TOOLS.map((t) => ({
-      id: t.id,
-      label: t.label,
-      description: t.description,
-      toolSlug: t.toolSlug,
-      phase: t.phase,
-    })),
-  );
-  const prod = phaseDoneTotal(
-    PRODUCTION_TOOLS.map((t) => ({
-      id: t.id,
-      label: t.label,
-      description: t.description,
-      toolSlug: t.toolSlug,
-      phase: t.phase,
-    })),
-  );
-  const post = phaseDoneTotal(
-    POST_PRODUCTION_HUB_TOOLS.map((t) => ({
-      id: t.id,
-      label: t.label,
-      description: t.description,
-      toolSlug: t.toolSlug,
-      phase: t.phase,
-    })),
-  );
+  const pre = rollup?.phaseSummaries.pre ?? { done: 0, skipped: 0, inProgress: 0, total: PRE_PRODUCTION_TOOLS.length };
+  const prod = rollup?.phaseSummaries.prod ?? { done: 0, skipped: 0, inProgress: 0, total: PRODUCTION_TOOLS.length };
+  const post = rollup?.phaseSummaries.post ?? { done: 0, skipped: 0, inProgress: 0, total: POST_PRODUCTION_HUB_TOOLS.length };
+
+  const memberUserIds = new Set(project.members.map((m) => m.userId));
+  const inviteCandidates = networkCreators.filter((c) => c.id !== meId && !memberUserIds.has(c.id));
+  const canInvite =
+    meId &&
+    (project.creatorId === meId ||
+      project.members.some((m) => m.userId === meId && ACTIVE_MEMBER_STATUSES.has(m.status)));
+
+  const toggleInvitee = (id: string) => {
+    setSelectedInvitees((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
+  const sendInvites = () => {
+    if (!selectedInvitees.length) return;
+    for (const inviteeId of selectedInvitees) {
+      onInviteCollaborator(project.id, inviteeId);
+    }
+    setSelectedInvitees([]);
+    setInviteMessage("Invites sent — collaborators will see them under My Projects.");
+  };
 
   const renderSection = (
     eyebrow: string,
     title: string,
     stepNum: 1 | 2 | 3,
-    phaseSummary: { done: number; total: number },
+    phaseSummary: PhaseSummary,
     tools: { id: string; label: string; description: string; toolSlug: string; phase: ProjectPhase }[],
   ) => {
     if (tools.length === 0) return null;
@@ -207,7 +247,11 @@ function ProjectRow({
             <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">{eyebrow}</p>
             <h3 className="mt-1 font-display text-xl font-semibold tracking-tight text-white">{title}</h3>
             <p className="mt-1 text-xs text-slate-500">
-              {phaseSummary.done} / {phaseSummary.total} tools marked complete · opens in project workspace
+              {phaseSummary.done} complete
+              {phaseSummary.skipped > 0 ? ` · ${phaseSummary.skipped} skipped` : ""}
+              {phaseSummary.inProgress > 0 ? ` · ${phaseSummary.inProgress} in progress` : ""}
+              {" · "}
+              {phaseSummary.total} tools in this phase
             </p>
           </div>
           {isCurrent ? (
@@ -223,19 +267,23 @@ function ProjectRow({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-2">
           {tools.map((t) => {
             const prog = progressMap.get(t.id);
-            const isIdeaLinked = t.id === "idea-development" && ideasCount > 0;
-            const done = prog?.status === "COMPLETE" || isIdeaLinked;
-            const inProgress = prog?.status === "IN_PROGRESS";
-            let status: CreatorToolNavStatus = "not_started";
-            if (done) status = isIdeaLinked && prog?.status !== "COMPLETE" ? "linked" : "done";
-            else if (inProgress) status = "in_progress";
+            const resolvedStatus = (prog?.status ?? "NOT_STARTED") as
+              | "NOT_STARTED"
+              | "IN_PROGRESS"
+              | "COMPLETE"
+              | "SKIPPED";
+            const status: CreatorToolNavStatus = toDisplayStatus(resolvedStatus, t.id, ideasCount);
             const href = toolHref(t.phase, t.toolSlug, project.id);
             return (
               <CreatorToolNavCard
                 key={t.id}
                 href={href}
                 label={t.label}
-                description={t.description}
+                description={
+                  status === "skipped"
+                    ? `${t.description} (not used — project advanced past this phase)`
+                    : t.description
+                }
                 status={status}
               />
             );
@@ -286,7 +334,7 @@ function ProjectRow({
             <p className="text-sm text-slate-400">
               {project.genre || "Unspecified genre"} · Last edited {updated.toLocaleDateString()}
             </p>
-            {/* Stepper aligned with project.phase (full pipeline only) */}
+            {/* Stepper aligned with project.status (DEVELOPMENT → PRODUCTION → POST_PRODUCTION) */}
             <div className="flex flex-wrap items-center gap-2">
               {pipelineAccess ? (
                 pipelineSteps.map((s, idx) => {
@@ -324,13 +372,12 @@ function ProjectRow({
             <div className="flex flex-wrap gap-4 text-xs text-slate-500">
               <span className="flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5" />
-                {pipelineAccess
-                  ? `Pipeline ${doneCount}/${totalTools} tracked tools`
-                  : "No in-app pipeline on your plan"}
+                {pipelineAccess ? trackedSummary : "No in-app pipeline on your plan"}
               </span>
               <span className="flex items-center gap-1.5">
                 <Users className="w-3.5 h-3.5" />
-                {project.members.length + 1} team member{project.members.length + 1 !== 1 ? "s" : ""}
+                {teamActive} team member{teamActive !== 1 ? "s" : ""}
+                {teamInvited > 0 ? ` · ${teamInvited} invited` : ""}
               </span>
             </div>
           </div>
@@ -354,9 +401,10 @@ function ProjectRow({
           <p className="mb-6 max-w-3xl text-sm leading-relaxed text-slate-400">
             {pipelineAccess ? (
               <>
-                Each phase stacks below — only <span className="text-slate-300">Music &amp; scoring</span> and{" "}
-                <span className="text-slate-300">Distribution</span> count in post-production tracking. Tool status comes
-                from your saves inside each workspace.
+                Progress reflects tools you&apos;ve used in the workspace and marks earlier-phase tools as{" "}
+                <span className="text-slate-300">Skipped</span> when the project advances. Only{" "}
+                <span className="text-slate-300">Music &amp; scoring</span> and{" "}
+                <span className="text-slate-300">Distribution</span> count in post-production tracking.
               </>
             ) : (
               <>
@@ -366,6 +414,105 @@ function ProjectRow({
               </>
             )}
           </p>
+
+          <div className="mb-8 rounded-2xl border border-white/10 bg-slate-900/40 p-5 md:p-6">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-violet-300/80">Team</p>
+                <h3 className="mt-1 font-display text-lg font-semibold text-white">Collaborators</h3>
+                <p className="mt-1 text-xs text-slate-500">
+                  {teamActive} on the team{teamInvited > 0 ? ` · ${teamInvited} pending invite${teamInvited !== 1 ? "s" : ""}` : ""}
+                </p>
+              </div>
+            </div>
+            {project.members.length === 0 ? (
+              <p className="mt-4 text-sm text-slate-500">No team members recorded yet.</p>
+            ) : (
+              <ul className="mt-4 space-y-2">
+                {project.members.map((m) => (
+                  <li
+                    key={m.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/[0.06] bg-black/20 px-3 py-2.5"
+                  >
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-sm font-medium text-slate-300">
+                        {m.user?.name?.[0]?.toUpperCase() ?? "C"}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-white">{m.user?.name ?? "Creator"}</p>
+                        <p className="text-xs text-slate-500">{m.role}{m.department ? ` · ${m.department}` : ""}</p>
+                      </div>
+                    </div>
+                    <span
+                      className={[
+                        "shrink-0 rounded-full border px-2.5 py-0.5 text-[11px] font-medium",
+                        memberStatusStyle(m.status),
+                      ].join(" ")}
+                    >
+                      {memberStatusLabel(m.status)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {canInvite && (
+              <div className="mt-5 border-t border-white/[0.08] pt-5">
+                <p className="text-xs font-medium uppercase tracking-wide text-emerald-300/90">Invite collaborators</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Send invites to connected creators from your Network. They&apos;ll accept under My Projects.
+                </p>
+                {inviteCandidates.length === 0 ? (
+                  <p className="mt-3 rounded-xl border border-dashed border-white/12 px-3 py-2 text-[11px] text-slate-500">
+                    No new creators to invite — connect with creators on Network first, or everyone listed is already on this project.
+                  </p>
+                ) : (
+                  <div className="mt-3 flex max-h-32 flex-wrap gap-2 overflow-y-auto rounded-xl border border-white/8 bg-black/12 px-2 py-2">
+                    {inviteCandidates.map((c) => {
+                      const active = selectedInvitees.includes(c.id);
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => toggleInvitee(c.id)}
+                          className={[
+                            "inline-flex items-center gap-2 rounded-full border px-2.5 py-1.5 text-xs transition",
+                            active
+                              ? "border-emerald-500 bg-emerald-500/10 text-emerald-300"
+                              : "border-white/10 bg-white/[0.03] text-slate-300 hover:border-white/18",
+                          ].join(" ")}
+                        >
+                          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/[0.06] text-[10px]">
+                            {networkDisplayInitial(c)}
+                          </span>
+                          <span className="max-w-[120px] truncate">
+                            {c.displayName ?? resolveNetworkDisplayName(c)}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                {selectedInvitees.length > 0 && (
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <Button size="sm" disabled={invitePending} onClick={sendInvites}>
+                      {invitePending ? "Sending…" : `Send ${selectedInvitees.length} invite${selectedInvitees.length !== 1 ? "s" : ""}`}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-white/10 text-slate-400"
+                      onClick={() => setSelectedInvitees([])}
+                    >
+                      Clear
+                    </Button>
+                  </div>
+                )}
+                {inviteMessage ? <p className="mt-2 text-xs text-emerald-300/90">{inviteMessage}</p> : null}
+              </div>
+            )}
+          </div>
+
           <div className="flex flex-col gap-8 lg:gap-10">
             {pipelineAccess ? (
               <>
@@ -404,6 +551,8 @@ function ProjectRow({
                 3,
                 {
                   done: progressMap.get("distribution")?.status === "COMPLETE" ? 1 : 0,
+                  skipped: 0,
+                  inProgress: 0,
                   total: 1,
                 },
                 POST_PRODUCTION_HUB_TOOLS.filter((t) => t.toolSlug === "distribution").map((t) => ({
@@ -488,6 +637,28 @@ export function CreatorProjectsDashboardClient() {
   const [networkCreators, setNetworkCreators] = useState<NetworkCreator[]>([]);
   const [selectedCollaborators, setSelectedCollaborators] = useState<string[]>([]);
 
+  const inviteCollaboratorMutation = useMutation({
+    mutationFn: async ({ projectId, inviteeUserId }: { projectId: string; inviteeUserId: string }) => {
+      const res = await fetch("/api/network/invite-to-project", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId, inviteeUserId, role: "Collaborator" }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Could not send invite");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["creator-projects"] });
+    },
+  });
+
+  const handleInviteCollaborator = (projectId: string, inviteeUserId: string) => {
+    inviteCollaboratorMutation.mutate({ projectId, inviteeUserId });
+  };
+
   const createMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch("/api/creator/projects", {
@@ -524,6 +695,20 @@ export function CreatorProjectsDashboardClient() {
 
   const activeProjectId = useActiveProjectId();
   const projects: Project[] = sortProjectsWithActiveFirst(data?.projects ?? [], activeProjectId);
+  const meId: string | undefined = data?.meId;
+
+  useEffect(() => {
+    fetch("/api/network/creators")
+      .then((r) => r.json())
+      .then((d) => {
+        const all: NetworkCreator[] = d.creators ?? [];
+        const connected = all.filter(
+          (c) => (c.following || c.connectionStatus === "ACCEPTED") && c.id !== meId,
+        );
+        setNetworkCreators(connected);
+      })
+      .catch(() => setNetworkCreators([]));
+  }, [meId]);
 
   useEffect(() => {
     if (!creating || !isCollaboration) return;
@@ -532,14 +717,12 @@ export function CreatorProjectsDashboardClient() {
       .then((d) => {
         const all: NetworkCreator[] = d.creators ?? [];
         const connected = all.filter(
-          (c) =>
-            (c.following || c.connectionStatus === "ACCEPTED") &&
-            c.id !== (data?.meId ?? null)
+          (c) => (c.following || c.connectionStatus === "ACCEPTED") && c.id !== meId,
         );
         setNetworkCreators(connected);
       })
       .catch(() => setNetworkCreators([]));
-  }, [creating, isCollaboration]);
+  }, [creating, isCollaboration, meId]);
 
   const toggleCollaborator = (id: string) => {
     setSelectedCollaborators((prev) =>
@@ -758,10 +941,10 @@ export function CreatorProjectsDashboardClient() {
                           ].join(" ")}
                         >
                           <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/[0.06] text-[10px]">
-                            {c.name?.[0]?.toUpperCase() ?? "C"}
+                            {networkDisplayInitial(c)}
                           </span>
                           <span className="max-w-[120px] truncate">
-                            {c.name ?? "Creator"}
+                            {c.displayName ?? resolveNetworkDisplayName(c)}
                           </span>
                         </button>
                       );
@@ -820,6 +1003,10 @@ export function CreatorProjectsDashboardClient() {
               defaultOpen={project.id === openProjectId}
               linkedCatalogue={pickLinkedCatalogue(project.id, contents)}
               pipelineAccess={pipelineAccess}
+              networkCreators={networkCreators}
+              meId={meId}
+              onInviteCollaborator={handleInviteCollaborator}
+              invitePending={inviteCollaboratorMutation.isPending}
             />
           ))}
         </div>

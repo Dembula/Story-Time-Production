@@ -12,6 +12,7 @@ export type PipelineStage =
   | "casting"
   | "crew"
   | "locations"
+  | "equipment"
   | "budget"
   | "schedule"
   | "scheduleDownstream"
@@ -21,7 +22,7 @@ export type PipelineStage =
 
 const STAGE_KEYS: Record<PipelineStage, string[]> = {
   script: ["project-script", "creator-scripts", "project-scenes"],
-  scenes: ["project-scenes", "project-breakdown", "project-schedule", "project-budget"],
+  scenes: ["project-scenes", "project-breakdown", "project-schedule", "project-budget", "production-control-center"],
   breakdown: [
     "project-breakdown",
     "project-breakdown-intelligence",
@@ -29,10 +30,33 @@ const STAGE_KEYS: Record<PipelineStage, string[]> = {
     "project-casting",
     "project-schedule",
     "project-budget",
+    "production-control-center",
+    "call-sheet-preview",
   ],
-  casting: ["project-casting", "project-schedule", "project-budget", "project-call-sheets"],
-  crew: ["project-crew", "project-schedule", "project-budget", "project-call-sheets"],
-  locations: ["project-breakdown", "project-schedule", "project-call-sheets", "project-budget"],
+  casting: [
+    "project-casting",
+    "project-schedule",
+    "project-budget",
+    "project-call-sheets",
+    "call-sheet-preview",
+    "production-control-center",
+  ],
+  crew: [
+    "project-crew",
+    "project-schedule",
+    "project-budget",
+    "project-call-sheets",
+    "call-sheet-preview",
+    "production-control-center",
+  ],
+  locations: ["project-breakdown", "project-schedule", "project-call-sheets", "project-budget", "production-control-center"],
+  equipment: [
+    "project-equipment",
+    "project-equipment-plan",
+    "project-schedule",
+    "call-sheet-preview",
+    "production-control-center",
+  ],
   budget: ["project-budget"],
   schedule: [
     "project-schedule",

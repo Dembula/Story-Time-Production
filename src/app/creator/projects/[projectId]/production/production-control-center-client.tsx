@@ -40,6 +40,7 @@ type ShootBrief = { id: string; date: string; status: string; callTime: string |
 type ControlPayload = {
   /** False when `ShootDayControlBoard` table is missing (run migrations / db push). */
   controlBoardDbReady?: boolean;
+  scenesSyncedFromPlan?: boolean;
   shootDaysBrief: ShootBrief[];
   shootDay: {
     id: string;
@@ -60,6 +61,7 @@ type ControlPayload = {
     crewRequired: { key: string; name: string; role: string; department: string }[];
     equipmentRequired: { key: string; equipmentName: string; category: string; quantity: number }[];
     location: string | null;
+    weather: string | null;
     logistics: Record<string, string | null>;
   } | null;
   live: {
@@ -90,11 +92,32 @@ type ControlPayload = {
     resolutionOwner: { id: string; name: string | null } | null;
   }>;
   riskItems: Array<{ id: string; category: string; description: string; status: string }>;
+  breakdownSummary: {
+    characterCount: number;
+    characters: string[];
+    propCount: number;
+    props: string[];
+    locationCount: number;
+    locations: string[];
+    vehicleCount: number;
+    stuntCount: number;
+    sfxCount: number;
+  } | null;
   contractSummary: { total: number; signed: number };
   equipmentPlan: Array<{ id: string; category: string; description: string | null; quantity: number }>;
   alerts: Array<{ id: string; severity: string; type: string; message: string }>;
   acknowledgedAlertIds: string[];
   teamMembers: Array<{ id: string; name: string | null; email: string | null }>;
+  dataLinks: {
+    schedule: string;
+    breakdown: string;
+    casting: string;
+    crew: string;
+    equipment: string;
+    callSheet: string;
+    tasks: string;
+    risk: string;
+  } | null;
 };
 
 function queueOffline(projectId: string, body: Record<string, unknown>) {
@@ -208,10 +231,11 @@ export function ProductionControlCenterClient({ projectId, title }: { projectId?
       return res.json();
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["production-control-center"] });
+      void queryClient.invalidateQueries({ queryKey: ["production-control-center", projectId] });
       void queryClient.invalidateQueries({ queryKey: ["project-production-workspace", projectId] });
       void queryClient.invalidateQueries({ queryKey: ["project-incidents", projectId] });
       void queryClient.invalidateQueries({ queryKey: ["project-tasks", projectId] });
+      void queryClient.invalidateQueries({ queryKey: ["project-schedule", projectId] });
     },
     onError: (e, vars) => {
       if (!projectId) return;
@@ -317,13 +341,27 @@ export function ProductionControlCenterClient({ projectId, title }: { projectId?
             </option>
           ))}
         </select>
-        {projectId && (
-          <Link
-            href={`/creator/projects/${projectId}/pre-production/production-scheduling`}
-            className="text-xs text-orange-400 hover:text-orange-300 inline-flex items-center gap-1"
-          >
-            Edit schedule <ChevronRight className="w-3 h-3" />
-          </Link>
+        {projectId && data?.dataLinks && (
+          <div className="flex flex-wrap gap-3 text-xs">
+            <Link href={data.dataLinks.schedule} className="text-orange-400 hover:text-orange-300">
+              Schedule
+            </Link>
+            <Link href={data.dataLinks.callSheet} className="text-orange-400 hover:text-orange-300">
+              Call sheet
+            </Link>
+            <Link href={data.dataLinks.breakdown} className="text-slate-400 hover:text-slate-200">
+              Breakdown
+            </Link>
+            <Link href={data.dataLinks.casting} className="text-slate-400 hover:text-slate-200">
+              Casting
+            </Link>
+            <Link href={data.dataLinks.crew} className="text-slate-400 hover:text-slate-200">
+              Crew
+            </Link>
+            <Link href={data.dataLinks.equipment} className="text-slate-400 hover:text-slate-200">
+              Equipment
+            </Link>
+          </div>
         )}
       </div>
 
@@ -342,8 +380,26 @@ export function ProductionControlCenterClient({ projectId, title }: { projectId?
       {data?.shootDay && data.live ? (
         (() => {
           const live = data.live;
+          const links = data.dataLinks;
+          const bs = data.breakdownSummary;
           return (
         <>
+          {data.scenesSyncedFromPlan && (
+            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-100">
+              Scene links were synced from your schedule plan into this shoot day so live tracking can run.
+            </div>
+          )}
+          {data.shootDay.scenes.length === 0 && (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+              No scenes linked to this day yet.{" "}
+              {links ? (
+                <Link href={links.schedule} className="text-orange-300 hover:underline">
+                  Open Production Scheduling
+                </Link>
+              ) : null}{" "}
+              to assign scenes from your script breakdown, then save.
+            </div>
+          )}
           {compactTodayView && (
             <section className="rounded-2xl border border-slate-800 bg-slate-900/50 p-3">
               <p className="text-[11px] uppercase tracking-wide text-slate-500 mb-1">Today view</p>
@@ -421,8 +477,51 @@ export function ProductionControlCenterClient({ projectId, title }: { projectId?
                 {data.shootDay.scenesBeingShot && (
                   <p className="text-xs text-slate-500 mt-1">Slate: {data.shootDay.scenesBeingShot}</p>
                 )}
+                {data.productionDay?.weather && (
+                  <p className="text-xs text-slate-500 mt-1">Weather: {data.productionDay.weather}</p>
+                )}
+                {data.productionDay?.logistics?.cateringNotes && (
+                  <p className="text-xs text-slate-500 mt-1">Catering: {data.productionDay.logistics.cateringNotes}</p>
+                )}
               </div>
             </div>
+            {bs && (bs.characterCount > 0 || bs.propCount > 0 || bs.locationCount > 0) && (
+              <div className="mt-4 rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-xs text-slate-300">
+                <p className="text-[10px] uppercase tracking-wide text-slate-500 mb-2">From script breakdown (today&apos;s scenes)</p>
+                <div className="flex flex-wrap gap-x-4 gap-y-1">
+                  {bs.characterCount > 0 && (
+                    <span>
+                      <strong className="text-white">{bs.characterCount}</strong> characters
+                      {bs.characters.length > 0 ? ` · ${bs.characters.join(", ")}` : ""}
+                    </span>
+                  )}
+                  {bs.propCount > 0 && (
+                    <span>
+                      <strong className="text-white">{bs.propCount}</strong> props
+                      {bs.props.length > 0 ? ` · ${bs.props.slice(0, 4).join(", ")}` : ""}
+                    </span>
+                  )}
+                  {bs.locationCount > 0 && (
+                    <span>
+                      <strong className="text-white">{bs.locationCount}</strong> locations
+                      {bs.locations.length > 0 ? ` · ${bs.locations.join(", ")}` : ""}
+                    </span>
+                  )}
+                  {(bs.vehicleCount > 0 || bs.stuntCount > 0 || bs.sfxCount > 0) && (
+                    <span className="text-slate-500">
+                      {bs.vehicleCount > 0 ? `${bs.vehicleCount} vehicles` : ""}
+                      {bs.stuntCount > 0 ? ` · ${bs.stuntCount} stunts` : ""}
+                      {bs.sfxCount > 0 ? ` · ${bs.sfxCount} SFX` : ""}
+                    </span>
+                  )}
+                </div>
+                {links && (
+                  <Link href={links.breakdown} className="text-orange-400 hover:underline mt-2 inline-block">
+                    Script breakdown →
+                  </Link>
+                )}
+              </div>
+            )}
           </section>
 
           <div className={`grid gap-4 ${compactTodayView ? "" : "lg:grid-cols-3"} min-w-0`}>
@@ -434,7 +533,18 @@ export function ProductionControlCenterClient({ projectId, title }: { projectId?
                   Scene progress
                 </div>
                 <div className="space-y-3">
-                  {data.shootDay.scenes.map((s) => {
+                  {data.shootDay.scenes.length === 0 ? (
+                    <p className="text-xs text-slate-500 py-2">
+                      No scenes to track.{" "}
+                      {links ? (
+                        <Link href={links.schedule} className="text-orange-400 hover:underline">
+                          Assign scenes in scheduling
+                        </Link>
+                      ) : null}
+                      .
+                    </p>
+                  ) : (
+                  data.shootDay.scenes.map((s) => {
                     const prog = live.sceneProgress[s.shootDaySceneId] ?? { status: "NOT_STARTED" };
                     const planned = estForScene(s.sceneId);
                     const actualMin = minutesBetween(prog.actualStartAt, prog.actualEndAt);
@@ -494,7 +604,8 @@ export function ProductionControlCenterClient({ projectId, title }: { projectId?
                         </div>
                       </div>
                     );
-                  })}
+                  })
+                  )}
                 </div>
               </section>
 
@@ -526,7 +637,20 @@ export function ProductionControlCenterClient({ projectId, title }: { projectId?
                       </li>
                     ))}
                     {(data.productionDay?.castRequired ?? []).length === 0 && (
-                      <li className="text-xs text-slate-500">No cast rows for this day (link breakdown + casting).</li>
+                      <li className="text-xs text-slate-500">
+                        No cast for this day.{" "}
+                        {links ? (
+                          <Link href={links.breakdown} className="text-orange-400 hover:underline">
+                            Breakdown
+                          </Link>
+                        ) : null}
+                        {" · "}
+                        {links ? (
+                          <Link href={links.casting} className="text-orange-400 hover:underline">
+                            Casting
+                          </Link>
+                        ) : null}
+                      </li>
                     )}
                   </ul>
                 </div>
@@ -557,6 +681,16 @@ export function ProductionControlCenterClient({ projectId, title }: { projectId?
                         </select>
                       </li>
                     ))}
+                    {(data.productionDay?.crewRequired ?? []).length === 0 && (
+                      <li className="text-xs text-slate-500">
+                        No crew roles planned.{" "}
+                        {links ? (
+                          <Link href={links.crew} className="text-orange-400 hover:underline">
+                            Crew planning
+                          </Link>
+                        ) : null}
+                      </li>
+                    )}
                   </ul>
                 </div>
               </section>
@@ -592,13 +726,25 @@ export function ProductionControlCenterClient({ projectId, title }: { projectId?
                         </select>
                       </li>
                     ))}
+                    {(data.productionDay?.equipmentRequired ?? []).length === 0 && (
+                      <li className="text-xs text-slate-500">
+                        No equipment on plan for this day.{" "}
+                        {links ? (
+                          <Link href={links.equipment} className="text-orange-400 hover:underline">
+                            Equipment planning
+                          </Link>
+                        ) : null}
+                      </li>
+                    )}
                   </ul>
+                  {links ? (
                   <Link
-                    href={`/creator/projects/${projectId}/pre-production/equipment-planning`}
+                    href={links.equipment}
                     className="text-xs text-orange-400 hover:underline mt-2 inline-block"
                   >
                     Equipment planning →
                   </Link>
+                  ) : null}
                 </div>
                 <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
                   <div className="flex items-center gap-2 mb-3 text-sm font-semibold text-white">
@@ -677,7 +823,7 @@ export function ProductionControlCenterClient({ projectId, title }: { projectId?
                     })}
                   </ul>
                   <Link
-                    href={`/creator/projects/${projectId}/pre-production/risk-insurance`}
+                    href={links?.risk ?? `/creator/projects/${projectId}/pre-production/risk-insurance`}
                     className="text-xs text-orange-400 hover:underline mt-2 inline-block"
                   >
                     Risk & insurance →
@@ -723,12 +869,14 @@ export function ProductionControlCenterClient({ projectId, title }: { projectId?
                   })}
                 </ul>
                 {data.tasks.length === 0 && <p className="text-xs text-slate-500">No tasks linked to this shoot day.</p>}
+                {links ? (
                 <Link
-                  href={`/creator/projects/${projectId}/pre-production/production-workspace`}
+                  href={links.tasks}
                   className="text-xs text-orange-400 hover:underline mt-3 inline-block"
                 >
                   Production workspace →
                 </Link>
+                ) : null}
               </section>
 
               {/* Incidents */}

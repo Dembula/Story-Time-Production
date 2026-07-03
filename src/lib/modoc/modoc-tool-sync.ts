@@ -11,17 +11,41 @@ const BREAKDOWN_CASCADE = [
   "project-schedule",
   "project-budget",
   "project-breakdown-intelligence",
+  "production-control-center",
+  "call-sheet-preview",
 ];
 const SCHEDULE_CASCADE = [
   "project-schedule",
   "project-shoot-progress",
   "project-call-sheets",
+  "call-sheet-preview",
   "project-budget",
   "production-control-center",
   "command-center-calendar",
 ];
-const CASTING_CASCADE = ["project-casting", "project-schedule", "project-budget"];
-const CREW_CASCADE = ["project-crew", "project-schedule", "project-budget"];
+const CASTING_CASCADE = [
+  "project-casting",
+  "project-schedule",
+  "project-budget",
+  "project-call-sheets",
+  "call-sheet-preview",
+  "production-control-center",
+];
+const CREW_CASCADE = [
+  "project-crew",
+  "project-schedule",
+  "project-budget",
+  "project-call-sheets",
+  "call-sheet-preview",
+  "production-control-center",
+];
+const EQUIPMENT_CASCADE = [
+  "project-equipment",
+  "project-equipment-plan",
+  "project-schedule",
+  "call-sheet-preview",
+  "production-control-center",
+];
 
 /** React Query keys to invalidate when a VA action mutates creator data. */
 const ACTION_QUERY_KEYS: Partial<Record<ModocActionType, string[]>> = {
@@ -63,9 +87,9 @@ const ACTION_QUERY_KEYS: Partial<Record<ModocActionType, string[]>> = {
   add_breakdown_location: ["project-breakdown"],
   update_breakdown_location: ["project-breakdown"],
   delete_breakdown_location: ["project-breakdown"],
-  add_equipment_plan_item: ["project-equipment"],
-  update_equipment_plan_item: ["project-equipment"],
-  delete_equipment_plan_item: ["project-equipment"],
+  add_equipment_plan_item: EQUIPMENT_CASCADE,
+  update_equipment_plan_item: EQUIPMENT_CASCADE,
+  delete_equipment_plan_item: EQUIPMENT_CASCADE,
   breakdown_full: BREAKDOWN_CASCADE,
   breakdown_scenes: ["project-breakdown", "project-scenes"],
   auto_populate_breakdown: BREAKDOWN_CASCADE,

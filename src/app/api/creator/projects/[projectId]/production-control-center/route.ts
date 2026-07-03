@@ -2,8 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { ensureProjectAccess } from "@/lib/project-access";
 import { prisma } from "@/lib/prisma";
 import { buildProductionDataEngine } from "@/lib/production-day-engine";
+import { ensureAllCastingRolesLinkedToScenes } from "@/lib/casting-scene-link";
+import { parseRiskItemDescription } from "@/lib/risk-insurance-db";
 import {
+  buildDayBreakdownSummary,
   computeControlAlerts,
+  ensureShootDaySceneLinks,
   mergeKeyedStatuses,
   mergeLiveView,
   mergeSceneProgress,
@@ -74,16 +78,28 @@ export async function GET(req: NextRequest, context: { params: Promise<{ project
       equipmentPlan: [],
       alerts: [],
       teamMembers: [],
+      breakdownSummary: null,
+      dataLinks: null,
     });
   }
+
+  await ensureAllCastingRolesLinkedToScenes(prisma, projectId);
 
   const engine = await buildProductionDataEngine(prisma, projectId, access.userId);
   const productionDay = (engine?.productionDays ?? []).find((d) => d.id === shootDay.id) ?? null;
 
+  const scenesSynced = await ensureShootDaySceneLinks(prisma, shootDay.id, productionDay);
+  const shootDayResolved = scenesSynced
+    ? await resolveShootDay(projectId, shootDay.id, null)
+    : shootDay;
+  if (!shootDayResolved) {
+    return NextResponse.json({ error: "Shoot day not found" }, { status: 404 });
+  }
+
   let controlBoardDbReady = true;
   let board: Awaited<ReturnType<typeof prisma.shootDayControlBoard.findUnique>> = null;
   try {
-    board = await prisma.shootDayControlBoard.findUnique({ where: { shootDayId: shootDay.id } });
+    board = await prisma.shootDayControlBoard.findUnique({ where: { shootDayId: shootDayResolved.id } });
   } catch (e) {
     if (isPrismaMissingTable(e, "ShootDayControlBoard")) {
       controlBoardDbReady = false;
@@ -99,10 +115,10 @@ export async function GET(req: NextRequest, context: { params: Promise<{ project
     crewStatus: board?.crewStatus ?? null,
     equipmentStatus: board?.equipmentStatus ?? null,
     locationStatus: board?.locationStatus ?? null,
-  }, shootDay.scenes);
+  }, shootDayResolved.scenes);
 
   const tasks = await prisma.projectTask.findMany({
-    where: { projectId, shootDayId: shootDay.id },
+    where: { projectId, shootDayId: shootDayResolved.id },
     orderBy: [{ priority: "desc" }, { createdAt: "asc" }],
     include: { assignee: { select: { id: true, name: true, email: true } } },
   });
@@ -110,7 +126,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ project
   const incidents = await prisma.incidentReport.findMany({
     where: {
       projectId,
-      OR: [{ shootDayId: shootDay.id }, { shootDayId: null, resolved: false }],
+      OR: [{ shootDayId: shootDayResolved.id }, { shootDayId: null, resolved: false }],
     },
     orderBy: { createdAt: "desc" },
     take: 80,
@@ -157,15 +173,43 @@ export async function GET(req: NextRequest, context: { params: Promise<{ project
     }
   }
 
-  const sceneMeta = shootDay.scenes.map((link) => {
+  const sceneMeta = shootDayResolved.scenes.map((link) => {
     const est =
       productionDay?.scenes.find((s) => s.sceneId === link.sceneId)?.estimatedShootDurationMinutes ?? 45;
     return { shootDaySceneId: link.id, estimatedMinutes: est, number: link.scene?.number ?? "?" };
   });
 
+  const daySceneIds = new Set(shootDayResolved.scenes.map((s) => s.sceneId));
+  const riskItems = (riskPlan?.items ?? []).filter((item) => {
+    if (item.status === "DONE") return false;
+    const { meta } = parseRiskItemDescription(item.description);
+    const linkedDay = meta.linkedShootDayIds?.includes(shootDayResolved.id);
+    const linkedScene = meta.linkedSceneIds?.some((id) => daySceneIds.has(id));
+    if (linkedDay || linkedScene) return true;
+    if (!meta.linkedShootDayIds?.length && !meta.linkedSceneIds?.length) return true;
+    return false;
+  });
+
+  const breakdownSceneRows =
+    daySceneIds.size > 0
+      ? await prisma.projectScene.findMany({
+          where: { projectId, id: { in: [...daySceneIds] } },
+          include: {
+            breakdownCharacters: { select: { name: true } },
+            breakdownProps: { select: { name: true } },
+            primaryLocation: { select: { name: true } },
+            breakdownLocations: { select: { name: true } },
+            breakdownVehicles: { select: { description: true } },
+            breakdownStunts: { select: { description: true } },
+            breakdownSfxs: { select: { description: true } },
+          },
+        })
+      : [];
+  const breakdownSummary = buildDayBreakdownSummary(breakdownSceneRows);
+
   const ack = parseAckList(board?.acknowledgedAlerts);
   const alerts = computeControlAlerts({
-    shootDay: { id: shootDay.id, callTime: shootDay.callTime, date: shootDay.date },
+    shootDay: { id: shootDayResolved.id, callTime: shootDayResolved.callTime, date: shootDayResolved.date },
     sceneProgress: live.sceneProgress,
     sceneMeta,
     castStatus: live.castStatus,
@@ -190,18 +234,19 @@ export async function GET(req: NextRequest, context: { params: Promise<{ project
 
   return NextResponse.json({
     controlBoardDbReady,
+    scenesSyncedFromPlan: scenesSynced,
     shootDaysBrief,
     shootDay: {
-      id: shootDay.id,
-      date: shootDay.date.toISOString(),
-      unit: shootDay.unit,
-      callTime: shootDay.callTime,
-      wrapTime: shootDay.wrapTime,
-      status: shootDay.status,
-      locationSummary: shootDay.locationSummary,
-      scenesBeingShot: shootDay.scenesBeingShot,
-      dayNotes: shootDay.dayNotes,
-      scenes: shootDay.scenes.map((s) => ({
+      id: shootDayResolved.id,
+      date: shootDayResolved.date.toISOString(),
+      unit: shootDayResolved.unit,
+      callTime: shootDayResolved.callTime,
+      wrapTime: shootDayResolved.wrapTime,
+      status: shootDayResolved.status,
+      locationSummary: shootDayResolved.locationSummary,
+      scenesBeingShot: shootDayResolved.scenesBeingShot,
+      dayNotes: shootDayResolved.dayNotes,
+      scenes: shootDayResolved.scenes.map((s) => ({
         shootDaySceneId: s.id,
         order: s.order,
         sceneId: s.sceneId,
@@ -213,12 +258,23 @@ export async function GET(req: NextRequest, context: { params: Promise<{ project
     live,
     tasks,
     incidents,
-    riskItems: (riskPlan?.items ?? []).filter((r) => r.status !== "DONE"),
+    riskItems,
+    breakdownSummary,
     contractSummary: { total: contracts.length, signed },
     equipmentPlan,
     alerts,
     acknowledgedAlertIds: [...ack],
     teamMembers,
+    dataLinks: {
+      schedule: `/creator/projects/${projectId}/pre-production/production-scheduling`,
+      breakdown: `/creator/projects/${projectId}/pre-production/script-breakdown`,
+      casting: `/creator/projects/${projectId}/pre-production/casting`,
+      crew: `/creator/projects/${projectId}/pre-production/crew-planning`,
+      equipment: `/creator/projects/${projectId}/pre-production/equipment-planning`,
+      callSheet: `/creator/projects/${projectId}/production/call-sheet-generator?dayId=${shootDayResolved.id}`,
+      tasks: `/creator/projects/${projectId}/pre-production/production-workspace`,
+      risk: `/creator/projects/${projectId}/pre-production/risk-insurance`,
+    },
   });
 }
 

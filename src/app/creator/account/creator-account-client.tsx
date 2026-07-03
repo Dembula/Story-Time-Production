@@ -199,6 +199,7 @@ export function CreatorAccountClient({ backHref = "/creator/command-center" }: {
   const [initialEmail, setInitialEmail] = useState("");
   const [initialPhone, setInitialPhone] = useState("");
   const [network, setNetwork] = useState({
+    networkHandle: "",
     headline: "",
     location: "",
     website: "",
@@ -269,6 +270,7 @@ export function CreatorAccountClient({ backHref = "/creator/command-center" }: {
           newPassword: "",
         });
         setNetwork({
+          networkHandle: user.networkHandle ?? "",
           headline: user.headline ?? "",
           location: user.location ?? "",
           website: user.website ?? "",
@@ -474,6 +476,7 @@ export function CreatorAccountClient({ backHref = "/creator/command-center" }: {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        networkHandle: net.networkHandle.trim() || "",
         headline: net.headline || undefined,
         location: net.location || undefined,
         website: net.website || undefined,
@@ -489,7 +492,11 @@ export function CreatorAccountClient({ backHref = "/creator/command-center" }: {
     const { structured, extra } = parseSocialLinks(data.socialLinks);
     setSocial(structured);
     socialExtraRef.current = extra;
-    const nextNet = { ...net, image: data.image != null ? String(data.image) : "" };
+    const nextNet = {
+      ...net,
+      networkHandle: data.networkHandle != null ? String(data.networkHandle) : "",
+      image: data.image != null ? String(data.image) : "",
+    };
     setNetwork(nextNet);
     networkRef.current = nextNet;
     if (updateSession) {
@@ -980,7 +987,9 @@ export function CreatorAccountClient({ backHref = "/creator/command-center" }: {
           <Globe className="w-5 h-5 text-emerald-400" />
           <h2 className="text-lg font-semibold text-white">Public / network profile</h2>
         </div>
-        <p className="text-xs text-slate-500">Shown on your creator page and in Network.</p>
+        <p className="text-xs text-slate-500">
+          Shown on your creator page and in Network. Set a handle so other creators can find you in Discover.
+        </p>
         <div>
           <label className="block text-sm font-medium text-slate-300 mb-1">Profile photo</label>
           <p className="mb-2 text-xs text-slate-500">
@@ -1047,6 +1056,28 @@ export function CreatorAccountClient({ backHref = "/creator/command-center" }: {
               </>
             ) : null}
           </div>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-300 mb-1">Network handle</label>
+          <div className="relative">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">@</span>
+            <input
+              value={network.networkHandle}
+              onChange={(e) =>
+                setNetwork((n) => ({
+                  ...n,
+                  networkHandle: e.target.value.replace(/^@+/, "").toLowerCase(),
+                }))
+              }
+              className="storytime-input w-full py-2.5 pl-8 pr-4"
+              placeholder="your_handle"
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </div>
+          <p className="mt-1 text-[11px] text-slate-500">
+            3–30 characters: letters, numbers, underscores. Until you set one, others see your signup email in Network.
+          </p>
         </div>
         <div>
           <label className="block text-sm font-medium text-slate-300 mb-1">Headline</label>

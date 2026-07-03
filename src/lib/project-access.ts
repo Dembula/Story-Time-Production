@@ -31,6 +31,8 @@ export function projectAccessDenied(access: ProjectAccessResult): access is Proj
   return access.error !== null;
 }
 
+const ACTIVE_MEMBER_STATUSES = new Set(["ACTIVE", "ACCEPTED"]);
+
 export async function ensureProjectAccess(projectId: string): Promise<ProjectAccessResult> {
   const session = await getServerSession(authOptions);
   const role = (session?.user as { role?: string })?.role;
@@ -60,7 +62,7 @@ export async function ensureProjectAccess(projectId: string): Promise<ProjectAcc
   const isCreatorMember =
     role === "ADMIN" ||
     project.pitches.some((p) => p.creatorId === userId) ||
-    project.members.some((m) => m.userId === userId && m.status === "ACCEPTED");
+    project.members.some((m) => m.userId === userId && ACTIVE_MEMBER_STATUSES.has(m.status));
 
   if (!isCreatorMember) {
     return {

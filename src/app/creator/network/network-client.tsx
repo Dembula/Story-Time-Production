@@ -17,14 +17,19 @@ import {
   MessageSquare,
   Upload,
   X,
+  Search,
 } from "lucide-react";
 import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
+import { resolveNetworkDisplayName, networkDisplayInitial } from "@/lib/network-display-name";
+import { NativeSafeVideo } from "@/components/player/native-safe-video";
 
 type Tab = "feed" | "discover" | "chats";
 
 interface PostAuthor {
   id: string;
   name: string | null;
+  displayName?: string;
+  handle?: string | null;
   image: string | null;
   headline: string | null;
 }
@@ -34,6 +39,7 @@ interface FeedPost {
   authorId: string;
   body: string | null;
   imageUrls: string | null;
+  videoUrls: string | null;
   contentId: string | null;
   createdAt: string;
   author: PostAuthor;
@@ -43,6 +49,8 @@ interface FeedPost {
 interface CreatorCard {
   id: string;
   name: string | null;
+  displayName?: string;
+  handle?: string | null;
   image: string | null;
   bio: string | null;
   previousWork: string | null;
@@ -60,9 +68,9 @@ interface ProjectOption {
 }
 
 /** Supports JSON array, JSON-encoded string, or a single raw https URL stored in DB. */
-function parseFeedPostImageUrls(imageUrls: string | null | undefined): string[] {
-  if (imageUrls == null) return [];
-  const s = String(imageUrls).trim();
+function parseFeedPostMediaUrls(mediaUrls: string | null | undefined): string[] {
+  if (mediaUrls == null) return [];
+  const s = String(mediaUrls).trim();
   if (!s) return [];
   try {
     const parsed: unknown = JSON.parse(s);
@@ -85,6 +93,7 @@ function mapApiRowToFeedPost(p: Record<string, unknown>): FeedPost {
     authorId: p.authorId as string,
     body: (p.body as string) ?? null,
     imageUrls: typeof p.imageUrls === "string" ? p.imageUrls : p.imageUrls != null ? String(p.imageUrls) : null,
+    videoUrls: typeof p.videoUrls === "string" ? p.videoUrls : p.videoUrls != null ? String(p.videoUrls) : null,
     contentId: (p.contentId as string) ?? null,
     createdAt: typeof p.createdAt === "string" ? p.createdAt : new Date(p.createdAt as Date).toISOString(),
     author: (p.author as PostAuthor) ?? {
@@ -101,6 +110,7 @@ export function NetworkClient() {
   const [tab, setTab] = useState<Tab>("feed");
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [creators, setCreators] = useState<CreatorCard[]>([]);
+  const [discoverQuery, setDiscoverQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [postBody, setPostBody] = useState("");
   const [postImageUrl, setPostImageUrl] = useState("");
@@ -110,6 +120,11 @@ export function NetworkClient() {
   const [pasteImageUrlOpen, setPasteImageUrlOpen] = useState(false);
   const [pasteImageUrlDraft, setPasteImageUrlDraft] = useState("");
   const imageUploadGen = useRef(0);
+  const [postVideoUrl, setPostVideoUrl] = useState("");
+  const [postVideoLocalPreview, setPostVideoLocalPreview] = useState<string | null>(null);
+  const [postVideoUploading, setPostVideoUploading] = useState(false);
+  const [postVideoError, setPostVideoError] = useState("");
+  const videoUploadGen = useRef(0);
   const [brokenPostImages, setBrokenPostImages] = useState<Record<string, boolean>>({});
   const [posting, setPosting] = useState(false);
   const [myId, setMyId] = useState<string | null>(null);
@@ -124,23 +139,28 @@ export function NetworkClient() {
   const searchParams = useSearchParams();
 
   const [connectionRequests, setConnectionRequests] = useState<{
-    received: { id: string; fromId: string; from: { id: string; name: string | null; image: string | null } }[];
+    received: { id: string; fromId: string; from: { id: string; name: string | null; displayName?: string; image: string | null } }[];
   }>({ received: [] });
   const [chats, setChats] = useState<
     {
       id: string;
-      participants: { id: string; name: string | null; image: string | null }[];
+      participants: { id: string; name: string | null; displayName?: string; image: string | null }[];
       lastMessage: {
         id: string;
         body: string;
         createdAt: string;
-        sender: { id: string; name: string | null };
+        sender: { id: string; name: string | null; displayName?: string };
       } | null;
     }[]
   >([]);
   const [activeChatUserId, setActiveChatUserId] = useState<string | null>(null);
   const [chatMessages, setChatMessages] = useState<
-    { id: string; body: string; createdAt: string; sender: { id: string; name: string | null } }[]
+    {
+      id: string;
+      body: string;
+      createdAt: string;
+      sender: { id: string; name: string | null; displayName?: string };
+    }[]
   >([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [chatInput, setChatInput] = useState("");
@@ -193,11 +213,8 @@ export function NetworkClient() {
         .catch(() => setPosts([]))
         .finally(() => setLoading(false));
     } else if (tab === "discover") {
-      fetch("/api/network/creators")
-        .then((r) => r.json())
-        .then((d) => setCreators(d.creators ?? []))
-        .catch(() => setCreators([]))
-        .finally(() => setLoading(false));
+      // Discover loading handled by discoverQuery effect below.
+      return;
     } else if (tab === "chats") {
       fetch("/api/network/chats")
         .then((r) => (r.ok ? r.json() : { conversations: [] }))
@@ -206,6 +223,23 @@ export function NetworkClient() {
         .finally(() => setLoading(false));
     }
   }, [tab]);
+
+  useEffect(() => {
+    if (tab !== "discover") return;
+    setLoading(true);
+    const delay = discoverQuery.trim() ? 300 : 0;
+    const timer = window.setTimeout(() => {
+      const params = new URLSearchParams();
+      if (discoverQuery.trim()) params.set("q", discoverQuery.trim());
+      const qs = params.toString();
+      fetch(`/api/network/creators${qs ? `?${qs}` : ""}`)
+        .then((r) => r.json())
+        .then((d) => setCreators(d.creators ?? []))
+        .catch(() => setCreators([]))
+        .finally(() => setLoading(false));
+    }, delay);
+    return () => window.clearTimeout(timer);
+  }, [tab, discoverQuery]);
 
   useEffect(() => {
     if (tab !== "feed") return;
@@ -300,7 +334,8 @@ export function NetworkClient() {
     }
   }
 
-  function clearPostAttachment() {
+  function clearPostImage() {
+    imageUploadGen.current += 1;
     setPostImageLocalPreview((prev) => {
       if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
       return null;
@@ -308,34 +343,51 @@ export function NetworkClient() {
     setPostImageUrl("");
     setPostImageError("");
     setPasteImageUrlDraft("");
+    setPostImageUploading(false);
+  }
+
+  function clearPostVideo() {
+    videoUploadGen.current += 1;
+    setPostVideoLocalPreview((prev) => {
+      if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
+      return null;
+    });
+    setPostVideoUrl("");
+    setPostVideoError("");
+    setPostVideoUploading(false);
   }
 
   async function submitPost(e: React.FormEvent) {
     e.preventDefault();
     const hasText = postBody.trim().length > 0;
     const hasImage = postImageUrl.trim().length > 0;
-    if ((!hasText && !hasImage) || posting || postImageUploading) return;
+    const hasVideo = postVideoUrl.trim().length > 0;
+    if ((!hasText && !hasImage && !hasVideo) || posting || postImageUploading || postVideoUploading) return;
     setPosting(true);
     try {
-      const imageUrls = postImageUrl.trim() ? [postImageUrl.trim()] : undefined;
+      const imageUrls = hasImage ? [postImageUrl.trim()] : undefined;
+      const videoUrls = hasVideo ? [postVideoUrl.trim()] : undefined;
       const res = await fetch("/api/network/posts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           body: hasText ? postBody.trim() : null,
           ...(imageUrls ? { imageUrls } : {}),
+          ...(videoUrls ? { videoUrls } : {}),
         }),
       });
       if (res.ok) {
         const row = (await res.json()) as Record<string, unknown>;
         const post = mapApiRowToFeedPost(row);
         setPostBody("");
-        setPostImageLocalPreview((prev) => {
-          if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
-          return null;
-        });
-        setPostImageUrl("");
+        clearPostImage();
+        clearPostVideo();
         setPosts((prev) => [post, ...prev]);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        const msg = typeof data.error === "string" ? data.error : "Could not publish post.";
+        if (hasVideo) setPostVideoError(msg);
+        else setPostImageError(msg);
       }
     } finally {
       setPosting(false);
@@ -425,10 +477,14 @@ export function NetworkClient() {
                     {r.from?.image ? (
                       <Image src={r.from.image} alt="" width={32} height={32} className="object-cover" />
                     ) : (
-                      <span className="text-xs font-medium text-slate-300">{r.from?.name?.[0] ?? "?"}</span>
+                      <span className="text-xs font-medium text-slate-300">
+                        {networkDisplayInitial(r.from ?? { name: null })}
+                      </span>
                     )}
                   </div>
-                  <span className="text-sm text-white truncate">{r.from?.name ?? "Someone"}</span>
+                  <span className="text-sm text-white truncate">
+                    {r.from?.displayName ?? resolveNetworkDisplayName(r.from ?? { name: null })}
+                  </span>
                 </Link>
                 <div className="flex gap-2 shrink-0">
                   <button
@@ -466,7 +522,7 @@ export function NetworkClient() {
                 <textarea
                   value={postBody}
                   onChange={(e) => setPostBody(e.target.value)}
-                  placeholder="Share an update, behind-the-scenes moment, or thought…"
+                  placeholder="Share an update, photo, video, or behind-the-scenes moment…"
                   rows={3}
                   className="w-full px-4 py-3 rounded-xl bg-slate-800/80 border border-slate-700 text-white placeholder:text-slate-500 resize-none focus:outline-none focus:ring-2 focus:ring-orange-500/50"
                   maxLength={2000}
@@ -479,11 +535,12 @@ export function NetworkClient() {
                       ) : (
                         <Upload className="h-3.5 w-3.5" />
                       )}
-                      {postImageUploading ? "Uploading in background…" : "Attach image"}
+                      {postImageUploading ? "Uploading image…" : "Attach image"}
                       <input
                         type="file"
                         accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/heic,image/heif"
                         className="hidden"
+                        disabled={postImageUploading || posting}
                         onChange={(e) => {
                           const file = e.target.files?.[0];
                           e.target.value = "";
@@ -517,6 +574,56 @@ export function NetworkClient() {
                               });
                             } finally {
                               if (gen === imageUploadGen.current) setPostImageUploading(false);
+                            }
+                          })();
+                        }}
+                      />
+                    </label>
+                    <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-600 bg-slate-900/80 px-3 py-2 text-xs text-slate-200 hover:bg-slate-800 shrink-0">
+                      {postVideoUploading ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Film className="h-3.5 w-3.5" />
+                      )}
+                      {postVideoUploading ? "Uploading video…" : "Attach video"}
+                      <input
+                        type="file"
+                        accept="video/mp4,video/webm,video/quicktime,video/x-m4v,video/x-matroska,.mp4,.mov,.webm,.m4v,.mkv"
+                        className="hidden"
+                        disabled={postVideoUploading || posting}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          e.target.value = "";
+                          if (!file) return;
+                          setPostVideoError("");
+                          videoUploadGen.current += 1;
+                          const gen = videoUploadGen.current;
+                          setPostVideoLocalPreview((prev) => {
+                            if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
+                            return URL.createObjectURL(file);
+                          });
+                          setPostVideoUrl("");
+                          setPostVideoUploading(true);
+                          void (async () => {
+                            try {
+                              const publicUrl = await uploadContentMediaViaApi(file);
+                              if (gen !== videoUploadGen.current) return;
+                              setPostVideoLocalPreview((prev) => {
+                                if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
+                                return null;
+                              });
+                              setPostVideoUrl(publicUrl);
+                            } catch (uploadErr) {
+                              if (gen !== videoUploadGen.current) return;
+                              setPostVideoError(
+                                uploadErr instanceof Error ? uploadErr.message : "Video upload failed.",
+                              );
+                              setPostVideoLocalPreview((prev) => {
+                                if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
+                                return null;
+                              });
+                            } finally {
+                              if (gen === videoUploadGen.current) setPostVideoUploading(false);
                             }
                           })();
                         }}
@@ -558,15 +665,54 @@ export function NetworkClient() {
                         </p>
                         <button
                           type="button"
-                          onClick={() => {
-                            imageUploadGen.current += 1;
-                            clearPostAttachment();
-                            setPostImageUploading(false);
-                          }}
+                          onClick={clearPostImage}
                           className="inline-flex items-center gap-1 rounded-lg border border-slate-600 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"
                         >
                           <X className="h-3 w-3" />
                           Remove image
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                  {postVideoLocalPreview || postVideoUrl ? (
+                    <div className="flex items-start gap-3 rounded-xl border border-slate-700 bg-slate-950/80 p-3">
+                      <div className="relative h-28 w-44 shrink-0 overflow-hidden rounded-lg bg-black ring-1 ring-slate-600/80">
+                        {postVideoLocalPreview ? (
+                          // eslint-disable-next-line jsx-a11y/media-has-caption -- local upload preview
+                          <video
+                            src={postVideoLocalPreview}
+                            className="h-full w-full object-cover"
+                            muted
+                            playsInline
+                          />
+                        ) : (
+                          <NativeSafeVideo
+                            videoUrl={postVideoUrl}
+                            controls
+                            className="h-full w-full object-cover"
+                          />
+                        )}
+                        {postVideoUploading ? (
+                          <div className="absolute inset-0 flex items-center justify-center bg-slate-950/60 backdrop-blur-[1px]">
+                            <Loader2 className="h-6 w-6 animate-spin text-orange-400" />
+                          </div>
+                        ) : null}
+                      </div>
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <p className="text-xs text-slate-400">
+                          {postVideoUploading
+                            ? "You can keep writing while the video uploads."
+                            : postVideoUrl
+                              ? "Video ready to post."
+                              : null}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={clearPostVideo}
+                          className="inline-flex items-center gap-1 rounded-lg border border-slate-600 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"
+                        >
+                          <X className="h-3 w-3" />
+                          Remove video
                         </button>
                       </div>
                     </div>
@@ -604,13 +750,17 @@ export function NetworkClient() {
                   ) : null}
                 </div>
                 {postImageError ? <p className="text-xs text-amber-300">{postImageError}</p> : null}
+                {postVideoError ? <p className="text-xs text-amber-300">{postVideoError}</p> : null}
               </div>
             </div>
             <div className="flex justify-end">
               <button
                 type="submit"
                 disabled={
-                  (!postBody.trim() && !postImageUrl.trim()) || posting || postImageUploading
+                  (!postBody.trim() && !postImageUrl.trim() && !postVideoUrl.trim()) ||
+                  posting ||
+                  postImageUploading ||
+                  postVideoUploading
                 }
                 className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500 text-white font-medium hover:bg-orange-600 disabled:opacity-50 disabled:pointer-events-none"
               >
@@ -656,7 +806,7 @@ export function NetworkClient() {
                         <Image src={post.author.image} alt="" width={40} height={40} className="object-cover" />
                       ) : (
                         <span className="text-sm font-semibold text-slate-300">
-                          {post.author?.name?.[0]?.toUpperCase() ?? "?"}
+                          {networkDisplayInitial(post.author ?? { name: null })}
                         </span>
                       )}
                     </Link>
@@ -665,7 +815,8 @@ export function NetworkClient() {
                         href={`/creator/profile/${post.authorId}`}
                         className="font-semibold text-white hover:text-orange-400 truncate block"
                       >
-                        {post.author?.name ?? "Creator"}
+                        {post.author?.displayName ??
+                          resolveNetworkDisplayName(post.author ?? { name: null })}
                       </Link>
                       {(post.author?.headline || post.createdAt) && (
                         <p className="text-xs text-slate-500 truncate">
@@ -677,7 +828,23 @@ export function NetworkClient() {
                   </div>
                   {post.body && <p className="text-slate-200 whitespace-pre-wrap break-words mb-3">{post.body}</p>}
                   {(() => {
-                    const urls = parseFeedPostImageUrls(post.imageUrls);
+                    const videoUrls = parseFeedPostMediaUrls(post.videoUrls);
+                    if (videoUrls.length === 0) return null;
+                    return (
+                      <div className="mb-3 space-y-2">
+                        {videoUrls.slice(0, 2).map((url, i) => (
+                          <div
+                            key={`${post.id}-v-${i}`}
+                            className="aspect-video w-full max-w-xl overflow-hidden rounded-xl border border-slate-800 bg-black"
+                          >
+                            <NativeSafeVideo videoUrl={url} controls className="h-full w-full" />
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                  {(() => {
+                    const urls = parseFeedPostMediaUrls(post.imageUrls);
                     if (urls.length === 0) return null;
                     return (
                       <div className="flex flex-wrap gap-2 mb-3">
@@ -722,6 +889,25 @@ export function NetworkClient() {
 
       {tab === "discover" && (
         <div className="space-y-4">
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+            <label className="block text-xs font-medium uppercase tracking-wide text-slate-400 mb-2">
+              Find creators
+            </label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+              <input
+                type="search"
+                value={discoverQuery}
+                onChange={(e) => setDiscoverQuery(e.target.value)}
+                placeholder="Search by @handle, name, or email…"
+                className="w-full rounded-xl border border-slate-700 bg-slate-950/80 py-2.5 pl-10 pr-4 text-sm text-white placeholder:text-slate-500 focus:border-orange-500/50 focus:outline-none"
+              />
+            </div>
+            <p className="mt-2 text-[11px] text-slate-500">
+              New creators show their signup email until they set a handle on their public profile.
+            </p>
+          </div>
+
           {inviteTargetId && projects.length > 0 && (
             <div className="rounded-2xl border border-orange-500/30 bg-orange-500/10 p-4 text-sm">
               <p className="text-white font-medium mb-2">Invite to project</p>
@@ -771,8 +957,18 @@ export function NetworkClient() {
               <div className="col-span-full flex justify-center py-12">
                 <Loader2 className="w-8 h-8 text-orange-500 animate-spin" />
               </div>
+            ) : creators.length === 0 ? (
+              <div className="col-span-full rounded-xl border border-dashed border-slate-700 py-12 text-center text-sm text-slate-500">
+                {discoverQuery.trim()
+                  ? `No creators match "${discoverQuery.trim()}". Try another handle or name.`
+                  : "No creators to show yet."}
+              </div>
             ) : (
-              creators.map((creator) => (
+              creators.map((creator) => {
+                const label =
+                  creator.displayName ?? resolveNetworkDisplayName(creator);
+                const initial = networkDisplayInitial(creator);
+                return (
                 <div
                   key={creator.id}
                   className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 hover:border-orange-500/40 transition flex flex-col"
@@ -785,9 +981,7 @@ export function NetworkClient() {
                       {creator.image ? (
                         <Image src={creator.image} alt="" width={48} height={48} className="object-cover" />
                       ) : (
-                        <span className="text-lg font-semibold text-slate-300">
-                          {creator.name?.[0]?.toUpperCase() ?? "C"}
-                        </span>
+                        <span className="text-lg font-semibold text-slate-300">{initial}</span>
                       )}
                     </Link>
                     <div className="min-w-0 flex-1">
@@ -795,8 +989,11 @@ export function NetworkClient() {
                         href={`/creator/profile/${creator.id}`}
                         className="font-semibold text-white hover:text-orange-400 block truncate"
                       >
-                        {creator.name ?? "Creator"}
+                        {label}
                       </Link>
+                      {creator.handle && label !== `@${creator.handle}` && (
+                        <p className="text-xs text-orange-300/80 truncate">@{creator.handle}</p>
+                      )}
                       {(creator.headline || creator.location) && (
                         <p className="text-xs text-slate-500 truncate">
                           {[creator.headline, creator.location].filter(Boolean).join(" · ")}
@@ -867,14 +1064,10 @@ export function NetworkClient() {
                     )}
                   </div>
                 </div>
-              ))
+                );
+              })
             )}
           </div>
-          {!loading && creators.length === 0 && (
-            <div className="col-span-full text-center py-12 text-slate-400">
-              No other creators found yet. As more join Story Time, they’ll appear here.
-            </div>
-          )}
         </div>
       )}
 
@@ -907,8 +1100,8 @@ export function NetworkClient() {
                     const first = c.participants[0];
                     const othersLabel =
                       c.participants.length > 1
-                        ? `${c.participants[0]?.name ?? "Creator"} +${c.participants.length - 1}`
-                        : first?.name ?? "Creator";
+                        ? `${c.participants[0]?.displayName ?? resolveNetworkDisplayName(c.participants[0] ?? {})} +${c.participants.length - 1}`
+                        : first?.displayName ?? resolveNetworkDisplayName(first ?? {});
                     const isActive = activeChatUserId && first && activeChatUserId === first.id;
                     return (
                       <li key={c.id}>
@@ -927,7 +1120,7 @@ export function NetworkClient() {
                                 <img src={first.image} alt="" className="w-full h-full object-cover" />
                               ) : (
                                 <span className="text-sm font-semibold text-slate-300">
-                                  {first?.name?.[0]?.toUpperCase() ?? "C"}
+                                  {networkDisplayInitial(first ?? { name: null })}
                                 </span>
                               )}
                             </div>
@@ -935,7 +1128,9 @@ export function NetworkClient() {
                               <p className="text-sm font-medium text-white truncate">{othersLabel}</p>
                               {c.lastMessage && (
                                 <p className="text-xs text-slate-400 truncate">
-                                  {c.lastMessage.sender.name ? `${c.lastMessage.sender.name}: ` : ""}
+                                  {c.lastMessage.sender.displayName || c.lastMessage.sender.name
+                                    ? `${c.lastMessage.sender.displayName ?? resolveNetworkDisplayName(c.lastMessage.sender)}: `
+                                    : ""}
                                   {c.lastMessage.body}
                                 </p>
                               )}
@@ -974,7 +1169,11 @@ export function NetworkClient() {
                                   : "bg-slate-800 text-slate-100",
                               ].join(" ")}
                             >
-                              <p className="font-medium mb-0.5 opacity-80">{m.sender.name ?? "You"}</p>
+                              <p className="font-medium mb-0.5 opacity-80">
+                                {m.sender.id === myId
+                                  ? "You"
+                                  : m.sender.displayName ?? resolveNetworkDisplayName(m.sender)}
+                              </p>
                               <p className="text-[13px]">{m.body}</p>
                               <p className="mt-1 opacity-50 text-[10px]">{new Date(m.createdAt).toLocaleTimeString()}</p>
                             </div>

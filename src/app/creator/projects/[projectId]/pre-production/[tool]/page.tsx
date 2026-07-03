@@ -15,6 +15,7 @@ import { ModocBreakdownIncorporateBar } from "@/components/modoc/modoc-breakdown
 import { useModocToolRefresh } from "@/components/modoc/use-modoc-tool-refresh";
 import { queryKeysForProjectTool } from "@/lib/modoc/project-tool-query-keys";
 import { invalidateProjectPipeline } from "@/lib/project-pipeline-invalidation";
+import { getActiveBudgetId, setActiveBudgetId } from "@/lib/active-budget";
 import { parseScenesFromScreenplay } from "@/lib/scene-parser";
 import { parseSluglineMeta } from "@/lib/slugline-meta";
 import { VisualPlanningCatalogue } from "@/components/creator/visual-planning-catalogue";
@@ -34,7 +35,10 @@ import {
 } from "@/components/budget/budget-studio-nav";
 import { BudgetActualsPanel } from "@/components/budget/budget-actuals-panel";
 import { BudgetLinesEditor } from "@/components/budget/budget-lines-editor";
-import { buildShootDayPipelinePreview } from "@/lib/schedule-day-preview";
+import {
+  buildEffectiveSceneLinksForPreview,
+  buildShootDayPipelinePreview,
+} from "@/lib/schedule-day-preview";
 import {
   AUDITION_LISTING_FEE_ZAR,
   CASTING_ACQUISITION_FEE_ZAR,
@@ -2036,8 +2040,16 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
   }, [hasProject]);
 
   const [selectedBudgetId, setSelectedBudgetId] = useState<string | null>(null);
+  const [persistedActiveBudgetId, setPersistedActiveBudgetId] = useState<string | null>(null);
+  const activeBudgetHydratedRef = useRef(false);
   const [newBudgetName, setNewBudgetName] = useState("");
   const [showNewBudgetForm, setShowNewBudgetForm] = useState(false);
+
+  useEffect(() => {
+    if (!projectId) return;
+    setPersistedActiveBudgetId(getActiveBudgetId(projectId));
+    activeBudgetHydratedRef.current = false;
+  }, [projectId]);
 
   const { data, isLoading, isError: budgetLoadError, error: budgetLoadErr } = useQuery({
     queryKey: ["project-budget", projectId, selectedBudgetId],
@@ -2054,6 +2066,19 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
     template: string;
     totalPlanned: number;
   }> | undefined) ?? [];
+
+  useEffect(() => {
+    if (!hasProject || !projectId || projectBudgets.length === 0) return;
+    if (activeBudgetHydratedRef.current) return;
+    activeBudgetHydratedRef.current = true;
+    const stored = getActiveBudgetId(projectId);
+    if (stored && projectBudgets.some((b) => b.id === stored)) {
+      setSelectedBudgetId(stored);
+      return;
+    }
+    const fallback = projectBudgets.find((b) => b.isDefault) ?? projectBudgets[0];
+    if (fallback) setSelectedBudgetId(fallback.id);
+  }, [hasProject, projectId, projectBudgets]);
 
   const { data: breakdownData } = useQuery({
     queryKey: ["project-breakdown", projectId],
@@ -2339,6 +2364,27 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
     [draftRows, savedRows],
   );
 
+  /** Empty saved lines + empty draft = blank budget; hide engine estimates until VA fills or user adds lines. */
+  const isBlankBudget = useMemo(() => {
+    const savedEmpty = (budget?.lines ?? []).length === 0;
+    const draftEmpty = draftRows.length === 0;
+    return savedEmpty && draftEmpty;
+  }, [budget?.lines, draftRows]);
+
+  const vaPromptBlocking = Boolean(
+    vaBudgetPrompt?.open && vaBudgetPrompt.budgetId === budget?.id,
+  );
+
+  const showEngineEstimates = !isBlankBudget && !vaPromptBlocking;
+
+  const handleSetAsActive = useCallback(() => {
+    if (!projectId || !budget?.id) return;
+    setActiveBudgetId(projectId, budget.id);
+    setPersistedActiveBudgetId(budget.id);
+    setSelectedBudgetId(budget.id);
+    setSaveMessage(`"${budget.name ?? "Budget"}" is now your active budget for this project.`);
+  }, [projectId, budget?.id, budget?.name]);
+
   // Load only what the creator has saved — never auto-inject VA/engine lines.
   useEffect(() => {
     if (!budget) return;
@@ -2427,6 +2473,8 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
       setSavedRows([]);
       setVaBudgetPrompt({ budgetId, open: true });
       if (hasProject) {
+        setActiveBudgetId(projectId, budgetId);
+        setPersistedActiveBudgetId(budgetId);
         setSelectedBudgetId(budgetId);
         setShowNewBudgetForm(false);
         setNewBudgetName("");
@@ -2584,12 +2632,24 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
                       {projectBudgets.map((b) => (
                         <option key={b.id} value={b.id}>
                           {b.name}
+                          {b.id === persistedActiveBudgetId ? " (active)" : ""}
                           {b.isDefault ? " (VA default)" : ""}
                         </option>
                       ))}
                     </select>
                   ) : (
                     <span className="text-sm text-slate-200 font-medium">{budget.name ?? "Budget"}</span>
+                  )}
+                  {hasProject && budget && budget.id !== persistedActiveBudgetId && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="border-orange-500/40 text-[11px] text-orange-200 h-8 hover:bg-orange-500/10"
+                      onClick={handleSetAsActive}
+                    >
+                      Set as active
+                    </Button>
                   )}
                   {budget && !budget.isDefault && hasProject && (
                     <Button
@@ -2739,7 +2799,11 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
       >
         <BudgetSavedViewer
           template={budget?.template}
-          totalPlanned={budget?.totalPlanned ?? engine?.dashboard?.estimatedTotal}
+          totalPlanned={
+            showEngineEstimates
+              ? (budget?.totalPlanned ?? engine?.dashboard?.estimatedTotal ?? total)
+              : total
+          }
           lines={(budget?.lines ?? []).map((l) => ({
             department: l.department,
             name: l.name,
@@ -2747,10 +2811,14 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
             unitCost: l.unitCost,
             total: l.total,
           }))}
-          byDepartment={engine?.byDepartment?.map((d) => ({
-            department: d.department,
-            estimated: d.estimated,
-          }))}
+          byDepartment={
+            showEngineEstimates
+              ? engine?.byDepartment?.map((d) => ({
+                  department: d.department,
+                  estimated: d.estimated,
+                }))
+              : undefined
+          }
         />
       </ToolSavedViewSheet>
 
@@ -2846,7 +2914,17 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
               <BudgetActualsPanel projectId={projectId} />
             </div>
           )}
-          {budgetWorkspace === "overview" && engine?.dashboard && (
+          {budgetWorkspace === "overview" && isBlankBudget && (
+            <div className="rounded-xl border border-dashed border-slate-700 bg-slate-950/40 p-6 text-center">
+              <p className="text-sm text-slate-300">This budget has no line items yet.</p>
+              <p className="mt-1 text-xs text-slate-500">
+                Use the prompt above to let the VA build from your script, or add lines manually in the Budget lines tab.
+              </p>
+              <p className="mt-3 text-lg font-semibold text-slate-500">{formatZar(0)}</p>
+              <p className="text-[10px] uppercase tracking-wide text-slate-600">Estimated total</p>
+            </div>
+          )}
+          {budgetWorkspace === "overview" && showEngineEstimates && engine?.dashboard && (
             <div className="grid gap-2 md:grid-cols-3">
               <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-3">
                 <p className="text-[11px] text-slate-400">Estimated budget</p>
@@ -2891,7 +2969,7 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
               </div>
             </div>
           )}
-          {budgetWorkspace === "overview" && !!engine?.byDepartment?.length && (
+          {budgetWorkspace === "overview" && showEngineEstimates && !!engine?.byDepartment?.length && (
             <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-3">
               <p className="text-[11px] uppercase tracking-wide text-slate-400">
                 Cost breakdown
@@ -2911,7 +2989,7 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
               </div>
             </div>
           )}
-          {budgetWorkspace === "overview" && !!engine?.optimizationSuggestions?.length && (
+          {budgetWorkspace === "overview" && showEngineEstimates && !!engine?.optimizationSuggestions?.length && (
             <div className="rounded-xl border border-cyan-500/30 bg-cyan-500/5 p-3">
               <p className="text-[11px] uppercase tracking-wide text-cyan-200">Optimization insights</p>
               <ul className="mt-2 space-y-1 text-[11px] text-slate-200">
@@ -3356,6 +3434,7 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
   const [expandedSceneRowId, setExpandedSceneRowId] = useState<string | null>(null);
   const [scheduleMessage, setScheduleMessage] = useState("");
   const [scenePickerIds, setScenePickerIds] = useState<string[]>([]);
+  const pickerHydratedRef = useRef(false);
 
   const applySchedulePayload = useCallback(
     (payload: ScheduleResponse, selectDayId?: string | null) => {
@@ -3395,35 +3474,11 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
 
   const selectedDay =
     draftDays?.find((d) => d.id === selectedDayId) ?? draftDays?.[0] ?? null;
-  const dayAggregate = useScheduleDayAggregate(selectedDay);
   const selectedProductionDay =
     (data?.productionDays ?? []).find((d) => d.id === selectedDay?.id) ?? null;
   const selectedDayConflicts = (data?.conflicts ?? []).filter((c) =>
     selectedDay ? c.dayIds.includes(selectedDay.id) : false,
   );
-
-  const scheduleWarnings = useMemo(() => {
-    if (!selectedDay) return [] as string[];
-    const w: string[] = [];
-    if (!selectedDay.locationSummary?.trim()) {
-      w.push("This day has no location summary—add one for clearer call sheets.");
-    }
-    const ordered = selectedDay.scenes.slice().sort((a, b) => a.order - b.order);
-    for (const link of ordered) {
-      const sc = link.scene;
-      if (!sc) {
-        w.push("A scene slot references a missing scene—remove it or re-save the schedule.");
-        continue;
-      }
-      if (!sc.primaryLocation && (!sc.breakdownLocations || sc.breakdownLocations.length === 0)) {
-        w.push(`Scene ${sc.number} has no primary or breakdown location.`);
-      }
-      if (!sc.breakdownCharacters || sc.breakdownCharacters.length === 0) {
-        w.push(`Scene ${sc.number} has no breakdown characters yet.`);
-      }
-    }
-    return w;
-  }, [selectedDay]);
 
   const [scheduleStripView, setScheduleStripView] = useState(false);
   const [scheduleViewOpen, setScheduleViewOpen] = useState(false);
@@ -3473,6 +3528,31 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
     },
   });
 
+  const scheduleSaveBlocked = Boolean(data?.contractGate?.blocking);
+
+  const buildDaysSavePayload = (days: NonNullable<typeof draftDays>) =>
+    days.map((d) => ({
+      id: d.id,
+      date: d.date,
+      unit: d.unit,
+      callTime: d.callTime,
+      wrapTime: d.wrapTime,
+      locationSummary: d.locationSummary,
+      status: d.status,
+      scenesBeingShot: d.scenesBeingShot ?? null,
+      dayNotes: d.dayNotes ?? null,
+      weather: d.weather ?? null,
+      transportDetails: d.transportDetails ?? null,
+      pickupDropoffInfo: d.pickupDropoffInfo ?? null,
+      accommodation: d.accommodation ?? null,
+      cateringNotes: d.cateringNotes ?? null,
+      callSheetNotes: d.callSheetNotes ?? null,
+      scenes: d.scenes.map((s) => ({
+        sceneId: s.scene?.id ?? s.sceneId,
+        order: s.order,
+      })),
+    }));
+
   const saveMutation = useMutation({
     mutationFn: async (payload: { days: any[] }) => {
       return projectToolFetch<ScheduleResponse>(`/api/creator/projects/${projectId}/schedule`, {
@@ -3492,6 +3572,14 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
   });
   const createCallSheetMutation = useMutation({
     mutationFn: async (shootDayId: string) => {
+      if (scheduleDirty && !scheduleSaveBlocked && draftDays) {
+        const fresh = await projectToolFetch<ScheduleResponse>(`/api/creator/projects/${projectId}/schedule`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ days: buildDaysSavePayload(draftDays) }),
+        });
+        applySchedulePayload(fresh, shootDayId);
+      }
       const res = await fetch(`/api/creator/projects/${projectId}/call-sheets`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -3516,6 +3604,9 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
     onSuccess: () => {
       setScheduleMessage("Call sheet generated and saved.");
       void queryClient.invalidateQueries({ queryKey: ["project-call-sheets", projectId] });
+      void queryClient.invalidateQueries({ queryKey: ["project-schedule", projectId] });
+      void queryClient.invalidateQueries({ queryKey: ["call-sheet-preview", projectId] });
+      invalidateProjectPipeline(queryClient, projectId, ["scheduleDownstream"]);
     },
     onError: (error) => {
       setScheduleMessage((error as Error).message);
@@ -3540,36 +3631,6 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
     },
   });
 
-  const draftPipelinePreview = useMemo(() => {
-    if (!selectedDay) return null;
-    const sceneLinks = selectedDay.scenes.map((s) => ({
-      sceneId: s.scene?.id ?? s.sceneId,
-      order: s.order,
-      scene: s.scene,
-    }));
-    return buildShootDayPipelinePreview({
-      unit: selectedDay.unit,
-      sceneLinks,
-      crewNeeds: data?.crewNeeds,
-      equipmentItems: data?.equipmentItems,
-      castingRoles: data?.castingRoles,
-    });
-  }, [selectedDay, data]);
-
-  const pipelineDisplay =
-    scheduleDirty && draftPipelinePreview
-      ? draftPipelinePreview
-      : selectedProductionDay
-        ? {
-            unit: selectedDay?.unit ?? null,
-            scenes: selectedProductionDay.scenes,
-            castRequired: selectedProductionDay.castRequired,
-            crewRequired: selectedProductionDay.crewRequired,
-            equipmentRequired: selectedProductionDay.equipmentRequired,
-          }
-        : draftPipelinePreview;
-
-  const scheduleSaveBlocked = Boolean(data?.contractGate?.blocking);
 
   const persistSchedule = () => {
     if (!draftDays) return;
@@ -3581,27 +3642,7 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
     }
     setScheduleMessage("");
     saveMutation.mutate({
-      days: draftDays.map((d) => ({
-        id: d.id,
-        date: d.date,
-        unit: d.unit,
-        callTime: d.callTime,
-        wrapTime: d.wrapTime,
-        locationSummary: d.locationSummary,
-        status: d.status,
-        scenesBeingShot: d.scenesBeingShot ?? null,
-        dayNotes: d.dayNotes ?? null,
-        weather: d.weather ?? null,
-        transportDetails: d.transportDetails ?? null,
-        pickupDropoffInfo: d.pickupDropoffInfo ?? null,
-        accommodation: d.accommodation ?? null,
-        cateringNotes: d.cateringNotes ?? null,
-        callSheetNotes: d.callSheetNotes ?? null,
-        scenes: d.scenes.map((s) => ({
-          sceneId: s.scene?.id ?? s.sceneId,
-          order: s.order,
-        })),
-      })),
+      days: buildDaysSavePayload(draftDays),
     });
   };
 
@@ -3678,6 +3719,94 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
     a.number.localeCompare(b.number, undefined, { numeric: true, sensitivity: "base" }),
   );
 
+  const previewSceneLinks = useMemo(() => {
+    if (!selectedDay) return [];
+    return buildEffectiveSceneLinksForPreview({
+      scenePickerIds,
+      savedSceneLinks: selectedDay.scenes.map((s) => ({
+        sceneId: s.scene?.id ?? s.sceneId,
+        order: s.order,
+        scene: s.scene,
+      })),
+      allScenes: allScenesSorted,
+    });
+  }, [selectedDay, scenePickerIds, allScenesSorted]);
+
+  const previewDayForAggregate = useMemo(() => {
+    if (!selectedDay) return null;
+    return {
+      ...selectedDay,
+      scenes: previewSceneLinks.map((link, index) => ({
+        id: `${selectedDay.id}-${link.sceneId}`,
+        sceneId: link.sceneId,
+        order: index,
+        scene: link.scene as ScheduleSceneDetail | null,
+      })),
+    };
+  }, [selectedDay, previewSceneLinks]);
+
+  const dayAggregate = useScheduleDayAggregate(previewDayForAggregate);
+
+  const scheduleWarnings = useMemo(() => {
+    if (!previewDayForAggregate) return [] as string[];
+    const w: string[] = [];
+    if (!previewDayForAggregate.locationSummary?.trim()) {
+      w.push("This day has no location summary—add one for clearer call sheets.");
+    }
+    const ordered = previewDayForAggregate.scenes.slice().sort((a, b) => a.order - b.order);
+    for (const link of ordered) {
+      const sc = link.scene;
+      if (!sc) {
+        w.push("A scene slot references a missing scene—remove it or re-save the schedule.");
+        continue;
+      }
+      if (!sc.primaryLocation && (!sc.breakdownLocations || sc.breakdownLocations.length === 0)) {
+        w.push(`Scene ${sc.number} has no primary or breakdown location.`);
+      }
+      if (!sc.breakdownCharacters || sc.breakdownCharacters.length === 0) {
+        w.push(`Scene ${sc.number} has no breakdown characters yet.`);
+      }
+    }
+    return w;
+  }, [previewDayForAggregate]);
+
+  const pickerDiffersFromSaved = useMemo(() => {
+    if (!selectedDay) return false;
+    const savedIds = selectedDay.scenes
+      .slice()
+      .sort((a, b) => a.order - b.order)
+      .map((s) => s.scene?.id ?? s.sceneId);
+    if (scenePickerIds.length !== savedIds.length) return true;
+    return scenePickerIds.some((id, i) => id !== savedIds[i]);
+  }, [selectedDay, scenePickerIds]);
+
+  const livePipelinePreview = useMemo(() => {
+    if (!selectedDay || previewSceneLinks.length === 0) return null;
+    return buildShootDayPipelinePreview({
+      unit: selectedDay.unit,
+      sceneLinks: previewSceneLinks,
+      crewNeeds: data?.crewNeeds,
+      equipmentItems: data?.equipmentItems,
+      castingRoles: data?.castingRoles,
+    });
+  }, [selectedDay, previewSceneLinks, data]);
+
+  const pipelineDisplay = useMemo(() => {
+    if (livePipelinePreview) {
+      return livePipelinePreview;
+    }
+    if (selectedProductionDay && !scheduleDirty) {
+      return {
+        unit: selectedDay?.unit ?? null,
+        scenes: selectedProductionDay.scenes,
+        castRequired: selectedProductionDay.castRequired,
+        crewRequired: selectedProductionDay.crewRequired,
+        equipmentRequired: selectedProductionDay.equipmentRequired,
+      };
+    }
+    return null;
+  }, [livePipelinePreview, selectedProductionDay, scheduleDirty, selectedDay?.unit]);
+
   /** Scenes not assigned to any shoot day (so they can be assigned to the selected day) */
   const assignedSceneIds = new Set(
     draftDays?.flatMap((d) =>
@@ -3689,6 +3818,7 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
   useEffect(() => {
     if (!selectedDay) {
       setScenePickerIds([]);
+      pickerHydratedRef.current = false;
       return;
     }
     const ids = selectedDay.scenes
@@ -3696,25 +3826,42 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
       .sort((a, b) => a.order - b.order)
       .map((s) => s.scene?.id ?? s.sceneId);
     setScenePickerIds(ids);
-  }, [selectedDay]);
+    pickerHydratedRef.current = true;
+  }, [selectedDay?.id, selectedDay?.scenes]);
 
-  const applySceneSelectionForDay = () => {
-    if (!selectedDay) return;
-    const picked = allScenesSorted.filter((s) => scenePickerIds.includes(s.id));
-    const nextScenes = picked.map((scene, index) => ({
-      id: `${selectedDay.id}-${scene.id}`,
-      sceneId: scene.id,
-      order: index,
-      scene,
-    }));
-    updateScenesForDay(selectedDay.id, nextScenes);
-    if (picked.length > 0) {
-      const patched = autoPopulateDayFromScene(selectedDay, picked[0], nextScenes);
-      setDraftDays((prev) =>
-        prev ? prev.map((d) => (d.id === selectedDay.id ? patched : d)) : prev,
-      );
-    }
-  };
+  useEffect(() => {
+    if (!pickerHydratedRef.current || !selectedDayId || !draftDays) return;
+
+    setDraftDays((prev) => {
+      if (!prev) return prev;
+      const day = prev.find((d) => d.id === selectedDayId);
+      if (!day) return prev;
+
+      const savedIds = day.scenes
+        .slice()
+        .sort((a, b) => a.order - b.order)
+        .map((s) => s.scene?.id ?? s.sceneId);
+      const pickerIds = allScenesSorted
+        .filter((s) => scenePickerIds.includes(s.id))
+        .map((s) => s.id);
+      const matches =
+        pickerIds.length === savedIds.length && pickerIds.every((id, i) => id === savedIds[i]);
+      if (matches) return prev;
+
+      const picked = allScenesSorted.filter((s) => scenePickerIds.includes(s.id));
+      const nextScenes = picked.map((scene, index) => ({
+        id: `${day.id}-${scene.id}`,
+        sceneId: scene.id,
+        order: index,
+        scene,
+      }));
+      let nextDay: (typeof prev)[number] = { ...day, scenes: nextScenes };
+      if (picked.length > 0) {
+        nextDay = autoPopulateDayFromScene(nextDay, picked[0], nextScenes);
+      }
+      return prev.map((d) => (d.id === day.id ? nextDay : d));
+    });
+  }, [scenePickerIds, selectedDayId, allScenesSorted]);
 
   return (
     <div className="space-y-4">
@@ -4277,9 +4424,6 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
                 </Card>
 
                 {(() => {
-                  const sortedDayScenes = selectedDay.scenes
-                    .slice()
-                    .sort((a, b) => a.order - b.order);
                   const glanceBlocks = [
                     {
                       title: "Cast & characters",
@@ -4373,8 +4517,7 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
                           <CardHeader className="pb-2">
                             <CardTitle className="text-sm">Scene selection for this day</CardTitle>
                             <p className="text-[11px] text-slate-500 font-normal mt-1">
-                              Select one or more scenes for this shoot day. These selections drive the
-                              strip, breakdown links, and call sheet context.
+                              Select scenes for this shoot day. Selections auto-link to breakdown, cast, crew, and equipment previews below — save the schedule to persist and update call sheets.
                             </p>
                           </CardHeader>
                           <CardContent className="space-y-2">
@@ -4424,9 +4567,10 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
                                 size="sm"
                                 variant="outline"
                                 className="border-slate-700 text-[11px]"
-                                onClick={applySceneSelectionForDay}
+                                disabled={!scheduleDirty || saveMutation.isPending}
+                                onClick={() => persistSchedule()}
                               >
-                                Apply scene selection
+                                Save schedule for call sheets
                               </Button>
                             </div>
                           </CardContent>
@@ -4438,7 +4582,7 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
                           : `${scenePickerIds.length} scene${scenePickerIds.length === 1 ? "" : "s"} selected for this day.`}
                       </div>
 
-                      {selectedDay.scenes.length > 0 && (
+                      {(scenePickerIds.length > 0 || selectedDay.scenes.length > 0) && (
                       <Card className="creator-glass-panel border-0 bg-transparent text-slate-50 shadow-none">
                         <CardHeader className="pb-2">
                           <CardTitle className="text-sm">Day at a glance</CardTitle>
@@ -4497,8 +4641,8 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
                           <CardHeader className="pb-2">
                             <CardTitle className="text-sm">Production day output pipeline</CardTitle>
                             <p className="text-[11px] text-slate-500 font-normal mt-1">
-                              {scheduleDirty
-                                ? "Live preview from your draft — save to persist."
+                              {scheduleDirty || pickerDiffersFromSaved
+                                ? "Live preview from your selection — apply scenes and save to persist."
                                 : "Structured output from scenes, cast, crew, locations, and equipment."}
                               {pipelineDisplay.unit ? ` · Unit ${pipelineDisplay.unit}` : ""}
                             </p>
@@ -4508,12 +4652,16 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
                               <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-2.5">
                                 <p className="text-[10px] uppercase tracking-wide text-slate-400 mb-1">Scenes</p>
                                 <ul className="space-y-1 text-slate-300 max-h-36 overflow-y-auto">
-                                  {pipelineDisplay.scenes.map((s) => (
-                                    <li key={`${s.sceneId}-${s.order}`}>
-                                      Sc. {s.number} · {s.estimatedShootDurationMinutes}m
-                                      {s.heading ? ` · ${s.heading}` : ""}
-                                    </li>
-                                  ))}
+                                  {pipelineDisplay.scenes.length === 0 ? (
+                                    <li className="text-slate-500">No scenes selected yet.</li>
+                                  ) : (
+                                    pipelineDisplay.scenes.map((s) => (
+                                      <li key={`${s.sceneId}-${s.order}`}>
+                                        Sc. {s.number} · {s.estimatedShootDurationMinutes}m
+                                        {s.heading ? ` · ${s.heading}` : ""}
+                                      </li>
+                                    ))
+                                  )}
                                 </ul>
                               </div>
                               <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-2.5">
@@ -8291,7 +8439,7 @@ function ProductionWorkspace({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["project-production-workspace", projectId] });
       queryClient.invalidateQueries({ queryKey: ["project-tasks", projectId] });
-      queryClient.invalidateQueries({ queryKey: ["project-production-control-center", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["production-control-center", projectId] });
       setWorkspaceMessage("Production workspace updated.");
     },
     onError: (e) => setWorkspaceMessage((e as Error).message),
@@ -8940,6 +9088,7 @@ function EquipmentPlanningWorkspace({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["project-equipment-plan", projectId] });
+      invalidateProjectPipeline(queryClient, projectId, ["equipment"]);
       setNewCategory("");
       setNewQuantity("1");
       setPortalMessage("Equipment item created.");
@@ -8965,6 +9114,7 @@ function EquipmentPlanningWorkspace({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["project-equipment-plan", projectId] });
+      invalidateProjectPipeline(queryClient, projectId, ["equipment"]);
       setPortalMessage("Marketplace listing linked to equipment plan item.");
     },
   });

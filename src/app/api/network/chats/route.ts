@@ -1,7 +1,16 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { enrichNetworkUserRow } from "@/lib/network-display-name";
 import { prisma } from "@/lib/prisma";
+
+const CHAT_USER_SELECT = {
+  id: true,
+  name: true,
+  email: true,
+  networkHandle: true,
+  image: true,
+} as const;
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -18,19 +27,19 @@ export async function GET() {
     orderBy: { updatedAt: "desc" },
     include: {
       participants: {
-        include: { user: { select: { id: true, name: true, image: true } } },
+        include: { user: { select: CHAT_USER_SELECT } },
       },
       messages: {
         orderBy: { createdAt: "desc" },
         take: 1,
-        include: { sender: { select: { id: true, name: true } } },
+        include: { sender: { select: { id: true, name: true, email: true, networkHandle: true } } },
       },
     },
   });
 
   const items = conversations.map((c) => {
     const others = c.participants
-      .map((p) => p.user)
+      .map((p) => enrichNetworkUserRow(p.user))
       .filter((u) => u.id !== me);
     const lastMessage = c.messages[0];
     return {
@@ -41,7 +50,7 @@ export async function GET() {
             id: lastMessage.id,
             body: lastMessage.body,
             createdAt: lastMessage.createdAt,
-            sender: { id: lastMessage.sender.id, name: lastMessage.sender.name },
+            sender: enrichNetworkUserRow(lastMessage.sender),
           }
         : null,
     };

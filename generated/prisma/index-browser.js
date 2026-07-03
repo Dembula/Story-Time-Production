@@ -171,6 +171,7 @@ exports.Prisma.UserScalarFieldEnum = {
   headline: 'headline',
   location: 'location',
   website: 'website',
+  networkHandle: 'networkHandle',
   professionalName: 'professionalName',
   bannerImageUrl: 'bannerImageUrl',
   primaryRole: 'primaryRole',

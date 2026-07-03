@@ -279,14 +279,22 @@ function CallSheetPrintBody({
               </tr>
             </thead>
             <tbody>
-              {vm.cast.map((c, i) => (
-                <tr key={i} className="border-b border-slate-200 align-top">
-                  <td className="py-1 pr-1 font-medium break-words max-w-[120px]">{c.talentName ?? "TBD"}</td>
-                  <td className="py-1 pr-1 break-words">{c.characterName}</td>
-                  <td className="py-1 pr-1 whitespace-nowrap">{c.callTime ?? "—"}</td>
-                  <td className="py-1 text-slate-600">{c.scenesInvolved?.length ? c.scenesInvolved.join(", ") : "—"}</td>
+              {vm.cast.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="py-2 text-slate-500">
+                    No cast linked yet — add characters in Script Breakdown and assign casting roles.
+                  </td>
                 </tr>
-              ))}
+              ) : (
+                vm.cast.map((c, i) => (
+                  <tr key={i} className="border-b border-slate-200 align-top">
+                    <td className="py-1 pr-1 font-medium break-words max-w-[120px]">{c.talentName ?? "TBD"}</td>
+                    <td className="py-1 pr-1 break-words">{c.characterName}</td>
+                    <td className="py-1 pr-1 whitespace-nowrap">{c.callTime ?? "—"}</td>
+                    <td className="py-1 text-slate-600">{c.scenesInvolved?.length ? c.scenesInvolved.join(", ") : "—"}</td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </section>
@@ -715,7 +723,21 @@ export function CallSheetGenerator({ projectId, title }: { projectId?: string; t
                 {urlSheetId ? "Loading call sheet…" : selectedDayId ? "Building preview…" : "Select a shoot day to generate the call sheet."}
               </p>
             ) : (
-              <CallSheetPrintBody vm={displayVm} sheetNotes={displayNotes} compact={mobileLayout} />
+              <>
+                {!urlSheetId && displayVm.schedule.length === 0 && (
+                  <div className="mx-4 mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100 print:hidden">
+                    No scenes are linked to this shoot day yet. Open{" "}
+                    <Link
+                      href={`/creator/projects/${projectId}/pre-production/production-scheduling`}
+                      className="text-orange-300 hover:underline"
+                    >
+                      Production Scheduling
+                    </Link>
+                    , select scenes for this day, save the schedule, then regenerate this call sheet.
+                  </div>
+                )}
+                <CallSheetPrintBody vm={displayVm} sheetNotes={displayNotes} compact={mobileLayout} />
+              </>
             )}
           </div>
         </div>

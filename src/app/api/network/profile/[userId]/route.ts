@@ -9,6 +9,7 @@ import {
   getPostsByAuthorId,
 } from "@/lib/network-db";
 import { prisma } from "@/lib/prisma";
+import { enrichNetworkUserRow } from "@/lib/network-display-name";
 import { enrichNetworkPostsForFeed } from "@/lib/network-post-enrich";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ userId: string }> }) {
@@ -20,6 +21,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ userId:
     select: {
       id: true,
       name: true,
+      email: true,
+      networkHandle: true,
       image: true,
       bio: true,
       socialLinks: true,
@@ -58,7 +61,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ userId:
   const posts = await enrichNetworkPostsForFeed(networkPostRows, session?.user?.id ?? null);
 
   return NextResponse.json({
-    user,
+    user: enrichNetworkUserRow(user),
     following,
     connectionStatus,
     followerCount,

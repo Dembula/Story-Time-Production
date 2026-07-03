@@ -363,7 +363,30 @@ export async function buildProductionDataEngine(
       })
       .filter((v: any): v is NonNullable<typeof v> => Boolean(v));
 
-    const daySceneIds = new Set(dayScenes.map((s: any) => s.sceneId));
+    // Fallback: match scene numbers from free-text scenesBeingShot when links are missing.
+    let resolvedDayScenes = dayScenes;
+    if (resolvedDayScenes.length === 0 && day.scenesBeingShot?.trim()) {
+      const numberTokens = new Set<string>();
+      for (const match of day.scenesBeingShot.matchAll(/Sc\.?\s*([\dA-Za-z]+)/gi)) {
+        const token = match[1]?.trim();
+        if (token) numberTokens.add(token);
+      }
+      if (numberTokens.size > 0) {
+        resolvedDayScenes = scenes
+          .filter((scene: any) => numberTokens.has(String(scene.number)))
+          .map((scene: any, order: number) => ({
+            sceneId: scene.id,
+            order,
+            number: scene.number,
+            heading: scene.heading,
+            description: scene.summary,
+            estimatedShootDurationMinutes: buildSceneDurationMinutes(scene),
+            source: scene,
+          }));
+      }
+    }
+
+    const daySceneIds = new Set(resolvedDayScenes.map((s: any) => s.sceneId));
 
     const castMap = new Map<string, ProductionDayRecord["castRequired"][number]>();
 
@@ -400,7 +423,7 @@ export async function buildProductionDataEngine(
     };
 
     // 1) Characters linked on the day's scenes via breakdown.
-    for (const s of dayScenes) {
+    for (const s of resolvedDayScenes) {
       for (const ch of s.source.breakdownCharacters as any[]) {
         const role: any =
           castRoleByCharacterId.get(ch.id) ??
@@ -411,12 +434,12 @@ export async function buildProductionDataEngine(
 
     // 2) Casting roles for characters that appear on this day's scenes (match by name or linked id).
     const characterIdsOnDay = new Set(
-      dayScenes.flatMap((s: any) =>
+      resolvedDayScenes.flatMap((s: any) =>
         (s.source.breakdownCharacters as any[]).map((ch) => ch.id),
       ),
     );
     const characterNamesOnDay = new Set(
-      dayScenes.flatMap((s: any) =>
+      resolvedDayScenes.flatMap((s: any) =>
         (s.source.breakdownCharacters as any[])
           .map((ch) => String(ch.name ?? "").trim().toLowerCase())
           .filter(Boolean),
@@ -437,7 +460,7 @@ export async function buildProductionDataEngine(
 
     // 3) Fallback: if scenes have no breakdown cast yet, still surface project casting roles
     //    that are cast/assigned so shoot planning is not empty.
-    if (castMap.size === 0 && dayScenes.length > 0) {
+    if (castMap.size === 0 && resolvedDayScenes.length > 0) {
       for (const role of project.castingRoles as any[]) {
         const hasActor =
           role.status === "CAST" ||
@@ -465,7 +488,7 @@ export async function buildProductionDataEngine(
       });
     }
 
-    for (const s of dayScenes) {
+    for (const s of resolvedDayScenes) {
       if (s.source.breakdownSfxs.length > 0 && ![...crewMap.values()].some((c) => c.department.toLowerCase().includes("sound"))) {
         crewMap.set(`auto:sound:${day.id}`, {
           key: `auto:sound:${day.id}`,
@@ -509,7 +532,7 @@ export async function buildProductionDataEngine(
         specifications: notesMeta.meta?.specifications ?? listingMeta.meta?.specifications ?? null,
       });
     }
-    for (const s of dayScenes) {
+    for (const s of resolvedDayScenes) {
       if (s.source.breakdownSfxs.length > 0) {
         const key = "category:sound";
         const prev = equipmentDemand.get(key);
@@ -533,11 +556,11 @@ export async function buildProductionDataEngine(
     }
 
     const locationFromScenes =
-      dayScenes[0]?.source.primaryLocation?.name ??
-      dayScenes[0]?.source.breakdownLocations[0]?.name ??
+      resolvedDayScenes[0]?.source.primaryLocation?.name ??
+      resolvedDayScenes[0]?.source.breakdownLocations[0]?.name ??
       null;
     const location = day.locationSummary ?? locationFromScenes;
-    const locationRules = dayScenes[0]?.source.primaryLocation?.locationListing?.rules ?? null;
+    const locationRules = resolvedDayScenes[0]?.source.primaryLocation?.locationListing?.rules ?? null;
     const locationMeta = parseEmbeddedMeta<LocationMarketMeta>(locationRules);
     const notes = parsedNotes.plainNotes;
     const logistics = {
@@ -557,7 +580,7 @@ export async function buildProductionDataEngine(
         wrapTime: day.wrapTime,
         weather: parsedNotes.structured.weather ?? null,
       },
-      sceneBreakdown: dayScenes.map((sc: any) => ({
+      sceneBreakdown: resolvedDayScenes.map((sc: any) => ({
         order: sc.order,
         sceneNumber: sc.number,
         heading: sc.heading,
@@ -611,7 +634,7 @@ export async function buildProductionDataEngine(
       weather: parsedNotes.structured.weather ?? null,
       notes,
       logistics,
-      scenes: dayScenes.map((sc: any) => ({
+      scenes: resolvedDayScenes.map((sc: any) => ({
         sceneId: sc.sceneId,
         order: sc.order,
         number: sc.number,

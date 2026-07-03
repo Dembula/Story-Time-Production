@@ -1,23 +1,60 @@
 import { requireAdminSession } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
-import { isStoryTimeOriginalGreenlit, getStoryTimeOriginalBadge } from "@/lib/storytime-original";
+import { getStoryTimeOriginalBadge } from "@/lib/storytime-original";
+import {
+  buildPipelineRollup,
+  resolveToolProgressForProject,
+  type ProjectUsageSignals,
+} from "@/lib/project-tool-progress";
+import { loadProjectUsageSignals } from "@/lib/project-usage-signals";
+import {
+  AdminProjectsClient,
+  type AdminProjectListItem,
+} from "./admin-projects-client";
+
+const EMPTY_SIGNALS: ProjectUsageSignals = {
+  ideaCount: 0,
+  scriptCount: 0,
+  scriptReviewCount: 0,
+  sceneCount: 0,
+  breakdownCharacterCount: 0,
+  budgetLineCount: 0,
+  shootDayCount: 0,
+  castingRoleCount: 0,
+  crewNeedCount: 0,
+  equipmentItemCount: 0,
+  contractCount: 0,
+  taskCount: 0,
+  tableReadCount: 0,
+  riskItemCount: 0,
+  callSheetCount: 0,
+  incidentCount: 0,
+  dailiesClipCount: 0,
+  contentLinked: false,
+};
 
 export default async function AdminProjectsPage() {
   await requireAdminSession();
 
-  const [projects, linkGroups] = await Promise.all([
+  const [projects, linkGroups, ideaCounts] = await Promise.all([
     prisma.originalProject.findMany({
       include: {
         pitches: {
           take: 1,
           orderBy: { createdAt: "desc" },
+          include: {
+            creator: {
+              select: { id: true, name: true, email: true, networkHandle: true },
+            },
+          },
         },
         members: {
-          take: 3,
-          include: { user: true },
+          include: {
+            user: { select: { id: true, name: true, email: true, networkHandle: true } },
+          },
         },
         toolProgress: {
-          select: { toolId: true, status: true, phase: true },
+          select: { toolId: true, status: true, phase: true, percent: true },
         },
       },
       orderBy: { createdAt: "desc" },
@@ -27,12 +64,99 @@ export default async function AdminProjectsPage() {
       where: { linkedProjectId: { not: null } },
       _count: { _all: true },
     }),
+    prisma.projectIdea.groupBy({
+      by: ["projectId"],
+      where: { projectId: { not: null } },
+      _count: { _all: true },
+    }),
   ]);
 
   const linkedCatalogueCount: Record<string, number> = {};
   for (const g of linkGroups) {
     if (g.linkedProjectId) linkedCatalogueCount[g.linkedProjectId] = g._count._all;
   }
+
+  const ideaCountByProject = new Map<string, number>();
+  for (const row of ideaCounts) {
+    if (row.projectId) ideaCountByProject.set(row.projectId, row._count._all);
+  }
+
+  const projectIds = projects.map((p) => p.id);
+  const signalsByProject = await loadProjectUsageSignals(projectIds, ideaCountByProject);
+
+  const listItems: AdminProjectListItem[] = projects.map((project) => {
+    const latestPitch = project.pitches[0];
+    const originalBadge = getStoryTimeOriginalBadge(latestPitch);
+    const signals = signalsByProject.get(project.id) ?? {
+      ...EMPTY_SIGNALS,
+      ideaCount: ideaCountByProject.get(project.id) ?? 0,
+      contentLinked: (linkedCatalogueCount[project.id] ?? 0) > 0,
+    };
+
+    const resolved = resolveToolProgressForProject({
+      projectStatus: project.status,
+      stored: project.toolProgress.map((t) => ({
+        toolId: t.toolId,
+        phase: t.phase,
+        status: t.status,
+        percent: t.percent,
+      })),
+      signals,
+      hubToolsOnly: true,
+    });
+    const rollup = buildPipelineRollup(resolved, project.status);
+
+    const activeMemberCount = project.members.filter((m) =>
+      ["ACTIVE", "ACCEPTED"].includes(m.status),
+    ).length;
+    const invitedMemberCount = project.members.filter((m) => m.status === "INVITED").length;
+
+    const memberPreview = project.members
+      .filter((m) => ["ACTIVE", "ACCEPTED", "INVITED"].includes(m.status))
+      .map((m) => m.user.name || m.user.networkHandle || m.user.email || "Member")
+      .slice(0, 4);
+
+    return {
+      id: project.id,
+      title: project.title,
+      logline: project.logline,
+      type: project.type,
+      genre: project.genre,
+      status: project.status,
+      phase: project.phase,
+      createdAt: project.createdAt.toISOString(),
+      updatedAt: project.updatedAt.toISOString(),
+      toolsComplete: rollup.completeCount,
+      toolsTracked: rollup.totalTracked,
+      toolsInProgress: rollup.inProgressCount,
+      toolsSkipped: rollup.skippedCount,
+      progressPercent: rollup.progressPercent,
+      linkedCatalogueCount: linkedCatalogueCount[project.id] ?? 0,
+      memberCount: project.members.length,
+      activeMemberCount,
+      invitedMemberCount,
+      memberPreview,
+      leadCreator: latestPitch?.creator
+        ? {
+            id: latestPitch.creator.id,
+            name: latestPitch.creator.name,
+            email: latestPitch.creator.email,
+            networkHandle: latestPitch.creator.networkHandle,
+          }
+        : project.members[0]?.user
+          ? {
+              id: project.members[0].user.id,
+              name: project.members[0].user.name,
+              email: project.members[0].user.email,
+              networkHandle: project.members[0].user.networkHandle,
+            }
+          : null,
+      originalTone:
+        originalBadge.tone === "greenlit" || originalBadge.tone === "pending"
+          ? originalBadge.tone
+          : null,
+    };
+  });
 
   return (
     <div className="space-y-6 px-2 md:px-0">
@@ -44,85 +168,12 @@ export default async function AdminProjectsPage() {
           Projects &amp; pipeline
         </h1>
         <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
-          Every creator film project, tool progress snapshot, and how many catalogue submissions are
-          linked for delivery tracking.
+          Expand any project for a full dossier: creators, team, pipeline tools, scripts, casting,
+          budgets, catalogue links, and production activity.
         </p>
       </header>
 
-      <div className="space-y-3">
-        {projects.map((project) => {
-          const latestPitch = project.pitches[0];
-          const created = new Date(project.createdAt);
-          const originalBadge = getStoryTimeOriginalBadge(latestPitch);
-          const isOriginal = isStoryTimeOriginalGreenlit(latestPitch);
-          const stage = project.status || "DEVELOPMENT";
-          const tp = project.toolProgress ?? [];
-          const toolsComplete = tp.filter((t) => t.status === "COMPLETE").length;
-          const linkedN = linkedCatalogueCount[project.id] ?? 0;
-
-          return (
-            <div
-              key={project.id}
-              id={`project-${project.id}`}
-              className="flex scroll-mt-24 flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
-            >
-              <div className="min-w-0">
-                <div className="mb-0.5 flex items-center gap-2">
-                  <p className="truncate font-semibold text-white">{project.title}</p>
-                  <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] text-slate-300">
-                    {stage}
-                  </span>
-                  {originalBadge.tone === "greenlit" && (
-                    <span className="rounded-full border border-orange-500/40 bg-orange-500/10 px-2 py-0.5 text-[10px] text-orange-300">
-                      Story Time Original
-                    </span>
-                  )}
-                  {originalBadge.tone === "pending" && (
-                    <span className="rounded-full border border-sky-500/30 bg-sky-500/10 px-2 py-0.5 text-[10px] text-sky-300">
-                      Originals application
-                    </span>
-                  )}
-                </div>
-                <p className="line-clamp-1 text-xs text-slate-400">
-                  {project.logline || "No logline yet."}
-                </p>
-                <p className="mt-1 text-[11px] text-slate-500">
-                  Created {created.toLocaleDateString()} · Type {project.type}{" "}
-                  {project.genre ? `· ${project.genre}` : ""}
-                </p>
-              </div>
-              <div className="flex flex-col items-start gap-1 text-[11px] text-slate-400 sm:items-end sm:text-right">
-                <span>
-                  Tools:{" "}
-                  <span className="text-slate-200">
-                    {toolsComplete}/{tp.length || 0} complete
-                  </span>
-                </span>
-                <span>
-                  Linked catalogue: <span className="text-slate-200">{linkedN}</span>
-                </span>
-                <span>
-                  Team:{" "}
-                  {project.members
-                    .map((m) => m.user.name || "Member")
-                    .slice(0, 2)
-                    .join(", ")}
-                  {project.members.length > 2 && ` +${project.members.length - 2}`}
-                </span>
-                <span className="rounded-full border border-slate-700 bg-slate-900 px-2 py-0.5">
-                  Phase: {project.phase}
-                </span>
-              </div>
-            </div>
-          );
-        })}
-        {projects.length === 0 && (
-          <p className="text-sm text-slate-400">
-            No projects found yet. When creators submit Originals and use the production pipeline,
-            they will appear here.
-          </p>
-        )}
-      </div>
+      <AdminProjectsClient projects={listItems} />
     </div>
   );
 }

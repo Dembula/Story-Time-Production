@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { enrichNetworkUserRow } from "@/lib/network-display-name";
 import type { NetworkPost } from "../../generated/prisma";
 import { parseNetworkPostMetadata } from "@/lib/network-types";
 
@@ -6,6 +7,10 @@ export type EnrichedNetworkPost = NetworkPost & {
   author: {
     id: string;
     name: string | null;
+    email: string | null;
+    networkHandle: string | null;
+    handle: string | null;
+    displayName: string;
     image: string | null;
     headline: string | null;
     primaryRole: string | null;
@@ -34,6 +39,8 @@ export async function enrichNetworkPostsForFeed(
     select: {
       id: true,
       name: true,
+      email: true,
+      networkHandle: true,
       image: true,
       headline: true,
       primaryRole: true,
@@ -105,17 +112,22 @@ export async function enrichNetworkPostsForFeed(
   const savedSet = new Set(mySaves.map((s) => s.postId));
 
   return posts.map((p) => {
-    const author = authorMap[p.authorId];
+    const authorRaw = authorMap[p.authorId];
+    const author = authorRaw
+      ? enrichNetworkUserRow(authorRaw)
+      : enrichNetworkUserRow({
+          id: p.authorId,
+          name: null,
+          email: null,
+          networkHandle: null,
+          image: null,
+          headline: null,
+          primaryRole: null,
+          professionalName: null,
+        });
     return {
       ...p,
-      author: author ?? {
-        id: p.authorId,
-        name: null,
-        image: null,
-        headline: null,
-        primaryRole: null,
-        professionalName: null,
-      },
+      author,
       content: p.contentId ? contents.find((c) => c.id === p.contentId) ?? null : null,
       project: p.projectId ? projects.find((pr) => pr.id === p.projectId) ?? null : null,
       scene: p.sceneId ? scenes.find((s) => s.id === p.sceneId) ?? null : null,
