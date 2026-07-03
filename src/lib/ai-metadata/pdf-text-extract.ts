@@ -3,6 +3,7 @@ import "server-only";
 import { createRequire } from "node:module";
 import { extractPdfTextFromContentStreams } from "@/lib/ai-metadata/pdf-stream-text-extract";
 import {
+  lightCleanScreenplayText,
   normalizeImportedScreenplayLayout,
   scoreScreenplayLayout,
 } from "@/lib/script-studio/screenplay-layout-repair";
@@ -17,6 +18,8 @@ export type PdfExtractionResult = {
 type PdfTextItem = {
   str?: string;
   hasEOL?: boolean;
+  width?: number;
+  height?: number;
   transform?: number[];
 };
 
@@ -25,45 +28,88 @@ function hasMeaningfulText(text: string, minLetters = 8): boolean {
   return letters.length >= minLetters;
 }
 
-function normalizePdfLines(text: string): string {
-  return text
-    .replace(/\r\n/g, "\n")
-    .replace(/\r/g, "\n")
-    .replace(/[ \t]+\n/g, "\n")
-    .replace(/\n{4,}/g, "\n\n\n")
-    .replace(/\f/g, "\n")
-    .trim();
+/**
+ * Reconstruct screenplay lines from pdf.js text items using positions.
+ * Spaces come from horizontal gaps between items; blank lines from vertical gaps.
+ */
+function textItemsToScreenplayLines(items: PdfTextItem[]): string {
+  type Placed = { x: number; y: number; endX: number; height: number; str: string };
+
+  const placed: Placed[] = [];
+  for (const item of items) {
+    const str = item.str ?? "";
+    if (!str || !item.transform || item.transform.length < 6) continue;
+
+    const x = item.transform[4] ?? 0;
+    const y = item.transform[5] ?? 0;
+    const height = Math.abs(item.height || item.transform[3] || 12) || 12;
+    const width =
+      typeof item.width === "number" && item.width > 0
+        ? item.width
+        : Math.max(str.replace(/\s+$/g, "").length, 1) * height * 0.5;
+
+    placed.push({ x, y, endX: x + width, height, str });
+  }
+
+  if (placed.length === 0) return "";
+
+  const avgHeight =
+    placed.reduce((sum, item) => sum + item.height, 0) / Math.max(placed.length, 1);
+  const yTolerance = Math.max(avgHeight * 0.35, 2);
+
+  const rows: Array<{ y: number; items: Placed[] }> = [];
+  for (const item of placed) {
+    const row = rows.find((candidate) => Math.abs(candidate.y - item.y) <= yTolerance);
+    if (row) row.items.push(item);
+    else rows.push({ y: item.y, items: [item] });
+  }
+
+  rows.sort((a, b) => b.y - a.y);
+
+  const lines: string[] = [];
+  let previousY: number | null = null;
+
+  for (const row of rows) {
+    const sorted = [...row.items].sort((a, b) => a.x - b.x);
+    let line = "";
+
+    for (let i = 0; i < sorted.length; i += 1) {
+      const item = sorted[i]!;
+      const next = sorted[i + 1];
+      line += item.str;
+
+      if (!next) continue;
+      if (/\s$/.test(item.str) || /^\s/.test(next.str)) continue;
+
+      const gap = next.x - item.endX;
+      // Screenplay PDFs (Courier) often advance only slightly past glyph width.
+      // Use a low positive threshold so words separate without splitting letters.
+      const spaceThreshold = Math.max(item.height * 0.04, 0.35);
+      if (gap > spaceThreshold) line += " ";
+    }
+
+    const cleaned = line.replace(/[ \t]{2,}/g, " ").trim();
+    if (!cleaned) continue;
+
+    if (previousY !== null) {
+      const verticalGap = previousY - row.y;
+      // Larger than a normal line advance => paragraph / element break
+      if (verticalGap > avgHeight * 1.55) lines.push("");
+    }
+
+    lines.push(cleaned);
+    previousY = row.y;
+  }
+
+  return lines.join("\n");
 }
 
 function finalizePdfText(raw: string): string {
-  return normalizeImportedScreenplayLayout(normalizePdfLines(raw)).text;
-}
-
-function textContentToScreenplayText(items: PdfTextItem[]): string {
-  const parts: string[] = [];
-  for (const item of items) {
-    if (!item.str) continue;
-    parts.push(item.str);
-    if (item.hasEOL) parts.push("\n");
-  }
-  const joined = parts.join("");
-  if (hasMeaningfulText(joined)) return finalizePdfText(joined);
-
-  const rows = new Map<number, { x: number; str: string }[]>();
-  for (const item of items) {
-    if (!item.str || !item.transform?.length) continue;
-    const y = Math.round(item.transform[5] ?? 0);
-    const x = item.transform[4] ?? 0;
-    const row = rows.get(y) ?? [];
-    row.push({ x, str: item.str });
-    rows.set(y, row);
-  }
-
-  const lines = [...rows.entries()]
-    .sort((a, b) => b[0] - a[0])
-    .map(([, rowItems]) => rowItems.sort((a, b) => a.x - b.x).map((part) => part.str).join(" "));
-
-  return finalizePdfText(lines.join("\n"));
+  // Prefer preserving a good extraction; only repair when clearly broken.
+  const cleaned = lightCleanScreenplayText(raw);
+  const score = scoreScreenplayLayout(cleaned);
+  if (score >= 40) return cleaned;
+  return normalizeImportedScreenplayLayout(cleaned).text;
 }
 
 let pdfParseWorkerReady = false;
@@ -88,7 +134,7 @@ async function extractWithPdfParse(buffer: Buffer, disableNormalization = false)
     const result = await parser.getText({
       lineEnforce: true,
       lineThreshold: 2.8,
-      pageJoiner: "\n",
+      pageJoiner: "\n\n",
       disableNormalization,
     });
     return finalizePdfText(result.text ?? "");
@@ -99,20 +145,25 @@ async function extractWithPdfParse(buffer: Buffer, disableNormalization = false)
 
 async function extractWithPdfJs(buffer: Buffer): Promise<string> {
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
-  const doc = await pdfjs.getDocument({
-    data: new Uint8Array(buffer),
-    useSystemFonts: true,
-    disableFontFace: false,
-    verbosity: 0,
-  }).promise;
+  const doc = await pdfjs
+    .getDocument({
+      data: new Uint8Array(buffer),
+      useSystemFonts: true,
+      disableFontFace: false,
+      verbosity: 0,
+    })
+    .promise;
 
   try {
     const pageTexts: string[] = [];
     for (let pageNum = 1; pageNum <= doc.numPages; pageNum += 1) {
       const page = await doc.getPage(pageNum);
-      const content = await page.getTextContent();
-      const pageText = textContentToScreenplayText(content.items as PdfTextItem[]);
-      if (pageText) pageTexts.push(pageText);
+      const content = await page.getTextContent({
+        includeMarkedContent: false,
+        disableNormalization: false,
+      });
+      const pageText = textItemsToScreenplayLines(content.items as PdfTextItem[]);
+      if (pageText.trim()) pageTexts.push(pageText.trim());
     }
     return finalizePdfText(pageTexts.join("\n\n"));
   } finally {
@@ -124,43 +175,25 @@ function extractWithPdfStreams(buffer: Buffer): string {
   return finalizePdfText(extractPdfTextFromContentStreams(buffer));
 }
 
-function extractWithPdfAsciiSniff(buffer: Buffer): string {
-  const raw = buffer.toString("latin1");
-  const sluglines = raw.match(/(?:INT\.|EXT\.|INT\/EXT\.|I\/E\.)[^\x00-\x08\x0b\x0c\x0e-\x1f]{3,180}/gi) ?? [];
-  const prose = raw.match(/[A-Za-z][A-Za-z0-9 ,.'"()\-:;!?]{24,220}/g) ?? [];
-  const merged = [...sluglines, ...prose]
-    .map((part) => part.replace(/\s+/g, " ").trim())
-    .filter((part) => /[A-Za-z]{3,}/.test(part));
-  const unique: string[] = [];
-  const seen = new Set<string>();
-  for (const line of merged) {
-    const key = line.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    unique.push(line);
-  }
-  return finalizePdfText(unique.join("\n\n"));
-}
-
-/** Extract readable text from a PDF buffer using multiple strategies. */
+/** Extract readable screenplay text from a PDF buffer. */
 export async function extractPdfTextFromBuffer(buffer: Buffer): Promise<PdfExtractionResult> {
   const strategies: Array<{ method: string; run: () => Promise<string> | string }> = [
+    { method: "pdfjs", run: () => extractWithPdfJs(buffer) },
     { method: "pdf-parse", run: () => extractWithPdfParse(buffer, false) },
     { method: "pdf-parse-raw", run: () => extractWithPdfParse(buffer, true) },
-    { method: "pdfjs", run: () => extractWithPdfJs(buffer) },
     { method: "pdf-stream", run: () => extractWithPdfStreams(buffer) },
-    { method: "pdf-ascii-sniff", run: () => extractWithPdfAsciiSniff(buffer) },
   ];
 
   let bestText = "";
   let bestMethod: string | null = null;
-  let bestScore = -1;
+  let bestScore = -Infinity;
 
   for (const strategy of strategies) {
     try {
       const text = await strategy.run();
       if (!text || !hasMeaningfulText(text)) continue;
       const score = scoreScreenplayLayout(text);
+      if (score < 10 && bestScore >= 10) continue;
       if (score > bestScore) {
         bestScore = score;
         bestText = text;
@@ -171,7 +204,7 @@ export async function extractPdfTextFromBuffer(buffer: Buffer): Promise<PdfExtra
     }
   }
 
-  if (bestText) {
+  if (bestText && bestScore >= 5) {
     return { text: bestText, method: bestMethod };
   }
 

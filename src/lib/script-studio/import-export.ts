@@ -1,14 +1,22 @@
-import { normalizeImportedScreenplayLayout } from "@/lib/script-studio/screenplay-layout-repair";
+import {
+  isCharacterSpacedGarbage,
+  isFragmentedScreenplayImport,
+  lightCleanScreenplayText,
+  normalizeImportedScreenplayLayout,
+} from "@/lib/script-studio/screenplay-layout-repair";
 
 export type ImportResult = {
   text: string;
   fixes: string[];
 };
 
-/** Client-side import repair for Fountain / plain text / PDF-extracted screenplays. */
+/**
+ * Final client-side pass for imported screenplay text.
+ * Preserves good text as-is. Only repairs clearly broken PDF output.
+ */
 export function importScreenplayText(raw: string, filename: string): ImportResult {
   const fixes: string[] = [];
-  let text = raw.replace(/\r\n/g, "\n").trim();
+  let text = lightCleanScreenplayText(raw);
 
   if (text.startsWith("%PDF-")) {
     return {
@@ -17,11 +25,26 @@ export function importScreenplayText(raw: string, filename: string): ImportResul
     };
   }
 
-  const layout = normalizeImportedScreenplayLayout(text);
-  text = layout.text;
-  fixes.push(...layout.fixes);
+  if (isCharacterSpacedGarbage(text)) {
+    return {
+      text: "",
+      fixes: [
+        "This PDF could not be read with readable layout. Export as Fountain, FDX, or DOCX and import that instead.",
+      ],
+    };
+  }
 
-  if (filename.toLowerCase().endsWith(".fountain")) {
+  const lower = filename.toLowerCase();
+  const isPdf = lower.endsWith(".pdf");
+  const needsRepair = isPdf && isFragmentedScreenplayImport(text);
+
+  if (needsRepair) {
+    const layout = normalizeImportedScreenplayLayout(text);
+    text = layout.text;
+    fixes.push(...layout.fixes);
+  }
+
+  if (lower.endsWith(".fountain")) {
     text = text.replace(/^\.([A-Z][^\n]+)$/gm, (_, heading: string) => {
       fixes.push(`Converted Fountain scene: ${heading}`);
       return heading.startsWith("INT") || heading.startsWith("EXT") ? heading : `INT. ${heading} - DAY`;
@@ -29,8 +52,17 @@ export function importScreenplayText(raw: string, filename: string): ImportResul
     text = text.replace(/^\^([A-Z][A-Z0-9 '.\-()]+)$/gm, "$1");
   }
 
-  if (filename.toLowerCase().endsWith(".fdx")) {
-    fixes.push("FDX imported — review scene headings and formatting.");
+  if (lower.endsWith(".fdx")) {
+    fixes.push("FDX imported with screenplay paragraph structure preserved.");
+  }
+
+  if (!text.trim()) {
+    return {
+      text: "",
+      fixes: fixes.length
+        ? fixes
+        : ["Import produced no readable screenplay text. Try PDF, DOCX, FDX, Fountain, RTF, ODT, or plain text."],
+    };
   }
 
   return { text, fixes: [...new Set(fixes)].slice(0, 12) };

@@ -193,21 +193,28 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
 
   useEffect(() => {
     if (selected) {
-      setDraft({
-        id: selected.id,
-        title: selected.title,
-        type: selected.type || "FEATURE",
-        content: selected.content || "",
+      setDraft((prev) => {
+        // Keep unsaved local edits (including a just-imported script) until save settles.
+        if (prev?.id === selected.id && dirty) return prev;
+        savedUpdatedAtRef.current = selected.updatedAt ?? null;
+        return {
+          id: selected.id,
+          title: selected.title,
+          type: selected.type || "FEATURE",
+          content: selected.content || "",
+        };
       });
-      savedUpdatedAtRef.current = selected.updatedAt ?? null;
-      setDirty(false);
       setConflictMessage(null);
-    } else {
-      setDraft(null);
-      setDirty(false);
-      savedUpdatedAtRef.current = null;
+      return;
     }
-  }, [selected]);
+
+    // Do not wipe a draft we just created/imported before the list query catches up.
+    setDraft((prev) => {
+      if (prev?.id && selectedId === prev.id) return prev;
+      savedUpdatedAtRef.current = null;
+      return null;
+    });
+  }, [selected, selectedId, dirty]);
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -553,14 +560,123 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
             "Import produced no readable screenplay text. Try PDF, DOCX, FDX, Fountain, RTF, ODT, or plain text.",
         );
       }
-      if (draft) {
-        setDraft({ ...draft, content: text });
-        setDirty(true);
-        const storedNote = data.storageUrl ? "Original file saved to your script vault" : null;
-        setImportSummary(
-          [sourceLabel, storedNote, ...fixes].filter((item): item is string => Boolean(item)).slice(0, 12),
+
+      const titleFromFile = file.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim();
+      const nextTitle =
+        draft?.title && draft.title !== "New project script" && draft.title !== "New script"
+          ? draft.title
+          : titleFromFile || draft?.title || "Imported screenplay";
+
+      let scriptId = draft?.id;
+      let scriptType = draft?.type || "FEATURE";
+
+      // Create a script row if the studio has no draft yet, so import always persists.
+      if (!scriptId) {
+        const createRes = await fetch("/api/creator/scripts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: nextTitle,
+            type: scriptType,
+            content: text,
+            projectId: hasProject ? projectId : null,
+          }),
+        });
+        const created = (await createRes.json().catch(() => ({}))) as {
+          script?: { id: string; title: string; type: string; content: string; updatedAt?: string };
+          error?: string;
+        };
+        if (!createRes.ok || !created.script?.id) {
+          throw new Error(created.error || "Imported text but could not create a script record.");
+        }
+        scriptId = created.script.id;
+        const createdScript = {
+          ...created.script,
+          title: created.script.title || nextTitle,
+          type: created.script.type || scriptType,
+          content: text,
+        };
+        queryClient.setQueryData(
+          ["creator-scripts", projectId ?? null],
+          (prev: { scripts?: Array<Record<string, unknown>> } | undefined) => ({
+            ...(prev ?? {}),
+            scripts: [createdScript, ...((prev?.scripts as Array<Record<string, unknown>>) ?? [])],
+          }),
         );
+        setSelectedId(scriptId);
+        setDraft({
+          id: createdScript.id,
+          title: createdScript.title,
+          type: createdScript.type,
+          content: text,
+        });
+        savedUpdatedAtRef.current = created.script.updatedAt ?? null;
+        setDirty(false);
+        setLastSavedAt(new Date());
+        void queryClient.invalidateQueries({ queryKey: ["creator-scripts", projectId ?? null] });
+      } else {
+        setDraft({
+          id: scriptId,
+          title: nextTitle,
+          type: scriptType,
+          content: text,
+        });
+        setDirty(true);
+        setSaving(true);
+        try {
+          const saveRes = await fetch("/api/creator/scripts", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              id: scriptId,
+              title: nextTitle,
+              type: scriptType,
+              content: text,
+              projectId: hasProject ? projectId : null,
+              expectedUpdatedAt: savedUpdatedAtRef.current ?? undefined,
+              createVersion: true,
+            }),
+          });
+          const saved = (await saveRes.json().catch(() => ({}))) as {
+            script?: { id?: string; title?: string; type?: string; content?: string; updatedAt?: string };
+            error?: string;
+          };
+          if (!saveRes.ok) {
+            throw new Error(saved.error || "Imported text but failed to save the script.");
+          }
+          const updatedAt = saved.script?.updatedAt ?? new Date().toISOString();
+          queryClient.setQueryData(
+            ["creator-scripts", projectId ?? null],
+            (prev: { scripts?: Array<Record<string, unknown>> } | undefined) => ({
+              ...(prev ?? {}),
+              scripts: ((prev?.scripts as Array<Record<string, unknown>>) ?? []).map((script) =>
+                script.id === scriptId
+                  ? { ...script, title: nextTitle, type: scriptType, content: text, updatedAt }
+                  : script,
+              ),
+            }),
+          );
+          savedUpdatedAtRef.current = updatedAt;
+          collabMarkSavedRef.current(updatedAt);
+          setDirty(false);
+          setLastSavedAt(new Date());
+          void queryClient.invalidateQueries({ queryKey: ["creator-scripts", projectId ?? null] });
+          if (hasProject && projectId) {
+            void queryClient.invalidateQueries({ queryKey: ["project-script", projectId] });
+            void queryClient.invalidateQueries({ queryKey: ["project-scenes", projectId] });
+          }
+        } finally {
+          setSaving(false);
+        }
       }
+
+      const storedNote = data.storageUrl ? "Original file saved to your script vault" : null;
+      const savedNote = "Script saved — it will still be here when you return";
+      setImportSummary(
+        [sourceLabel, storedNote, savedNote, ...fixes]
+          .filter((item): item is string => Boolean(item))
+          .slice(0, 12),
+      );
     } catch (err) {
       setImportError(err instanceof Error ? err.message : "Import failed");
     } finally {
