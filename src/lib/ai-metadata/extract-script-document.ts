@@ -63,10 +63,10 @@ function detectUploadType(filename: string, mimeType: string, buffer: Buffer): D
 }
 
 function pdfImportError(byteLength: number): string {
-  if (byteLength < 12_000) {
-    return "This PDF appears very small or image-only. Re-export from your writing app as a text PDF, or upload Fountain / FDX / DOCX instead.";
+  if (byteLength < 2_000) {
+    return "This PDF is empty or too small to contain a screenplay. Try another file, or upload Fountain / FDX / DOCX.";
   }
-  return "Could not extract readable screenplay layout from this PDF (fonts or encoding blocked text extraction). Export as Fountain, FDX, or DOCX for a perfect import, or Print → Save as PDF with standard fonts.";
+  return "No readable text was found in this PDF. If it is a scan/image PDF, export as Fountain, FDX, or DOCX, or Print → Save as PDF with standard fonts.";
 }
 
 async function extractPdfScreenplay(buffer: Buffer): Promise<Pick<ScriptFileExtraction, "text" | "extractionMethod" | "error">> {

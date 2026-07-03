@@ -3,7 +3,6 @@ import "server-only";
 import { createRequire } from "node:module";
 import { extractPdfTextFromContentStreams } from "@/lib/ai-metadata/pdf-stream-text-extract";
 import {
-  lightCleanScreenplayText,
   normalizeImportedScreenplayLayout,
   scoreScreenplayLayout,
 } from "@/lib/script-studio/screenplay-layout-repair";
@@ -23,14 +22,16 @@ type PdfTextItem = {
   transform?: number[];
 };
 
+function letterCount(text: string): number {
+  return text.replace(/[^A-Za-z]/g, "").length;
+}
+
 function hasMeaningfulText(text: string, minLetters = 8): boolean {
-  const letters = text.replace(/[^A-Za-z]/g, "");
-  return letters.length >= minLetters;
+  return letterCount(text) >= minLetters;
 }
 
 /**
  * Reconstruct screenplay lines from pdf.js text items using positions.
- * Spaces come from horizontal gaps between items; blank lines from vertical gaps.
  */
 function textItemsToScreenplayLines(items: PdfTextItem[]): string {
   type Placed = { x: number; y: number; endX: number; height: number; str: string };
@@ -82,8 +83,6 @@ function textItemsToScreenplayLines(items: PdfTextItem[]): string {
       if (/\s$/.test(item.str) || /^\s/.test(next.str)) continue;
 
       const gap = next.x - item.endX;
-      // Screenplay PDFs (Courier) often advance only slightly past glyph width.
-      // Use a low positive threshold so words separate without splitting letters.
       const spaceThreshold = Math.max(item.height * 0.04, 0.35);
       if (gap > spaceThreshold) line += " ";
     }
@@ -91,10 +90,8 @@ function textItemsToScreenplayLines(items: PdfTextItem[]): string {
     const cleaned = line.replace(/[ \t]{2,}/g, " ").trim();
     if (!cleaned) continue;
 
-    if (previousY !== null) {
-      const verticalGap = previousY - row.y;
-      // Larger than a normal line advance => paragraph / element break
-      if (verticalGap > avgHeight * 1.55) lines.push("");
+    if (previousY !== null && previousY - row.y > avgHeight * 1.55) {
+      lines.push("");
     }
 
     lines.push(cleaned);
@@ -105,11 +102,7 @@ function textItemsToScreenplayLines(items: PdfTextItem[]): string {
 }
 
 function finalizePdfText(raw: string): string {
-  // Prefer preserving a good extraction; only repair when clearly broken.
-  const cleaned = lightCleanScreenplayText(raw);
-  const score = scoreScreenplayLayout(cleaned);
-  if (score >= 40) return cleaned;
-  return normalizeImportedScreenplayLayout(cleaned).text;
+  return normalizeImportedScreenplayLayout(raw).text;
 }
 
 let pdfParseWorkerReady = false;
@@ -175,25 +168,58 @@ function extractWithPdfStreams(buffer: Buffer): string {
   return finalizePdfText(extractPdfTextFromContentStreams(buffer));
 }
 
+/** Last-resort scrape of printable ASCII/Latin text embedded in the PDF bytes. */
+function extractWithRawByteScrape(buffer: Buffer): string {
+  const raw = buffer.toString("latin1");
+  const chunks: string[] = [];
+  const literalRe = /\(((?:\\.|[^\\)]){2,})\)/g;
+  let match = literalRe.exec(raw);
+  while (match) {
+    const decoded = (match[1] ?? "")
+      .replace(/\\n/g, "\n")
+      .replace(/\\r/g, "\r")
+      .replace(/\\t/g, "\t")
+      .replace(/\\\(/g, "(")
+      .replace(/\\\)/g, ")")
+      .replace(/\\\\/g, "\\")
+      .trim();
+    if (decoded.length >= 2 && /[A-Za-z]/.test(decoded)) chunks.push(decoded);
+    match = literalRe.exec(raw);
+  }
+  if (chunks.length === 0) return "";
+  return finalizePdfText(chunks.join("\n"));
+}
+
 /** Extract readable screenplay text from a PDF buffer. */
 export async function extractPdfTextFromBuffer(buffer: Buffer): Promise<PdfExtractionResult> {
+  // Stream first: best for TeX / custom-font screenplay PDFs.
   const strategies: Array<{ method: string; run: () => Promise<string> | string }> = [
+    { method: "pdf-stream", run: () => extractWithPdfStreams(buffer) },
     { method: "pdfjs", run: () => extractWithPdfJs(buffer) },
     { method: "pdf-parse", run: () => extractWithPdfParse(buffer, false) },
     { method: "pdf-parse-raw", run: () => extractWithPdfParse(buffer, true) },
-    { method: "pdf-stream", run: () => extractWithPdfStreams(buffer) },
+    { method: "pdf-bytes", run: () => extractWithRawByteScrape(buffer) },
   ];
 
   let bestText = "";
   let bestMethod: string | null = null;
   let bestScore = -Infinity;
+  let fallbackText = "";
+  let fallbackMethod: string | null = null;
 
   for (const strategy of strategies) {
     try {
       const text = await strategy.run();
-      if (!text || !hasMeaningfulText(text)) continue;
+      if (!text?.trim()) continue;
+
+      // Keep any letter-bearing extract as a last-resort fallback.
+      if (hasMeaningfulText(text, 4) && letterCount(text) > letterCount(fallbackText)) {
+        fallbackText = text;
+        fallbackMethod = strategy.method;
+      }
+
+      if (!hasMeaningfulText(text)) continue;
       const score = scoreScreenplayLayout(text);
-      if (score < 10 && bestScore >= 10) continue;
       if (score > bestScore) {
         bestScore = score;
         bestText = text;
@@ -204,8 +230,13 @@ export async function extractPdfTextFromBuffer(buffer: Buffer): Promise<PdfExtra
     }
   }
 
-  if (bestText && bestScore >= 5) {
+  if (bestText) {
     return { text: bestText, method: bestMethod };
+  }
+
+  // Never 422 when we extracted letters — return best-effort text.
+  if (fallbackText) {
+    return { text: fallbackText, method: fallbackMethod };
   }
 
   return { text: null, method: null };

@@ -1,6 +1,6 @@
 /**
  * Screenplay import layout helpers.
- * Goal: preserve readable screenplay structure. Only repair clearly broken PDF output.
+ * Preserve good text. Repair broken PDF output. Never discard extractable letters.
  */
 
 const SCENE_HEADING =
@@ -51,9 +51,7 @@ export function lightCleanScreenplayText(text: string): string {
     .replace(/\r/g, "\n")
     .replace(/\f/g, "\n")
     .replace(/[ \t]+\n/g, "\n")
-    // Common pdf.js merge: EXT.DURBAN -> EXT. DURBAN
     .replace(/\b(INT\.|EXT\.|INT\/EXT\.|I\/E\.)([A-Z])/g, "$1 $2")
-    // Common pdf.js merge: WORD-WORD without spaces around hyphen
     .replace(/([A-Z])-([A-Z])/g, "$1 - $2")
     .replace(/^\s*(CONTINUED:|CONTINUED)\s*\d*\.?\s*$/gim, "")
     .replace(/\bCONTINUED:\s*\d+\.?\s*/gi, "")
@@ -65,15 +63,15 @@ export function lightCleanScreenplayText(text: string): string {
 
 export function isFragmentedScreenplayImport(text: string): boolean {
   const lines = text.split(/\n/).map((l) => l.trim()).filter(Boolean);
-  if (lines.length < 12) return false;
+  if (lines.length < 8) return false;
   const singleToken = lines.filter((l) => !l.includes(" ") && l.length > 0).length;
-  return singleToken / lines.length >= 0.55;
+  return singleToken / lines.length >= 0.45;
 }
 
 /** Characters spaced like "T c s A h l o" — broken glyph extraction. */
 export function isCharacterSpacedGarbage(text: string): boolean {
   const tokens = text.split(/\s+/).filter(Boolean);
-  if (tokens.length < 40) return false;
+  if (tokens.length < 20) return false;
   const singleChar = tokens.filter((t) => t.length === 1).length;
   return singleChar / tokens.length >= 0.55;
 }
@@ -88,50 +86,89 @@ export function isRunTogetherGarbage(text: string): boolean {
 
 function countGluedTokens(tokens: string[]): number {
   return tokens.filter((token) => {
-    // EXT.DURBAN / INT.HOUSE glued slug pieces
     if (/^(INT|EXT|I\/E)\.[A-Z]{3,}/i.test(token)) return true;
-    // camelCase glue from bad merges
     if (/[a-z][A-Z]/.test(token)) return true;
-    // very long tokens are usually multiple words stuck together
     if (token.length >= 16 && !/[-–—']/.test(token)) return true;
     return false;
   }).length;
 }
 
+/** Score used only to rank extraction strategies — never to discard text. */
 export function scoreScreenplayLayout(text: string): number {
   const cleaned = lightCleanScreenplayText(text);
   const lines = cleaned.split(/\n/).map((l) => l.trim()).filter(Boolean);
-  if (lines.length === 0) return 0;
-
-  if (isCharacterSpacedGarbage(cleaned)) return -200;
-  if (isRunTogetherGarbage(cleaned)) return -120;
+  if (lines.length === 0) return -1000;
 
   const tokens = cleaned.split(/\s+/).filter(Boolean);
   const letters = cleaned.replace(/[^A-Za-z]/g, "").length;
+  if (letters < 8) return -1000;
+
   const spaces = (cleaned.match(/ /g) ?? []).length;
   const spaceRatio = spaces / Math.max(letters, 1);
   const avgTokenLen =
     tokens.reduce((sum, token) => sum + token.length, 0) / Math.max(tokens.length, 1);
 
-  const multiWord = lines.filter((l) => l.includes(" ")).length;
-  const sluglines = lines.filter((l) => SCENE_HEADING.test(l)).length;
-  const fragmented = isFragmentedScreenplayImport(cleaned) ? -80 : 0;
-  const naturalWords = avgTokenLen >= 2.5 && avgTokenLen <= 10 ? 25 : -30;
-  const blankLines = (cleaned.match(/\n\n/g) ?? []).length;
-  const structureBonus = Math.min(blankLines, 20);
-  const gluedPenalty = countGluedTokens(tokens) * 30;
-  // Healthy screenplay prose has a steady space-to-letter ratio.
-  const spaceBonus = spaceRatio >= 0.14 ? 35 : spaceRatio >= 0.1 ? 10 : -40;
+  let score = letters * 0.05;
+  score += (lines.filter((l) => l.includes(" ")).length / lines.length) * 100;
+  score += lines.filter((l) => SCENE_HEADING.test(l)).length * 20;
+  score += Math.min((cleaned.match(/\n\n/g) ?? []).length, 20);
 
-  return (
-    (multiWord / lines.length) * 100 +
-    sluglines * 20 +
-    fragmented +
-    naturalWords +
-    structureBonus +
-    spaceBonus -
-    gluedPenalty
-  );
+  if (avgTokenLen >= 2.5 && avgTokenLen <= 10) score += 25;
+  if (spaceRatio >= 0.12) score += 35;
+  else if (spaceRatio >= 0.08) score += 10;
+  else score -= 20;
+
+  if (isCharacterSpacedGarbage(cleaned)) score -= 80;
+  if (isRunTogetherGarbage(cleaned)) score -= 40;
+  if (isFragmentedScreenplayImport(cleaned)) score -= 30;
+  score -= countGluedTokens(tokens) * 15;
+
+  return score;
+}
+
+/** Join single-character tokens on a line: "T h e r e" -> "There". */
+function repairCharacterSpacedLine(line: string): string {
+  const tokens = line.trim().split(/\s+/).filter(Boolean);
+  if (tokens.length < 4) return line;
+
+  const singleCharRatio = tokens.filter((t) => t.length === 1).length / tokens.length;
+  if (singleCharRatio < 0.55) return line;
+
+  let out = "";
+  let buf = "";
+  for (const token of tokens) {
+    if (token.length === 1 && /[A-Za-z0-9'.,;:!?]/.test(token)) {
+      buf += token;
+      continue;
+    }
+    if (buf) {
+      out += (out ? " " : "") + buf;
+      buf = "";
+    }
+    out += (out ? " " : "") + token;
+  }
+  if (buf) out += (out ? " " : "") + buf;
+  return out;
+}
+
+function repairCharacterSpacedText(text: string): string {
+  return text
+    .split("\n")
+    .map((line) => repairCharacterSpacedLine(line))
+    .join("\n");
+}
+
+/** Best-effort spaces for glued screenplay tokens. */
+function unglueScreenplayText(text: string): string {
+  return text
+    .replace(/\b(INT\.|EXT\.|INT\/EXT\.|I\/E\.)([A-Z])/g, "$1 $2")
+    .replace(/([A-Z])-([A-Z])/g, "$1 - $2")
+    .replace(/\b(DAY|NIGHT|CONTINUOUS|MORNING|EVENING|LATER|SAME|DUSK|DAWN)(?=[A-Z])/gi, "$1\n\n")
+    .replace(/([a-z])([A-Z][A-Z])/g, "$1\n$2")
+    .replace(/([.!?])([A-Z])/g, "$1 $2")
+    .replace(/\b(FADE TO BLACK|CUT TO|DISSOLVE TO)\b/gi, "\n\n$1\n\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
 }
 
 function isSluglineStart(token: string): boolean {
@@ -253,34 +290,37 @@ function repairFragmentedTokens(tokens: string[]): string[] {
 
 /** Merge one-word-per-line PDF output into screenplay lines. */
 export function repairFragmentedScreenplayText(text: string): string {
-  if (!isFragmentedScreenplayImport(text)) return text;
-
   const tokens = text
     .split(/\n/)
     .map((l) => l.trim())
     .filter(Boolean);
 
+  if (tokens.length < 8) return text;
   return repairFragmentedTokens(tokens).join("\n\n").replace(/\n{4,}/g, "\n\n\n").trim();
 }
 
 /**
  * Normalize imported screenplay text.
- * Good text is preserved. Broken PDF output is repaired only when clearly fragmented.
+ * Always returns extractable text when letters exist — never discards content.
  */
 export function normalizeImportedScreenplayLayout(text: string): { text: string; fixes: string[] } {
   const fixes: string[] = [];
   let normalized = lightCleanScreenplayText(text);
+  if (!normalized) return { text: "", fixes };
 
   if (isCharacterSpacedGarbage(normalized)) {
-    return { text: "", fixes: ["PDF text extraction produced unreadable character spacing"] };
+    normalized = repairCharacterSpacedText(normalized);
+    fixes.push("Rejoined character-spaced PDF glyphs");
   }
 
   if (isFragmentedScreenplayImport(normalized)) {
     normalized = repairFragmentedScreenplayText(normalized);
     fixes.push("Rebuilt screenplay lines from PDF word fragments");
+  } else if (isRunTogetherGarbage(normalized)) {
+    normalized = unglueScreenplayText(normalized);
+    fixes.push("Inserted missing spaces in glued PDF text");
   }
 
-  // Tiny punctuation fix only — does not rewrite content.
   normalized = normalized.replace(/^(INT|EXT|I\/E)(?=\s)/gim, (match) => `${match.toUpperCase()}.`);
 
   return {

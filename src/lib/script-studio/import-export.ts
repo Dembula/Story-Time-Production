@@ -1,6 +1,7 @@
 import {
-  isCharacterSpacedGarbage,
   isFragmentedScreenplayImport,
+  isRunTogetherGarbage,
+  isCharacterSpacedGarbage,
   lightCleanScreenplayText,
   normalizeImportedScreenplayLayout,
 } from "@/lib/script-studio/screenplay-layout-repair";
@@ -12,7 +13,7 @@ export type ImportResult = {
 
 /**
  * Final client-side pass for imported screenplay text.
- * Preserves good text as-is. Only repairs clearly broken PDF output.
+ * Preserves good text. Repairs broken PDF output. Never discards extractable letters.
  */
 export function importScreenplayText(raw: string, filename: string): ImportResult {
   const fixes: string[] = [];
@@ -25,18 +26,13 @@ export function importScreenplayText(raw: string, filename: string): ImportResul
     };
   }
 
-  if (isCharacterSpacedGarbage(text)) {
-    return {
-      text: "",
-      fixes: [
-        "This PDF could not be read with readable layout. Export as Fountain, FDX, or DOCX and import that instead.",
-      ],
-    };
-  }
-
   const lower = filename.toLowerCase();
   const isPdf = lower.endsWith(".pdf");
-  const needsRepair = isPdf && isFragmentedScreenplayImport(text);
+  const needsRepair =
+    isPdf &&
+    (isFragmentedScreenplayImport(text) ||
+      isRunTogetherGarbage(text) ||
+      isCharacterSpacedGarbage(text));
 
   if (needsRepair) {
     const layout = normalizeImportedScreenplayLayout(text);
