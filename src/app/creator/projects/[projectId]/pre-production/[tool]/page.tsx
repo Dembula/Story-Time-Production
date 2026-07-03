@@ -20,7 +20,12 @@ import { VisualPlanningCatalogue } from "@/components/creator/visual-planning-ca
 import { LegalContractsWorkspace } from "@/components/project-tools/pre/LegalContractsWorkspace";
 import { formatZar } from "@/lib/format-currency-zar";
 import { mergeBudgetTemplateWithSaved } from "@/lib/budget-merge";
-import { budgetRowKey, embedBudgetLineKey } from "@/lib/budget-line-keys";
+import {
+  budgetRowKey,
+  embedBudgetLineKey,
+  extractBudgetLineKey,
+  stripBudgetLineKey,
+} from "@/lib/budget-line-keys";
 import {
   BudgetStudioNav,
   friendlyDepartmentName,
@@ -2294,52 +2299,114 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
     );
   }, [engine?.sceneLineItems, normalizeRows]);
 
+  const [vaBudgetPrompt, setVaBudgetPrompt] = useState<{
+    budgetId: string;
+    open: boolean;
+  } | null>(null);
+  const vaPromptDismissedRef = useRef<Set<string>>(new Set());
+
+  const rowsFromSavedLines = useCallback(
+    (lines: NonNullable<typeof budget>["lines"] | undefined): BudgetRow[] => {
+      return normalizeRows(
+        (lines ?? []).map((line) => {
+          const qty = Number(line.quantity ?? 1);
+          const unit = Number(line.unitCost ?? 0);
+          const key = extractBudgetLineKey(line.notes, {
+            id: line.id,
+            department: line.department,
+            name: line.name,
+          });
+          return {
+            id: line.id,
+            key,
+            department: line.department,
+            name: line.name,
+            quantity: qty,
+            unitCost: unit,
+            total: Number(line.total ?? calcTotal(qty, unit)),
+            notes: stripBudgetLineKey(line.notes) || "",
+            sceneId: null,
+            sceneNumber: null,
+            sceneHeading: null,
+            category: "MANUAL",
+          };
+        }),
+      );
+    },
+    [normalizeRows],
+  );
+
+  const budgetDirty = useMemo(
+    () => JSON.stringify(draftRows) !== JSON.stringify(savedRows),
+    [draftRows, savedRows],
+  );
+
+  // Load only what the creator has saved — never auto-inject VA/engine lines.
   useEffect(() => {
     if (!budget) return;
-    const engineRows = buildTemplateRowsFromEngine();
-    const template = engineRows.length > 0 ? engineRows : buildTemplateRowsFromBreakdown();
-    const finalRows = mergeBudgetTemplateWithSaved(template, budget.lines ?? []);
+
+    const budgetId = budget.id;
+    const isEmpty = (budget.lines ?? []).length === 0;
+    if (isEmpty && !vaPromptDismissedRef.current.has(budgetId)) {
+      setVaBudgetPrompt({ budgetId, open: true });
+    } else if (!isEmpty) {
+      setVaBudgetPrompt((prev) => (prev?.budgetId === budgetId ? null : prev));
+    }
+
+    // Keep in-progress edits (including VA-generated rows awaiting save).
+    if (budgetDirty) return;
+
+    const finalRows = rowsFromSavedLines(budget.lines);
     setDraftRows(finalRows);
     setSavedRows(JSON.parse(JSON.stringify(finalRows)));
-  }, [budget, breakdownData, scenesData, buildTemplateRowsFromBreakdown, buildTemplateRowsFromEngine]);
+  }, [budget, rowsFromSavedLines, budgetDirty]);
 
-  const budgetDirty =
-    draftRows.length > 0 || savedRows.length > 0
-      ? JSON.stringify(draftRows) !== JSON.stringify(savedRows)
-      : false;
+  const applyVaGeneratedRows = useCallback(() => {
+    const engineRows = buildTemplateRowsFromEngine();
+    const template = engineRows.length > 0 ? engineRows : buildTemplateRowsFromBreakdown();
+    const finalRows = mergeBudgetTemplateWithSaved(template, budget?.lines ?? []);
+    setDraftRows(finalRows);
+    return finalRows;
+  }, [buildTemplateRowsFromEngine, buildTemplateRowsFromBreakdown, budget?.lines]);
+
+  const dismissVaBudgetPrompt = useCallback(
+    (budgetId: string) => {
+      vaPromptDismissedRef.current.add(budgetId);
+      setVaBudgetPrompt(null);
+    },
+    [],
+  );
+
+  const handleVaBudgetNo = useCallback(() => {
+    if (!vaBudgetPrompt) return;
+    dismissVaBudgetPrompt(vaBudgetPrompt.budgetId);
+    setDraftRows([]);
+    setSavedRows([]);
+    setSaveMessage("Starting from a blank budget — add your own line items.");
+  }, [vaBudgetPrompt, dismissVaBudgetPrompt]);
+
+  const handleVaBudgetYes = useCallback(() => {
+    if (!vaBudgetPrompt) return;
+    const budgetId = vaBudgetPrompt.budgetId;
+    dismissVaBudgetPrompt(budgetId);
+    const rows = applyVaGeneratedRows();
+    if (rows.length === 0) {
+      setSaveMessage("No script/breakdown data to generate from yet — add lines manually.");
+      return;
+    }
+    setSaveMessage(`VA added ${rows.length} line items — review and save when ready.`);
+  }, [vaBudgetPrompt, dismissVaBudgetPrompt, applyVaGeneratedRows]);
 
   const initMutation = useMutation({
     mutationFn: async () => {
       if (!hasProject) {
-        const starter = buildStandaloneBudgetStarter(templateChoice);
-        const rows = starter.sceneLineItems.map((item) => ({
-          key: item.key,
-          department: item.department,
-          name: item.name,
-          quantity: Number(item.quantity ?? 1),
-          unitCost: Number(item.unitCost ?? 0),
-          total: Number(item.total ?? 0),
-          notes: item.notes ?? "",
-          sceneId: item.sceneId ?? null,
-          sceneNumber: item.sceneNumber ?? null,
-          sceneHeading: item.sceneHeading ?? null,
-          category: item.category ?? "ENGINE",
-        }));
-        const lines = rows.map((r) => ({
-          department: r.department,
-          name: r.name,
-          quantity: r.quantity,
-          unitCost: r.unitCost,
-          total: r.total,
-          notes: r.notes || null,
-        }));
         const draft = saveLocalBudgetDraft({
           template: templateChoice,
-          lines,
-          engine: starter,
+          lines: [],
+          engine: buildStandaloneBudgetStarter(templateChoice),
         });
         setLocalBudgetDraft(draft);
-        return { budget: { id: "local", template: templateChoice, totalPlanned: 0, lines } };
+        return { budget: { id: "local", template: templateChoice, totalPlanned: 0, lines: [] as NonNullable<typeof budget>["lines"] } };
       }
       return projectToolFetch<{ budget: NonNullable<typeof budget> }>(
         `/api/creator/projects/${projectId}/budget`,
@@ -2356,33 +2423,28 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
     },
     onMutate: () => setInitError(""),
     onSuccess: (result) => {
+      const budgetId = result.budget.id;
+      vaPromptDismissedRef.current.delete(budgetId);
+      setDraftRows([]);
+      setSavedRows([]);
+      setVaBudgetPrompt({ budgetId, open: true });
       if (hasProject) {
-        setSelectedBudgetId(result.budget.id);
+        setSelectedBudgetId(budgetId);
         setShowNewBudgetForm(false);
         setNewBudgetName("");
-        queryClient.setQueryData(["project-budget", projectId, result.budget.id], (prev: typeof data) => ({
+        queryClient.setQueryData(["project-budget", projectId, budgetId], (prev: typeof data) => ({
           ...(prev ?? {}),
           budget: result.budget,
         }));
         void queryClient.invalidateQueries({ queryKey: ["project-budget", projectId] });
       } else {
-        const starter = buildStandaloneBudgetStarter(templateChoice);
-        const rows = starter.sceneLineItems.map((item) => ({
-          key: item.key,
-          id: undefined,
-          department: item.department,
-          name: item.name,
-          quantity: Number(item.quantity ?? 1),
-          unitCost: Number(item.unitCost ?? 0),
-          total: Number(item.total ?? 0),
-          notes: item.notes ?? "",
-          sceneId: item.sceneId ?? null,
-          sceneNumber: item.sceneNumber ?? null,
-          sceneHeading: item.sceneHeading ?? null,
-          category: item.category ?? "ENGINE",
-        }));
-        setDraftRows(rows);
-        setSavedRows(JSON.parse(JSON.stringify(rows)));
+        setLocalBudgetDraft(
+          saveLocalBudgetDraft({
+            template: templateChoice,
+            lines: [],
+            engine: buildStandaloneBudgetStarter(templateChoice),
+          }),
+        );
       }
     },
     onError: (err) => {
@@ -2695,6 +2757,75 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
       </ToolSavedViewSheet>
 
       <ToolActionError message={initError} onDismiss={() => setInitError("")} />
+
+      {budget && vaBudgetPrompt?.open && vaBudgetPrompt.budgetId === budget.id ? (
+        <div
+          role="dialog"
+          aria-labelledby="va-budget-prompt-title"
+          aria-describedby="va-budget-prompt-desc"
+          className="rounded-2xl border border-orange-500/40 bg-gradient-to-br from-orange-500/15 via-slate-950 to-slate-950 p-4 shadow-lg shadow-orange-950/30"
+        >
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 space-y-1.5">
+              <p
+                id="va-budget-prompt-title"
+                className="text-sm font-semibold text-orange-100"
+              >
+                Let the Virtual Assistant build this budget?
+              </p>
+              <p id="va-budget-prompt-desc" className="text-xs leading-relaxed text-slate-300">
+                The VA can pre-fill line items from your script, scenes, and breakdown.
+                Choose <span className="text-white font-medium">No</span> to start from a blank
+                budget and enter everything yourself.
+              </p>
+            </div>
+            <div className="flex shrink-0 flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="border-slate-600 bg-slate-950/60 text-slate-100 hover:bg-slate-800 h-9 px-4"
+                onClick={handleVaBudgetNo}
+              >
+                No, start blank
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                className="bg-orange-500 hover:bg-orange-600 text-white h-9 px-4"
+                onClick={handleVaBudgetYes}
+              >
+                Yes, VA build it
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {budget &&
+      !vaBudgetPrompt?.open &&
+      draftRows.length === 0 &&
+      (budget.lines ?? []).length === 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2">
+          <p className="text-[11px] text-slate-400">
+            Blank budget — add lines manually, or let the VA fill from your script.
+          </p>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="border-orange-500/40 text-orange-200 hover:bg-orange-500/10 text-[11px] h-7"
+            onClick={() => {
+              if (!budget) return;
+              vaPromptDismissedRef.current.delete(budget.id);
+              setVaBudgetPrompt({ budgetId: budget.id, open: true });
+            }}
+          >
+            Ask VA to build
+          </Button>
+        </div>
+      ) : null}
+
       {budgetLoadError ? (
         <ToolActionError
           message={mutationErrorMessage(budgetLoadErr, "Could not load budget.")}
