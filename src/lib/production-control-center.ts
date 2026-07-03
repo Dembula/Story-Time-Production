@@ -1,3 +1,4 @@
+import type { PrismaClient } from "../../generated/prisma";
 import type { ProductionDayRecord } from "@/lib/production-day-engine";
 
 export type DayBreakdownSummary = {
@@ -14,12 +15,7 @@ export type DayBreakdownSummary = {
 
 /** Persist shoot-day scene links from the production engine when the schedule has scenes planned but not saved. */
 export async function ensureShootDaySceneLinks(
-  prisma: {
-    shootDayScene: {
-      findMany: (args: unknown) => Promise<{ id: string; sceneId: string; order: number }[]>;
-      createMany: (args: unknown) => Promise<unknown>;
-    };
-  },
+  prisma: Pick<PrismaClient, "shootDayScene">,
   shootDayId: string,
   productionDay: ProductionDayRecord | null,
 ): Promise<boolean> {
