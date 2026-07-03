@@ -21,6 +21,13 @@ async function ensureCreatorSession() {
   return { error: null as NextResponse | null, userId };
 }
 
+function readFormString(form: FormData | null, key: string): string | null {
+  const value = form?.get(key);
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed || null;
+}
+
 export async function POST(req: NextRequest) {
   const access = await ensureCreatorSession();
   if (access.error) return access.error;
@@ -31,8 +38,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing script file" }, { status: 400 });
   }
 
-  const scriptId = typeof form?.get("scriptId") === "string" ? form.get("scriptId")?.trim() || null : null;
-  const projectId = typeof form?.get("projectId") === "string" ? form.get("projectId")?.trim() || null : null;
+  const scriptId = readFormString(form, "scriptId");
+  const projectId = readFormString(form, "projectId");
 
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
