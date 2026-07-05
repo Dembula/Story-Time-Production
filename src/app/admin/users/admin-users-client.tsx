@@ -5,8 +5,13 @@ import { useEffect, useState } from "react";
 import {
   Users, Shield, Trash2, Edit3, ChevronDown, ChevronUp, Search,
   Film, Music, Eye, MessageSquare, Star, Activity, Package,
-  UserCheck, UserX, GraduationCap, AlertTriangle,
+  UserCheck, UserX, GraduationCap, AlertTriangle, CreditCard,
 } from "lucide-react";
+import {
+  describeAdminViewerSubscription,
+  subscriptionStatusBadgeClass,
+  type AdminViewerSubscriptionSnapshot,
+} from "@/lib/admin/viewer-subscription-status";
 
 interface User {
   id: string;
@@ -21,6 +26,7 @@ interface User {
   createdAt: string;
   updatedAt: string;
   _count: { contents: number; musicTracks: number; watchSessions: number; comments: number; ratings: number; activityLogs: number; equipmentListings: number; locationListings: number };
+  viewerSubscription?: AdminViewerSubscriptionSnapshot | null;
 }
 
 const ROLES = [
@@ -154,9 +160,23 @@ export function AdminUsersClient() {
                   {getRoleList(u).map((roleName) => (
                     <span key={roleName}>{roleBadge(roleName)}</span>
                   ))}
+                  {getRoleList(u).includes("SUBSCRIBER") && (() => {
+                    const subStatus = describeAdminViewerSubscription(u.viewerSubscription);
+                    return (
+                      <span className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[10px] font-medium ${subscriptionStatusBadgeClass(subStatus.tone)}`}>
+                        <CreditCard className="w-3 h-3" />
+                        {subStatus.label}
+                      </span>
+                    );
+                  })()}
                   {u.isAfdaStudent && <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400"><GraduationCap className="w-3 h-3 inline" /> Student</span>}
                 </div>
                 <p className="text-xs text-slate-500 truncate">{u.email}</p>
+                {getRoleList(u).includes("SUBSCRIBER") && u.viewerSubscription ? (
+                  <p className="text-[10px] text-slate-500 mt-0.5">
+                    {describeAdminViewerSubscription(u.viewerSubscription).detail}
+                  </p>
+                ) : null}
               </div>
               <div className="hidden md:flex items-center gap-6 text-xs text-slate-400">
                 <span className="flex items-center gap-1"><Film className="w-3 h-3" /> {u._count.contents}</span>
@@ -189,6 +209,50 @@ export function AdminUsersClient() {
                 </div>
 
                 {u.bio && <div className="p-3 rounded-lg bg-slate-800/30 border border-slate-700/30"><p className="text-xs text-slate-500 mb-1">Bio</p><p className="text-sm text-slate-300">{u.bio}</p></div>}
+
+                {getRoleList(u).includes("SUBSCRIBER") ? (
+                  <div className="p-4 rounded-lg bg-slate-800/40 border border-slate-700/40">
+                    <p className="text-xs uppercase tracking-wide text-slate-500 mb-2 flex items-center gap-1.5">
+                      <CreditCard className="w-3.5 h-3.5 text-orange-400" /> Viewer subscription
+                    </p>
+                    {u.viewerSubscription ? (() => {
+                      const subStatus = describeAdminViewerSubscription(u.viewerSubscription);
+                      const sub = u.viewerSubscription!;
+                      return (
+                        <div className="space-y-2 text-sm">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className={`rounded border px-2 py-0.5 text-xs font-medium ${subscriptionStatusBadgeClass(subStatus.tone)}`}>
+                              {subStatus.label}
+                            </span>
+                            <span className="text-slate-400">{subStatus.detail}</span>
+                          </div>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-slate-400">
+                            <p>Plan: <span className="text-slate-200">{sub.plan}</span></p>
+                            <p>Status: <span className="text-slate-200">{sub.status}</span></p>
+                            <p>Model: <span className="text-slate-200">{sub.viewerModel ?? "SUBSCRIPTION"}</span></p>
+                            {sub.lastPaymentStatus ? (
+                              <p>Last payment: <span className="text-slate-200">{sub.lastPaymentStatus}</span></p>
+                            ) : null}
+                            {sub.trialEndsAt ? (
+                              <p>Trial ends: <span className="text-slate-200">{new Date(sub.trialEndsAt).toLocaleDateString()}</span></p>
+                            ) : null}
+                            {sub.currentPeriodEnd ? (
+                              <p>Period end: <span className="text-slate-200">{new Date(sub.currentPeriodEnd).toLocaleDateString()}</span></p>
+                            ) : null}
+                            {sub.pastDueSince ? (
+                              <p>Past due since: <span className="text-red-300">{new Date(sub.pastDueSince).toLocaleDateString()}</span></p>
+                            ) : null}
+                          </div>
+                          {sub.lastPaymentError ? (
+                            <p className="text-xs text-red-300">Payment error: {sub.lastPaymentError}</p>
+                          ) : null}
+                        </div>
+                      );
+                    })() : (
+                      <p className="text-sm text-slate-500">No subscription record</p>
+                    )}
+                  </div>
+                ) : null}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-3">

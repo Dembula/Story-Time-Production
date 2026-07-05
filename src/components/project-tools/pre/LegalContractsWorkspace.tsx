@@ -77,6 +77,8 @@ type ContractRow = {
   recipientType?: string | null;
   recipientLabel?: string | null;
   recipientEmail?: string | null;
+  sentAt?: string | null;
+  viewedAt?: string | null;
   jurisdiction?: string | null;
   counterparty?: { id: string; name: string | null; email: string | null } | null;
   paymentTransactionId?: string | null;
@@ -181,6 +183,8 @@ export function LegalContractsWorkspace({ projectId, title }: LegalContractsWork
   const [jurisdiction, setJurisdiction] = useState("South Africa");
   const [enterpriseTab, setEnterpriseTab] = useState<LegalEnterpriseTab>("analytics");
   const [countersignConfirmed, setCountersignConfirmed] = useState(false);
+  const [recordSignedConfirmed, setRecordSignedConfirmed] = useState(false);
+  const [recordSignerName, setRecordSignerName] = useState("");
   const [salaryPayMessage, setSalaryPayMessage] = useState("");
   const [hireAmountInput, setHireAmountInput] = useState("");
   const [savingHireAmount, setSavingHireAmount] = useState(false);
@@ -396,6 +400,30 @@ export function LegalContractsWorkspace({ projectId, title }: LegalContractsWork
     }
   }, [selectedContract?.id, selectedContract?.latestVersion?.terms]);
 
+  useEffect(() => {
+    if (!inboxContractId || !hasProject) return;
+    const match = contracts.find((c) => c.id === inboxContractId);
+    if (match) {
+      setSelectedContractId(match.id);
+      setShowComposer(false);
+    }
+  }, [inboxContractId, hasProject, contracts]);
+
+  useEffect(() => {
+    if (!selectedContract) {
+      setRecordSignedConfirmed(false);
+      setRecordSignerName("");
+      return;
+    }
+    setRecordSignerName(
+      selectedContract.recipientLabel ??
+        selectedContract.counterparty?.name ??
+        selectedContract.vendorName ??
+        "",
+    );
+    setRecordSignedConfirmed(false);
+  }, [selectedContract?.id]);
+
   const filteredContracts = useMemo(() => {
     if (filterTab === "ALL") return contracts;
     if (filterTab === "DRAFT") return contracts.filter((c) => c.status === "DRAFT");
@@ -478,10 +506,12 @@ export function LegalContractsWorkspace({ projectId, title }: LegalContractsWork
       contractId,
       kind,
       action,
+      signerName,
     }: {
       contractId: string;
-      kind: "send" | "countersign";
+      kind: "send" | "countersign" | "record-signature";
       action?: string;
+      signerName?: string;
     }) => {
       if (kind === "send") {
         return projectToolFetch(`/api/creator/projects/${projectId}/contracts/${contractId}/send`, {
@@ -489,6 +519,16 @@ export function LegalContractsWorkspace({ projectId, title }: LegalContractsWork
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({}),
         });
+      }
+      if (kind === "record-signature") {
+        return projectToolFetch(
+          `/api/creator/projects/${projectId}/contracts/${contractId}/record-signature`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ signerName: signerName?.trim() || undefined }),
+          },
+        );
       }
       return projectToolFetch(`/api/creator/projects/${projectId}/contracts/${contractId}/countersign`, {
         method: "POST",
@@ -511,14 +551,27 @@ export function LegalContractsWorkspace({ projectId, title }: LegalContractsWork
     return "border-slate-600 bg-slate-800/70 text-slate-200";
   }
 
-  function downloadTerms(label: string, terms: string) {
-    const blob = new Blob([terms], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${label.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+  function downloadContractPdf(contractId: string, label: string) {
+    if (!projectId) return;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/creator/projects/${projectId}/contracts/${contractId}/export`);
+        if (!res.ok) throw new Error("Could not export PDF");
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        const disposition = res.headers.get("Content-Disposition") ?? "";
+        const match = disposition.match(/filename="([^"]+)"/);
+        a.href = url;
+        a.download = match?.[1] ?? `${label.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } catch {
+        setActionError("PDF export failed. Open the contract and use Download PDF.");
+      }
+    })();
   }
 
   function openLocalDraft(draft: LocalContractDraft) {
@@ -623,11 +676,6 @@ export function LegalContractsWorkspace({ projectId, title }: LegalContractsWork
                 : "/creator/pre/legal-contracts"
             }
           />
-          {inboxContractId && hasProject ? (
-            <p className="mt-3 text-xs text-slate-500">
-              Open the Contracts tab to view project agreements, or use the inbox link for the sending project.
-            </p>
-          ) : null}
         </div>
       ) : null}
 
@@ -787,23 +835,31 @@ export function LegalContractsWorkspace({ projectId, title }: LegalContractsWork
             />
 
             {hasProject && (
-              <ContractRecipientPicker
-                options={recipientOptions}
-                recipientType={recipientType}
-                counterpartyUserId={counterpartyUserId}
-                recipientLabel={recipientLabel}
-                recipientEmail={recipientEmail}
-                onRecipientTypeChange={setRecipientType}
-                onSelect={(opt) => {
-                  if (!opt) return;
-                  setCounterpartyUserId(opt.counterpartyUserId);
-                  setRecipientLabel(opt.label);
-                  setRecipientType(opt.recipientType);
-                  if (opt.email) setRecipientEmail(opt.email);
-                }}
-                onManualLabelChange={setRecipientLabel}
-                onManualEmailChange={setRecipientEmail}
-              />
+              <div className="space-y-2">
+                <ContractRecipientPicker
+                  options={recipientOptions}
+                  recipientType={recipientType}
+                  counterpartyUserId={counterpartyUserId}
+                  recipientLabel={recipientLabel}
+                  recipientEmail={recipientEmail}
+                  onRecipientTypeChange={setRecipientType}
+                  onSelect={(opt) => {
+                    if (!opt) return;
+                    setCounterpartyUserId(opt.counterpartyUserId);
+                    setRecipientLabel(opt.label);
+                    setRecipientType(opt.recipientType);
+                    if (opt.email) setRecipientEmail(opt.email);
+                  }}
+                  onManualLabelChange={setRecipientLabel}
+                  onManualEmailChange={setRecipientEmail}
+                />
+                <p className="text-[10px] text-slate-500 leading-relaxed">
+                  <strong className="text-slate-400">Save + send</strong> emails a secure signing link to the recipient
+                  {recipientEmail ? ` (${recipientEmail})` : counterpartyUserId ? " (platform inbox)" : ""} and posts the
+                  contract to their stakeholder dashboard when they have an account. Drafts can also be sent later from the
+                  contract list.
+                </p>
+              </div>
             )}
 
             <div className="grid gap-2 md:grid-cols-2">
@@ -926,6 +982,37 @@ export function LegalContractsWorkspace({ projectId, title }: LegalContractsWork
             </button>
           </CardHeader>
           <CardContent className="space-y-3">
+            {(selectedContract.status === "SENT" ||
+              selectedContract.status === "VIEWED" ||
+              selectedContract.status === "PARTIALLY_SIGNED" ||
+              selectedContract.status === "EXECUTED") && (
+              <div className="rounded-lg border border-sky-500/30 bg-sky-500/5 px-3 py-2 text-xs text-sky-100 space-y-1">
+                <p className="font-medium">Delivery &amp; signing</p>
+                {selectedContract.sentAt ? (
+                  <p>Sent {new Date(selectedContract.sentAt).toLocaleString()}</p>
+                ) : (
+                  <p>Sent to recipient</p>
+                )}
+                {selectedContract.viewedAt ? (
+                  <p>Opened {new Date(selectedContract.viewedAt).toLocaleString()}</p>
+                ) : selectedContract.status === "SENT" ? (
+                  <p>Not yet opened by recipient</p>
+                ) : null}
+                {(selectedContract.recipientEmail || selectedContract.counterparty?.email) && (
+                  <p>
+                    Recipient:{" "}
+                    {selectedContract.recipientLabel ?? selectedContract.vendorName ?? "Counterparty"} ·{" "}
+                    {selectedContract.recipientEmail ?? selectedContract.counterparty?.email}
+                  </p>
+                )}
+                {selectedContract.status === "PARTIALLY_SIGNED" && (
+                  <p className="text-emerald-200">Counterparty signed — counter-sign below to execute.</p>
+                )}
+                {selectedContract.status === "EXECUTED" && (
+                  <p className="text-emerald-200">Fully executed.</p>
+                )}
+              </div>
+            )}
             {selectedContract.signatures.length > 0 && (
               <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-100">
                 Signatures:{" "}
@@ -948,6 +1035,50 @@ export function LegalContractsWorkspace({ projectId, title }: LegalContractsWork
                   : null
               }
             />
+            {(selectedContract.status === "SENT" ||
+              selectedContract.status === "VIEWED" ||
+              selectedContract.status === "AWAITING_SIGNATURE") && (
+              <div className="space-y-2 rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3">
+                <p className="text-xs font-medium text-emerald-100">Counterparty signed?</p>
+                <p className="text-[10px] text-slate-400">
+                  Use this if they signed on paper or via the email link and the status has not updated yet.
+                </p>
+                <Input
+                  value={recordSignerName}
+                  onChange={(e) => setRecordSignerName(e.target.value)}
+                  placeholder="Signer name"
+                  className="h-9 bg-slate-900 border-slate-700 text-sm"
+                />
+                <label className="flex cursor-pointer items-start gap-2 text-xs text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={recordSignedConfirmed}
+                    onChange={(e) => setRecordSignedConfirmed(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded accent-emerald-500"
+                  />
+                  <span>I confirm the counterparty has signed this contract.</span>
+                </label>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-xs"
+                  onClick={() =>
+                    contractActionMutation.mutate({
+                      contractId: selectedContract.id,
+                      kind: "record-signature",
+                      signerName: recordSignerName,
+                    })
+                  }
+                  disabled={
+                    contractActionMutation.isPending ||
+                    !recordSignedConfirmed ||
+                    !recordSignerName.trim()
+                  }
+                >
+                  Record counterparty signature
+                </Button>
+              </div>
+            )}
             <div className="flex flex-wrap gap-2">
               {isEditorEditable && (
                 <Button
@@ -1229,6 +1360,11 @@ export function LegalContractsWorkspace({ projectId, title }: LegalContractsWork
                           Send
                         </Button>
                       )}
+                      {(c.status === "SENT" || c.status === "VIEWED") && (
+                        <span className="text-[10px] text-sky-300 self-center">
+                          Awaiting signature
+                        </span>
+                      )}
                       {c.status === "PARTIALLY_SIGNED" && (
                         <p className="text-[10px] text-slate-500 w-full">
                           Open the contract to counter-sign with the in-app confirmation checkbox.
@@ -1253,9 +1389,9 @@ export function LegalContractsWorkspace({ projectId, title }: LegalContractsWork
                         size="sm"
                         variant="outline"
                         className="h-7 border-slate-700 px-2 text-[10px]"
-                        onClick={() => downloadTerms(c.subject ?? "contract", c.latestVersion?.terms ?? "")}
+                        onClick={() => downloadContractPdf(c.id, c.subject ?? "contract")}
                       >
-                        Download
+                        Download PDF
                       </Button>
                     </div>
                   </div>

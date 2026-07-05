@@ -7,6 +7,7 @@ import { Plus, User, Shield, Users, CheckCircle, AlertCircle, Settings, Lock } f
 import { getBirthDateOptionSets } from "@/lib/viewer-profiles";
 import { ProfilePinModal } from "@/components/viewer/profile-pin-modal";
 import { LogOutButton } from "@/components/auth/log-out-button";
+import { SubscriptionResumeButton } from "@/components/viewer/subscription-resume-checkout";
 
 type Profile = {
   id: string;
@@ -284,20 +285,23 @@ export function ProfilesClient({
           <p className="font-medium text-white">Subscription payment required</p>
           <p className="mt-1 text-orange-100/90">
             {needsPlanReactivation
-              ? "Your trial or billing period has ended. Choose a plan and complete payment to start watching again."
-              : "Choose your viewer model and plan, then complete payment or start a free trial to access the catalogue."}
+              ? "Your trial or billing period has ended. Pay for your current plan to start watching again."
+              : "Complete payment to activate your subscription and access the catalogue."}
           </p>
-          <Link
-            href="/browse/account/change-plan"
-            onClick={() => {
-              if (typeof window !== "undefined") {
-                sessionStorage.removeItem("st_pending_viewer_checkout");
-              }
-            }}
-            className="mt-3 inline-flex rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-400"
-          >
-            Choose plan & pay
-          </Link>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <SubscriptionResumeButton label="Pay now" className="inline-flex rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-400 disabled:opacity-60" />
+            <Link
+              href="/browse/account/change-plan"
+              onClick={() => {
+                if (typeof window !== "undefined") {
+                  sessionStorage.removeItem("st_pending_viewer_checkout");
+                }
+              }}
+              className="inline-flex rounded-lg border border-white/15 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-white/[0.07]"
+            >
+              Switch plan
+            </Link>
+          </div>
         </div>
       ) : null}
 

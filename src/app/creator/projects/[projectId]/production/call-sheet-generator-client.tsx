@@ -12,6 +12,8 @@ import { ToolSavedViewSheet, ToolViewButton, CallSheetsSavedViewer } from "@/com
 import { useModocOptional } from "@/components/modoc";
 import { ProductionModocReportModal } from "./production-modoc-modal";
 import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
+import { buildCallSheetDocumentHtml } from "@/lib/call-sheet-html";
+import { printHtmlDocument } from "@/lib/pdf/print-html-document";
 import type {
   CallSheetCastRow,
   CallSheetHeader,
@@ -606,8 +608,34 @@ export function CallSheetGenerator({ projectId, title }: { projectId?: string; t
   });
 
   const handlePrint = useCallback(() => {
-    window.print();
-  }, []);
+    if (!displayVm) {
+      setToast("Select a shoot day to print the call sheet.");
+      return;
+    }
+    try {
+      const { bodyHtml, extraCss } = buildCallSheetDocumentHtml({
+        header: displayVm.header,
+        timing: displayVm.timing,
+        weather: displayVm.weather,
+        equipment: displayVm.equipment,
+        schedule: displayVm.schedule,
+        cast: displayVm.cast,
+        crew: displayVm.crew,
+        locations: displayVm.locations,
+        tasks: displayVm.tasks,
+        safety: displayVm.safety,
+        dayNotes: displayVm.dayNotes,
+        sheetNotes: displayNotes,
+      });
+      printHtmlDocument({
+        title: `Call sheet — ${displayVm.header.productionTitle}`,
+        bodyHtml,
+        extraCss,
+      });
+    } catch (e) {
+      setToast(e instanceof Error ? e.message : "Could not open print view. Allow pop-ups and try again.");
+    }
+  }, [displayVm, displayNotes]);
 
   const [pdfDownloading, setPdfDownloading] = useState(false);
 

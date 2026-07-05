@@ -21,10 +21,9 @@ export default async function BrowseLayout({
   const role = (session?.user as { role?: string })?.role;
   let subscriptionExpired = false;
   const headerList = await headers();
-  const isPublicContentDetail = headerList.get("x-browse-public-detail") === "1";
   const isAccountManagement = headerList.get("x-browse-account-access") === "1";
 
-  if (session?.user?.email && role === "SUBSCRIBER" && !isPublicContentDetail) {
+  if (session?.user?.email && role === "SUBSCRIBER") {
     try {
       const user = await prisma.user.findUnique({
         where: { email: session.user.email },
@@ -45,6 +44,7 @@ export default async function BrowseLayout({
         if (!stillProcessing && !isAccountManagement) {
           redirect("/profiles?payment=required");
         }
+        subscriptionExpired = !stillProcessing;
       }
       const cookieStore = await cookies();
       const onboardingDeferred = cookieStore.get("st_onboarding_deferred")?.value === "1";
@@ -61,7 +61,6 @@ export default async function BrowseLayout({
           redirect("/profiles?verify=1");
         }
       }
-      subscriptionExpired = getViewerModel(sub) === "SUBSCRIPTION" ? subscriptionNeedsReactivation(sub) : false;
     } catch {
       // DB unreachable (e.g. wrong port or Neon suspended): still render layout
     }

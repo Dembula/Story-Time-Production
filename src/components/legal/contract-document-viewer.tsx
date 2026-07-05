@@ -15,6 +15,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { paginateContractTerms } from "@/lib/contract-document-format";
 import { watermarkForStatus } from "@/lib/contract-lifecycle-shared";
+import {
+  buildContractDocumentHtml,
+  contractDocumentPrintTitle,
+} from "@/lib/legal/contract-document-html";
+import { printHtmlDocument } from "@/lib/pdf/print-html-document";
 
 export type ContractDocumentViewerProps = {
   title: string;
@@ -64,9 +69,28 @@ export function ContractDocumentViewer({
     return (terms.match(re) ?? []).length;
   }, [terms, searchQuery]);
 
+  const documentMeta = useMemo(
+    () => ({
+      title,
+      terms,
+      status,
+      projectTitle,
+      productionCompany,
+      jurisdiction,
+      recipientLabel,
+      signatures,
+    }),
+    [title, terms, status, projectTitle, productionCompany, jurisdiction, recipientLabel, signatures],
+  );
+
   const handlePrint = useCallback(() => {
-    window.print();
-  }, []);
+    const { bodyHtml, extraCss } = buildContractDocumentHtml(documentMeta);
+    printHtmlDocument({
+      title: contractDocumentPrintTitle(documentMeta),
+      bodyHtml,
+      extraCss,
+    });
+  }, [documentMeta]);
 
   const handleDownload = useCallback(async () => {
     setPdfBusy(true);
@@ -79,6 +103,12 @@ export function ContractDocumentViewer({
             body: JSON.stringify({
               title: projectTitle ? `${projectTitle} — ${title}` : title,
               terms,
+              status,
+              projectTitle,
+              productionCompany,
+              jurisdiction,
+              recipientLabel,
+              signatures,
               filename: `${title}.pdf`,
             }),
           });
@@ -95,18 +125,16 @@ export function ContractDocumentViewer({
       a.remove();
       URL.revokeObjectURL(url);
     } catch {
-      // fall back to plain text only if PDF export fails
-      const blob = new Blob([terms], { type: "text/plain;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${title.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.txt`;
-      a.click();
-      URL.revokeObjectURL(url);
+      const { bodyHtml, extraCss } = buildContractDocumentHtml(documentMeta);
+      printHtmlDocument({
+        title: contractDocumentPrintTitle(documentMeta),
+        bodyHtml,
+        extraCss,
+      });
     } finally {
       setPdfBusy(false);
     }
-  }, [pdfDownloadUrl, projectTitle, title, terms]);
+  }, [pdfDownloadUrl, projectTitle, title, terms, status, productionCompany, jurisdiction, recipientLabel, signatures, documentMeta]);
 
   const pageContent = pages[pageIndex] ?? "";
 

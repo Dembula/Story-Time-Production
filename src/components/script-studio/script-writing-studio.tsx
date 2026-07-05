@@ -660,7 +660,12 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
     const pos = jumpToLine(draft.content, lineIndex);
     el.focus();
     el.setSelectionRange(pos, pos);
-    el.scrollTop = Math.max(0, (lineIndex - 3) * 20);
+    const lineHeightPx = ((12 * zoom) / 100) * 1.2 * (96 / 72);
+    const pageBlock = 55 * lineHeightPx + 36;
+    const scrollTop =
+      Math.floor(lineIndex / 55) * pageBlock + (lineIndex % 55) * lineHeightPx - lineHeightPx * 2;
+    const scroll = el.closest("[data-screenplay-scroll]") as HTMLElement | null;
+    if (scroll) scroll.scrollTop = Math.max(0, scrollTop);
   };
 
   const jumpToScene = (lineIndex: number) => jumpToLineIndex(lineIndex);
@@ -1153,8 +1158,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
               />
 
               <div
-                className={`relative mx-auto w-full max-w-[8.5in] rounded-2xl border px-[1.5in] py-[1in] pr-[1in] focus-within:border-orange-500 ${editorSurface}`}
-                style={{ minHeight: "11in" }}
+                className={`relative mx-auto w-full max-w-[8.5in] rounded-2xl border px-3 py-3 sm:px-4 focus-within:border-orange-500 ${editorSurface}`}
               >
                 {collab.peers.length > 0 ? (
                   <div className="pointer-events-none absolute right-2 top-2 z-10 space-y-1">
@@ -1175,6 +1179,8 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                 <ScreenplayEditor
                   textareaRef={textareaRef}
                   value={draft.content}
+                  activeElement={selectedElement}
+                  theme={studioTheme}
                   onChange={(content) => {
                     if (!effectiveCanWrite) return;
                     pushHistoryBeforeChange();
@@ -1194,7 +1200,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                   readOnly={!effectiveCanWrite}
                   fontCss={fontCss}
                   fontSizePt={(12 * zoom) / 100}
-                  className={`w-full min-h-[55em] border-0 bg-transparent px-0 outline-none focus:ring-0 resize-y whitespace-pre-wrap ${!effectiveCanWrite ? "opacity-90" : ""}`}
+                  className={!effectiveCanWrite ? "opacity-90" : ""}
                   placeholder="INT. LOCATION - DAY"
                 />
               </div>

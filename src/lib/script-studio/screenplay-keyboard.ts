@@ -6,6 +6,7 @@ import {
 } from "./elements";
 
 export const LINES_PER_PAGE = 55;
+export const PAGE_GAP_PX = 36;
 
 /** Tab / Shift+Tab cycle order for core screenplay elements. */
 export const TAB_CYCLE: ScreenplayElementType[] = [
@@ -23,7 +24,13 @@ const TRANSITION_START = /^(FADE|CUT|DISSOLVE|SMASH|MATCH|WIPE|IRIS)/i;
 const TRANSITION_END = /(TO:|:)$/;
 const CHARACTER_LINE = /^[A-Z][A-Z0-9 .'\-()]{1,42}$/;
 
-function padColumn(text: string, column: number): string {
+const UPPERCASE_ELEMENTS = new Set<ScreenplayElementType>([
+  "scene_heading",
+  "character",
+  "transition",
+]);
+
+export function padColumn(text: string, column: number): string {
   return " ".repeat(Math.max(0, column)) + text.trimEnd();
 }
 
@@ -40,6 +47,19 @@ function leadingSpaces(line: string): number {
 
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+export function lineIndexAt(content: string, pos: number): number {
+  return content.slice(0, pos).split("\n").length - 1;
+}
+
+export function lineStartAt(content: string, lineIndex: number): number {
+  const lines = content.split("\n");
+  let start = 0;
+  for (let i = 0; i < lineIndex && i < lines.length; i++) {
+    start += (lines[i]?.length ?? 0) + 1;
+  }
+  return start;
 }
 
 export function detectLineElement(
@@ -91,9 +111,43 @@ export function detectLineElement(
   return "action";
 }
 
+export function resolveLineElement(
+  line: string,
+  neighbors: { prev?: string; next?: string } | undefined,
+  activeElement?: ScreenplayElementType,
+): ScreenplayElementType {
+  const detected = detectLineElement(line, neighbors);
+  if (!activeElement) return detected;
+
+  const trimmed = line.trim();
+  if (!trimmed) return activeElement;
+
+  if (activeElement === "character" || activeElement === "parenthetical" || activeElement === "dialogue") {
+    const indent = leadingSpaces(line);
+    if (activeElement === "character") {
+      if (indent >= SCREENPLAY_COL.dialogue && indent < SCREENPLAY_COL.character - 2) {
+        return detected;
+      }
+      return "character";
+    }
+    if (activeElement === "parenthetical" && trimmed.startsWith("(")) return "parenthetical";
+    if (activeElement === "dialogue" && indent >= SCREENPLAY_COL.dialogue - 2) return "dialogue";
+  }
+
+  if (activeElement === "scene_heading" && SCENE_HEADING.test(trimmed)) return "scene_heading";
+  if (activeElement === "transition") return detected === "transition" ? "transition" : activeElement;
+
+  return detected;
+}
+
 export function formatLineForElement(element: ScreenplayElementType, rawLine: string): string {
   const trimmed = rawLine.trim();
-  if (!trimmed) return "";
+  if (!trimmed) {
+    if (element === "dialogue") return padColumn("", SCREENPLAY_COL.dialogue);
+    if (element === "character") return padColumn("", SCREENPLAY_COL.character);
+    if (element === "parenthetical") return padColumn("", SCREENPLAY_COL.parenthetical);
+    return "";
+  }
 
   switch (element) {
     case "scene_heading":
@@ -179,28 +233,54 @@ export type ScreenplayKeyResult = {
   element: ScreenplayElementType;
 };
 
-function lineIndexAt(content: string, pos: number): number {
-  return content.slice(0, pos).split("\n").length - 1;
-}
-
-function lineStartAt(content: string, lineIndex: number): number {
-  const lines = content.split("\n");
-  let start = 0;
-  for (let i = 0; i < lineIndex && i < lines.length; i++) {
-    start += (lines[i]?.length ?? 0) + 1;
+/** Live-format the current line while typing (caps, columns). */
+export function formatLineWhileTyping(
+  content: string,
+  cursorPos: number,
+  activeElement: ScreenplayElementType,
+): { content: string; selectionStart: number; selectionEnd: number } | null {
+  if (!UPPERCASE_ELEMENTS.has(activeElement) && activeElement !== "dialogue" && activeElement !== "parenthetical") {
+    return null;
   }
-  return start;
+
+  const lineIdx = lineIndexAt(content, cursorPos);
+  const lines = content.split("\n");
+  const current = lines[lineIdx] ?? "";
+  const neighbors = {
+    prev: lineIdx > 0 ? lines[lineIdx - 1] : undefined,
+    next: lineIdx < lines.length - 1 ? lines[lineIdx + 1] : undefined,
+  };
+  const element = resolveLineElement(current, neighbors, activeElement);
+  const formatted = formatLineForElement(element, current);
+  if (formatted === current) return null;
+
+  const lineStart = lineStartAt(content, lineIdx);
+  const lineEnd = lineStart + current.length;
+  const cursorInLine = cursorPos - lineStart;
+  const newContent = content.slice(0, lineStart) + formatted + content.slice(lineEnd);
+  const delta = formatted.length - current.length;
+  const newCursor = Math.max(lineStart, Math.min(lineStart + cursorInLine + delta, lineStart + formatted.length));
+
+  return {
+    content: newContent,
+    selectionStart: newCursor,
+    selectionEnd: newCursor,
+  };
 }
 
 /** Format current line and insert the next element line on Enter. */
-export function handleScreenplayEnter(content: string, cursorPos: number): ScreenplayKeyResult {
+export function handleScreenplayEnter(
+  content: string,
+  cursorPos: number,
+  activeElement?: ScreenplayElementType,
+): ScreenplayKeyResult {
   const lineIdx = lineIndexAt(content, cursorPos);
   let lines = content.split("\n");
   const prev = lineIdx > 0 ? lines[lineIdx - 1] : undefined;
   const current = lines[lineIdx] ?? "";
   const next = lineIdx < lines.length - 1 ? lines[lineIdx + 1] : undefined;
 
-  const currentElement = detectLineElement(current, { prev, next });
+  const currentElement = resolveLineElement(current, { prev, next }, activeElement);
   let working = content;
   if (currentElement === "character") {
     working = capitalizeCharacterFirstMention(working, current);
@@ -214,8 +294,7 @@ export function handleScreenplayEnter(content: string, cursorPos: number): Scree
   const insertLines: string[] = [];
 
   if (nextElement === "dialogue") {
-    const dialogueLine = getElementSnippet("dialogue").text.trim().split("\n")[0] ?? "";
-    insertLines.push(dialogueLine);
+    insertLines.push(padColumn("", SCREENPLAY_COL.dialogue));
   } else if (nextElement === "scene_heading") {
     insertLines.push("", "INT. LOCATION - DAY");
   } else if (currentElement === "scene_heading" || currentElement === "dialogue" || currentElement === "transition") {
@@ -228,17 +307,24 @@ export function handleScreenplayEnter(content: string, cursorPos: number): Scree
   const newContent = newLines.join("\n");
 
   const insertStart = lineStartAt(newContent, lineIdx + 1);
-  const snippet = nextElement === "dialogue" ? getElementSnippet("dialogue") : null;
-  let selectionStart = insertStart + (insertLines.join("\n").length);
-  let selectionEnd = selectionStart;
+  let selectionStart = insertStart;
+  let selectionEnd = insertStart;
 
-  if (snippet?.select && nextElement === "dialogue") {
-    selectionStart = insertStart + snippet.select.start;
-    selectionEnd = insertStart + snippet.select.end;
+  if (nextElement === "dialogue") {
+    selectionStart = insertStart + SCREENPLAY_COL.dialogue;
+    selectionEnd = selectionStart;
   } else if (nextElement === "scene_heading") {
     const slugStart = lineStartAt(newContent, lineIdx + 2);
     selectionStart = slugStart + 5;
     selectionEnd = slugStart + 13;
+  } else if (nextElement === "action" && currentElement === "dialogue") {
+    const actionLineStart = lineStartAt(newContent, lineIdx + 2);
+    selectionStart = actionLineStart;
+    selectionEnd = actionLineStart;
+  } else {
+    const targetLine = lineIdx + 1;
+    selectionStart = lineStartAt(newContent, targetLine);
+    selectionEnd = selectionStart;
   }
 
   return {
@@ -254,14 +340,15 @@ export function handleScreenplayTab(
   content: string,
   cursorPos: number,
   direction: 1 | -1 = 1,
+  activeElement?: ScreenplayElementType,
 ): ScreenplayKeyResult {
   const lineIdx = lineIndexAt(content, cursorPos);
   const lines = content.split("\n");
   const current = lines[lineIdx] ?? "";
-  const element = detectLineElement(current, {
+  const element = resolveLineElement(current, {
     prev: lineIdx > 0 ? lines[lineIdx - 1] : undefined,
     next: lineIdx < lines.length - 1 ? lines[lineIdx + 1] : undefined,
-  });
+  }, activeElement);
   const nextElement = cycleElement(element, direction);
   const placeholder = SCREENPLAY_ELEMENT_PLACEHOLDER[nextElement] ?? "";
   const formatted = formatLineForElement(nextElement, current || placeholder);
@@ -269,12 +356,28 @@ export function handleScreenplayTab(
   const lineStart = lineStartAt(content, lineIdx);
   const lineEnd = lineStart + current.length;
   const newContent = content.slice(0, lineStart) + formatted + content.slice(lineEnd);
-  const selStart = lineStart + formatted.length;
+
+  let selStart = lineStart;
+  let selEnd = lineStart + formatted.length;
+
+  if (!current.trim()) {
+    const snippet = getElementSnippet(nextElement);
+    if (snippet.select) {
+      selStart = lineStart + snippet.select.start;
+      selEnd = lineStart + snippet.select.end;
+    } else {
+      selStart = lineStart + formatted.length;
+      selEnd = selStart;
+    }
+  } else {
+    selStart = lineStart + formatted.length;
+    selEnd = selStart;
+  }
 
   return {
     content: newContent,
     selectionStart: selStart,
-    selectionEnd: selStart,
+    selectionEnd: selEnd,
     element: nextElement,
   };
 }
@@ -295,4 +398,8 @@ export function paginateLineIndices(content: string): number[] {
     breaks.push(i);
   }
   return breaks;
+}
+
+export function pageCountForContent(content: string): number {
+  return Math.max(1, Math.ceil(content.split("\n").length / LINES_PER_PAGE));
 }

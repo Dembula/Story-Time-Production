@@ -61,11 +61,18 @@ export function quoteViewerPlanChange(
   const newPrice =
     newViewerModel === VIEWER_MODELS.PPV ? 0 : getViewerPlanPrice(newPlan);
 
+  const needsFullPrice =
+    subscriptionNeedsReactivation(subscription) ||
+    isInitialSubscriptionPaymentPending(subscription) ||
+    isViewerSubscriptionExpired(subscription) ||
+    subscription.status === "TRIAL_ACTIVE" ||
+    !hasPaidCurrentBillingPeriod(subscription);
+
   const sameSelection =
     currentViewerModel === newViewerModel &&
     (newViewerModel === VIEWER_MODELS.PPV || subscription.plan === newPlan);
 
-  if (sameSelection) {
+  if (sameSelection && !needsFullPrice) {
     return {
       currentPlan: subscription.plan,
       newPlan,
@@ -78,6 +85,22 @@ export function quoteViewerPlanChange(
       isUpgrade: false,
       isDowngrade: false,
       requiresCheckout: false,
+    };
+  }
+
+  if (sameSelection && needsFullPrice && newViewerModel !== VIEWER_MODELS.PPV) {
+    return {
+      currentPlan: subscription.plan,
+      newPlan,
+      currentViewerModel,
+      newViewerModel,
+      currentPrice,
+      newPrice,
+      chargeAmount: newPrice,
+      chargeType: "full",
+      isUpgrade: false,
+      isDowngrade: false,
+      requiresCheckout: newPrice > 0,
     };
   }
 
@@ -96,13 +119,6 @@ export function quoteViewerPlanChange(
       requiresCheckout: false,
     };
   }
-
-  const needsFullPrice =
-    subscriptionNeedsReactivation(subscription) ||
-    isInitialSubscriptionPaymentPending(subscription) ||
-    isViewerSubscriptionExpired(subscription) ||
-    subscription.status === "TRIAL_ACTIVE" ||
-    !hasPaidCurrentBillingPeriod(subscription);
 
   if (needsFullPrice) {
     return {

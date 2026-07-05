@@ -1,35 +1,18 @@
 "use client";
 
-import Link from "next/link";
-import { useState } from "react";
+import { SubscriptionResumeButton } from "@/components/viewer/subscription-resume-checkout";
 
 export function SubscriptionExpiredModal({ show }: { show: boolean }) {
-  const [dismissed, setDismissed] = useState(false);
-
-  if (!show || dismissed) return null;
+  if (!show) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
       <div className="bg-slate-800 border border-slate-700 rounded-2xl p-8 max-w-md w-full shadow-xl">
         <h2 className="text-xl font-semibold text-white mb-2">Your subscription has ended</h2>
         <p className="text-slate-400 text-sm mb-6">
-          Renew to keep watching. You can still browse the catalogue.
+          Complete payment to restore access to the catalogue. You cannot browse until your subscription is active again.
         </p>
-        <div className="flex gap-3">
-          <Link
-            href="/browse/account/change-plan"
-            className="flex-1 py-3 rounded-xl viewer-btn-primary font-medium text-center transition"
-          >
-            Renew subscription
-          </Link>
-          <button
-            type="button"
-            onClick={() => setDismissed(true)}
-            className="py-3 px-4 rounded-xl border border-slate-600 text-slate-300 font-medium hover:bg-slate-700/50 transition"
-          >
-            Keep browsing
-          </button>
-        </div>
+        <SubscriptionResumeButton label="Pay & resume subscription" className="w-full py-3 rounded-xl viewer-btn-primary font-medium transition disabled:opacity-60" />
       </div>
     </div>
   );

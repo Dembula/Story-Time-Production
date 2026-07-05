@@ -28,6 +28,7 @@ import {
 import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
 import { getDisplayBackdropUrl } from "@/lib/content-media-urls";
 import { markPlaybackPlayIntent } from "@/lib/player/play-intent";
+import { SubscriptionResumeButton } from "@/components/viewer/subscription-resume-checkout";
 
 type Content = {
   id: string;
@@ -300,25 +301,15 @@ export function ContentDetailClient({
       />
       {showSubscriptionEndedModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="bg-slate-800 border border-slate-700 rounded-2xl p-8 max-w-md w-full shadow-xl relative">
-            <button
-              type="button"
-              onClick={() => setShowSubscriptionEndedModal(false)}
-              className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition"
-              aria-label="Close"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <h3 className="text-xl font-semibold text-white mb-2 pr-10">Your subscription has ended</h3>
+          <div className="bg-slate-800 border border-slate-700 rounded-2xl p-8 max-w-md w-full shadow-xl">
+            <h3 className="text-xl font-semibold text-white mb-2">Your subscription has ended</h3>
             <p className="text-slate-400 text-sm mb-6">
-              Go to Account to pay for your subscription and resume watching.
+              Pay for your current plan to resume watching.
             </p>
-            <Link
-              href="/browse/account/change-plan"
-              className="inline-flex rounded-xl viewer-btn-primary px-6 py-3 font-medium transition"
-            >
-              Go to Account &amp; renew
-            </Link>
+            <SubscriptionResumeButton
+              label="Pay & resume subscription"
+              className="w-full py-3 rounded-xl viewer-btn-primary font-medium transition disabled:opacity-60"
+            />
           </div>
         </div>
       )}
@@ -672,10 +663,11 @@ export function ContentDetailClient({
                 <Lock className="w-8 h-8 text-orange-400" />
               </div>
               <h3 className="text-xl font-semibold text-white mb-2">Your subscription has ended</h3>
-              <p className="text-slate-400 max-w-md mx-auto mb-8">Pay in Account to resume watching.</p>
-              <Link href="/browse/account/change-plan" className="inline-flex px-8 py-3.5 rounded-lg viewer-btn-primary font-semibold transition">
-                Go to Account &amp; renew
-              </Link>
+              <p className="text-slate-400 max-w-md mx-auto mb-8">Pay for your current plan to resume watching.</p>
+              <SubscriptionResumeButton
+                label="Pay & resume subscription"
+                className="inline-flex px-8 py-3.5 rounded-lg viewer-btn-primary font-semibold transition disabled:opacity-60"
+              />
             </div>
           </div>
         </div>

@@ -9,6 +9,7 @@ import { getWalletSnapshot } from "@/lib/payments/wallet";
 import { VIEWER_CREATOR_SPLIT, VIEWER_PLATFORM_SPLIT } from "@/lib/payments/config";
 import { isViewerPoolPaymentPurpose } from "@/lib/payments/viewer-pool-purposes";
 import { VIEWER_PLAN_CONFIG } from "@/lib/pricing";
+import { describeAdminTrialSignup, isTrialCurrentlyActive } from "@/lib/admin/viewer-subscription-status";
 
 const db = prisma as any;
 
@@ -186,7 +187,12 @@ export async function GET(req: NextRequest) {
 
     const trialSignups = trialSubscriptions.map((sub: any) => {
       const planConfig = VIEWER_PLAN_CONFIG[sub.plan as keyof typeof VIEWER_PLAN_CONFIG] ?? VIEWER_PLAN_CONFIG.BASE_1;
-      const isActiveTrial = sub.status === "TRIAL_ACTIVE";
+      const trialMeta = describeAdminTrialSignup({
+        status: sub.status,
+        trialEndsAt: sub.trialEndsAt,
+        lastPaymentStatus: sub.lastPaymentStatus,
+        createdAt: sub.createdAt,
+      });
       return {
         id: sub.id,
         userId: sub.userId,
@@ -198,13 +204,20 @@ export async function GET(req: NextRequest) {
         status: sub.status,
         trialEndsAt: sub.trialEndsAt,
         createdAt: sub.createdAt,
-        isActiveTrial,
+        isActiveTrial: isTrialCurrentlyActive(sub),
         hasConverted: sub.lastPaymentStatus === "SUCCEEDED",
+        statusLabel: trialMeta.statusLabel,
+        statusTone: trialMeta.statusTone,
+        billingLabel: trialMeta.billingLabel,
+        trialEndLabel: trialMeta.trialEndLabel,
       };
     });
 
     const trialMetrics = {
       activeTrialCount: trialSignups.filter((row: { isActiveTrial: boolean }) => row.isActiveTrial).length,
+      staleTrialCount: trialSignups.filter(
+        (row: { status: string; isActiveTrial: boolean }) => row.status === "TRIAL_ACTIVE" && !row.isActiveTrial,
+      ).length,
       potentialMonthlyRevenue: trialSignups
         .filter((row: { isActiveTrial: boolean }) => row.isActiveTrial)
         .reduce((sum: number, row: { potentialMonthlyRevenue: number }) => sum + row.potentialMonthlyRevenue, 0),

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { CreditCard, Smartphone, Calendar, RefreshCw, Film, Loader2 } from "lucide-react";
 import { VIEWER_PLAN_CONFIG } from "@/lib/pricing";
 import { formatZar } from "@/lib/format-currency-zar";
+import { SubscriptionResumeButton } from "@/components/viewer/subscription-resume-checkout";
 
 type Subscription = {
   id: string;
@@ -126,10 +127,18 @@ export function AccountClient({
       {subscriptionEnded && (
         <div className="rounded-2xl border border-orange-400/28 bg-orange-500/10 p-6 shadow-panel">
           <h2 className="text-lg font-semibold text-white mb-1">Your subscription has ended</h2>
-          <p className="text-slate-300 text-sm mb-4">Pay below to resume watching. Choose a plan and complete payment to restore your account.</p>
-          <Link href="/browse/account/change-plan" className="inline-flex rounded-xl viewer-btn-primary px-5 py-2.5 font-semibold transition hover:-translate-y-0.5">
-            Pay &amp; resume subscription
-          </Link>
+          <p className="text-slate-300 text-sm mb-4">
+            Pay for your current plan to restore access immediately. To switch packages, use change plan after payment.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <SubscriptionResumeButton />
+            <Link
+              href="/browse/account/change-plan"
+              className="inline-flex rounded-xl border border-white/15 bg-white/[0.04] px-5 py-2.5 text-sm font-medium text-slate-200 hover:bg-white/[0.07]"
+            >
+              Switch plan
+            </Link>
+          </div>
         </div>
       )}
       <div className="storytime-section p-6">

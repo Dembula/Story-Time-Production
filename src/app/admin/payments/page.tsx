@@ -7,6 +7,7 @@ import { ArrowRight, ClipboardList, Eye, Landmark, ShieldCheck, Wallet, UserMinu
 import { AdminTransactionDetailModal } from "@/components/admin/admin-transaction-detail-modal";
 import { SecureFileLink } from "@/components/files/secure-file-link";
 import { PAYMENT_PURPOSE_LABELS } from "@/lib/admin/payment-transaction-detail.types";
+import { trialStatusBadgeClass } from "@/lib/admin/viewer-subscription-status";
 
 const money = new Intl.NumberFormat("en-ZA", {
   minimumFractionDigits: 2,
@@ -68,7 +69,7 @@ export default function AdminPaymentsPage() {
     queryKey: ["admin-payments"],
     queryFn: async () => fetch("/api/admin/payments").then((r) => r.json()),
   });
-  const [tab, setTab] = useState<"payments" | "marketplace" | "payouts" | "escrow" | "events" | "trials" | "cancellations">("payouts");
+  const [tab, setTab] = useState<"payments" | "marketplace" | "payouts" | "escrow" | "events" | "trials" | "cancellations">("payments");
   const [detailKind, setDetailKind] = useState<"payment" | "marketplace" | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [selectedPayoutId, setSelectedPayoutId] = useState<string | null>(null);
@@ -128,6 +129,10 @@ export default function AdminPaymentsPage() {
     createdAt: string;
     isActiveTrial: boolean;
     hasConverted: boolean;
+    statusLabel: string;
+    statusTone: "cyan" | "amber" | "emerald" | "red" | "slate";
+    billingLabel: string;
+    trialEndLabel: string;
   }>;
   const selectedPayout = payouts.find((p) => p.id === selectedPayoutId) ?? null;
 
@@ -159,11 +164,8 @@ export default function AdminPaymentsPage() {
     onError: (err: Error) => setActionError(err.message),
   });
 
-  const cards = useMemo(
+  const treasuryCards = useMemo(
     () => [
-      { label: "Payment pending", value: String(metrics.paymentPending ?? 0), tone: "text-amber-300" },
-      { label: "Payment succeeded", value: String(metrics.paymentSucceeded ?? 0), tone: "text-emerald-300" },
-      { label: "Payout queue", value: String(metrics.payoutProcessing ?? 0), tone: "text-orange-300" },
       {
         label: "Treasury cash (available)",
         value: `R${money.format(Number(metrics.platformAvailableBalance ?? 0))}`,
@@ -185,10 +187,44 @@ export default function AdminPaymentsPage() {
         tone: "text-red-300",
       },
       {
-        label: "Creator pool (60% of net viewer revenue)",
+        label: "Total platform position",
+        value: `R${money.format(Number(metrics.netRetained ?? 0))}`,
+        tone: "text-lime-300",
+      },
+    ],
+    [metrics],
+  );
+
+  const viewerBillingCards = useMemo(
+    () => [
+      { label: "Payment pending", value: String(metrics.paymentPending ?? 0), tone: "text-amber-300" },
+      { label: "Payment succeeded", value: String(metrics.paymentSucceeded ?? 0), tone: "text-emerald-300" },
+      {
+        label: "Creator pool (60% net viewer revenue)",
         value: `R${money.format(Number(metrics.viewerCreatorPool ?? 0))}`,
         tone: "text-green-300",
       },
+      { label: "Active free trials", value: String(metrics.activeTrialCount ?? 0), tone: "text-cyan-300" },
+      {
+        label: "Potential trial revenue / mo",
+        value: `R${money.format(Number(metrics.potentialMonthlyRevenue ?? 0))}`,
+        tone: "text-cyan-200",
+      },
+      { label: "Scheduled cancels", value: String(churnMetrics.subscriptionsScheduledCancel ?? 0), tone: "text-amber-300" },
+      {
+        label: "Gateway cancelled / failed",
+        value: String(
+          Number(churnMetrics.gatewayPaymentsCancelled ?? 0) + Number(churnMetrics.gatewayPaymentsFailed ?? 0),
+        ),
+        tone: "text-red-300",
+      },
+    ],
+    [metrics, churnMetrics],
+  );
+
+  const marketplacePayoutCards = useMemo(
+    () => [
+      { label: "Payout queue", value: String(metrics.payoutProcessing ?? 0), tone: "text-orange-300" },
       {
         label: "Marketplace fees (3%)",
         value: `R${money.format(Number(metrics.marketplaceFees ?? 0))}`,
@@ -199,35 +235,8 @@ export default function AdminPaymentsPage() {
         value: `R${money.format(Number(metrics.payoutCompletedTotal ?? 0))}`,
         tone: "text-violet-300",
       },
-      {
-        label: "Active free trials",
-        value: String(metrics.activeTrialCount ?? 0),
-        tone: "text-cyan-300",
-      },
-      {
-        label: "Potential trial revenue / mo",
-        value: `R${money.format(Number(metrics.potentialMonthlyRevenue ?? 0))}`,
-        tone: "text-cyan-200",
-      },
-      {
-        label: "Scheduled cancels",
-        value: String(churnMetrics.subscriptionsScheduledCancel ?? 0),
-        tone: "text-amber-300",
-      },
-      {
-        label: "Gateway cancelled / failed",
-        value: String(
-          Number(churnMetrics.gatewayPaymentsCancelled ?? 0) + Number(churnMetrics.gatewayPaymentsFailed ?? 0),
-        ),
-        tone: "text-red-300",
-      },
-      {
-        label: "Total platform position",
-        value: `R${money.format(Number(metrics.netRetained ?? 0))}`,
-        tone: "text-lime-300",
-      },
     ],
-    [metrics, churnMetrics],
+    [metrics],
   );
 
   return (
@@ -246,20 +255,46 @@ export default function AdminPaymentsPage() {
 
       {isLoading ? <p className="text-sm text-slate-400">Loading payment telemetry...</p> : null}
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {cards.map((card) => (
-          <Card key={card.label} label={card.label} value={card.value} tone={card.tone} />
-        ))}
-      </div>
+      <section className="space-y-3">
+        <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Treasury position</h2>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          {treasuryCards.map((card) => (
+            <Card key={card.label} label={card.label} value={card.value} tone={card.tone} />
+          ))}
+        </div>
+      </section>
 
-      <div className="flex flex-wrap gap-2">
-        <TabButton label="Manual payouts" active={tab === "payouts"} onClick={() => setTab("payouts")} />
-        <TabButton label="Gateway payments" active={tab === "payments"} onClick={() => setTab("payments")} />
-        <TabButton label="Marketplace tx" active={tab === "marketplace"} onClick={() => setTab("marketplace")} />
-        <TabButton label="Escrow" active={tab === "escrow"} onClick={() => setTab("escrow")} />
-        <TabButton label="Free trial signups" active={tab === "trials"} onClick={() => setTab("trials")} />
-        <TabButton label="Cancellations & churn" active={tab === "cancellations"} onClick={() => setTab("cancellations")} />
-        <TabButton label="Gateway events" active={tab === "events"} onClick={() => setTab("events")} />
+      <section className="space-y-3">
+        <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Viewer subscriptions &amp; gateway</h2>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {viewerBillingCards.map((card) => (
+            <Card key={card.label} label={card.label} value={card.value} tone={card.tone} />
+          ))}
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Marketplace &amp; creator payouts</h2>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {marketplacePayoutCards.map((card) => (
+            <Card key={card.label} label={card.label} value={card.value} tone={card.tone} />
+          ))}
+        </div>
+      </section>
+
+      <div className="space-y-3">
+        <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Operations</h2>
+        <div className="flex flex-wrap gap-2">
+          <TabButton label="Gateway payments" active={tab === "payments"} onClick={() => setTab("payments")} />
+          <TabButton label="Free trials" active={tab === "trials"} onClick={() => setTab("trials")} />
+          <TabButton label="Cancellations & churn" active={tab === "cancellations"} onClick={() => setTab("cancellations")} />
+          <TabButton label="Gateway events" active={tab === "events"} onClick={() => setTab("events")} />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <TabButton label="Manual payouts" active={tab === "payouts"} onClick={() => setTab("payouts")} />
+          <TabButton label="Marketplace tx" active={tab === "marketplace"} onClick={() => setTab("marketplace")} />
+          <TabButton label="Escrow" active={tab === "escrow"} onClick={() => setTab("escrow")} />
+        </div>
       </div>
 
       {tab === "payouts" ? (
@@ -640,14 +675,17 @@ export default function AdminPaymentsPage() {
         <section className="creator-glass-panel rounded-2xl border border-white/10 p-5">
           <SectionHeader icon={<Landmark className="h-4 w-4 text-cyan-400" />} title="Free trial signups (potential revenue)" />
           <p className="mt-2 text-sm text-slate-400">
-            Trial viewers are not charged yet. These rows represent possible monthly subscription revenue if trials convert.
-            Trial watch time is excluded from creator revenue pool calculations.
+            <strong className="text-slate-300">Trial active</strong> means the trial end time is still in the future.
+            Rows can still show database status <code className="text-cyan-200/80">TRIAL_ACTIVE</code> after the end date until
+            billing runs — those appear as <strong className="text-amber-200">Trial ended</strong> with the real end timestamp.
           </p>
           <div className="mt-4 space-y-2">
             {trialSignups.length === 0 ? (
               <p className="text-sm text-slate-500">No trial signups recorded yet.</p>
             ) : null}
-            {trialSignups.map((trial) => (
+            {[...trialSignups]
+              .sort((a, b) => Number(b.isActiveTrial) - Number(a.isActiveTrial))
+              .map((trial) => (
               <div
                 key={trial.id}
                 className="grid grid-cols-1 gap-2 rounded-lg border border-slate-800 px-3 py-3 text-xs sm:grid-cols-[1fr_auto_auto_auto]"
@@ -657,13 +695,28 @@ export default function AdminPaymentsPage() {
                   <p className="text-slate-500">{trial.userEmail}</p>
                   <p className="mt-1 text-slate-400">
                     {trial.planLabel} · started {new Date(trial.createdAt).toLocaleDateString()}
-                    {trial.trialEndsAt ? ` · trial ends ${new Date(trial.trialEndsAt).toLocaleDateString()}` : ""}
                   </p>
+                  <p className={`mt-1 ${trial.isActiveTrial ? "text-cyan-200/90" : "text-amber-200/90"}`}>
+                    {trial.trialEndLabel}
+                  </p>
+                  {trial.status === "TRIAL_ACTIVE" && !trial.isActiveTrial ? (
+                    <p className="mt-1 text-[10px] text-slate-500">
+                      DB status: TRIAL_ACTIVE (stale — not counted in active trials)
+                    </p>
+                  ) : null}
                 </div>
-                <StatusPill value={trial.isActiveTrial ? "TRIAL_ACTIVE" : trial.status} />
-                <span className="font-semibold text-cyan-200">R{money.format(Number(trial.potentialMonthlyRevenue ?? 0))}/mo</span>
-                <span className={`rounded-full px-2 py-0.5 ${trial.hasConverted ? "bg-emerald-500/10 text-emerald-300" : "bg-amber-500/10 text-amber-300"}`}>
-                  {trial.hasConverted ? "converted" : "not billed yet"}
+                <span className={`self-start rounded-full px-2 py-0.5 ${trialStatusBadgeClass(trial.statusTone)}`}>
+                  {trial.statusLabel}
+                </span>
+                <span className="self-start font-semibold text-cyan-200">
+                  R{money.format(Number(trial.potentialMonthlyRevenue ?? 0))}/mo
+                </span>
+                <span
+                  className={`self-start rounded-full px-2 py-0.5 ${
+                    trial.hasConverted ? "bg-emerald-500/10 text-emerald-300" : "bg-amber-500/10 text-amber-300"
+                  }`}
+                >
+                  {trial.billingLabel}
                 </span>
               </div>
             ))}

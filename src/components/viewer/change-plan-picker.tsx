@@ -18,6 +18,7 @@ import {
 import { VIEWER_PLAN_CONFIG } from "@/lib/pricing";
 import { formatZar } from "@/lib/format-currency-zar";
 import { CheckoutModal } from "@/components/payments/checkout-modal";
+import { SubscriptionResumeButton } from "@/components/viewer/subscription-resume-checkout";
 
 const SUBSCRIPTION_PLANS = [
   {
@@ -171,6 +172,19 @@ export function ChangePlanPicker({
         subtitle="Finish secure payment to activate your selected plan."
         onClose={() => setCheckoutOpen(false)}
       />
+
+      {reactivationMode && subscription.viewerModel !== "PPV" ? (
+        <div className="rounded-2xl border border-orange-400/30 bg-orange-500/10 p-5">
+          <p className="text-sm font-medium text-white">Resume your current plan</p>
+          <p className="mt-1 text-sm text-slate-300">
+            Pay {formatZar(VIEWER_PLAN_CONFIG[subscription.plan as keyof typeof VIEWER_PLAN_CONFIG]?.price ?? 0)} now for{" "}
+            {currentPlanLabel} — goes straight to secure checkout.
+          </p>
+          <div className="mt-3">
+            <SubscriptionResumeButton label="Pay & resume current plan" />
+          </div>
+        </div>
+      ) : null}
 
       <div className="storytime-section p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">

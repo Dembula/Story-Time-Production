@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { contractTermsToPdfBuffer } from "@/lib/legal/contract-pdf-export";
+import { contractDocumentToPdfBuffer } from "@/lib/legal/contract-pdf-export";
 import { pdfAttachmentResponse } from "@/lib/pdf/document-pdf";
 
 /** Authenticated PDF export for plain-text documents (contracts, notes). */
@@ -15,6 +15,12 @@ export async function POST(req: NextRequest) {
     title?: string;
     terms?: string;
     filename?: string;
+    status?: string;
+    projectTitle?: string | null;
+    productionCompany?: string | null;
+    jurisdiction?: string | null;
+    recipientLabel?: string | null;
+    signatures?: Array<{ name: string; role: string | null; signedAt: string }>;
   } | null;
 
   const title = (body?.title ?? "Document").trim() || "Document";
@@ -26,7 +32,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Document is too large to export" }, { status: 400 });
   }
 
-  const pdf = contractTermsToPdfBuffer(terms, title);
+  const pdf = contractDocumentToPdfBuffer({
+    title,
+    terms,
+    status: body?.status,
+    projectTitle: body?.projectTitle,
+    productionCompany: body?.productionCompany,
+    jurisdiction: body?.jurisdiction,
+    recipientLabel: body?.recipientLabel,
+    signatures: body?.signatures,
+  });
   const filename = (body?.filename ?? `${title}.pdf`).replace(/[^\w.\-]+/g, "_");
   return pdfAttachmentResponse(pdf, filename);
 }

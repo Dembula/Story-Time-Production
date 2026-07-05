@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { downloadTextFile } from "@/lib/script-studio/import-export";
+import { escapeHtmlForDocument, printHtmlDocument } from "@/lib/pdf/print-html-document";
 
 const LINES_PER_PAGE = 55;
 
@@ -58,6 +59,27 @@ export function ScreenplayReader({
   const wasOpenRef = useRef(false);
 
   const pages = useMemo(() => paginateScreenplay(content), [content]);
+
+  const printScreenplay = useCallback(() => {
+    const pageHtml = pages
+      .map(
+        (lines, pageIndex) =>
+          `<section class="page"><div class="num">${pageIndex + 1}.</div>${lines
+            .map((line) => `<div class="line">${escapeHtmlForDocument(line) || "&nbsp;"}</div>`)
+            .join("")}</section>`,
+      )
+      .join("");
+    printHtmlDocument({
+      title: title || "Screenplay",
+      bodyHtml: pageHtml,
+      extraCss: `
+.page { position: relative; min-height: 10in; padding: 1in 1.5in; page-break-after: always; box-sizing: border-box; font-family: ${fontCss}; font-size: 12pt; line-height: 1.2; }
+.num { text-align: right; font-size: 10px; color: #888; margin-bottom: 1rem; }
+.line { min-height: 1.2em; white-space: pre-wrap; }
+`,
+    });
+  }, [pages, title, fontCss]);
+
   const totalPages = pages.length;
 
   useEffect(() => {
@@ -218,7 +240,7 @@ export function ScreenplayReader({
                 size="sm"
                 variant="outline"
                 className="border-slate-700 text-slate-200"
-                onClick={() => window.print()}
+                onClick={printScreenplay}
               >
                 <Printer className="h-3.5 w-3.5" />
               </Button>

@@ -18,12 +18,48 @@ export async function GET() {
       creatorTeamSeatCap: true,
       isAfdaStudent: true, createdAt: true, updatedAt: true,
       userRoles: { select: { role: true } },
+      viewerSubscriptions: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: {
+          plan: true,
+          status: true,
+          viewerModel: true,
+          trialEndsAt: true,
+          currentPeriodEnd: true,
+          cancelAtPeriodEnd: true,
+          lastPaymentStatus: true,
+          lastPaymentError: true,
+          pastDueSince: true,
+        },
+      },
       _count: { select: { contents: true, musicTracks: true, watchSessions: true, comments: true, ratings: true, activityLogs: true, equipmentListings: true, locationListings: true } },
     },
     orderBy: { createdAt: "desc" },
   });
 
-  return NextResponse.json(users);
+  const payload = users.map((user) => {
+    const sub = user.viewerSubscriptions[0];
+    return {
+      ...user,
+      viewerSubscriptions: undefined,
+      viewerSubscription: sub
+        ? {
+            plan: sub.plan,
+            status: sub.status,
+            viewerModel: sub.viewerModel,
+            trialEndsAt: sub.trialEndsAt?.toISOString() ?? null,
+            currentPeriodEnd: sub.currentPeriodEnd?.toISOString() ?? null,
+            cancelAtPeriodEnd: sub.cancelAtPeriodEnd,
+            lastPaymentStatus: sub.lastPaymentStatus,
+            lastPaymentError: sub.lastPaymentError,
+            pastDueSince: sub.pastDueSince?.toISOString() ?? null,
+          }
+        : null,
+    };
+  });
+
+  return NextResponse.json(payload);
 }
 
 export async function PATCH(req: NextRequest) {
