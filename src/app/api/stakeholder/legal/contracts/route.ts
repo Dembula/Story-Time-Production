@@ -2,16 +2,20 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@/generated/prisma";
 
 const contractInclude = {
   project: { select: { id: true, title: true } },
   versions: { orderBy: { version: "desc" as const }, take: 1 },
   signers: true,
   signatures: true,
-};
+} satisfies Prisma.ProjectContractInclude;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mapStakeholderContracts(contracts: any[]) {
+type StakeholderContract = Prisma.ProjectContractGetPayload<{
+  include: typeof contractInclude;
+}>;
+
+function mapStakeholderContracts(contracts: StakeholderContract[]) {
   return contracts.map((c) => ({
     id: c.id,
     type: c.type,
@@ -30,14 +34,14 @@ function mapStakeholderContracts(contracts: any[]) {
     project: c.project,
     versions: c.versions,
     signers: c.signers,
-    signatures: (c.signatures ?? []).map((s: { name: string | null; signedAt: Date }) => ({
+    signatures: (c.signatures ?? []).map((s) => ({
       name: s.name,
       signedAt: s.signedAt.toISOString(),
     })),
   }));
 }
 
-async function respond(contracts: unknown[], role: string | undefined) {
+async function respond(contracts: StakeholderContract[], role: string | undefined) {
   return NextResponse.json({ contracts: mapStakeholderContracts(contracts), role });
 }
 
