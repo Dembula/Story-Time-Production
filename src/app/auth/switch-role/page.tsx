@@ -3,7 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { safeCallbackPath } from "@/lib/auth-callback-path";
 import { resolvePostSignInRedirect } from "@/lib/auth-sign-in-path";
-import { normalizePlatformRole, resolveRoleSwitch } from "@/lib/platform-roles";
+import { normalizePlatformRole } from "@/lib/platform-roles-shared";
+import { resolveRoleSwitch } from "@/lib/platform-roles";
 import { SwitchRoleClient } from "./switch-role-client";
 
 export default async function SwitchRolePage({

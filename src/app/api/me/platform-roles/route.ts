@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { buildPlatformRoleOptions, loadUserPlatformRoles } from "@/lib/platform-roles";
+import { buildPlatformRoleOptions } from "@/lib/platform-roles-shared";
+import { loadUserPlatformRoles } from "@/lib/platform-roles";
 
 export async function GET() {
   const session = await getServerSession(authOptions);

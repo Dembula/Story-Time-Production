@@ -4,27 +4,9 @@ import type { FunderVerificationStatus } from "@/lib/funder-verification";
 import { getPayoutKycStatus, requiresPayoutKyc, type KycVerificationStatus } from "@/lib/payout-kyc";
 import { prisma } from "@/lib/prisma";
 import { getUserRoles } from "@/lib/user-roles";
-import {
-  buildPlatformRoleOption,
-  buildPlatformRoleOptions,
-  getPortalScopeForRole,
-  normalizePlatformRole,
-  sortPlatformRoles,
-  type PlatformRoleOption,
-  type PortalScope,
-} from "@/lib/platform-roles-shared";
+import { buildPlatformRoleOption, normalizePlatformRole, sortPlatformRoles } from "@/lib/platform-roles-shared";
+import type { PortalScope } from "@/lib/platform-roles-shared";
 import type { PlatformRole } from "@/lib/user-roles-shared";
-
-export {
-  buildPlatformRoleOption,
-  buildPlatformRoleOptions,
-  getPortalScopeForRole,
-  normalizePlatformRole,
-  requiredRoleForProtectedPath,
-  sortPlatformRoles,
-  type PlatformRoleOption,
-  type PortalScope,
-} from "@/lib/platform-roles-shared";
 
 export async function loadUserPlatformRoles(
   userId: string,

@@ -8,7 +8,8 @@ import { completeViewerAccountOnboarding, isViewerAccountOnboardingComplete } fr
 import { loadViewerBillingAddress, upsertViewerBillingAddress } from "@/lib/user-settings-persistence";
 import { mergeCreatorGoalsForSave } from "@/lib/creator-profile-goals";
 import { sanitizeCreatorEducation } from "@/lib/creator-viewer-profile";
-import { buildPlatformRoleOptions, loadUserPlatformRoles } from "@/lib/platform-roles";
+import { buildPlatformRoleOptions } from "@/lib/platform-roles-shared";
+import { loadUserPlatformRoles } from "@/lib/platform-roles";
 import { parseNetworkHandleInput } from "@/lib/creator-network-handle";
 
 export async function GET() {

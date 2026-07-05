@@ -3,7 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { safeCallbackPath } from "@/lib/auth-callback-path";
 import { resolvePostSignInRedirect } from "@/lib/auth-sign-in-path";
-import { buildPlatformRoleOptions, resolveRoleSwitch } from "@/lib/platform-roles";
+import { buildPlatformRoleOptions } from "@/lib/platform-roles-shared";
+import { resolveRoleSwitch } from "@/lib/platform-roles";
 
 export async function PATCH(req: NextRequest) {
   const session = await getServerSession(authOptions);

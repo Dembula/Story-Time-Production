@@ -10,7 +10,8 @@ import { prisma } from "./prisma";
 import { findUserActiveStudioProfileId, findUserForCredentialsLogin } from "./prisma-user-studio-compat";
 import { sendWelcomeEmail } from "./sendgrid";
 import { CREATOR_ROLES, VIEWER_ROLES, ensureUserRole, getUserRoles } from "./user-roles";
-import { getPortalScopeForRole, resolveRoleSwitch } from "./platform-roles";
+import { getPortalScopeForRole } from "./platform-roles-shared";
+import { resolveRoleSwitch } from "./platform-roles";
 import { getPayoutKycStatus, requiresPayoutKyc, type KycVerificationStatus } from "./payout-kyc";
 import type { FunderVerificationStatus } from "./funder-verification";
 

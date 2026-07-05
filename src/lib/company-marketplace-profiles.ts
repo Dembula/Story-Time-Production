@@ -1,5 +1,5 @@
 import { parseEmbeddedMeta, type ActorMarketMeta, type CrewMarketMeta, type EquipmentMarketMeta, type LocationMarketMeta } from "@/lib/marketplace-profile-meta";
-import { parseTalentProfile } from "@/lib/casting-agency";
+import { parseTalentProfile } from "@/lib/casting-talent-profile";
 import { parsePhotoUrls } from "@/lib/marketplace-media";
 
 export type CateringMarketMeta = {
