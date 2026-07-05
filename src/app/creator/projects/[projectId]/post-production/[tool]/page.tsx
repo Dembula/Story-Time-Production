@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SecureFileLink } from "@/components/files/secure-file-link";
 import { FootageIngestion } from "@/components/project-tools/post/PostProductionWidgets";
 import { DistributionToolPanel } from "@/components/project-tools/post/DistributionToolPanel";
 import { projectToolQueryFn } from "@/lib/project-tool-fetch";
@@ -188,7 +189,7 @@ function EditingStudio({ projectId, title }: { projectId?: string; title: string
       <div className="creator-glass-panel p-3 space-y-2">
         <p className="text-xs text-slate-400">Edit assets: {edits.length}</p>
         {edits.slice(0, 5).map((e) => (
-          <div key={e.id} className="text-sm text-slate-300">{e.label || e.id} · <a href={e.fileUrl} target="_blank" rel="noreferrer" className="text-orange-400">Watch</a></div>
+          <div key={e.id} className="text-sm text-slate-300">{e.label || e.id} · <SecureFileLink fileRef={e.fileUrl} label="Watch" projectId={projectId} /></div>
         ))}
       </div>
       <div className="creator-glass-panel p-3 space-y-2">

@@ -9,6 +9,7 @@ import {
   resolveMarketplaceSettlement,
   type MarketplaceEntityType,
 } from "@/lib/payments/marketplace-settlement";
+import { resolveSyncLicensingSettlement } from "@/lib/payments/sync-licensing-settlement";
 import { isViewerPoolPaymentPurpose } from "@/lib/payments/viewer-pool-purposes";
 
 const PLATFORM_REVENUE_PURPOSES = new Set([
@@ -71,6 +72,77 @@ export async function allocateGatewayPaymentLedger(payment: {
   const grossAmount = payment.amount;
   const settlementAmount = payment.settlementAmount ?? grossAmount;
   const providerFeeAmount = payment.providerFeeAmount ?? Math.max(0, grossAmount - settlementAmount);
+
+  if (payment.relatedEntityType === "SyncRequest" && payment.relatedEntityId) {
+    const { prisma } = await import("@/lib/prisma");
+    const full = await (prisma as any).paymentRecord.findUnique({
+      where: { id: payment.id },
+      select: { userId: true },
+    });
+    if (!full?.userId) return;
+
+    const resolved = await resolveSyncLicensingSettlement(
+      payment.relatedEntityId,
+      full.userId,
+    );
+    if (!resolved.ok) return;
+
+    const quote = resolved.quote;
+    if (Math.abs(grossAmount - quote.totalAmount) > 0.02) {
+      console.error("sync licensing gateway amount mismatch", payment.id, grossAmount, quote.totalAmount);
+      return;
+    }
+
+    await ensureWalletForUser(quote.sellerUserId);
+
+    const credits: LedgerEntry[] = [
+      {
+        userId: treasuryUserId,
+        direction: "CREDIT",
+        accountType: "AVAILABLE",
+        transactionType: "incoming_payment",
+        amount: settlementAmount,
+        description: "Sync licensing gateway payment received (net after PayFast fees)",
+      },
+      {
+        userId: quote.sellerUserId,
+        direction: "CREDIT",
+        accountType: "PENDING",
+        transactionType: "marketplace_vendor_pending",
+        amount: quote.baseAmount,
+        description: "Pending sync licensing earnings",
+      },
+    ];
+
+    if (quote.feeAmount > 0) {
+      credits.push({
+        userId: treasuryUserId,
+        direction: "CREDIT",
+        accountType: "PLATFORM_REVENUE",
+        transactionType: "storytime_transaction_fee",
+        amount: quote.feeAmount,
+        description: STORYTIME_TRANSACTION_FEE_LABEL,
+      });
+    }
+
+    const creditTotal = credits.reduce((sum, entry) => sum + entry.amount, 0);
+    await postBalancedLedgerBatch({
+      idempotencyKey,
+      referenceType: payment.relatedEntityType,
+      referenceId: payment.relatedEntityId,
+      metadata: {
+        paymentRecordId: payment.id,
+        flow: "sync_licensing_gateway",
+        grossAmount,
+        settlementAmount,
+        providerFeeAmount,
+        baseAmount: quote.baseAmount,
+        feeAmount: quote.feeAmount,
+      },
+      entries: [...credits, balancingLockedDebit(treasuryUserId, creditTotal)],
+    });
+    return;
+  }
 
   if (
     payment.relatedEntityType &&

@@ -11,7 +11,7 @@ import { StakeholderEcosystemHome } from "@/components/ecosystem/stakeholder-eco
 
 export function CateringDashboardClient() {
   const [company, setCompany] = useState<{ companyName: string; tagline: string | null; logoUrl: string | null } | null>(null);
-  const [metrics, setMetrics] = useState({ totalBookings: 0, pending: 0, confirmed: 0, revenue: 0 });
+  const [metrics, setMetrics] = useState({ totalBookings: 0, pending: 0, confirmed: 0, paid: 0, revenue: 0 });
   const [recent, setRecent] = useState<{ id: string; status: string; eventDate: string | null; headCount: number | null; creator: { name: string | null } }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -62,7 +62,8 @@ export function CateringDashboardClient() {
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <OpsMetricCard label="Bookings" value={metrics.totalBookings} icon={Calendar} accent="orange" />
         <OpsMetricCard label="Pending" value={metrics.pending} accent="amber" />
-        <OpsMetricCard label="Confirmed" value={metrics.confirmed} accent="emerald" />
+        <OpsMetricCard label="Approved" value={metrics.confirmed} accent="emerald" />
+        <OpsMetricCard label="Paid" value={metrics.paid ?? 0} accent="emerald" />
         <OpsMetricCard label="Revenue" value={formatZar(metrics.revenue)} icon={DollarSign} accent="emerald" />
       </div>
 

@@ -2,7 +2,9 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import { buildPayFastCardUpdateUrl } from "@/lib/payments/providers/payfast-config";
-import { buildPaymentReturnUrl } from "@/lib/payments/return-url";
+import { buildPaymentReturnUrl, appendPaymentRecordToReturnUrl } from "@/lib/payments/return-url";
+import { isPayFastConfigured, PAYMENT_PROVIDER } from "@/lib/payments/config";
+import { createPayFastGateway } from "@/lib/payments/providers/payfast";
 
 const db = prisma as any;
 
@@ -141,17 +143,56 @@ export async function createPayFastCardConsentForUser(args: {
   email?: string | null;
   name?: string | null;
   returnUrl: string;
+  returnPath?: string;
   referencePrefix?: string;
 }) {
-  const { getPaymentGateway } = await import("@/lib/payments/gateway");
+  if (!isPayFastConfigured()) {
+    throw new Error("PayFast is not configured. Card saving requires live PayFast integration.");
+  }
+
   const reference = `${args.referencePrefix ?? "card-consent"}-${args.userId}-${Date.now()}`;
-  const gateway = getPaymentGateway();
+  const returnPath = args.returnPath?.trim() || "/browse/settings";
+  const baseReturnUrl = args.returnUrl.trim() || buildPaymentReturnUrl(returnPath, "payfast_card_consent");
+
+  const paymentRecord = await db.paymentRecord.create({
+    data: {
+      userId: args.userId,
+      provider: PAYMENT_PROVIDER,
+      purpose: "CARD_CONSENT",
+      status: "PENDING",
+      amount: 0,
+      currency: "ZAR",
+      email: args.email ?? null,
+      metadata: {
+        consentReference: reference,
+        returnPath,
+        flow: "payfast_card_consent",
+      },
+    },
+  });
+
+  const returnUrl = appendPaymentRecordToReturnUrl(baseReturnUrl, paymentRecord.id);
+  await db.paymentRecord.update({
+    where: { id: paymentRecord.id },
+    data: {
+      metadata: {
+        consentReference: reference,
+        returnPath,
+        returnUrl,
+        flow: "payfast_card_consent",
+        paymentRecordId: paymentRecord.id,
+      },
+    },
+  });
+
+  const gateway = createPayFastGateway();
   const consent = await gateway.createCardConsentSession({
     reference,
-    returnUrl: args.returnUrl,
+    returnUrl,
     customer: { email: args.email, name: args.name, payerId: args.userId },
+    metadata: { paymentRecordId: paymentRecord.id },
   });
-  return { checkoutUrl: consent.checkoutUrl, reference };
+  return { checkoutUrl: consent.checkoutUrl, reference, paymentRecordId: paymentRecord.id };
 }
 
 /** Redirect URL for PayFast's hosted card update flow (`/eng/recurring/update/{token}`). */

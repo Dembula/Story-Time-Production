@@ -18,7 +18,6 @@ import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
 const operatingNavItems = [
   { href: "/creator/command-center", label: "Command Center" },
   { href: "/creator/dashboard", label: "My Projects" },
-  { href: "/creator/legal/inbox", label: "Legal inbox" },
   { href: "/creator/network", label: "Network" },
   { href: "/creator/messages", label: "Messages" },
   { href: "/creator/account", label: "My Account" },

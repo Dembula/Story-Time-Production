@@ -8,6 +8,8 @@ import { AccountPrivacyControls } from "@/components/account/account-privacy-con
 import { VIEWER_PLAN_CONFIG } from "@/lib/pricing";
 import { formatZar } from "@/lib/format-currency-zar";
 import { getBirthDateOptionSets } from "@/lib/viewer-profiles";
+import { getClientReturnPath } from "@/lib/payments/payfast-card-consent-client";
+import { useCardSaveReturnRefresh } from "@/lib/hooks/use-card-save-return";
 
 type PaymentMethod = { id: string; label: string; lastFour: string; isDefault: boolean; payfastTokenized?: boolean };
 type ViewerProfile = {
@@ -71,6 +73,75 @@ export function SettingsClient() {
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(true);
   const [loadWarnings, setLoadWarnings] = useState<string[]>([]);
+
+  async function reloadSettings() {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/viewer/settings", { cache: "no-store" });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        account?: { name?: string; email?: string; phoneNumber?: string };
+        address?: {
+          residentialAddress?: string;
+          city?: string;
+          provinceState?: string;
+          postalCode?: string;
+          country?: string;
+        };
+        preferences?: { notifyEmail?: boolean; playbackQuality?: string | null };
+        paymentMethods?: PaymentMethod[];
+        profiles?: ViewerProfile[];
+        activeProfileId?: string | null;
+        subscription?: ViewerSubscription | null;
+        warnings?: string[];
+      };
+      if (!res.ok) throw new Error(data.error || "Failed to load settings");
+
+      const account = data.account ?? {};
+      setName(account.name ?? "");
+      setEmail(account.email ?? "");
+      setPhoneNumber(account.phoneNumber ?? "");
+
+      const addr = data.address ?? {};
+      setResidentialAddress(addr.residentialAddress ?? "");
+      setCity(addr.city ?? "");
+      setProvinceState(addr.provinceState ?? "");
+      setPostalCode(addr.postalCode ?? "");
+      setCountry(addr.country?.trim() || "South Africa");
+
+      const prefs = data.preferences ?? {};
+      if (prefs.notifyEmail !== undefined) setNotifyEmail(prefs.notifyEmail);
+      setPlaybackQuality(prefs.playbackQuality?.trim() || "auto");
+
+      setPaymentMethods(Array.isArray(data.paymentMethods) ? data.paymentMethods : []);
+
+      const list = Array.isArray(data.profiles) ? data.profiles : [];
+      const enhanced: ViewerProfile[] = list.map((item, index) => ({
+        ...item,
+        pinEnabled: Boolean((item as { pinEnabled?: boolean }).pinEnabled),
+        isMaster: index === 0,
+      }));
+      setProfiles(enhanced);
+
+      const activeId = data.activeProfileId ?? null;
+      setIsMasterActive(!!enhanced.length && activeId === enhanced[0].id);
+
+      const sub = data.subscription ?? null;
+      setSubscription(sub);
+      setProfileLimit(sub?.profileLimit ?? sub?.deviceCount ?? 1);
+      setLoadWarnings(Array.isArray(data.warnings) ? data.warnings : []);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load settings");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useCardSaveReturnRefresh(() => {
+    void reloadSettings();
+    setSuccess("Card saved successfully.");
+  });
 
   useEffect(() => {
     setMounted(true);
@@ -257,7 +328,7 @@ export function SettingsClient() {
       const res = await fetch("/api/viewer/payment-methods", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ returnPath: "/browse/settings" }),
+        body: JSON.stringify({ returnPath: getClientReturnPath("/browse/settings") }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Failed to start PayFast card setup");
@@ -282,7 +353,7 @@ export function SettingsClient() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           paymentMethodId,
-          returnPath: "/browse/settings",
+          returnPath: getClientReturnPath("/browse/settings"),
         }),
       });
       const data = await res.json().catch(() => ({}));

@@ -5,6 +5,8 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
 import { resolveNetworkDisplayName } from "@/lib/network-display-name";
+import { SecureFileLink } from "@/components/files/secure-file-link";
+import { SecureImage } from "@/components/files/secure-image";
 
 function Section({
   title,
@@ -531,9 +533,7 @@ export function AdminProjectReviewDigest({
           <ul className="space-y-1 text-[11px]">
             {data.footage.map((f: { id: string; label: string | null; type: string; fileUrl: string }) => (
               <li key={f.id}>
-                <a href={f.fileUrl} target="_blank" rel="noreferrer" className="text-orange-300 hover:underline">
-                  {f.label || f.type}
-                </a>
+                <SecureFileLink fileRef={f.fileUrl} label={f.label || f.type} context="admin" />
                 <span className="text-slate-500"> · {f.type}</span>
               </li>
             ))}
@@ -576,9 +576,7 @@ export function AdminProjectReviewDigest({
                 caption: string | null;
               }) => (
                 <li key={a.id}>
-                  <a href={a.imageUrl} target="_blank" rel="noreferrer" className="text-orange-300 hover:underline">
-                    {a.title || a.category}
-                  </a>
+                  <SecureFileLink fileRef={a.imageUrl} label={a.title || a.category} context="admin" />
                   <span className="text-slate-500"> · {a.category}</span>
                   {a.caption ? <span className="text-slate-500"> — {a.caption}</span> : null}
                 </li>
@@ -626,24 +624,18 @@ export function AdminProjectReviewDigest({
                     {c.title}
                   </Link>{" "}
                   · {c.reviewStatus}
-                  {c.videoUrl && (
+                  {c.videoUrl ? (
                     <>
                       {" "}
-                      ·{" "}
-                      <a href={c.videoUrl} target="_blank" rel="noreferrer" className="text-orange-300 hover:underline">
-                        Watch master
-                      </a>
+                      · <SecureFileLink fileRef={c.videoUrl} label="Watch master" context="admin" />
                     </>
-                  )}
-                  {c.scriptUrl && (
+                  ) : null}
+                  {c.scriptUrl ? (
                     <>
                       {" "}
-                      ·{" "}
-                      <a href={c.scriptUrl} target="_blank" rel="noreferrer" className="text-orange-300 hover:underline">
-                        Uploaded script PDF
-                      </a>
+                      · <SecureFileLink fileRef={c.scriptUrl} label="Uploaded script PDF" context="admin" />
                     </>
-                  )}
+                  ) : null}
                 </p>
                 {c.platformScript && (
                   <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-2">

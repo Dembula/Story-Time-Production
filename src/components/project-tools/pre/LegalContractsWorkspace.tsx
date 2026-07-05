@@ -1,15 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FileText, Lock, Save, Send, X } from "lucide-react";
+import { FileText, Lock, Save, Send, X, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ToolActionError } from "@/components/project-tools/tool-action-error";
 import { mutationErrorMessage, projectToolFetch, projectToolQueryFn } from "@/lib/project-tool-fetch";
+import { formatZar } from "@/lib/format-currency-zar";
+import { useMarketplacePay } from "@/lib/hooks/use-marketplace-pay";
+import { MarketplaceCheckoutModal } from "@/components/marketplace/marketplace-checkout-modal";
 import {
   EDITABLE_CONTRACT_FIELDS,
   buildRenderedContract,
@@ -31,6 +34,7 @@ import {
   type LocalContractDraft,
 } from "@/lib/contract-local-drafts";
 import { ContractDocumentViewer } from "@/components/legal/contract-document-viewer";
+import { LegalInboxPanel } from "@/components/legal/legal-inbox-panel";
 import {
   LegalEnterprisePanels,
   type LegalEnterpriseTab,
@@ -75,6 +79,10 @@ type ContractRow = {
   recipientEmail?: string | null;
   jurisdiction?: string | null;
   counterparty?: { id: string; name: string | null; email: string | null } | null;
+  paymentTransactionId?: string | null;
+  hireAmount?: number | null;
+  paidAt?: string | null;
+  salaryPayable?: boolean;
 };
 
 type ResourceOption = {
@@ -97,6 +105,7 @@ type ResourceOption = {
 };
 
 type FilterTab = "ALL" | "DRAFT" | "SENT" | "SIGNED" | "REJECTED";
+type WorkspaceTab = "contracts" | "inbox";
 
 interface LegalContractsWorkspaceProps {
   projectId?: string;
@@ -106,10 +115,14 @@ interface LegalContractsWorkspaceProps {
 export function LegalContractsWorkspace({ projectId, title }: LegalContractsWorkspaceProps) {
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const hasProject = !!projectId;
   const deepLinkTemplate = searchParams.get("templateType") ?? "";
   const deepLinkResourceType = searchParams.get("resourceType") ?? "";
   const deepLinkResourceId = searchParams.get("resourceId") ?? "";
+  const workspaceTab = (searchParams.get("tab") === "inbox" ? "inbox" : "contracts") as WorkspaceTab;
+  const inboxContractId = searchParams.get("contractId");
 
   const { data, isLoading } = useQuery({
     queryKey: ["project-contracts", projectId],
@@ -168,6 +181,58 @@ export function LegalContractsWorkspace({ projectId, title }: LegalContractsWork
   const [jurisdiction, setJurisdiction] = useState("South Africa");
   const [enterpriseTab, setEnterpriseTab] = useState<LegalEnterpriseTab>("analytics");
   const [countersignConfirmed, setCountersignConfirmed] = useState(false);
+  const [salaryPayMessage, setSalaryPayMessage] = useState("");
+  const [hireAmountInput, setHireAmountInput] = useState("");
+  const [savingHireAmount, setSavingHireAmount] = useState(false);
+
+  const salaryPay = useMarketplacePay({
+    onPaid: () => {
+      setSalaryPayMessage("Salary payment recorded. Expense tracker and receipts are updated.");
+      void queryClient.invalidateQueries({ queryKey: ["project-contracts", projectId] });
+      void queryClient.invalidateQueries({ queryKey: ["contract-salary-quote", projectId, selectedContractId] });
+    },
+  });
+
+  const {
+    data: salaryQuote,
+    isLoading: salaryQuoteLoading,
+    refetch: refetchSalaryQuote,
+  } = useQuery({
+    queryKey: ["contract-salary-quote", projectId, selectedContractId],
+    queryFn: async () => {
+      if (!projectId || !selectedContractId) return null;
+      const res = await fetch(
+        `/api/creator/projects/${projectId}/contracts/${selectedContractId}/pay`,
+        { cache: "no-store" },
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return {
+          error: (data as { error?: string }).error || "Unable to load payment quote",
+          quote: null,
+          paid: false,
+          paymentTransactionId: null,
+        };
+      }
+      return data as {
+        quote: {
+          baseAmount: number;
+          platformFeeAmount: number;
+          gatewayFeeEstimate: number;
+          totalAmount: number;
+          payeeLabel: string;
+        } | null;
+        paid: boolean;
+        paymentTransactionId: string | null;
+        error?: string;
+      };
+    },
+    enabled: Boolean(
+      projectId &&
+        selectedContractId &&
+        contracts.find((c) => c.id === selectedContractId)?.salaryPayable,
+    ),
+  });
 
   const selectedTemplate = templates.find((t) => t.type === newType) ?? templates[0] ?? null;
 
@@ -520,6 +585,54 @@ export function LegalContractsWorkspace({ projectId, title }: LegalContractsWork
       )}
       <ToolActionError message={actionError} onDismiss={() => setActionError("")} />
 
+      <div className="flex flex-wrap gap-2">
+        {(
+          [
+            ["contracts", "Contracts"],
+            ["inbox", "Inbox"],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => {
+              const params = new URLSearchParams(searchParams.toString());
+              if (id === "contracts") params.delete("tab");
+              else params.set("tab", id);
+              const qs = params.toString();
+              router.replace(qs ? `${pathname}?${qs}` : pathname);
+            }}
+            className={`rounded-full px-3 py-1.5 text-[11px] font-medium ${
+              workspaceTab === id
+                ? "bg-orange-500/20 text-orange-200 border border-orange-500/40"
+                : "border border-slate-700 text-slate-400"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {workspaceTab === "inbox" ? (
+        <div className="creator-glass-panel p-4">
+          <LegalInboxPanel
+            projectId={projectId}
+            contractsBasePath={
+              hasProject
+                ? `/creator/projects/${projectId}/pre-production/legal-contracts`
+                : "/creator/pre/legal-contracts"
+            }
+          />
+          {inboxContractId && hasProject ? (
+            <p className="mt-3 text-xs text-slate-500">
+              Open the Contracts tab to view project agreements, or use the inbox link for the sending project.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {workspaceTab === "contracts" ? (
+      <>
       {hasProject && (
         <div className="grid gap-2 md:grid-cols-5">
           {[
@@ -829,6 +942,11 @@ export function LegalContractsWorkspace({ projectId, title }: LegalContractsWork
               signatures={selectedContract.signatures}
               editable={isEditorEditable}
               onTermsChange={setEditorTerms}
+              pdfDownloadUrl={
+                projectId
+                  ? `/api/creator/projects/${projectId}/contracts/${selectedContract.id}/export`
+                  : null
+              }
             />
             <div className="flex flex-wrap gap-2">
               {isEditorEditable && (
@@ -892,6 +1010,131 @@ export function LegalContractsWorkspace({ projectId, title }: LegalContractsWork
                   </Button>
                 </div>
               )}
+              {selectedContract.salaryPayable && salaryQuoteLoading ? (
+                <div className="rounded-lg border border-slate-700/50 bg-slate-900/40 p-3 text-xs text-slate-400">
+                  Loading salary quote…
+                </div>
+              ) : null}
+              {selectedContract.salaryPayable && !salaryQuoteLoading && salaryQuote?.quote ? (
+                <div className="space-y-2 rounded-lg border border-orange-500/30 bg-orange-500/5 p-3">
+                  <p className="text-xs font-medium text-orange-100 flex items-center gap-1.5">
+                    <Wallet className="w-3.5 h-3.5" />
+                    Pay contract salary via Story Time
+                  </p>
+                  <p className="text-[11px] text-slate-300">
+                    {formatZar(salaryQuote.quote.baseAmount)} to {salaryQuote.quote.payeeLabel} +{" "}
+                    {formatZar(salaryQuote.quote.platformFeeAmount)} platform fee (3%) ={" "}
+                    {formatZar(salaryQuote.quote.totalAmount)} checkout
+                  </p>
+                  <p className="text-[10px] text-slate-500">
+                    Separate from marketplace bookings. PayFast gateway fee (~
+                    {formatZar(salaryQuote.quote.gatewayFeeEstimate)}) is absorbed from platform settlement. Payee
+                    receives funds in wallet pending monthly payout.
+                  </p>
+                  {salaryPayMessage ? (
+                    <p className="text-[11px] text-emerald-300">{salaryPayMessage}</p>
+                  ) : null}
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="bg-orange-500 hover:bg-orange-600 text-xs"
+                    disabled={salaryPay.paying}
+                    onClick={async () => {
+                      setSalaryPayMessage("");
+                      try {
+                        const returnPath =
+                          typeof window !== "undefined"
+                            ? `${window.location.pathname}${window.location.search}`
+                            : `/creator/projects/${projectId}/pre-production/legal`;
+                        const result = await salaryPay.pay(
+                          `/api/creator/projects/${projectId}/contracts/${selectedContract.id}/pay`,
+                          { returnPath },
+                        );
+                        if (result?.mode === "wallet") {
+                          setSalaryPayMessage(
+                            `Salary paid (${formatZar(salaryQuote.quote!.totalAmount)} incl. fee). Download your receipt below.`,
+                          );
+                          void queryClient.invalidateQueries({ queryKey: ["project-contracts", projectId] });
+                          void refetchSalaryQuote();
+                        }
+                      } catch (e) {
+                        setSalaryPayMessage(e instanceof Error ? e.message : "Payment failed");
+                      }
+                    }}
+                  >
+                    {salaryPay.paying ? "Processing…" : `Pay ${formatZar(salaryQuote.quote.totalAmount)}`}
+                  </Button>
+                </div>
+              ) : null}
+              {selectedContract.salaryPayable && !salaryQuoteLoading && salaryQuote?.error && !salaryQuote?.quote ? (
+                <div className="space-y-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+                  <p className="text-xs text-amber-200">{salaryQuote.error}</p>
+                  <p className="text-[10px] text-slate-500">
+                    Enter the agreed salary (ZAR) from the signed contract, then save to enable checkout.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      placeholder="Salary amount (ZAR)"
+                      value={hireAmountInput}
+                      onChange={(e) => setHireAmountInput(e.target.value)}
+                      className="h-8 max-w-[180px] bg-slate-900 border-slate-600 text-sm"
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-8 text-xs border-slate-600"
+                      disabled={savingHireAmount || !hireAmountInput.trim()}
+                      onClick={async () => {
+                        const amount = Number.parseFloat(hireAmountInput);
+                        if (!Number.isFinite(amount) || amount <= 0) return;
+                        setSavingHireAmount(true);
+                        try {
+                          const res = await fetch(
+                            `/api/creator/projects/${projectId}/contracts/${selectedContract.id}/hire-amount`,
+                            {
+                              method: "PATCH",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ hireAmount: amount }),
+                            },
+                          );
+                          const data = await res.json().catch(() => ({}));
+                          if (!res.ok) throw new Error((data as { error?: string }).error || "Could not save amount");
+                          void queryClient.invalidateQueries({ queryKey: ["project-contracts", projectId] });
+                          await refetchSalaryQuote();
+                          setSalaryPayMessage("Salary amount saved. You can pay now.");
+                        } catch (e) {
+                          setSalaryPayMessage(e instanceof Error ? e.message : "Could not save salary amount");
+                        } finally {
+                          setSavingHireAmount(false);
+                        }
+                      }}
+                    >
+                      {savingHireAmount ? "Saving…" : "Save salary amount"}
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+              {selectedContract.paymentTransactionId ? (
+                <div className="flex flex-wrap gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3">
+                  <p className="w-full text-xs text-emerald-200">
+                    Salary paid
+                    {selectedContract.hireAmount ? ` · ${formatZar(selectedContract.hireAmount)}` : ""}
+                    {selectedContract.paidAt
+                      ? ` · ${new Date(selectedContract.paidAt).toLocaleDateString()}`
+                      : ""}
+                  </p>
+                  <a
+                    href={`/api/creator/projects/${projectId}/contracts/${selectedContract.id}/payment-receipt?audience=creator`}
+                    className="inline-flex h-7 items-center rounded-md border border-emerald-600/40 px-2 text-[10px] text-emerald-200 hover:bg-emerald-500/10"
+                  >
+                    Download receipt (creator)
+                  </a>
+                </div>
+              ) : null}
             </div>
           </CardContent>
         </Card>
@@ -945,6 +1188,15 @@ export function LegalContractsWorkspace({ projectId, title }: LegalContractsWork
                         <span className={`rounded-full border px-2 py-1 text-[10px] ${toneClasses(c.statusTone)}`}>
                           {c.status}
                         </span>
+                        {c.paymentTransactionId ? (
+                          <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-[10px] text-emerald-200">
+                            Salary paid
+                          </span>
+                        ) : c.salaryPayable ? (
+                          <span className="rounded-full border border-orange-500/40 bg-orange-500/10 px-2 py-1 text-[10px] text-orange-200">
+                            Pay salary
+                          </span>
+                        ) : null}
                         <span className="text-[11px] text-slate-500">v{c.latestVersion?.version ?? 0}</span>
                       </div>
                     </div>
@@ -1013,6 +1265,15 @@ export function LegalContractsWorkspace({ projectId, title }: LegalContractsWork
           )}
         </>
       )}
+      </>
+      ) : null}
+      <MarketplaceCheckoutModal
+        open={salaryPay.checkoutOpen}
+        checkoutUrl={salaryPay.checkoutUrl}
+        onClose={salaryPay.closeCheckout}
+        title="Contract salary checkout"
+        subtitle="Pay securely with PayFast. This is a post-contract salary disbursement — separate from marketplace bookings."
+      />
     </div>
   );
 }

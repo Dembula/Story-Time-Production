@@ -28,6 +28,7 @@ export type GatewayCardConsentRequest = {
   returnUrl: string;
   customer: { email?: string | null; name?: string | null; payerId?: string | null };
   initialAmount?: number;
+  metadata?: Record<string, unknown>;
 };
 
 export type GatewayPayoutRequest = {

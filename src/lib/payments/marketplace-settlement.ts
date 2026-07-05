@@ -11,6 +11,9 @@ import {
 import { postMarketplacePaymentAllocation } from "@/lib/payments/marketplace-allocation";
 import { settleMarketplaceWithWallet } from "@/lib/payments/marketplace-wallet";
 import { ensureWalletForUser } from "@/lib/payments/wallet";
+import { syncMarketplacePaymentToExpense } from "@/lib/marketplace-expense-sync";
+import { parseCateringCompanyProfile } from "@/lib/company-marketplace-profiles";
+import { computeCateringBaseZar } from "@/lib/catering-pricing";
 
 const db = prisma as typeof prisma & {
   paymentRecord: {
@@ -129,16 +132,29 @@ export async function resolveMarketplaceSettlement(
   if (entityType === "CateringBooking") {
     const row = await prisma.cateringBooking.findUnique({
       where: { id: entityId, creatorId: buyerUserId },
-      include: { cateringCompany: { select: { userId: true, minOrder: true } } },
+      include: { cateringCompany: true },
     });
     if (!row) return { ok: false, error: "Booking not found", status: 404 };
     if (row.paymentTransactionId) return { ok: false, error: "Already paid", status: 400 };
     if (row.status !== "APPROVED") {
       return { ok: false, error: "Catering booking must be approved before payment", status: 400 };
     }
-    const baseAmount = row.cateringCompany.minOrder ?? 500;
+    const profile = parseCateringCompanyProfile(row.cateringCompany);
+    const baseAmount = computeCateringBaseZar({
+      quotedAmount: row.quotedAmount,
+      pricePerHead: profile.pricePerHead,
+      headCount: row.headCount,
+      minOrder: row.cateringCompany.minOrder ?? profile.minOrder,
+    });
+    if (baseAmount <= 0) {
+      return {
+        ok: false,
+        error: "Catering order total is not set. Ask the caterer to confirm pricing on approval.",
+        status: 400,
+      };
+    }
     const feeAmount = computeMarketplaceFeeZar(baseAmount);
-    const totalAmount = baseAmount + feeAmount;
+    const totalAmount = Math.round((baseAmount + feeAmount) * 100) / 100;
     return {
       ok: true,
       quote: {
@@ -264,6 +280,38 @@ export async function finalizeMarketplaceWalletPayment(quote: MarketplaceSettlem
 
   await attachTransactionToEntity(quote, tx.id);
 
+  const buyerWallet = await ensureWalletForUser(quote.buyerUserId);
+  const sellerWallet = await ensureWalletForUser(quote.sellerUserId);
+  await (db as { escrowAccount: { upsert: (args: unknown) => Promise<unknown> } }).escrowAccount.upsert({
+    where: {
+      referenceType_referenceId: {
+        referenceType: quote.entityType,
+        referenceId: quote.entityId,
+      },
+    },
+    create: {
+      referenceType: quote.entityType,
+      referenceId: quote.entityId,
+      buyerWalletId: buyerWallet.id,
+      sellerWalletId: sellerWallet.id,
+      amount: quote.baseAmount,
+      status: "HELD",
+      releaseTrigger: "MANUAL_CONFIRMATION",
+    },
+    update: {
+      status: "HELD",
+      amount: quote.baseAmount,
+      releasedAt: null,
+      disputedAt: null,
+    },
+  });
+
+  try {
+    await syncMarketplacePaymentToExpense(quote, tx.id);
+  } catch {
+    /* expense sync must not block payment */
+  }
+
   return {
     ok: true as const,
     transactionId: tx.id,
@@ -324,14 +372,14 @@ export async function finalizeMarketplaceGatewayPayment(paymentRecordId: string)
       buyerWalletId: buyerWallet.id,
       sellerWalletId: sellerWallet.id,
       amount: quote.baseAmount,
-      status: "RELEASED",
-      releaseTrigger: "MONTHLY_VENDOR_PAYOUT",
-      releasedAt: new Date(),
+      status: "HELD",
+      releaseTrigger: "MANUAL_CONFIRMATION",
     },
     update: {
-      status: "RELEASED",
+      status: "HELD",
       amount: quote.baseAmount,
-      releasedAt: new Date(),
+      releasedAt: null,
+      disputedAt: null,
     },
   });
 
@@ -350,6 +398,12 @@ export async function finalizeMarketplaceGatewayPayment(paymentRecordId: string)
   });
 
   await attachTransactionToEntity(quote, tx.id);
+
+  try {
+    await syncMarketplacePaymentToExpense(quote, tx.id);
+  } catch {
+    /* expense sync must not block payment */
+  }
 
   return {
     ok: true as const,

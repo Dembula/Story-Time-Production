@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const rate = checkRateLimit({
+  const rate = await checkRateLimit({
     key: "account-export",
     ip: `${userId}:${clientIp(req)}`,
     maxAttempts: 10,

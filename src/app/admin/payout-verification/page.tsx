@@ -26,27 +26,51 @@ export default function AdminPayoutVerificationPage() {
     profiles.find((p: { id: string }) => p.id === selectedProfileId) ?? profiles[0] ?? null;
 
   return (
-    <div className="space-y-4 text-slate-100">
-      <h1 className="text-2xl font-semibold">Payout KYC review</h1>
-      <p className="text-sm text-slate-400">
-        Review creator and marketplace payout verification submissions, preview documents, and approve or reject payouts access.
-      </p>
+    <div className="space-y-6 text-slate-100">
+      <header className="storytime-plan-card p-5 md:p-6">
+        <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">Compliance</p>
+        <h1 className="font-display text-2xl font-semibold tracking-tight text-white md:text-3xl">
+          Payout KYC / KYB review
+        </h1>
+        <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
+          Review full identity and banking details (including account numbers and branch codes), preview bank statements
+          and confirmation letters, then approve or reject payout access.
+        </p>
+      </header>
       {isLoading && <p className="text-sm text-slate-400">Loading submissions...</p>}
       <div className="grid gap-4 lg:grid-cols-[320px,1fr]">
         <div className="space-y-3">
-          {profiles.map((profile: { id: string; legalName?: string; user?: { email?: string }; verificationStatus?: string; reviewSummary?: { pendingCount?: number } }) => (
-            <button
-              type="button"
-              key={profile.id}
-              onClick={() => setSelectedProfileId(profile.id)}
-              className={`w-full rounded-lg border p-4 text-left ${selectedProfile?.id === profile.id ? "border-orange-500 bg-slate-900" : "border-slate-800 bg-slate-950/60"}`}
-            >
-              <p className="text-sm font-semibold text-white">{profile.legalName || "Unnamed"}</p>
-              <p className="text-xs text-slate-400">{profile.user?.email}</p>
-              <p className="mt-1 text-xs text-orange-300">Status: {profile.verificationStatus}</p>
-              <p className="text-[11px] text-slate-500">{profile.reviewSummary?.pendingCount ?? 0} pending documents</p>
-            </button>
-          ))}
+          {profiles.map(
+            (profile: {
+              id: string;
+              legalName?: string;
+              user?: { email?: string };
+              verificationStatus?: string;
+              reviewSummary?: { pendingCount?: number };
+              payoutBanking?: { accountNumber?: string | null };
+            }) => (
+              <button
+                type="button"
+                key={profile.id}
+                onClick={() => setSelectedProfileId(profile.id)}
+                className={`w-full rounded-xl border p-4 text-left transition ${
+                  selectedProfile?.id === profile.id
+                    ? "border-orange-500/50 bg-orange-500/10"
+                    : "border-white/10 bg-white/[0.03] hover:border-white/16"
+                }`}
+              >
+                <p className="text-sm font-semibold text-white">{profile.legalName || "Unnamed"}</p>
+                <p className="text-xs text-slate-400">{profile.user?.email}</p>
+                <p className="mt-1 text-xs text-orange-300">Status: {profile.verificationStatus}</p>
+                <p className="text-[11px] text-slate-500">
+                  {profile.reviewSummary?.pendingCount ?? 0} pending documents
+                  {profile.payoutBanking?.accountNumber
+                    ? ` · Acct …${String(profile.payoutBanking.accountNumber).slice(-4)}`
+                    : ""}
+                </p>
+              </button>
+            ),
+          )}
         </div>
         {selectedProfile ? (
           <VerificationReviewPanel
@@ -71,6 +95,7 @@ export default function AdminPayoutVerificationPage() {
             busy={review.isPending}
             signedUrlPath="/api/payout-kyc/documents/signed-url"
             approveLabel="Approve payouts"
+            syncedBanking={selectedProfile.payoutBanking}
           />
         ) : (
           <p className="text-sm text-slate-500">Select a submission to review.</p>

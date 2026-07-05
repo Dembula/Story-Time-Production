@@ -26,3 +26,15 @@ export function appendPaymentRecordToReturnUrl(
     return base;
   }
 }
+
+/** Append card_saved=1 when redirecting back after PayFast card save/update. */
+export function appendCardSavedFlag(nextPath: string): string {
+  const path = nextPath.startsWith("/") ? nextPath : `/${nextPath}`;
+  const qIndex = path.indexOf("?");
+  const pathname = qIndex >= 0 ? path.slice(0, qIndex) : path;
+  const search = qIndex >= 0 ? path.slice(qIndex + 1) : "";
+  const params = new URLSearchParams(search);
+  params.set("card_saved", "1");
+  const query = params.toString();
+  return query ? `${pathname}?${query}` : `${pathname}?card_saved=1`;
+}

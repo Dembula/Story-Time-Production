@@ -288,8 +288,11 @@ export async function PATCH(
         status?: string;
         actorName?: string | null;
         actorEmail?: string | null;
+        actorPhone?: string | null;
+        agentName?: string | null;
         actorNotes?: string | null;
         salaryAmount?: number | null;
+        dailyRate?: number | null;
         salaryNotes?: string | null;
         markCast?: boolean;
         ageRange?: string | null;
@@ -390,6 +393,12 @@ export async function PATCH(
 
     if (body.actorName !== undefined) {
       const actorName = body.actorName?.trim() ?? "";
+      const contactLines = [
+        body.actorPhone?.trim() ? `Phone: ${body.actorPhone.trim()}` : null,
+        body.agentName?.trim() ? `Agent: ${body.agentName.trim()}` : null,
+        body.actorNotes?.trim() ?? null,
+      ].filter(Boolean);
+      const rosterNotes = contactLines.join("\n");
       const existingCast = await tx.creatorCastRoster.findFirst({
         where: {
           creatorId: access.userId!,
@@ -407,7 +416,7 @@ export async function PATCH(
             name: actorName,
             roleType: "Actor",
             contactEmail: body.actorEmail ?? existingCast.contactEmail,
-            notes: `${body.actorNotes ?? ""}\n[${marker}]`.trim(),
+            notes: `${rosterNotes}\n[${marker}]`.trim(),
           },
         });
       } else {
@@ -417,7 +426,19 @@ export async function PATCH(
             name: actorName,
             roleType: "Actor",
             contactEmail: body.actorEmail ?? null,
-            notes: `${body.actorNotes ?? ""}\n[${marker}]`.trim(),
+            notes: `${rosterNotes}\n[${marker}]`.trim(),
+          },
+        });
+      }
+    }
+
+    if (body.dailyRate !== undefined && body.dailyRate !== null && Number(body.dailyRate) > 0) {
+      const roleRow = await tx.castingRole.findUnique({ where: { id: body.id } });
+      if (roleRow) {
+        await tx.castingRole.update({
+          where: { id: body.id },
+          data: {
+            dailyRate: Number(body.dailyRate),
           },
         });
       }

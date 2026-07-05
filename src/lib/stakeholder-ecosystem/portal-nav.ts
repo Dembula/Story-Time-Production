@@ -51,6 +51,8 @@ export function portalFromRole(role: string): StakeholderPortalKey | null {
       return "catering-company";
     case "FUNDER":
       return "funders";
+    case "MUSIC_CREATOR":
+      return "music-creator";
     default:
       return null;
   }

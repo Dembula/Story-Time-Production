@@ -205,32 +205,30 @@ function MessagesContent() {
       .then((r) => r.json())
       .then((reqs) =>
         setRequests(
-          Array.isArray(reqs) ? reqs.filter((r: Request & { paymentTransactionId?: string | null }) => r.paymentTransactionId) : [],
+          Array.isArray(reqs) ? reqs : [],
         ),
       );
     fetch("/api/location-bookings")
       .then((r) => r.json())
       .then((bks) =>
         setBookings(
-          Array.isArray(bks) ? bks.filter((b: Booking & { paymentTransactionId?: string | null }) => b.paymentTransactionId) : [],
+          Array.isArray(bks) ? bks : [],
         ),
       );
     fetch("/api/crew-teams/requests")
       .then((r) => (r.ok ? r.json() : []))
       .then((rows) =>
-        setCrewRequests(Array.isArray(rows) ? rows.filter((row: { paymentTransactionId?: string | null }) => row.paymentTransactionId) : []),
+        setCrewRequests(Array.isArray(rows) ? rows : []),
       );
     fetch("/api/casting-agencies/inquiries")
       .then((r) => (r.ok ? r.json() : []))
       .then((rows) =>
-        setCastingInquiries(
-          Array.isArray(rows) ? rows.filter((row: { paymentTransactionId?: string | null }) => row.paymentTransactionId) : [],
-        ),
+        setCastingInquiries(Array.isArray(rows) ? rows : []),
       );
     fetch("/api/catering-bookings")
       .then((r) => r.json())
       .then((bks) => {
-        const list = Array.isArray(bks) ? bks.filter((b: CateringBooking) => b.paymentTransactionId) : [];
+        const list = Array.isArray(bks) ? bks : [];
         setCateringBookings(list);
         setLoading(false);
       });
@@ -485,7 +483,7 @@ function MessagesContent() {
         <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">Inbox</p>
         <h1 className="font-display text-2xl font-semibold tracking-tight text-white md:text-3xl">Messages</h1>
         <p className="mt-2 max-w-2xl text-sm text-slate-400 md:text-base">
-          Equipment, locations, crew, cast, catering, and direct messages — marketplace threads unlock after payment.
+          Equipment, locations, crew, cast, catering, and direct messages. Catering threads open when you request a booking; pay once your order is approved.
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
           {tabButtons.map(({ id, label, icon: Icon }) => (
@@ -551,7 +549,10 @@ function MessagesContent() {
             ) : tab === "catering" ? (
               filteredCatering.length === 0 ? (
                 <div className="storytime-empty-state m-4 p-6 text-center text-sm text-slate-500">
-                  No paid catering bookings. Pay for a booking in Catering to unlock messages.
+                  No catering bookings yet.{" "}
+                  <Link href="/creator/catering" className="text-orange-400 hover:text-orange-300">
+                    Browse caterers →
+                  </Link>
                 </div>
               ) : (
                 filteredCatering.map((b) => (

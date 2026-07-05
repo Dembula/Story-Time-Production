@@ -8,30 +8,23 @@ import { useEffect, useMemo, useState } from "react";
 
 import { ArrowLeft, FileText } from "lucide-react";
 
-
+import { formatZar } from "@/lib/format-currency-zar";
 
 type StakeholderContract = {
-
   id: string;
-
   type: string;
-
   status: string;
-
   subject: string | null;
-
   createdAt: string;
-
   signatureDeadline?: string | null;
-
+  hireAmount?: number | null;
+  paidAt?: string | null;
+  salaryPaid?: boolean;
+  receiptUrl?: string | null;
   project: { id: string; title: string | null } | null;
-
   versions: Array<{ version: number }>;
-
   signers: Array<{ label: string; status: string; signOrder: number }>;
-
   signatures: Array<{ name: string | null; signedAt: string }>;
-
 };
 
 
@@ -60,6 +53,7 @@ const ROLE_LABELS: Record<string, string> = {
 
   CATERING_COMPANY: "Catering",
 
+  MUSIC_CREATOR: "Music",
 };
 
 
@@ -255,16 +249,29 @@ export function StakeholderLegalDashboard({
                   <p className="mt-1 text-xs text-slate-400">{c.project?.title ?? "Production"}</p>
 
                   <p className="mt-1 text-[11px] text-slate-500">
-
                     v{c.versions[0]?.version ?? 1} · {new Date(c.createdAt).toLocaleDateString()}
-
                     {pendingSigners > 0 ? ` · ${pendingSigners} signer(s) pending` : ""}
-
+                    {c.salaryPaid && c.hireAmount ? ` · Paid ${formatZar(c.hireAmount)}` : ""}
                   </p>
-
+                  {c.salaryPaid && c.receiptUrl ? (
+                    <a
+                      href={c.receiptUrl}
+                      className="mt-2 inline-block text-[11px] text-emerald-400 hover:text-emerald-300"
+                    >
+                      Download payment receipt
+                    </a>
+                  ) : null}
                 </div>
-
-                <span className="rounded-full border border-slate-700 px-2 py-0.5 text-[10px] text-slate-300">{c.status}</span>
+                <div className="flex flex-col items-end gap-1 shrink-0">
+                  <span className="rounded-full border border-slate-700 px-2 py-0.5 text-[10px] text-slate-300">
+                    {c.status}
+                  </span>
+                  {c.salaryPaid ? (
+                    <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-200">
+                      Salary paid
+                    </span>
+                  ) : null}
+                </div>
 
               </div>
 
@@ -280,7 +287,7 @@ export function StakeholderLegalDashboard({
 
         Registered users can respond via{" "}
 
-        <Link href="/creator/legal/inbox" className="text-orange-400 hover:text-orange-300">
+        <Link href="/creator/pre/legal-contracts?tab=inbox" className="text-orange-400 hover:text-orange-300">
 
           Legal inbox
 

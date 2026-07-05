@@ -22,6 +22,7 @@ import { CreatorCateringClient } from "@/app/creator/catering/creator-catering-c
 import { mutationErrorMessage, projectToolFetch, projectToolQueryFn } from "@/lib/project-tool-fetch";
 import { ToolActionError } from "@/components/project-tools/tool-action-error";
 import { ExpenseTrackerStudio } from "@/components/expense/expense-tracker-studio";
+import { SecureFileLink } from "@/components/files/secure-file-link";
 import { DailiesReviewStudio } from "@/components/dailies";
 
 interface ProductionToolPageProps {
@@ -154,7 +155,7 @@ export default function ProductionToolPage({ params }: ProductionToolPageProps) 
           <header>
             <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
             <p className="mt-1 text-sm text-slate-400">
-              Browse catering companies with food galleries and per-head rates. Bookings are saved to your creator account for this production workflow.
+              Browse catering catalogs with photos and menus — rates appear on each caterer&apos;s profile when you expand a listing. Request a booking, message freely, and pay once approved.
             </p>
           </header>
           <Suspense fallback={<Skeleton className="h-40 w-full rounded-xl bg-slate-800/60" />}>
@@ -166,7 +167,7 @@ export default function ProductionToolPage({ params }: ProductionToolPageProps) 
               className="creator-glass-panel block p-4 transition hover:border-amber-400/35"
             >
               <h3 className="text-sm font-semibold text-white mb-1">Open full On-Set Catering</h3>
-              <p className="text-xs text-slate-400">Browse all caterers, manage bookings, and pay to unlock messaging.</p>
+              <p className="text-xs text-slate-400">Browse caterer catalogs, send free booking requests, and pay once your order is confirmed.</p>
             </Link>
           )}
         </div>
@@ -357,7 +358,7 @@ function OnSetTasks({ projectId, title }: { projectId?: string; title: string })
         <div>
           <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
           <p className="text-sm text-slate-400 mt-1">
-            Kanban for on-set tasks. Create tasks, move them through To do â†’ In progress â†’ Done. Tasks created from Risk, Table Reads, or Dailies can appear here.
+            Kanban for on-set tasks. Create tasks, move them through To do → In progress → Done. Tasks created from Risk, Table Reads, or Dailies can appear here.
           </p>
         </div>
         
@@ -411,7 +412,7 @@ function OnSetTasks({ projectId, title }: { projectId?: string; title: string })
               if (newTitle.trim()) createMutation.mutate();
             }}
           >
-            {createMutation.isPending ? "Addingâ€¦" : "Add task"}
+            {createMutation.isPending ? "Adding…" : "Add task"}
           </Button>
         </div>
         <div className="flex flex-wrap items-end gap-3 mt-3 pt-3 border-t border-slate-800">
@@ -441,7 +442,7 @@ function OnSetTasks({ projectId, title }: { projectId?: string; title: string })
               {scenesList.map((s) => (
                 <option key={s.id} value={s.id}>
                   Sc. {s.number}
-                  {s.heading ? ` â€” ${s.heading.slice(0, 24)}` : ""}
+                  {s.heading ? ` — ${s.heading.slice(0, 24)}` : ""}
                 </option>
               ))}
             </select>
@@ -678,12 +679,12 @@ function Column({
                   onClick={() => onDelete(t.id)}
                   aria-label="Delete task"
                 >
-                  Ã—
+                  ×
                 </Button>
               )}
               {onStatus && (
                 <Button size="sm" variant="ghost" className="text-xs text-slate-400 shrink-0" onClick={() => onStatus(t.id)}>
-                  â†’
+                  →
                 </Button>
               )}
             </div>
@@ -887,7 +888,7 @@ function EquipmentTracking({ projectId, title }: { projectId?: string; title: st
           <select value={dayFilter} onChange={(e) => setDayFilter(e.target.value)} className="h-9 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white">
             <option value="">All shoot days</option>
             {shootDays.map((d) => (
-              <option key={d.id} value={d.id}>{new Date(d.date).toLocaleDateString()} Â· {d.status}</option>
+              <option key={d.id} value={d.id}>{new Date(d.date).toLocaleDateString()} · {d.status}</option>
             ))}
           </select>
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-9 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white">
@@ -914,8 +915,8 @@ function EquipmentTracking({ projectId, title }: { projectId?: string; title: st
             <ul className="space-y-1">
               {daySnapshot.map((row) => (
                 <li key={`${row.id}-${row.status}`} className="rounded-lg border border-slate-800 bg-slate-900/70 px-2 py-1 text-xs text-slate-200">
-                  {row.category} Â· Qty {row.quantity} Â· {row.status.replaceAll("_", " ")}
-                  {row.assignedCrewName ? ` Â· ${row.assignedCrewName}` : ""}
+                  {row.category} · Qty {row.quantity} · {row.status.replaceAll("_", " ")}
+                  {row.assignedCrewName ? ` · ${row.assignedCrewName}` : ""}
                 </li>
               ))}
             </ul>
@@ -931,7 +932,7 @@ function EquipmentTracking({ projectId, title }: { projectId?: string; title: st
               {allDaysSnapshot.map(({ day, rows }) => (
                 <div key={day.id} className="rounded-lg border border-slate-800 bg-slate-900/60 p-2">
                   <p className="text-[11px] font-medium text-slate-200">
-                    {new Date(day.date).toLocaleDateString()} Â· {day.status}
+                    {new Date(day.date).toLocaleDateString()} · {day.status}
                   </p>
                   {rows.length === 0 ? (
                     <p className="text-[11px] text-slate-500 mt-1">No equipment assigned.</p>
@@ -939,8 +940,8 @@ function EquipmentTracking({ projectId, title }: { projectId?: string; title: st
                     <ul className="space-y-1 mt-1">
                       {rows.map((row) => (
                         <li key={`${day.id}-${row.id}-${row.status}`} className="rounded border border-slate-800 bg-slate-900/70 px-2 py-1 text-[11px] text-slate-200">
-                          {row.category} Â· Qty {row.quantity} Â· {row.status.replaceAll("_", " ")}
-                          {row.assignedCrewName ? ` Â· ${row.assignedCrewName}` : ""}
+                          {row.category} · Qty {row.quantity} · {row.status.replaceAll("_", " ")}
+                          {row.assignedCrewName ? ` · ${row.assignedCrewName}` : ""}
                         </li>
                       ))}
                     </ul>
@@ -966,7 +967,7 @@ function EquipmentTracking({ projectId, title }: { projectId?: string; title: st
                   href={`/creator/projects/${projectId}/pre-production/equipment-planning`}
                   className="text-xs text-orange-400 hover:underline"
                 >
-                  Add equipment in Pre-Production Equipment Planning â†’
+                  Add equipment in Pre-Production Equipment Planning →
                 </Link>
               )}
             </div>
@@ -981,10 +982,10 @@ function EquipmentTracking({ projectId, title }: { projectId?: string; title: st
                         <span className="text-white">{i.category}</span>
                         {i.description && <p className="text-[11px] text-slate-500 mt-0.5">{i.description}</p>}
                         <p className="text-[11px] text-slate-400 mt-0.5">
-                          Tag {i.tracking.uniqueTag || "â€”"} Â· Provider {i.tracking.ownerProviderName || i.equipmentListing?.companyName || "â€”"} Â· Daily rate {formatZar(Math.round(i.market?.dailyRate ?? 0), { maximumFractionDigits: 0 })}
+                          Tag {i.tracking.uniqueTag || "—"} · Provider {i.tracking.ownerProviderName || i.equipmentListing?.companyName || "—"} · Daily rate {formatZar(Math.round(i.market?.dailyRate ?? 0), { maximumFractionDigits: 0 })}
                         </p>
                         <p className="text-[11px] text-slate-400">
-                          Assigned crew {i.tracking.assignedCrewName || "Unassigned"} Â· Open issues {i.tracking.openIssueCount}
+                          Assigned crew {i.tracking.assignedCrewName || "Unassigned"} · Open issues {i.tracking.openIssueCount}
                         </p>
                       </div>
                       <div className="mt-2 flex flex-wrap items-center gap-1">
@@ -1087,8 +1088,8 @@ function EquipmentTracking({ projectId, title }: { projectId?: string; title: st
                             <ul className="space-y-1 mt-2">
                               {i.tracking.issues.slice().reverse().slice(0, 5).map((issue) => (
                                 <li key={issue.id} className="rounded border border-slate-800 bg-slate-900/60 px-2 py-1 text-[11px] text-slate-300">
-                                  [{issue.severity}] {issue.type.replaceAll("_", " ")} â€” {issue.description}
-                                  <span className="text-slate-500"> Â· {new Date(issue.createdAt).toLocaleString()}</span>
+                                  [{issue.severity}] {issue.type.replaceAll("_", " ")} — {issue.description}
+                                  <span className="text-slate-500"> · {new Date(issue.createdAt).toLocaleString()}</span>
                                   {issue.status === "OPEN" && (
                                     <button
                                       type="button"
@@ -1190,9 +1191,12 @@ function EquipmentTracking({ projectId, title }: { projectId?: string; title: st
                           </div>
                           {checklistDrafts[i.id]?.photoUrl ? (
                             <div className="mt-2 flex items-center gap-2">
-                              <a href={checklistDrafts[i.id]?.photoUrl ?? "#"} target="_blank" rel="noreferrer" className="text-[11px] text-orange-300 hover:underline">
-                                View uploaded proof
-                              </a>
+                              <SecureFileLink
+                                fileRef={checklistDrafts[i.id]!.photoUrl!}
+                                label="View uploaded proof"
+                                projectId={projectId}
+                                className="text-[11px] text-orange-300 hover:underline"
+                              />
                               <span className="text-[11px] text-slate-500">saved with checklist entry</span>
                             </div>
                           ) : null}
@@ -1200,12 +1204,15 @@ function EquipmentTracking({ projectId, title }: { projectId?: string; title: st
                             <ul className="space-y-1 mt-2">
                               {i.tracking.checklistEntries.slice().reverse().slice(0, 4).map((entry) => (
                                 <li key={entry.id} className="rounded border border-slate-800 bg-slate-900/60 px-2 py-1 text-[11px] text-slate-300">
-                                  {entry.physicallyPresent ? "Present" : "Missing"} Â· {entry.label}
-                                  <span className="text-slate-500"> Â· {new Date(entry.checkedAt).toLocaleString()}</span>
+                                  {entry.physicallyPresent ? "Present" : "Missing"} · {entry.label}
+                                  <span className="text-slate-500"> · {new Date(entry.checkedAt).toLocaleString()}</span>
                                   {entry.photoUrl ? (
-                                    <a href={entry.photoUrl} target="_blank" rel="noreferrer" className="ml-2 text-orange-300 hover:underline">
-                                      Proof photo
-                                    </a>
+                                    <SecureFileLink
+                                      fileRef={entry.photoUrl}
+                                      label="Proof photo"
+                                      projectId={projectId}
+                                      className="ml-2 text-[11px] text-orange-300 hover:underline"
+                                    />
                                   ) : null}
                                 </li>
                               ))}
@@ -1217,7 +1224,7 @@ function EquipmentTracking({ projectId, title }: { projectId?: string; title: st
                       </div>
                       {i.tracking.movementLogs.length > 0 && (
                         <p className="text-[11px] text-slate-500 mt-2">
-                          Last movement: {i.tracking.movementLogs[i.tracking.movementLogs.length - 1]?.event.replaceAll("_", " ")} Â·{" "}
+                          Last movement: {i.tracking.movementLogs[i.tracking.movementLogs.length - 1]?.event.replaceAll("_", " ")} ·{" "}
                           {new Date(i.tracking.movementLogs[i.tracking.movementLogs.length - 1]?.at || Date.now()).toLocaleString()}
                         </p>
                       )}
@@ -1941,11 +1948,11 @@ function ContinuityManager({ projectId, title }: { projectId?: string; title: st
         <div className="grid gap-2 md:grid-cols-4">
           <select value={sceneFilter} onChange={(e) => setSceneFilter(e.target.value)} className="h-9 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white">
             <option value="">All scenes</option>
-            {scenes.map((s) => <option key={s.id} value={s.id}>Scene {s.number}{s.heading ? ` Â· ${s.heading}` : ""}</option>)}
+            {scenes.map((s) => <option key={s.id} value={s.id}>Scene {s.number}{s.heading ? ` · ${s.heading}` : ""}</option>)}
           </select>
           <select value={dayFilter} onChange={(e) => setDayFilter(e.target.value)} className="h-9 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white">
             <option value="">All shoot days</option>
-            {shootDays.map((d) => <option key={d.id} value={d.id}>{new Date(d.date).toLocaleDateString()} Â· {d.status}</option>)}
+            {shootDays.map((d) => <option key={d.id} value={d.id}>{new Date(d.date).toLocaleDateString()} · {d.status}</option>)}
           </select>
           <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="h-9 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white">
             <option value="">All categories</option>
@@ -2038,17 +2045,17 @@ function ContinuityManager({ projectId, title }: { projectId?: string; title: st
                   return (
                     <div key={scene.id} className="rounded-lg border border-slate-800 bg-slate-900/60 p-2">
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="text-sm text-white">Scene {scene.number}{scene.heading ? ` Â· ${scene.heading}` : ""}</p>
-                        <span className="text-[11px] text-slate-400">{scene.intExt ?? "â€”"} Â· {scene.dayNight ?? "â€”"} Â· {list.length} notes</span>
+                        <p className="text-sm text-white">Scene {scene.number}{scene.heading ? ` · ${scene.heading}` : ""}</p>
+                        <span className="text-[11px] text-slate-400">{scene.intExt ?? "—"} · {scene.dayNight ?? "—"} · {list.length} notes</span>
                       </div>
-                      <p className="text-[11px] text-slate-500">Characters: {scene.characters.map((c) => c.name).join(", ") || "â€”"}</p>
+                      <p className="text-[11px] text-slate-500">Characters: {scene.characters.map((c) => c.name).join(", ") || "—"}</p>
                       {list.length > 0 ? (
                         <div className="mt-2 grid gap-2 md:grid-cols-2">
                           {list.slice(0, 6).map((n) => (
                             <div key={n.id} className={`rounded border px-2 py-1.5 text-[11px] ${flags.inconsistentNoteIds?.includes(n.id) ? "border-red-600/60 bg-red-950/20" : "border-slate-800 bg-slate-900/80"}`}>
-                              <p className="text-slate-300">[{n.meta.category.replaceAll("_"," ")}]{n.meta.takeNumber ? ` Take ${n.meta.takeNumber}` : ""} {n.meta.takeStatus ? `Â· ${n.meta.takeStatus}` : ""}</p>
+                              <p className="text-slate-300">[{n.meta.category.replaceAll("_"," ")}]{n.meta.takeNumber ? ` Take ${n.meta.takeNumber}` : ""} {n.meta.takeStatus ? `· ${n.meta.takeStatus}` : ""}</p>
                               <p className="text-slate-200 mt-0.5">{n.body}</p>
-                              <p className="text-slate-500 mt-0.5">{new Date(n.createdAt).toLocaleString()} Â· {n.createdBy?.name ?? n.createdBy?.email ?? "Unknown"}</p>
+                              <p className="text-slate-500 mt-0.5">{new Date(n.createdAt).toLocaleString()} · {n.createdBy?.name ?? n.createdBy?.email ?? "Unknown"}</p>
                               {(n.meta.linkedImageUrls.length > 0 || n.meta.linkedVideoUrls.length > 0) && (
                                 <div className="mt-1 flex flex-wrap gap-1">
                                   {n.meta.linkedImageUrls.slice(0, 3).map((url, idx) => (
@@ -2096,11 +2103,11 @@ function ContinuityManager({ projectId, title }: { projectId?: string; title: st
             <p className="text-xs text-slate-400 uppercase tracking-wide">Side-by-side compare</p>
             <select value={compareLeftId} onChange={(e) => setCompareLeftId(e.target.value)} className="h-9 w-full rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white">
               <option value="">Previous reference</option>
-              {notes.map((n) => <option key={`L-${n.id}`} value={n.id}>S{n.scene?.number ?? "?"} Â· {n.meta.category} Â· {new Date(n.createdAt).toLocaleDateString()}</option>)}
+              {notes.map((n) => <option key={`L-${n.id}`} value={n.id}>S{n.scene?.number ?? "?"} · {n.meta.category} · {new Date(n.createdAt).toLocaleDateString()}</option>)}
             </select>
             <select value={compareRightId} onChange={(e) => setCompareRightId(e.target.value)} className="h-9 w-full rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-white">
               <option value="">Current capture</option>
-              {notes.map((n) => <option key={`R-${n.id}`} value={n.id}>S{n.scene?.number ?? "?"} Â· {n.meta.category} Â· {new Date(n.createdAt).toLocaleDateString()}</option>)}
+              {notes.map((n) => <option key={`R-${n.id}`} value={n.id}>S{n.scene?.number ?? "?"} · {n.meta.category} · {new Date(n.createdAt).toLocaleDateString()}</option>)}
             </select>
             {compare?.left && compare?.right ? (
               <div className="grid grid-cols-2 gap-2">
@@ -2123,7 +2130,7 @@ function ContinuityManager({ projectId, title }: { projectId?: string; title: st
                   )}
                 </div>
                 <div className="col-span-2 rounded border border-slate-800 bg-slate-900/70 p-2 text-[11px] text-slate-300">
-                  {compare.left.meta.category} â†’ {compare.right.meta.category} Â· Take {compare.left.meta.takeNumber ?? "â€”"} â†’ {compare.right.meta.takeNumber ?? "â€”"}
+                  {compare.left.meta.category} → {compare.right.meta.category} · Take {compare.left.meta.takeNumber ?? "—"} → {compare.right.meta.takeNumber ?? "—"}
                 </div>
               </div>
             ) : (
@@ -2332,7 +2339,7 @@ function IncidentReporting({ projectId, title }: { projectId?: string; title: st
       {hasProject && projectId ? (
         <div className="flex flex-wrap gap-3 text-xs">
           <Link href={`/api/creator/projects/${projectId}/incidents?format=csv`} className="text-slate-400 hover:text-slate-200">
-            Export incident log CSV â†’
+            Export incident log CSV →
           </Link>
         </div>
       ) : null}
@@ -2444,8 +2451,8 @@ function IncidentReporting({ projectId, title }: { projectId?: string; title: st
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-sm font-medium text-white">{i.title}</p>
-                  <p className="text-xs text-slate-200">{i.category.replaceAll("_", " ")} Â· {i.severity} Â· {i.meta.priority} Â· {i.meta.status.replaceAll("_", " ")}</p>
-                  <p className="text-[11px] text-slate-400 mt-1">{new Date(i.meta.occurredAt || i.createdAt).toLocaleString()} Â· {i.location ?? "Location not set"}</p>
+                  <p className="text-xs text-slate-200">{i.category.replaceAll("_", " ")} · {i.severity} · {i.meta.priority} · {i.meta.status.replaceAll("_", " ")}</p>
+                  <p className="text-[11px] text-slate-400 mt-1">{new Date(i.meta.occurredAt || i.createdAt).toLocaleString()} · {i.location ?? "Location not set"}</p>
                 </div>
                 <div className="flex flex-wrap gap-1">
                   <Button size="sm" variant="outline" className="h-6 px-2 text-[10px]" onClick={() => patchMutation.mutate({ id: i.id, status: "IN_PROGRESS", timelineEvent: { action: "STATUS_SET_IN_PROGRESS" } })}>In progress</Button>
@@ -2463,7 +2470,7 @@ function IncidentReporting({ projectId, title }: { projectId?: string; title: st
                 <div className="mt-2">
                   <p className="text-[11px] uppercase tracking-wide text-slate-400">Action steps</p>
                   {i.meta.actionSteps.slice(0, 4).map((step, idx) => (
-                    <p key={`${i.id}-step-${idx}`} className="text-[11px] text-slate-200">â€¢ {step}</p>
+                    <p key={`${i.id}-step-${idx}`} className="text-[11px] text-slate-200">• {step}</p>
                   ))}
                 </div>
               ) : null}
@@ -2473,7 +2480,7 @@ function IncidentReporting({ projectId, title }: { projectId?: string; title: st
                   <div className="max-h-24 overflow-y-auto pr-1 space-y-1 mt-1">
                     {(i.meta.timeline ?? []).slice(-5).reverse().map((event, idx) => (
                       <p key={`${i.id}-event-${idx}`} className="text-[11px] text-slate-300">
-                        {new Date(event.at).toLocaleString()} Â· {event.action.replaceAll("_", " ")}
+                        {new Date(event.at).toLocaleString()} · {event.action.replaceAll("_", " ")}
                       </p>
                     ))}
                   </div>
@@ -2481,8 +2488,8 @@ function IncidentReporting({ projectId, title }: { projectId?: string; title: st
                 <div>
                   <p className="text-[11px] uppercase tracking-wide text-slate-400">Resolution</p>
                   <p className="text-[11px] text-slate-200 mt-1">
-                    Owner: {i.resolutionOwner?.name ?? i.resolutionOwner?.email ?? "Unassigned"} Â·
-                    {" "}Time to resolve: {i.meta.timeToResolveMinutes != null ? `${i.meta.timeToResolveMinutes} min` : "â€”"}
+                    Owner: {i.resolutionOwner?.name ?? i.resolutionOwner?.email ?? "Unassigned"} ·
+                    {" "}Time to resolve: {i.meta.timeToResolveMinutes != null ? `${i.meta.timeToResolveMinutes} min` : "—"}
                   </p>
                   {i.meta.resolutionNotes ? <p className="text-[11px] text-slate-300 mt-1">{i.meta.resolutionNotes}</p> : null}
                 </div>
@@ -2606,7 +2613,7 @@ function ProductionWrap({ projectId, title }: { projectId?: string; title: strin
                 {checklist.map((item) => (
                   <div key={item.key} className={`rounded-lg border px-3 py-2 ${item.pass ? "border-emerald-500/40 bg-emerald-950/15" : "border-red-500/40 bg-red-950/20"}`}>
                     <p className="text-sm font-medium text-white">
-                      {item.pass ? "PASS" : "FAIL"} Â· {item.label}
+                      {item.pass ? "PASS" : "FAIL"} · {item.label}
                     </p>
                     <p className="text-xs text-slate-300 mt-1">{item.detail}</p>
                   </div>

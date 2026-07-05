@@ -5,6 +5,8 @@ import Link from "next/link";
 import { Users, Plus, Trash2, ArrowLeft, FileText, Film, Upload } from "lucide-react";
 import { readCastingApiJson } from "@/lib/casting-agency-client";
 import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
+import { SecureFileLink } from "@/components/files/secure-file-link";
+import { SecureImage } from "@/components/files/secure-image";
 
 type TalentRow = {
   id: string;
@@ -29,7 +31,40 @@ export default function CastingAgencyTalentPage() {
   const [talent, setTalent] = useState<TalentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: "", bio: "", cvUrl: "", headshotUrl: "", ageRange: "", skills: "", pastWork: "", reelUrl: "" });
+  const [form, setForm] = useState({
+    name: "",
+    bio: "",
+    cvUrl: "",
+    headshotUrl: "",
+    ageRange: "",
+    skills: "",
+    pastWork: "",
+    reelUrl: "",
+    contactEmail: "",
+    ethnicity: "",
+    gender: "",
+    agencyCommissionPercent: "",
+    representationType: "NON_EXCLUSIVE",
+    profile: {
+      location: "",
+      experienceLevel: "",
+      dailyRate: "",
+      projectRate: "",
+      hourlyRate: "",
+      weeklyRate: "",
+      availability: "",
+      availabilityStatus: "AVAILABLE",
+      phone: "",
+      agentName: "",
+      unionStatus: "",
+      height: "",
+      eyeColor: "",
+      hairColor: "",
+      languages: "",
+      travelWillingness: "",
+      portfolioUrl: "",
+    },
+  });
   const [uploadingHeadshot, setUploadingHeadshot] = useState(false);
   const [uploadingCv, setUploadingCv] = useState(false);
   const [uploadingReel, setUploadingReel] = useState(false);
@@ -48,12 +83,86 @@ export default function CastingAgencyTalentPage() {
   async function addTalent() {
     if (!form.name.trim()) return;
     setError("");
-    const res = await fetch("/api/casting-agency/talent", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+    const profile = {
+      location: form.profile.location || null,
+      experienceLevel: form.profile.experienceLevel || null,
+      dailyRate: form.profile.dailyRate ? Number(form.profile.dailyRate) : null,
+      projectRate: form.profile.projectRate ? Number(form.profile.projectRate) : null,
+      hourlyRate: form.profile.hourlyRate ? Number(form.profile.hourlyRate) : null,
+      weeklyRate: form.profile.weeklyRate ? Number(form.profile.weeklyRate) : null,
+      availability: form.profile.availability || null,
+      availabilityStatus: form.profile.availabilityStatus || null,
+      phone: form.profile.phone || null,
+      contactEmail: form.contactEmail || null,
+      agentName: form.profile.agentName || null,
+      unionStatus: form.profile.unionStatus || null,
+      height: form.profile.height || null,
+      eyeColor: form.profile.eyeColor || null,
+      hairColor: form.profile.hairColor || null,
+      ethnicity: form.ethnicity || null,
+      gender: form.gender || null,
+      languages: form.profile.languages.split(",").map((s) => s.trim()).filter(Boolean),
+      travelWillingness: form.profile.travelWillingness || null,
+      portfolioUrl: form.profile.portfolioUrl || null,
+    };
+    const res = await fetch("/api/casting-agency/talent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: form.name,
+        bio: form.bio,
+        cvUrl: form.cvUrl,
+        headshotUrl: form.headshotUrl,
+        ageRange: form.ageRange,
+        skills: form.skills,
+        pastWork: form.pastWork,
+        reelUrl: form.reelUrl,
+        contactEmail: form.contactEmail || null,
+        ethnicity: form.ethnicity || null,
+        gender: form.gender || null,
+        agencyCommissionPercent: form.agencyCommissionPercent ? Number(form.agencyCommissionPercent) : null,
+        representationType: form.representationType,
+        profile,
+      }),
+    });
     const { data: t, error: postErr } = await readCastingApiJson<TalentRow>(res);
     if (postErr) setError(postErr);
     else if (t) {
       setTalent((prev) => [t, ...prev]);
-      setForm({ name: "", bio: "", cvUrl: "", headshotUrl: "", ageRange: "", skills: "", pastWork: "", reelUrl: "" });
+      setForm({
+        name: "",
+        bio: "",
+        cvUrl: "",
+        headshotUrl: "",
+        ageRange: "",
+        skills: "",
+        pastWork: "",
+        reelUrl: "",
+        contactEmail: "",
+        ethnicity: "",
+        gender: "",
+        agencyCommissionPercent: "",
+        representationType: "NON_EXCLUSIVE",
+        profile: {
+          location: "",
+          experienceLevel: "",
+          dailyRate: "",
+          projectRate: "",
+          hourlyRate: "",
+          weeklyRate: "",
+          availability: "",
+          availabilityStatus: "AVAILABLE",
+          phone: "",
+          agentName: "",
+          unionStatus: "",
+          height: "",
+          eyeColor: "",
+          hairColor: "",
+          languages: "",
+          travelWillingness: "",
+          portfolioUrl: "",
+        },
+      });
       setShowForm(false);
     }
   }
@@ -108,12 +217,40 @@ export default function CastingAgencyTalentPage() {
         <div className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{error}</div>
       )}
       {showForm && (
-        <div className="mb-6 p-6 rounded-2xl bg-slate-800/50 border border-slate-600 space-y-3">
-          <input placeholder="Name *" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm" />
-          <textarea placeholder="Bio" value={form.bio} onChange={(e) => setForm((f) => ({ ...f, bio: e.target.value }))} rows={2} className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm resize-none" />
-          <input placeholder="Age range" value={form.ageRange} onChange={(e) => setForm((f) => ({ ...f, ageRange: e.target.value }))} className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm" />
-          <input placeholder="Skills" value={form.skills} onChange={(e) => setForm((f) => ({ ...f, skills: e.target.value }))} className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm" />
-          <textarea placeholder="Past work" value={form.pastWork} onChange={(e) => setForm((f) => ({ ...f, pastWork: e.target.value }))} rows={2} className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm resize-none" />
+        <div className="mb-6 p-6 storytime-plan-card space-y-4">
+          <p className="text-xs text-slate-400">Complete profiles help creators compare rates, availability, and experience when browsing your roster.</p>
+          <div className="grid gap-3 md:grid-cols-2">
+            <input placeholder="Full name *" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm" />
+            <input placeholder="Contact email" value={form.contactEmail} onChange={(e) => setForm((f) => ({ ...f, contactEmail: e.target.value }))} className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm" />
+            <input placeholder="Age range" value={form.ageRange} onChange={(e) => setForm((f) => ({ ...f, ageRange: e.target.value }))} className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm" />
+            <input placeholder="Gender" value={form.gender} onChange={(e) => setForm((f) => ({ ...f, gender: e.target.value }))} className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm" />
+            <input placeholder="Ethnicity / look" value={form.ethnicity} onChange={(e) => setForm((f) => ({ ...f, ethnicity: e.target.value }))} className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm" />
+            <input placeholder="Location" value={form.profile.location} onChange={(e) => setForm((f) => ({ ...f, profile: { ...f.profile, location: e.target.value } }))} className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm" />
+            <input placeholder="Day rate (ZAR)" value={form.profile.dailyRate} onChange={(e) => setForm((f) => ({ ...f, profile: { ...f.profile, dailyRate: e.target.value } }))} className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm" />
+            <input placeholder="Project / buyout rate (ZAR)" value={form.profile.projectRate} onChange={(e) => setForm((f) => ({ ...f, profile: { ...f.profile, projectRate: e.target.value } }))} className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm" />
+            <input placeholder="Hourly rate (ZAR)" value={form.profile.hourlyRate} onChange={(e) => setForm((f) => ({ ...f, profile: { ...f.profile, hourlyRate: e.target.value } }))} className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm" />
+            <input placeholder="Weekly rate (ZAR)" value={form.profile.weeklyRate} onChange={(e) => setForm((f) => ({ ...f, profile: { ...f.profile, weeklyRate: e.target.value } }))} className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm" />
+            <input placeholder="Agency commission %" value={form.agencyCommissionPercent} onChange={(e) => setForm((f) => ({ ...f, agencyCommissionPercent: e.target.value }))} className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm" />
+            <select value={form.representationType} onChange={(e) => setForm((f) => ({ ...f, representationType: e.target.value }))} className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm">
+              <option value="EXCLUSIVE">Exclusive</option>
+              <option value="NON_EXCLUSIVE">Non-exclusive</option>
+              <option value="FREELANCE">Freelance</option>
+            </select>
+            <input placeholder="Experience level" value={form.profile.experienceLevel} onChange={(e) => setForm((f) => ({ ...f, profile: { ...f.profile, experienceLevel: e.target.value } }))} className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm" />
+            <input placeholder="Union status" value={form.profile.unionStatus} onChange={(e) => setForm((f) => ({ ...f, profile: { ...f.profile, unionStatus: e.target.value } }))} className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm" />
+            <input placeholder="Phone / WhatsApp" value={form.profile.phone} onChange={(e) => setForm((f) => ({ ...f, profile: { ...f.profile, phone: e.target.value } }))} className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm" />
+            <input placeholder="Agent name" value={form.profile.agentName} onChange={(e) => setForm((f) => ({ ...f, profile: { ...f.profile, agentName: e.target.value } }))} className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm" />
+            <input placeholder="Height" value={form.profile.height} onChange={(e) => setForm((f) => ({ ...f, profile: { ...f.profile, height: e.target.value } }))} className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm" />
+            <input placeholder="Eye / hair colour" value={`${form.profile.eyeColor}${form.profile.hairColor ? ` / ${form.profile.hairColor}` : ""}`} onChange={(e) => {
+              const [eye, hair] = e.target.value.split("/").map((s) => s.trim());
+              setForm((f) => ({ ...f, profile: { ...f.profile, eyeColor: eye ?? "", hairColor: hair ?? "" } }));
+            }} className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm" />
+            <input placeholder="Languages (comma-separated)" value={form.profile.languages} onChange={(e) => setForm((f) => ({ ...f, profile: { ...f.profile, languages: e.target.value } }))} className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm md:col-span-2" />
+            <input placeholder="Skills (comma-separated)" value={form.skills} onChange={(e) => setForm((f) => ({ ...f, skills: e.target.value }))} className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm md:col-span-2" />
+          </div>
+          <textarea placeholder="Bio / special skills summary" value={form.bio} onChange={(e) => setForm((f) => ({ ...f, bio: e.target.value }))} rows={2} className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm resize-none" />
+          <textarea placeholder="Past work / credits" value={form.pastWork} onChange={(e) => setForm((f) => ({ ...f, pastWork: e.target.value }))} rows={2} className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm resize-none" />
+          <input placeholder="Availability notes" value={form.profile.availability} onChange={(e) => setForm((f) => ({ ...f, profile: { ...f.profile, availability: e.target.value } }))} className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm" />
           <div className="flex flex-col gap-1">
             <span className="text-xs text-slate-500">CV (PDF)</span>
             <div className="flex flex-wrap items-center gap-2">
@@ -144,14 +281,14 @@ export default function CastingAgencyTalentPage() {
               <input placeholder="Or paste reel / Vimeo link" value={form.reelUrl} onChange={(e) => setForm((f) => ({ ...f, reelUrl: e.target.value }))} className="flex-1 min-w-0 px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm" />
             </div>
           </div>
-          <div className="flex gap-2"><button onClick={addTalent} disabled={!form.name.trim()} className="px-4 py-2 rounded-lg bg-violet-500 text-white text-sm font-medium disabled:opacity-50">Save</button><button onClick={() => setShowForm(false)} className="px-4 py-2 rounded-lg bg-slate-700 text-slate-300 text-sm">Cancel</button></div>
+          <div className="flex gap-2"><button onClick={addTalent} disabled={!form.name.trim()} className="px-4 py-2 rounded-lg bg-orange-500 text-white text-sm font-medium disabled:opacity-50">Save talent profile</button><button onClick={() => setShowForm(false)} className="px-4 py-2 rounded-lg bg-slate-700 text-slate-300 text-sm">Cancel</button></div>
         </div>
       )}
-      {talent.length === 0 && !showForm ? <div className="rounded-2xl bg-slate-800/30 border border-slate-700/50 p-8 text-center text-slate-500">No talent yet.</div> : (
+      {talent.length === 0 && !showForm ? <div className="storytime-plan-card p-8 text-center text-slate-500">No talent yet.</div> : (
         <div className="space-y-4">
           {talent.map((t) => (
-            <div key={t.id} className="p-5 rounded-2xl bg-slate-800/30 border border-slate-700/50 flex gap-4">
-              {t.headshotUrl && <img src={t.headshotUrl} alt="" className="w-20 h-20 rounded-lg object-cover" />}
+            <div key={t.id} className="p-5 storytime-plan-card flex gap-4">
+              {t.headshotUrl ? <SecureImage fileRef={t.headshotUrl} alt="" className="w-20 h-20 rounded-lg object-cover" /> : null}
               <div className="flex-1 min-w-0">
                 <Link href={`/casting-agency/talent/${t.id}`} className="font-semibold text-white hover:text-violet-300">
                   {t.name}
@@ -163,8 +300,8 @@ export default function CastingAgencyTalentPage() {
                 {t.pastWork && <p className="text-xs text-slate-500 mt-1 line-clamp-2">{t.pastWork}</p>}
                 <div className="flex gap-3 mt-2">
                   <Link href={`/casting-agency/talent/${t.id}`} className="text-xs text-violet-400">Manage profile →</Link>
-                  {t.cvUrl && <a href={t.cvUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-orange-400 flex items-center gap-1"><FileText className="w-3 h-3" /> CV</a>}
-                  {t.reelUrl && <a href={t.reelUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-orange-400 flex items-center gap-1"><Film className="w-3 h-3" /> Reel</a>}
+                  {t.cvUrl && <SecureFileLink fileRef={t.cvUrl} label="CV" />}
+                  {t.reelUrl && <SecureFileLink fileRef={t.reelUrl} label="Reel" />}
                 </div>
               </div>
               <button onClick={() => deleteTalent(t.id)} className="p-2 rounded-lg text-slate-400 hover:text-red-400 h-fit"><Trash2 className="w-4 h-4" /></button>

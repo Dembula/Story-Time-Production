@@ -5,6 +5,8 @@ import Link from "next/link";
 import { ArrowLeft, Calendar, Plus, Trash2 } from "lucide-react";
 import { readCastingApiJson } from "@/lib/casting-agency-client";
 import { OpsPageHeader, OpsSection } from "@/components/ecosystem/ops-shell";
+import { SecureImage } from "@/components/files/secure-image";
+import { SecureFileLink } from "@/components/files/secure-file-link";
 
 type Block = {
   id: string;
@@ -162,7 +164,7 @@ export default function CastingAgencyAvailabilityPage() {
             >
               <div className="flex items-center gap-3">
                 {t.headshotUrl ? (
-                  <img src={t.headshotUrl} alt="" className="h-12 w-12 rounded-lg object-cover" />
+                  <SecureImage fileRef={t.headshotUrl} alt="" className="h-12 w-12 rounded-lg object-cover" />
                 ) : (
                   <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-slate-700 text-slate-400">
                     <Calendar className="h-5 w-5" />

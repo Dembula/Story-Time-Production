@@ -54,9 +54,8 @@ export async function buildContractResourceContext(
         orderBy: { createdAt: "asc" },
         include: {
           invitations: {
-            where: { status: "ACCEPTED" },
-            orderBy: { respondedAt: "desc" },
-            take: 1,
+            orderBy: { createdAt: "desc" },
+            take: 3,
             include: {
               talent: { include: { castingAgency: true } },
               castingAgency: true,
@@ -69,9 +68,8 @@ export async function buildContractResourceContext(
         orderBy: { createdAt: "asc" },
         include: {
           invitations: {
-            where: { status: "ACCEPTED" },
-            orderBy: { respondedAt: "desc" },
-            take: 1,
+            orderBy: { createdAt: "desc" },
+            take: 3,
             include: {
               crewTeam: { select: { id: true, companyName: true, userId: true } },
               crewMember: { select: { id: true, name: true } },
@@ -143,8 +141,9 @@ export async function buildContractResourceContext(
     if (normalized) salaryByRoleName.set(normalized, amount);
   }
 
-  const actorResources: ContractResourceOption[] = actorRoles.map((role) => {
-    const accepted = role.invitations[0];
+  const actorResources: ContractResourceOption[] = actorRoles.flatMap((role) => {
+    const invites = role.invitations.length > 0 ? role.invitations : [null];
+    return invites.map((accepted, idx) => {
     const talent = accepted?.talent ?? null;
     const agency = accepted?.castingAgency ?? talent?.castingAgency ?? null;
     const marker = `${ROLE_LINK_MARKER_PREFIX}${role.id}`;
@@ -153,11 +152,17 @@ export async function buildContractResourceContext(
     const roleKey = role.name.trim().toLowerCase();
     const salaryFromBudget =
       budgetLine?.unitCost ?? budgetLine?.total ?? salaryByRoleName.get(roleKey) ?? null;
-    const dailyFromTalent = Number(talentMeta?.meta?.dailyRate ?? 0);
+    const dailyFromTalent = Number(talentMeta?.meta?.dailyRate ?? role.dailyRate ?? 0);
     const rateAmount = salaryFromBudget ?? (dailyFromTalent > 0 ? dailyFromTalent : null);
+    const inviteSuffix =
+      accepted?.status && accepted.status !== "ACCEPTED"
+        ? ` · ${accepted.status.toLowerCase()}`
+        : accepted
+          ? ""
+          : " · (assign performer)";
 
     return {
-      id: role.id,
+      id: idx === 0 ? role.id : `${role.id}:${accepted?.id ?? "open"}`,
       kind: "ACTOR",
       partyName: talent?.name ?? "",
       partyType: agency?.agencyName ? "COMPANY" : "INDIVIDUAL",
@@ -176,8 +181,9 @@ export async function buildContractResourceContext(
       crewTeamId: null,
       locationListingId: null,
       vendorName: agency?.agencyName ?? null,
-      label: `${role.name}${talent?.name ? ` · ${talent.name}` : " · (assign performer)"}`,
+      label: `${role.name}${talent?.name ? ` · ${talent.name}` : ""}${agency?.agencyName ? ` (${agency.agencyName})` : ""}${inviteSuffix}`,
     };
+  });
   });
 
   const creatorCrew = await prisma.creatorCrewRoster.findMany({
@@ -185,16 +191,23 @@ export async function buildContractResourceContext(
     orderBy: { updatedAt: "desc" },
   });
 
-  const crewResources: ContractResourceOption[] = crewNeeds.map((need) => {
+  const crewResources: ContractResourceOption[] = crewNeeds.flatMap((need) => {
+    const invites = need.invitations.length > 0 ? need.invitations : [null];
+    return invites.map((acceptedInvite, idx) => {
     const marker = `${NEED_LINK_MARKER_PREFIX}${need.id}`;
     const budgetLine = budget?.lines.find((l) => (l.notes ?? "").includes(marker));
     const roster = creatorCrew.find((m) => (m.notes ?? "").includes(marker));
-    const acceptedInvite = need.invitations[0];
     const team = acceptedInvite?.crewTeam ?? null;
     const member = acceptedInvite?.crewMember ?? null;
+    const inviteSuffix =
+      acceptedInvite?.status && acceptedInvite.status !== "ACCEPTED"
+        ? ` · ${acceptedInvite.status.toLowerCase()}`
+        : acceptedInvite
+          ? ""
+          : " · (assign crew)";
 
     return {
-      id: need.id,
+      id: idx === 0 ? need.id : `${need.id}:${acceptedInvite?.id ?? "open"}`,
       kind: "CREW",
       partyName: member?.name ?? roster?.name ?? "",
       partyType: team ? "COMPANY" : "INDIVIDUAL",
@@ -213,8 +226,9 @@ export async function buildContractResourceContext(
       crewTeamId: team?.id ?? null,
       locationListingId: null,
       vendorName: team?.companyName ?? null,
-      label: `${need.role}${member?.name || roster?.name ? ` · ${member?.name ?? roster?.name}` : " · (assign crew)"}`,
+      label: `${need.role}${member?.name || roster?.name ? ` · ${member?.name ?? roster?.name}` : ""}${team?.companyName ? ` (${team.companyName})` : ""}${inviteSuffix}`,
     };
+  });
   });
 
   const locationResources: ContractResourceOption[] = locationBreakdowns

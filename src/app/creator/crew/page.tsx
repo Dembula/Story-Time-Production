@@ -18,13 +18,10 @@ import {
   ChevronDown,
   ChevronUp,
   CheckCircle,
-  CreditCard,
   MessageCircle,
 } from "lucide-react";
 import { formatZar } from "@/lib/format-currency-zar";
-import { computeMarketplaceFeeZar, DEFAULT_CREW_TEAM_REQUEST_BASE_ZAR } from "@/lib/marketplace-zar-defaults";
-import { useMarketplacePay } from "@/lib/hooks/use-marketplace-pay";
-import { MarketplaceCheckoutModal } from "@/components/marketplace/marketplace-checkout-modal";
+import { SecureImage } from "@/components/files/secure-image";
 
 type CrewRosterEntry = {
   id: string;
@@ -103,14 +100,6 @@ function CreatorCrewPageContent() {
   const [requestTeamId, setRequestTeamId] = useState<string | null>(null);
   const [requestForm, setRequestForm] = useState({ projectName: "", message: "" });
   const [sentRequests, setSentRequests] = useState<SentCrewRequest[]>([]);
-  const [payingId, setPayingId] = useState<string | null>(null);
-  const marketplacePay = useMarketplacePay({
-    onPaid: () => {
-      fetch("/api/crew-teams/requests")
-        .then((r) => (r.ok ? r.json() : []))
-        .then((rows) => setSentRequests(Array.isArray(rows) ? rows : []));
-    },
-  });
   const [loadError, setLoadError] = useState("");
 
   const prefillProjectName = useCallback(
@@ -198,28 +187,9 @@ function CreatorCrewPageContent() {
       },
       ...prev,
     ]);
-    setSuccess("Request sent to crew team.");
-    setTimeout(() => setSuccess(""), 3000);
-  }
-
-  async function payCrewRequest(requestId: string) {
-    setPayingId(requestId);
-    try {
-      const res = await fetch(`/api/crew-team/requests/${requestId}/pay`, { method: "POST" });
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        alert(data?.error || "Payment failed");
-        return;
-      }
-      setSentRequests((prev) =>
-        prev.map((r) => (r.id === requestId ? { ...r, paymentTransactionId: data.transactionId ?? "paid" } : r)),
-      );
-      const total = typeof data?.totalAmount === "number" ? formatZar(data.totalAmount) : "recorded";
-      setSuccess(`Payment ${total} (simulated).`);
-      setTimeout(() => setSuccess(""), 5000);
-    } finally {
-      setPayingId(null);
-    }
+    setSuccess("Request sent — you can message the crew team now.");
+    setTab("my-requests");
+    setTimeout(() => setSuccess(""), 5000);
   }
 
   if (loading)
@@ -328,54 +298,30 @@ function CreatorCrewPageContent() {
 
       {tab === "my-requests" && (
         <div className="space-y-4">
-          <p className="text-slate-400 text-sm">After a crew team accepts your request, pay via wallet or PayFast to unlock messaging.</p>
+          <p className="text-slate-400 text-sm">
+            General crew inquiries are free. Message teams directly once your request is sent.
+          </p>
           {sentRequests.length === 0 ? (
-            <div className="rounded-2xl bg-slate-800/30 border border-slate-700/50 p-12 text-center text-slate-500">No outbound crew requests yet.</div>
+            <div className="storytime-plan-card p-12 text-center text-slate-500">No outbound crew requests yet.</div>
           ) : (
             <div className="space-y-3">
-              {sentRequests.map((req) => {
-                const base = DEFAULT_CREW_TEAM_REQUEST_BASE_ZAR;
-                const fee = computeMarketplaceFeeZar(base);
-                const estTotal = Math.round((base + fee) * 100) / 100;
-                const canPay = req.status === "ACCEPTED" && !req.paymentTransactionId;
-                const paid = Boolean(req.paymentTransactionId);
-                return (
-                  <div key={req.id} className="rounded-2xl bg-slate-800/30 border border-slate-700/50 p-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <p className="font-semibold text-white">{req.crewTeam.companyName}</p>
-                      {req.crewTeam.tagline && <p className="text-sm text-slate-400">{req.crewTeam.tagline}</p>}
-                      <p className="text-xs text-slate-500 mt-1">{req.projectName || "Project"} · {new Date(req.createdAt).toLocaleString()}</p>
-                      <span className={`inline-block mt-2 text-xs px-2 py-0.5 rounded-full ${req.status === "PENDING" ? "bg-amber-500/20 text-amber-400" : req.status === "ACCEPTED" ? "bg-emerald-500/20 text-emerald-400" : "bg-slate-700 text-slate-400"}`}>{req.status}</span>
-                      {paid && <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400">Paid</span>}
-                      {canPay && (
-                        <p className="text-xs text-slate-400 mt-2">
-                          Checkout: {formatZar(base)} + {formatZar(fee)} fee = <span className="text-orange-300 font-medium">{formatZar(estTotal)}</span>
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex flex-col gap-2 shrink-0">
-                      {paid && (
-                        <a
-                          href={`/creator/messages?tab=crew&crewRequestId=${req.id}`}
-                          className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-orange-500/10 text-orange-400 border border-orange-500/30 text-sm hover:bg-orange-500/20"
-                        >
-                          <MessageCircle className="w-4 h-4" /> Message
-                        </a>
-                      )}
-                      {canPay && (
-                        <button
-                          type="button"
-                          disabled={payingId === req.id}
-                          onClick={() => payCrewRequest(req.id)}
-                          className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-500 disabled:opacity-50"
-                        >
-                          <CreditCard className="w-4 h-4" /> {payingId === req.id ? "Processing…" : "Pay now"}
-                        </button>
-                      )}
-                    </div>
+              {sentRequests.map((req) => (
+                <div key={req.id} className="storytime-plan-card p-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="font-semibold text-white">{req.crewTeam.companyName}</p>
+                    {req.crewTeam.tagline && <p className="text-sm text-slate-400">{req.crewTeam.tagline}</p>}
+                    <p className="text-xs text-slate-500 mt-1">{req.projectName || "Project"} · {new Date(req.createdAt).toLocaleString()}</p>
+                    {req.message && <p className="text-xs text-slate-500 mt-1 line-clamp-2">{req.message}</p>}
+                    <span className={`inline-block mt-2 text-xs px-2 py-0.5 rounded-full ${req.status === "PENDING" ? "bg-amber-500/20 text-amber-400" : req.status === "ACCEPTED" ? "bg-emerald-500/20 text-emerald-400" : "bg-slate-700 text-slate-400"}`}>{req.status}</span>
                   </div>
-                );
-              })}
+                  <a
+                    href={`/creator/messages?tab=crew&crewRequestId=${req.id}`}
+                    className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-orange-500 text-white text-sm font-medium hover:bg-orange-600 shrink-0"
+                  >
+                    <MessageCircle className="w-4 h-4" /> Message
+                  </a>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -429,7 +375,7 @@ function CreatorCrewPageContent() {
                             return (
                             <div key={m.id} className="flex gap-3 p-3 rounded-lg bg-slate-800/50 border border-slate-700/30">
                               {photo ? (
-                                <img src={photo} alt="" className="w-14 h-14 rounded-lg object-cover shrink-0" />
+                                <SecureImage fileRef={photo} alt="" className="w-14 h-14 rounded-lg object-cover shrink-0" />
                               ) : (
                                 <div className="w-14 h-14 rounded-lg bg-slate-700/50 flex items-center justify-center shrink-0">
                                   <Users className="w-5 h-5 text-slate-500" />
@@ -478,12 +424,6 @@ function CreatorCrewPageContent() {
           )}
         </div>
       )}
-      <MarketplaceCheckoutModal
-        open={marketplacePay.checkoutOpen}
-        checkoutUrl={marketplacePay.checkoutUrl}
-        onClose={marketplacePay.closeCheckout}
-        title="Crew request checkout"
-      />
     </div>
   );
 }

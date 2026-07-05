@@ -112,6 +112,25 @@ export async function GET(req: NextRequest) {
       ? (payment.metadata as Record<string, unknown>)
       : {};
 
+  if (payment.purpose === "CARD_CONSENT") {
+    const consentReference =
+      typeof metadata.consentReference === "string" && metadata.consentReference.trim()
+        ? metadata.consentReference.trim()
+        : `card-consent-${payment.userId}-${payment.id}`;
+    const returnUrl = resolveCheckoutReturnUrl(payment, metadata);
+
+    return NextResponse.json({
+      action: PAYFAST_PROCESS_URL,
+      fields: buildPayFastCardConsentFields({
+        reference: consentReference,
+        returnUrl,
+        customerEmail: payment.email ?? payment.user?.email,
+        customerName: payment.user?.name,
+        payerId: payment.userId,
+      }),
+    });
+  }
+
   const returnUrl = resolveCheckoutReturnUrl(payment, metadata);
 
   return NextResponse.json({

@@ -103,7 +103,7 @@ export async function POST(req: Request) {
   const sessionRole = (session.user as { role?: string })?.role;
 
   if (userId) {
-    const limited = enforceUserRateLimit({
+    const limited = await enforceUserRateLimit({
       key: "modoc-chat",
       userId,
       maxAttempts: 60,

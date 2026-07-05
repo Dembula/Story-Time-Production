@@ -6,6 +6,8 @@ const DOCUMENT_FIELD_MAP: Record<string, { section: keyof KycPayload; field: str
   SELFIE: { section: "identityVerification", field: "selfieUrl" },
   COMPANY_REGISTRATION: { section: "businessVerification", field: "companyDocsUrl" },
   PROOF_OF_ADDRESS: { section: "businessVerification", field: "proofOfAddressUrl" },
+  BANK_STATEMENT: { section: "financialInfo", field: "bankStatementUrl" },
+  BANK_CONFIRMATION_LETTER: { section: "financialInfo", field: "bankConfirmationLetterUrl" },
 };
 
 export function isPrivateKycStorageRef(url?: string | null): url is string {

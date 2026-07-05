@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const rate = checkRateLimit({
+  const rate = await checkRateLimit({
     key: "account-delete",
     ip: `${userId}:${clientIp(req)}`,
     maxAttempts: 5,
@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
     const password = body?.password ?? "";
     const ok = await compare(password, user.passwordHash);
     if (!ok) {
-      recordRateLimitFailure({
+      await recordRateLimitFailure({
         key: "account-delete-fail",
         ip: `${userId}:${clientIp(req)}`,
         windowMs: 60 * 60 * 1000,

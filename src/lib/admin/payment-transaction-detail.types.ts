@@ -29,6 +29,9 @@ export const PAYMENT_PURPOSE_LABELS: Record<string, string> = {
   CATERING_BOOKING: "Marketplace — catering booking",
   CREW_REQUEST: "Marketplace — crew team request",
   CAST_INQUIRY: "Marketplace — casting inquiry",
+  CONTRACT_HIRE_CAST: "Contract hire — cast salary",
+  CONTRACT_HIRE_CREW: "Contract hire — crew salary",
+  INVESTMENT_DEAL: "Investment deal funding",
 };
 
 export type RevenueRouteLine = {

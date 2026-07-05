@@ -189,11 +189,19 @@ export async function failGatewayPayment(
   return { ok: true, paymentRecordId };
 }
 
-/** Demo card consent — store a fake saved-card token on the subscription. */
+/** Demo card consent for viewer trial onboarding only — not wallet save-card flows. */
 export async function completeDemoCardConsent(params: {
   reference: string;
   userId: string;
 }): Promise<CompleteGatewayPaymentResult> {
+  if (params.reference.startsWith("card-consent-")) {
+    return {
+      ok: false,
+      error: "Wallet card saving requires PayFast. Demo mode is not supported.",
+      status: 400,
+    };
+  }
+
   const subscriptionId = params.reference.startsWith("trial-consent-")
     ? params.reference.slice("trial-consent-".length)
     : null;

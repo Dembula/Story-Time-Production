@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { resolveDefaultProjectBudget } from "@/lib/project-budget-access";
 import { buildExpenseDashboard, parseExpenseRow } from "@/lib/expense-service";
 import { buildFinancialAnalyticsDashboard } from "@/lib/financial-analytics-service";
-import { contractTermsToPdfBuffer } from "@/lib/legal/contract-pdf-export";
+import { buildDocumentPdf, type PdfBlock } from "@/lib/pdf/document-pdf";
 
 function csvEscape(v: string | number): string {
   const s = String(v);
@@ -77,21 +77,60 @@ export async function buildFinancialSummaryReport(projectId: string) {
 
 export function financialSummaryToPdfText(report: Awaited<ReturnType<typeof buildFinancialSummaryReport>>): Buffer {
   const k = report.analytics.kpis;
-  const lines = [
-    "Story Time — Financial Summary",
-    `Generated: ${report.generatedAt}`,
-    "",
-    `Actual spend: R ${k.actualSpend.toFixed(2)}`,
-    `Remaining: R ${k.remaining.toFixed(2)}`,
-    `Committed POs: R ${k.committedPos.toFixed(2)}`,
-    `Forecast at completion: R ${k.forecastAtCompletion.toFixed(2)}`,
-    "",
-    "Department variance:",
-    ...report.analytics.departmentVariance.slice(0, 15).map(
-      (d) => `- ${d.department}: budget R${d.budgeted} / actual R${d.actual} / var R${d.variance}`,
-    ),
+  const blocks: PdfBlock[] = [
+    { type: "title", text: "FINANCIAL SUMMARY" },
+    { type: "line", text: `Generated ${new Date(report.generatedAt).toLocaleString()}` },
+    { type: "blank" },
+    { type: "heading", text: "Key figures" },
+    { type: "kv", label: "Actual spend", value: `R ${k.actualSpend.toFixed(2)}` },
+    { type: "kv", label: "Remaining", value: `R ${k.remaining.toFixed(2)}` },
+    { type: "kv", label: "Committed POs", value: `R ${k.committedPos.toFixed(2)}` },
+    { type: "kv", label: "Forecast at completion", value: `R ${k.forecastAtCompletion.toFixed(2)}` },
+    { type: "heading", text: "Department variance" },
   ];
-  return contractTermsToPdfBuffer(lines.join("\n"), "Financial Summary");
+  if (report.analytics.departmentVariance.length === 0) {
+    blocks.push({ type: "line", text: "No department variance data." });
+  } else {
+    blocks.push({
+      type: "table",
+      headers: ["Department", "Budget", "Actual", "Variance"],
+      rows: report.analytics.departmentVariance.slice(0, 40).map((d) => [
+        d.department,
+        `R ${Number(d.budgeted).toFixed(0)}`,
+        `R ${Number(d.actual).toFixed(0)}`,
+        `R ${Number(d.variance).toFixed(0)}`,
+      ]),
+    });
+  }
+  return buildDocumentPdf({ title: "Financial Summary", footer: "Story Time Finance", blocks });
+}
+
+export function budgetActualsToPdf(
+  report: Awaited<ReturnType<typeof buildBudgetActualsReport>>,
+): Buffer {
+  const blocks: PdfBlock[] = [
+    { type: "title", text: "BUDGET VS ACTUALS" },
+    { type: "line", text: `Generated ${new Date().toLocaleString()}` },
+    { type: "blank" },
+    { type: "kv", label: "Total planned", value: `R ${Number(report.totalPlanned).toFixed(2)}` },
+    { type: "kv", label: "Total actual", value: `R ${Number(report.totalActual).toFixed(2)}` },
+    { type: "heading", text: "Line items" },
+  ];
+  if (report.rows.length === 0) {
+    blocks.push({ type: "line", text: "No budget lines." });
+  } else {
+    blocks.push({
+      type: "table",
+      headers: ["Line", "Budget", "Actual", "Variance"],
+      rows: report.rows.slice(0, 80).map((r) => [
+        r.key,
+        `R ${Number(r.budgeted).toFixed(0)}`,
+        `R ${Number(r.actual).toFixed(0)}`,
+        `R ${Number(r.variance).toFixed(0)}`,
+      ]),
+    });
+  }
+  return buildDocumentPdf({ title: "Budget vs Actuals", footer: "Story Time Finance", blocks });
 }
 
 export function expensesToCsv(expenses: Array<{ spentAt: Date; vendor: string | null; amount: number; department: string | null; description: string | null }>) {

@@ -91,6 +91,36 @@ function amountsMatch(expected: number, received: number): boolean {
   return Math.abs(expected - received) <= 0.05;
 }
 
+async function markCardConsentPaymentSucceeded(consentReference: string, payerUserId: string | null) {
+  if (!payerUserId || !consentReference.trim()) return;
+
+  const pending = await db.paymentRecord.findMany({
+    where: {
+      userId: payerUserId,
+      purpose: "CARD_CONSENT",
+      status: "PENDING",
+    },
+    orderBy: { createdAt: "desc" },
+    take: 10,
+  });
+
+  const matched = pending.find((record: { metadata?: unknown }) => {
+    const meta =
+      record.metadata && typeof record.metadata === "object"
+        ? (record.metadata as Record<string, unknown>)
+        : {};
+    return meta.consentReference === consentReference;
+  });
+
+  const target = matched ?? pending[0];
+  if (!target) return;
+
+  await db.paymentRecord.update({
+    where: { id: target.id },
+    data: { status: "SUCCEEDED", paidAt: new Date() },
+  });
+}
+
 async function handleCardConsentItn(data: Record<string, string>): Promise<PayFastItnProcessResult> {
   const reference = data.custom_str3 ?? data.m_payment_id ?? "";
   const payerUserId = data.custom_str1?.trim() || null;
@@ -136,6 +166,8 @@ async function handleCardConsentItn(data: Record<string, string>): Promise<PayFa
       where: { userId: payerUserId, viewerModel: "SUBSCRIPTION" },
       data: { externalPaymentId: data.token, lastPaymentStatus: "SUCCEEDED", lastPaymentError: null },
     }).catch(() => {});
+
+    await markCardConsentPaymentSucceeded(reference, payerUserId);
   }
 
   return { ok: true, cardConsent: true };

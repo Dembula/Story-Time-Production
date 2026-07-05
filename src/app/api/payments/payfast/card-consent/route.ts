@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
   if (!user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   if (!isPayFastConfigured()) {
-    return NextResponse.json({ error: "PayFast is not configured." }, { status: 503 });
+    return NextResponse.json({ error: "PayFast is not configured. Card saving requires live PayFast integration." }, { status: 503 });
   }
 
   const body = (await req.json().catch(() => null)) as { returnPath?: string } | null;
@@ -23,6 +23,7 @@ export async function POST(req: NextRequest) {
       userId: user.id,
       email: user.email,
       name: user.name,
+      returnPath,
       returnUrl: buildPaymentReturnUrl(returnPath, "payfast_card_consent"),
     });
     return NextResponse.json({ ok: true, checkoutUrl: consent.checkoutUrl });

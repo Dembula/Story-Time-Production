@@ -56,6 +56,21 @@ export function parseTalentProfile(talent: { bio: string | null; agencyCommissio
     location: meta?.location ?? null,
     languages: meta?.languages ?? [],
     experienceLevel: meta?.experienceLevel ?? null,
+    phone: meta?.phone ?? null,
+    contactEmail: meta?.contactEmail ?? null,
+    agentName: meta?.agentName ?? null,
+    unionStatus: meta?.unionStatus ?? null,
+    height: meta?.height ?? null,
+    weight: meta?.weight ?? null,
+    eyeColor: meta?.eyeColor ?? null,
+    hairColor: meta?.hairColor ?? null,
+    ethnicity: meta?.ethnicity ?? null,
+    gender: meta?.gender ?? null,
+    specialSkills: meta?.specialSkills ?? [],
+    portfolioUrl: meta?.portfolioUrl ?? null,
+    socialLinks: meta?.socialLinks ?? [],
+    travelWillingness: meta?.travelWillingness ?? null,
+    driversLicense: meta?.driversLicense ?? null,
   };
 }
 

@@ -41,7 +41,7 @@ export function resolveNotificationUrl(
   if (meta.url && typeof meta.url === "string") return meta.url;
 
   if (meta.contractId) {
-    return `/creator/legal/inbox/${meta.contractId}${meta.projectId ? `?projectId=${encodeURIComponent(meta.projectId)}` : ""}`;
+    return `/creator/projects/${meta.projectId}/pre-production/legal-contracts?tab=inbox&contractId=${encodeURIComponent(meta.contractId)}`;
   }
 
   if (meta.contentId) {
@@ -65,6 +65,24 @@ export function resolveNotificationUrl(
   }
   if (meta.pitchId) {
     return "/creator/originals/submit";
+  }
+
+  if (n.type.startsWith("SYNC_") || n.type === "SYNC_REQUEST" || n.type === "MUSIC_INTEREST") {
+    if (role === "MUSIC_CREATOR") {
+      if (n.type === "SYNC_DEAL_PAID") return "/music-creator/revenue";
+      if (n.type === "MUSIC_INTEREST") return "/music-creator/originals";
+      return "/music-creator/sync-requests";
+    }
+    if (role === "CONTENT_CREATOR") {
+      if (meta.projectId) return `/creator/projects/${meta.projectId}/overview`;
+      return "/creator/music?tab=requests";
+    }
+    if (role === "ADMIN" && meta.url) return meta.url;
+  }
+
+  if (meta.requestId) {
+    if (role === "MUSIC_CREATOR") return "/music-creator/sync-requests";
+    if (role === "CONTENT_CREATOR") return "/creator/music?tab=requests";
   }
 
   if (n.type.startsWith("MARKETPLACE_")) {
@@ -110,6 +128,11 @@ export function resolveNotificationUrl(
       return thread
         ? `/casting-agency/invitations?thread=${encodeURIComponent(thread)}`
         : "/casting-agency/invitations";
+    }
+    if (role === "MUSIC_CREATOR") {
+      return thread
+        ? `/music-creator/messages?syncRequestId=${encodeURIComponent(thread)}`
+        : "/music-creator/messages";
     }
     return thread
       ? `/creator/network?tab=messages&thread=${encodeURIComponent(thread)}`

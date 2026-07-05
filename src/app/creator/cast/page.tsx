@@ -21,13 +21,12 @@ import {
   FileText,
   Film,
   CheckCircle,
-  CreditCard,
+  MessageCircle,
 } from "lucide-react";
 import { formatZar } from "@/lib/format-currency-zar";
-import { computeMarketplaceFeeZar, DEFAULT_CASTING_INQUIRY_BASE_ZAR } from "@/lib/marketplace-zar-defaults";
-import { useMarketplacePay } from "@/lib/hooks/use-marketplace-pay";
-import { MarketplaceCheckoutModal } from "@/components/marketplace/marketplace-checkout-modal";
-import { MessageCircle } from "lucide-react";
+import { AUDITION_LISTING_FEE_ZAR } from "@/lib/pricing";
+import { SecureFileLink } from "@/components/files/secure-file-link";
+import { SecureImage } from "@/components/files/secure-image";
 
 type CastRosterEntry = {
   id: string;
@@ -51,10 +50,19 @@ type TalentProfile = {
   plainBio: string;
   dailyRate: number | null;
   projectRate: number | null;
+  hourlyRate?: number | null;
+  weeklyRate?: number | null;
   experienceLevel: string | null;
   location: string | null;
   availability: string | null;
   languages: string[];
+  unionStatus?: string | null;
+  height?: string | null;
+  eyeColor?: string | null;
+  hairColor?: string | null;
+  phone?: string | null;
+  agentName?: string | null;
+  travelWillingness?: string | null;
 };
 
 type CastingAgencyDetail = CastingAgency & {
@@ -115,15 +123,10 @@ function CreatorCastPageContent() {
   const [auditionForm, setAuditionForm] = useState({ contentId: "", roleName: "", description: "" });
   const [showAuditionForm, setShowAuditionForm] = useState(false);
   const [myInquiries, setMyInquiries] = useState<MyCastingInquiry[]>([]);
-  const [payingInquiryId, setPayingInquiryId] = useState<string | null>(null);
-  const marketplacePay = useMarketplacePay({
-    onPaid: () => {
-      fetch("/api/casting-agencies/inquiries")
-        .then((r) => (r.ok ? r.json() : []))
-        .then((rows) => setMyInquiries(Array.isArray(rows) ? rows : []));
-    },
-  });
   const [loadError, setLoadError] = useState("");
+  const [projectRoles, setProjectRoles] = useState<Array<{ id: string; name: string }>>([]);
+  const [paidAuditionForm, setPaidAuditionForm] = useState({ roleId: "", scheduledAt: "", details: "" });
+  const [paidAuditionBusy, setPaidAuditionBusy] = useState(false);
 
   const prefillInquiry = useCallback(
     (title: string) => {
@@ -152,6 +155,27 @@ function CreatorCastPageContent() {
     };
     load();
   }, []);
+
+  useEffect(() => {
+    if (!projectId) {
+      setProjectRoles([]);
+      return;
+    }
+    fetch(`/api/creator/projects/${projectId}/casting`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        const roles = Array.isArray(data?.roles) ? data.roles : [];
+        setProjectRoles(roles.map((r: { id: string; name: string }) => ({ id: r.id, name: r.name })));
+        if (roles.length > 0) {
+          setPaidAuditionForm((f) => {
+            if (f.roleId && roles.some((r: { id: string }) => r.id === f.roleId)) return f;
+            const match = roleIdFromUrl ? roles.find((r: { id: string }) => r.id === roleIdFromUrl) : null;
+            return { ...f, roleId: match?.id ?? roles[0].id };
+          });
+        }
+      })
+      .catch(() => setProjectRoles([]));
+  }, [projectId, roleIdFromUrl]);
 
   async function loadAgencyDetail(id: string) {
     const r = await fetch(`/api/casting-agencies/${id}`);
@@ -216,26 +240,40 @@ function CreatorCastPageContent() {
     ]);
     setInquiryAgencyId(null);
     setInquiryForm({ projectName: projectTitle || "", roleName: "", message: "", talentId: "" });
-    setSuccess("Inquiry sent to agency.");
-    setTimeout(() => setSuccess(""), 3000);
+    setSuccess("Inquiry sent — you can message the agency now.");
+    setTab("my-inquiries");
+    setTimeout(() => setSuccess(""), 5000);
   }
 
-  async function payInquiry(inquiryId: string) {
-    setPayingInquiryId(inquiryId);
+  async function publishPaidAudition() {
+    if (!projectId || !paidAuditionForm.roleId) {
+      alert("Link a project with casting roles to publish a paid audition listing.");
+      return;
+    }
+    setPaidAuditionBusy(true);
     try {
-      const result = await marketplacePay.pay(`/api/casting-agency/inquiries/${inquiryId}/pay`);
-      if (result?.mode === "wallet") {
-        setMyInquiries((prev) =>
-          prev.map((q) => (q.id === inquiryId ? { ...q, paymentTransactionId: result.data.transactionId ?? "paid" } : q)),
-        );
-        const total = typeof result.data.totalAmount === "number" ? formatZar(result.data.totalAmount) : "recorded";
-        setSuccess(`Inquiry payment ${total} recorded.`);
-        setTimeout(() => setSuccess(""), 5000);
+      const res = await fetch(`/api/creator/projects/${projectId}/casting/advertise-role`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          roleId: paidAuditionForm.roleId,
+          scheduledAt: paidAuditionForm.scheduledAt || null,
+          details: paidAuditionForm.details || null,
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || "Could not publish audition");
+      if (data?.checkoutUrl) {
+        window.location.href = data.checkoutUrl as string;
+        return;
       }
+      setSuccess(`Audition listing published (${formatZar(AUDITION_LISTING_FEE_ZAR)}).`);
+      setPaidAuditionForm({ roleId: paidAuditionForm.roleId, scheduledAt: "", details: "" });
+      setTimeout(() => setSuccess(""), 5000);
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Payment failed");
+      alert(e instanceof Error ? e.message : "Publish failed");
     } finally {
-      setPayingInquiryId(null);
+      setPaidAuditionBusy(false);
     }
   }
 
@@ -397,55 +435,29 @@ function CreatorCastPageContent() {
       {tab === "my-inquiries" && (
         <div className="space-y-4">
           <p className="text-slate-400 text-sm">
-            After you contact an agency, pay via wallet or PayFast to unlock messaging (platform fee included).
+            General inquiries are free. Message casting agencies directly to discuss roles, talent, and availability.
           </p>
           {myInquiries.length === 0 ? (
-            <div className="rounded-2xl bg-slate-800/30 border border-slate-700/50 p-12 text-center text-slate-500">No inquiries yet. Use Find Cast to message an agency.</div>
+            <div className="storytime-plan-card p-12 text-center text-slate-500">No inquiries yet. Use Find Cast to message an agency.</div>
           ) : (
             <div className="space-y-3">
-              {myInquiries.map((q) => {
-                const base = DEFAULT_CASTING_INQUIRY_BASE_ZAR;
-                const fee = computeMarketplaceFeeZar(base);
-                const estTotal = Math.round((base + fee) * 100) / 100;
-                const canPay = !q.paymentTransactionId;
-                const paid = Boolean(q.paymentTransactionId);
-                return (
-                  <div key={q.id} className="rounded-2xl bg-slate-800/30 border border-slate-700/50 p-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <p className="font-semibold text-white">{q.agency.agencyName}</p>
-                      <p className="text-sm text-slate-400">{q.projectName || "Project"}{q.roleName ? ` · ${q.roleName}` : ""}</p>
-                      <p className="text-xs text-slate-500 mt-1">{new Date(q.createdAt).toLocaleString()}</p>
-                      <span className={`inline-block mt-2 text-xs px-2 py-0.5 rounded-full ${q.status === "PENDING" ? "bg-amber-500/20 text-amber-400" : "bg-slate-700 text-slate-300"}`}>{q.status}</span>
-                      {paid && <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400">Paid</span>}
-                      {canPay && (
-                        <p className="text-xs text-slate-400 mt-2">
-                          Checkout: {formatZar(base)} + {formatZar(fee)} fee = <span className="text-orange-300 font-medium">{formatZar(estTotal)}</span>
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex flex-col gap-2 shrink-0">
-                      {paid && (
-                        <a
-                          href={`/creator/messages?tab=cast&castingInquiryId=${q.id}`}
-                          className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-orange-500/10 text-orange-400 border border-orange-500/30 text-sm hover:bg-orange-500/20"
-                        >
-                          <MessageCircle className="w-4 h-4" /> Message
-                        </a>
-                      )}
-                      {canPay && (
-                        <button
-                          type="button"
-                          disabled={payingInquiryId === q.id}
-                          onClick={() => payInquiry(q.id)}
-                          className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-500 disabled:opacity-50"
-                        >
-                          <CreditCard className="w-4 h-4" /> {payingInquiryId === q.id ? "Processing…" : "Pay now"}
-                        </button>
-                      )}
-                    </div>
+              {myInquiries.map((q) => (
+                <div key={q.id} className="storytime-plan-card p-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="font-semibold text-white">{q.agency.agencyName}</p>
+                    <p className="text-sm text-slate-400">{q.projectName || "Project"}{q.roleName ? ` · ${q.roleName}` : ""}</p>
+                    {q.message && <p className="text-xs text-slate-500 mt-1 line-clamp-2">{q.message}</p>}
+                    <p className="text-xs text-slate-500 mt-1">{new Date(q.createdAt).toLocaleString()}</p>
+                    <span className={`inline-block mt-2 text-xs px-2 py-0.5 rounded-full ${q.status === "PENDING" ? "bg-amber-500/20 text-amber-400" : "bg-slate-700 text-slate-300"}`}>{q.status}</span>
                   </div>
-                );
-              })}
+                  <a
+                    href={`/creator/messages?tab=cast&castingInquiryId=${q.id}`}
+                    className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-orange-500 text-white text-sm font-medium hover:bg-orange-600 shrink-0"
+                  >
+                    <MessageCircle className="w-4 h-4" /> Message
+                  </a>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -508,7 +520,7 @@ function CreatorCastPageContent() {
                             return (
                             <div key={t.id} className="p-4 rounded-xl bg-slate-800/50 border border-slate-700/30 flex gap-4">
                               {headshot ? (
-                                <img src={headshot} alt="" className="w-20 h-20 rounded-lg object-cover shrink-0" />
+                                <SecureImage fileRef={headshot} alt="" className="w-20 h-20 rounded-lg object-cover shrink-0" />
                               ) : (
                                 <div className="w-20 h-20 rounded-lg bg-slate-700/50 flex items-center justify-center shrink-0">
                                   <Users className="w-8 h-8 text-slate-500" />
@@ -526,19 +538,22 @@ function CreatorCastPageContent() {
                                     {[t.profile.location, t.profile.availability].filter(Boolean).join(" · ")}
                                   </p>
                                 )}
+                                {t.profile?.languages && t.profile.languages.length > 0 && (
+                                  <p className="text-xs text-slate-500 mt-0.5">Languages: {t.profile.languages.join(", ")}</p>
+                                )}
+                                {t.profile?.unionStatus && (
+                                  <p className="text-xs text-slate-500">Union: {t.profile.unionStatus}</p>
+                                )}
+                                {(t.profile?.height || t.profile?.eyeColor || t.profile?.hairColor) && (
+                                  <p className="text-xs text-slate-500">
+                                    {[t.profile.height, t.profile.eyeColor, t.profile.hairColor].filter(Boolean).join(" · ")}
+                                  </p>
+                                )}
                                 {bioText && <p className="text-xs text-slate-500 mt-1 line-clamp-2">{bioText}</p>}
                                 {t.pastWork && <p className="text-xs text-slate-600 mt-1 line-clamp-1"><span className="text-slate-500">Experience:</span> {t.pastWork}</p>}
                                 <div className="flex flex-wrap gap-2 mt-2">
-                                  {t.cvUrl && (
-                                    <a href={t.cvUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-orange-400 hover:underline flex items-center gap-1">
-                                      <FileText className="w-3 h-3" /> CV
-                                    </a>
-                                  )}
-                                  {t.reelUrl && (
-                                    <a href={t.reelUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-orange-400 hover:underline flex items-center gap-1">
-                                      <Film className="w-3 h-3" /> Reel
-                                    </a>
-                                  )}
+                                  {t.cvUrl && <SecureFileLink fileRef={t.cvUrl} label="CV" />}
+                                  {t.reelUrl && <SecureFileLink fileRef={t.reelUrl} label="Reel" />}
                                   <button
                                     type="button"
                                     onClick={() => inviteForRole(agency.id, t.id, t.name)}
@@ -582,17 +597,62 @@ function CreatorCastPageContent() {
 
       {tab === "auditions" && (
         <div className="space-y-6">
+          {projectId && projectRoles.length > 0 && (
+            <div className="storytime-plan-card p-5 space-y-4">
+              <div>
+                <h2 className="text-lg font-semibold text-white">Publish audition to all agencies</h2>
+                <p className="text-sm text-slate-400 mt-1">
+                  Broadcast this role from <span className="text-orange-300">{projectTitle || "your project"}</span> to every casting agency on Story Time.
+                  Listing fee: <span className="text-orange-300 font-medium">{formatZar(AUDITION_LISTING_FEE_ZAR)}</span>
+                </p>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <select
+                  value={paidAuditionForm.roleId}
+                  onChange={(e) => setPaidAuditionForm((f) => ({ ...f, roleId: e.target.value }))}
+                  className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm"
+                >
+                  {projectRoles.map((r) => (
+                    <option key={r.id} value={r.id}>{r.name}</option>
+                  ))}
+                </select>
+                <input
+                  placeholder="Audition schedule / callback dates"
+                  value={paidAuditionForm.scheduledAt}
+                  onChange={(e) => setPaidAuditionForm((f) => ({ ...f, scheduledAt: e.target.value }))}
+                  className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm"
+                />
+              </div>
+              <textarea
+                placeholder="Role brief, character breakdown, sides availability, callback details…"
+                value={paidAuditionForm.details}
+                onChange={(e) => setPaidAuditionForm((f) => ({ ...f, details: e.target.value }))}
+                className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm resize-none"
+                rows={4}
+              />
+              <button
+                type="button"
+                disabled={paidAuditionBusy || !paidAuditionForm.roleId}
+                onClick={publishPaidAudition}
+                className="px-4 py-2 rounded-lg bg-orange-500 text-white text-sm font-medium hover:bg-orange-600 disabled:opacity-50"
+              >
+                {paidAuditionBusy ? "Processing…" : `Publish audition (${formatZar(AUDITION_LISTING_FEE_ZAR)})`}
+              </button>
+            </div>
+          )}
+
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-white">My audition posts</h2>
+            <h2 className="text-lg font-semibold text-white">Open call posts</h2>
             <button
               onClick={() => setShowAuditionForm(!showAuditionForm)}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-violet-500/20 text-violet-400 hover:bg-violet-500/30 text-sm font-medium"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-orange-500/20 text-orange-300 hover:bg-orange-500/30 text-sm font-medium"
             >
-              <Megaphone className="w-4 h-4" /> Post audition
+              <Megaphone className="w-4 h-4" /> Post open call
             </button>
           </div>
           {showAuditionForm && (
-            <div className="p-4 rounded-xl bg-slate-800/50 border border-slate-600 space-y-3">
+            <div className="storytime-plan-card p-4 space-y-3">
+              <p className="text-xs text-slate-400">Free open calls appear in the agency audition feed (linked to your content library).</p>
               <select value={auditionForm.contentId} onChange={(e) => setAuditionForm((f) => ({ ...f, contentId: e.target.value }))} className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm">
                 <option value="">Select production from your content library</option>
                 {contents.map((c) => (
@@ -604,7 +664,7 @@ function CreatorCastPageContent() {
               <input placeholder="Role name" value={auditionForm.roleName} onChange={(e) => setAuditionForm((f) => ({ ...f, roleName: e.target.value }))} className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm" />
               <textarea placeholder="Description / requirements" value={auditionForm.description} onChange={(e) => setAuditionForm((f) => ({ ...f, description: e.target.value }))} className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white text-sm resize-none" rows={3} />
               <div className="flex gap-2">
-                <button onClick={postAudition} disabled={!auditionForm.contentId || !auditionForm.roleName} className="px-4 py-2 rounded-lg bg-violet-500 text-white text-sm font-medium disabled:opacity-50">
+                <button onClick={postAudition} disabled={!auditionForm.contentId || !auditionForm.roleName} className="px-4 py-2 rounded-lg bg-orange-500 text-white text-sm font-medium disabled:opacity-50">
                   Post
                 </button>
                 <button onClick={() => setShowAuditionForm(false)} className="px-4 py-2 rounded-lg bg-slate-700 text-slate-300 text-sm">
@@ -614,11 +674,11 @@ function CreatorCastPageContent() {
             </div>
           )}
           {auditions.length === 0 ? (
-            <div className="rounded-2xl bg-slate-800/30 border border-slate-700/50 p-8 text-center text-slate-500">No audition posts yet. Post a role for your production.</div>
+            <div className="storytime-plan-card p-8 text-center text-slate-500">No audition posts yet.</div>
           ) : (
             <div className="space-y-3">
               {auditions.map((a) => (
-                <div key={a.id} className="p-5 rounded-2xl bg-slate-800/30 border border-slate-700/50 flex items-start justify-between">
+                <div key={a.id} className="storytime-plan-card p-5 flex items-start justify-between">
                   <div>
                     <h3 className="text-lg font-semibold text-white">{a.roleName}</h3>
                     <p className="text-sm text-orange-400">for {a.content.title}</p>
@@ -632,12 +692,6 @@ function CreatorCastPageContent() {
           )}
         </div>
       )}
-      <MarketplaceCheckoutModal
-        open={marketplacePay.checkoutOpen}
-        checkoutUrl={marketplacePay.checkoutUrl}
-        onClose={marketplacePay.closeCheckout}
-        title="Casting inquiry checkout"
-      />
     </div>
   );
 }

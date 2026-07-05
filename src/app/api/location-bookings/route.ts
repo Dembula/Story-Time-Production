@@ -9,6 +9,8 @@ import {
 } from "@/lib/marketplace-notifications";
 import { userCanApproveLocationBooking } from "@/lib/stakeholder-ecosystem/location-manager-service";
 import { publishBookingSyncForLocation } from "@/lib/stakeholder-ecosystem/sync-events";
+import { buildMarketplaceBookingNote } from "@/lib/marketplace-booking-context";
+import { enrichLocationBookingForClient } from "@/lib/location-booking-enrich";
 
 export async function GET(req: NextRequest) {
   if (!hasLocationBookingModels()) {
@@ -45,7 +47,7 @@ export async function GET(req: NextRequest) {
       _count: { select: { messages: true } },
     },
   });
-  return NextResponse.json(bookings);
+  return NextResponse.json(bookings.map(enrichLocationBookingForClient));
 }
 
 export async function POST(req: NextRequest) {
@@ -66,12 +68,17 @@ export async function POST(req: NextRequest) {
 
   const requester = await prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
 
+  const note = buildMarketplaceBookingNote(body.note || null, {
+    projectId: body.projectId ?? null,
+    projectTitle: body.projectTitle ?? null,
+  });
+
   const booking = await prisma.locationBooking.create({
     data: {
       locationId: body.locationId,
       requesterId: userId,
       ownerId: location.companyId,
-      note: body.note || null,
+      note,
       shootType: body.shootType || null,
       startDate: body.startDate || null,
       endDate: body.endDate || null,

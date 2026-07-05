@@ -24,6 +24,10 @@ export async function POST(req: Request) {
   if (!body.name?.trim()) return NextResponse.json({ error: "Name is required" }, { status: 400 });
   const photoErr = validateStorageUrlField(body.photoUrl, "photoUrl");
   if (photoErr) return NextResponse.json({ error: photoErr }, { status: 400 });
+  const portfolioErr = validateStorageUrlField(body.profile?.portfolioUrl ?? body.portfolioUrl, "portfolioUrl");
+  if (portfolioErr) return NextResponse.json({ error: portfolioErr }, { status: 400 });
+  const reelErr = validateStorageUrlField(body.profile?.reelUrl ?? body.reelUrl, "reelUrl");
+  if (reelErr) return NextResponse.json({ error: reelErr }, { status: 400 });
   const profile = (body.profile ?? {}) as Partial<CrewMarketMeta>;
   const member = await prisma.crewTeamMember.create({
     data: {
@@ -35,10 +39,23 @@ export async function POST(req: Request) {
         role: profile.role ?? body.role ?? null,
         department: profile.department ?? body.department ?? null,
         dailyRate: profile.dailyRate ?? null,
+        hourlyRate: profile.hourlyRate ?? null,
+        weeklyRate: profile.weeklyRate ?? null,
+        projectRate: profile.projectRate ?? null,
         availability: profile.availability ?? null,
         location: profile.location ?? null,
         experienceLevel: profile.experienceLevel ?? null,
         tools: profile.tools ?? [],
+        phone: profile.phone ?? body.phone ?? null,
+        contactEmail: profile.contactEmail ?? body.email ?? null,
+        certifications: profile.certifications ?? [],
+        unionStatus: profile.unionStatus ?? null,
+        yearsExperience: profile.yearsExperience ?? null,
+        portfolioUrl: profile.portfolioUrl ?? body.portfolioUrl ?? null,
+        reelUrl: profile.reelUrl ?? body.reelUrl ?? null,
+        travelWillingness: profile.travelWillingness ?? null,
+        ownEquipment: profile.ownEquipment ?? null,
+        languages: profile.languages ?? [],
       }),
       skills: body.skills || null,
       pastWork: body.pastWork || null,

@@ -4,8 +4,9 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isFeaturedCompanyPlan } from "@/lib/pricing";
 import { shapeEquipmentListingForMarketplace } from "@/lib/company-marketplace-profiles";
+import { shapeEquipmentListingForPublicCatalog } from "@/lib/marketplace-public-catalog";
 import { embedMeta, type EquipmentMarketMeta } from "@/lib/marketplace-profile-meta";
-import { validateStorageUrlField } from "@/lib/storage-origin";
+import { validateStorageUrlField, validateStorageUrlList } from "@/lib/storage-origin";
 
 export async function GET(req: NextRequest) {
   const companyId = req.nextUrl.searchParams.get("companyId");
@@ -50,7 +51,7 @@ export async function GET(req: NextRequest) {
       if (!passMin || !passMax) return null;
       if (availability && !(item.profile.availability ?? "").toLowerCase().includes(availability.toLowerCase())) return null;
       if (specs && !(item.profile.specifications ?? "").toLowerCase().includes(specs.toLowerCase())) return null;
-      return item;
+      return companyId ? item : shapeEquipmentListingForPublicCatalog(row);
     })
     .filter((row): row is NonNullable<typeof row> => Boolean(row));
   return NextResponse.json(shaped);
@@ -71,17 +72,24 @@ export async function POST(req: NextRequest) {
   const imageErr = validateStorageUrlField(body.imageUrl, "imageUrl");
   if (imageErr) return NextResponse.json({ error: imageErr }, { status: 400 });
   const profile = body.profile ?? {};
+  const galleryErr = validateStorageUrlList(profile.galleryUrls, "galleryUrls");
+  if (galleryErr) return NextResponse.json({ error: galleryErr }, { status: 400 });
+  const galleryUrls: string[] = Array.isArray(profile.galleryUrls) ? profile.galleryUrls : [];
+  const primaryImage = body.imageUrl || galleryUrls[0] || null;
   const listing = await prisma.equipmentListing.create({
     data: {
       companyName: body.companyName,
       description: embedMeta(body.description || null, {
         specifications: profile.specifications ?? null,
         dailyRate: profile.dailyRate ?? null,
+        weeklyRate: profile.weeklyRate ?? null,
+        deposit: profile.deposit ?? null,
         quantityAvailable: profile.quantityAvailable ?? null,
         availability: profile.availability ?? null,
+        galleryUrls,
       }),
       category: body.category,
-      imageUrl: body.imageUrl || null,
+      imageUrl: primaryImage,
       contactUrl: body.contactUrl || null,
       location: body.location || null,
       companyId: userId,

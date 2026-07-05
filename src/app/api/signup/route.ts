@@ -6,7 +6,7 @@ import { sendWelcomeEmail } from "@/lib/sendgrid";
 import { ensureUserRole } from "@/lib/user-roles";
 
 export async function POST(request: NextRequest) {
-  const rate = enforceSignupRateLimit(request);
+  const rate = await enforceSignupRateLimit(request);
   if (!rate.allowed) {
     return rateLimitedResponse(rate.retryAfterSeconds, "Too many sign-up attempts. Try again later.");
   }

@@ -36,7 +36,7 @@ export async function POST(_req: NextRequest, context: { params: Promise<{ proje
   const access = await ensureProjectAccess(projectId);
   if (access.error) return access.error;
 
-  const limited = enforceUserRateLimit({
+  const limited = await enforceUserRateLimit({
     key: "expense-vision-ocr",
     userId: access.userId,
     maxAttempts: 30,

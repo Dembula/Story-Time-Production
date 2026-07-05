@@ -4,7 +4,8 @@ export type StakeholderPortalKey =
   | "location-owner"
   | "equipment-company"
   | "catering-company"
-  | "funders";
+  | "funders"
+  | "music-creator";
 
 export type StakeholderTaskItem = {
   id: string;

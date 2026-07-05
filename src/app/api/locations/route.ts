@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isFeaturedCompanyPlan } from "@/lib/pricing";
 import { shapeLocationListingForMarketplace } from "@/lib/company-marketplace-profiles";
+import { shapeLocationListingForPublicCatalog } from "@/lib/marketplace-public-catalog";
 import { embedMeta, type LocationMarketMeta } from "@/lib/marketplace-profile-meta";
 import { validateStorageUrlList } from "@/lib/storage-origin";
 
@@ -59,13 +60,14 @@ export async function GET(req: NextRequest) {
     const promotedB = isFeaturedCompanyPlan((b.company as { companySubscriptions?: { plan: string }[] })?.companySubscriptions?.[0]?.plan) ? 0 : 1;
     return promotedA - promotedB || (a.name || "").localeCompare(b.name || "");
   });
+  const publicCatalog = !ownerId;
   const shaped = sorted
     .map((location) => {
       const item = shapeLocationListingForMarketplace(location);
       if (availability && !(item.profile.availability ?? "").toLowerCase().includes(availability.toLowerCase())) {
         return null;
       }
-      return item;
+      return publicCatalog ? shapeLocationListingForPublicCatalog(location) : item;
     })
     .filter((row): row is NonNullable<typeof row> => Boolean(row));
   return NextResponse.json(shaped);

@@ -162,6 +162,13 @@ export async function GET(_req: NextRequest, { params }: Params) {
       sentAt: c.sentAt?.toISOString() ?? null,
       viewedAt: c.viewedAt?.toISOString() ?? null,
       executedAt: c.executedAt?.toISOString() ?? null,
+      paymentTransactionId: c.paymentTransactionId,
+      hireAmount: c.hireAmount,
+      paidAt: c.paidAt?.toISOString() ?? null,
+      salaryPayable:
+        (c.type === "ACTOR" || c.type === "CREW") &&
+        SIGNED_CONTRACT_STATUSES.has(c.status) &&
+        !c.paymentTransactionId,
       statusLabel: contractStatusLabel(c.status),
       counterparty: c.counterpartyUser
         ? { id: c.counterpartyUser.id, name: c.counterpartyUser.name, email: c.counterpartyUser.email }

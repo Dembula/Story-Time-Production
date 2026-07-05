@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { findBreakdownMakeupsForProject, patchBreakdownMakeups } from "@/lib/breakdown-makeup-db";
+import { consolidateCharacterRows } from "@/lib/breakdown/character-identity";
+import { syncCastingRolesFromBreakdown } from "@/lib/casting-sync";
 
 async function ensureAccess(projectId: string) {
   const session = await getServerSession(authOptions);
@@ -54,7 +56,8 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ projec
 
   return NextResponse.json({
     projectId,
-    characters,
+    // One identity per name; still one row per scene appearance for scene views.
+    characters: consolidateCharacterRows(characters),
     props,
     locations,
     wardrobe,
@@ -121,23 +124,58 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ proje
 
   await prisma.$transaction(async (tx) => {
     if (body.characters) {
-      for (const ch of body.characters) {
+      const consolidated = consolidateCharacterRows(body.characters);
+      const keepIds: string[] = [];
+
+      for (const ch of consolidated) {
+        const name = (ch.name ?? "").replace(/\s+/g, " ").trim();
+        if (!name) continue;
         const data = {
           projectId,
-          name: ch.name,
+          name,
           description: ch.description ?? null,
           importance: ch.importance ?? null,
           sceneId: ch.sceneId ?? null,
         };
+
         if (ch.id) {
-          await tx.breakdownCharacter.updateMany({
+          const updated = await tx.breakdownCharacter.updateMany({
             where: { id: ch.id, projectId },
             data,
           });
+          if (updated.count > 0) {
+            keepIds.push(ch.id);
+            continue;
+          }
+        }
+
+        const existing = await tx.breakdownCharacter.findFirst({
+          where: {
+            projectId,
+            sceneId: ch.sceneId ?? null,
+            name: { equals: name, mode: "insensitive" },
+          },
+          select: { id: true },
+        });
+        if (existing) {
+          await tx.breakdownCharacter.update({
+            where: { id: existing.id },
+            data,
+          });
+          keepIds.push(existing.id);
         } else {
-          await tx.breakdownCharacter.create({ data });
+          const created = await tx.breakdownCharacter.create({ data });
+          keepIds.push(created.id);
         }
       }
+
+      // Drop orphaned clones (same person written once per scene incorrectly, or removed rows).
+      await tx.breakdownCharacter.deleteMany({
+        where: {
+          projectId,
+          ...(keepIds.length > 0 ? { id: { notIn: keepIds } } : {}),
+        },
+      });
     }
 
     if (body.props) {
@@ -280,6 +318,11 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ proje
     }
   }, { timeout: 60000, maxWait: 10000 });
 
+  if (body.characters) {
+    // One casting role per character identity (not per scene appearance).
+    await syncCastingRolesFromBreakdown(projectId).catch(() => null);
+  }
+
   const [characters, props, locations, wardrobe, extras, vehicles, stunts, sfx] = await Promise.all([
     prisma.breakdownCharacter.findMany({ where: { projectId } }),
     prisma.breakdownProp.findMany({ where: { projectId } }),
@@ -294,7 +337,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ proje
 
   return NextResponse.json({
     projectId,
-    characters,
+    characters: consolidateCharacterRows(characters),
     props,
     locations,
     wardrobe,

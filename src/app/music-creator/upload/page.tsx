@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
 import { CheckoutModal } from "@/components/payments/checkout-modal";
+import { MusicTrackPreview } from "@/components/music/music-track-preview";
 
 const GENRES = ["Indie", "Electronic", "Synthwave", "Ambient", "Hip-Hop", "Afro-Electronic", "World Fusion", "Jazz", "Classical", "Rock", "Pop", "R&B", "Soul", "Folk", "Afrobeat", "Amapiano", "Gqom", "Kwaito", "Other"];
 const MOODS = ["Dreamy", "Energetic", "Moody", "Peaceful", "Confident", "Nostalgic", "Spiritual", "Melancholic", "Festive", "Dark", "Uplifting", "Romantic", "Tense", "Playful"];
@@ -323,6 +324,17 @@ export default function MusicUploadPage() {
             </div>
             <label className="block text-xs text-slate-500 mb-1">Optional: paste a direct link instead</label>
             <input value={form.audioUrl} onChange={(e) => updateField("audioUrl", e.target.value)} className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" placeholder="https://… (only if not uploading)" />
+            {form.audioUrl.trim() ? (
+              <div className="mt-4">
+                <MusicTrackPreview
+                  audioUrl={form.audioUrl}
+                  trackId="upload-draft"
+                  title={form.title.trim() || "Upload preview"}
+                  variant="bar"
+                  subtitle="Preview your upload before publishing"
+                />
+              </div>
+            ) : null}
           </div>
           <div>
             <label className="block text-sm text-slate-300 mb-1.5">Cover art</label>

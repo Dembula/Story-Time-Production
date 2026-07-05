@@ -182,7 +182,12 @@ export async function uploadContentMediaViaApi(
   options?: { onProgress?: (pct: number) => void },
 ): Promise<string> {
   const data = await uploadContentMediaViaApiFull(file, options);
-  return data.publicUrl;
+  return preferredStorageReference(data);
+}
+
+/** Prefer private storage ref for DB persistence; fall back to legacy public URL. */
+export function preferredStorageReference(payload: ContentMediaFinalizePayload): string {
+  return payload.storageRef || payload.publicUrl;
 }
 
 export async function uploadContentMediaViaApiFull(

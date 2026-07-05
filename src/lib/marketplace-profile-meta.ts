@@ -15,6 +15,21 @@ export type ActorMarketMeta = {
   availabilityStatus?: "AVAILABLE" | "LIMITED" | "BOOKED" | "UNAVAILABLE" | null;
   agencyCommissionPercent?: number | null;
   contactVisibility?: "PRIVATE" | "PUBLIC";
+  phone?: string | null;
+  contactEmail?: string | null;
+  agentName?: string | null;
+  unionStatus?: string | null;
+  height?: string | null;
+  weight?: string | null;
+  eyeColor?: string | null;
+  hairColor?: string | null;
+  ethnicity?: string | null;
+  gender?: string | null;
+  specialSkills?: string[];
+  portfolioUrl?: string | null;
+  socialLinks?: string[];
+  travelWillingness?: string | null;
+  driversLicense?: boolean | null;
 };
 
 export type CrewMarketMeta = {
@@ -22,10 +37,23 @@ export type CrewMarketMeta = {
   department?: string | null;
   experienceLevel?: string | null;
   dailyRate?: number | null;
+  hourlyRate?: number | null;
+  weeklyRate?: number | null;
+  projectRate?: number | null;
   availability?: string | null;
   location?: string | null;
   tools?: string[];
   accountStructure?: AccountStructure | null;
+  phone?: string | null;
+  contactEmail?: string | null;
+  certifications?: string[];
+  unionStatus?: string | null;
+  yearsExperience?: number | null;
+  portfolioUrl?: string | null;
+  reelUrl?: string | null;
+  travelWillingness?: string | null;
+  ownEquipment?: string | null;
+  languages?: string[];
 };
 
 export type LocationMarketMeta = {
@@ -41,8 +69,11 @@ export type LocationMarketMeta = {
 export type EquipmentMarketMeta = {
   specifications?: string | null;
   dailyRate?: number | null;
+  weeklyRate?: number | null;
+  deposit?: number | null;
   quantityAvailable?: number | null;
   availability?: string | null;
+  galleryUrls?: string[];
 };
 
 function safeJsonParse<T>(value: string): T | null {

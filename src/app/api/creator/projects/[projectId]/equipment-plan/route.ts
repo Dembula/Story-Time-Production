@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ensureProjectAccess } from "@/lib/project-access";
 import { parseEmbeddedMeta, embedMeta, type EquipmentMarketMeta } from "@/lib/marketplace-profile-meta";
+import { shapeEquipmentListingForPublicCatalog } from "@/lib/marketplace-public-catalog";
 
 interface Params {
   params: Promise<{ projectId: string }>;
@@ -155,6 +156,9 @@ export async function GET(_req: NextRequest, { params }: Params) {
     where: category ? { category: { contains: category, mode: "insensitive" } } : {},
     orderBy: { createdAt: "desc" },
     take: 100,
+    include: {
+      company: { select: { id: true, name: true } },
+    },
   });
   const marketplace = listingCandidates
     .map((listing) => {
@@ -165,15 +169,10 @@ export async function GET(_req: NextRequest, { params }: Params) {
       if (!costMinPass || !costMaxPass) return null;
       if (availability && !(parsed.meta?.availability ?? "").toLowerCase().includes(availability.toLowerCase())) return null;
       if (specs && !(parsed.meta?.specifications ?? "").toLowerCase().includes(specs.toLowerCase())) return null;
+      const shaped = shapeEquipmentListingForPublicCatalog(listing);
       return {
-        id: listing.id,
+        ...shaped,
         name: parsed.plain || listing.companyName,
-        category: listing.category,
-        specifications: parsed.meta?.specifications ?? null,
-        dailyRate: effectiveRate,
-        quantityAvailable: parsed.meta?.quantityAvailable ?? null,
-        availability: parsed.meta?.availability ?? null,
-        location: listing.location ?? null,
       };
     })
     .filter((row): row is NonNullable<typeof row> => Boolean(row));

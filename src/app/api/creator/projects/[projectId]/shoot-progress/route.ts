@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ensureProjectAccess } from "@/lib/project-access";
 import { parseEmbeddedMeta } from "@/lib/marketplace-profile-meta";
+import { buildDocumentPdf, type PdfBlock } from "@/lib/pdf/document-pdf";
 
 type SceneStatus = "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED" | "DELAYED" | "SKIPPED";
 
@@ -57,44 +58,6 @@ function csv(value: unknown): string {
   return /[",\n]/.test(t) ? `"${t}"` : t;
 }
 
-function pdfEscape(text: string): string {
-  return text.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
-}
-
-function buildSimplePdf(lines: string[]): Buffer {
-  const maxLines = Math.min(lines.length, 40);
-  const contentLines = ["BT", "/F1 11 Tf", "50 790 Td"];
-  for (let i = 0; i < maxLines; i += 1) {
-    if (i > 0) contentLines.push("0 -16 Td");
-    contentLines.push(`(${pdfEscape(lines[i] ?? "")}) Tj`);
-  }
-  contentLines.push("ET");
-  const content = contentLines.join("\n");
-
-  const objects = [
-    "1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj",
-    "2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj",
-    "3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 5 0 R /Resources << /Font << /F1 4 0 R >> >> >> endobj",
-    "4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj",
-    `5 0 obj << /Length ${Buffer.byteLength(content, "utf8")} >> stream\n${content}\nendstream endobj`,
-  ];
-
-  let pdf = "%PDF-1.4\n";
-  const xref: number[] = [0];
-  for (const obj of objects) {
-    xref.push(Buffer.byteLength(pdf, "utf8"));
-    pdf += `${obj}\n`;
-  }
-  const xrefStart = Buffer.byteLength(pdf, "utf8");
-  pdf += `xref\n0 ${objects.length + 1}\n`;
-  pdf += "0000000000 65535 f \n";
-  for (let i = 1; i < xref.length; i += 1) {
-    pdf += `${String(xref[i]).padStart(10, "0")} 00000 n \n`;
-  }
-  pdf += `trailer << /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`;
-  return Buffer.from(pdf, "utf8");
-}
-
 export async function GET(req: NextRequest, context: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await context.params;
   const access = await ensureProjectAccess(projectId);
@@ -103,6 +66,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ project
   const format = req.nextUrl.searchParams.get("format")?.toLowerCase() ?? "json";
 
   const [
+    projectMeta,
     shootDays,
     boards,
     tasks,
@@ -116,6 +80,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ project
     continuityNotes,
     dailiesClips,
   ] = await Promise.all([
+      prisma.originalProject.findUnique({ where: { id: projectId }, select: { title: true } }),
       prisma.shootDay.findMany({
         where: { projectId },
         orderBy: { date: "asc" },
@@ -449,29 +414,53 @@ export async function GET(req: NextRequest, context: { params: Promise<{ project
   };
 
   if (req.nextUrl.searchParams.get("report") === "producer-pdf") {
-    const lines = [
-      `Story Time Producer Summary`,
-      `Generated: ${new Date().toLocaleString()}`,
-      `Project: ${projectId}`,
-      `Overall completion: ${overallPercent}%`,
-      `Scenes completed: ${scenesCompleted}/${totalScenes}`,
-      `Schedule drift: ${scheduleDriftDays} day(s)`,
-      `Open incidents: ${incidents.length}`,
-      `Open risks: ${unresolvedRiskCount}`,
-      `Contracts signed: ${signedContracts}/${contracts.length}`,
-      "---- Day performance ----",
-      ...dayRows.slice(0, 18).map(
-        (d) =>
-          `${new Date(`${d.date}`).toLocaleDateString()} | ${d.completionPercent}% | ${d.scenesCompleted}/${d.totalScenesScheduled} scenes | delay ${d.delayMinutes}m`,
-      ),
-      "---- Alerts ----",
-      ...(alerts.length > 0 ? alerts.slice(0, 12).map((a) => `${a.severity}: ${a.message}`) : ["No active alerts"]),
+    const projectTitle = projectMeta?.title ?? "Production";
+    const blocks: PdfBlock[] = [
+      { type: "title", text: "PRODUCER SUMMARY" },
+      { type: "subtitle", text: projectTitle },
+      { type: "line", text: `Generated ${new Date().toLocaleString()}` },
+      { type: "blank" },
+      { type: "heading", text: "Overall progress" },
+      { type: "kv", label: "Completion", value: `${overallPercent}%` },
+      { type: "kv", label: "Scenes completed", value: `${scenesCompleted} of ${totalScenes}` },
+      { type: "kv", label: "Schedule drift", value: `${scheduleDriftDays} day(s)` },
+      { type: "kv", label: "Open incidents", value: String(incidents.length) },
+      { type: "kv", label: "Open risks", value: String(unresolvedRiskCount) },
+      { type: "kv", label: "Contracts signed", value: `${signedContracts} of ${contracts.length}` },
+      { type: "heading", text: "Day performance" },
     ];
-    const pdf = buildSimplePdf(lines);
+    if (dayRows.length === 0) {
+      blocks.push({ type: "line", text: "No shoot days recorded." });
+    } else {
+      blocks.push({
+        type: "table",
+        headers: ["Date", "Complete", "Scenes", "Delay"],
+        rows: dayRows.slice(0, 40).map((d) => [
+          new Date(`${d.date}`).toLocaleDateString(),
+          `${d.completionPercent}%`,
+          `${d.scenesCompleted}/${d.totalScenesScheduled}`,
+          `${d.delayMinutes}m`,
+        ]),
+      });
+    }
+    blocks.push({ type: "heading", text: "Alerts" });
+    if (alerts.length === 0) {
+      blocks.push({ type: "line", text: "No active alerts." });
+    } else {
+      blocks.push({
+        type: "bullets",
+        items: alerts.slice(0, 20).map((a) => `${a.severity}: ${a.message}`),
+      });
+    }
+    const pdf = buildDocumentPdf({
+      title: `${projectTitle} — Producer Summary`,
+      footer: projectTitle,
+      blocks,
+    });
     return new NextResponse(new Uint8Array(pdf), {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="shoot-progress-producer-summary-${projectId}.pdf"`,
+        "Content-Disposition": `attachment; filename="producer-summary-${projectTitle.replace(/[^\w.-]+/g, "_")}.pdf"`,
       },
     });
   }

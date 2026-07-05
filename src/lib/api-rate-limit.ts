@@ -5,13 +5,13 @@ import { checkRateLimit } from "@/lib/rate-limit";
  * Per-user rate limit for API routes. Returns a 429 response when exceeded,
  * or null when the request is allowed.
  */
-export function enforceUserRateLimit(args: {
+export async function enforceUserRateLimit(args: {
   key: string;
   userId: string;
   maxAttempts: number;
   windowMs: number;
-}): NextResponse | null {
-  const rate = checkRateLimit({
+}): Promise<NextResponse | null> {
+  const rate = await checkRateLimit({
     key: args.key,
     ip: args.userId,
     maxAttempts: args.maxAttempts,

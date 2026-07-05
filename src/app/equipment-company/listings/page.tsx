@@ -7,6 +7,7 @@ import Image from "next/image";
 import { useSession } from "next-auth/react";
 import { Package, Plus, MapPin, Globe, Tag, Upload } from "lucide-react";
 import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
+import { resolveRenderableFileSource } from "@/lib/secure-file-preview-path";
 
 interface Listing {
   id: string;
@@ -28,10 +29,15 @@ export default function ListingsPage() {
     category: "",
     description: "",
     imageUrl: "",
+    galleryUrls: [] as string[],
     contactUrl: "",
     location: "",
     dailyRate: "",
+    weeklyRate: "",
+    deposit: "",
     specifications: "",
+    quantityAvailable: "",
+    availability: "",
   });
   const [uploading, setUploading] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -61,7 +67,12 @@ export default function ListingsPage() {
         location: form.location || null,
         profile: {
           dailyRate: form.dailyRate ? parseFloat(form.dailyRate) : null,
+          weeklyRate: form.weeklyRate ? parseFloat(form.weeklyRate) : null,
+          deposit: form.deposit ? parseFloat(form.deposit) : null,
           specifications: form.specifications || null,
+          quantityAvailable: form.quantityAvailable ? parseInt(form.quantityAvailable, 10) : null,
+          availability: form.availability || null,
+          galleryUrls: form.galleryUrls.length ? form.galleryUrls : form.imageUrl ? [form.imageUrl] : [],
         },
       }),
     });
@@ -74,10 +85,15 @@ export default function ListingsPage() {
         category: "",
         description: "",
         imageUrl: "",
+        galleryUrls: [],
         contactUrl: "",
         location: "",
         dailyRate: "",
+        weeklyRate: "",
+        deposit: "",
         specifications: "",
+        quantityAvailable: "",
+        availability: "",
       });
     } else {
       setSaveError(data?.error || "Failed to save listing");
@@ -90,7 +106,11 @@ export default function ListingsPage() {
     setUploading(true);
     try {
       const publicUrl = await uploadContentMediaViaApi(file);
-      setForm((f) => ({ ...f, imageUrl: publicUrl }));
+      setForm((f) => ({
+        ...f,
+        imageUrl: f.imageUrl || publicUrl,
+        galleryUrls: [...f.galleryUrls, publicUrl],
+      }));
     } finally {
       setUploading(false);
     }
@@ -135,22 +155,34 @@ export default function ListingsPage() {
               <option value="Other">Other</option>
             </select>
           </div>
-          <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Description" rows={3} className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 text-sm" />
-          <div className="grid grid-cols-2 gap-4">
+          <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Description — condition, what's included, pickup/delivery" rows={3} className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 text-sm" />
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <input type="number" min={0} step={50} value={form.dailyRate} onChange={(e) => setForm({ ...form, dailyRate: e.target.value })} placeholder="Daily rate (ZAR)" className="px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 text-sm" />
-            <input value={form.specifications} onChange={(e) => setForm({ ...form, specifications: e.target.value })} placeholder="Specs (e.g. 4K, includes lens)" className="px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 text-sm" />
+            <input type="number" min={0} step={100} value={form.weeklyRate} onChange={(e) => setForm({ ...form, weeklyRate: e.target.value })} placeholder="Weekly rate (ZAR)" className="px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 text-sm" />
+            <input type="number" min={0} step={50} value={form.deposit} onChange={(e) => setForm({ ...form, deposit: e.target.value })} placeholder="Deposit (ZAR)" className="px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 text-sm" />
+            <input type="number" min={1} value={form.quantityAvailable} onChange={(e) => setForm({ ...form, quantityAvailable: e.target.value })} placeholder="Qty available" className="px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 text-sm" />
           </div>
+          <input value={form.specifications} onChange={(e) => setForm({ ...form, specifications: e.target.value })} placeholder="Specs (e.g. 4K cinema camera, includes lens kit)" className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 text-sm" />
+          <input value={form.availability} onChange={(e) => setForm({ ...form, availability: e.target.value })} placeholder="Availability (e.g. Mon–Fri, 48h notice)" className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 text-sm" />
           {saveError && <p className="text-sm text-red-400">{saveError}</p>}
           <div>
-            <label className="block text-sm text-slate-400 mb-1">Equipment image</label>
-            <div className="flex items-center gap-3">
+            <label className="block text-sm text-slate-400 mb-1">Equipment photos (upload multiple for gallery)</label>
+            <div className="flex items-center gap-3 flex-wrap">
               <label className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800 border border-slate-600 text-slate-300 text-sm cursor-pointer hover:bg-slate-700">
-                <Upload className="w-4 h-4" /> {uploading ? "Uploading..." : "Upload image"}
+                <Upload className="w-4 h-4" /> {uploading ? "Uploading..." : "Add photo"}
                 <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={uploading} />
               </label>
-              {form.imageUrl && <span className="text-xs text-emerald-400 truncate max-w-[200px]">Image set</span>}
+              {form.galleryUrls.length > 0 && (
+                <span className="text-xs text-emerald-400">{form.galleryUrls.length} photo(s)</span>
+              )}
             </div>
-            {form.imageUrl && <input type="hidden" name="imageUrl" value={form.imageUrl} />}
+            {form.galleryUrls.length > 0 && (
+              <div className="flex gap-2 mt-3 overflow-x-auto">
+                {form.galleryUrls.map((url) => (
+                  <img key={url} src={url} alt="" className="h-16 w-24 rounded-lg object-cover shrink-0" />
+                ))}
+              </div>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="Location" className="px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 text-sm" />
@@ -172,7 +204,7 @@ export default function ListingsPage() {
               <div key={l.id} className="bg-slate-800/50 border border-slate-700/50 rounded-xl overflow-hidden">
                 {l.imageUrl ? (
                   <div className="relative w-full aspect-video bg-slate-800">
-                    <Image src={l.imageUrl} alt={l.companyName} fill className="object-cover" unoptimized />
+                    <Image src={resolveRenderableFileSource(l.imageUrl) ?? l.imageUrl} alt={l.companyName} fill className="object-cover" unoptimized />
                   </div>
                 ) : (
                   <div className="w-full aspect-video bg-slate-800/50 flex items-center justify-center">

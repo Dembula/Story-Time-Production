@@ -160,15 +160,42 @@ export async function executeScriptBreakdown(
       return ids;
     };
 
+    // One identity per character name; one row per scene they appear in (for scene views).
+    const characterIdentity = new Map<
+      string,
+      { displayName: string; importance: string | null }
+    >();
     for (const c of parsed.characters ?? []) {
+      const displayName = (c.name ?? "").replace(/\s+/g, " ").trim();
+      const key = displayName.toLowerCase();
+      if (!key) continue;
+      const prev = characterIdentity.get(key);
+      if (!prev) {
+        characterIdentity.set(key, {
+          displayName,
+          importance: c.importance ?? null,
+        });
+      } else if (!prev.importance && c.importance) {
+        prev.importance = c.importance;
+      }
+    }
+    const writtenCharacterScenes = new Set<string>();
+    for (const c of parsed.characters ?? []) {
+      const displayName = (c.name ?? "").replace(/\s+/g, " ").trim();
+      const key = displayName.toLowerCase();
+      if (!key) continue;
+      const identity = characterIdentity.get(key)!;
       for (const sid of resolve(c.sceneNumbers)) {
+        const sceneKey = `${key}::${sid}`;
+        if (writtenCharacterScenes.has(sceneKey)) continue;
+        writtenCharacterScenes.add(sceneKey);
         await tx.breakdownCharacter.create({
           data: {
             projectId,
-            name: c.name,
+            name: identity.displayName,
             sceneId: sid,
             description: null,
-            importance: c.importance ?? null,
+            importance: identity.importance,
           },
         });
       }

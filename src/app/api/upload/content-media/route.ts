@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const limited = enforceUserRateLimit({
+    const limited = await enforceUserRateLimit({
       key: "upload-content-media",
       userId,
       maxAttempts: 120,

@@ -9,12 +9,13 @@ import {
   usePrefillProjectName,
 } from "@/components/creator/creator-project-context";
 import { fetchMarketplaceList, postMarketplaceJson } from "@/lib/creator-marketplace-fetch";
-import { Wrench, MapPin, ExternalLink, Send, Package, Clock, CheckCircle, MessageCircle, ArrowRight, CreditCard } from "lucide-react";
+import { Wrench, MapPin, ExternalLink, Send, Package, CheckCircle, MessageCircle, CreditCard, ChevronDown, ChevronUp } from "lucide-react";
 import { formatZar } from "@/lib/format-currency-zar";
 import { computeEquipmentRequestBaseZar } from "@/lib/equipment-request-base-zar";
 import { computeMarketplaceFeeZar } from "@/lib/marketplace-zar-defaults";
 import { useMarketplacePay } from "@/lib/hooks/use-marketplace-pay";
 import { MarketplaceCheckoutModal } from "@/components/marketplace/marketplace-checkout-modal";
+import { SecureImage } from "@/components/files/secure-image";
 
 type Equipment = {
   id: string;
@@ -29,10 +30,14 @@ type Equipment = {
   company: { id: string; name: string | null } | null;
   profile?: {
     dailyRate?: number | null;
+    weeklyRate?: number | null;
+    deposit?: number | null;
     specifications?: string | null;
     quantityAvailable?: number | null;
     availability?: string | null;
+    galleryUrls?: string[];
   };
+  photos?: string[];
 };
 
 type Request = {
@@ -63,6 +68,14 @@ function EquipmentPageContent() {
   const [loadError, setLoadError] = useState("");
   const [submitError, setSubmitError] = useState("");
   const [payingId, setPayingId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [quoteProfiles, setQuoteProfiles] = useState<Record<string, {
+    dailyRate: number | null;
+    weeklyRate: number | null;
+    deposit: number | null;
+    estimate: { days: number; subtotal: number } | null;
+  }>>({});
+  const [quoteLoadingId, setQuoteLoadingId] = useState<string | null>(null);
   const marketplacePay = useMarketplacePay({
     onPaid: () => {
       fetch("/api/equipment-requests")
@@ -78,6 +91,31 @@ function EquipmentPageContent() {
     [],
   );
   usePrefillProjectName(projectTitle, prefillNote);
+
+  async function loadQuoteProfile(equipmentId: string, startDate?: string, endDate?: string) {
+    setQuoteLoadingId(equipmentId);
+    try {
+      const params = new URLSearchParams();
+      if (startDate) params.set("startDate", startDate);
+      if (endDate) params.set("endDate", endDate);
+      const q = params.toString() ? `?${params}` : "";
+      const res = await fetch(`/api/equipment/${equipmentId}/quote-profile${q}`);
+      if (res.ok) {
+        const data = await res.json();
+        setQuoteProfiles((prev) => ({ ...prev, [equipmentId]: data }));
+      }
+    } finally {
+      setQuoteLoadingId(null);
+    }
+  }
+
+  useEffect(() => {
+    if (!expandedId || requesting !== expandedId) return;
+    const { startDate, endDate } = form;
+    if (!startDate || !endDate) return;
+    const timer = setTimeout(() => void loadQuoteProfile(expandedId, startDate, endDate), 400);
+    return () => clearTimeout(timer);
+  }, [expandedId, requesting, form.startDate, form.endDate]);
 
   useEffect(() => {
     Promise.all([
@@ -98,7 +136,14 @@ function EquipmentPageContent() {
     const note = form.note || (projectTitle ? `Rental for project: ${projectTitle}` : "");
     const { data: req, error } = await postMarketplaceJson<Request & { equipment?: Request["equipment"] }>(
       "/api/equipment-requests",
-      { equipmentId, note, startDate: form.startDate || null, endDate: form.endDate || null },
+      {
+        equipmentId,
+        note,
+        startDate: form.startDate || null,
+        endDate: form.endDate || null,
+        projectId: projectId ?? null,
+        projectTitle: projectTitle ?? null,
+      },
     );
     if (error || !req) {
       setSubmitError(error || "Could not send request");
@@ -173,7 +218,7 @@ function EquipmentPageContent() {
             <Wrench className="w-8 h-8 text-orange-500" />
             Equipment Repository
           </h1>
-          <p className="text-slate-400">Browse equipment from companies on Story Time and send rental requests</p>
+          <p className="text-slate-400">Browse equipment catalogs with photos. Send free rental inquiries, then pay once the company approves your request.</p>
         </div>
         <div className="flex gap-2">
           <button onClick={() => setTab("browse")} className={`px-4 py-2 rounded-lg text-sm font-medium transition ${tab === "browse" ? "bg-orange-500 text-white" : "bg-slate-800/50 text-slate-400 border border-slate-700/50"}`}>
@@ -198,12 +243,27 @@ function EquipmentPageContent() {
               <h2 className="text-xl font-semibold text-white mb-4">{category}</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {equipment.filter((e) => e.category === category).map((e) => {
-                  const thumb = e.previewImageUrl || e.imageUrl;
+                  const gallery = e.photos?.length
+                    ? e.photos
+                    : e.profile?.galleryUrls?.length
+                      ? e.profile.galleryUrls
+                      : e.previewImageUrl || e.imageUrl
+                        ? [e.previewImageUrl || e.imageUrl!]
+                        : [];
+                  const thumb = gallery[0];
                   const desc = e.plainDescription || e.description;
+                  const isExpanded = expandedId === e.id;
+                  const quote = quoteProfiles[e.id];
                   return (
                   <div key={e.id} className="rounded-2xl bg-slate-800/30 border border-slate-700/50 hover:border-orange-500/30 transition overflow-hidden">
-                    {thumb ? (
-                      <img src={thumb} alt="" className="w-full h-36 object-cover" />
+                    {gallery.length >= 2 ? (
+                      <div className="grid grid-cols-2 gap-0.5 bg-slate-900">
+                        {gallery.slice(0, 4).map((url, i) => (
+                          <SecureImage key={`${e.id}-${i}`} fileRef={url} alt="" className={`w-full object-cover ${gallery.length === 2 ? "h-36" : "h-24"}`} />
+                        ))}
+                      </div>
+                    ) : thumb ? (
+                      <SecureImage fileRef={thumb} alt="" className="w-full h-36 object-cover" />
                     ) : (
                       <div className="h-28 flex items-center justify-center bg-slate-800/60">
                         <Package className="w-10 h-10 text-slate-600" />
@@ -215,16 +275,44 @@ function EquipmentPageContent() {
                         <h3 className="text-lg font-semibold text-white">{e.companyName}</h3>
                         {e.company?.name && <p className="text-xs text-orange-400">{e.company.name}</p>}
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = isExpanded ? null : e.id;
+                          setExpandedId(next);
+                          if (next && !quoteProfiles[next]) void loadQuoteProfile(next);
+                        }}
+                        className="p-1 text-slate-400"
+                      >
+                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                      </button>
                     </div>
-                    {e.profile?.dailyRate != null && (
-                      <p className="text-sm font-medium text-orange-300">{formatZar(e.profile.dailyRate)}/day</p>
-                    )}
                     {desc && <p className="text-sm text-slate-400 leading-relaxed line-clamp-3">{desc}</p>}
                     {e.profile?.specifications && <p className="text-xs text-slate-500">{e.profile.specifications}</p>}
                     <div className="flex flex-wrap gap-3 text-xs">
                       {e.location && <span className="flex items-center gap-1 text-slate-500"><MapPin className="w-3 h-3" /> {e.location}</span>}
                       {e.contactUrl && <a href={e.contactUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-orange-400 hover:text-orange-300"><ExternalLink className="w-3 h-3" /> Website</a>}
                     </div>
+
+                    {isExpanded && (
+                      <div className="pt-3 border-t border-slate-700/50 space-y-2">
+                        {quoteLoadingId === e.id && <p className="text-xs text-slate-500">Loading rates…</p>}
+                        {quote && (
+                          <div className="rounded-lg border border-slate-700/50 bg-slate-900/40 p-3 text-sm text-slate-300 space-y-1">
+                            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Quote profile</p>
+                            {quote.dailyRate != null && <p>Daily: {formatZar(quote.dailyRate)}</p>}
+                            {quote.weeklyRate != null && <p>Weekly: {formatZar(quote.weeklyRate)}</p>}
+                            {quote.deposit != null && <p>Deposit: {formatZar(quote.deposit)}</p>}
+                            {quote.estimate && quote.estimate.subtotal > 0 && (
+                              <p className="text-orange-300">Est. {quote.estimate.days} day(s): {formatZar(quote.estimate.subtotal)}</p>
+                            )}
+                            {!quote.dailyRate && !quote.weeklyRate && (
+                              <p className="text-slate-500">Message the company for a custom quote.</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {e.company?.id ? (
                       requesting === e.id ? (
@@ -248,7 +336,7 @@ function EquipmentPageContent() {
                           </div>
                         </div>
                       ) : (
-                        <button onClick={() => setRequesting(e.id)} className="w-full mt-2 py-2 rounded-lg text-sm font-medium bg-orange-500/10 text-orange-400 border border-orange-500/30 hover:bg-orange-500/20 transition flex items-center justify-center gap-1.5">
+                        <button onClick={() => { setRequesting(e.id); setExpandedId(e.id); if (!quoteProfiles[e.id]) void loadQuoteProfile(e.id); }} className="w-full mt-2 py-2 rounded-lg text-sm font-medium bg-orange-500/10 text-orange-400 border border-orange-500/30 hover:bg-orange-500/20 transition flex items-center justify-center gap-1.5">
                           <Send className="w-3.5 h-3.5" /> Request Equipment
                         </button>
                       )
@@ -305,11 +393,12 @@ function EquipmentPageContent() {
                     )}
                   </div>
                   <div className="flex flex-col sm:items-end gap-2 shrink-0">
-                    {paid && (
-                      <a href={`/creator/messages?requestId=${r.id}&companyId=${r.company.id}`} className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 transition text-sm">
-                        <MessageCircle className="w-4 h-4" /> Chat <ArrowRight className="w-3 h-3" />
-                      </a>
-                    )}
+                    <a
+                      href={`/creator/messages?requestId=${r.id}&companyId=${r.company.id}`}
+                      className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 transition text-sm"
+                    >
+                      <MessageCircle className="w-4 h-4" /> Message
+                    </a>
                     {canPay && (
                       <button
                         type="button"
@@ -317,7 +406,7 @@ function EquipmentPageContent() {
                         onClick={() => payRequest(r.id)}
                         className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 transition text-sm font-medium disabled:opacity-50"
                       >
-                        <CreditCard className="w-4 h-4" /> {payingId === r.id ? "Processing…" : "Pay now"}
+                        <CreditCard className="w-4 h-4" /> {payingId === r.id ? "Processing…" : "Confirm & pay"}
                       </button>
                     )}
                   </div>

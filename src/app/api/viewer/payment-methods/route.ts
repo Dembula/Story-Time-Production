@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
 
   if (!isPayFastConfigured()) {
     return NextResponse.json(
-      { error: "PayFast is not configured. Card saving is handled by PayFast when checkout is live." },
+      { error: "PayFast is not configured. Card saving requires live PayFast integration." },
       { status: 503 },
     );
   }
@@ -71,6 +71,7 @@ export async function POST(req: NextRequest) {
       userId: user.id,
       email: user.email,
       name: user.name,
+      returnPath,
       returnUrl: buildPaymentReturnUrl(returnPath, "payfast_card_consent"),
     });
     return NextResponse.json({

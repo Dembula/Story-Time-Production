@@ -15,6 +15,8 @@ export default function MusicOriginalsPage() {
   const [memberships, setMemberships] = useState<Membership[]>([]);
   const [allProjects, setAllProjects] = useState<{ id: string; title: string; type: string; genre: string | null; status: string; logline: string | null; members: { department: string | null; status: string }[]; _count: { members: number } }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [expressingId, setExpressingId] = useState<string | null>(null);
+  const [expressedIds, setExpressedIds] = useState<Set<string>>(new Set());
   const [expanded, setExpanded] = useState<string | null>(null);
 
   useEffect(() => {
@@ -23,6 +25,20 @@ export default function MusicOriginalsPage() {
       fetch("/api/originals?type=projects").then((r) => r.json()),
     ]).then(([m, p]) => { setMemberships(m); setAllProjects(p); }).finally(() => setLoading(false));
   }, []);
+
+  async function expressInterest(projectId: string) {
+    setExpressingId(projectId);
+    try {
+      const res = await fetch("/api/originals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "EXPRESS_MUSIC_INTEREST", projectId }),
+      });
+      if (res.ok) setExpressedIds((prev) => new Set(prev).add(projectId));
+    } finally {
+      setExpressingId(null);
+    }
+  }
 
   async function respondInvite(memberId: string, accept: boolean) {
     await fetch("/api/originals", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "RESPOND_INVITE", memberId, accept }) });
@@ -104,7 +120,15 @@ export default function MusicOriginalsPage() {
               <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[p.status] || ""}`}>{p.status.replace(/_/g, " ")}</span>
             </div>
             <p className="text-sm text-slate-400 mb-2">{p.logline}</p>
-            <p className="text-xs text-slate-500">{p.type} · {p.genre} · {p._count.members} team members</p>
+            <p className="text-xs text-slate-500 mb-3">{p.type} · {p.genre} · {p._count.members} team members</p>
+            <button
+              type="button"
+              onClick={() => expressInterest(p.id)}
+              disabled={expressingId === p.id || expressedIds.has(p.id)}
+              className="px-3 py-1.5 rounded-lg bg-pink-500/15 text-pink-300 border border-pink-500/30 text-xs font-medium hover:bg-pink-500/25 disabled:opacity-60"
+            >
+              {expressedIds.has(p.id) ? "Interest sent" : expressingId === p.id ? "Sending…" : "Express interest"}
+            </button>
           </div>
         ))}
       </div>

@@ -251,30 +251,32 @@ model User {
   passwordResetTokens             PasswordResetToken[]
   userRoles                       UserRole[]
   promoCodeRedemptions            PromoCodeRedemption[]
-  createdPromoCodes               PromoCode[]              @relation("PromoCodeCreatedByAdmin")
-  ipAssetsOwned                   IPAsset[]                @relation("IPAssetCurrentOwner")
-  ipAssetsCreated                 IPAsset[]                @relation("IPAssetOriginalCreator")
+  createdPromoCodes               PromoCode[]                 @relation("PromoCodeCreatedByAdmin")
+  ipAssetsOwned                   IPAsset[]                   @relation("IPAssetCurrentOwner")
+  ipAssetsCreated                 IPAsset[]                   @relation("IPAssetOriginalCreator")
   ipOwnershipStructures           IPOwnershipStructure[]
-  ipLicensesAsLicensor            IPLicensingAgreement[]   @relation("IPLicenseLicensor")
-  ipLicensesAsLicensee            IPLicensingAgreement[]   @relation("IPLicenseLicensee")
-  ipTransactionsBought            IPTransaction[]          @relation("IPTransactionBuyer")
-  ipTransactionsSold              IPTransaction[]          @relation("IPTransactionSeller")
+  ipLicensesAsLicensor            IPLicensingAgreement[]      @relation("IPLicenseLicensor")
+  ipLicensesAsLicensee            IPLicensingAgreement[]      @relation("IPLicenseLicensee")
+  ipTransactionsBought            IPTransaction[]             @relation("IPTransactionBuyer")
+  ipTransactionsSold              IPTransaction[]             @relation("IPTransactionSeller")
   funderProfile                   FunderProfile?
-  funderVerificationsSubmitted    FunderVerification[]     @relation("FunderVerificationSubmitter")
-  funderVerificationsReviewed     FunderVerification[]     @relation("FunderVerificationReviewer")
+  fundingProgramsCreated          FundingProgram[]            @relation("FundingProgramCreator")
+  fundingProgramApplications      FundingProgramApplication[] @relation("FundingProgramApplicationCreator")
+  funderVerificationsSubmitted    FunderVerification[]        @relation("FunderVerificationSubmitter")
+  funderVerificationsReviewed     FunderVerification[]        @relation("FunderVerificationReviewer")
   payoutKycProfile                PayoutKycProfile?
-  payoutKycVerificationsSubmitted PayoutKycVerification[]  @relation("PayoutKycVerificationSubmitter")
-  payoutKycVerificationsReviewed  PayoutKycVerification[]  @relation("PayoutKycVerificationReviewer")
-  opportunitiesCreated            InvestmentOpportunity[]  @relation("InvestmentOpportunityCreator")
+  payoutKycVerificationsSubmitted PayoutKycVerification[]     @relation("PayoutKycVerificationSubmitter")
+  payoutKycVerificationsReviewed  PayoutKycVerification[]     @relation("PayoutKycVerificationReviewer")
+  opportunitiesCreated            InvestmentOpportunity[]     @relation("InvestmentOpportunityCreator")
   companyFundingListings          CompanyFundingListing[]
-  investmentDealsAsFunder         InvestmentDeal[]         @relation("InvestmentDealFunder")
-  investmentDealsAsCreator        InvestmentDeal[]         @relation("InvestmentDealCreator")
+  investmentDealsAsFunder         InvestmentDeal[]            @relation("InvestmentDealFunder")
+  investmentDealsAsCreator        InvestmentDeal[]            @relation("InvestmentDealCreator")
   dealMessagesSent                DealNegotiationMessage[]
-  dealContractsGenerated          DealContract[]           @relation("DealContractGeneratedBy")
+  dealContractsGenerated          DealContract[]              @relation("DealContractGeneratedBy")
   dealContractsSigned             DealContractSignature[]
-  dealPaymentsCreated             DealPayment[]            @relation("DealPaymentInitiatedBy")
+  dealPaymentsCreated             DealPayment[]               @relation("DealPaymentInitiatedBy")
   capTableEntries                 CapTableEntry[]
-  projectRevenueEventsLogged      ProjectRevenueEvent[]    @relation("ProjectRevenueEventRecordedBy")
+  projectRevenueEventsLogged      ProjectRevenueEvent[]       @relation("ProjectRevenueEventRecordedBy")
   stakeholderPayouts              StakeholderPayout[]
 }
 
@@ -1069,62 +1071,63 @@ model OriginalProject {
   incidentReports         IncidentReport[]
 
   // Pre-production & production tooling
-  scripts                 ProjectScript[]
-  scenes                  ProjectScene[]
-  projectActivities       ProjectActivity[]
-  scriptReviewRequests    ScriptReviewRequest[]
-  scriptReviewSessions    ScriptReviewSession[]
-  breakdownCharacters     BreakdownCharacter[]
-  breakdownProps          BreakdownProp[]
-  breakdownLocations      BreakdownLocation[]
-  breakdownWardrobes      BreakdownWardrobe[]
-  breakdownExtras         BreakdownExtra[]
-  breakdownVehicles       BreakdownVehicle[]
-  breakdownStunts         BreakdownStunt[]
-  breakdownSfxs           BreakdownSfx[]
-  breakdownMakeups        BreakdownMakeup[]
-  projectBudgets          ProjectBudget[]
-  productionExpenses      ProductionExpense[]
-  projectVendors          ProjectVendor[]
-  purchaseOrders          PurchaseOrder[]
-  payrollRuns             PayrollRun[]
-  pettyCashFunds          PettyCashFund[]
-  bankImportBatches       BankImportBatch[]
-  shootDays               ShootDay[]
-  cateringMealForecasts   CateringMealForecast[]
-  stakeholderSyncEvents   StakeholderSyncEvent[]
-  callSheets              CallSheet[]
-  castingRoles            CastingRole[]
-  castingInvitations      CastingInvitation[]
-  crewRoleNeeds           CrewRoleNeed[]
-  crewInvitations         CrewInvitation[]
-  projectContracts        ProjectContract[]
-  contractClauses         ContractClause[]
-  fundingRequest          FundingRequest?
-  pitchDeck               PitchDeck?
-  chatThreads             ProjectChatThread[]
-  chatMessages            ProjectChatMessage[]
-  projectTasks            ProjectTask[]
-  tableReadSessions       TableReadSession[]
-  equipmentPlanItems      EquipmentPlanItem[]
-  visualAssets            ProjectVisualAsset[]
-  riskPlan                RiskPlan?
-  continuityNotes         ContinuityNote[]
-  dailiesBatches          DailiesBatch[]
-  dailiesClips            DailiesClip[]
-  scriptReviewNotes       ScriptReviewNote[]
-  creatorScripts          CreatorScript[]
-  creatorScriptImports    CreatorScriptImport[]
-  linkedCatalogueContent  Content[]
-  shootDayControlBoards   ShootDayControlBoard[]
-  investmentOpportunities InvestmentOpportunity[]
-  investmentDeals         InvestmentDeal[]
-  capTableEntries         CapTableEntry[]
-  revenueEvents           ProjectRevenueEvent[]
-  stakeholderPayouts      StakeholderPayout[]
-  calendarEvents          CreatorCalendarEvent[]
-  productionContext       ProjectProductionContext?
-  budgetAssumptions       ProjectBudgetAssumption[]
+  scripts                    ProjectScript[]
+  scenes                     ProjectScene[]
+  projectActivities          ProjectActivity[]
+  scriptReviewRequests       ScriptReviewRequest[]
+  scriptReviewSessions       ScriptReviewSession[]
+  breakdownCharacters        BreakdownCharacter[]
+  breakdownProps             BreakdownProp[]
+  breakdownLocations         BreakdownLocation[]
+  breakdownWardrobes         BreakdownWardrobe[]
+  breakdownExtras            BreakdownExtra[]
+  breakdownVehicles          BreakdownVehicle[]
+  breakdownStunts            BreakdownStunt[]
+  breakdownSfxs              BreakdownSfx[]
+  breakdownMakeups           BreakdownMakeup[]
+  projectBudgets             ProjectBudget[]
+  productionExpenses         ProductionExpense[]
+  projectVendors             ProjectVendor[]
+  purchaseOrders             PurchaseOrder[]
+  payrollRuns                PayrollRun[]
+  pettyCashFunds             PettyCashFund[]
+  bankImportBatches          BankImportBatch[]
+  shootDays                  ShootDay[]
+  cateringMealForecasts      CateringMealForecast[]
+  stakeholderSyncEvents      StakeholderSyncEvent[]
+  callSheets                 CallSheet[]
+  castingRoles               CastingRole[]
+  castingInvitations         CastingInvitation[]
+  crewRoleNeeds              CrewRoleNeed[]
+  crewInvitations            CrewInvitation[]
+  projectContracts           ProjectContract[]
+  contractClauses            ContractClause[]
+  fundingRequest             FundingRequest?
+  fundingProgramApplications FundingProgramApplication[]
+  pitchDeck                  PitchDeck?
+  chatThreads                ProjectChatThread[]
+  chatMessages               ProjectChatMessage[]
+  projectTasks               ProjectTask[]
+  tableReadSessions          TableReadSession[]
+  equipmentPlanItems         EquipmentPlanItem[]
+  visualAssets               ProjectVisualAsset[]
+  riskPlan                   RiskPlan?
+  continuityNotes            ContinuityNote[]
+  dailiesBatches             DailiesBatch[]
+  dailiesClips               DailiesClip[]
+  scriptReviewNotes          ScriptReviewNote[]
+  creatorScripts             CreatorScript[]
+  creatorScriptImports       CreatorScriptImport[]
+  linkedCatalogueContent     Content[]
+  shootDayControlBoards      ShootDayControlBoard[]
+  investmentOpportunities    InvestmentOpportunity[]
+  investmentDeals            InvestmentDeal[]
+  capTableEntries            CapTableEntry[]
+  revenueEvents              ProjectRevenueEvent[]
+  stakeholderPayouts         StakeholderPayout[]
+  calendarEvents             CreatorCalendarEvent[]
+  productionContext          ProjectProductionContext?
+  budgetAssumptions          ProjectBudgetAssumption[]
 
   @@index([status])
 }
@@ -1678,6 +1681,7 @@ model CateringBooking {
   note                 String?
   status               String          @default("PENDING")
   paymentTransactionId String?
+  quotedAmount         Float?
   createdAt            DateTime        @default(now())
   updatedAt            DateTime        @updatedAt
 
@@ -3247,40 +3251,44 @@ model CrewInvitation {
 }
 
 model ProjectContract {
-  id                  String           @id @default(cuid())
-  projectId           String
-  project             OriginalProject  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  type                String // ACTOR, CREW, LOCATION, VENDOR
-  status              String           @default("DRAFT")
-  currentVersionId    String?
-  counterpartyUserId  String?
-  counterpartyUser    User?            @relation(fields: [counterpartyUserId], references: [id], onDelete: SetNull)
-  castingTalentId     String?
-  castingTalent       CastingTalent?   @relation(fields: [castingTalentId], references: [id], onDelete: SetNull)
-  crewTeamId          String?
-  crewTeam            CrewTeam?        @relation(fields: [crewTeamId], references: [id], onDelete: SetNull)
-  locationListingId   String?
-  locationListing     LocationListing? @relation(fields: [locationListingId], references: [id], onDelete: SetNull)
-  vendorName          String?
-  subject             String?
-  recipientType       String?
-  recipientLabel      String?
-  recipientEmail      String?
-  jurisdiction        String?          @default("South Africa")
-  catalogEntryId      String?
-  signingMode         String           @default("PARALLEL") // PARALLEL | SEQUENTIAL
-  approvalRequired    Boolean          @default(false)
-  executedDocumentUrl String?
-  esignProvider       String? // STORYTIME | DOCUSIGN | HELLOSIGN
-  esignEnvelopeId     String?
-  signatureDeadline   DateTime?
-  sentAt              DateTime?
-  viewedAt            DateTime?
-  executedAt          DateTime?
-  createdById         String?
-  createdBy           User?            @relation("ProjectContractCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  createdAt           DateTime         @default(now())
-  updatedAt           DateTime         @updatedAt
+  id                   String           @id @default(cuid())
+  projectId            String
+  project              OriginalProject  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  type                 String // ACTOR, CREW, LOCATION, VENDOR
+  status               String           @default("DRAFT")
+  currentVersionId     String?
+  counterpartyUserId   String?
+  counterpartyUser     User?            @relation(fields: [counterpartyUserId], references: [id], onDelete: SetNull)
+  castingTalentId      String?
+  castingTalent        CastingTalent?   @relation(fields: [castingTalentId], references: [id], onDelete: SetNull)
+  crewTeamId           String?
+  crewTeam             CrewTeam?        @relation(fields: [crewTeamId], references: [id], onDelete: SetNull)
+  locationListingId    String?
+  locationListing      LocationListing? @relation(fields: [locationListingId], references: [id], onDelete: SetNull)
+  vendorName           String?
+  subject              String?
+  recipientType        String?
+  recipientLabel       String?
+  recipientEmail       String?
+  jurisdiction         String?          @default("South Africa")
+  catalogEntryId       String?
+  signingMode          String           @default("PARALLEL") // PARALLEL | SEQUENTIAL
+  approvalRequired     Boolean          @default(false)
+  executedDocumentUrl  String?
+  esignProvider        String? // STORYTIME | DOCUSIGN | HELLOSIGN
+  esignEnvelopeId      String?
+  signatureDeadline    DateTime?
+  sentAt               DateTime?
+  viewedAt             DateTime?
+  executedAt           DateTime?
+  /// Settled cast/crew salary payment (Story Time marketplace payout to payee wallet).
+  paymentTransactionId String?
+  hireAmount           Float?
+  paidAt               DateTime?
+  createdById          String?
+  createdBy            User?            @relation("ProjectContractCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
 
   versions       ProjectContractVersion[]
   signatures     ProjectSignature[]
@@ -3291,6 +3299,7 @@ model ProjectContract {
   esignEnvelopes ContractEsignEnvelope[]
 
   @@index([projectId])
+  @@index([paymentTransactionId])
   @@index([counterpartyUserId])
   @@index([castingTalentId])
   @@index([crewTeamId])
@@ -3452,6 +3461,60 @@ model FundingRequest {
   @@index([status])
 }
 
+model FundingProgram {
+  id                  String         @id @default(cuid())
+  title               String
+  description         String?
+  programType         String         @default("GRANT") // GRANT | EQUITY | LOAN | SPONSORSHIP | INTERNAL
+  funderType          String         @default("INSTITUTIONAL") // INSTITUTIONAL | PRIVATE | INTERNAL_STORYTIME
+  managedBy           String         @default("ADMIN") // ADMIN | FUNDER
+  createdByUserId     String
+  createdByUser       User           @relation("FundingProgramCreator", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  funderProfileId     String?
+  funderProfile       FunderProfile? @relation(fields: [funderProfileId], references: [id], onDelete: SetNull)
+  minAmount           Float?
+  maxAmount           Float?
+  currency            String         @default("ZAR")
+  categories          String? // JSON string[]
+  requirements        String? // JSON string[]
+  applicationDeadline DateTime?
+  contactEmail        String?
+  region              String?
+  status              String         @default("ACTIVE") // DRAFT | ACTIVE | CLOSED
+  visible             Boolean        @default(true)
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  applications FundingProgramApplication[]
+
+  @@index([status])
+  @@index([managedBy])
+  @@index([funderProfileId])
+  @@index([visible])
+}
+
+model FundingProgramApplication {
+  id              String          @id @default(cuid())
+  programId       String
+  program         FundingProgram  @relation(fields: [programId], references: [id], onDelete: Cascade)
+  projectId       String
+  project         OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  creatorUserId   String
+  creatorUser     User            @relation("FundingProgramApplicationCreator", fields: [creatorUserId], references: [id], onDelete: Cascade)
+  requestedAmount Float?
+  notes           String?
+  documentFlags   Json            @default("{}")
+  status          String          @default("SUBMITTED") // DRAFT | SUBMITTED | UNDER_REVIEW | APPROVED | REJECTED | CHANGES_REQUESTED
+  adminNote       String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([programId])
+  @@index([projectId])
+  @@index([creatorUserId])
+  @@index([status])
+}
+
 model FunderProfile {
   id                     String    @id @default(cuid())
   userId                 String    @unique
@@ -3475,8 +3538,9 @@ model FunderProfile {
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 
-  verifications FunderVerification[]
-  opportunities InvestmentOpportunity[]
+  verifications   FunderVerification[]
+  opportunities   InvestmentOpportunity[]
+  fundingPrograms FundingProgram[]
 
   @@index([verificationStatus])
 }
@@ -3545,27 +3609,28 @@ model PayoutKycVerification {
 }
 
 model InvestmentOpportunity {
-  id               String           @id @default(cuid())
-  projectId        String?
-  project          OriginalProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  createdByUserId  String
-  createdByUser    User             @relation("InvestmentOpportunityCreator", fields: [createdByUserId], references: [id], onDelete: Cascade)
-  funderProfileId  String?
-  funderProfile    FunderProfile?   @relation(fields: [funderProfileId], references: [id], onDelete: SetNull)
-  type             String // FILM_PROJECT | SCRIPT_RIGHTS | COMPANY_EXPANSION | GAP_FINANCING | DISTRIBUTION_ADVANCE
-  marketCategory   String
-  title            String
-  description      String?
-  fundingTarget    Float
-  minTicketSize    Float?
-  maxTicketSize    Float?
-  equityOfferedPct Float?
-  revenueModel     String?
-  termsSummary     String?
-  status           String           @default("OPEN") // OPEN | NEGOTIATING | FUNDED | CLOSED
-  visible          Boolean          @default(true)
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  id                String           @id @default(cuid())
+  projectId         String?
+  project           OriginalProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  createdByUserId   String
+  createdByUser     User             @relation("InvestmentOpportunityCreator", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  funderProfileId   String?
+  funderProfile     FunderProfile?   @relation(fields: [funderProfileId], references: [id], onDelete: SetNull)
+  type              String // FILM_PROJECT | SCRIPT_RIGHTS | COMPANY_EXPANSION | GAP_FINANCING | DISTRIBUTION_ADVANCE
+  marketCategory    String
+  title             String
+  description       String?
+  fundingTarget     Float
+  minTicketSize     Float?
+  maxTicketSize     Float?
+  equityOfferedPct  Float?
+  revenueModel      String?
+  termsSummary      String?
+  publicListingMeta Json?
+  status            String           @default("OPEN") // OPEN | NEGOTIATING | FUNDED | CLOSED
+  visible           Boolean          @default(true)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
 
   companyListing CompanyFundingListing?
   deals          InvestmentDeal[]
@@ -3697,21 +3762,22 @@ model DealContractSignature {
 }
 
 model DealPayment {
-  id               String         @id @default(cuid())
-  dealId           String
-  deal             InvestmentDeal @relation(fields: [dealId], references: [id], onDelete: Cascade)
-  contractId       String?
-  contract         DealContract?  @relation(fields: [contractId], references: [id], onDelete: SetNull)
-  initiatedById    String?
-  initiatedBy      User?          @relation("DealPaymentInitiatedBy", fields: [initiatedById], references: [id], onDelete: SetNull)
-  amount           Float
-  currency         String         @default("ZAR")
-  status           String         @default("PENDING") // PENDING | LOCKED | AUTHORIZED | SETTLED | FAILED
-  gatewayProvider  String?
-  gatewayReference String?
-  metadata         Json?
-  createdAt        DateTime       @default(now())
-  settledAt        DateTime?
+  id                   String         @id @default(cuid())
+  dealId               String
+  deal                 InvestmentDeal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  contractId           String?
+  contract             DealContract?  @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  initiatedById        String?
+  initiatedBy          User?          @relation("DealPaymentInitiatedBy", fields: [initiatedById], references: [id], onDelete: SetNull)
+  amount               Float
+  currency             String         @default("ZAR")
+  status               String         @default("PENDING") // PENDING | LOCKED | AUTHORIZED | SETTLED | FAILED
+  gatewayProvider      String?
+  gatewayReference     String?
+  paymentTransactionId String?
+  metadata             Json?
+  createdAt            DateTime       @default(now())
+  settledAt            DateTime?
 
   @@index([dealId])
   @@index([status])

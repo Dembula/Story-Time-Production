@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { Users, Film, Clock, DollarSign, Music, Handshake, GraduationCap, Globe, Monitor, Activity, TrendingUp, Wifi, Briefcase, Megaphone } from "lucide-react";
+import { Users, Film, Clock, DollarSign, Music, Handshake, GraduationCap, Globe, Monitor, Activity, TrendingUp, Wifi, Briefcase, Megaphone, UserMinus } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatZar } from "@/lib/format-currency-zar";
@@ -30,6 +30,12 @@ export function AdminOverviewClient() {
     queryKey: ["admin-ops-incidents"],
     queryFn: () => fetch("/api/admin/ops/incidents").then((r) => r.json()),
   });
+  const { data: churnSummary } = useQuery({
+    queryKey: ["admin-churn"],
+    queryFn: () => fetch("/api/admin/churn").then((r) => r.json()),
+    refetchInterval: ADMIN_DASHBOARD_REFETCH_MS,
+  });
+  const churnMetrics = churnSummary?.metrics ?? {};
   const { data: ipMarketplaceAudit } = useQuery({
     queryKey: ["admin-ip-marketplace-audit"],
     queryFn: () => fetch("/api/admin/ip-marketplace/audit").then((r) => r.json()),
@@ -149,6 +155,24 @@ export function AdminOverviewClient() {
           { label: "Casting Agencies", value: stats?.castingAgencyCount ?? 0, sub: `${stats?.castTotalTalent ?? 0} talent · ${stats?.castInquiryCount ?? 0} inquiries · ${stats?.auditionCount ?? 0} auditions`, icon: Megaphone, color: "violet", href: "/admin/cast" },
           { label: "Events (30d)", value: analyticsSummary?.eventsCount ?? 0, sub: `${analyticsSummary?.topEvents?.[0]?.name ?? "No events"} top signal`, icon: Activity, color: "blue", href: "/admin/activity" },
           { label: "Open Ops Incidents", value: opsIncidents?.incidents?.length ?? 0, sub: "Automated ledger health checks", icon: Wifi, color: "amber", href: "/admin/activity" },
+          {
+            label: "Subscription churn",
+            value: churnMetrics.subscriptionsCancelled ?? 0,
+            sub: `${churnMetrics.subscriptionsScheduledCancel ?? 0} scheduled · ${churnMetrics.subscriptionsPastDue ?? 0} past due`,
+            icon: UserMinus,
+            color: "orange",
+            href: "/admin/payments",
+          },
+          {
+            label: "Failed payments",
+            value:
+              Number(churnMetrics.gatewayPaymentsCancelled ?? 0) +
+              Number(churnMetrics.gatewayPaymentsFailed ?? 0),
+            sub: `${churnMetrics.marketplaceTransactionsFailed ?? 0} marketplace failures`,
+            icon: DollarSign,
+            color: "amber",
+            href: "/admin/payments",
+          },
           { label: "IP Audit Risk", value: ipMarketplaceAudit?.riskScore ?? 0, sub: `${ipMarketplaceAudit?.findings?.length ?? 0} marketplace findings`, icon: Globe, color: "orange", href: "/admin/activity" },
         ].map((card, i) => {
           const colorMap: Record<string, string> = {

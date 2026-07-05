@@ -5,9 +5,10 @@ import { Suspense } from "react";
 import { useEffect, useState, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import {
-  Music, Search, Send, Play, Headphones, Film, MessageSquare,
+  Music, Search, Send, Headphones, Film, MessageSquare,
   Clock, DollarSign, ChevronDown, ChevronUp, CheckCircle,
 } from "lucide-react";
+import { MusicTrackPreview } from "@/components/music/music-track-preview";
 
 interface Track {
   id: string; title: string; artistName: string; audioUrl: string | null; coverUrl: string | null;
@@ -52,6 +53,25 @@ function MusicContent() {
   const [newMsg, setNewMsg] = useState("");
   const [sending, setSending] = useState(false);
   const chatEnd = useRef<HTMLDivElement>(null);
+  const [payingId, setPayingId] = useState<string | null>(null);
+
+  async function payForSync(requestId: string) {
+    setPayingId(requestId);
+    try {
+      const res = await fetch("/api/payments/sync-licensing/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          syncRequestId: requestId,
+          returnUrl: `${window.location.origin}/creator/music?tab=requests`,
+        }),
+      });
+      const data = await res.json();
+      if (data.checkoutUrl) window.location.href = data.checkoutUrl;
+    } finally {
+      setPayingId(null);
+    }
+  }
 
   useEffect(() => {
     Promise.all([
@@ -153,6 +173,12 @@ function MusicContent() {
               return (
                 <div key={t.id} className="bg-slate-800/50 border border-slate-700/50 rounded-xl overflow-hidden">
                   <div className="p-4 flex items-center gap-4 cursor-pointer hover:bg-slate-800/70 transition" onClick={() => setExpanded(expanded === t.id ? null : t.id)}>
+                    <MusicTrackPreview
+                      audioUrl={t.audioUrl}
+                      trackId={t.id}
+                      title={t.title}
+                      variant="compact"
+                    />
                     <div className="w-14 h-14 rounded-lg overflow-hidden bg-slate-700 flex-shrink-0">
                       {t.coverUrl ? <img src={t.coverUrl} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><Music className="w-6 h-6 text-slate-500" /></div>}
                     </div>
@@ -186,7 +212,16 @@ function MusicContent() {
                         <span className="text-slate-500">{t._count.syncDeals} existing placements</span>
                       </div>
                       {t.tags && <div className="flex flex-wrap gap-1">{t.tags.split(",").map((tag) => <span key={tag.trim()} className="text-xs px-2 py-0.5 rounded bg-slate-700/50 text-slate-400">{tag.trim()}</span>)}</div>}
-                      {t.audioUrl && <audio src={t.audioUrl} controls className="w-full mt-2" />}
+                      {t.audioUrl ? (
+                        <MusicTrackPreview
+                          audioUrl={t.audioUrl}
+                          trackId={`${t.id}-expanded`}
+                          title={t.title}
+                          variant="bar"
+                          subtitle="Full track preview"
+                          className="mt-2"
+                        />
+                      ) : null}
                     </div>
                   )}
 
@@ -197,7 +232,7 @@ function MusicContent() {
                         <div><label className="block text-xs text-slate-400 mb-1">Project Name</label><input value={form.projectName} onChange={(e) => setForm({ ...form, projectName: e.target.value })} className="w-full px-3 py-2 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" placeholder="Your film/series name" /></div>
                         <div><label className="block text-xs text-slate-400 mb-1">Project Type</label><select value={form.projectType} onChange={(e) => setForm({ ...form, projectType: e.target.value })} className="w-full px-3 py-2 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm"><option value="">Select...</option><option value="Film">Film</option><option value="Series">Series</option><option value="Documentary">Documentary</option><option value="Short Film">Short Film</option><option value="Music Video">Music Video</option><option value="Other">Other</option></select></div>
                         <div><label className="block text-xs text-slate-400 mb-1">Usage</label><input value={form.usageType} onChange={(e) => setForm({ ...form, usageType: e.target.value })} className="w-full px-3 py-2 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" placeholder="e.g. Opening Scene, End Credits" /></div>
-                        <div><label className="block text-xs text-slate-400 mb-1">Budget ($)</label><input type="number" value={form.budget} onChange={(e) => setForm({ ...form, budget: e.target.value })} className="w-full px-3 py-2 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" placeholder="Proposed amount" /></div>
+                        <div><label className="block text-xs text-slate-400 mb-1">Budget (ZAR)</label><input type="number" value={form.budget} onChange={(e) => setForm({ ...form, budget: e.target.value })} className="w-full px-3 py-2 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" placeholder="Proposed amount" /></div>
                       </div>
                       <div><label className="block text-xs text-slate-400 mb-1">Message to Artist</label><textarea value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} rows={3} className="w-full px-3 py-2 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" placeholder="Tell them about your project and why their music is perfect..." /></div>
                       <div className="flex gap-2">
@@ -224,11 +259,22 @@ function MusicContent() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-white font-medium">{r.track.title}</p>
                     <span className="text-xs text-slate-500">by {r.track.artistName}</span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${r.status === "PENDING" ? "bg-yellow-500/10 text-yellow-400" : r.status === "APPROVED" ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400"}`}>{r.status}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${r.status === "PENDING" ? "bg-yellow-500/10 text-yellow-400" : r.status === "APPROVED" ? "bg-green-500/10 text-green-400" : r.status === "PAID" ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"}`}>{r.status}</span>
                   </div>
                   <p className="text-xs text-slate-500">{r.projectName || "No project"} · {new Date(r.createdAt).toLocaleDateString()}</p>
                 </div>
-                <button onClick={() => { setTab("messages"); setActiveChat(r.id); }} className="px-3 py-1.5 rounded-lg bg-cyan-500/10 text-cyan-400 text-xs font-medium hover:bg-cyan-500/20 transition flex items-center gap-1"><MessageSquare className="w-3 h-3" /> Chat</button>
+                <div className="flex items-center gap-2">
+                  {r.status === "APPROVED" && (
+                    <button
+                      onClick={() => payForSync(r.id)}
+                      disabled={payingId === r.id}
+                      className="px-3 py-1.5 rounded-lg bg-green-500/10 text-green-400 text-xs font-medium hover:bg-green-500/20 transition flex items-center gap-1"
+                    >
+                      <DollarSign className="w-3 h-3" /> {payingId === r.id ? "Redirecting…" : "Pay license"}
+                    </button>
+                  )}
+                  <button onClick={() => { setTab("messages"); setActiveChat(r.id); }} className="px-3 py-1.5 rounded-lg bg-cyan-500/10 text-cyan-400 text-xs font-medium hover:bg-cyan-500/20 transition flex items-center gap-1"><MessageSquare className="w-3 h-3" /> Chat</button>
+                </div>
               </div>
             </div>
           ))}

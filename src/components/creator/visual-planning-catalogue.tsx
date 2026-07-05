@@ -11,6 +11,8 @@ import {
   type VisualPlanningCategoryId,
 } from "@/lib/visual-planning-categories";
 import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
+import { SecureImage } from "@/components/files/secure-image";
+import { SecureFileLink } from "@/components/files/secure-file-link";
 
 export type VisualPlanningAsset = {
   id: string;
@@ -295,19 +297,15 @@ export function VisualPlanningCatalogue({ projectId }: { projectId: string }) {
               className="group flex flex-col rounded-xl border border-slate-800 bg-slate-950/80 overflow-hidden shadow-sm hover:border-slate-600/80 transition"
             >
               <div className="relative aspect-[3/4] bg-slate-900">
-                <img
-                  src={a.imageUrl}
+                <SecureImage
+                  fileRef={a.imageUrl}
                   alt={a.title || "Reference"}
                   className="absolute inset-0 w-full h-full object-cover"
-                  loading="lazy"
-                  onError={() => setBrokenAssetIds((prev) => ({ ...prev, [a.id]: true }))}
                 />
                 {brokenAssetIds[a.id] ? (
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-slate-900/90 px-2 text-center text-[10px] text-amber-200">
                     <span>Could not display this image on this device.</span>
-                    <a href={a.imageUrl} target="_blank" rel="noreferrer" className="text-orange-300 underline">
-                      Open source file
-                    </a>
+                    <SecureFileLink fileRef={a.imageUrl} label="Open source file" />
                   </div>
                 ) : null}
                 <div className="absolute top-2 left-2">

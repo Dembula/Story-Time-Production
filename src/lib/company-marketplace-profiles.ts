@@ -40,7 +40,20 @@ export function parseCrewMemberProfile(member: { bio: string | null }) {
     availability: meta?.availability ?? null,
     location: meta?.location ?? null,
     experienceLevel: meta?.experienceLevel ?? null,
+    hourlyRate: meta?.hourlyRate ?? null,
+    weeklyRate: meta?.weeklyRate ?? null,
+    projectRate: meta?.projectRate ?? null,
     tools: meta?.tools ?? [],
+    phone: meta?.phone ?? null,
+    contactEmail: meta?.contactEmail ?? null,
+    certifications: meta?.certifications ?? [],
+    unionStatus: meta?.unionStatus ?? null,
+    yearsExperience: meta?.yearsExperience ?? null,
+    portfolioUrl: meta?.portfolioUrl ?? null,
+    reelUrl: meta?.reelUrl ?? null,
+    travelWillingness: meta?.travelWillingness ?? null,
+    ownEquipment: meta?.ownEquipment ?? null,
+    languages: meta?.languages ?? [],
   };
 }
 
@@ -63,10 +76,18 @@ export function shapeEquipmentListingForMarketplace(row: {
       category: row.category,
       specifications: parsed.meta?.specifications ?? null,
       dailyRate: parsed.meta?.dailyRate ?? null,
+      weeklyRate: parsed.meta?.weeklyRate ?? null,
+      deposit: parsed.meta?.deposit ?? null,
       quantityAvailable: parsed.meta?.quantityAvailable ?? null,
       availability: parsed.meta?.availability ?? null,
+      galleryUrls: parsed.meta?.galleryUrls ?? [],
     },
-    previewImageUrl: row.imageUrl,
+    photos: parsed.meta?.galleryUrls?.length
+      ? parsed.meta.galleryUrls
+      : row.imageUrl
+        ? [row.imageUrl]
+        : [],
+    previewImageUrl: parsed.meta?.galleryUrls?.[0] ?? row.imageUrl,
   };
 }
 

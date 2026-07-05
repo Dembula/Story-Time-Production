@@ -1,0 +1,1 @@
+ALTER TABLE "CateringBooking" ADD COLUMN IF NOT EXISTS "quotedAmount" DOUBLE PRECISION;

@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { validateIdOrPassportByCountry, validateIdOrPassportByCountryIfPresent } from "@/lib/kyc-validation";
 import {
   type KycPayload,
+  isBankStatementRecent,
   parsePayoutKycRiskLevel,
   requiresPayoutKyc,
 } from "@/lib/payout-kyc";
@@ -42,8 +43,23 @@ function validatePayoutSubmission(payload?: KycPayload, documents?: KycDocumentI
       return "Business applicants must provide company details and registration documents.";
     }
   }
-  if (!kyc.financialInfo?.bankName?.trim() || !kyc.financialInfo?.accountHolderName?.trim() || !kyc.financialInfo?.accountNumber?.trim()) {
-    return "Complete required banking details before submitting.";
+  if (
+    !kyc.financialInfo?.bankName?.trim() ||
+    !kyc.financialInfo?.accountHolderName?.trim() ||
+    !kyc.financialInfo?.accountNumber?.trim() ||
+    !kyc.financialInfo?.accountType?.trim() ||
+    !kyc.financialInfo?.branchCode?.trim()
+  ) {
+    return "Complete required banking details (bank, holder, account number, type, and branch code).";
+  }
+  if (!hasDoc("BANK_STATEMENT") && !kyc.financialInfo?.bankStatementUrl?.trim()) {
+    return "Upload a recent bank statement (dated within the last 3 months).";
+  }
+  if (!hasDoc("BANK_CONFIRMATION_LETTER") && !kyc.financialInfo?.bankConfirmationLetterUrl?.trim()) {
+    return "Upload a bank account confirmation letter.";
+  }
+  if (!isBankStatementRecent(kyc.financialInfo?.bankStatementAsOf)) {
+    return "Bank statement date must be within the last 3 months (enter the statement period end date).";
   }
   if (
     !kyc.riskCompliance?.sanctionsDeclarationAccepted ||

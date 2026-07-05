@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import { resolveRenderableFileSource } from "@/lib/secure-file-preview-path";
 
 export default function TalentPortalPage() {
   const params = useParams();
@@ -49,7 +50,11 @@ export default function TalentPortalPage() {
       <header className="flex items-start gap-4">
         {data.talent.headshotUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={data.talent.headshotUrl} alt="" className="h-20 w-20 rounded-xl object-cover" />
+          <img
+            src={resolveRenderableFileSource(data.talent.headshotUrl, { portalToken: token }) ?? ""}
+            alt=""
+            className="h-20 w-20 rounded-xl object-cover"
+          />
         ) : (
           <div className="flex h-20 w-20 items-center justify-center rounded-xl bg-slate-800 text-2xl text-orange-300">
             {data.talent.name.slice(0, 1)}

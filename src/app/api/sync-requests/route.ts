@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { notifyUser } from "@/lib/notify-user";
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -35,7 +36,10 @@ export async function POST(req: NextRequest) {
 
   if (!trackId) return NextResponse.json({ error: "trackId required" }, { status: 400 });
 
-  const track = await prisma.musicTrack.findUnique({ where: { id: trackId }, select: { creatorId: true } });
+  const track = await prisma.musicTrack.findUnique({
+    where: { id: trackId },
+    select: { creatorId: true, title: true },
+  });
   if (!track) return NextResponse.json({ error: "Track not found" }, { status: 404 });
 
   const request = await prisma.syncRequest.create({
@@ -55,6 +59,17 @@ export async function POST(req: NextRequest) {
     },
   });
 
+  await notifyUser({
+    userId: track.creatorId,
+    type: "SYNC_REQUEST",
+    title: "New sync licensing request",
+    body: `${request.requester.name ?? "A creator"} wants to license "${track.title}"${projectName ? ` for ${projectName}` : ""}.`,
+    metadata: {
+      url: "/music-creator/sync-requests",
+      requestId: request.id,
+    },
+  });
+
   return NextResponse.json(request);
 }
 
@@ -67,7 +82,14 @@ export async function PATCH(req: NextRequest) {
 
   if (!requestId || !status) return NextResponse.json({ error: "requestId and status required" }, { status: 400 });
 
-  const existing = await prisma.syncRequest.findUnique({ where: { id: requestId } });
+  const existing = await prisma.syncRequest.findUnique({
+    where: { id: requestId },
+    include: {
+      track: { select: { title: true } },
+      requester: { select: { id: true, name: true } },
+      musicCreator: { select: { name: true } },
+    },
+  });
   if (!existing || existing.musicCreatorId !== session.user.id) {
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
@@ -76,6 +98,30 @@ export async function PATCH(req: NextRequest) {
     where: { id: requestId },
     data: { status },
   });
+
+  if (status === "APPROVED") {
+    await notifyUser({
+      userId: existing.requesterId,
+      type: "SYNC_REQUEST_APPROVED",
+      title: "Sync request approved",
+      body: `${existing.musicCreator.name ?? "The composer"} approved your request to use "${existing.track.title}". Complete payment to finalize the license.`,
+      metadata: {
+        url: "/creator/music?tab=requests",
+        requestId: existing.id,
+      },
+    });
+  } else if (status === "DECLINED") {
+    await notifyUser({
+      userId: existing.requesterId,
+      type: "SYNC_REQUEST_DECLINED",
+      title: "Sync request declined",
+      body: `Your request to use "${existing.track.title}" was declined.`,
+      metadata: {
+        url: "/creator/music?tab=requests",
+        requestId: existing.id,
+      },
+    });
+  }
 
   return NextResponse.json(updated);
 }

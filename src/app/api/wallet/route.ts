@@ -25,6 +25,10 @@ export async function GET() {
       where: {
         OR: [{ buyerWalletId: wallet?.id }, { sellerWalletId: wallet?.id }],
       },
+      include: {
+        buyerWallet: { select: { userId: true } },
+        sellerWallet: { select: { userId: true } },
+      },
       orderBy: { createdAt: "desc" },
       take: 25,
     });

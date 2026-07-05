@@ -45,7 +45,26 @@ export async function GET(req: NextRequest) {
         orderBy: { createdAt: "desc" },
         take: limit,
         include: {
-          user: { select: { id: true, name: true, email: true, role: true } },
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              role: true,
+              creatorBanking: {
+                select: {
+                  bankName: true,
+                  accountNumber: true,
+                  accountType: true,
+                  branchCode: true,
+                  verifiedAt: true,
+                },
+              },
+              payoutKycProfile: {
+                select: { kycData: true, verificationStatus: true, legalName: true },
+              },
+            },
+          },
         },
       }),
       db.escrowAccount.findMany({ orderBy: { createdAt: "desc" }, take: limit }),

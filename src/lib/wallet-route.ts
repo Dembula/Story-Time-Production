@@ -10,6 +10,19 @@ export type AppRole =
   | "ADMIN"
   | "SUBSCRIBER";
 
+export function getAccountRouteForRole(role?: string | null) {
+  switch (role as AppRole | undefined) {
+    case "CONTENT_CREATOR":
+      return "/creator/account";
+    case "MUSIC_CREATOR":
+      return "/music-creator/account";
+    case "FUNDER":
+      return "/funders/verification";
+    default:
+      return "/payout-verification";
+  }
+}
+
 export function getWalletRouteForRole(role?: string | null) {
   switch (role as AppRole | undefined) {
     case "CONTENT_CREATOR":

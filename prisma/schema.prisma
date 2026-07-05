@@ -260,6 +260,8 @@ model User {
   ipTransactionsBought  IPTransaction[]       @relation("IPTransactionBuyer")
   ipTransactionsSold    IPTransaction[]       @relation("IPTransactionSeller")
   funderProfile         FunderProfile?
+  fundingProgramsCreated FundingProgram[] @relation("FundingProgramCreator")
+  fundingProgramApplications FundingProgramApplication[] @relation("FundingProgramApplicationCreator")
   funderVerificationsSubmitted FunderVerification[] @relation("FunderVerificationSubmitter")
   funderVerificationsReviewed  FunderVerification[] @relation("FunderVerificationReviewer")
   payoutKycProfile      PayoutKycProfile?
@@ -1101,6 +1103,7 @@ model OriginalProject {
   projectContracts ProjectContract[]
   contractClauses ContractClause[]
   fundingRequest FundingRequest?
+  fundingProgramApplications FundingProgramApplication[]
   pitchDeck     PitchDeck?
   chatThreads   ProjectChatThread[]
   chatMessages  ProjectChatMessage[]
@@ -1678,6 +1681,7 @@ model CateringBooking {
   note                  String?
   status                String   @default("PENDING")
   paymentTransactionId   String?
+  quotedAmount           Float?
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 
@@ -3275,6 +3279,10 @@ model ProjectContract {
   sentAt       DateTime?
   viewedAt     DateTime?
   executedAt   DateTime?
+  /// Settled cast/crew salary payment (Story Time marketplace payout to payee wallet).
+  paymentTransactionId String?
+  hireAmount           Float?
+  paidAt               DateTime?
   createdById  String?
   createdBy    User?   @relation("ProjectContractCreator", fields: [createdById], references: [id], onDelete: SetNull)
   createdAt    DateTime @default(now())
@@ -3289,6 +3297,7 @@ model ProjectContract {
   esignEnvelopes ContractEsignEnvelope[]
 
   @@index([projectId])
+  @@index([paymentTransactionId])
   @@index([counterpartyUserId])
   @@index([castingTalentId])
   @@index([crewTeamId])
@@ -3450,6 +3459,60 @@ model FundingRequest {
   @@index([status])
 }
 
+model FundingProgram {
+  id                  String    @id @default(cuid())
+  title               String
+  description         String?
+  programType         String    @default("GRANT") // GRANT | EQUITY | LOAN | SPONSORSHIP | INTERNAL
+  funderType          String    @default("INSTITUTIONAL") // INSTITUTIONAL | PRIVATE | INTERNAL_STORYTIME
+  managedBy           String    @default("ADMIN") // ADMIN | FUNDER
+  createdByUserId     String
+  createdByUser       User      @relation("FundingProgramCreator", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  funderProfileId     String?
+  funderProfile       FunderProfile? @relation(fields: [funderProfileId], references: [id], onDelete: SetNull)
+  minAmount           Float?
+  maxAmount           Float?
+  currency            String    @default("ZAR")
+  categories          String?   // JSON string[]
+  requirements        String?   // JSON string[]
+  applicationDeadline DateTime?
+  contactEmail        String?
+  region              String?
+  status              String    @default("ACTIVE") // DRAFT | ACTIVE | CLOSED
+  visible             Boolean   @default(true)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  applications        FundingProgramApplication[]
+
+  @@index([status])
+  @@index([managedBy])
+  @@index([funderProfileId])
+  @@index([visible])
+}
+
+model FundingProgramApplication {
+  id              String   @id @default(cuid())
+  programId       String
+  program         FundingProgram @relation(fields: [programId], references: [id], onDelete: Cascade)
+  projectId       String
+  project         OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  creatorUserId   String
+  creatorUser     User     @relation("FundingProgramApplicationCreator", fields: [creatorUserId], references: [id], onDelete: Cascade)
+  requestedAmount Float?
+  notes           String?
+  documentFlags   Json     @default("{}")
+  status          String   @default("SUBMITTED") // DRAFT | SUBMITTED | UNDER_REVIEW | APPROVED | REJECTED | CHANGES_REQUESTED
+  adminNote       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([programId])
+  @@index([projectId])
+  @@index([creatorUserId])
+  @@index([status])
+}
+
 model FunderProfile {
   id                        String   @id @default(cuid())
   userId                    String   @unique
@@ -3475,6 +3538,7 @@ model FunderProfile {
 
   verifications             FunderVerification[]
   opportunities             InvestmentOpportunity[]
+  fundingPrograms           FundingProgram[]
 
   @@index([verificationStatus])
 }
@@ -3560,6 +3624,7 @@ model InvestmentOpportunity {
   equityOfferedPct  Float?
   revenueModel      String?
   termsSummary      String?
+  publicListingMeta Json?
   status            String   @default("OPEN") // OPEN | NEGOTIATING | FUNDED | CLOSED
   visible           Boolean  @default(true)
   createdAt         DateTime @default(now())
@@ -3707,6 +3772,7 @@ model DealPayment {
   status            String   @default("PENDING") // PENDING | LOCKED | AUTHORIZED | SETTLED | FAILED
   gatewayProvider   String?
   gatewayReference  String?
+  paymentTransactionId String?
   metadata          Json?
   createdAt         DateTime @default(now())
   settledAt         DateTime?

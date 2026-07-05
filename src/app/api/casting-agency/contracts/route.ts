@@ -33,7 +33,13 @@ export async function GET() {
       project: c.project,
       talent: c.castingTalent,
       version: c.versions[0] ?? null,
-    }))
+      paymentTransactionId: c.paymentTransactionId,
+      hireAmount: c.hireAmount,
+      paidAt: c.paidAt,
+      receiptUrl: c.paymentTransactionId
+        ? `/api/creator/projects/${c.project.id}/contracts/${c.id}/payment-receipt?audience=payee`
+        : null,
+    })),
   );
 }
 

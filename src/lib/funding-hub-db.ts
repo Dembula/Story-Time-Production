@@ -32,6 +32,7 @@ export type FundingSourceRecord = {
   paymentSchedule?: string | null;
   conditions?: string | null;
   linkedContractId?: string | null;
+  applicationId?: string | null;
   status: "COMMITTED" | "PARTIALLY_RECEIVED" | "RECEIVED" | "ON_HOLD";
   notes?: string | null;
   milestones: FundingMilestone[];
@@ -53,6 +54,7 @@ export type FundingApplicationRecord = {
     teamDetails: boolean;
   };
   notes?: string | null;
+  linkedSourceId?: string | null;
 };
 
 export type FundingAllocation = {

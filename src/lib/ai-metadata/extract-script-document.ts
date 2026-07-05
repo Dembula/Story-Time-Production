@@ -71,10 +71,22 @@ function pdfImportError(byteLength: number): string {
 
 async function extractPdfScreenplay(buffer: Buffer): Promise<Pick<ScriptFileExtraction, "text" | "extractionMethod" | "error">> {
   const { text, method } = await extractPdfTextFromBuffer(buffer);
-  if (!text) {
-    return { text: "", extractionMethod: method, error: pdfImportError(buffer.byteLength) };
+  if (text) {
+    return { text: truncateScriptText(text), extractionMethod: method };
   }
-  return { text: truncateScriptText(text), extractionMethod: method };
+
+  if (process.env.OPENROUTER_API_KEY?.trim()) {
+    const { extractScreenplayPdfWithVision } = await import("@/lib/script-studio/script-pdf-vision-ocr");
+    const vision = await extractScreenplayPdfWithVision({
+      pdfBase64: buffer.toString("base64"),
+      fileName: "screenplay.pdf",
+    });
+    if ("text" in vision && vision.text) {
+      return { text: vision.text, extractionMethod: vision.method };
+    }
+  }
+
+  return { text: "", extractionMethod: method, error: pdfImportError(buffer.byteLength) };
 }
 
 /** Extract screenplay text from an uploaded file buffer (import / analysis). */

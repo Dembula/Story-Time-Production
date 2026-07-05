@@ -145,25 +145,38 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(list);
   }
 
-  // List of saved scripts from Pre-Production Script Writing (projects user is ACTIVE member of)
+  // Saved scripts from Script Writing Studio (creator library — not auto-linked to pitches)
   if (type === "my-scripts") {
-    const memberships = await prisma.originalMember.findMany({
-      where: { userId, status: "ACTIVE" },
-      select: { projectId: true, project: { select: { id: true, title: true } } },
+    const scripts = await prisma.creatorScript.findMany({
+      where: { userId },
+      orderBy: { updatedAt: "desc" },
+      include: {
+        project: { select: { id: true, title: true } },
+      },
     });
-    const projectIds = memberships.map((m) => m.project.id);
-    const scripts = await prisma.projectScript.findMany({
-      where: { projectId: { in: projectIds } },
-      select: { id: true, title: true, projectId: true },
-    });
-    const projectMap = Object.fromEntries(memberships.map((m) => [m.project.id, m.project.title]));
     const list = scripts.map((s) => ({
       id: s.id,
       title: s.title,
       projectId: s.projectId,
-      projectTitle: projectMap[s.projectId] ?? "Project",
+      projectTitle: s.project?.title ?? "Personal library",
     }));
     return NextResponse.json(list);
+  }
+
+  // Pipeline projects the creator can optionally attach to an Originals pitch
+  if (type === "platform-projects") {
+    const memberships = await prisma.originalMember.findMany({
+      where: { userId, status: "ACTIVE" },
+      include: { project: { select: { id: true, title: true, type: true, logline: true } } },
+    });
+    return NextResponse.json(
+      memberships.map((m) => ({
+        id: m.project.id,
+        title: m.project.title,
+        type: m.project.type,
+        logline: m.project.logline,
+      })),
+    );
   }
 
   return NextResponse.json({ error: "Specify type param" }, { status: 400 });
@@ -194,6 +207,8 @@ export async function POST(req: NextRequest) {
       budgetEst, targetAudience, references,
       directorStatement, productionCompany, previousWorkSummary,
       intendedRelease, keyCastCrew, financingStatus, pitchId,
+      linkPlatformProject, platformProjectId,
+      runtimeMinutes, episodeCount, productionStage, whyNow, uniqueHook, filmingRegion,
     } = body;
     const requiredTextFields = [
       { key: "title", value: title, label: "Title" },
@@ -232,13 +247,23 @@ export async function POST(req: NextRequest) {
     if (!hasScript) {
       return NextResponse.json({ error: "Script is required: choose from your saved scripts, upload a PDF, or provide a link" }, { status: 400 });
     }
-    let resolvedScriptProjectId: string | null = scriptProjectId?.trim() || null;
-    if (scriptId?.trim()) {
-      const script = await prisma.projectScript.findFirst({
-        where: { id: scriptId.trim() },
-        select: { projectId: true },
+    let resolvedScriptProjectId: string | null = null;
+    if (linkPlatformProject && platformProjectId?.trim()) {
+      const member = await prisma.originalMember.findFirst({
+        where: { userId: session.user.id, projectId: platformProjectId.trim(), status: "ACTIVE" },
       });
-      if (script) resolvedScriptProjectId = script.projectId;
+      if (!member) {
+        return NextResponse.json({ error: "Selected platform project not found or you are not a member." }, { status: 400 });
+      }
+      resolvedScriptProjectId = platformProjectId.trim();
+    }
+    if (scriptId?.trim()) {
+      const script = await prisma.creatorScript.findFirst({
+        where: { id: scriptId.trim(), userId: session.user.id },
+      });
+      if (!script) {
+        return NextResponse.json({ error: "Script not found in your library." }, { status: 400 });
+      }
     }
     const timelineEntry = {
       type: "SUBMITTED",
@@ -246,10 +271,22 @@ export async function POST(req: NextRequest) {
       note: "Submission created",
     } satisfies InputJsonValue;
 
+    const extendedSynopsis = [
+      synopsis?.trim() || null,
+      whyNow?.trim() ? `Why now: ${whyNow.trim()}` : null,
+      uniqueHook?.trim() ? `Differentiation: ${uniqueHook.trim()}` : null,
+      runtimeMinutes ? `Runtime: ${runtimeMinutes} minutes` : null,
+      episodeCount ? `Episodes: ${episodeCount}` : null,
+      productionStage?.trim() ? `Production stage: ${productionStage.trim()}` : null,
+      filmingRegion?.trim() ? `Filming region: ${filmingRegion.trim()}` : null,
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+
     const currentData = {
       title: title.trim(),
       logline: logline.trim(),
-      synopsis: synopsis?.trim() || null,
+      synopsis: extendedSynopsis || null,
       type: type || "Film",
       genre: genre?.trim() || null,
       scriptUrl: scriptUrl?.trim() || null,
@@ -578,6 +615,59 @@ export async function POST(req: NextRequest) {
       data: { status: accept ? "ACTIVE" : "DECLINED" },
     });
     return NextResponse.json(updated);
+  }
+
+  if (action === "EXPRESS_MUSIC_INTEREST") {
+    if (role !== "MUSIC_CREATOR") {
+      return NextResponse.json({ error: "Music creators only" }, { status: 403 });
+    }
+    const { projectId, note } = body;
+    if (!projectId?.trim()) {
+      return NextResponse.json({ error: "projectId is required" }, { status: 400 });
+    }
+    const project = await prisma.originalProject.findUnique({
+      where: { id: projectId.trim() },
+      include: {
+        members: {
+          where: { status: "ACTIVE", role: { in: ["DIRECTOR", "PRODUCER", "CREATOR", "SHOWRUNNER"] } },
+          include: { user: { select: { id: true, name: true } } },
+          take: 3,
+        },
+      },
+    });
+    if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
+
+    const musician = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { name: true, professionalName: true },
+    });
+    const displayName = musician?.professionalName ?? musician?.name ?? "A music creator";
+
+    for (const lead of project.members) {
+      await notifyUser({
+        userId: lead.userId,
+        type: "MUSIC_INTEREST",
+        title: "Music interest on your Original",
+        body: `${displayName} wants to contribute music to "${project.title}".${note?.trim() ? ` Note: ${note.trim()}` : ""}`,
+        metadata: {
+          url: `/creator/projects/${project.id}/overview`,
+          projectId: project.id,
+        },
+      });
+    }
+
+    const admins = await prisma.user.findMany({ where: { role: "ADMIN" }, select: { id: true }, take: 5 });
+    for (const admin of admins) {
+      await notifyUser({
+        userId: admin.id,
+        type: "MUSIC_INTEREST",
+        title: "Music creator expressed interest",
+        body: `${displayName} expressed interest in scoring "${project.title}".`,
+        metadata: { url: "/admin/originals", projectId: project.id },
+      });
+    }
+
+    return NextResponse.json({ ok: true });
   }
 
   return NextResponse.json({ error: "Invalid action" }, { status: 400 });

@@ -6,6 +6,7 @@ import {
   budgetActualsToExcelXml,
   buildFinancialSummaryReport,
   financialSummaryToPdfText,
+  budgetActualsToPdf,
   expensesToCsv,
 } from "@/lib/financial-ops/financial-reports-service";
 import { prisma } from "@/lib/prisma";
@@ -61,17 +62,12 @@ export async function GET(req: NextRequest, context: { params: Promise<{ project
     });
   }
   if (format === "pdf") {
-    const { contractTermsToPdfBuffer } = await import("@/lib/legal/contract-pdf-export");
-    const text = [
-      "Budget vs Actuals",
-      `Planned: R ${report.totalPlanned}`,
-      `Actual: R ${report.totalActual}`,
-      "",
-      ...report.rows.map((r) => `${r.key}: budget R${r.budgeted} / actual R${r.actual} / var R${r.variance}`),
-    ].join("\n");
-    const pdf = contractTermsToPdfBuffer(text, "Budget Actuals");
+    const pdf = budgetActualsToPdf(report);
     return new NextResponse(new Uint8Array(pdf), {
-      headers: { "Content-Type": "application/pdf", "Content-Disposition": "attachment; filename=budget-actuals.pdf" },
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": 'attachment; filename="budget-actuals.pdf"',
+      },
     });
   }
 

@@ -1054,6 +1054,7 @@ exports.Prisma.CateringBookingScalarFieldEnum = {
   note: 'note',
   status: 'status',
   paymentTransactionId: 'paymentTransactionId',
+  quotedAmount: 'quotedAmount',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 };
@@ -2086,6 +2087,9 @@ exports.Prisma.ProjectContractScalarFieldEnum = {
   sentAt: 'sentAt',
   viewedAt: 'viewedAt',
   executedAt: 'executedAt',
+  paymentTransactionId: 'paymentTransactionId',
+  hireAmount: 'hireAmount',
+  paidAt: 'paidAt',
   createdById: 'createdById',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
@@ -2196,6 +2200,43 @@ exports.Prisma.FundingRequestScalarFieldEnum = {
   updatedAt: 'updatedAt'
 };
 
+exports.Prisma.FundingProgramScalarFieldEnum = {
+  id: 'id',
+  title: 'title',
+  description: 'description',
+  programType: 'programType',
+  funderType: 'funderType',
+  managedBy: 'managedBy',
+  createdByUserId: 'createdByUserId',
+  funderProfileId: 'funderProfileId',
+  minAmount: 'minAmount',
+  maxAmount: 'maxAmount',
+  currency: 'currency',
+  categories: 'categories',
+  requirements: 'requirements',
+  applicationDeadline: 'applicationDeadline',
+  contactEmail: 'contactEmail',
+  region: 'region',
+  status: 'status',
+  visible: 'visible',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.FundingProgramApplicationScalarFieldEnum = {
+  id: 'id',
+  programId: 'programId',
+  projectId: 'projectId',
+  creatorUserId: 'creatorUserId',
+  requestedAmount: 'requestedAmount',
+  notes: 'notes',
+  documentFlags: 'documentFlags',
+  status: 'status',
+  adminNote: 'adminNote',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
 exports.Prisma.FunderProfileScalarFieldEnum = {
   id: 'id',
   userId: 'userId',
@@ -2278,6 +2319,7 @@ exports.Prisma.InvestmentOpportunityScalarFieldEnum = {
   equityOfferedPct: 'equityOfferedPct',
   revenueModel: 'revenueModel',
   termsSummary: 'termsSummary',
+  publicListingMeta: 'publicListingMeta',
   status: 'status',
   visible: 'visible',
   createdAt: 'createdAt',
@@ -2372,6 +2414,7 @@ exports.Prisma.DealPaymentScalarFieldEnum = {
   status: 'status',
   gatewayProvider: 'gatewayProvider',
   gatewayReference: 'gatewayReference',
+  paymentTransactionId: 'paymentTransactionId',
   metadata: 'metadata',
   createdAt: 'createdAt',
   settledAt: 'settledAt'
@@ -3206,6 +3249,8 @@ exports.Prisma.ModelName = {
   ContractGuestToken: 'ContractGuestToken',
   ContractEsignEnvelope: 'ContractEsignEnvelope',
   FundingRequest: 'FundingRequest',
+  FundingProgram: 'FundingProgram',
+  FundingProgramApplication: 'FundingProgramApplication',
   FunderProfile: 'FunderProfile',
   FunderVerification: 'FunderVerification',
   PayoutKycProfile: 'PayoutKycProfile',

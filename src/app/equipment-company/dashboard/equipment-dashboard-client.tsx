@@ -7,6 +7,7 @@ import { formatZar } from "@/lib/format-currency-zar";
 import { readCompanyApiJson } from "@/lib/casting-agency-client";
 import { OpsMetricCard, OpsPageHeader, OpsQuickActions, OpsSection } from "@/components/ecosystem/ops-shell";
 import { StakeholderEcosystemHome } from "@/components/ecosystem/stakeholder-ecosystem-home";
+import { SecureImage } from "@/components/files/secure-image";
 
 export function EquipmentDashboardClient() {
   const [metrics, setMetrics] = useState({ listings: 0, totalRequests: 0, pending: 0, approved: 0, revenue: 0 });
@@ -73,7 +74,7 @@ export function EquipmentDashboardClient() {
             {recent.map((r) => (
               <Link key={r.id} href="/equipment-company/requests" className="flex items-center gap-4 rounded-xl border border-slate-700/50 bg-slate-800/40 p-4 hover:border-cyan-500/30">
                 {r.equipment.imageUrl ? (
-                  <img src={r.equipment.imageUrl} alt="" className="h-14 w-14 rounded-lg object-cover" />
+                  <SecureImage fileRef={r.equipment.imageUrl} alt="" className="h-14 w-14 rounded-lg object-cover" />
                 ) : (
                   <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-slate-700/50">
                     <Wrench className="h-5 w-5 text-slate-500" />

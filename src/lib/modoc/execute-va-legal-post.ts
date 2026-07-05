@@ -48,17 +48,42 @@ async function applyBreakdownPatch(projectId: string, body: BreakdownPatchBody):
   let added = 0;
   await prisma.$transaction(async (tx) => {
     if (body.characters) {
+      const seen = new Set<string>();
       for (const ch of body.characters) {
-        await tx.breakdownCharacter.create({
-          data: {
+        const name = (ch.name ?? "").replace(/\s+/g, " ").trim();
+        if (!name) continue;
+        const key = `${(ch.sceneId ?? "").toString()}::${name.toLowerCase()}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const existing = await tx.breakdownCharacter.findFirst({
+          where: {
             projectId,
-            name: ch.name,
-            description: ch.description ?? null,
-            importance: ch.importance ?? null,
             sceneId: ch.sceneId ?? null,
+            name: { equals: name, mode: "insensitive" },
           },
+          select: { id: true },
         });
-        added++;
+        if (existing) {
+          await tx.breakdownCharacter.update({
+            where: { id: existing.id },
+            data: {
+              name,
+              description: ch.description ?? null,
+              importance: ch.importance ?? null,
+            },
+          });
+        } else {
+          await tx.breakdownCharacter.create({
+            data: {
+              projectId,
+              name,
+              description: ch.description ?? null,
+              importance: ch.importance ?? null,
+              sceneId: ch.sceneId ?? null,
+            },
+          });
+          added++;
+        }
       }
     }
     if (body.props) {

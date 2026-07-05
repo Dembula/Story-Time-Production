@@ -26,45 +26,28 @@ export async function ensureCastingRoleLinkedToScenes(
   });
 
   let createdCharacterRows = 0;
-  let linkId = role.breakdownCharacterId ?? existingChars[0]?.id ?? null;
+  // Prefer an existing row (any scene). Never clone the character onto every scene —
+  // one identity per name; scene appearances come from breakdown, not casting.
+  let linkId =
+    (role.breakdownCharacterId &&
+    existingChars.some((c: { id: string }) => c.id === role.breakdownCharacterId)
+      ? role.breakdownCharacterId
+      : null) ??
+    existingChars[0]?.id ??
+    null;
 
-  // If this character exists on some scenes, keep those rows and link the role.
-  // If it does not exist at all, create one row per project scene so shoot planning
-  // can attach the role when those scenes are scheduled.
   if (existingChars.length === 0) {
-    const scenes = await db.projectScene.findMany({
-      where: { projectId },
-      select: { id: true },
-      orderBy: { number: "asc" },
+    const created = await db.breakdownCharacter.create({
+      data: {
+        projectId,
+        sceneId: null,
+        name: roleName,
+        description: null,
+        importance: null,
+      },
     });
-
-    if (scenes.length === 0) {
-      const orphan = await db.breakdownCharacter.create({
-        data: {
-          projectId,
-          sceneId: null,
-          name: roleName,
-          description: null,
-          importance: null,
-        },
-      });
-      linkId = orphan.id;
-      createdCharacterRows = 1;
-    } else {
-      for (const scene of scenes) {
-        const created = await db.breakdownCharacter.create({
-          data: {
-            projectId,
-            sceneId: scene.id,
-            name: roleName,
-            description: null,
-            importance: null,
-          },
-        });
-        if (!linkId) linkId = created.id;
-        createdCharacterRows += 1;
-      }
-    }
+    linkId = created.id;
+    createdCharacterRows = 1;
   }
 
   if (linkId && linkId !== role.breakdownCharacterId) {

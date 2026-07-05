@@ -4,7 +4,6 @@ import { ensureProjectAccess } from "@/lib/project-access";
 import { prisma } from "@/lib/prisma";
 import {
   composeFundingDetails,
-  fundingOpportunityCatalogue,
   fundingTypeLabel,
   parseFundingDetails,
   type FundingAllocation,
@@ -14,7 +13,9 @@ import {
   type FundingSourceRecord,
   type FundingSourceType,
 } from "@/lib/funding-hub-db";
+import { programMatchScore, shapeFundingProgramForMarketplace } from "@/lib/funding-programs";
 import { getTemplateByType, renderTemplate } from "@/lib/contract-template-engine";
+import { syncApprovedProgramApplicationToFundingHub } from "@/lib/funding-application-source-sync";
 
 interface Params {
   params: Promise<{ projectId: string }>;
@@ -73,22 +74,11 @@ function readinessScore(params: {
   };
 }
 
-function opportunityMatchScore(opportunity: ReturnType<typeof fundingOpportunityCatalogue>[number], params: {
-  genre: string | null;
-  budget: number;
-  secured: number;
-}) {
-  let score = 0;
-  const needed = Math.max(0, params.budget - params.secured);
-  if (needed >= opportunity.minAmount && needed <= opportunity.maxAmount) score += 50;
-  else if (needed > 0 && needed <= opportunity.maxAmount * 1.2) score += 30;
-  if (params.genre) {
-    const g = params.genre.toUpperCase().replace(/\s+/g, "_");
-    if (opportunity.categories.some((c) => c.toUpperCase().includes(g))) score += 25;
-  }
-  if (!opportunity.region || opportunity.region.toLowerCase().includes("africa")) score += 10;
-  if (opportunity.type === "INTERNAL_STORYTIME") score += 8;
-  return Math.min(100, score);
+function opportunityMatchScore(
+  opportunity: ReturnType<typeof shapeFundingProgramForMarketplace>,
+  params: { genre: string | null; budget: number; secured: number },
+) {
+  return programMatchScore(opportunity, params);
 }
 
 export async function GET(_req: NextRequest, { params }: Params) {
@@ -124,7 +114,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
   ]);
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const [funderDirectory, marketplaceOpportunities] = await Promise.all([
+  const [funderDirectory, marketplaceOpportunities, dbPrograms, dbApplications] = await Promise.all([
     prisma.funderProfile.findMany({
       where: { verificationStatus: { in: ["PENDING", "UNDER_REVIEW", "APPROVED"] }, limitedAccessEnabled: true },
       include: { user: { select: { id: true, name: true, professionalName: true, headline: true } } },
@@ -145,6 +135,25 @@ export async function GET(_req: NextRequest, { params }: Params) {
       },
       orderBy: { createdAt: "desc" },
       take: 200,
+    }),
+    prisma.fundingProgram.findMany({
+      where: { status: "ACTIVE", visible: true },
+      include: {
+        funderProfile: { select: { legalName: true, user: { select: { name: true, professionalName: true } } } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+    }),
+    prisma.fundingProgramApplication.findMany({
+      where: { projectId },
+      include: {
+        program: {
+          include: {
+            funderProfile: { select: { legalName: true, user: { select: { name: true, professionalName: true } } } },
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
     }),
   ]);
 
@@ -171,16 +180,32 @@ export async function GET(_req: NextRequest, { params }: Params) {
     shootDayCount: project.shootDays.length,
   });
 
-  const opportunities = fundingOpportunityCatalogue()
-    .map((opp) => ({
-      ...opp,
-      matchScore: opportunityMatchScore(opp, {
-        genre: project.genre ?? null,
-        budget: fundingRequired,
-        secured: securedTotal,
-      }),
-    }))
+  const opportunities = dbPrograms
+    .map((row) => {
+      const shaped = shapeFundingProgramForMarketplace(row);
+      return {
+        ...shaped,
+        matchScore: opportunityMatchScore(shaped, {
+          genre: project.genre ?? null,
+          budget: fundingRequired,
+          secured: securedTotal,
+        }),
+      };
+    })
     .sort((a, b) => b.matchScore - a.matchScore);
+
+  const applicationsFromDb: FundingApplicationRecord[] = dbApplications.map((app) => ({
+    id: app.id,
+    opportunityId: app.programId,
+    funderName: app.program.funderProfile?.legalName || app.program.title,
+    funderType: app.program.funderType as FundingSourceType,
+    requestedAmount: num(app.requestedAmount),
+    status: app.status as FundingApplicationRecord["status"],
+    submittedAt: app.createdAt.toISOString(),
+    documents: (app.documentFlags ?? {}) as FundingApplicationRecord["documents"],
+    notes: app.notes,
+  }));
+  const applications = applicationsFromDb.length > 0 ? applicationsFromDb : structured.applications;
 
   const minThreshold = Math.max(0, Math.min(100, num(structured.minimumStartThresholdPercent, 35)));
   const productionStartAllowed = percentFunded >= minThreshold;
@@ -239,7 +264,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     },
     readiness,
     opportunities,
-    applications: structured.applications,
+    applications,
     sources: structured.sources,
     allocations: structured.allocations,
     contractSummary: {
@@ -387,29 +412,60 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       }),
     };
   } else if (body?.action === "ADD_APPLICATION" && body.application?.opportunityId) {
-    const application: FundingApplicationRecord = {
-      id: uid("app"),
-      opportunityId: body.application.opportunityId,
-      funderName: body.application.funderName ?? "Unknown funder",
-      funderType: (body.application.funderType as FundingSourceType) ?? "INSTITUTIONAL",
-      requestedAmount: num(body.application.requestedAmount),
-      status: (body.application.status as any) ?? "SUBMITTED",
-      submittedAt: isoNow(),
-      documents: {
-        pitchDeck: !!body.application.documents?.pitchDeck,
-        script: !!body.application.documents?.script,
-        budget: !!body.application.documents?.budget,
-        productionPlan: !!body.application.documents?.productionPlan,
-        teamDetails: !!body.application.documents?.teamDetails,
+    const program = await prisma.fundingProgram.findFirst({
+      where: { id: body.application.opportunityId, status: "ACTIVE", visible: true },
+      include: { funderProfile: { select: { legalName: true } } },
+    });
+    if (!program) {
+      return NextResponse.json({ error: "Funding program not found or closed" }, { status: 404 });
+    }
+    const creatorUserId = access.userId!;
+    const dbApp = await prisma.fundingProgramApplication.create({
+      data: {
+        programId: program.id,
+        projectId,
+        creatorUserId,
+        requestedAmount: num(body.application.requestedAmount),
+        notes: body.application.notes ?? null,
+        documentFlags: body.application.documents ?? {},
+        status: (body.application.status as string) ?? "SUBMITTED",
       },
-      notes: body.application.notes ?? null,
+    });
+    const application: FundingApplicationRecord = {
+      id: dbApp.id,
+      opportunityId: program.id,
+      funderName: program.funderProfile?.legalName || program.title,
+      funderType: program.funderType as FundingSourceType,
+      requestedAmount: num(dbApp.requestedAmount),
+      status: dbApp.status as FundingApplicationRecord["status"],
+      submittedAt: dbApp.createdAt.toISOString(),
+      documents: (dbApp.documentFlags ?? {}) as FundingApplicationRecord["documents"],
+      notes: dbApp.notes,
     };
-    structured = { ...structured, applications: [application, ...structured.applications] };
+    structured = { ...structured, applications: [application, ...structured.applications.filter((a) => a.id !== application.id)] };
   } else if (body?.action === "UPDATE_APPLICATION" && body.application?.id) {
+    const patch = body.application;
+    const dbApp = await prisma.fundingProgramApplication.findFirst({
+      where: { id: patch.id, projectId },
+    });
+    if (dbApp) {
+      await prisma.fundingProgramApplication.update({
+        where: { id: dbApp.id },
+        data: {
+          ...(patch.status ? { status: patch.status } : {}),
+          ...(patch.notes !== undefined ? { notes: patch.notes } : {}),
+        },
+      });
+    }
     structured = {
       ...structured,
-      applications: structured.applications.map((a) => (a.id === body.application!.id ? { ...a, ...body.application } as FundingApplicationRecord : a)),
+      applications: structured.applications.map((a) =>
+        a.id === patch.id ? ({ ...a, ...patch } as FundingApplicationRecord) : a,
+      ),
     };
+    if (patch.status === "APPROVED" && patch.id) {
+      await syncApprovedProgramApplicationToFundingHub(patch.id).catch(() => {});
+    }
   } else if (body?.action === "ADD_ALLOCATION" && body.allocation?.department) {
     const allocation: FundingAllocation = {
       id: uid("alloc"),

@@ -49,6 +49,13 @@ function quickActions(portal: StakeholderPortalKey): StakeholderWorkspaceOvervie
       { href: "/funders/deals", label: "Deal pipeline", description: "Active negotiations" },
       { href: "/funders/portfolio", label: "Portfolio", description: "Performance analytics" },
     ],
+    "music-creator": [
+      { href: "/music-creator/upload", label: "Upload track", description: "Add to catalogue" },
+      { href: "/music-creator/sync-requests", label: "Sync requests", description: "Licensing inquiries" },
+      { href: "/music-creator/scoring", label: "Scoring", description: "Production placements" },
+      { href: "/music-creator/deals", label: "Deal pipeline", description: "Approved sync deals" },
+      { href: "/music-creator/contracts", label: "Contracts", description: "Music licensing agreements" },
+    ],
   };
   return map[portal];
 }
@@ -371,6 +378,84 @@ async function buildFunderWorkspace(userId: string): Promise<Partial<Stakeholder
   };
 }
 
+async function buildMusicWorkspace(userId: string): Promise<Partial<StakeholderWorkspaceOverview>> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { professionalName: true, name: true },
+  });
+
+  const [pendingRequests, approvedRequests, paidDeals, contracts, selections] = await Promise.all([
+    prisma.syncRequest.findMany({
+      where: { musicCreatorId: userId, status: "PENDING" },
+      take: 10,
+      orderBy: { createdAt: "desc" },
+      include: {
+        track: { select: { title: true } },
+        requester: { select: { name: true } },
+      },
+    }),
+    prisma.syncRequest.findMany({
+      where: { musicCreatorId: userId, status: "APPROVED" },
+      take: 8,
+      orderBy: { updatedAt: "desc" },
+      include: {
+        track: { select: { title: true } },
+        requester: { select: { name: true } },
+      },
+    }),
+    prisma.syncDeal.count({
+      where: { musicTrack: { creatorId: userId }, status: "PAID" },
+    }),
+    prisma.projectContract.count({
+      where: { counterpartyUserId: userId, status: { in: ["SENT", "AWAITING_SIGNATURE", "PARTIALLY_SIGNED"] } },
+    }),
+    prisma.musicSelection.count({
+      where: { track: { creatorId: userId } },
+    }),
+  ]);
+
+  const tasks: StakeholderTaskItem[] = [
+    ...pendingRequests.map((r) => ({
+      id: `sync-${r.id}`,
+      title: `Sync request: ${r.track.title}`,
+      subtitle: r.requester.name ?? undefined,
+      priority: "HIGH" as const,
+      href: "/music-creator/sync-requests",
+      kind: "SYNC_REQUEST",
+    })),
+    ...approvedRequests.map((r) => ({
+      id: `sync-appr-${r.id}`,
+      title: `Awaiting payment: ${r.track.title}`,
+      subtitle: r.requester.name ?? undefined,
+      priority: "MEDIUM" as const,
+      href: "/music-creator/deals",
+      kind: "SYNC_DEAL",
+    })),
+  ];
+
+  const alerts: string[] = [];
+  if (pendingRequests.length) alerts.push(`${pendingRequests.length} sync request(s) need your response.`);
+  if (approvedRequests.length) alerts.push(`${approvedRequests.length} approved deal(s) awaiting creator payment.`);
+  if (contracts > 0) alerts.push(`${contracts} music contract(s) need signature or review.`);
+
+  return {
+    greeting: user?.professionalName ?? user?.name ?? "Music creator",
+    summary: "Catalogue uploads, sync licensing, scoring placements, and contracts — connected to Story Time productions.",
+    tasks,
+    calendar: approvedRequests.map((r) => ({
+      id: r.id,
+      title: `Sync: ${r.track.title}`,
+      date: r.updatedAt.toISOString(),
+      kind: "SYNC",
+      href: "/music-creator/deals",
+    })),
+    approvals: [],
+    alerts,
+    connectedProductions: selections,
+    moduleInsights: { paidSyncDeals: paidDeals },
+  };
+}
+
 export async function buildStakeholderWorkspace(
   userId: string,
   role: string,
@@ -413,6 +498,9 @@ export async function buildStakeholderWorkspace(
       break;
     case "FUNDER":
       roleData = await buildFunderWorkspace(userId);
+      break;
+    case "MUSIC_CREATOR":
+      roleData = await buildMusicWorkspace(userId);
       break;
     default:
       return null;

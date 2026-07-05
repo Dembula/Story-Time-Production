@@ -69,6 +69,7 @@ export function validateStorageUrlField(
     return options?.allowNull === false ? `${field} is required.` : null;
   }
   if (typeof value !== "string") return `${field} must be a URL string.`;
+  if (value.startsWith("s3://")) return null;
   if (!isAllowedStorageUrl(value)) {
     return `${field} must be an uploaded storage URL from this platform.`;
   }

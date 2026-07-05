@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { appendCardSavedFlag } from "@/lib/payments/return-url";
 
 const PAYMENT_RECORD_STORAGE_KEY = "st_payment_record_id";
 
@@ -49,11 +50,19 @@ function isPayFastSuccessStatus(raw: string): boolean {
   return status === "success" || status === "complete";
 }
 
+function isCardSaveFlow(flow: string): boolean {
+  return flow === "payfast_card_consent" || flow === "payfast_card_update";
+}
+
 function PaymentsReturnContent() {
   const params = useSearchParams();
   const paymentStatus = params.get("payment_status") || "";
-  const next = params.get("next") || "/profiles";
+  const rawNext = params.get("next") || "/profiles";
   const flow = params.get("flow") || "payment";
+  const next = useMemo(
+    () => (isCardSaveFlow(flow) ? appendCardSavedFlag(rawNext) : rawNext),
+    [flow, rawNext],
+  );
   const reference = params.get("reference") || "";
   const paymentRecordId = resolvePaymentRecordId(params);
   const payfastReturnFields = useMemo(() => collectPayFastReturnFields(params), [params]);
@@ -165,26 +174,44 @@ function PaymentsReturnContent() {
   }, [resolvedStatus, next]);
 
   const heading = useMemo(() => {
-    if (resolvedStatus === "success") return "Payment completed";
-    if (resolvedStatus === "failed") return "Payment failed";
-    if (timedOut) return "Payment confirmation delayed";
-    return "Payment status pending";
-  }, [resolvedStatus, timedOut]);
+    if (resolvedStatus === "success") {
+      return isCardSaveFlow(flow) ? "Card saved" : "Payment completed";
+    }
+    if (resolvedStatus === "failed") return isCardSaveFlow(flow) ? "Card setup failed" : "Payment failed";
+    if (timedOut) return isCardSaveFlow(flow) ? "Card confirmation delayed" : "Payment confirmation delayed";
+    return isCardSaveFlow(flow) ? "Saving card…" : "Payment status pending";
+  }, [resolvedStatus, timedOut, flow]);
 
   const message = useMemo(() => {
-    if (resolvedStatus === "success") return "Your transaction is confirmed. Redirecting now...";
-    if (resolvedStatus === "failed") return "The payment could not be completed. You can retry from the previous screen.";
-    if (timedOut) {
-      return "PayFast may still be sending confirmation. You can continue — we will activate your access as soon as confirmation arrives.";
+    if (resolvedStatus === "success") {
+      return isCardSaveFlow(flow)
+        ? "Your card is saved securely through PayFast. Redirecting you back…"
+        : "Your transaction is confirmed. Redirecting now...";
     }
-    return "Waiting for secure confirmation from the payment network...";
-  }, [resolvedStatus, timedOut]);
+    if (resolvedStatus === "failed") {
+      return isCardSaveFlow(flow)
+        ? "We could not save your card. You can try again from the previous screen."
+        : "The payment could not be completed. You can retry from the previous screen.";
+    }
+    if (timedOut) {
+      return isCardSaveFlow(flow)
+        ? "PayFast may still be confirming your card. You can continue — it will appear once confirmation arrives."
+        : "PayFast may still be sending confirmation. You can continue — we will activate your access as soon as confirmation arrives.";
+    }
+    return isCardSaveFlow(flow)
+      ? "Waiting for secure confirmation from PayFast…"
+      : "Waiting for secure confirmation from the payment network...";
+  }, [resolvedStatus, timedOut, flow]);
 
   return (
     <main className="min-h-screen bg-slate-950 px-4 py-10 text-slate-100">
       <div className="mx-auto max-w-lg rounded-2xl border border-white/10 bg-slate-900/70 p-6 shadow-2xl">
         <p className="inline-flex rounded-full border border-orange-400/30 bg-orange-500/10 px-3 py-1 text-xs font-semibold tracking-wide text-orange-200">
-          {resolvedStatus === "success" ? "Payment confirmed" : "Payment gateway"}
+          {resolvedStatus === "success"
+            ? isCardSaveFlow(flow)
+              ? "Card confirmed"
+              : "Payment confirmed"
+            : "Payment gateway"}
         </p>
         <h1 className="mt-3 text-2xl font-semibold">{heading}</h1>
         <p className="mt-2 text-sm text-slate-400">{message}</p>

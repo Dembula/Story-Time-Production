@@ -295,7 +295,7 @@ export const PRODUCTION_TOOLS: ProjectToolMeta[] = [
     id: "on-set-catering",
     phase: "PRODUCTION",
     label: "On-Set Catering",
-    description: "Book caterers with menus, galleries, and per-head pricing for shoot days.",
+    description: "Book on-set caterers with menus, galleries, and specializations for shoot days.",
     toolSlug: "on-set-catering",
     pipelineStep: "ON_SET",
   },

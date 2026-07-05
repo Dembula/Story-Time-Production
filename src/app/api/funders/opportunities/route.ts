@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { canCreateListings, requireSessionUser } from "@/lib/funders";
 import { FUNDING_MARKET_CATEGORIES } from "@/lib/funder-markets";
-
+import { buildPublicOpportunityView } from "@/lib/funding-listing-privacy";
+import type { Prisma } from "@/generated/prisma";
 export async function GET(req: NextRequest) {
   const access = await requireSessionUser();
   if (access.error) return access.error;
@@ -18,7 +19,7 @@ export async function GET(req: NextRequest) {
   const opportunities = await prisma.investmentOpportunity.findMany({
     where,
     include: {
-      project: { select: { id: true, title: true, logline: true, budget: true, status: true } },
+      project: { select: { id: true, title: true, logline: true, genre: true, budget: true, status: true } },
       createdByUser: { select: { id: true, name: true, professionalName: true, role: true } },
       companyListing: true,
       deals: {
@@ -31,7 +32,16 @@ export async function GET(req: NextRequest) {
     take: 200,
   });
 
-  return NextResponse.json({ opportunities });
+  const viewerId = access.userId;
+  const shaped = opportunities.map((opp) => {
+    const hasInterest = opp.deals.some((d) => d.funderUserId === viewerId);
+    return {
+      ...opp,
+      publicView: buildPublicOpportunityView(opp, { revealFull: hasInterest }),
+    };
+  });
+
+  return NextResponse.json({ opportunities: shaped });
 }
 
 export async function POST(req: NextRequest) {
@@ -54,6 +64,7 @@ export async function POST(req: NextRequest) {
         equityOfferedPct?: number | null;
         revenueModel?: string | null;
         termsSummary?: string | null;
+        publicListingMeta?: Record<string, unknown> | null;
         companyListing?: {
           companyName?: string;
           sector?: string | null;
@@ -87,6 +98,9 @@ export async function POST(req: NextRequest) {
       equityOfferedPct: body.equityOfferedPct ?? null,
       revenueModel: body.revenueModel?.trim() || null,
       termsSummary: body.termsSummary?.trim() || null,
+      publicListingMeta: body.publicListingMeta
+        ? (body.publicListingMeta as unknown as Prisma.InputJsonValue)
+        : undefined,
       status: "OPEN",
       visible: true,
       companyListing: body.companyListing?.companyName

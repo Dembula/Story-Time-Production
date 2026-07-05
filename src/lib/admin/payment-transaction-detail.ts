@@ -434,6 +434,8 @@ const TX_TYPE_LABELS: Record<string, string> = {
   [MARKETPLACE_TRANSACTION_TYPE.EQUIPMENT_REQUEST]: "Equipment request",
   [MARKETPLACE_TRANSACTION_TYPE.CREW_REQUEST]: "Crew team request",
   [MARKETPLACE_TRANSACTION_TYPE.CAST_INQUIRY]: "Casting inquiry",
+  CONTRACT_HIRE_CAST: "Contract hire — cast salary",
+  CONTRACT_HIRE_CREW: "Contract hire — crew salary",
 };
 
 async function resolveMarketplaceReference(type: string, referenceId: string) {
@@ -477,6 +479,24 @@ async function resolveMarketplaceReference(type: string, referenceId: string) {
     if (!row) return { summary: "Casting inquiry (not found)" };
     return { summary: `Casting inquiry ${referenceId}`, extra: { status: row.status } };
   }
+  if (type === "CONTRACT_HIRE_CAST" || type === "CONTRACT_HIRE_CREW") {
+    const row = await db.projectContract.findUnique({
+      where: { id: referenceId },
+      select: {
+        subject: true,
+        recipientLabel: true,
+        type: true,
+        hireAmount: true,
+        project: { select: { title: true } },
+      },
+    });
+    if (!row) return { summary: "Contract salary payment (not found)" };
+    const label = row.recipientLabel || row.subject || row.type;
+    return {
+      summary: `Contract salary · ${label} · ${row.project?.title ?? "Project"}`,
+      extra: { hireAmount: row.hireAmount, contractType: row.type },
+    };
+  }
   return { summary: `${type} ${referenceId}` };
 }
 
@@ -500,6 +520,8 @@ export async function getAdminMarketplaceTransactionDetail(
     EQUIPMENT_REQUEST: "EquipmentRequest",
     CREW_REQUEST: "CrewTeamRequest",
     CAST_INQUIRY: "CastingInquiry",
+    CONTRACT_HIRE_CAST: "ProjectContract",
+    CONTRACT_HIRE_CREW: "ProjectContract",
   };
   const entityType = entityTypeMap[tx.type] ?? tx.type;
 

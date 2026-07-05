@@ -16,6 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
 import { useModocToolRefresh } from "@/components/modoc/use-modoc-tool-refresh";
 import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
+import { SecureFileLink } from "@/components/files/secure-file-link";
 import { formatZar } from "@/lib/format-currency-zar";
 import { projectToolQueryFn } from "@/lib/project-tool-fetch";
 import { EXPENSE_CATEGORIES, categoryLabel } from "@/lib/expense-types";
@@ -767,9 +768,13 @@ function ExpenseList({
               </p>
               <div className="mt-1 flex flex-wrap gap-2">
                 {e.meta.receiptUrls.map((url) => (
-                  <a key={url} href={url} target="_blank" rel="noreferrer" className="text-[10px] text-sky-400 hover:underline">
-                    Receipt
-                  </a>
+                  <SecureFileLink
+                    key={url}
+                    fileRef={url}
+                    label="Receipt"
+                    projectId={projectId}
+                    className="text-[10px] text-sky-400 hover:underline"
+                  />
                 ))}
               </div>
               <div className="mt-2 flex flex-wrap gap-1">

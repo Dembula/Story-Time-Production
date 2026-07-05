@@ -1,7 +1,7 @@
 import { notifyUser } from "@/lib/notify-user";
 
 export function contractNotificationLink(contractId: string, projectId: string): string {
-  return `/creator/legal/inbox/${contractId}?projectId=${encodeURIComponent(projectId)}`;
+  return `/creator/projects/${projectId}/pre-production/legal-contracts?tab=inbox&contractId=${encodeURIComponent(contractId)}`;
 }
 
 export function contractProjectLink(projectId: string, contractId?: string): string {

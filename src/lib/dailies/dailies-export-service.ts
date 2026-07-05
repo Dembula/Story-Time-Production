@@ -1,4 +1,4 @@
-import { contractTermsToPdfBuffer } from "@/lib/legal/contract-pdf-export";
+import { buildDocumentPdf, type PdfBlock } from "@/lib/pdf/document-pdf";
 import type { DailiesDailyReport, DailiesIntelligencePayload } from "@/lib/dailies/types";
 import { TAKE_STATUS_LABELS } from "@/lib/dailies/departments";
 
@@ -46,40 +46,101 @@ export function dailiesReportToPdfText(
   projectTitle: string,
   report?: DailiesDailyReport,
 ): Buffer {
-  const lines: string[] = [
-    "Story Time — Dailies Report",
-    projectTitle,
-    `Generated: ${payload.generatedAt}`,
-    "",
-    `Clips: ${payload.summary.totalClips} · Circle takes: ${payload.summary.circleTakes} · Review: ${payload.summary.reviewCompletionPercent}%`,
-    `Coverage: ${payload.summary.coveragePercent}% · Health: ${payload.summary.productionHealthScore}`,
-    "",
+  const blocks: PdfBlock[] = [
+    { type: "title", text: "DAILIES REPORT" },
+    { type: "subtitle", text: projectTitle },
+    {
+      type: "line",
+      text: `Generated ${new Date(payload.generatedAt).toLocaleString()}`,
+    },
+    { type: "blank" },
+    { type: "heading", text: "Summary" },
+    {
+      type: "kv",
+      label: "Clips",
+      value: String(payload.summary.totalClips),
+    },
+    {
+      type: "kv",
+      label: "Circle takes",
+      value: String(payload.summary.circleTakes),
+    },
+    {
+      type: "kv",
+      label: "Review completion",
+      value: `${payload.summary.reviewCompletionPercent}%`,
+    },
+    {
+      type: "kv",
+      label: "Coverage",
+      value: `${payload.summary.coveragePercent}%`,
+    },
+    {
+      type: "kv",
+      label: "Production health",
+      value: String(payload.summary.productionHealthScore),
+    },
   ];
 
   if (report) {
-    lines.push("Daily production summary", `Shoot day: ${new Date(report.shootDayDate).toLocaleDateString()}`, "");
-    lines.push(`Completed scenes: ${report.completedScenes.join(", ") || "—"}`);
-    lines.push(`Approved: ${report.approvedTakes} · Circle: ${report.circleTakes} · Reshoots: ${report.reshootsNeeded}`);
-    if (report.productionRisks.length) lines.push("", "Risks:", ...report.productionRisks.map((r) => `• ${r}`));
-    if (report.tomorrowPrep.length) lines.push("", "Tomorrow prep:", ...report.tomorrowPrep.map((r) => `• ${r}`));
-    lines.push("");
-  }
-
-  lines.push("Clip summary");
-  for (const c of payload.clips.slice(0, 80)) {
-    lines.push(
-      `Sc.${c.sceneNumber ?? "—"} / ${c.shotNumber ?? "—"} Take ${c.takeNumber ?? "—"} — ${TAKE_STATUS_LABELS[c.takeStatus] ?? c.takeStatus}`,
+    blocks.push(
+      { type: "heading", text: "Daily production summary" },
+      {
+        type: "kv",
+        label: "Shoot day",
+        value: new Date(report.shootDayDate).toLocaleDateString(),
+      },
+      {
+        type: "kv",
+        label: "Completed scenes",
+        value: report.completedScenes.join(", ") || "—",
+      },
+      {
+        type: "kv",
+        label: "Approved / circle / reshoots",
+        value: `${report.approvedTakes} / ${report.circleTakes} / ${report.reshootsNeeded}`,
+      },
     );
-  }
-
-  if (payload.insights.length) {
-    lines.push("", "Production intelligence");
-    for (const i of payload.insights.slice(0, 15)) {
-      lines.push(`• ${i.title}: ${i.body}`);
+    if (report.productionRisks.length) {
+      blocks.push({ type: "heading", text: "Risks" });
+      blocks.push({ type: "bullets", items: report.productionRisks });
+    }
+    if (report.tomorrowPrep.length) {
+      blocks.push({ type: "heading", text: "Tomorrow prep" });
+      blocks.push({ type: "bullets", items: report.tomorrowPrep });
     }
   }
 
-  return contractTermsToPdfBuffer(lines.join("\n"), `${projectTitle} — Dailies Report`);
+  blocks.push({ type: "heading", text: "Clip summary" });
+  if (payload.clips.length === 0) {
+    blocks.push({ type: "line", text: "No clips recorded." });
+  } else {
+    blocks.push({
+      type: "table",
+      headers: ["Scene", "Shot", "Take", "Status", "Title"],
+      rows: payload.clips.slice(0, 120).map((c) => [
+        c.sceneNumber ?? "—",
+        c.shotNumber ?? "—",
+        c.takeNumber != null ? String(c.takeNumber) : "—",
+        TAKE_STATUS_LABELS[c.takeStatus] ?? c.takeStatus,
+        (c.title ?? "—").slice(0, 40),
+      ]),
+    });
+  }
+
+  if (payload.insights.length) {
+    blocks.push({ type: "heading", text: "Production intelligence" });
+    blocks.push({
+      type: "bullets",
+      items: payload.insights.slice(0, 20).map((i) => `${i.title}: ${i.body}`),
+    });
+  }
+
+  return buildDocumentPdf({
+    title: `${projectTitle} — Dailies Report`,
+    footer: projectTitle,
+    blocks,
+  });
 }
 
 export function dailiesClipsToExcelXml(payload: DailiesIntelligencePayload): string {

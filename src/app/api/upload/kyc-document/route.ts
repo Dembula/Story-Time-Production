@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const limited = enforceUserRateLimit({
+    const limited = await enforceUserRateLimit({
       key: "upload-kyc",
       userId: user.id!,
       maxAttempts: 20,

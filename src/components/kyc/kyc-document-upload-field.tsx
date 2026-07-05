@@ -70,14 +70,14 @@ export function KycDocumentUploadField({
 
   return (
     <div>
-      <label className="mb-1 block text-xs font-medium text-slate-300">{label}</label>
+      <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-slate-400">{label}</label>
       <div
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
           e.preventDefault();
           void handleFile(e.dataTransfer.files?.[0] ?? null);
         }}
-        className="rounded-xl border border-dashed border-slate-600 bg-slate-900/70 p-4 text-center"
+        className="rounded-xl border border-dashed border-orange-500/25 bg-black/25 p-4 text-center transition hover:border-orange-400/40 hover:bg-orange-500/[0.04]"
       >
         <input
           ref={inputRef}
@@ -94,7 +94,7 @@ export function KycDocumentUploadField({
           type="button"
           disabled={busy}
           onClick={() => inputRef.current?.click()}
-          className="mt-2 rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-black disabled:opacity-60"
+          className="mt-2 rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-orange-400 disabled:opacity-60"
         >
           {uploading ? "Uploading..." : persistBusy ? "Saving..." : "Upload file"}
         </button>
@@ -102,9 +102,9 @@ export function KycDocumentUploadField({
       </div>
       {error ? <p className="mt-1 text-xs text-red-300">{error}</p> : null}
       {value ? (
-        <div className="mt-2 flex items-center gap-2 text-xs text-emerald-300">
-          <span>Uploaded</span>
-          <span className="text-slate-400">Stored in private vault</span>
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-emerald-300">
+          <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5">Uploaded</span>
+          <span className="text-slate-500">Private vault</span>
           <button type="button" className="text-red-300 underline" onClick={() => onUploaded("")}>
             Remove
           </button>

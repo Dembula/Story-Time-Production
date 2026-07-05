@@ -43,6 +43,7 @@ const navSections: DashboardNavSection[] = [
       { href: "/admin/payments", label: "Payments" },
       { href: "/admin/promo-codes", label: "Promo codes" },
       { href: "/admin/funders", label: "Funders" },
+      { href: "/admin/funding-programs", label: "Funding programs" },
       { href: "/admin/payout-verification", label: "Payout KYC" },
       { href: "/admin/activity", label: "Activity" },
       { href: "/admin/ai", label: "AI OS" },

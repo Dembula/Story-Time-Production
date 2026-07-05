@@ -27,6 +27,8 @@ export type ContractDocumentViewerProps = {
   signatures?: Array<{ name: string; role: string | null; signedAt: string }>;
   editable?: boolean;
   onTermsChange?: (terms: string) => void;
+  /** When set, download uses this PDF endpoint (saved contracts). */
+  pdfDownloadUrl?: string | null;
   className?: string;
 };
 
@@ -41,6 +43,7 @@ export function ContractDocumentViewer({
   signatures = [],
   editable = false,
   onTermsChange,
+  pdfDownloadUrl,
   className = "",
 }: ContractDocumentViewerProps) {
   const [zoom, setZoom] = useState(100);
@@ -48,6 +51,7 @@ export function ContractDocumentViewer({
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [darkPaper, setDarkPaper] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
 
   const pages = useMemo(() => paginateContractTerms(terms), [terms]);
@@ -64,15 +68,45 @@ export function ContractDocumentViewer({
     window.print();
   }, []);
 
-  const handleDownload = useCallback(() => {
-    const blob = new Blob([terms], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${title.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [terms, title]);
+  const handleDownload = useCallback(async () => {
+    setPdfBusy(true);
+    try {
+      const res = pdfDownloadUrl
+        ? await fetch(pdfDownloadUrl)
+        : await fetch("/api/pdf/document", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: projectTitle ? `${projectTitle} — ${title}` : title,
+              terms,
+              filename: `${title}.pdf`,
+            }),
+          });
+      if (!res.ok) throw new Error("Could not export PDF");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const disposition = res.headers.get("Content-Disposition") ?? "";
+      const match = disposition.match(/filename="([^"]+)"/);
+      a.href = url;
+      a.download = match?.[1] ?? `${title.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      // fall back to plain text only if PDF export fails
+      const blob = new Blob([terms], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${title.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setPdfBusy(false);
+    }
+  }, [pdfDownloadUrl, projectTitle, title, terms]);
 
   const pageContent = pages[pageIndex] ?? "";
 
@@ -105,9 +139,16 @@ export function ContractDocumentViewer({
           <Printer className="h-3.5 w-3.5 mr-1" />
           Print
         </Button>
-        <Button type="button" size="sm" variant="outline" className="h-8 border-slate-600" onClick={handleDownload}>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-8 border-slate-600"
+          disabled={pdfBusy || !terms.trim()}
+          onClick={() => void handleDownload()}
+        >
           <Download className="h-3.5 w-3.5 mr-1" />
-          Download
+          {pdfBusy ? "PDF…" : "Download PDF"}
         </Button>
         <Button type="button" size="sm" variant="ghost" className="h-8 text-slate-400" onClick={() => setDarkPaper((d) => !d)}>
           {darkPaper ? "Light paper" : "Dark paper"}

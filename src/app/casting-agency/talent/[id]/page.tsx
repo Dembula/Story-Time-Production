@@ -7,6 +7,8 @@ import { ArrowLeft, FileText, Film, Save } from "lucide-react";
 import { formatZar } from "@/lib/format-currency-zar";
 import { readCastingApiJson } from "@/lib/casting-agency-client";
 import { OpsPageHeader, OpsSection } from "@/components/ecosystem/ops-shell";
+import { SecureFileLink } from "@/components/files/secure-file-link";
+import { SecureImage } from "@/components/files/secure-image";
 
 type TalentDetail = {
   id: string;
@@ -155,7 +157,7 @@ export default function CastingAgencyTalentDetailPage() {
       </Link>
 
       <div className="flex flex-wrap items-start gap-6">
-        {talent.headshotUrl && <img src={talent.headshotUrl} alt="" className="h-28 w-28 rounded-xl object-cover" />}
+        {talent.headshotUrl ? <SecureImage fileRef={talent.headshotUrl} alt="" className="h-28 w-28 rounded-xl object-cover" /> : null}
         <OpsPageHeader title={talent.name} subtitle="Rates, agency commission, availability, auditions, and platform contracts." />
       </div>
 
@@ -260,16 +262,8 @@ export default function CastingAgencyTalentDetailPage() {
               )}
             </div>
             <div className="flex gap-3">
-              {talent.cvUrl && (
-                <a href={talent.cvUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-orange-400 flex items-center gap-1">
-                  <FileText className="h-3 w-3" /> CV
-                </a>
-              )}
-              {talent.reelUrl && (
-                <a href={talent.reelUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-orange-400 flex items-center gap-1">
-                  <Film className="h-3 w-3" /> Reel
-                </a>
-              )}
+              {talent.cvUrl ? <SecureFileLink fileRef={talent.cvUrl} label="CV" /> : null}
+              {talent.reelUrl ? <SecureFileLink fileRef={talent.reelUrl} label="Reel" /> : null}
             </div>
             <Link href="/casting-agency/availability" className="text-sm text-violet-400">
               Manage availability blocks →

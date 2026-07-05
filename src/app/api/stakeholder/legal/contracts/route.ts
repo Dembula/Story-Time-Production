@@ -10,6 +10,37 @@ const contractInclude = {
   signatures: true,
 };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapStakeholderContracts(contracts: any[]) {
+  return contracts.map((c) => ({
+    id: c.id,
+    type: c.type,
+    status: c.status,
+    subject: c.subject,
+    createdAt: c.createdAt,
+    signatureDeadline: c.signatureDeadline,
+    paymentTransactionId: c.paymentTransactionId,
+    hireAmount: c.hireAmount,
+    paidAt: c.paidAt?.toISOString?.() ?? null,
+    salaryPaid: Boolean(c.paymentTransactionId),
+    receiptUrl:
+      c.paymentTransactionId && c.project
+        ? `/api/creator/projects/${c.project.id}/contracts/${c.id}/payment-receipt?audience=payee`
+        : null,
+    project: c.project,
+    versions: c.versions,
+    signers: c.signers,
+    signatures: (c.signatures ?? []).map((s: { name: string | null; signedAt: Date }) => ({
+      name: s.name,
+      signedAt: s.signedAt.toISOString(),
+    })),
+  }));
+}
+
+async function respond(contracts: unknown[], role: string | undefined) {
+  return NextResponse.json({ contracts: mapStakeholderContracts(contracts), role });
+}
+
 /** Contracts visible to the signed-in stakeholder (casting, crew, location, equipment, catering). */
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -24,46 +55,37 @@ export async function GET() {
         where: { castingAgencyId: agency.id },
         select: { id: true },
       });
-      return NextResponse.json({
-        contracts: await prisma.projectContract.findMany({
-          where: { castingTalentId: { in: talentIds.map((t) => t.id) } },
-          orderBy: { createdAt: "desc" },
-          include: contractInclude,
-        }),
-        role,
+      const contracts = await prisma.projectContract.findMany({
+        where: { castingTalentId: { in: talentIds.map((t) => t.id) } },
+        orderBy: { createdAt: "desc" },
+        include: contractInclude,
       });
+      return respond(contracts, role);
     }
   }
 
   if (role === "CREW_TEAM") {
     const team = await prisma.crewTeam.findFirst({ where: { userId }, select: { id: true } });
     if (team) {
-      return NextResponse.json({
-        contracts: await prisma.projectContract.findMany({
-          where: { OR: [{ counterpartyUserId: userId }, { crewTeamId: team.id }] },
-          orderBy: { createdAt: "desc" },
-          include: contractInclude,
-        }),
-        role,
+      const contracts = await prisma.projectContract.findMany({
+        where: { OR: [{ counterpartyUserId: userId }, { crewTeamId: team.id }] },
+        orderBy: { createdAt: "desc" },
+        include: contractInclude,
       });
+      return respond(contracts, role);
     }
   }
 
   if (role === "LOCATION_OWNER") {
     const listings = await prisma.locationListing.findMany({ where: { companyId: userId }, select: { id: true } });
-    return NextResponse.json({
-      contracts: await prisma.projectContract.findMany({
-        where: {
-          OR: [
-            { counterpartyUserId: userId },
-            { locationListingId: { in: listings.map((l) => l.id) } },
-          ],
-        },
-        orderBy: { createdAt: "desc" },
-        include: contractInclude,
-      }),
-      role,
+    const contracts = await prisma.projectContract.findMany({
+      where: {
+        OR: [{ counterpartyUserId: userId }, { locationListingId: { in: listings.map((l) => l.id) } }],
+      },
+      orderBy: { createdAt: "desc" },
+      include: contractInclude,
     });
+    return respond(contracts, role);
   }
 
   if (role === "EQUIPMENT_COMPANY") {
@@ -72,32 +94,32 @@ export async function GET() {
       select: { name: true, professionalName: true },
     });
     const vendorLabel = company?.professionalName ?? company?.name ?? "";
-    return NextResponse.json({
-      contracts: await prisma.projectContract.findMany({
-        where: {
-          OR: [
-            { counterpartyUserId: userId },
-            ...(vendorLabel ?
-              [{ type: "VENDOR", vendorName: { contains: vendorLabel, mode: "insensitive" as const } }]
+    const contracts = await prisma.projectContract.findMany({
+      where: {
+        OR: [
+          { counterpartyUserId: userId },
+          ...(vendorLabel
+            ? [{ type: "VENDOR", vendorName: { contains: vendorLabel, mode: "insensitive" as const } }]
             : []),
-          ],
-        },
-        orderBy: { createdAt: "desc" },
-        include: contractInclude,
-      }),
-      role,
+        ],
+      },
+      orderBy: { createdAt: "desc" },
+      include: contractInclude,
     });
+    return respond(contracts, role);
   }
 
   if (role === "CATERING_COMPANY") {
-    const catering = await prisma.cateringCompany.findFirst({ where: { userId }, select: { id: true, companyName: true } });
-    return NextResponse.json({
-      contracts: await prisma.projectContract.findMany({
-        where: {
-          OR: [
-            { counterpartyUserId: userId },
-            ...(catering ?
-              [
+    const catering = await prisma.cateringCompany.findFirst({
+      where: { userId },
+      select: { id: true, companyName: true },
+    });
+    const contracts = await prisma.projectContract.findMany({
+      where: {
+        OR: [
+          { counterpartyUserId: userId },
+          ...(catering
+            ? [
                 {
                   type: "VENDOR",
                   OR: [
@@ -107,13 +129,12 @@ export async function GET() {
                 },
               ]
             : []),
-          ],
-        },
-        orderBy: { createdAt: "desc" },
-        include: contractInclude,
-      }),
-      role,
+        ],
+      },
+      orderBy: { createdAt: "desc" },
+      include: contractInclude,
     });
+    return respond(contracts, role);
   }
 
   const contracts = await prisma.projectContract.findMany({
@@ -122,5 +143,5 @@ export async function GET() {
     include: contractInclude,
   });
 
-  return NextResponse.json({ contracts, role });
+  return respond(contracts, role);
 }

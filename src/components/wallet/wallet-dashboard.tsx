@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
@@ -8,6 +8,10 @@ import { PAYEE_DASHBOARD_REFETCH_MS } from "@/lib/dashboard-refresh";
 import { PayoutKycBanner } from "@/components/payout-kyc/payout-kyc-banner";
 import { requiresPayoutKyc } from "@/lib/payout-kyc-shared";
 import { FunderVerificationBanner } from "@/components/funders/funder-verification-banner";
+import { getClientReturnPath } from "@/lib/payments/payfast-card-consent-client";
+import { useCardSaveReturnRefresh } from "@/lib/hooks/use-card-save-return";
+import { getAccountRouteForRole, getWalletRouteForRole } from "@/lib/wallet-route";
+import { EscrowActions } from "@/components/wallet/escrow-actions";
 
 const money = new Intl.NumberFormat("en-ZA", {
   minimumFractionDigits: 2,
@@ -31,6 +35,7 @@ export function WalletDashboard({
 
   const [typeFilter, setTypeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [cardSavedNotice, setCardSavedNotice] = useState(false);
   const { data, refetch, isLoading } = useQuery({
     queryKey: ["wallet-page"],
     queryFn: async () => {
@@ -39,6 +44,11 @@ export function WalletDashboard({
     },
     refetchInterval: PAYEE_DASHBOARD_REFETCH_MS,
   });
+  const refreshAfterCardSave = useCallback(() => {
+    void refetch();
+    setCardSavedNotice(true);
+  }, [refetch]);
+  useCardSaveReturnRefresh(refreshAfterCardSave);
   const filterMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch("/api/wallet", {
@@ -65,7 +75,7 @@ export function WalletDashboard({
       const res = await fetch("/api/payments/payfast/card-consent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ returnPath: window.location.pathname }),
+        body: JSON.stringify({ returnPath: getClientReturnPath(walletReturnPath) }),
       });
       const payload = await readJsonOrThrow(res);
       if (payload.checkoutUrl) window.location.href = payload.checkoutUrl;
@@ -77,7 +87,7 @@ export function WalletDashboard({
       const res = await fetch("/api/payments/payfast/update-card", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ returnPath: window.location.pathname }),
+        body: JSON.stringify({ returnPath: getClientReturnPath(walletReturnPath) }),
       });
       const payload = await readJsonOrThrow(res);
       if (payload.updateUrl) window.location.href = payload.updateUrl;
@@ -99,18 +109,15 @@ export function WalletDashboard({
     | undefined;
   const { data: session } = useSession();
   const role = session?.user?.role;
+  const userId = session?.user?.id ?? "";
+  const walletReturnPath = getWalletRouteForRole(role);
   const payoutKycStatus = (session?.user as { payoutKycVerificationStatus?: string })?.payoutKycVerificationStatus;
   const funderStatus = (session?.user as { funderVerificationStatus?: string })?.funderVerificationStatus;
   const isFunder = role === "FUNDER";
   const payoutsUnlocked =
     (!requiresPayoutKyc(role) || payoutKycStatus === "APPROVED") &&
     (!isFunder || funderStatus === "APPROVED");
-  const bankingHref =
-    role === "CONTENT_CREATOR" || role === "MUSIC_CREATOR"
-      ? "/creator/account"
-      : isFunder
-        ? "/funders/verification"
-        : "/payout-verification";
+  const bankingHref = getAccountRouteForRole(role);
   const verificationHref = bankingHref;
   const verificationLabel = isFunder ? "funder verification" : "payout verification";
 
@@ -156,6 +163,11 @@ export function WalletDashboard({
       <section className="grid gap-4 lg:grid-cols-2">
         <div className="storytime-section p-6">
           <h2 className="text-lg font-semibold">Marketplace payments</h2>
+          {cardSavedNotice ? (
+            <p className="mt-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+              Card saved successfully. Marketplace checkout can now use your PayFast card.
+            </p>
+          ) : null}
           <p className="mt-1 text-xs text-slate-400">
             Marketplace checkout uses your wallet first, then a PayFast-saved card, then hosted checkout.
           </p>
@@ -256,11 +268,30 @@ export function WalletDashboard({
         <div className="storytime-section p-6">
           <h2 className="text-lg font-semibold">Escrow accounts</h2>
           <div className="mt-3 space-y-2">
+            {escrows.length === 0 ? (
+              <p className="text-xs text-slate-500">No escrow holds yet.</p>
+            ) : null}
             {escrows.map((e) => (
-              <div key={e.id} className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-xs">
-                <span>{e.referenceType}</span>
-                <span>{e.status}</span>
-                <span>R{money.format(Number(e.amount ?? 0))}</span>
+              <div key={e.id} className="rounded-xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-xs">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-slate-300">{e.referenceType}</span>
+                  <span className={e.status === "DISPUTED" ? "text-amber-300" : "text-slate-400"}>{e.status}</span>
+                  <span className="font-medium text-white">R{money.format(Number(e.amount ?? 0))}</span>
+                </div>
+                <EscrowActions
+                  escrow={{
+                    id: e.id,
+                    referenceType: e.referenceType,
+                    referenceId: e.referenceId,
+                    status: e.status,
+                    amount: Number(e.amount ?? 0),
+                    buyerUserId: e.buyerWallet?.userId,
+                    sellerUserId: e.sellerWallet?.userId,
+                  }}
+                  currentUserId={userId}
+                  isAdmin={role === "ADMIN"}
+                  onUpdated={() => void refetch()}
+                />
               </div>
             ))}
           </div>

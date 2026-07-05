@@ -23,16 +23,46 @@ export async function GET() {
     where: { submittedAt: { not: null } },
     orderBy: [{ submittedAt: "desc" }, { createdAt: "desc" }],
     include: {
-      user: { select: { id: true, name: true, email: true, role: true, creatorAccountStructure: true } },
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          creatorAccountStructure: true,
+          creatorBanking: {
+            select: {
+              bankName: true,
+              accountNumber: true,
+              accountType: true,
+              branchCode: true,
+              verifiedAt: true,
+            },
+          },
+        },
+      },
       verifications: { orderBy: { submittedAt: "desc" }, take: 30 },
     },
   });
 
   const payload = profiles.map((p) => {
     const docs = p.verifications;
+    const kycData = mergeVerificationDocsIntoKycPayload(p.kycData as KycPayload, docs);
+    const fin = kycData.financialInfo;
     return {
       ...p,
-      kycData: mergeVerificationDocsIntoKycPayload(p.kycData as KycPayload, docs),
+      kycData,
+      // Full banking for admin payouts — never mask account numbers here.
+      payoutBanking: {
+        bankName: p.user.creatorBanking?.bankName ?? fin?.bankName ?? null,
+        accountHolderName: fin?.accountHolderName ?? p.legalName ?? p.user.name ?? null,
+        accountNumber: p.user.creatorBanking?.accountNumber ?? fin?.accountNumber ?? null,
+        accountType: p.user.creatorBanking?.accountType ?? fin?.accountType ?? null,
+        branchCode: p.user.creatorBanking?.branchCode ?? fin?.branchCode ?? null,
+        bankStatementAsOf: fin?.bankStatementAsOf ?? null,
+        verifiedAt: p.user.creatorBanking?.verifiedAt?.toISOString?.() ?? null,
+        source: p.user.creatorBanking ? "creator_banking" : fin?.accountNumber ? "payout_kyc" : null,
+      },
       reviewSummary: {
         totalDocs: docs.length,
         pendingCount: docs.filter((d) => d.status === "PENDING").length,

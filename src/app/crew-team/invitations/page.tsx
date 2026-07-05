@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, ClipboardList } from "lucide-react";
 import { readCompanyApiJson } from "@/lib/casting-agency-client";
+import { SecureImage } from "@/components/files/secure-image";
 
 type Invitation = {
   id: string;
@@ -56,7 +57,7 @@ export default function CrewTeamInvitationsPage() {
           {invitations.map((inv) => (
             <div key={inv.id} className="flex gap-4 rounded-xl border border-slate-700/50 bg-slate-800/40 p-4">
               {inv.crewMember?.photoUrl ? (
-                <img src={inv.crewMember.photoUrl} alt="" className="h-14 w-14 shrink-0 rounded-lg object-cover" />
+                <SecureImage fileRef={inv.crewMember.photoUrl} alt="" className="h-14 w-14 shrink-0 rounded-lg object-cover" />
               ) : (
                 <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-slate-700/50 text-slate-500">
                   <ClipboardList className="h-5 w-5" />

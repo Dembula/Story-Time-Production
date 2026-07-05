@@ -9,10 +9,12 @@ import {
   usePrefillProjectName,
 } from "@/components/creator/creator-project-context";
 import { fetchMarketplaceList, postMarketplaceJson } from "@/lib/creator-marketplace-fetch";
-import { MapPin, DollarSign, Users, ChevronDown, ChevronUp, MessageCircle, CheckCircle, Calendar, CreditCard } from "lucide-react";
+import { MapPin, Users, ChevronDown, ChevronUp, MessageCircle, CheckCircle, Calendar, CreditCard } from "lucide-react";
 import { formatZar } from "@/lib/format-currency-zar";
 import { useMarketplacePay } from "@/lib/hooks/use-marketplace-pay";
 import { MarketplaceCheckoutModal } from "@/components/marketplace/marketplace-checkout-modal";
+import { MarketplaceFeeBreakdown } from "@/components/marketplace/marketplace-fee-breakdown";
+import { SecureImage } from "@/components/files/secure-image";
 
 const LOCATION_TYPES = ["Studio", "House", "Warehouse", "Outdoor", "Office", "Historical", "Restaurant", "Other"];
 
@@ -38,6 +40,7 @@ type Location = {
   _count: { bookings: number };
   profile?: {
     dailyRate?: number | null;
+    hourlyRate?: number | null;
     permitRequirements?: string | null;
     restrictions?: string | null;
     logistics?: string | null;
@@ -54,6 +57,7 @@ type Booking = {
   crewSize: number | null;
   createdAt: string;
   paymentTransactionId: string | null;
+  payQuote?: { baseAmount: number; feeAmount: number; totalAmount: number } | null;
   location: { id: string; name: string; type: string; city: string | null; dailyRate: number | null; company: { id: string; name: string | null } };
   owner: { id: string; name: string | null; email: string | null };
   _count: { messages: number };
@@ -78,6 +82,12 @@ function CreatorLocationsPageContent() {
   const [setupError, setSetupError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState("");
   const [payingId, setPayingId] = useState<string | null>(null);
+  const [quoteProfiles, setQuoteProfiles] = useState<Record<string, {
+    dailyRate: number | null;
+    hourlyRate: number | null;
+    estimate: { days: number; subtotal: number } | null;
+  }>>({});
+  const [quoteLoadingId, setQuoteLoadingId] = useState<string | null>(null);
   const marketplacePay = useMarketplacePay({
     onPaid: () => {
       fetch("/api/location-bookings")
@@ -112,6 +122,31 @@ function CreatorLocationsPageContent() {
     [],
   );
   usePrefillProjectName(projectTitle, prefillNote);
+
+  async function loadQuoteProfile(locationId: string, startDate?: string, endDate?: string) {
+    setQuoteLoadingId(locationId);
+    try {
+      const params = new URLSearchParams();
+      if (startDate) params.set("startDate", startDate);
+      if (endDate) params.set("endDate", endDate);
+      const q = params.toString() ? `?${params}` : "";
+      const res = await fetch(`/api/locations/${locationId}/quote-profile${q}`);
+      if (res.ok) {
+        const data = await res.json();
+        setQuoteProfiles((prev) => ({ ...prev, [locationId]: data }));
+      }
+    } finally {
+      setQuoteLoadingId(null);
+    }
+  }
+
+  useEffect(() => {
+    if (!expandedId || bookingForId !== expandedId) return;
+    const { startDate, endDate } = bookForm;
+    if (!startDate || !endDate) return;
+    const timer = setTimeout(() => void loadQuoteProfile(expandedId, startDate, endDate), 400);
+    return () => clearTimeout(timer);
+  }, [expandedId, bookingForId, bookForm.startDate, bookForm.endDate]);
 
   useEffect(() => {
     Promise.all([
@@ -156,6 +191,8 @@ function CreatorLocationsPageContent() {
         endDate: bookForm.endDate || null,
         crewSize: bookForm.crewSize ? parseInt(bookForm.crewSize, 10) : null,
         note,
+        projectId: projectId ?? null,
+        projectTitle: projectTitle ?? null,
       },
     );
     setSubmitting(false);
@@ -208,7 +245,7 @@ function CreatorLocationsPageContent() {
             <MapPin className="w-8 h-8 text-orange-500" />
             Location Repository
           </h1>
-          <p className="text-slate-400">Book shoot locations for your films, shows, and projects</p>
+          <p className="text-slate-400">Browse locations with photos. Message owners for free, then confirm payment once your booking is approved.</p>
         </div>
         <div className="flex gap-2">
           <button onClick={() => setTab("browse")} className={`px-4 py-2 rounded-lg text-sm font-medium transition ${tab === "browse" ? "bg-orange-500 text-white" : "bg-slate-800/50 text-slate-400 border border-slate-700/50"}`}>
@@ -242,12 +279,20 @@ function CreatorLocationsPageContent() {
             {filtered.map((loc) => {
               const gallery = loc.photos?.length ? loc.photos : loc.photoUrls?.split(/[\n,]/).map((s) => s.trim()).filter((s) => s.startsWith("http")) ?? [];
               const hero = loc.previewImageUrl || gallery[0];
-              const displayRate = loc.profile?.dailyRate ?? loc.dailyRate;
               const isExpanded = expandedId === loc.id;
               const showBookForm = bookingForId === loc.id;
+              const quote = quoteProfiles[loc.id];
               return (
                 <div key={loc.id} className="rounded-2xl bg-slate-800/30 border border-slate-700/50 overflow-hidden hover:border-orange-500/30 transition">
-                  {hero ? <img src={hero} alt="" className="w-full h-40 object-cover" /> : (
+                  {gallery.length >= 2 ? (
+                    <div className="grid grid-cols-2 gap-0.5 bg-slate-900">
+                      {gallery.slice(0, 4).map((url, i) => (
+                        <img key={`${loc.id}-${i}`} src={url} alt="" className={`w-full object-cover ${gallery.length === 2 ? "h-40" : "h-28"}`} />
+                      ))}
+                    </div>
+                  ) : hero ? (
+                    <SecureImage fileRef={hero} alt="" className="w-full h-40 object-cover" />
+                  ) : (
                     <div className="h-32 flex items-center justify-center bg-slate-800/60"><MapPin className="w-10 h-10 text-slate-600" /></div>
                   )}
                   <div className="p-5 space-y-3">
@@ -259,9 +304,12 @@ function CreatorLocationsPageContent() {
                     {loc.description && <p className="text-sm text-slate-400 line-clamp-2">{loc.description}</p>}
                     <div className="flex flex-wrap gap-3 text-xs text-slate-500">
                       {loc.capacity != null && <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {loc.capacity} max</span>}
-                      {displayRate != null && <span className="flex items-center gap-1 text-orange-400"><DollarSign className="w-3 h-3" /> {formatZar(displayRate, { maximumFractionDigits: 0 })}/day</span>}
                     </div>
-                    <button onClick={() => setExpandedId(isExpanded ? null : loc.id)} className="flex items-center gap-1 text-sm text-orange-400 hover:text-orange-300">
+                    <button onClick={() => {
+                      const next = isExpanded ? null : loc.id;
+                      setExpandedId(next);
+                      if (next && !quoteProfiles[next]) void loadQuoteProfile(next);
+                    }} className="flex items-center gap-1 text-sm text-orange-400 hover:text-orange-300">
                       {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />} {isExpanded ? "Less" : "More details"}
                     </button>
                     {isExpanded && (
@@ -278,6 +326,20 @@ function CreatorLocationsPageContent() {
                         {loc.profile?.logistics && <p><span className="text-slate-500">Logistics:</span> {loc.profile.logistics}</p>}
                         {(loc.profile?.restrictions || loc.rules) && <p><span className="text-slate-500">Rules:</span> {loc.profile?.restrictions || loc.rules}</p>}
                         {loc.availability && <p><span className="text-slate-500">Availability:</span> {loc.availability}</p>}
+                        {quoteLoadingId === loc.id && <p className="text-slate-500 text-xs">Loading rates…</p>}
+                        {quote && (
+                          <div className="rounded-lg border border-slate-700/50 bg-slate-900/40 p-3 text-sm text-slate-300 space-y-1">
+                            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Quote profile</p>
+                            {quote.dailyRate != null && <p>Daily: {formatZar(quote.dailyRate)}</p>}
+                            {quote.hourlyRate != null && <p>Hourly: {formatZar(quote.hourlyRate)}</p>}
+                            {quote.estimate && quote.estimate.subtotal > 0 && (
+                              <p className="text-orange-300">Est. {quote.estimate.days} day(s): {formatZar(quote.estimate.subtotal)}</p>
+                            )}
+                            {!quote.dailyRate && !quote.hourlyRate && (
+                              <p className="text-slate-500">Message the owner for a custom quote.</p>
+                            )}
+                          </div>
+                        )}
                         {loc.contactUrl && <a href={loc.contactUrl} target="_blank" rel="noopener noreferrer" className="text-orange-400 hover:underline">Contact / Website</a>}
                       </div>
                     )}
@@ -334,22 +396,35 @@ function CreatorLocationsPageContent() {
                 <p className="text-sm text-slate-400">{b.location.company?.name && <span>{b.location.company.name} · </span>}{b.location.city}</p>
                 {b.startDate && <p className="text-xs text-slate-500 mt-1 flex items-center gap-1"><Calendar className="w-3 h-3" /> {b.startDate} — {b.endDate || "TBD"}</p>}
                 <p className="text-xs text-slate-500 mt-1">{b._count.messages} messages</p>
+                {b.status === "APPROVED" && !b.paymentTransactionId && b.payQuote ? (
+                  <MarketplaceFeeBreakdown
+                    baseAmount={b.payQuote.baseAmount}
+                    feeAmount={b.payQuote.feeAmount}
+                    totalAmount={b.payQuote.totalAmount}
+                  />
+                ) : null}
               </div>
               <div className="flex flex-wrap items-center gap-2 justify-end">
+                <a
+                  href={`/creator/messages?tab=locations&bookingId=${b.id}`}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500/10 text-orange-400 border border-orange-500/30 text-sm hover:bg-orange-500/20 transition"
+                >
+                  <MessageCircle className="w-4 h-4" /> Message
+                </a>
                 {b.status === "APPROVED" && !b.paymentTransactionId && (
                   <button
                     type="button"
-                    disabled={payingId === b.id}
+                    disabled={payingId === b.id || !b.payQuote}
                     onClick={() => payBooking(b.id)}
                     className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-sm font-medium hover:bg-emerald-500/25 disabled:opacity-50"
                   >
-                    <CreditCard className="w-4 h-4" /> {payingId === b.id ? "Processing…" : "Pay to unlock messaging"}
+                    <CreditCard className="w-4 h-4" />{" "}
+                    {payingId === b.id
+                      ? "Processing…"
+                      : b.payQuote
+                        ? `Pay ${formatZar(b.payQuote.totalAmount)}`
+                        : "Confirm & pay"}
                   </button>
-                )}
-                {b.paymentTransactionId && (
-                  <a href={`/creator/messages?tab=locations&bookingId=${b.id}`} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500/10 text-orange-400 border border-orange-500/30 text-sm hover:bg-orange-500/20 transition">
-                    <MessageCircle className="w-4 h-4" /> Chat
-                  </a>
                 )}
               </div>
             </div>

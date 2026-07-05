@@ -6,6 +6,7 @@ import {
   notifyEquipmentRequestCreated,
   notifyEquipmentRequestStatus,
 } from "@/lib/marketplace-notifications";
+import { buildMarketplaceBookingNote } from "@/lib/marketplace-booking-context";
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -55,12 +56,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Equipment company not found" }, { status: 400 });
   }
 
+  const note = buildMarketplaceBookingNote(body.note || null, {
+    projectId: body.projectId ?? null,
+    projectTitle: body.projectTitle ?? null,
+  });
+
   const request = await prisma.equipmentRequest.create({
     data: {
       equipmentId: body.equipmentId,
       requesterId: userId,
       companyId: equipment.companyId,
-      note: body.note || null,
+      note,
       startDate: body.startDate || null,
       endDate: body.endDate || null,
     },

@@ -62,7 +62,7 @@ export default function SyncRequestsPage() {
       </div>
 
       <div className="flex gap-2">
-        {["ALL", "PENDING", "APPROVED", "DECLINED"].map((f) => (
+        {["ALL", "PENDING", "APPROVED", "PAID", "DECLINED"].map((f) => (
           <button key={f} onClick={() => setFilter(f)} className={`px-3 py-2 rounded-lg text-xs font-medium transition ${filter === f ? "bg-pink-500 text-white" : "bg-slate-800/50 text-slate-400 border border-slate-700/50"}`}>{f === "ALL" ? `All (${requests.length})` : `${f} (${requests.filter((r) => r.status === f).length})`}</button>
         ))}
       </div>
@@ -78,7 +78,7 @@ export default function SyncRequestsPage() {
                     <p className="text-white font-medium">{r.requester.name || r.requester.email}</p>
                     <span className="text-xs text-slate-500">wants to use</span>
                     <p className="text-pink-400 font-medium">&quot;{r.track.title}&quot;</p>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${r.status === "PENDING" ? "bg-yellow-500/10 text-yellow-400" : r.status === "APPROVED" ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400"}`}>{r.status}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${r.status === "PENDING" ? "bg-yellow-500/10 text-yellow-400" : r.status === "APPROVED" ? "bg-green-500/10 text-green-400" : r.status === "PAID" ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"}`}>{r.status}</span>
                   </div>
                   <div className="flex items-center gap-3 text-xs text-slate-500 mt-1">
                     {r.projectName && <span><Film className="w-3 h-3 inline" /> {r.projectName}</span>}

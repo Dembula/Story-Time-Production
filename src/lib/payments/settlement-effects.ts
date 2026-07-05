@@ -1,6 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import { finalizeMarketplaceGatewayPayment } from "@/lib/payments/marketplace-settlement";
 import {
+  finalizeFundingDealGatewayPayment,
+  resolveFundingDealSettlement,
+} from "@/lib/payments/funding-deal-settlement";
+import {
+  finalizeContractHireGatewayPayment,
+  resolveContractHireSettlement,
+} from "@/lib/payments/contract-hire-settlement";
+import {
   finalizeCastingHirePayment,
   finalizeCastingRoleListingPayment,
 } from "@/lib/payments/casting-checkout-settlement";
@@ -8,6 +16,7 @@ import { addViewerSubscriptionPeriod } from "@/lib/payments/billing-interval";
 import { nextCompanyPeriodEnd } from "@/lib/payments/company-subscription-billing";
 import { buildRecurringBillingSuccessReset } from "@/lib/payments/recurring-billing-shared";
 import { extendCreatorLicensePeriod } from "@/lib/payments/creator-license-billing";
+import { finalizeSyncLicensingGatewayPayment } from "@/lib/payments/sync-licensing-settlement";
 import { VIEWER_PLAN_CONFIG } from "@/lib/pricing";
 
 const db = prisma as any;
@@ -235,6 +244,58 @@ export async function applyPaymentRecordSettlementEffects(paymentRecord: {
       relatedEntityId: paymentRecord.relatedEntityId,
       metadata: paymentRecord.metadata,
     }).catch((err: unknown) => console.error("casting hire settlement failed", err));
+  }
+
+  if (
+    paymentRecord.id &&
+    paymentRecord.relatedEntityType === "InvestmentDeal" &&
+    paymentRecord.relatedEntityId &&
+    paymentRecord.userId
+  ) {
+    const resolved = await resolveFundingDealSettlement(
+      paymentRecord.relatedEntityId,
+      paymentRecord.userId,
+    );
+    if (resolved.ok) {
+      await finalizeFundingDealGatewayPayment(paymentRecord.id, resolved.quote).catch((err: unknown) => {
+        console.error("investment deal gateway settlement failed", err);
+      });
+    }
+  }
+
+  if (
+    paymentRecord.id &&
+    paymentRecord.relatedEntityType === "ProjectContract" &&
+    paymentRecord.relatedEntityId &&
+    paymentRecord.userId
+  ) {
+    const meta =
+      paymentRecord.metadata && typeof paymentRecord.metadata === "object"
+        ? (paymentRecord.metadata as Record<string, unknown>)
+        : {};
+    const projectId = typeof meta.projectId === "string" ? meta.projectId : null;
+    if (projectId) {
+      const resolved = await resolveContractHireSettlement(
+        paymentRecord.relatedEntityId,
+        projectId,
+        paymentRecord.userId,
+      );
+      if (resolved.ok) {
+        await finalizeContractHireGatewayPayment(paymentRecord.id, resolved.quote).catch((err: unknown) => {
+          console.error("contract hire gateway settlement failed", err);
+        });
+      }
+    }
+  }
+
+  if (
+    paymentRecord.id &&
+    paymentRecord.relatedEntityType === "SyncRequest" &&
+    paymentRecord.relatedEntityId
+  ) {
+    await finalizeSyncLicensingGatewayPayment(paymentRecord.id).catch((err: unknown) => {
+      console.error("sync licensing settlement failed", err);
+    });
   }
 
   if (

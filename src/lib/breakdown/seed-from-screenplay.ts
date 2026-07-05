@@ -156,10 +156,11 @@ export function mergeSeededBreakdownIntoDraft<
   let added = 0;
   const next = { ...draft } as T;
 
+  // Same person in multiple scenes = one identity; at most one row per (name, scene).
   const existingChars = new Set(
     (draft.characters ?? [])
-      .filter((r) => r.sceneId && r.name?.trim())
-      .map((r) => `${r.sceneId}::${r.name!.trim().toUpperCase()}`),
+      .filter((r) => r.name?.trim())
+      .map((r) => `${r.sceneId ?? ""}::${r.name!.trim().toUpperCase()}`),
   );
   const characters = [...(draft.characters ?? [])];
   for (const row of seeded.characters) {

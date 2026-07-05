@@ -10,7 +10,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ projec
   const access = await ensureProjectAccess(projectId);
   if (access.error) return access.error;
 
-  const limited = enforceUserRateLimit({
+  const limited = await enforceUserRateLimit({
     key: "breakdown-auto-populate",
     userId: access.userId,
     maxAttempts: 10,

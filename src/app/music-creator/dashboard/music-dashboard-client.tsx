@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
   Music, DollarSign, Disc, Film, TrendingUp, Headphones, BarChart3,
-  Clock, Users, MessageSquare, ArrowRight, Sparkles, Bell, Play,
+  Clock, Users, MessageSquare, ArrowRight, Sparkles, Bell,
 } from "lucide-react";
 import {
   CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY,
@@ -14,6 +14,8 @@ import {
 } from "@/lib/pricing";
 import { formatZar } from "@/lib/format-currency-zar";
 import { OpsMetricCard, OpsPageHeader, OpsQuickActions } from "@/components/ecosystem/ops-shell";
+import { StakeholderEcosystemHome } from "@/components/ecosystem/stakeholder-ecosystem-home";
+import { MusicTrackPreview } from "@/components/music/music-track-preview";
 
 interface SyncDeal { status: string; amount: number; content: { title: string; type?: string } }
 interface SyncReq {
@@ -23,7 +25,7 @@ interface SyncReq {
 }
 interface Track {
   id: string; title: string; artistName: string; genre: string | null; mood: string | null;
-  bpm: number | null; duration: number | null; coverUrl: string | null;
+  bpm: number | null; duration: number | null; coverUrl: string | null; audioUrl: string | null;
   syncDeals: SyncDeal[];
   syncRequests: SyncReq[];
   musicSelections?: { id: string; project: { title: string; status: string } }[];
@@ -84,6 +86,8 @@ export function MusicDashboardClient() {
         }
       />
 
+      <StakeholderEcosystemHome portalPrefix="/music-creator" />
+
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-5">
         <OpsMetricCard label="Catalogue tracks" value={s.totalTracks} sub="Published library" icon={Disc} accent="violet" />
         <OpsMetricCard
@@ -113,8 +117,11 @@ export function MusicDashboardClient() {
       <OpsQuickActions
         items={[
           { href: "/music-creator/sync-requests", label: "Sync requests", description: "Review inbound licensing inquiries" },
+          { href: "/music-creator/deals", label: "Deal pipeline", description: "Approved sync deals and contracts" },
           { href: "/music-creator/revenue", label: "Revenue hub", description: "Earnings by track and placement" },
           { href: "/music-creator/wallet", label: "Wallet", description: "Balances and payout requests" },
+          { href: "/music-creator/scoring", label: "Scoring & placements", description: "Production track selections" },
+          { href: "/music-creator/contracts", label: "Contracts", description: "Music licensing agreements" },
         ]}
       />
 
@@ -191,6 +198,12 @@ export function MusicDashboardClient() {
             const earnings = t.syncDeals?.reduce((a, d) => a + d.amount, 0) || 0;
             return (
               <div key={t.id} className="p-4 flex items-center gap-4 hover:bg-slate-800/40 transition">
+                <MusicTrackPreview
+                  audioUrl={t.audioUrl}
+                  trackId={t.id}
+                  title={t.title}
+                  variant="compact"
+                />
                 <div className="w-12 h-12 rounded-lg overflow-hidden bg-slate-700 flex-shrink-0">
                   {t.coverUrl ? <img src={t.coverUrl} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><Music className="w-5 h-5 text-slate-500" /></div>}
                 </div>

@@ -9,6 +9,7 @@ export type ContentMediaFinalizePayload = {
   path: string;
   publicUrl: string;
   sourceUrl: string;
+  storageRef: string;
   streamUid: string | null;
   streamStatus: string | null;
   streamPlaybackUrl: string | null;
@@ -45,6 +46,7 @@ export function buildContentMediaFinalizePayload(options: {
     path: options.key,
     publicUrl: sourceUrl,
     sourceUrl,
+    storageRef: `s3://${bucket}/${options.key}`,
     streamUid: null,
     streamStatus: null,
     streamPlaybackUrl: null,

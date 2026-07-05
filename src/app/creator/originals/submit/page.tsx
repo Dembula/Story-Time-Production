@@ -43,9 +43,17 @@ interface MyPitchOption {
   resubmissionCount?: number;
 }
 
+interface PlatformProjectOption {
+  id: string;
+  title: string;
+  type: string;
+  logline: string | null;
+}
+
 export default function OriginalsSubmitPage() {
   const router = useRouter();
   const [myScripts, setMyScripts] = useState<ScriptOption[]>([]);
+  const [platformProjects, setPlatformProjects] = useState<PlatformProjectOption[]>([]);
   const [loadingScripts, setLoadingScripts] = useState(true);
   const [myPitches, setMyPitches] = useState<MyPitchOption[]>([]);
   const [selectedResubmitPitchId, setSelectedResubmitPitchId] = useState("");
@@ -75,6 +83,14 @@ export default function OriginalsSubmitPage() {
     intendedRelease: "",
     keyCastCrew: "",
     financingStatus: "",
+    runtimeMinutes: "",
+    episodeCount: "",
+    productionStage: "",
+    whyNow: "",
+    uniqueHook: "",
+    filmingRegion: "",
+    linkPlatformProject: false,
+    platformProjectId: "",
   });
 
   const requiredChecks = {
@@ -100,6 +116,10 @@ export default function OriginalsSubmitPage() {
       .then((list) => setMyScripts(Array.isArray(list) ? list : []))
       .catch(() => setMyScripts([]))
       .finally(() => setLoadingScripts(false));
+    fetch("/api/originals?type=platform-projects")
+      .then((r) => r.json())
+      .then((list) => setPlatformProjects(Array.isArray(list) ? list : []))
+      .catch(() => setPlatformProjects([]));
     fetch("/api/originals?type=pitches")
       .then((r) => r.json())
       .then((rows) => setMyPitches(Array.isArray(rows) ? rows : []))
@@ -155,8 +175,10 @@ export default function OriginalsSubmitPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "SUBMIT_PITCH",
-                  pitchId: selectedResubmitPitchId || undefined,
+          pitchId: selectedResubmitPitchId || undefined,
           ...form,
+          linkPlatformProject: form.linkPlatformProject,
+          platformProjectId: form.linkPlatformProject ? form.platformProjectId || undefined : undefined,
           scriptUrl: scriptUrl || undefined,
           scriptId: scriptSource === "scripts" ? form.scriptId : undefined,
         }),
@@ -180,15 +202,16 @@ export default function OriginalsSubmitPage() {
   const completionValue = completionCount + (scriptRequired ? 1 : 0);
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
-      <div className="mb-8 space-y-4">
-        <h1 className="text-3xl font-semibold text-white flex items-center gap-3">
+    <div className="p-6 md:p-8 max-w-4xl mx-auto space-y-8">
+      <header className="storytime-plan-card p-6 md:p-8 space-y-4">
+        <h1 className="font-display text-3xl font-semibold text-white flex items-center gap-3">
           <Sparkles className="w-8 h-8 text-orange-500" /> Story Time Originals
         </h1>
-        <p className="text-slate-400 mt-1">
-          Submit a complete Originals package for admin review. This intake now requires full creative, production, and financing context so reviewers can make faster, higher-quality decisions.
+        <p className="text-slate-400 text-sm leading-relaxed max-w-2xl">
+          Submit a greenlight package for admin review. Share creative vision, production readiness, and financing context.
+          Your platform projects are never linked automatically — you choose whether to reference work you have already started on Story Time.
         </p>
-        <div className="rounded-xl border border-slate-700/50 bg-slate-800/40 p-4">
+        <div className="rounded-xl border border-slate-700/50 bg-slate-900/50 p-4">
           <div className="flex items-center justify-between text-sm mb-2">
             <span className="text-slate-300 flex items-center gap-2"><ClipboardList className="w-4 h-4 text-orange-400" /> Submission completeness</span>
             <span className="text-slate-400">{completionValue}/{completionTotal}</span>
@@ -200,11 +223,11 @@ export default function OriginalsSubmitPage() {
             />
           </div>
         </div>
-      </div>
+      </header>
 
       <form onSubmit={handleSubmit} className="space-y-8">
         {myPitches.length > 0 && (
-          <section className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6 space-y-4">
+          <section className="creator-glass-panel p-6 space-y-4">
             <h2 className="text-lg font-semibold text-white">My pitch timeline</h2>
             <p className="text-sm text-slate-400">
               See all your submissions, admin scores, reason codes, and review history in one place.
@@ -292,7 +315,7 @@ export default function OriginalsSubmitPage() {
         )}
 
         {myPitches.some((p) => p.status === "CHANGES_REQUESTED" || p.status === "DECLINED") && (
-          <section className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6 space-y-3">
+          <section className="creator-glass-panel p-6 space-y-3">
             <h2 className="text-lg font-semibold text-white">Resubmission target (optional)</h2>
             <p className="text-sm text-slate-400">
               If this is an update to a previously reviewed pitch, select it to append to its review timeline.
@@ -324,8 +347,62 @@ export default function OriginalsSubmitPage() {
           </div>
         )}
 
+        {/* --- Platform project (optional, opt-in) --- */}
+        <section className="creator-glass-panel p-6 space-y-4">
+          <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+            <Clapperboard className="w-5 h-5 text-orange-400" /> Platform project (optional)
+          </h2>
+          <p className="text-sm text-slate-400">
+            If you already have a Story Time production project for this title, you can reference it for reviewers.
+            This does not auto-attach scripts, budgets, or schedules — it only flags which pipeline project relates to this pitch.
+          </p>
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.linkPlatformProject}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  linkPlatformProject: e.target.checked,
+                  platformProjectId: e.target.checked ? form.platformProjectId : "",
+                })
+              }
+              className="mt-1 rounded border-slate-600 text-orange-500"
+            />
+            <span className="text-sm text-slate-300">
+              Reference a project I have already created on Story Time
+            </span>
+          </label>
+          {form.linkPlatformProject && (
+            <div>
+              {platformProjects.length === 0 ? (
+                <p className="text-sm text-amber-300/90">
+                  No active platform projects found.{" "}
+                  <Link href="/creator/dashboard" className="text-orange-400 underline hover:no-underline">
+                    Create a project
+                  </Link>{" "}
+                  first if you want to link one.
+                </p>
+              ) : (
+                <select
+                  value={form.platformProjectId}
+                  onChange={(e) => setForm({ ...form, platformProjectId: e.target.value })}
+                  className="w-full max-w-md px-3 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm"
+                >
+                  <option value="">Choose a project…</option>
+                  {platformProjects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.title} ({p.type})
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
+        </section>
+
         {/* --- Script (required) --- */}
-        <section className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6">
+        <section className="creator-glass-panel p-6 space-y-4">
           <h2 className="text-lg font-semibold text-white flex items-center gap-2 mb-1">
             <FileText className="w-5 h-5 text-orange-400" /> Script (required)
           </h2>
@@ -405,7 +482,7 @@ export default function OriginalsSubmitPage() {
         </section>
 
         {/* --- Concept --- */}
-        <section className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6 space-y-4">
+        <section className="creator-glass-panel p-6 space-y-4">
           <h2 className="text-lg font-semibold text-white flex items-center gap-2"><Clapperboard className="w-5 h-5 text-orange-400" /> Concept</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -438,11 +515,42 @@ export default function OriginalsSubmitPage() {
               <label className="block text-xs text-slate-400 mb-1">References / comparable works *</label>
               <input required value={form.references} onChange={(e) => setForm({ ...form, references: e.target.value })} className="w-full px-3 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" placeholder="e.g. Tsotsi, City of God — include why your project is differentiated" />
             </div>
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Estimated runtime (minutes)</label>
+              <input value={form.runtimeMinutes} onChange={(e) => setForm({ ...form, runtimeMinutes: e.target.value })} type="number" min={1} className="w-full px-3 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" placeholder="e.g. 110" />
+            </div>
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Episodes (series only)</label>
+              <input value={form.episodeCount} onChange={(e) => setForm({ ...form, episodeCount: e.target.value })} type="number" min={1} className="w-full px-3 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" placeholder="Leave blank for features" />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-xs text-slate-400 mb-1">Why this story now?</label>
+              <textarea value={form.whyNow} onChange={(e) => setForm({ ...form, whyNow: e.target.value })} rows={3} className="w-full px-3 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" placeholder="Cultural moment, audience need, timeliness…" />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-xs text-slate-400 mb-1">Unique hook / differentiation</label>
+              <textarea value={form.uniqueHook} onChange={(e) => setForm({ ...form, uniqueHook: e.target.value })} rows={2} className="w-full px-3 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" placeholder="What makes this pitch distinct from your references?" />
+            </div>
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Primary filming region</label>
+              <input value={form.filmingRegion} onChange={(e) => setForm({ ...form, filmingRegion: e.target.value })} className="w-full px-3 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" placeholder="e.g. Gauteng, Western Cape" />
+            </div>
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Production stage today</label>
+              <select value={form.productionStage} onChange={(e) => setForm({ ...form, productionStage: e.target.value })} className="w-full px-3 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm">
+                <option value="">Select…</option>
+                <option>Development / writing</option>
+                <option>Packaging</option>
+                <option>Pre-production ready</option>
+                <option>Production scheduled</option>
+                <option>Post-production</option>
+              </select>
+            </div>
           </div>
         </section>
 
         {/* --- Supporting materials --- */}
-        <section className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6 space-y-4">
+        <section className="creator-glass-panel p-6 space-y-4">
           <h2 className="text-lg font-semibold text-white flex items-center gap-2"><FileText className="w-5 h-5 text-orange-400" /> Supporting materials</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -501,7 +609,7 @@ export default function OriginalsSubmitPage() {
         </section>
 
         {/* --- Team & context --- */}
-        <section className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6 space-y-4">
+        <section className="creator-glass-panel p-6 space-y-4">
           <h2 className="text-lg font-semibold text-white flex items-center gap-2"><Users className="w-5 h-5 text-orange-400" /> Team & context</h2>
           <div>
             <label className="block text-xs text-slate-400 mb-1">Director’s statement *</label>
@@ -528,7 +636,7 @@ export default function OriginalsSubmitPage() {
         </section>
 
         {/* --- Budget & financing --- */}
-        <section className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6 space-y-4">
+        <section className="creator-glass-panel p-6 space-y-4">
           <h2 className="text-lg font-semibold text-white flex items-center gap-2"><DollarSign className="w-5 h-5 text-orange-400" /> Budget & financing</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>

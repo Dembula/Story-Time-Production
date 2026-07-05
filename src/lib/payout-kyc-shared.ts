@@ -72,6 +72,10 @@ export type KycPayload = {
     branchCode?: string;
     incomeRange?: string;
     sourceOfFunds?: string;
+    /** ISO date (YYYY-MM-DD) of the bank statement period end — must be within the last 3 months. */
+    bankStatementAsOf?: string;
+    bankStatementUrl?: string;
+    bankConfirmationLetterUrl?: string;
   };
   riskCompliance?: {
     politicallyExposedPerson?: boolean;
@@ -80,6 +84,19 @@ export type KycPayload = {
     popiaConsentAccepted?: boolean;
   };
 };
+
+/** Bank statement must be dated within this many days of submission. */
+export const BANK_STATEMENT_MAX_AGE_DAYS = 90;
+
+/** True when statement date is present and not older than BANK_STATEMENT_MAX_AGE_DAYS. */
+export function isBankStatementRecent(statementAsOf?: string | null, now = new Date()): boolean {
+  if (!statementAsOf?.trim()) return false;
+  const d = new Date(statementAsOf);
+  if (Number.isNaN(d.getTime())) return false;
+  const ageMs = now.getTime() - d.getTime();
+  if (ageMs < 0) return false; // future dates not allowed
+  return ageMs <= BANK_STATEMENT_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
+}
 
 export function parsePayoutKycRiskLevel(payload: KycPayload): "LOW" | "MEDIUM" | "HIGH" {
   if (payload.riskCompliance?.politicallyExposedPerson) return "HIGH";

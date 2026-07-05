@@ -57,6 +57,11 @@ export function buildEffectiveSceneLinksForPreview(args: {
   scenePickerIds: string[];
   savedSceneLinks: Array<{ sceneId: string; order: number; scene?: SchedulePreviewScene | null }>;
   allScenes: SchedulePreviewScene[];
+  /**
+   * When true, an empty picker means no scenes (user cleared selection).
+   * When false/omitted, fall back to saved links only if the picker is empty (initial load).
+   */
+  trustEmptyPicker?: boolean;
 }): SchedulePreviewSceneLink[] {
   const sceneById = new Map(args.allScenes.map((s) => [s.id, s]));
   const savedById = new Map(
@@ -64,7 +69,7 @@ export function buildEffectiveSceneLinksForPreview(args: {
   );
 
   const ids =
-    args.scenePickerIds.length > 0
+    args.trustEmptyPicker || args.scenePickerIds.length > 0
       ? args.scenePickerIds
       : args.savedSceneLinks
           .slice()

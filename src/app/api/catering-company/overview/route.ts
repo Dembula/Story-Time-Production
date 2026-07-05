@@ -36,7 +36,8 @@ export async function GET() {
       metrics: {
         totalBookings: company._count.bookings,
         pending: company.bookings.filter((b) => b.status === "PENDING").length,
-        confirmed: company.bookings.filter((b) => b.status === "CONFIRMED" || b.status === "ACCEPTED").length,
+        confirmed: company.bookings.filter((b) => b.status === "APPROVED").length,
+        paid: company.bookings.filter((b) => b.paymentTransactionId != null).length,
         revenue,
       },
       recentBookings: company.bookings,

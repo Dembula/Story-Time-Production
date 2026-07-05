@@ -13,11 +13,12 @@ import {
   BookOpen,
   Columns2,
   Eye,
-  FileUp,
   Focus,
   LayoutTemplate,
   Moon,
+  Redo2,
   Sun,
+  Undo2,
   Users,
   Wand2,
 } from "lucide-react";
@@ -42,7 +43,6 @@ import {
 import {
   downloadTextFile,
   exportAsFountain,
-  importScreenplayText,
 } from "@/lib/script-studio/import-export";
 import {
   computeStats,
@@ -53,6 +53,7 @@ import {
 import { SCRIPT_TEMPLATES } from "@/lib/script-studio/templates";
 import type { ScreenplayElementType, StudioTheme } from "@/lib/script-studio/types";
 import { ScreenplayReader } from "./screenplay-reader";
+import { ScreenplayEditor } from "./screenplay-editor";
 import { CollaborationPresenceBar } from "./collaboration-presence-bar";
 import { ScriptCommentsPanel } from "./script-comments-panel";
 import { ScriptVersionsPanel } from "./script-versions-panel";
@@ -61,6 +62,15 @@ import { useScriptCollaboration } from "./use-script-collaboration";
 import { cn } from "@/lib/utils";
 
 const AUTO_SAVE_MS = 30_000;
+const HISTORY_MAX = 100;
+const HISTORY_COALESCE_MS = 450;
+
+type ScriptHistoryEntry = {
+  content: string;
+  title: string;
+  selectionStart: number;
+  selectionEnd: number;
+};
 
 function studioToggleButtonClass(active: boolean) {
   return cn(
@@ -114,8 +124,7 @@ export interface ScriptWritingStudioProps {
 export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioProps) {
   const queryClient = useQueryClient();
   const hasProject = !!projectId;
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const importRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const modoc = useModocOptional();
 
   const listEndpoint = hasProject
@@ -154,9 +163,6 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
-  const [importSummary, setImportSummary] = useState<string[] | null>(null);
-  const [importError, setImportError] = useState<string | null>(null);
-  const [importing, setImporting] = useState(false);
 
   const [studioTheme, setStudioTheme] = useState<StudioTheme>("dark");
   const [fontId, setFontId] = useState("courier-prime");
@@ -177,6 +183,16 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
   const savedUpdatedAtRef = useRef<string | null>(null);
   const typingTimerRef = useRef<number | null>(null);
   const collabMarkSavedRef = useRef<(updatedAt: string) => void>(() => {});
+  const undoStackRef = useRef<ScriptHistoryEntry[]>([]);
+  const redoStackRef = useRef<ScriptHistoryEntry[]>([]);
+  const historyCoalesceTimerRef = useRef<number | null>(null);
+  const historyCoalescingRef = useRef(false);
+  const applyingHistoryRef = useRef(false);
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+  const [historyTick, setHistoryTick] = useState(0);
+  const canUndo = historyTick >= 0 && undoStackRef.current.length > 0;
+  const canRedo = historyTick >= 0 && redoStackRef.current.length > 0;
 
   useEffect(() => {
     if (!selectedId && scripts.length > 0) setSelectedId(scripts[0].id);
@@ -191,6 +207,106 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [focusMode]);
 
+  const clearHistory = useCallback(() => {
+    undoStackRef.current = [];
+    redoStackRef.current = [];
+    historyCoalescingRef.current = false;
+    if (historyCoalesceTimerRef.current) {
+      window.clearTimeout(historyCoalesceTimerRef.current);
+      historyCoalesceTimerRef.current = null;
+    }
+    setHistoryTick((t) => t + 1);
+  }, []);
+
+  const captureHistorySnapshot = useCallback((): ScriptHistoryEntry | null => {
+    const current = draftRef.current;
+    if (!current) return null;
+    const el = textareaRef.current;
+    return {
+      content: current.content,
+      title: current.title,
+      selectionStart: el?.selectionStart ?? current.content.length,
+      selectionEnd: el?.selectionEnd ?? current.content.length,
+    };
+  }, []);
+
+  /** Push current draft onto the undo stack before a change. Typing is coalesced into one step. */
+  const pushHistoryBeforeChange = useCallback(
+    (options?: { immediate?: boolean }) => {
+      if (applyingHistoryRef.current) return;
+      const snapshot = captureHistorySnapshot();
+      if (!snapshot) return;
+
+      const immediate = options?.immediate === true;
+      if (!immediate && historyCoalescingRef.current) {
+        if (historyCoalesceTimerRef.current) window.clearTimeout(historyCoalesceTimerRef.current);
+        historyCoalesceTimerRef.current = window.setTimeout(() => {
+          historyCoalescingRef.current = false;
+          historyCoalesceTimerRef.current = null;
+        }, HISTORY_COALESCE_MS);
+        return;
+      }
+
+      const top = undoStackRef.current[undoStackRef.current.length - 1];
+      if (top && top.content === snapshot.content && top.title === snapshot.title) {
+        if (!immediate) {
+          historyCoalescingRef.current = true;
+          if (historyCoalesceTimerRef.current) window.clearTimeout(historyCoalesceTimerRef.current);
+          historyCoalesceTimerRef.current = window.setTimeout(() => {
+            historyCoalescingRef.current = false;
+            historyCoalesceTimerRef.current = null;
+          }, HISTORY_COALESCE_MS);
+        }
+        return;
+      }
+
+      undoStackRef.current = [...undoStackRef.current.slice(-(HISTORY_MAX - 1)), snapshot];
+      redoStackRef.current = [];
+      setHistoryTick((t) => t + 1);
+
+      if (!immediate) {
+        historyCoalescingRef.current = true;
+        if (historyCoalesceTimerRef.current) window.clearTimeout(historyCoalesceTimerRef.current);
+        historyCoalesceTimerRef.current = window.setTimeout(() => {
+          historyCoalescingRef.current = false;
+          historyCoalesceTimerRef.current = null;
+        }, HISTORY_COALESCE_MS);
+      } else {
+        historyCoalescingRef.current = false;
+        if (historyCoalesceTimerRef.current) {
+          window.clearTimeout(historyCoalesceTimerRef.current);
+          historyCoalesceTimerRef.current = null;
+        }
+      }
+    },
+    [captureHistorySnapshot],
+  );
+
+  const applyHistoryEntry = useCallback((entry: ScriptHistoryEntry) => {
+    applyingHistoryRef.current = true;
+    historyCoalescingRef.current = false;
+    if (historyCoalesceTimerRef.current) {
+      window.clearTimeout(historyCoalesceTimerRef.current);
+      historyCoalesceTimerRef.current = null;
+    }
+    setDraft((prev) =>
+      prev ? { ...prev, content: entry.content, title: entry.title } : prev,
+    );
+    setDirty(true);
+    setHistoryTick((t) => t + 1);
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (el) {
+        el.focus();
+        const max = entry.content.length;
+        const start = Math.min(entry.selectionStart, max);
+        const end = Math.min(entry.selectionEnd, max);
+        el.setSelectionRange(start, end);
+      }
+      applyingHistoryRef.current = false;
+    });
+  }, []);
+
   useEffect(() => {
     if (selected) {
       setDraft((prev) => {
@@ -204,6 +320,9 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
           content: selected.content || "",
         };
       });
+      if (!(dirty && draftRef.current?.id === selected.id)) {
+        clearHistory();
+      }
       setConflictMessage(null);
       return;
     }
@@ -214,7 +333,10 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
       savedUpdatedAtRef.current = null;
       return null;
     });
-  }, [selected, selectedId, dirty]);
+    if (!(draftRef.current?.id && selectedId === draftRef.current.id)) {
+      clearHistory();
+    }
+  }, [selected, selectedId, dirty, clearHistory]);
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -309,6 +431,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
       : ["creator-scripts"],
     onFieldFill: (detail) => {
       if (detail.tool !== "script-writing" || !detail.fields.content) return;
+      pushHistoryBeforeChange({ immediate: true });
       setDraft((prev) => {
         if (!prev) return prev;
         const next =
@@ -397,6 +520,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
     isDirty: dirty,
     getCursor: getCollaborationCursor,
     onRemoteScript: (remote) => {
+      clearHistory();
       setDraft((prev) =>
         prev
           ? { ...prev, content: remote.content, title: remote.title }
@@ -411,6 +535,50 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
 
   const effectiveCanWrite = collab.canWrite && !conflictMessage;
 
+  const undoEdit = useCallback(() => {
+    if (!effectiveCanWrite || undoStackRef.current.length === 0) return;
+    const current = captureHistorySnapshot();
+    const previous = undoStackRef.current[undoStackRef.current.length - 1];
+    if (!previous) return;
+    undoStackRef.current = undoStackRef.current.slice(0, -1);
+    if (current) {
+      redoStackRef.current = [...redoStackRef.current.slice(-(HISTORY_MAX - 1)), current];
+    }
+    applyHistoryEntry(previous);
+  }, [captureHistorySnapshot, applyHistoryEntry, effectiveCanWrite]);
+
+  const redoEdit = useCallback(() => {
+    if (!effectiveCanWrite || redoStackRef.current.length === 0) return;
+    const current = captureHistorySnapshot();
+    const next = redoStackRef.current[redoStackRef.current.length - 1];
+    if (!next) return;
+    redoStackRef.current = redoStackRef.current.slice(0, -1);
+    if (current) {
+      undoStackRef.current = [...undoStackRef.current.slice(-(HISTORY_MAX - 1)), current];
+    }
+    applyHistoryEntry(next);
+  }, [captureHistorySnapshot, applyHistoryEntry, effectiveCanWrite]);
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (!effectiveCanWrite) return;
+      const mod = e.metaKey || e.ctrlKey;
+      if (!mod) return;
+      const key = e.key.toLowerCase();
+      if (key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        undoEdit();
+        return;
+      }
+      if (key === "y" || (key === "z" && e.shiftKey)) {
+        e.preventDefault();
+        redoEdit();
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [effectiveCanWrite, undoEdit, redoEdit]);
+
   const fontCss =
     STUDIO_FONTS.find((f) => f.id === fontId)?.css ??
     "'Courier Prime', 'Courier New', monospace";
@@ -422,6 +590,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
   const insertElement = useCallback(
     (type: ScreenplayElementType) => {
       if (!draft || !effectiveCanWrite) return;
+      pushHistoryBeforeChange({ immediate: true });
 
       const { text: snippetText, select } = getElementSnippet(type);
       const el = textareaRef.current;
@@ -473,7 +642,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
         textarea.setSelectionRange(selectionStart, selectionEnd);
       });
     },
-    [draft, effectiveCanWrite],
+    [draft, effectiveCanWrite, pushHistoryBeforeChange],
   );
 
   const handleElementSelect = useCallback(
@@ -505,183 +674,9 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
     ) {
       return;
     }
+    pushHistoryBeforeChange({ immediate: true });
     setDraft({ ...draft, type: tpl.type, content: tpl.content });
     setDirty(true);
-  };
-
-  const handleImport = async (file: File) => {
-    setImportError(null);
-    setImportSummary(null);
-    setImporting(true);
-
-    try {
-      const form = new FormData();
-      form.append("file", file);
-      if (draft?.id) form.append("scriptId", draft.id);
-      if (projectId) form.append("projectId", projectId);
-
-      const res = await fetch("/api/creator/scripts/import-extract", {
-        method: "POST",
-        body: form,
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        text?: string;
-        error?: string;
-        sourceType?: string;
-        extractionMethod?: string;
-        importId?: string;
-        storageUrl?: string;
-      };
-      if (!res.ok) {
-        throw new Error(data.error || "Could not extract text from this file.");
-      }
-      if (!data.text?.trim()) {
-        throw new Error("No readable screenplay text found in this file.");
-      }
-
-      const lower = file.name.toLowerCase();
-      const sourceLabel =
-        data.sourceType === "pdf" || lower.endsWith(".pdf")
-          ? `Extracted screenplay from PDF${data.extractionMethod ? ` (${data.extractionMethod})` : ""}`
-          : data.sourceType === "docx" || lower.endsWith(".docx")
-            ? "Extracted screenplay text from Word document"
-            : data.sourceType === "fdx" || lower.endsWith(".fdx")
-              ? "Imported Final Draft (FDX) screenplay"
-              : data.sourceType === "rtf" || lower.endsWith(".rtf")
-                ? "Extracted screenplay text from RTF"
-                : data.sourceType === "odt" || lower.endsWith(".odt")
-                  ? "Extracted screenplay text from OpenDocument"
-                  : null;
-
-      const { text, fixes } = importScreenplayText(data.text, file.name);
-      if (!text.trim()) {
-        throw new Error(
-          fixes[0] ||
-            "Import produced no readable screenplay text. Try PDF, DOCX, FDX, Fountain, RTF, ODT, or plain text.",
-        );
-      }
-
-      const titleFromFile = file.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim();
-      const nextTitle =
-        draft?.title && draft.title !== "New project script" && draft.title !== "New script"
-          ? draft.title
-          : titleFromFile || draft?.title || "Imported screenplay";
-
-      let scriptId = draft?.id;
-      let scriptType = draft?.type || "FEATURE";
-
-      // Create a script row if the studio has no draft yet, so import always persists.
-      if (!scriptId) {
-        const createRes = await fetch("/api/creator/scripts", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: nextTitle,
-            type: scriptType,
-            content: text,
-            projectId: hasProject ? projectId : null,
-          }),
-        });
-        const created = (await createRes.json().catch(() => ({}))) as {
-          script?: { id: string; title: string; type: string; content: string; updatedAt?: string };
-          error?: string;
-        };
-        if (!createRes.ok || !created.script?.id) {
-          throw new Error(created.error || "Imported text but could not create a script record.");
-        }
-        scriptId = created.script.id;
-        const createdScript = {
-          ...created.script,
-          title: created.script.title || nextTitle,
-          type: created.script.type || scriptType,
-          content: text,
-        };
-        queryClient.setQueryData(
-          ["creator-scripts", projectId ?? null],
-          (prev: { scripts?: Array<Record<string, unknown>> } | undefined) => ({
-            ...(prev ?? {}),
-            scripts: [createdScript, ...((prev?.scripts as Array<Record<string, unknown>>) ?? [])],
-          }),
-        );
-        setSelectedId(scriptId);
-        setDraft({
-          id: createdScript.id,
-          title: createdScript.title,
-          type: createdScript.type,
-          content: text,
-        });
-        savedUpdatedAtRef.current = created.script.updatedAt ?? null;
-        setDirty(false);
-        setLastSavedAt(new Date());
-        void queryClient.invalidateQueries({ queryKey: ["creator-scripts", projectId ?? null] });
-      } else {
-        setDraft({
-          id: scriptId,
-          title: nextTitle,
-          type: scriptType,
-          content: text,
-        });
-        setDirty(true);
-        setSaving(true);
-        try {
-          const saveRes = await fetch("/api/creator/scripts", {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              id: scriptId,
-              title: nextTitle,
-              type: scriptType,
-              content: text,
-              projectId: hasProject ? projectId : null,
-              expectedUpdatedAt: savedUpdatedAtRef.current ?? undefined,
-              createVersion: true,
-            }),
-          });
-          const saved = (await saveRes.json().catch(() => ({}))) as {
-            script?: { id?: string; title?: string; type?: string; content?: string; updatedAt?: string };
-            error?: string;
-          };
-          if (!saveRes.ok) {
-            throw new Error(saved.error || "Imported text but failed to save the script.");
-          }
-          const updatedAt = saved.script?.updatedAt ?? new Date().toISOString();
-          queryClient.setQueryData(
-            ["creator-scripts", projectId ?? null],
-            (prev: { scripts?: Array<Record<string, unknown>> } | undefined) => ({
-              ...(prev ?? {}),
-              scripts: ((prev?.scripts as Array<Record<string, unknown>>) ?? []).map((script) =>
-                script.id === scriptId
-                  ? { ...script, title: nextTitle, type: scriptType, content: text, updatedAt }
-                  : script,
-              ),
-            }),
-          );
-          savedUpdatedAtRef.current = updatedAt;
-          collabMarkSavedRef.current(updatedAt);
-          setDirty(false);
-          setLastSavedAt(new Date());
-          void queryClient.invalidateQueries({ queryKey: ["creator-scripts", projectId ?? null] });
-          if (hasProject && projectId) {
-            void queryClient.invalidateQueries({ queryKey: ["project-script", projectId] });
-            void queryClient.invalidateQueries({ queryKey: ["project-scenes", projectId] });
-          }
-        } finally {
-          setSaving(false);
-        }
-      }
-
-      const storedNote = data.storageUrl ? "Original file saved to your script vault" : null;
-      const savedNote = "Script saved — it will still be here when you return";
-      setImportSummary(
-        [sourceLabel, storedNote, savedNote, ...fixes]
-          .filter((item): item is string => Boolean(item))
-          .slice(0, 12),
-      );
-    } catch (err) {
-      setImportError(err instanceof Error ? err.message : "Import failed");
-    } finally {
-      setImporting(false);
-    }
   };
 
   const editorSurface =
@@ -722,8 +717,8 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                 {title}
               </h2>
               <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
-                Professional screenplay workspace with industry formatting, scene navigation, import/export,
-                PDF reader, and Story Time AI.{" "}
+                Professional screenplay workspace with industry formatting (Tab / Enter), scene navigation,
+                export, reader view, and Story Time AI.{" "}
                 {hasProject
                   ? "Save links your draft to breakdown, budget, and schedule in the project pipeline."
                   : "Link a project to connect production pipeline tools."}
@@ -957,6 +952,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                 <select
                   value={draft.type}
                   onChange={(e) => {
+                    pushHistoryBeforeChange({ immediate: true });
                     setDraft({ ...draft, type: e.target.value });
                     setDirty(true);
                   }}
@@ -968,6 +964,30 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                   <option value="OTHER">Other</option>
                 </select>
                 <div className="flex items-center gap-1 ml-auto shrink-0">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 text-slate-300"
+                    disabled={!effectiveCanWrite || !canUndo}
+                    title="Undo (Ctrl+Z)"
+                    aria-label="Undo last edit"
+                    onClick={undoEdit}
+                  >
+                    <Undo2 className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 text-slate-300"
+                    disabled={!effectiveCanWrite || !canRedo}
+                    title="Redo (Ctrl+Y)"
+                    aria-label="Redo last undone edit"
+                    onClick={redoEdit}
+                  >
+                    <Redo2 className="h-3.5 w-3.5" />
+                  </Button>
                   <Button size="sm" variant="ghost" className="h-7 text-slate-300" onClick={() => setZoom((z) => Math.max(80, z - 10))}>
                     −
                   </Button>
@@ -1035,27 +1055,6 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                       ))}
                     </div>
                   </div>
-                  <input
-                    ref={importRef}
-                    type="file"
-                    accept=".txt,.fountain,.fdx,.pdf,.docx,.rtf,.odt"
-                    className="hidden"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) handleImport(f);
-                      e.target.value = "";
-                    }}
-                  />
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 border-slate-700 text-[10px] text-slate-100"
-                    disabled={importing}
-                    onClick={() => importRef.current?.click()}
-                  >
-                    <FileUp className="h-3 w-3 mr-1" />
-                    {importing ? "Importing…" : "Import"}
-                  </Button>
                   <Button
                     size="sm"
                     variant="outline"
@@ -1080,18 +1079,9 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                 </div>
               </div>
 
-              {importError ? (
-                <p className="text-[10px] text-red-300">{importError}</p>
-              ) : (
-                <p className="text-[10px] text-slate-500">
-                  Import PDF, DOCX, FDX, Fountain, TXT, RTF, or ODT. Originals are archived to your script vault.
-                </p>
-              )}
-              {importSummary?.length ? (
-                <div className="rounded-lg border border-cyan-800/50 bg-cyan-950/30 px-3 py-2 text-[11px] text-cyan-200">
-                  Import repairs: {importSummary.join(" · ")}
-                </div>
-              ) : null}
+              <p className="text-[10px] text-slate-500">
+                Tab cycles elements · Enter formats and advances · Dialogue is centred; transitions are right-aligned in ALL CAPS
+              </p>
 
               {hasProject && draft.id ? (
                 <CollaborationPresenceBar
@@ -1153,6 +1143,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                 value={draft.title}
                 onChange={(e) => {
                   if (!effectiveCanWrite) return;
+                  pushHistoryBeforeChange();
                   setDraft({ ...draft, title: e.target.value });
                   setDirty(true);
                 }}
@@ -1162,7 +1153,8 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
               />
 
               <div
-                className={`relative mx-auto w-full max-w-[60ch] rounded-2xl border px-2 py-3 sm:px-3 focus-within:border-orange-500 ${editorSurface}`}
+                className={`relative mx-auto w-full max-w-[8.5in] rounded-2xl border px-[1.5in] py-[1in] pr-[1in] focus-within:border-orange-500 ${editorSurface}`}
+                style={{ minHeight: "11in" }}
               >
                 {collab.peers.length > 0 ? (
                   <div className="pointer-events-none absolute right-2 top-2 z-10 space-y-1">
@@ -1180,33 +1172,30 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                       ))}
                   </div>
                 ) : null}
-                <textarea
-                  ref={textareaRef}
+                <ScreenplayEditor
+                  textareaRef={textareaRef}
                   value={draft.content}
-                  onChange={(e) => {
+                  onChange={(content) => {
                     if (!effectiveCanWrite) return;
-                    setDraft({ ...draft, content: e.target.value });
+                    pushHistoryBeforeChange();
+                    setDraft({ ...draft, content });
                     setDirty(true);
                     setIsTyping(true);
                     if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
                     typingTimerRef.current = window.setTimeout(() => setIsTyping(false), 1200);
                   }}
+                  onBeforeChange={() => pushHistoryBeforeChange()}
+                  onElementChange={setSelectedElement}
                   onSelect={() => {
                     setIsTyping(true);
                     if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
                     typingTimerRef.current = window.setTimeout(() => setIsTyping(false), 1200);
                   }}
                   readOnly={!effectiveCanWrite}
-                  spellCheck
-                  rows={20}
-                  className={`w-full min-h-[65dvh] sm:min-h-[60dvh] lg:min-h-[min(50vh,420px)] border-0 bg-transparent px-0 outline-none focus:ring-0 resize-y whitespace-pre-wrap ${!effectiveCanWrite ? "opacity-90" : ""}`}
-                  style={{
-                    fontFamily: fontCss,
-                    fontSize: `${(12 * zoom) / 100}pt`,
-                    lineHeight: 1.2,
-                    color: "inherit",
-                  }}
-                  placeholder="INT. LOCATION - DAY&#10;&#10;Action, CHARACTER, dialogue…"
+                  fontCss={fontCss}
+                  fontSizePt={(12 * zoom) / 100}
+                  className={`w-full min-h-[55em] border-0 bg-transparent px-0 outline-none focus:ring-0 resize-y whitespace-pre-wrap ${!effectiveCanWrite ? "opacity-90" : ""}`}
+                  placeholder="INT. LOCATION - DAY"
                 />
               </div>
 
@@ -1232,6 +1221,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                     disabled={!dirty}
                     onClick={() => {
                       if (!selected) return;
+                      clearHistory();
                       setDraft({
                         id: selected.id,
                         title: selected.title,

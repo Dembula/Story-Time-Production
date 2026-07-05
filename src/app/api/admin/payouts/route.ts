@@ -34,8 +34,10 @@ export async function GET(req: NextRequest) {
           name: true,
           email: true,
           role: true,
-          creatorBanking: { select: { bankName: true, accountNumber: true, accountType: true, branchCode: true } },
-          payoutKycProfile: { select: { kycData: true, verificationStatus: true } },
+          creatorBanking: {
+            select: { bankName: true, accountNumber: true, accountType: true, branchCode: true, verifiedAt: true },
+          },
+          payoutKycProfile: { select: { kycData: true, verificationStatus: true, legalName: true } },
           funderProfile: { select: { kycData: true } },
         },
       },

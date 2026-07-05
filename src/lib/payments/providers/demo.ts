@@ -41,6 +41,10 @@ class DemoGatewayAdapter implements PaymentGatewayAdapter {
   }
 
   async createCardConsentSession(payload: GatewayCardConsentRequest): Promise<GatewayCheckoutResponse> {
+    if (payload.reference.startsWith("card-consent-")) {
+      throw new Error("Wallet card saving requires PayFast. Demo mode is not supported.");
+    }
+
     return {
       provider: DEMO_PAYMENT_PROVIDER,
       checkoutUrl: buildDemoCheckoutUrl({

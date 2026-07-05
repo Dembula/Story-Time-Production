@@ -1,7 +1,7 @@
  "use client";
 
 import Link from "next/link";
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight, Clapperboard, FileText } from "lucide-react";
@@ -48,6 +48,8 @@ import { mutationErrorMessage, projectToolFetch, projectToolQueryFn } from "@/li
 import { ToolActionError } from "@/components/project-tools/tool-action-error";
 import { ScriptWritingStudio } from "@/components/script-studio/script-writing-studio";
 import { ScriptReviewStudio } from "@/components/script-review/script-review-studio";
+import { LocationMarketplaceCatalog } from "@/components/marketplace/location-marketplace-catalog";
+import { EquipmentMarketplaceCatalog } from "@/components/marketplace/equipment-marketplace-catalog";
 import { BreakdownStudioShell, type BreakdownStudioTab } from "@/components/breakdown";
 import type {
   BreakdownIntelligencePayload,
@@ -85,6 +87,12 @@ import {
   mergeSeededBreakdownIntoDraft,
   seedBreakdownFromScreenplay,
 } from "@/lib/breakdown/seed-from-screenplay";
+import {
+  consolidateCharacterRows,
+  groupCharactersForDisplay,
+  normalizeCharacterName,
+  uniqueCharacterCount,
+} from "@/lib/breakdown/character-identity";
 
 interface PreProductionToolPageProps {
   params: Promise<{ projectId?: string; tool: string }>;
@@ -747,8 +755,9 @@ function breakdownRowMatchesScene(
 }
 
 function payloadFromBreakdownData(data: Record<string, unknown> | null | undefined): BreakdownPayload {
+  const characters = (data?.characters as BreakdownPayload["characters"]) ?? [];
   return {
-    characters: (data?.characters as BreakdownPayload["characters"]) ?? [],
+    characters: consolidateCharacterRows(characters),
     props: (data?.props as BreakdownPayload["props"]) ?? [],
     locations: (data?.locations as BreakdownPayload["locations"]) ?? [],
     wardrobe: (data?.wardrobe as BreakdownPayload["wardrobe"]) ?? [],
@@ -1093,31 +1102,37 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
 
   const saveMutation = useMutation({
     mutationFn: async (payload: BreakdownPayload) => {
+      const normalized: BreakdownPayload = {
+        ...payload,
+        characters: consolidateCharacterRows(payload.characters ?? []),
+      };
       if (!hasProject) {
         saveLocalBreakdownDraft({
-          characters: payload.characters ?? [],
-          props: payload.props ?? [],
-          locations: payload.locations ?? [],
-          wardrobe: payload.wardrobe ?? [],
-          extras: payload.extras ?? [],
-          vehicles: payload.vehicles ?? [],
-          stunts: payload.stunts ?? [],
-          sfx: payload.sfx ?? [],
-          makeups: payload.makeups ?? [],
+          characters: normalized.characters ?? [],
+          props: normalized.props ?? [],
+          locations: normalized.locations ?? [],
+          wardrobe: normalized.wardrobe ?? [],
+          extras: normalized.extras ?? [],
+          vehicles: normalized.vehicles ?? [],
+          stunts: normalized.stunts ?? [],
+          sfx: normalized.sfx ?? [],
+          makeups: normalized.makeups ?? [],
         });
-        return payload;
+        return normalized;
       }
       const res = await fetch(`/api/creator/projects/${projectId}/breakdown`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(normalized),
       });
       if (!res.ok) throw new Error("Failed to save breakdown");
-      return res.json();
+      const data = await res.json();
+      return payloadFromBreakdownData(data);
     },
     onMutate: () => setSaving(true),
-    onSuccess: (_d, payload) => {
-      setSavedSnapshot(JSON.parse(JSON.stringify(payload)) as BreakdownPayload);
+    onSuccess: (saved) => {
+      setDraft(saved);
+      setSavedSnapshot(JSON.parse(JSON.stringify(saved)) as BreakdownPayload);
       setSaveMessage("Breakdown saved");
     },
     onError: () => {
@@ -1201,13 +1216,27 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
 
   const categoryTab = tab === "scenes" ? null : tab;
   const breakdownRowsRaw = categoryTab ? ((draft[categoryTab] as any[]) ?? []) : [];
-  const breakdownRowsDisplayed = breakdownRowsRaw
+  const breakdownRowsFiltered = breakdownRowsRaw
     .map((row, idx) => ({ row, idx }))
     .filter(({ row }) =>
       projectScenesForBreakdown.length === 0 || !activeSceneId
         ? true
         : breakdownRowMatchesScene(row as { sceneId?: string | null }, activeSceneId),
     );
+  // Characters: one identity per name (same person across scenes is not another character).
+  const breakdownRowsDisplayed =
+    categoryTab === "characters"
+      ? groupCharactersForDisplay(breakdownRowsFiltered).map((g) => ({
+          row: g.row,
+          idx: g.idx,
+          indices: g.indices,
+          sceneIds: g.sceneIds,
+        }))
+      : breakdownRowsFiltered.map((item) => ({
+          ...item,
+          indices: [item.idx],
+          sceneIds: item.row.sceneId ? [item.row.sceneId] : [],
+        }));
 
   const sceneForNewRow =
     projectScenesForBreakdown.length === 0 ? null : activeSceneId || null;
@@ -1217,9 +1246,13 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
     const id = undefined;
     const t = categoryTab;
     if (t === "characters") {
+      // Blank row for this scene only — user types the name; we block duplicate names on save.
       setDraft({
         ...draft,
-        characters: [...(draft.characters ?? []), { id, name: "", sceneId: sceneForNewRow }],
+        characters: consolidateCharacterRows([
+          ...(draft.characters ?? []),
+          { id, name: "", sceneId: sceneForNewRow },
+        ]),
       });
     } else if (t === "props") {
       setDraft({
@@ -1267,20 +1300,54 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
     }
   };
 
-  const updateRow = (index: number, field: string, value: any) => {
+  const updateRow = (index: number, field: string, value: any, indices?: number[]) => {
     if (!categoryTab) return;
     const copy = { ...draft } as any;
-    copy[categoryTab] = [...(copy[categoryTab] ?? [])];
-    copy[categoryTab][index] = { ...copy[categoryTab][index], [field]: value };
+    const arr = [...(copy[categoryTab] ?? [])];
+    const targets =
+      categoryTab === "characters" && indices && indices.length > 0 ? indices : [index];
+
+    if (categoryTab === "characters" && (field === "name" || field === "importance" || field === "description")) {
+      // Keep identity metadata in sync across every scene appearance of this person.
+      const previousName = normalizeCharacterName(arr[index]?.name);
+      for (let i = 0; i < arr.length; i += 1) {
+        const rowName = normalizeCharacterName(arr[i]?.name);
+        const isTarget = targets.includes(i) || (previousName && rowName === previousName);
+        if (!isTarget) continue;
+        arr[i] = { ...arr[i], [field]: value };
+      }
+      copy[categoryTab] = consolidateCharacterRows(arr);
+    } else {
+      for (const i of targets) {
+        if (!arr[i]) continue;
+        arr[i] = { ...arr[i], [field]: value };
+      }
+      copy[categoryTab] = categoryTab === "characters" ? consolidateCharacterRows(arr) : arr;
+    }
     setDraft(copy);
   };
 
-  const removeRow = (index: number) => {
+  const removeRow = (index: number, indices?: number[]) => {
     if (!draft || !categoryTab) return;
     const copy = { ...draft } as any;
     const arr = [...(copy[categoryTab] ?? [])];
-    arr.splice(index, 1);
-    copy[categoryTab] = arr;
+    if (categoryTab === "characters") {
+      const targets = new Set(indices && indices.length > 0 ? indices : [index]);
+      // When viewing all scenes, removing a character removes every appearance.
+      // When a scene is selected, only remove that scene's row.
+      if (activeSceneId) {
+        copy[categoryTab] = arr.filter((_, i) => !targets.has(i));
+      } else {
+        const nameKey = normalizeCharacterName(arr[index]?.name);
+        copy[categoryTab] = nameKey
+          ? arr.filter((row) => normalizeCharacterName(row?.name) !== nameKey)
+          : arr.filter((_, i) => !targets.has(i));
+      }
+      copy[categoryTab] = consolidateCharacterRows(copy[categoryTab]);
+    } else {
+      arr.splice(index, 1);
+      copy[categoryTab] = arr;
+    }
     setDraft(copy);
   };
 
@@ -1307,7 +1374,7 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
           <ToolViewButton
             onClick={() => setBreakdownViewOpen(true)}
             count={
-              (draft.characters?.length ?? 0) +
+              uniqueCharacterCount(draft.characters) +
               (draft.props?.length ?? 0) +
               (draft.locations?.length ?? 0) +
               projectScenesForBreakdown.length
@@ -1352,7 +1419,7 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
       >
         <BreakdownSavedViewer
           summary={{
-            characters: draft.characters?.length ?? 0,
+            characters: uniqueCharacterCount(draft.characters),
             props: draft.props?.length ?? 0,
             locations: draft.locations?.length ?? 0,
             wardrobe: draft.wardrobe?.length ?? 0,
@@ -1794,10 +1861,15 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
               </p>
             ) : !editingCategoryRows ? (
               <ul className="space-y-1.5">
-                {breakdownRowsDisplayed.map(({ row, idx }) => {
+                {breakdownRowsDisplayed.map(({ row, idx, sceneIds }) => {
                   let label = "";
-                  if (categoryTab === "characters") label = row.name || "Unnamed character";
-                  else if (categoryTab === "props") label = row.name || row.description || "Prop";
+                  if (categoryTab === "characters") {
+                    const sceneCount = sceneIds?.length ?? 0;
+                    label = row.name || "Unnamed character";
+                    if (sceneCount > 0) {
+                      label += ` · ${sceneCount} scene${sceneCount === 1 ? "" : "s"}`;
+                    }
+                  } else if (categoryTab === "props") label = row.name || row.description || "Prop";
                   else if (categoryTab === "locations") label = row.name || row.description || "Location";
                   else if (categoryTab === "wardrobe")
                     label = row.character ? `${row.description} (${row.character})` : row.description || "Wardrobe";
@@ -1812,7 +1884,7 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
                       : (row as { notes?: string }).notes || "Makeup";
                   return (
                     <li
-                      key={row.id ?? idx}
+                      key={row.id ?? `row-${idx}`}
                       className="rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-[11px] text-slate-200"
                     >
                       {label}
@@ -1821,16 +1893,16 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
                 })}
               </ul>
             ) : (
-              breakdownRowsDisplayed.map(({ row, idx }) => (
+              breakdownRowsDisplayed.map(({ row, idx, indices }) => (
                 <div
-                  key={row.id ?? idx}
+                  key={row.id ?? `row-${idx}`}
                   className="grid grid-cols-1 md:grid-cols-4 gap-2 rounded-xl bg-slate-900/80 border border-slate-800 px-3 py-2"
                 >
                 {categoryTab === "characters" && (
                   <>
                     <Input
                       value={row.name}
-                      onChange={(e) => updateRow(idx, "name", e.target.value)}
+                      onChange={(e) => updateRow(idx, "name", e.target.value, indices)}
                       placeholder="Character name"
                       className="md:col-span-3 bg-slate-950 border-slate-700 text-[11px]"
                     />
@@ -1999,7 +2071,7 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
                   <button
                     type="button"
                     className="text-[10px] font-medium text-red-400 hover:text-red-300"
-                    onClick={() => removeRow(idx)}
+                    onClick={() => removeRow(idx, indices)}
                   >
                     Remove
                   </button>
@@ -3423,18 +3495,17 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
     queryFn: projectToolQueryFn<ScheduleResponse>(`/api/creator/projects/${projectId}/schedule`),
     enabled: hasProject,
   });
-  const { data: callSheetsData } = useQuery({
-    queryKey: ["project-call-sheets", projectId],
-    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/call-sheets`),
-    enabled: hasProject,
-  });
   const [selectedDayId, setSelectedDayId] = useState<string | null>(null);
   const [draftDays, setDraftDays] = useState<ScheduleResponse["shootDays"] | null>(null);
   const [savedSchedule, setSavedSchedule] = useState<ScheduleResponse["shootDays"] | null>(null);
   const [expandedSceneRowId, setExpandedSceneRowId] = useState<string | null>(null);
   const [scheduleMessage, setScheduleMessage] = useState("");
   const [scenePickerIds, setScenePickerIds] = useState<string[]>([]);
-  const pickerHydratedRef = useRef(false);
+  /** Day id currently reflected in scenePickerIds. Prevents draft↔picker feedback loops. */
+  const pickerDayIdRef = useRef<string | null>(null);
+  /** Skip one picker→draft sync after hydrate so we don't wipe scenes with a stale empty picker. */
+  const suppressPickerSyncRef = useRef(false);
+  const allScenesSortedRef = useRef<ScheduleSceneDetail[]>([]);
 
   const applySchedulePayload = useCallback(
     (payload: ScheduleResponse, selectDayId?: string | null) => {
@@ -3442,7 +3513,9 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
       setDraftDays(copy);
       setSavedSchedule(JSON.parse(JSON.stringify(payload.shootDays)) as ScheduleResponse["shootDays"]);
       queryClient.setQueryData(["project-schedule", projectId], payload);
-      if (selectDayId) {
+      // Force picker re-hydrate from the applied payload (not from a prior draft edit).
+      pickerDayIdRef.current = null;
+      if (selectDayId !== undefined) {
         setSelectedDayId(selectDayId);
       } else {
         setSelectedDayId((prev) => {
@@ -3466,6 +3539,8 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
     const copy = JSON.parse(JSON.stringify(data.shootDays)) as ScheduleResponse["shootDays"];
     setDraftDays(copy);
     setSavedSchedule(JSON.parse(JSON.stringify(data.shootDays)) as ScheduleResponse["shootDays"]);
+    // Re-hydrate picker from server snapshot only when we are not mid-edit.
+    pickerDayIdRef.current = null;
     setSelectedDayId((prev) => {
       if (prev && copy.some((d) => d.id === prev)) return prev;
       return copy[0]?.id ?? null;
@@ -3570,49 +3645,6 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
       setScheduleMessage((error as Error).message);
     },
   });
-  const createCallSheetMutation = useMutation({
-    mutationFn: async (shootDayId: string) => {
-      if (scheduleDirty && !scheduleSaveBlocked && draftDays) {
-        const fresh = await projectToolFetch<ScheduleResponse>(`/api/creator/projects/${projectId}/schedule`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ days: buildDaysSavePayload(draftDays) }),
-        });
-        applySchedulePayload(fresh, shootDayId);
-      }
-      const res = await fetch(`/api/creator/projects/${projectId}/call-sheets`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ shootDayId }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error || "Failed to generate call sheet");
-      return json as {
-        callSheet: {
-          id: string;
-          title: string | null;
-          shootDayId: string;
-          notes: string | null;
-          castJson: string;
-          crewJson: string;
-          locationsJson: string;
-          scheduleJson: string;
-          createdAt: string;
-        };
-      };
-    },
-    onSuccess: () => {
-      setScheduleMessage("Call sheet generated and saved.");
-      void queryClient.invalidateQueries({ queryKey: ["project-call-sheets", projectId] });
-      void queryClient.invalidateQueries({ queryKey: ["project-schedule", projectId] });
-      void queryClient.invalidateQueries({ queryKey: ["call-sheet-preview", projectId] });
-      invalidateProjectPipeline(queryClient, projectId, ["scheduleDownstream"]);
-    },
-    onError: (error) => {
-      setScheduleMessage((error as Error).message);
-    },
-  });
-
   const deleteDayMutation = useMutation({
     mutationFn: async (dayId: string) => {
       return projectToolFetch<ScheduleResponse>(
@@ -3715,9 +3747,14 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
   };
 
   const allScenes = data?.scenes ?? [];
-  const allScenesSorted = [...allScenes].sort((a, b) =>
-    a.number.localeCompare(b.number, undefined, { numeric: true, sensitivity: "base" }),
+  const allScenesSorted = useMemo(
+    () =>
+      [...allScenes].sort((a, b) =>
+        a.number.localeCompare(b.number, undefined, { numeric: true, sensitivity: "base" }),
+      ),
+    [allScenes],
   );
+  allScenesSortedRef.current = allScenesSorted;
 
   const previewSceneLinks = useMemo(() => {
     if (!selectedDay) return [];
@@ -3729,6 +3766,8 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
         scene: s.scene,
       })),
       allScenes: allScenesSorted,
+      // Once hydrated for this day, empty picker means "no scenes" — never fall back to saved.
+      trustEmptyPicker: pickerDayIdRef.current === selectedDay.id,
     });
   }, [selectedDay, scenePickerIds, allScenesSorted]);
 
@@ -3807,61 +3846,90 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
     return null;
   }, [livePipelinePreview, selectedProductionDay, scheduleDirty, selectedDay?.unit]);
 
-  /** Scenes not assigned to any shoot day (so they can be assigned to the selected day) */
-  const assignedSceneIds = new Set(
-    draftDays?.flatMap((d) =>
-      d.scenes.map((s) => s.scene?.id ?? s.sceneId),
-    ) ?? [],
-  );
-  const unassignedScenes = allScenesSorted.filter((s) => !assignedSceneIds.has(s.id));
+  /** Scenes assigned to other shoot days (still allow selecting them for this day). */
+  const assignedToOtherDayIds = useMemo(() => {
+    const set = new Set<string>();
+    for (const d of draftDays ?? []) {
+      if (d.id === selectedDayId) continue;
+      for (const s of d.scenes) {
+        const id = s.scene?.id ?? s.sceneId;
+        if (id) set.add(id);
+      }
+    }
+    return set;
+  }, [draftDays, selectedDayId]);
 
-  useEffect(() => {
-    if (!selectedDay) {
+  // Hydrate picker only when the selected day changes (or after save/discard), never when
+  // draft scenes update from the picker itself — that feedback loop cleared selections.
+  useLayoutEffect(() => {
+    if (!selectedDayId) {
+      pickerDayIdRef.current = null;
+      suppressPickerSyncRef.current = true;
       setScenePickerIds([]);
-      pickerHydratedRef.current = false;
       return;
     }
-    const ids = selectedDay.scenes
+    if (!draftDays) return;
+    if (pickerDayIdRef.current === selectedDayId) return;
+    const day = draftDays.find((d) => d.id === selectedDayId);
+    if (!day) return;
+    pickerDayIdRef.current = selectedDayId;
+    const ids = day.scenes
       .slice()
       .sort((a, b) => a.order - b.order)
-      .map((s) => s.scene?.id ?? s.sceneId);
+      .map((s) => s.scene?.id ?? s.sceneId)
+      .filter(Boolean);
+    suppressPickerSyncRef.current = true;
     setScenePickerIds(ids);
-    pickerHydratedRef.current = true;
-  }, [selectedDay?.id, selectedDay?.scenes]);
+  }, [selectedDayId, draftDays]);
 
+  // Push picker selections into the draft day. Do not re-run on draft identity changes.
   useEffect(() => {
-    if (!pickerHydratedRef.current || !selectedDayId || !draftDays) return;
+    if (suppressPickerSyncRef.current) {
+      suppressPickerSyncRef.current = false;
+      return;
+    }
+    if (!selectedDayId || pickerDayIdRef.current !== selectedDayId) return;
 
     setDraftDays((prev) => {
       if (!prev) return prev;
       const day = prev.find((d) => d.id === selectedDayId);
       if (!day) return prev;
 
+      const scenesCatalog = allScenesSortedRef.current;
       const savedIds = day.scenes
         .slice()
         .sort((a, b) => a.order - b.order)
         .map((s) => s.scene?.id ?? s.sceneId);
-      const pickerIds = allScenesSorted
+      const pickerIds = scenesCatalog
         .filter((s) => scenePickerIds.includes(s.id))
         .map((s) => s.id);
+      // Preserve any picker ids not yet in catalog (shouldn't happen, but avoid drops).
+      for (const id of scenePickerIds) {
+        if (!pickerIds.includes(id)) pickerIds.push(id);
+      }
       const matches =
         pickerIds.length === savedIds.length && pickerIds.every((id, i) => id === savedIds[i]);
       if (matches) return prev;
 
-      const picked = allScenesSorted.filter((s) => scenePickerIds.includes(s.id));
-      const nextScenes = picked.map((scene, index) => ({
-        id: `${day.id}-${scene.id}`,
-        sceneId: scene.id,
-        order: index,
-        scene,
-      }));
+      const sceneById = new Map(scenesCatalog.map((s) => [s.id, s]));
+      const nextScenes = pickerIds.map((sceneId, index) => {
+        const existing = day.scenes.find((s) => (s.scene?.id ?? s.sceneId) === sceneId);
+        const scene = sceneById.get(sceneId) ?? existing?.scene ?? null;
+        return {
+          id: existing?.id ?? `${day.id}-${sceneId}`,
+          sceneId,
+          order: index,
+          scene,
+        };
+      });
       let nextDay: (typeof prev)[number] = { ...day, scenes: nextScenes };
-      if (picked.length > 0) {
-        nextDay = autoPopulateDayFromScene(nextDay, picked[0], nextScenes);
+      const firstScene = nextScenes[0]?.scene;
+      if (firstScene) {
+        nextDay = autoPopulateDayFromScene(nextDay, firstScene, nextScenes);
       }
       return prev.map((d) => (d.id === day.id ? nextDay : d));
     });
-  }, [scenePickerIds, selectedDayId, allScenesSorted]);
+  }, [scenePickerIds, selectedDayId]);
 
   return (
     <div className="space-y-4">
@@ -3873,7 +3941,7 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
             </p>
             <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
             <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
-            Plan shoot days with Unit A/B support, scene selection, and a live output pipeline linked to breakdown, budget, and call sheets.
+            Plan shoot days with Unit A/B support, scene selection, and a live output pipeline linked to breakdown and budget. Use Call Sheet Generator in Production for call sheets.
           </p>
         </div>
         <div className="flex min-w-0 shrink-0 flex-col gap-2 md:w-auto lg:max-w-[min(100%,36rem)] xl:max-w-none">
@@ -3900,6 +3968,7 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
               }
               onClick={() => {
                 if (savedSchedule) {
+                  pickerDayIdRef.current = null;
                   setDraftDays(JSON.parse(JSON.stringify(savedSchedule)) as ScheduleResponse["shootDays"]);
                 }
               }}
@@ -3919,21 +3988,6 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
               onClick={() => persistSchedule()}
             >
               Save
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="border-emerald-500/40 text-emerald-200 hover:bg-emerald-500/10 text-[11px]"
-              disabled={!selectedDay || createCallSheetMutation.isPending || scheduleSaveBlocked}
-              title={
-                scheduleSaveBlocked
-                  ? "Call sheet generation requires signed contracts for this project."
-                  : undefined
-              }
-              onClick={() => selectedDay && createCallSheetMutation.mutate(selectedDay.id)}
-            >
-              {createCallSheetMutation.isPending ? "Generating..." : "Generate call sheet"}
             </Button>
           </div>
           <div className="flex flex-wrap items-center gap-2 lg:justify-end">
@@ -4517,34 +4571,32 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
                           <CardHeader className="pb-2">
                             <CardTitle className="text-sm">Scene selection for this day</CardTitle>
                             <p className="text-[11px] text-slate-500 font-normal mt-1">
-                              Select scenes for this shoot day. Selections auto-link to breakdown, cast, crew, and equipment previews below — save the schedule to persist and update call sheets.
+                              Select scenes for this shoot day. Selections auto-link to breakdown, cast, crew, and equipment previews below — save the schedule to persist.
                             </p>
                           </CardHeader>
                           <CardContent className="space-y-2">
                             <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
-                              {unassignedScenes.slice(0, 12).map((scene) => {
-                                const picked = scenePickerIds.includes(scene.id);
-                                return (
-                                  <button
-                                    key={scene.id}
-                                    type="button"
-                                    onClick={() => {
-                                      setScenePickerIds((prev) =>
-                                        picked
-                                          ? prev.filter((id) => id !== scene.id)
-                                          : [...prev, scene.id],
-                                      );
-                                    }}
-                                    className={`rounded-full px-2 py-0.5 text-[10px] border transition ${
-                                      picked
-                                        ? "border-orange-500/60 bg-orange-500/15 text-orange-100"
-                                        : "border-slate-700 text-slate-400 hover:border-slate-500"
-                                    }`}
-                                  >
-                                    Sc. {scene.number}
-                                  </button>
-                                );
-                              })}
+                              {scenePickerIds.length === 0 ? (
+                                <span className="text-[10px] text-slate-500">No scenes selected.</span>
+                              ) : (
+                                scenePickerIds.map((id) => {
+                                  const scene = allScenesSorted.find((s) => s.id === id);
+                                  const label = scene?.number ?? id.slice(0, 6);
+                                  return (
+                                    <button
+                                      key={id}
+                                      type="button"
+                                      onClick={() =>
+                                        setScenePickerIds((prev) => prev.filter((x) => x !== id))
+                                      }
+                                      className="rounded-full border border-orange-500/60 bg-orange-500/15 px-2 py-0.5 text-[10px] text-orange-100 transition hover:border-red-400/50 hover:bg-red-500/10"
+                                      title="Remove from this day"
+                                    >
+                                      Sc. {label} ×
+                                    </button>
+                                  );
+                                })
+                              )}
                             </div>
                             <select
                               multiple
@@ -4555,11 +4607,16 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
                               }}
                               className="h-40 w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-2 text-xs text-white outline-none focus:border-orange-500"
                             >
-                              {allScenesSorted.map((scene) => (
-                                <option key={scene.id} value={scene.id}>
-                                  {`Sc. ${scene.number} ${scene.heading || "Untitled scene"}`}
-                                </option>
-                              ))}
+                              {allScenesSorted.map((scene) => {
+                                const onOtherDay = assignedToOtherDayIds.has(scene.id);
+                                return (
+                                  <option key={scene.id} value={scene.id}>
+                                    {`Sc. ${scene.number} ${scene.heading || "Untitled scene"}${
+                                      onOtherDay ? " (on another day)" : ""
+                                    }`}
+                                  </option>
+                                );
+                              })}
                             </select>
                             <div className="flex justify-end">
                               <Button
@@ -4570,7 +4627,7 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
                                 disabled={!scheduleDirty || saveMutation.isPending}
                                 onClick={() => persistSchedule()}
                               >
-                                Save schedule for call sheets
+                                Save schedule
                               </Button>
                             </div>
                           </CardContent>
@@ -4712,92 +4769,6 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
                         </Card>
                       )}
 
-                      <Card className="creator-glass-panel border-0 bg-transparent text-slate-50 shadow-none">
-                        <CardHeader className="pb-2">
-                          <CardTitle className="text-sm">Saved call sheets</CardTitle>
-                          <p className="text-[11px] text-slate-500 font-normal mt-1">
-                            Generate from this schedule, then download to your device.
-                          </p>
-                        </CardHeader>
-                        <CardContent className="space-y-2">
-                          {((callSheetsData?.callSheets as Array<{
-                            id: string;
-                            shootDayId: string;
-                            createdAt: string;
-                            title: string | null;
-                            castJson: string;
-                            crewJson: string;
-                            locationsJson: string;
-                            scheduleJson: string;
-                            notes: string | null;
-                            shootDay?: { date?: string } | null;
-                          }>) ?? []).length === 0 ? (
-                            <p className="text-xs text-slate-500">No saved call sheets yet.</p>
-                          ) : (
-                            ((callSheetsData?.callSheets as Array<{
-                              id: string;
-                              shootDayId: string;
-                              createdAt: string;
-                              title: string | null;
-                              castJson: string;
-                              crewJson: string;
-                              locationsJson: string;
-                              scheduleJson: string;
-                              notes: string | null;
-                              shootDay?: { date?: string } | null;
-                            }>) ?? []).slice(0, 8).map((cs) => (
-                              <div key={cs.id} className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">
-                                <div className="min-w-0">
-                                  <p className="truncate text-xs text-slate-200">
-                                    {cs.title || `Call sheet · ${new Date(cs.createdAt).toLocaleDateString()}`}
-                                  </p>
-                                  <p className="text-[10px] text-slate-500">
-                                    {cs.shootDay?.date ? new Date(cs.shootDay.date).toLocaleDateString() : "Shoot day"} · saved {new Date(cs.createdAt).toLocaleString()}
-                                  </p>
-                                </div>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  className="border-slate-700 text-[11px]"
-                                  onClick={() => {
-                                    const lines: string[] = [];
-                                    lines.push(cs.title || "Call Sheet");
-                                    lines.push(`Saved: ${new Date(cs.createdAt).toLocaleString()}`);
-                                    lines.push("");
-                                    lines.push("Schedule");
-                                    lines.push(cs.scheduleJson || "");
-                                    lines.push("");
-                                    lines.push("Locations");
-                                    lines.push(cs.locationsJson || "");
-                                    lines.push("");
-                                    lines.push("Cast");
-                                    lines.push(cs.castJson || "");
-                                    lines.push("");
-                                    lines.push("Crew");
-                                    lines.push(cs.crewJson || "");
-                                    lines.push("");
-                                    if (cs.notes) {
-                                      lines.push("Notes");
-                                      lines.push(cs.notes);
-                                      lines.push("");
-                                    }
-                                    const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
-                                    const url = URL.createObjectURL(blob);
-                                    const a = document.createElement("a");
-                                    a.href = url;
-                                    a.download = `${(cs.title || "call-sheet").replace(/[^a-z0-9-_]+/gi, "-").toLowerCase()}.txt`;
-                                    a.click();
-                                    URL.revokeObjectURL(url);
-                                  }}
-                                >
-                                  Download
-                                </Button>
-                              </div>
-                            ))
-                          )}
-                        </CardContent>
-                      </Card>
                     </div>
                     </>
                   );
@@ -4817,6 +4788,18 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
 }
 
 // --- Casting Portal ---
+function emptyRoleEdit() {
+  return {
+    actorName: "",
+    actorEmail: "",
+    actorPhone: "",
+    agentName: "",
+    actorNotes: "",
+    salaryAmount: "",
+    dailyRate: "",
+  };
+}
+
 function CastingPortalWorkspace({
   projectId,
   title,
@@ -4832,11 +4815,6 @@ function CastingPortalWorkspace({
     queryKey: ["project-casting-invitations", projectId],
     queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/casting/invitations`),
     enabled: hasProject,
-  });
-  const { data: agenciesData } = useQuery({
-    queryKey: ["casting-agencies-directory"],
-    queryFn: projectToolQueryFn("/api/casting-agencies"),
-    enabled: true,
   });
   const roles = useMemo(
     () =>
@@ -4860,22 +4838,19 @@ function CastingPortalWorkspace({
     castingAgency: { id: string; agencyName: string } | null;
     talent: { id: string; name: string } | null;
   }[];
-  const agencies = (agenciesData ?? []) as Array<{
-    id: string;
-    agencyName: string;
-    city: string | null;
-    country: string | null;
-    _count?: { talent?: number; inquiries?: number };
-  }>;
-  const [expandedAgencyId, setExpandedAgencyId] = useState<string | null>(null);
-  const [expandedAgencyTalent, setExpandedAgencyTalent] = useState<
-    Array<{ id: string; name: string; ageRange: string | null; skills: string | null }>
-  >([]);
-  const [selectedRoleId, setSelectedRoleId] = useState<string>("");
-  const [auditionWhen, setAuditionWhen] = useState("");
-  const [auditionDetails, setAuditionDetails] = useState("");
   const [roleEdits, setRoleEdits] = useState<
-    Record<string, { actorName: string; actorEmail: string; actorNotes: string; salaryAmount: string }>
+    Record<
+      string,
+      {
+        actorName: string;
+        actorEmail: string;
+        actorPhone: string;
+        agentName: string;
+        actorNotes: string;
+        salaryAmount: string;
+        dailyRate: string;
+      }
+    >
   >({});
   const [portalMessage, setPortalMessage] = useState("");
   const rolesContext =
@@ -4927,8 +4902,11 @@ function CastingPortalWorkspace({
       id: string;
       actorName: string;
       actorEmail: string;
+      actorPhone: string;
+      agentName: string;
       actorNotes: string;
       salaryAmount: number | null;
+      dailyRate: number | null;
     }) => {
       const res = await fetch(`/api/creator/projects/${projectId}/casting`, {
         method: "PATCH",
@@ -4937,8 +4915,11 @@ function CastingPortalWorkspace({
           id: payload.id,
           actorName: payload.actorName || null,
           actorEmail: payload.actorEmail || null,
+          actorPhone: payload.actorPhone || null,
+          agentName: payload.agentName || null,
           actorNotes: payload.actorNotes || null,
           salaryAmount: payload.salaryAmount,
+          dailyRate: payload.dailyRate,
           markCast: Boolean(payload.actorName),
         }),
       });
@@ -4978,59 +4959,36 @@ function CastingPortalWorkspace({
       queryClient.invalidateQueries({ queryKey: ["project-casting-invitations", projectId] });
     },
   });
-  const advertiseMutation = useMutation({
-    mutationFn: async (payload: { roleId: string; scheduledAt: string; details: string }) => {
-      const res = await fetch(`/api/creator/projects/${projectId}/casting/advertise-role`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.error || "Failed to publish audition listing");
-      }
-      return res.json();
-    },
-    onSuccess: (data) => {
-      if (data?.checkoutUrl) {
-        window.location.href = data.checkoutUrl as string;
-        return;
-      }
-      setPortalMessage(
-        `Audition listing published to ${data?.invitationsCreated ?? 0} agencies. Listing fee paid (${formatZar(AUDITION_LISTING_FEE_ZAR)}).`,
-      );
-      queryClient.invalidateQueries({ queryKey: ["project-casting-invitations", projectId] });
-    },
-  });
   const [newName, setNewName] = useState("");
   useEffect(() => {
     if (roles.length === 0) return;
-
-    const validSelected = roles.some((r) => r.id === selectedRoleId);
-    if (!selectedRoleId || !validSelected) {
-      setSelectedRoleId(roles[0].id);
-    }
 
     setRoleEdits((prev) => {
       let changed = false;
       const next = { ...prev };
       for (const r of roles) {
         if (!next[r.id]) {
+          const notes = r.assignedCast?.notes ?? "";
+          const phoneMatch = notes.match(/Phone:\s*([^\n]+)/i);
+          const agentMatch = notes.match(/Agent:\s*([^\n]+)/i);
           next[r.id] = {
             actorName: r.assignedCast?.name ?? "",
             actorEmail: r.assignedCast?.contactEmail ?? "",
-            actorNotes: r.assignedCast?.notes ?? "",
+            actorPhone: phoneMatch?.[1]?.trim() ?? "",
+            agentName: agentMatch?.[1]?.trim() ?? "",
+            actorNotes: notes.replace(/Phone:\s*[^\n]+\n?/gi, "").replace(/Agent:\s*[^\n]+\n?/gi, "").trim(),
             salaryAmount:
               r.linkedSalary?.amount !== undefined && r.linkedSalary?.amount !== null
                 ? String(r.linkedSalary.amount)
                 : "",
+            dailyRate: "",
           };
           changed = true;
         }
       }
       return changed ? next : prev;
     });
-  }, [roles, selectedRoleId]);
+  }, [roles]);
   return (
     <div className="space-y-4">
       <header className="storytime-plan-card p-5 md:p-6">
@@ -5134,16 +5092,16 @@ function CastingPortalWorkspace({
                         </span>
                       </div>
                     </div>
-                    <div className="grid gap-2 md:grid-cols-4">
+                    <div className="grid gap-2 md:grid-cols-3">
                       <Input
                         value={roleEdits[r.id]?.actorName ?? ""}
                         onChange={(e) =>
                           setRoleEdits((prev) => ({
                             ...prev,
-                            [r.id]: { ...(prev[r.id] ?? { actorName: "", actorEmail: "", actorNotes: "", salaryAmount: "" }), actorName: e.target.value },
+                            [r.id]: { ...(prev[r.id] ?? emptyRoleEdit()), actorName: e.target.value },
                           }))
                         }
-                        placeholder="Actor name"
+                        placeholder="Performer name"
                         className="bg-slate-950 border-slate-700 text-xs"
                       />
                       <Input
@@ -5151,10 +5109,32 @@ function CastingPortalWorkspace({
                         onChange={(e) =>
                           setRoleEdits((prev) => ({
                             ...prev,
-                            [r.id]: { ...(prev[r.id] ?? { actorName: "", actorEmail: "", actorNotes: "", salaryAmount: "" }), actorEmail: e.target.value },
+                            [r.id]: { ...(prev[r.id] ?? emptyRoleEdit()), actorEmail: e.target.value },
                           }))
                         }
-                        placeholder="Actor email"
+                        placeholder="Email"
+                        className="bg-slate-950 border-slate-700 text-xs"
+                      />
+                      <Input
+                        value={roleEdits[r.id]?.actorPhone ?? ""}
+                        onChange={(e) =>
+                          setRoleEdits((prev) => ({
+                            ...prev,
+                            [r.id]: { ...(prev[r.id] ?? emptyRoleEdit()), actorPhone: e.target.value },
+                          }))
+                        }
+                        placeholder="Phone / WhatsApp"
+                        className="bg-slate-950 border-slate-700 text-xs"
+                      />
+                      <Input
+                        value={roleEdits[r.id]?.agentName ?? ""}
+                        onChange={(e) =>
+                          setRoleEdits((prev) => ({
+                            ...prev,
+                            [r.id]: { ...(prev[r.id] ?? emptyRoleEdit()), agentName: e.target.value },
+                          }))
+                        }
+                        placeholder="Agent / agency contact"
                         className="bg-slate-950 border-slate-700 text-xs"
                       />
                       <Input
@@ -5162,12 +5142,37 @@ function CastingPortalWorkspace({
                         onChange={(e) =>
                           setRoleEdits((prev) => ({
                             ...prev,
-                            [r.id]: { ...(prev[r.id] ?? { actorName: "", actorEmail: "", actorNotes: "", salaryAmount: "" }), salaryAmount: e.target.value },
+                            [r.id]: { ...(prev[r.id] ?? emptyRoleEdit()), salaryAmount: e.target.value },
                           }))
                         }
-                        placeholder="Salary (ZAR)"
+                        placeholder="Total fee (ZAR) → budget"
                         className="bg-slate-950 border-slate-700 text-xs"
                       />
+                      <Input
+                        value={roleEdits[r.id]?.dailyRate ?? ""}
+                        onChange={(e) =>
+                          setRoleEdits((prev) => ({
+                            ...prev,
+                            [r.id]: { ...(prev[r.id] ?? emptyRoleEdit()), dailyRate: e.target.value },
+                          }))
+                        }
+                        placeholder="Day rate (ZAR)"
+                        className="bg-slate-950 border-slate-700 text-xs"
+                      />
+                    </div>
+                    <textarea
+                      value={roleEdits[r.id]?.actorNotes ?? ""}
+                      onChange={(e) =>
+                        setRoleEdits((prev) => ({
+                          ...prev,
+                          [r.id]: { ...(prev[r.id] ?? emptyRoleEdit()), actorNotes: e.target.value },
+                        }))
+                      }
+                      rows={2}
+                      placeholder="Notes — availability, special requirements, union status…"
+                      className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white"
+                    />
+                    <div className="flex justify-end">
                       <Button
                         size="sm"
                         className="bg-orange-500 hover:bg-orange-600 text-xs"
@@ -5177,141 +5182,32 @@ function CastingPortalWorkspace({
                             id: r.id,
                             actorName: roleEdits[r.id]?.actorName ?? "",
                             actorEmail: roleEdits[r.id]?.actorEmail ?? "",
+                            actorPhone: roleEdits[r.id]?.actorPhone ?? "",
+                            agentName: roleEdits[r.id]?.agentName ?? "",
                             actorNotes: roleEdits[r.id]?.actorNotes ?? "",
                             salaryAmount:
                               roleEdits[r.id]?.salaryAmount?.trim()
                                 ? Number(roleEdits[r.id]?.salaryAmount)
                                 : null,
+                            dailyRate:
+                              roleEdits[r.id]?.dailyRate?.trim()
+                                ? Number(roleEdits[r.id]?.dailyRate)
+                                : null,
                           })
                         }
                       >
-                        Save cast + salary
+                        Save cast + link to budget
                       </Button>
                     </div>
+                    {r.linkedSalary?.amount != null && (
+                      <p className="text-[10px] text-emerald-400/90">
+                        Budget line: {formatZar(r.linkedSalary.amount)} (CAST department)
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
             )}
-          </div>
-
-          <div className="border-t border-slate-800 pt-3 space-y-2">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-white">Casting agencies directory</h3>
-              <p className="text-[11px] text-slate-500">{agencies.length} agency{agencies.length === 1 ? "" : "ies"}</p>
-            </div>
-            {roles.length > 0 && (
-              <div className="grid gap-2 md:grid-cols-[1fr_auto_auto] items-end">
-                <select
-                  value={selectedRoleId}
-                  onChange={(e) => setSelectedRoleId(e.target.value)}
-                  className="h-9 rounded-md border border-slate-700 bg-slate-950 px-2 text-xs text-white"
-                >
-                  {roles.map((r) => (
-                    <option key={r.id} value={r.id}>{r.name}</option>
-                  ))}
-                </select>
-                <Input
-                  value={auditionWhen}
-                  onChange={(e) => setAuditionWhen(e.target.value)}
-                  placeholder="Audition schedule/time"
-                  className="bg-slate-950 border-slate-700 text-xs"
-                />
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="border-orange-500/40 text-orange-200 hover:bg-orange-500/10 text-xs"
-                  disabled={!selectedRoleId || advertiseMutation.isPending}
-                  onClick={() =>
-                    advertiseMutation.mutate({
-                      roleId: selectedRoleId,
-                      scheduledAt: auditionWhen,
-                      details: auditionDetails,
-                    })
-                  }
-                >
-                  Publish audition ({formatZar(AUDITION_LISTING_FEE_ZAR)})
-                </Button>
-              </div>
-            )}
-            <textarea
-              value={auditionDetails}
-              onChange={(e) => setAuditionDetails(e.target.value)}
-              rows={2}
-              placeholder="Audition brief, role specifics, callback details..."
-              className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white"
-            />
-            <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
-              {agencies.map((a) => (
-                <div key={a.id} className="rounded-lg border border-slate-800 bg-slate-900/70 px-3 py-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <div>
-                      <p className="text-sm text-slate-200">{a.agencyName}</p>
-                      <p className="text-[11px] text-slate-500">
-                        {a.city ?? "Unknown city"}, {a.country ?? "Unknown country"} · Talent: {a._count?.talent ?? 0}
-                      </p>
-                    </div>
-                    <div className="flex gap-1.5">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="border-slate-700 text-[11px]"
-                        onClick={async () => {
-                          const res = await fetch(`/api/casting-agencies/${a.id}`);
-                          const detail = await res.json();
-                          setExpandedAgencyId(expandedAgencyId === a.id ? null : a.id);
-                          setExpandedAgencyTalent(
-                            Array.isArray(detail?.talent) ? detail.talent.slice(0, 12) : [],
-                          );
-                        }}
-                      >
-                        {expandedAgencyId === a.id ? "Hide" : "View"}
-                      </Button>
-                    </div>
-                  </div>
-                  {expandedAgencyId === a.id && (
-                    <div className="mt-2 space-y-1">
-                      {expandedAgencyTalent.length === 0 ? (
-                        <p className="text-[11px] text-slate-500">No cast profiles listed.</p>
-                      ) : (
-                        expandedAgencyTalent.map((t) => (
-                          <div key={t.id} className="flex items-center justify-between rounded-md border border-slate-800 px-2 py-1 text-[11px]">
-                            <span className="text-slate-300">{t.name}</span>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-6 border-slate-700 px-2 text-[10px]"
-                              disabled={!selectedRoleId}
-                              onClick={async () => {
-                                if (!selectedRoleId) return;
-                                const res = await fetch(`/api/creator/projects/${projectId}/casting/invitations`, {
-                                  method: "POST",
-                                  headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify({
-                                    roleId: selectedRoleId,
-                                    castingAgencyId: a.id,
-                                    talentId: t.id,
-                                    message: `Casting request for selected role. Audition details: ${auditionDetails || "N/A"}`,
-                                  }),
-                                });
-                                if (!res.ok) {
-                                  const data = await res.json().catch(() => null);
-                                  alert(data?.error || "Could not send request");
-                                  return;
-                                }
-                                setPortalMessage("Casting request sent.");
-                                queryClient.invalidateQueries({ queryKey: ["project-casting-invitations", projectId] });
-                              }}
-                            >
-                              Request
-                            </Button>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
           </div>
 
           <div className="border-t border-slate-800 pt-3">
@@ -5398,11 +5294,11 @@ function CastingPortalWorkspace({
       )}
       <Link
         href={projectId ? `/creator/cast?projectId=${encodeURIComponent(projectId)}` : "/creator/cast"}
-        className="creator-glass-panel block p-4 transition hover:border-violet-400/35"
+        className="storytime-plan-card block p-5 transition hover:border-orange-400/40 group"
       >
-        <h3 className="text-sm font-semibold text-white mb-1">Open full Cast &amp; Auditions</h3>
-        <p className="text-xs text-slate-400">
-          Browse agency talent with headshots, rates, and experience — send inquiries and manage your cast roster.
+        <h3 className="text-sm font-semibold text-white mb-1 group-hover:text-orange-200">Open Cast &amp; Auditions marketplace</h3>
+        <p className="text-xs text-slate-400 leading-relaxed">
+          Browse agency talent with headshots, rates, and experience — send free inquiries, post paid auditions, and manage your cast roster.
         </p>
       </Link>
     </div>
@@ -6037,10 +5933,6 @@ function LocationMarketplaceWorkspace({
   const [filterMinCapacity, setFilterMinCapacity] = useState("");
   const [selectedBreakdownLocationId, setSelectedBreakdownLocationId] = useState("");
   const [selectedListingId, setSelectedListingId] = useState("");
-  const [bookingStartDate, setBookingStartDate] = useState("");
-  const [bookingEndDate, setBookingEndDate] = useState("");
-  const [bookingCrewSize, setBookingCrewSize] = useState("");
-  const [bookingNote, setBookingNote] = useState("");
   const [portalMessage, setPortalMessage] = useState("");
   const [ownLocationName, setOwnLocationName] = useState("");
   const [ownLocationAddress, setOwnLocationAddress] = useState("");
@@ -6113,14 +6005,14 @@ function LocationMarketplaceWorkspace({
     city: string | null;
     country: string | null;
     capacity: number | null;
-    dailyRate: number | null;
+    description?: string | null;
+    photos?: string[];
+    previewImageUrl?: string | null;
     profile?: {
       permitRequirements?: string | null;
       restrictions?: string | null;
-      hourlyRate?: number | null;
-      dailyRate?: number | null;
-      availability?: string | null;
       logistics?: string | null;
+      availability?: string | null;
     };
     _count?: { bookings?: number };
   }>;
@@ -6162,28 +6054,6 @@ function LocationMarketplaceWorkspace({
       invalidateProjectPipeline(queryClient, projectId, ["locations"]);
       setPortalMessage("Marketplace location linked to breakdown.");
     },
-  });
-  const requestBookingMutation = useMutation({
-    mutationFn: async (listingId: string) => {
-      const res = await fetch("/api/location-bookings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          locationId: listingId,
-          shootType: "PRODUCTION",
-          startDate: bookingStartDate || null,
-          endDate: bookingEndDate || null,
-          crewSize: bookingCrewSize ? Number(bookingCrewSize) : null,
-          note: bookingNote || null,
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => null);
-        throw new Error(err?.error || "Failed to send booking request");
-      }
-      return res.json();
-    },
-    onSuccess: () => setPortalMessage("Location booking request sent."),
   });
 
   const createOwnLocationMutation = useMutation({
@@ -6291,7 +6161,7 @@ function LocationMarketplaceWorkspace({
             </p>
             <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
             <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
-              Add your own places, link marketplace venues, and attach locations to the project scenes that need them.
+              Add your own places, browse marketplace venues with photos, send free booking requests, and link locations to project scenes.
             </p>
           </div>
         </div>
@@ -6496,7 +6366,7 @@ function LocationMarketplaceWorkspace({
           <Input value={filterType} onChange={(e) => setFilterType(e.target.value)} placeholder="Type (studio, house...)" className="bg-slate-900 border-slate-700 text-xs" />
           <Input value={filterRegion} onChange={(e) => setFilterRegion(e.target.value)} placeholder="Region / city" className="bg-slate-900 border-slate-700 text-xs" />
           <Input value={filterAvailability} onChange={(e) => setFilterAvailability(e.target.value)} placeholder="Availability" className="bg-slate-900 border-slate-700 text-xs" />
-          <Input value={filterMaxRate} onChange={(e) => setFilterMaxRate(e.target.value)} placeholder="Max daily rate" className="bg-slate-900 border-slate-700 text-xs" />
+          <Input value={filterMaxRate} onChange={(e) => setFilterMaxRate(e.target.value)} placeholder="Max daily rate (filter)" className="bg-slate-900 border-slate-700 text-xs" />
           <Input value={filterMinCapacity} onChange={(e) => setFilterMinCapacity(e.target.value)} placeholder="Min capacity" className="bg-slate-900 border-slate-700 text-xs" />
         </div>
         <div className="grid gap-2 md:grid-cols-[1fr_1fr_auto] items-end">
@@ -6537,54 +6407,18 @@ function LocationMarketplaceWorkspace({
             Link listing to breakdown location
           </Button>
         </div>
-        <div className="grid gap-2 md:grid-cols-4">
-          <Input value={bookingStartDate} onChange={(e) => setBookingStartDate(e.target.value)} placeholder="Start date (YYYY-MM-DD)" className="bg-slate-900 border-slate-700 text-xs" />
-          <Input value={bookingEndDate} onChange={(e) => setBookingEndDate(e.target.value)} placeholder="End date (YYYY-MM-DD)" className="bg-slate-900 border-slate-700 text-xs" />
-          <Input value={bookingCrewSize} onChange={(e) => setBookingCrewSize(e.target.value)} placeholder="Crew size" className="bg-slate-900 border-slate-700 text-xs" />
-          <Input value={bookingNote} onChange={(e) => setBookingNote(e.target.value)} placeholder="Booking note / logistics note" className="bg-slate-900 border-slate-700 text-xs" />
-        </div>
         <h3 className="text-sm font-semibold text-white">Marketplace listings</h3>
-        {isListingsLoading ? (
-          <Skeleton className="h-24 bg-slate-800/60" />
-        ) : listings.length === 0 ? (
-          <p className="text-xs text-slate-500 p-3 rounded-xl bg-slate-900/60">No listings found for current filters.</p>
-        ) : (
-          <div className="space-y-2 max-h-[28rem] overflow-y-auto pr-1">
-            {listings.map((listing) => (
-              <div key={listing.id} className="rounded-xl border border-slate-800 bg-slate-900/70 p-3 space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <p className="text-sm text-white font-medium">{listing.name}</p>
-                    <p className="text-[11px] text-slate-500">
-                      {listing.type} · {[listing.city, listing.country].filter(Boolean).join(", ") || "Unknown location"}
-                    </p>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-slate-700 text-[11px]"
-                    disabled={requestBookingMutation.isPending}
-                    onClick={() => requestBookingMutation.mutate(listing.id)}
-                  >
-                    Request booking
-                  </Button>
-                </div>
-                <p className="text-[11px] text-slate-400">
-                  Daily: {formatZar(Number(listing.profile?.dailyRate ?? listing.dailyRate ?? 0), { maximumFractionDigits: 0 })} · Hourly:{" "}
-                  {listing.profile?.hourlyRate != null ? formatZar(Number(listing.profile.hourlyRate), { maximumFractionDigits: 0 }) : "N/A"} ·
-                  Capacity: {listing.capacity ?? "N/A"} · Bookings: {listing._count?.bookings ?? 0}
-                </p>
-                {(listing.profile?.permitRequirements || listing.profile?.restrictions || listing.profile?.logistics) && (
-                  <div className="rounded-md border border-slate-800 px-2 py-1.5 text-[11px] text-slate-400 space-y-1">
-                    {listing.profile?.permitRequirements ? <p>Permit: {listing.profile.permitRequirements}</p> : null}
-                    {listing.profile?.restrictions ? <p>Restrictions: {listing.profile.restrictions}</p> : null}
-                    {listing.profile?.logistics ? <p>Logistics: {listing.profile.logistics}</p> : null}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+        <p className="text-xs text-slate-500">
+          Rates appear when you open a listing. Send a free request, message the owner anytime, and pay once approved.
+        </p>
+        <LocationMarketplaceCatalog
+          listings={listings}
+          isLoading={isListingsLoading}
+          projectId={projectId}
+          projectTitle={title}
+          compact
+          onRequestSuccess={setPortalMessage}
+        />
       </div>
       <Link
         href={projectId ? `/creator/locations?projectId=${encodeURIComponent(projectId)}` : "/creator/locations"}
@@ -6665,14 +6499,10 @@ function FundingHubWorkspace({
         contact: string;
         region: string | null;
         matchScore: number;
+        sponsorName?: string;
       }>),
     [data?.opportunities],
   );
-  const funderDirectory = (data?.funderDirectory ?? []) as Array<{
-    id: string;
-    verificationStatus: "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
-    user: { id: string; name?: string | null; professionalName?: string | null; headline?: string | null };
-  }>;
   const marketplaceOpportunities = (data?.marketplaceOpportunities ?? []) as Array<{
     id: string;
     title: string;
@@ -6746,8 +6576,18 @@ function FundingHubWorkspace({
   const [selectedOpportunityId, setSelectedOpportunityId] = useState("");
   const [requestedAmount, setRequestedAmount] = useState("");
   const [applicationNotes, setApplicationNotes] = useState("");
-  const [selectedFunderUserId, setSelectedFunderUserId] = useState("");
-  const [targetedFunderMessage, setTargetedFunderMessage] = useState("");
+  const [listingTeaserTitle, setListingTeaserTitle] = useState("");
+  const [listingTeaserLogline, setListingTeaserLogline] = useState("");
+  const [listingTeaserGenre, setListingTeaserGenre] = useState("");
+  const [listingFormat, setListingFormat] = useState("FEATURE");
+  const [listingBudgetBand, setListingBudgetBand] = useState("");
+  const [listingStage, setListingStage] = useState("Pre-production");
+  const [listingTerritory, setListingTerritory] = useState("");
+  const [listingUseOfFunds, setListingUseOfFunds] = useState("");
+  const [listingRevenueModel, setListingRevenueModel] = useState("");
+  const [listingTeamCred, setListingTeamCred] = useState("");
+  const [listingEquityPct, setListingEquityPct] = useState("");
+  const [listingFundingTarget, setListingFundingTarget] = useState("");
   const [sourceName, setSourceName] = useState("");
   const [sourceType, setSourceType] = useState<"INSTITUTIONAL" | "PRIVATE" | "INTERNAL_STORYTIME">(
     "PRIVATE",
@@ -6807,7 +6647,7 @@ function FundingHubWorkspace({
           action: "ADD_APPLICATION",
           application: {
             opportunityId: selectedOpportunityId,
-            funderName: opportunity?.name ?? "Funding source",
+            funderName: opportunity?.sponsorName ?? opportunity?.name ?? "Funding program",
             funderType: opportunity?.type ?? "INSTITUTIONAL",
             requestedAmount: Number(requestedAmount || "0"),
             notes: applicationNotes || null,
@@ -6862,29 +6702,9 @@ function FundingHubWorkspace({
       setHubMessage("Funding source recorded.");
     },
   });
-  const sendToFunderMutation = useMutation({
-    mutationFn: async () => {
-      if (!selectedFunderUserId) throw new Error("Select a funder");
-      const res = await fetch(`/api/creator/projects/${projectId}/funders`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          funderUserId: selectedFunderUserId,
-          message: targetedFunderMessage || "Creator submitted this project from Funding Hub.",
-        }),
-      });
-      if (!res.ok) throw new Error("Failed to send project to funder");
-      return res.json();
-    },
-    onSuccess: () => {
-      setTargetedFunderMessage("");
-      setHubMessage("Project shared with selected funder.");
-      queryClient.invalidateQueries({ queryKey: ["project-funding", projectId] });
-    },
-  });
   const publishOpportunityMutation = useMutation({
     mutationFn: async () => {
-      const target = Number(requestedAmount || amount || "0");
+      const target = Number(listingFundingTarget || requestedAmount || amount || "0");
       const res = await fetch("/api/funders/opportunities", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -6892,18 +6712,32 @@ function FundingHubWorkspace({
           projectId,
           type: "FILM_PROJECT",
           marketCategory: "FILM_PROJECT",
-          title: `${title} funding round`,
-          description: applicationNotes || details || "Funding opportunity published from Creator Funding Hub.",
+          title: listingTeaserTitle || `${title} — funding opportunity`,
+          description: listingUseOfFunds || applicationNotes || "Creator-published funding opportunity.",
           fundingTarget: target > 0 ? target : 1,
-          equityOfferedPct: null,
-          revenueModel: null,
+          equityOfferedPct: listingEquityPct ? Number(listingEquityPct) : null,
+          revenueModel: listingRevenueModel || null,
+          termsSummary: listingRevenueModel || null,
+          publicListingMeta: {
+            teaserTitle: listingTeaserTitle || `${title} production`,
+            teaserLogline: listingTeaserLogline || null,
+            teaserGenre: listingTeaserGenre || null,
+            teaserFormat: listingFormat,
+            budgetBand: listingBudgetBand || (target > 0 ? `~R${Math.round(target).toLocaleString()}` : null),
+            stage: listingStage,
+            territory: listingTerritory || null,
+            useOfFundsSummary: listingUseOfFunds || null,
+            revenueModelSummary: listingRevenueModel || null,
+            teamCredibility: listingTeamCred || null,
+            lockedUntilInterest: true,
+          },
         }),
       });
       if (!res.ok) throw new Error("Failed to publish listing");
       return res.json();
     },
     onSuccess: () => {
-      setHubMessage("Opportunity published to funder marketplace.");
+      setHubMessage("Privacy-safe listing published to the funder marketplace. Full project details unlock when a funder expresses interest.");
       queryClient.invalidateQueries({ queryKey: ["project-funding", projectId] });
     },
   });
@@ -7162,8 +6996,16 @@ function FundingHubWorkspace({
               <CardTitle className="text-sm">Funder marketplace & applications</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
+              <p className="text-[11px] text-slate-400">
+                Apply to programs published by Story Time admin and verified funders. Your full script and budget are not shared until a program owner reviews your application.
+              </p>
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                  {opportunities.length === 0 ? (
+                    <p className="rounded-xl border border-slate-800 bg-slate-900/70 p-4 text-xs text-slate-500">
+                      No funding programs are open right now. Story Time admin and verified funders publish programs from their dashboards — check back soon or publish your project to the marketplace below.
+                    </p>
+                  ) : null}
                   {opportunities.map((opp) => (
                     <div key={opp.id} className="rounded-xl border border-slate-800 bg-slate-900/70 p-3 text-xs space-y-1">
                       <div className="flex items-center justify-between">
@@ -7243,54 +7085,6 @@ function FundingHubWorkspace({
                     </div>
                   ))
                 )}
-              </div>
-              <div className="rounded-lg border border-slate-800 bg-slate-900/50 p-3 space-y-2">
-                <p className="text-xs font-semibold text-white">Direct funder targeting</p>
-                <p className="text-[11px] text-slate-400">
-                  Send this full project dossier (script, budget, cast/team, and production planning data) to a selected funder.
-                </p>
-                <div className="grid gap-2 md:grid-cols-[1fr_1fr_auto]">
-                  <select
-                    value={selectedFunderUserId}
-                    onChange={(e) => setSelectedFunderUserId(e.target.value)}
-                    className="h-10 rounded-md bg-slate-900 border border-slate-700 px-3 text-xs text-white"
-                  >
-                    <option value="">Select funder</option>
-                    {funderDirectory.map((f) => (
-                      <option key={f.user.id} value={f.user.id}>
-                        {(f.user.professionalName || f.user.name || "Funder").trim()} ({f.verificationStatus})
-                      </option>
-                    ))}
-                  </select>
-                  <Input
-                    value={targetedFunderMessage}
-                    onChange={(e) => setTargetedFunderMessage(e.target.value)}
-                    placeholder="Why this funder is a strong fit..."
-                    className="bg-slate-900 border-slate-700 text-xs"
-                  />
-                  <Button
-                    size="sm"
-                    className="bg-orange-500 hover:bg-orange-600 text-xs"
-                    disabled={sendToFunderMutation.isPending || !selectedFunderUserId}
-                    onClick={() => sendToFunderMutation.mutate()}
-                  >
-                    Send to funder
-                  </Button>
-                </div>
-                {marketplaceOpportunities.length > 0 ? (
-                  <p className="text-[11px] text-slate-500">
-                    Live marketplace listings: {marketplaceOpportunities.length} active across project/script/company funding markets.
-                  </p>
-                ) : null}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="border-slate-700 text-xs"
-                  onClick={() => publishOpportunityMutation.mutate()}
-                  disabled={publishOpportunityMutation.isPending}
-                >
-                  Publish this project to marketplace
-                </Button>
               </div>
             </CardContent>
           </Card>
@@ -7454,6 +7248,54 @@ function FundingHubWorkspace({
                 </Link>
                 <Link href={projectId ? `/creator/projects/${projectId}/pre-production/production-scheduling` : "/creator/pre/production-scheduling"} className="inline-flex items-center rounded-full border border-slate-700 px-3 py-1 hover:border-orange-500/70 hover:text-orange-300 text-slate-300">
                   Open Production Scheduling
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="creator-glass-panel border-0 bg-transparent shadow-none">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Publish to funder marketplace</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-[11px] text-slate-400">
+                List your project for verified funders using a privacy-safe teaser only. Full script, budget, and cast details unlock after a funder expresses interest and you enter a deal room. Payments run through Story Time with platform fees included at checkout.
+              </p>
+              {marketplaceOpportunities.length > 0 && (
+                <p className="text-xs text-emerald-300">
+                  {marketplaceOpportunities.length} active listing(s) on the marketplace for this project.
+                </p>
+              )}
+              <div className="grid gap-2 md:grid-cols-2">
+                <Input value={listingTeaserTitle} onChange={(e) => setListingTeaserTitle(e.target.value)} placeholder="Public title (no spoilers)" className="bg-slate-900 border-slate-700 text-xs" />
+                <select value={listingFormat} onChange={(e) => setListingFormat(e.target.value)} className="h-10 rounded-md bg-slate-900 border border-slate-700 px-3 text-xs text-white">
+                  <option value="FEATURE">Feature</option>
+                  <option value="SHORT_FILM">Short film</option>
+                  <option value="SERIES">Series</option>
+                  <option value="DOCUMENTARY">Documentary</option>
+                </select>
+                <Input value={listingTeaserGenre} onChange={(e) => setListingTeaserGenre(e.target.value)} placeholder="Genre" className="bg-slate-900 border-slate-700 text-xs" />
+                <Input value={listingBudgetBand} onChange={(e) => setListingBudgetBand(e.target.value)} placeholder="Budget band (e.g. R2M–R5M)" className="bg-slate-900 border-slate-700 text-xs" />
+                <Input type="number" value={listingFundingTarget} onChange={(e) => setListingFundingTarget(e.target.value)} placeholder="Funding target (ZAR)" className="bg-slate-900 border-slate-700 text-xs" />
+                <Input value={listingEquityPct} onChange={(e) => setListingEquityPct(e.target.value)} placeholder="Equity offered %" className="bg-slate-900 border-slate-700 text-xs" />
+                <Input value={listingTerritory} onChange={(e) => setListingTerritory(e.target.value)} placeholder="Territory / region" className="bg-slate-900 border-slate-700 text-xs" />
+                <Input value={listingStage} onChange={(e) => setListingStage(e.target.value)} placeholder="Production stage" className="bg-slate-900 border-slate-700 text-xs" />
+              </div>
+              <textarea value={listingTeaserLogline} onChange={(e) => setListingTeaserLogline(e.target.value)} rows={2} placeholder="One-line logline (no character names or plot spoilers)" className="w-full rounded-md bg-slate-900 border border-slate-700 px-3 py-2 text-xs text-white" />
+              <textarea value={listingUseOfFunds} onChange={(e) => setListingUseOfFunds(e.target.value)} rows={2} placeholder="Use of funds summary" className="w-full rounded-md bg-slate-900 border border-slate-700 px-3 py-2 text-xs text-white" />
+              <textarea value={listingTeamCred} onChange={(e) => setListingTeamCred(e.target.value)} rows={2} placeholder="Team credibility (credits, awards — no private contacts)" className="w-full rounded-md bg-slate-900 border border-slate-700 px-3 py-2 text-xs text-white" />
+              <Input value={listingRevenueModel} onChange={(e) => setListingRevenueModel(e.target.value)} placeholder="Revenue / recoupment model summary" className="bg-slate-900 border-slate-700 text-xs" />
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  className="bg-orange-500 hover:bg-orange-600 text-xs"
+                  onClick={() => publishOpportunityMutation.mutate()}
+                  disabled={publishOpportunityMutation.isPending}
+                >
+                  {publishOpportunityMutation.isPending ? "Publishing…" : "Publish privacy-safe listing"}
+                </Button>
+                <Link href={projectId ? `/creator/projects/${projectId}/pre-production/legal-contracts` : "/creator/pre/legal-contracts"} className="inline-flex items-center rounded-full border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:border-orange-500/70 hover:text-orange-300">
+                  Link funding contracts
                 </Link>
               </div>
             </CardContent>
@@ -9016,9 +8858,6 @@ function EquipmentPlanningWorkspace({
   const [newQuantity, setNewQuantity] = useState("1");
   const [selectedItemId, setSelectedItemId] = useState("");
   const [selectedListingId, setSelectedListingId] = useState("");
-  const [requestNote, setRequestNote] = useState("");
-  const [requestStart, setRequestStart] = useState("");
-  const [requestEnd, setRequestEnd] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
   const [filterSpecs, setFilterSpecs] = useState("");
 
@@ -9058,12 +8897,19 @@ function EquipmentPlanningWorkspace({
   const marketplace = (data?.marketplace ?? []) as Array<{
     id: string;
     name: string;
+    companyName: string;
     category: string;
-    dailyRate: number | null;
-    quantityAvailable: number | null;
-    specifications: string | null;
-    availability: string | null;
+    plainDescription?: string | null;
     location: string | null;
+    previewImageUrl?: string | null;
+    photos?: string[];
+    company?: { id: string; name: string | null } | null;
+    profile?: {
+      specifications?: string | null;
+      quantityAvailable?: number | null;
+      availability?: string | null;
+      galleryUrls?: string[];
+    };
   }>;
   const conflicts = ((scheduleData?.conflicts ?? []) as Array<{ type: string; message: string }>).filter(
     (c) => c.type === "EQUIPMENT_CONFLICT",
@@ -9118,23 +8964,6 @@ function EquipmentPlanningWorkspace({
       setPortalMessage("Marketplace listing linked to equipment plan item.");
     },
   });
-  const requestMutation = useMutation({
-    mutationFn: async (equipmentId: string) => {
-      const res = await fetch("/api/equipment-requests", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          equipmentId,
-          note: requestNote || null,
-          startDate: requestStart || null,
-          endDate: requestEnd || null,
-        }),
-      });
-      if (!res.ok) throw new Error("Failed to send request");
-      return res.json();
-    },
-    onSuccess: () => setPortalMessage("Equipment request sent."),
-  });
 
   useEffect(() => {
     if (!selectedItemId && items.length > 0) {
@@ -9161,7 +8990,7 @@ function EquipmentPlanningWorkspace({
             </p>
             <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
             <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
-              Build robust equipment plans, match listings, and track conflicts in one serious workflow.
+              Build equipment plans, browse marketplace gear with photos, send free hire requests, and link listings to plan items.
             </p>
           </div>
           
@@ -9226,27 +9055,16 @@ function EquipmentPlanningWorkspace({
                 Link listing
               </Button>
             </div>
-            <div className="grid gap-2 md:grid-cols-3">
-              <Input value={requestStart} onChange={(e) => setRequestStart(e.target.value)} placeholder="Request start date" className="bg-slate-900 border-slate-700 text-xs" />
-              <Input value={requestEnd} onChange={(e) => setRequestEnd(e.target.value)} placeholder="Request end date" className="bg-slate-900 border-slate-700 text-xs" />
-              <Input value={requestNote} onChange={(e) => setRequestNote(e.target.value)} placeholder="Request note" className="bg-slate-900 border-slate-700 text-xs" />
-            </div>
-            <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-              {marketplace.map((listing) => (
-                <div key={listing.id} className="rounded-xl border border-slate-800 bg-slate-900/70 p-3 text-xs space-y-1">
-                  <div className="flex items-center justify-between">
-                    <p className="text-slate-200 font-medium">{listing.name}</p>
-                    <Button size="sm" variant="outline" className="h-6 border-slate-700 px-2 text-[10px]" onClick={() => requestMutation.mutate(listing.id)}>
-                      Request
-                    </Button>
-                  </div>
-                  <p className="text-slate-500">
-                    {listing.category} · {listing.location ?? "Unknown location"} · {formatZar(Number(listing.dailyRate ?? 0), { maximumFractionDigits: 0 })}/day
-                  </p>
-                  <p className="text-slate-400">{listing.specifications || "No specifications listed."}</p>
-                </div>
-              ))}
-            </div>
+            <p className="text-xs text-slate-500">
+              Open a listing for rates. Send a free request, message the company anytime, and pay once approved.
+            </p>
+            <EquipmentMarketplaceCatalog
+              listings={marketplace}
+              projectId={projectId}
+              projectTitle={title}
+              compact
+              onRequestSuccess={setPortalMessage}
+            />
           </div>
         </div>
       )}

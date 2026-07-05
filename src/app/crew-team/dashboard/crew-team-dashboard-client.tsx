@@ -7,6 +7,7 @@ import { formatZar } from "@/lib/format-currency-zar";
 import { readCompanyApiJson } from "@/lib/casting-agency-client";
 import { OpsMetricCard, OpsPageHeader, OpsQuickActions, OpsSection } from "@/components/ecosystem/ops-shell";
 import { StakeholderEcosystemHome } from "@/components/ecosystem/stakeholder-ecosystem-home";
+import { SecureImage } from "@/components/files/secure-image";
 
 export function CrewTeamDashboardClient() {
   const [teamName, setTeamName] = useState("");
@@ -80,7 +81,7 @@ export function CrewTeamDashboardClient() {
             roster.map((m) => (
               <Link key={m.id} href="/crew-team/team" className="flex items-center gap-3 rounded-xl border border-slate-700/50 bg-slate-800/30 p-3 hover:border-emerald-500/30">
                 {m.photoUrl ? (
-                  <img src={m.photoUrl} alt="" className="h-12 w-12 rounded-lg object-cover" />
+                  <SecureImage fileRef={m.photoUrl} alt="" className="h-12 w-12 rounded-lg object-cover" />
                 ) : (
                   <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-slate-700/50 text-slate-500">
                     <Users className="h-5 w-5" />

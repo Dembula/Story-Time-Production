@@ -26,12 +26,26 @@ type ReviewProfile = {
   verifications?: VerificationDoc[];
 };
 
-function Field({ label, value }: { label: string; value?: string | null }) {
-  if (!value?.trim()) return null;
+function Field({
+  label,
+  value,
+  mono = false,
+  alwaysShow = false,
+}: {
+  label: string;
+  value?: string | null;
+  mono?: boolean;
+  /** When true, show an empty placeholder so admins know the field is missing. */
+  alwaysShow?: boolean;
+}) {
+  const empty = !value?.trim();
+  if (empty && !alwaysShow) return null;
   return (
     <div>
       <p className="text-[10px] font-medium uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="text-sm text-slate-100">{value}</p>
+      <p className={`text-sm ${empty ? "text-slate-500" : "text-slate-100"} ${mono ? "font-mono tracking-wide" : ""}`}>
+        {empty ? "—" : value}
+      </p>
     </div>
   );
 }
@@ -73,11 +87,13 @@ function KycDataSections({ kyc }: { kyc?: Record<string, unknown> | null }) {
         <Field label="Postal code" value={address.postalCode} />
         <Field label="Country" value={address.country} />
       </Section>
-      <Section title="Banking">
-        <Field label="Bank" value={financial.bankName} />
-        <Field label="Account holder" value={financial.accountHolderName} />
-        <Field label="Account number" value={financial.accountNumber ? `••••${financial.accountNumber.slice(-4)}` : null} />
-        <Field label="Account type" value={financial.accountType} />
+      <Section title="Banking (full details for payouts)">
+        <Field label="Bank" value={financial.bankName} alwaysShow />
+        <Field label="Account holder" value={financial.accountHolderName} alwaysShow />
+        <Field label="Account number" value={financial.accountNumber} mono alwaysShow />
+        <Field label="Branch code" value={financial.branchCode} mono alwaysShow />
+        <Field label="Account type" value={financial.accountType} alwaysShow />
+        <Field label="Statement period end" value={financial.bankStatementAsOf} alwaysShow />
         <Field label="Income range" value={financial.incomeRange} />
         <Field label="Source of funds" value={financial.sourceOfFunds} />
       </Section>
@@ -130,7 +146,9 @@ function DocumentPreview({
     <div className="rounded-lg border border-slate-700 bg-slate-950/80 p-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <p className="text-sm font-medium text-white">{doc.documentType}</p>
+          <p className="text-sm font-medium text-white">
+            {doc.documentType.replaceAll("_", " ")}
+          </p>
           <p className="text-[11px] text-slate-500">
             {doc.status}
             {doc.submittedAt ? ` · ${new Date(doc.submittedAt).toLocaleString()}` : ""}
@@ -194,6 +212,7 @@ export function VerificationReviewPanel({
   busy,
   signedUrlPath,
   approveLabel = "Approve",
+  syncedBanking,
 }: {
   profile: ReviewProfile;
   note: string;
@@ -204,9 +223,18 @@ export function VerificationReviewPanel({
   busy?: boolean;
   signedUrlPath: string;
   approveLabel?: string;
+  /** Platform banking record used for EFT (shown in full for admins). */
+  syncedBanking?: {
+    bankName?: string | null;
+    accountNumber?: string | null;
+    accountType?: string | null;
+    branchCode?: string | null;
+    accountHolderName?: string | null;
+    verifiedAt?: string | null;
+  } | null;
 }) {
   return (
-    <div className="space-y-4 rounded-xl border border-slate-800 bg-slate-950/60 p-4">
+    <div className="storytime-plan-card space-y-4 p-4 md:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-lg font-semibold text-white">{profile.legalName || profile.user?.name || "Unnamed applicant"}</p>
@@ -261,6 +289,21 @@ export function VerificationReviewPanel({
       />
 
       <KycDataSections kyc={profile.kycData} />
+
+      {syncedBanking ? (
+        <Section title="Synced payout banking (platform record)">
+          <Field label="Bank" value={syncedBanking.bankName} alwaysShow />
+          <Field label="Account holder" value={syncedBanking.accountHolderName} alwaysShow />
+          <Field label="Account number" value={syncedBanking.accountNumber} mono alwaysShow />
+          <Field label="Branch code" value={syncedBanking.branchCode} mono alwaysShow />
+          <Field label="Account type" value={syncedBanking.accountType} alwaysShow />
+          <Field
+            label="Verified at"
+            value={syncedBanking.verifiedAt ? new Date(syncedBanking.verifiedAt).toLocaleString() : null}
+            alwaysShow
+          />
+        </Section>
+      ) : null}
 
       <div>
         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Uploaded documents</p>

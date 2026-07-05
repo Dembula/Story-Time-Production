@@ -6,7 +6,7 @@ import { validatePassword } from "@/lib/auth-utils";
 import { checkRateLimit } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
-  const rate = checkRateLimit({
+  const rate = await checkRateLimit({
     key: "reset-password-confirm",
     ip: request.headers.get("x-forwarded-for"),
     maxAttempts: 10,

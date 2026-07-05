@@ -131,8 +131,53 @@ export async function releaseEscrow(args: {
 }
 
 export async function markEscrowDisputed(escrowId: string) {
+  const escrow = await db.escrowAccount.findUnique({ where: { id: escrowId } });
+  if (!escrow) throw new Error("Escrow not found.");
+  if (escrow.status !== "HELD") return escrow;
+
   return db.escrowAccount.update({
     where: { id: escrowId },
     data: { status: "DISPUTED", disputedAt: new Date() },
+  });
+}
+
+/** Admin resolves dispute in buyer's favor — reverse vendor pending to buyer available. */
+export async function refundEscrowToBuyer(args: {
+  escrowId: string;
+  idempotencyKey: string;
+}) {
+  const escrow = await db.escrowAccount.findUnique({ where: { id: args.escrowId } });
+  if (!escrow) throw new Error("Escrow not found.");
+  if (escrow.status !== "DISPUTED" && escrow.status !== "HELD") return escrow;
+
+  const buyerWallet = await db.wallet.findUnique({ where: { id: escrow.buyerWalletId } });
+  const sellerWallet = await db.wallet.findUnique({ where: { id: escrow.sellerWalletId } });
+  if (!buyerWallet || !sellerWallet) throw new Error("Escrow wallets missing.");
+
+  await postBalancedLedgerBatch({
+    idempotencyKey: args.idempotencyKey,
+    referenceType: escrow.referenceType,
+    referenceId: escrow.referenceId,
+    entries: [
+      {
+        userId: sellerWallet.userId,
+        direction: "DEBIT",
+        accountType: "PENDING",
+        transactionType: "escrow_refund",
+        amount: escrow.amount,
+      },
+      {
+        userId: buyerWallet.userId,
+        direction: "CREDIT",
+        accountType: "AVAILABLE",
+        transactionType: "escrow_refund",
+        amount: escrow.amount,
+      },
+    ],
+  });
+
+  return db.escrowAccount.update({
+    where: { id: escrow.id },
+    data: { status: "REFUNDED", disputedAt: escrow.disputedAt ?? new Date() },
   });
 }

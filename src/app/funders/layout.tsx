@@ -11,6 +11,7 @@ import { mergeStakeholderNavSections } from "@/lib/stakeholder-ecosystem/portal-
 const businessNavItems = [
   { href: "/funders", label: "Dashboard", icon: LayoutDashboard },
   { href: "/funders/opportunities", label: "Opportunities", icon: Bell },
+  { href: "/funders/programs", label: "Funding programs", icon: Bell },
   { href: "/funders/analytics", label: "Market analytics", icon: WalletCards },
   { href: "/funders/deals", label: "Deals", icon: Handshake },
   { href: "/funders/portfolio", label: "Portfolio", icon: WalletCards },

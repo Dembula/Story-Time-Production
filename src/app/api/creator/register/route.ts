@@ -32,7 +32,7 @@ const ROLE_MAP: Record<string, string> = {
 };
 
 export async function POST(request: NextRequest) {
-  const rate = enforceSignupRateLimit(request);
+  const rate = await enforceSignupRateLimit(request);
   if (!rate.allowed) {
     return rateLimitedResponse(rate.retryAfterSeconds, "Too many registration attempts. Try again later.");
   }

@@ -5,11 +5,27 @@ import { LogOut } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { DashboardSidebarShell, type DashboardNavSection } from "@/components/layout/dashboard-sidebar-shell";
+import { DashboardSidebarShell } from "@/components/layout/dashboard-sidebar-shell";
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { CreatorPackageGate } from "@/components/creator/creator-package-gate";
 import { CreatorStudioActingLabel } from "@/components/creator/creator-studio-switcher";
 import { CREATOR_STUDIO_PROFILES_QUERY_KEY } from "@/lib/pricing";
+import { mergeStakeholderNavSections } from "@/lib/stakeholder-ecosystem/portal-nav";
+
+const businessNavItems = [
+  { href: "/music-creator/dashboard", label: "Dashboard" },
+  { href: "/music-creator/upload", label: "Upload" },
+  { href: "/music-creator/sync-requests", label: "Sync requests" },
+  { href: "/music-creator/scoring", label: "Scoring & placements" },
+  { href: "/music-creator/deals", label: "Deal pipeline" },
+  { href: "/music-creator/revenue", label: "Revenue" },
+  { href: "/music-creator/messages", label: "Messages" },
+  { href: "/music-creator/contracts", label: "Contracts" },
+  { href: "/music-creator/profile", label: "Composer profile" },
+  { href: "/music-creator/account", label: "Account" },
+  { href: "/music-creator/wallet", label: "Wallet" },
+  { href: "/music-creator/originals", label: "Originals", highlight: true },
+];
 
 export default function MusicCreatorLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -25,27 +41,16 @@ export default function MusicCreatorLayout({ children }: { children: React.React
 
   const showCompanyAdmin = Boolean(studioPayload?.companies?.length);
 
-  const navSections = useMemo((): DashboardNavSection[] => {
-    const items: Array<{ href: string; label: string; highlight?: boolean }> = [];
-
+  const navSections = useMemo(() => {
+    const items = [...businessNavItems];
     if (showCompanyAdmin) {
-      items.push({ href: "/creator/company/control", label: "Account control" });
-      items.push({ href: "/music-creator/company", label: "Company admin" });
+      items.unshift(
+        { href: "/creator/company/control", label: "Account control" },
+        { href: "/music-creator/company", label: "Company admin" },
+      );
     }
-
-    items.push(
-      { href: "/music-creator/dashboard", label: "Dashboard" },
-      { href: "/music-creator/upload", label: "Upload" },
-      { href: "/music-creator/sync-requests", label: "Sync Requests" },
-      { href: "/music-creator/revenue", label: "Revenue" },
-      { href: "/music-creator/messages", label: "Messages" },
-      { href: "/music-creator/account", label: "Account" },
-      { href: "/music-creator/wallet", label: "Wallet" },
-      { href: "/music-creator/originals", label: "Originals", highlight: true }
-    );
-
-    return [{ items }];
-  }, [role, showCompanyAdmin]);
+    return mergeStakeholderNavSections("music-creator", items);
+  }, [showCompanyAdmin]);
 
   const handleSignOut = async () => {
     await signOut({ redirect: false });

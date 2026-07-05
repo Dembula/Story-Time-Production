@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { assertFunderVerificationApproved } from "@/lib/funder-verification";
 import { isFunderRole, requireSessionUser } from "@/lib/funders";
+import { buildDealContractBody } from "@/lib/deal-contract-template";
 
 export async function GET() {
   const access = await requireSessionUser();
@@ -131,12 +132,18 @@ export async function POST(req: NextRequest) {
     if (!isFunderRole(access.role!) && access.userId !== existing.creatorUserId) {
       return NextResponse.json({ error: "Only participants can generate contracts." }, { status: 403 });
     }
+    const renderedBody =
+      body.contract?.body?.trim() ||
+      (await buildDealContractBody(existing.id, body.contract?.templateType ?? "INVESTMENT_AGREEMENT"));
+    if (!renderedBody) {
+      return NextResponse.json({ error: "Unable to generate contract from template" }, { status: 500 });
+    }
     const contract = await prisma.dealContract.create({
       data: {
         dealId: existing.id,
         templateType: body.contract?.templateType ?? "INVESTMENT_AGREEMENT",
         generatedById: access.userId,
-        body: body.contract?.body ?? "Template-generated contract terms placeholder.",
+        body: renderedBody,
         status: "SENT",
       },
     });

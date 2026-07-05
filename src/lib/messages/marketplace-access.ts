@@ -17,23 +17,17 @@ export async function assertMarketplaceMessagingAccess(args: {
     if (args.userId !== row.requesterId && args.userId !== row.companyId) {
       return { ok: false, error: "Forbidden", status: 403 };
     }
-    if (!row.paymentTransactionId) {
-      return { ok: false, error: "Pay to unlock messaging for this equipment request", status: 402 };
-    }
     return { ok: true };
   }
 
   if (args.locationBookingId) {
     const row = await prisma.locationBooking.findUnique({
       where: { id: args.locationBookingId },
-      select: { requesterId: true, ownerId: true, paymentTransactionId: true },
+      select: { requesterId: true, ownerId: true },
     });
     if (!row) return { ok: false, error: "Booking not found", status: 404 };
     if (args.userId !== row.requesterId && args.userId !== row.ownerId) {
       return { ok: false, error: "Forbidden", status: 403 };
-    }
-    if (!row.paymentTransactionId) {
-      return { ok: false, error: "Pay to unlock messaging for this location booking", status: 402 };
     }
     return { ok: true };
   }
@@ -47,9 +41,7 @@ export async function assertMarketplaceMessagingAccess(args: {
     if (args.userId !== row.creatorId && args.userId !== row.crewTeam.userId) {
       return { ok: false, error: "Forbidden", status: 403 };
     }
-    if (!row.paymentTransactionId) {
-      return { ok: false, error: "Pay to unlock messaging for this crew request", status: 402 };
-    }
+    // General crew inquiries are free — messaging unlocks on send.
     return { ok: true };
   }
 
@@ -62,9 +54,7 @@ export async function assertMarketplaceMessagingAccess(args: {
     if (args.userId !== row.creatorId && args.userId !== row.agency.userId) {
       return { ok: false, error: "Forbidden", status: 403 };
     }
-    if (!row.paymentTransactionId) {
-      return { ok: false, error: "Pay to unlock messaging for this casting inquiry", status: 402 };
-    }
+    // General casting inquiries are free — messaging unlocks on send.
     return { ok: true };
   }
 
@@ -76,9 +66,6 @@ export async function assertMarketplaceMessagingAccess(args: {
     if (!row) return { ok: false, error: "Booking not found", status: 404 };
     if (args.userId !== row.creatorId && args.userId !== row.cateringCompany.userId) {
       return { ok: false, error: "Forbidden", status: 403 };
-    }
-    if (!row.paymentTransactionId) {
-      return { ok: false, error: "Pay to unlock messaging for this catering booking", status: 402 };
     }
     return { ok: true };
   }

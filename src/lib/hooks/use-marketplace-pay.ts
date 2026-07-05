@@ -45,10 +45,14 @@ export function useMarketplacePay(options?: { onPaid?: (transactionId: string) =
   }, [searchParams, pollPaymentRecord, options]);
 
   const pay = useCallback(
-    async (payUrl: string) => {
+    async (payUrl: string, init?: { returnPath?: string }) => {
       setPaying(true);
       try {
-        const res = await fetch(payUrl, { method: "POST" });
+        const res = await fetch(payUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(init ?? {}),
+        });
         const data = (await res.json().catch(() => null)) as PayResponse | null;
         if (!res.ok) {
           throw new Error(data?.error || "Payment failed");

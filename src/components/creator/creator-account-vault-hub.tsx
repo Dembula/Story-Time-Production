@@ -8,6 +8,7 @@ import {
   type CreatorAccountVaultData,
   type VaultComplianceDocument,
 } from "@/lib/creator-account-vault-schema";
+import { SecureFileLink } from "@/components/files/secure-file-link";
 import {
   Activity,
   Building2,
@@ -172,11 +173,8 @@ function VaultMediaUpload({
       </div>
       <p className="mt-1.5 text-[11px] text-slate-500">{VAULT_UPLOAD_GUIDANCE}</p>
       {fileUrl ? (
-        <p className="mt-1.5 truncate text-xs text-slate-500" title={fileUrl}>
-          Stored URL:{" "}
-          <a href={fileUrl} target="_blank" rel="noreferrer" className="text-orange-300 hover:underline">
-            Open file
-          </a>
+        <p className="mt-1.5 truncate text-xs text-slate-500">
+          <SecureFileLink fileRef={fileUrl} label="Open file" className="text-orange-300 hover:underline" />
         </p>
       ) : (
         <p className="mt-1.5 text-xs text-slate-500">No file uploaded yet.</p>

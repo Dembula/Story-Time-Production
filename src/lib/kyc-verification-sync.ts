@@ -38,6 +38,14 @@ export function extractKycDocumentsFromPayload(kycData?: KycPayload | null): Kyc
     docs.push({ documentType: "PROOF_OF_ADDRESS", documentUrl: biz.proofOfAddressUrl });
   }
 
+  const fin = kycData.financialInfo;
+  if (isPrivateStorageRef(fin?.bankStatementUrl)) {
+    docs.push({ documentType: "BANK_STATEMENT", documentUrl: fin.bankStatementUrl });
+  }
+  if (isPrivateStorageRef(fin?.bankConfirmationLetterUrl)) {
+    docs.push({ documentType: "BANK_CONFIRMATION_LETTER", documentUrl: fin.bankConfirmationLetterUrl });
+  }
+
   return docs;
 }
 

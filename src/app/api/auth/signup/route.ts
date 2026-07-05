@@ -10,7 +10,7 @@ import { ensureUserRole } from "@/lib/user-roles";
  * Used by /auth/signup. Creates user with role SUBSCRIBER and hashed password.
  */
 export async function POST(request: NextRequest) {
-  const rate = enforceSignupRateLimit(request);
+  const rate = await enforceSignupRateLimit(request);
   if (!rate.allowed) {
     return rateLimitedResponse(rate.retryAfterSeconds, "Too many sign-up attempts. Try again later.");
   }

@@ -58,9 +58,14 @@ class PayFastGatewayAdapter implements PaymentGatewayAdapter {
   }
 
   async createCardConsentSession(payload: GatewayCardConsentRequest): Promise<GatewayCheckoutResponse> {
+    const paymentRecordId = payload.metadata?.paymentRecordId;
+    const pr =
+      typeof paymentRecordId === "string" && paymentRecordId.trim()
+        ? paymentRecordId.trim()
+        : `consent:${payload.reference}`;
     return {
       provider: PAYMENT_PROVIDER,
-      checkoutUrl: payfastCheckoutPageUrl(`consent:${payload.reference}`),
+      checkoutUrl: payfastCheckoutPageUrl(pr),
       externalRef: payload.reference,
       status: "PENDING",
     };

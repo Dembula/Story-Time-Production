@@ -43,9 +43,13 @@ export default function LocationListingsPage() {
     country: "",
     capacity: "",
     dailyRate: "",
+    hourlyRate: "",
     amenities: "" as string,
     photoUrls: "",
     rules: "",
+    permitRequirements: "",
+    logistics: "",
+    restrictions: "",
     availability: "",
     contactUrl: "",
   });
@@ -95,13 +99,19 @@ export default function LocationListingsPage() {
         dailyRate: form.dailyRate ? parseFloat(form.dailyRate) : null,
         amenities: form.amenities || null,
         photoUrls: form.photoUrls || null,
+        profile: {
+          hourlyRate: form.hourlyRate ? parseFloat(form.hourlyRate) : null,
+          permitRequirements: form.permitRequirements || null,
+          logistics: form.logistics || null,
+          restrictions: form.restrictions || form.rules || null,
+        },
       }),
     });
     const item = await res.json();
     if (res.ok) {
       setListings((prev) => [item, ...prev]);
       setShowForm(false);
-      setForm({ name: "", description: "", type: "Studio", address: "", city: "", province: "", country: "", capacity: "", dailyRate: "", amenities: "", photoUrls: "", rules: "", availability: "", contactUrl: "" });
+      setForm({ name: "", description: "", type: "Studio", address: "", city: "", province: "", country: "", capacity: "", dailyRate: "", hourlyRate: "", amenities: "", photoUrls: "", rules: "", permitRequirements: "", logistics: "", restrictions: "", availability: "", contactUrl: "" });
     } else {
       setSaveError(item?.error || "Failed to save property");
     }
@@ -156,9 +166,10 @@ export default function LocationListingsPage() {
             <div><label className="block text-xs text-slate-400 mb-1">Province / State</label><input value={form.province} onChange={(e) => setForm({ ...form, province: e.target.value })} className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" /></div>
             <div><label className="block text-xs text-slate-400 mb-1">Country</label><input value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value })} className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" /></div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             <div><label className="block text-xs text-slate-400 mb-1">Max capacity (people)</label><input type="number" min={1} value={form.capacity} onChange={(e) => setForm({ ...form, capacity: e.target.value })} className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" /></div>
-            <div><label className="block text-xs text-slate-400 mb-1">Daily rate ($)</label><input type="number" min={0} step={0.01} value={form.dailyRate} onChange={(e) => setForm({ ...form, dailyRate: e.target.value })} className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" /></div>
+            <div><label className="block text-xs text-slate-400 mb-1">Hourly rate (ZAR)</label><input type="number" min={0} step={50} value={form.hourlyRate} onChange={(e) => setForm({ ...form, hourlyRate: e.target.value })} className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" /></div>
+            <div><label className="block text-xs text-slate-400 mb-1">Daily rate (ZAR)</label><input type="number" min={0} step={50} value={form.dailyRate} onChange={(e) => setForm({ ...form, dailyRate: e.target.value })} className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" /></div>
           </div>
           <div>
             <label className="block text-xs text-slate-400 mb-2">Amenities</label>
@@ -179,6 +190,9 @@ export default function LocationListingsPage() {
             </div>
             <textarea value={form.photoUrls} onChange={(e) => setForm({ ...form, photoUrls: e.target.value })} rows={2} placeholder="Optional: one image URL per line (e.g. legacy hosting)" className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" />
           </div>
+          <div><label className="block text-xs text-slate-400 mb-1">Permit requirements</label><input value={form.permitRequirements} onChange={(e) => setForm({ ...form, permitRequirements: e.target.value })} placeholder="e.g. City film permit required — we can assist" className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" /></div>
+          <div><label className="block text-xs text-slate-400 mb-1">Logistics & access</label><textarea value={form.logistics} onChange={(e) => setForm({ ...form, logistics: e.target.value })} rows={2} placeholder="Parking, load-in, power, nearest hospital..." className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" /></div>
+          <div><label className="block text-xs text-slate-400 mb-1">Restrictions</label><textarea value={form.restrictions} onChange={(e) => setForm({ ...form, restrictions: e.target.value })} rows={2} placeholder="Noise limits, no open flames, crew max..." className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" /></div>
           <div><label className="block text-xs text-slate-400 mb-1">House rules</label><textarea value={form.rules} onChange={(e) => setForm({ ...form, rules: e.target.value })} rows={2} placeholder="No smoking, quiet after 10pm..." className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" /></div>
           <div><label className="block text-xs text-slate-400 mb-1">Availability notes</label><input value={form.availability} onChange={(e) => setForm({ ...form, availability: e.target.value })} placeholder="e.g. Weekdays only, book 2 weeks ahead" className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" /></div>
           <div><label className="block text-xs text-slate-400 mb-1">Contact / website URL</label><input value={form.contactUrl} onChange={(e) => setForm({ ...form, contactUrl: e.target.value })} placeholder="https://..." className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white text-sm" /></div>

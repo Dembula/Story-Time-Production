@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Printer, RefreshCw, Share2, Smartphone } from "lucide-react";
+import { ArrowLeft, Download, Printer, Share2, Smartphone, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -409,9 +409,11 @@ export function CallSheetGenerator({ projectId, title }: { projectId?: string; t
   const { deviceClass, orientation } = useAdaptiveUi();
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
-  const view = searchParams.get("view") || "";
+  const viewParam = searchParams.get("view") || "";
   const urlDayId = searchParams.get("dayId") || "";
   const urlSheetId = searchParams.get("sheetId") || "";
+  /** share/mobile are crew-facing read-only modes; other view values are ignored. */
+  const isShareMode = viewParam === "share" || viewParam === "mobile";
 
   const hasProject = !!projectId;
   const { data: schedule } = useQuery({
@@ -447,23 +449,94 @@ export function CallSheetGenerator({ projectId, title }: { projectId?: string; t
   }[];
 
   const [selectedDayId, setSelectedDayId] = useState("");
+  /** Local snapshot selection — does not lock the URL, so day/version can change freely. */
+  const [viewingSheetId, setViewingSheetId] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
   const [sheetTitle, setSheetTitle] = useState("");
   const [toast, setToast] = useState<string | null>(null);
   const [callSheetsViewOpen, setCallSheetsViewOpen] = useState(false);
 
+  const activeSheetId = isShareMode ? urlSheetId : viewingSheetId;
   const selectedDay = shootDays.find((d) => d.id === selectedDayId);
+  const activeSheetMeta = callSheets.find((c) => c.id === activeSheetId) ?? null;
 
-  const appliedUrl = useRef(false);
+  const editorBasePath = projectId
+    ? `/creator/projects/${projectId}/production/call-sheet-generator`
+    : "";
+
+  const replaceEditorUrl = useCallback(
+    (opts?: { dayId?: string | null; sheetId?: string | null; view?: string | null }) => {
+      if (!editorBasePath) return;
+      const params = new URLSearchParams();
+      const dayId = opts?.dayId;
+      const sheetId = opts?.sheetId;
+      const view = opts?.view;
+      if (dayId) params.set("dayId", dayId);
+      if (sheetId) params.set("sheetId", sheetId);
+      if (view === "share" || view === "mobile") params.set("view", view);
+      const qs = params.toString();
+      router.replace(qs ? `${editorBasePath}?${qs}` : editorBasePath, { scroll: false });
+    },
+    [editorBasePath, router],
+  );
+
+  const exitToLiveEditor = useCallback(
+    (dayId?: string | null) => {
+      const nextDay = dayId ?? selectedDayId ?? urlDayId ?? "";
+      setViewingSheetId(null);
+      if (nextDay) setSelectedDayId(nextDay);
+      replaceEditorUrl({ dayId: nextDay || null });
+    },
+    [replaceEditorUrl, selectedDayId, urlDayId],
+  );
+
+  const openSnapshot = useCallback(
+    (sheetId: string) => {
+      const sheet = callSheets.find((c) => c.id === sheetId);
+      if (sheet?.shootDayId) {
+        setSelectedDayId(sheet.shootDayId);
+        const d = shootDays.find((x) => x.id === sheet.shootDayId);
+        if (d) setSheetTitle(`Call sheet – ${new Date(d.date).toLocaleDateString()}`);
+      }
+      setViewingSheetId(sheetId);
+      setCallSheetsViewOpen(false);
+      // Stay in the editor (no share/mobile lock).
+      replaceEditorUrl({ dayId: sheet?.shootDayId ?? selectedDayId ?? null });
+    },
+    [callSheets, shootDays, replaceEditorUrl, selectedDayId],
+  );
+
+  // Hydrate day + optional snapshot from URL once shoot days load.
+  const appliedUrl = useRef<string | null>(null);
   useEffect(() => {
-    if (appliedUrl.current || shootDays.length === 0) return;
-    if (urlDayId && shootDays.some((d) => d.id === urlDayId)) {
-      setSelectedDayId(urlDayId);
-      const d = shootDays.find((x) => x.id === urlDayId);
+    if (shootDays.length === 0) return;
+    const key = `${urlDayId}|${urlSheetId}|${viewParam}`;
+    if (appliedUrl.current === key) return;
+    appliedUrl.current = key;
+
+    const dayFromSheet = urlSheetId
+      ? callSheets.find((c) => c.id === urlSheetId)?.shootDayId
+      : null;
+    const dayId =
+      (urlDayId && shootDays.some((d) => d.id === urlDayId) && urlDayId) ||
+      (dayFromSheet && shootDays.some((d) => d.id === dayFromSheet) && dayFromSheet) ||
+      "";
+
+    if (dayId) {
+      setSelectedDayId(dayId);
+      const d = shootDays.find((x) => x.id === dayId);
       if (d) setSheetTitle(`Call sheet – ${new Date(d.date).toLocaleDateString()}`);
-      appliedUrl.current = true;
     }
-  }, [shootDays, urlDayId]);
+
+    if (urlSheetId && isShareMode) {
+      // Crew-facing share/mobile: URL is source of truth; don't use local snapshot state.
+      setViewingSheetId(null);
+    } else if (urlSheetId && !isShareMode) {
+      // Editor opened a snapshot via URL — move it into local state and unlock the URL.
+      setViewingSheetId(urlSheetId);
+      replaceEditorUrl({ dayId: dayId || null });
+    }
+  }, [shootDays, callSheets, urlDayId, urlSheetId, viewParam, isShareMode, replaceEditorUrl]);
 
   const { data: previewPayload, isFetching: previewBusy } = useQuery({
     queryKey: ["call-sheet-preview", projectId, selectedDayId],
@@ -472,19 +545,19 @@ export function CallSheetGenerator({ projectId, title }: { projectId?: string; t
         if (!r.ok) throw new Error("Preview failed");
         return r.json();
       }),
-    enabled: hasProject && !!selectedDayId && !urlSheetId,
+    enabled: hasProject && !!selectedDayId && !activeSheetId,
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
   });
 
   const { data: savedSheetPayload } = useQuery({
-    queryKey: ["call-sheet-one", projectId, urlSheetId],
+    queryKey: ["call-sheet-one", projectId, activeSheetId],
     queryFn: () =>
-      fetch(`/api/creator/projects/${projectId}/call-sheets?sheetId=${encodeURIComponent(urlSheetId)}`).then((r) => {
+      fetch(`/api/creator/projects/${projectId}/call-sheets?sheetId=${encodeURIComponent(activeSheetId!)}`).then((r) => {
         if (!r.ok) throw new Error("Not found");
         return r.json();
       }),
-    enabled: hasProject && !!urlSheetId,
+    enabled: hasProject && !!activeSheetId,
   });
 
   const preview = previewPayload?.preview as Parameters<typeof viewModelFromLivePreview>[0] | undefined;
@@ -495,8 +568,10 @@ export function CallSheetGenerator({ projectId, title }: { projectId?: string; t
     return viewModelFromSaved(p);
   }, [savedSheetPayload]);
 
-  const displayVm = urlSheetId ? savedVm : liveVm;
-  const displayNotes = urlSheetId ? String(savedSheetPayload?.callSheet?.notes ?? "") : notes;
+  const displayVm = activeSheetId ? savedVm : liveVm;
+  const displayNotes = activeSheetId
+    ? String(savedSheetPayload?.callSheet?.notes ?? activeSheetMeta?.notes ?? "")
+    : notes;
 
   const previewConflicts = (previewPayload?.conflicts ?? []) as { type: string; severity: string; message: string }[];
 
@@ -534,8 +609,44 @@ export function CallSheetGenerator({ projectId, title }: { projectId?: string; t
     window.print();
   }, []);
 
-  const readOnlyShare = view === "share" || view === "mobile";
-  const mobileLayout = view === "mobile" || deviceClass === "mobile";
+  const [pdfDownloading, setPdfDownloading] = useState(false);
+
+  const handleDownloadPdf = useCallback(async () => {
+    if (!projectId || (!selectedDayId && !activeSheetId)) return;
+    setPdfDownloading(true);
+    setToast(null);
+    try {
+      const params = new URLSearchParams();
+      if (activeSheetId) params.set("sheetId", activeSheetId);
+      else params.set("shootDayId", selectedDayId);
+      if (!activeSheetId && notes.trim()) params.set("notes", notes.trim());
+      const res = await fetch(
+        `/api/creator/projects/${projectId}/call-sheets/pdf?${params.toString()}`,
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { error?: string }).error || "Could not download PDF");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const disposition = res.headers.get("Content-Disposition") ?? "";
+      const match = disposition.match(/filename="([^"]+)"/);
+      a.href = url;
+      a.download = match?.[1] ?? "call-sheet.pdf";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setToast(e instanceof Error ? e.message : "PDF download failed");
+    } finally {
+      setPdfDownloading(false);
+    }
+  }, [projectId, selectedDayId, activeSheetId, notes]);
+
+  const readOnlyShare = isShareMode;
+  const mobileLayout = viewParam === "mobile" || deviceClass === "mobile";
   const compactShell = deviceClass === "mobile" || (deviceClass === "tablet" && orientation === "portrait");
 
   if (!hasProject) {
@@ -550,7 +661,7 @@ export function CallSheetGenerator({ projectId, title }: { projectId?: string; t
             <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
             <p className="text-sm text-slate-400 mt-1 max-w-2xl">
               Auto-builds from scheduling, script breakdown, casting, crew, locations, equipment, production tasks, signed
-              contracts, and risk items. Save a dated snapshot (versioned per shoot day) for PDF / print and crew links.
+              contracts, and risk items. Save a dated snapshot (versioned per shoot day), download a real PDF, or print.
             </p>
           </div>
           <ToolViewButton
@@ -577,12 +688,7 @@ export function CallSheetGenerator({ projectId, title }: { projectId?: string; t
             shootDayDate: c.shootDay?.date,
             notes: c.notes,
           }))}
-          onOpen={(sheetId) => {
-            setCallSheetsViewOpen(false);
-            if (projectId) {
-              router.push(`/creator/projects/${projectId}/production/call-sheet-generator?view=1&sheetId=${sheetId}`);
-            }
-          }}
+          onOpen={openSnapshot}
         />
       </ToolSavedViewSheet>
 
@@ -608,9 +714,12 @@ export function CallSheetGenerator({ projectId, title }: { projectId?: string; t
                 <select
                   value={selectedDayId}
                   onChange={(e) => {
-                    setSelectedDayId(e.target.value);
-                    const d = shootDays.find((x) => x.id === e.target.value);
+                    const nextDay = e.target.value;
+                    setSelectedDayId(nextDay);
+                    setViewingSheetId(null);
+                    const d = shootDays.find((x) => x.id === nextDay);
                     if (d) setSheetTitle(`Call sheet – ${new Date(d.date).toLocaleDateString()}`);
+                    replaceEditorUrl({ dayId: nextDay || null });
                   }}
                   className="w-full rounded-md bg-slate-900 border border-slate-700 px-3 py-2 text-sm text-white"
                 >
@@ -634,7 +743,28 @@ export function CallSheetGenerator({ projectId, title }: { projectId?: string; t
                   </div>
                 )}
 
-                {previewConflicts.length > 0 && (
+                {activeSheetId && activeSheetMeta && (
+                  <div className="rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-50 flex flex-wrap items-center justify-between gap-2">
+                    <span>
+                      Viewing saved snapshot{" "}
+                      <strong>v{activeSheetMeta.version}</strong>
+                      {activeSheetMeta.title ? ` · ${activeSheetMeta.title}` : ""}
+                      {" — "}live schedule changes are not shown.
+                    </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 border-cyan-400/40 text-cyan-100"
+                      onClick={() => exitToLiveEditor(selectedDayId || activeSheetMeta.shootDayId)}
+                    >
+                      <X className="w-3 h-3 mr-1" />
+                      Back to live preview
+                    </Button>
+                  </div>
+                )}
+
+                {previewConflicts.length > 0 && !activeSheetId && (
                   <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-3 text-[11px]">
                     <p className="text-red-200 font-medium mb-1">Conflicts detected</p>
                     <ul className="space-y-0.5 text-red-100/90">
@@ -675,18 +805,31 @@ export function CallSheetGenerator({ projectId, title }: { projectId?: string; t
                   >
                     {createMutation.isPending ? "Saving…" : "Save snapshot (new version)"}
                   </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-slate-600"
+                    disabled={!displayVm || pdfDownloading || (!selectedDayId && !activeSheetId)}
+                    onClick={() => void handleDownloadPdf()}
+                  >
+                    <Download className="w-3.5 h-3.5 mr-1.5 inline" />
+                    {pdfDownloading ? "Preparing PDF…" : "Download PDF"}
+                  </Button>
                   <Button size="sm" variant="outline" className="border-slate-600" disabled={!displayVm} onClick={handlePrint}>
                     <Printer className="w-3.5 h-3.5 mr-1.5 inline" />
-                    PDF / print
+                    Print
                   </Button>
                 </div>
-                {liveVm?.shareablePath && selectedDayId && (
+                {selectedDayId && (
                   <div className="flex flex-wrap gap-3 text-[11px] pt-1">
-                    <Link href={`${liveVm.shareablePath}`} className="text-orange-400 hover:text-orange-300 inline-flex items-center gap-1">
+                    <Link
+                      href={`${editorBasePath}?dayId=${selectedDayId}${activeSheetId ? `&sheetId=${activeSheetId}` : ""}&view=share`}
+                      className="text-orange-400 hover:text-orange-300 inline-flex items-center gap-1"
+                    >
                       <Share2 className="w-3 h-3" /> Share view
                     </Link>
                     <Link
-                      href={liveVm.mobilePath || liveVm.shareablePath}
+                      href={`${editorBasePath}?dayId=${selectedDayId}${activeSheetId ? `&sheetId=${activeSheetId}` : ""}&view=mobile`}
                       className="text-slate-300 hover:text-white inline-flex items-center gap-1"
                     >
                       <Smartphone className="w-3 h-3" /> Mobile view
@@ -702,12 +845,34 @@ export function CallSheetGenerator({ projectId, title }: { projectId?: string; t
           )}
 
           {readOnlyShare && (
-            <div className="flex flex-wrap gap-2 print:hidden">
+            <div className="flex flex-wrap items-center gap-2 print:hidden rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2">
+              <Button
+                type="button"
+                size="sm"
+                className="bg-orange-500 hover:bg-orange-600"
+                onClick={() => exitToLiveEditor(urlDayId || selectedDayId || activeSheetMeta?.shootDayId)}
+              >
+                <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
+                Exit {viewParam === "mobile" ? "mobile" : "share"} view
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-slate-600"
+                disabled={pdfDownloading}
+                onClick={() => void handleDownloadPdf()}
+              >
+                <Download className="w-3.5 h-3.5 mr-1.5 inline" />
+                {pdfDownloading ? "Preparing PDF…" : "Download PDF"}
+              </Button>
               <Button size="sm" variant="outline" className="border-slate-600" onClick={handlePrint}>
                 <Printer className="w-3.5 h-3.5 mr-1.5 inline" />
-                Print / PDF
+                Print
               </Button>
-              <Link href={`/creator/projects/${projectId}/pre-production/production-scheduling`} className="text-xs text-orange-400 self-center">
+              <Link
+                href={`/creator/projects/${projectId}/pre-production/production-scheduling`}
+                className="text-xs text-orange-400 self-center"
+              >
                 Edit schedule →
               </Link>
             </div>
@@ -715,16 +880,20 @@ export function CallSheetGenerator({ projectId, title }: { projectId?: string; t
 
           <div
             className={`rounded-2xl border border-slate-700 bg-slate-950/40 overflow-hidden print:border-0 print:shadow-none print:bg-white ${
-              previewBusy && !urlSheetId ? "opacity-70" : ""
+              previewBusy && !activeSheetId ? "opacity-70" : ""
             }`}
           >
             {!displayVm ? (
               <p className="p-6 text-sm text-slate-500 print:text-slate-600">
-                {urlSheetId ? "Loading call sheet…" : selectedDayId ? "Building preview…" : "Select a shoot day to generate the call sheet."}
+                {activeSheetId
+                  ? "Loading call sheet…"
+                  : selectedDayId
+                    ? "Building preview…"
+                    : "Select a shoot day to generate the call sheet."}
               </p>
             ) : (
               <>
-                {!urlSheetId && displayVm.schedule.length === 0 && (
+                {!activeSheetId && displayVm.schedule.length === 0 && (
                   <div className="mx-4 mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100 print:hidden">
                     No scenes are linked to this shoot day yet. Open{" "}
                     <Link
@@ -749,17 +918,24 @@ export function CallSheetGenerator({ projectId, title }: { projectId?: string; t
               <p className="text-sm text-slate-500 p-3 rounded-xl bg-slate-900/60">None yet. Pick a day and save a snapshot.</p>
             ) : (
               <ul className="space-y-2 max-h-[70vh] overflow-y-auto pr-1">
-                {callSheets.slice(0, 24).map((c) => (
+                {callSheets.slice(0, 24).map((c) => {
+                  const isActive = activeSheetId === c.id;
+                  return (
                   <li
                     key={c.id}
                     className={`rounded-xl bg-slate-900/80 border px-3 py-2 text-sm ${
-                      c.stale ? "border-amber-500/40" : "border-slate-800"
+                      isActive
+                        ? "border-cyan-500/50 ring-1 ring-cyan-500/20"
+                        : c.stale
+                          ? "border-amber-500/40"
+                          : "border-slate-800"
                     }`}
                   >
                     <p className="text-white font-medium truncate">{c.title || "Call sheet"}</p>
                     <p className="text-[11px] text-slate-500">
                       v{c.version} · {c.shootDay?.date ? new Date(c.shootDay.date).toLocaleDateString() : ""} ·{" "}
                       {new Date(c.createdAt).toLocaleString()}
+                      {isActive ? " · viewing" : ""}
                     </p>
                     {c.stale && (
                       <p className="mt-1 text-[11px] text-amber-400">
@@ -779,21 +955,39 @@ export function CallSheetGenerator({ projectId, title }: { projectId?: string; t
                         </button>
                       </p>
                     )}
-                    {c.formats && (
-                      <div className="mt-1.5 flex flex-wrap gap-2 text-[11px]">
-                        <Link href={c.formats.shareablePath} className="text-orange-400 hover:text-orange-300">
-                          Share
-                        </Link>
-                        <Link href={c.formats.mobilePath} className="text-slate-300 hover:text-white">
-                          Mobile
-                        </Link>
-                        <Link href={`?dayId=${c.shootDayId}&sheetId=${c.id}`} className="text-cyan-400 hover:text-cyan-300">
-                          Open
-                        </Link>
-                      </div>
-                    )}
+                    <div className="mt-1.5 flex flex-wrap gap-2 text-[11px]">
+                      <button
+                        type="button"
+                        onClick={() => openSnapshot(c.id)}
+                        className={isActive ? "text-cyan-200" : "text-cyan-400 hover:text-cyan-300"}
+                      >
+                        {isActive ? "Viewing" : "Open"}
+                      </button>
+                      {isActive ? (
+                        <button
+                          type="button"
+                          onClick={() => exitToLiveEditor(c.shootDayId)}
+                          className="text-slate-300 hover:text-white"
+                        >
+                          Close
+                        </button>
+                      ) : null}
+                      <Link
+                        href={`${editorBasePath}?dayId=${c.shootDayId}&sheetId=${c.id}&view=share`}
+                        className="text-orange-400 hover:text-orange-300"
+                      >
+                        Share
+                      </Link>
+                      <Link
+                        href={`${editorBasePath}?dayId=${c.shootDayId}&sheetId=${c.id}&view=mobile`}
+                        className="text-slate-300 hover:text-white"
+                      >
+                        Mobile
+                      </Link>
+                    </div>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             )}
           </aside>

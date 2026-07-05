@@ -7,7 +7,7 @@ import { hashPassword, validateEmail, validatePassword } from "@/lib/auth-utils"
  * Public: request admin portal access. Creates a pending application reviewed in /admin/requests.
  */
 export async function POST(request: NextRequest) {
-  const rate = checkRateLimit({
+  const rate = await checkRateLimit({
     key: "admin-access-request",
     ip: request.headers.get("x-forwarded-for") ?? request.headers.get("x-real-ip") ?? "unknown",
     maxAttempts: 5,
