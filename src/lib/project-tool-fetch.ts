@@ -53,7 +53,7 @@ export async function projectToolFetch<T = Record<string, unknown>>(
 }
 
 /** Matches legacy fetch().then(r => r.json()) typing for React Query loaders. */
-// eslint-disable-next-line
+// eslint-disable-next-line -- legacy JSON loaders; callers supply concrete shapes per tool
 export function projectToolQueryFn<T = any>(url: string): () => Promise<T> {
   return () => projectToolFetch<T>(url);
 }

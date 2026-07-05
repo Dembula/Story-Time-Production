@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import type { Prisma } from "@/generated/prisma";
+import type { Prisma } from "@/lib/prisma-types";
 
 export type StakeholderSyncEventType = "SCHEDULE_CHANGED" | "BOOKING_UPDATED" | "CONTRACT_SENT";
 

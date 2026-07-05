@@ -10,3 +10,4 @@ prisma/dev.db-journal
 .env*.local
 tsconfig.tsbuildinfo
 generated/prisma/*.tmp*
+src/generated/

@@ -1,3 +1,5 @@
+import "server-only";
+
 import { prisma } from "@/lib/prisma";
 import type { ModocLearningProfile } from "@/lib/modoc/learning";
 import { resolveViewerProfileContext } from "@/lib/modoc/viewer-profile-resolver";

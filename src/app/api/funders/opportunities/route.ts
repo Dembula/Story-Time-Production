@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { canCreateListings, requireSessionUser } from "@/lib/funders";
 import { FUNDING_MARKET_CATEGORIES } from "@/lib/funder-markets";
 import { buildPublicOpportunityView } from "@/lib/funding-listing-privacy";
-import type { Prisma } from "@/generated/prisma";
+import type { Prisma } from "@/lib/prisma-types";
 export async function GET(req: NextRequest) {
   const access = await requireSessionUser();
   if (access.error) return access.error;

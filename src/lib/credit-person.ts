@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@/generated/prisma";
+import { Prisma } from "@/lib/prisma-types";
 import { getFollowerCount, getFollowingCount } from "@/lib/network-db";
 import { normalizeCreditName, type PersonPreview } from "@/lib/credit-person-types";
 import { ensureCreditPersonBlurb } from "@/lib/credit-person-blurb";

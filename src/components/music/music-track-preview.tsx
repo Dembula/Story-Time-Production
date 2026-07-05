@@ -188,7 +188,11 @@ export function MusicTrackPreview({
       {variant === "compact" ? (
         <div className="flex flex-col items-center gap-1">
           {playButton}
-          {error ? <AlertCircle className="h-3 w-3 text-red-400" title={error} /> : null}
+          {error ? (
+            <span title={error} className="inline-flex">
+              <AlertCircle className="h-3 w-3 text-red-400" aria-hidden />
+            </span>
+          ) : null}
         </div>
       ) : (
         <div className={`storytime-plan-card rounded-xl border border-white/10 bg-slate-900/50 p-3 ${className}`}>

@@ -1,3 +1,5 @@
+import "server-only";
+
 import { prisma } from "@/lib/prisma";
 import { resolveDefaultProjectBudget } from "@/lib/project-budget-access";
 import type { ModocActionType } from "@/lib/modoc/action-types";

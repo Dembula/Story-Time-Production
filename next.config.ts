@@ -34,7 +34,13 @@ const cloudflareCustomerPattern = parseRemotePattern(process.env.CLOUDFLARE_STRE
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   serverExternalPackages: ["pdf-parse", "pdfjs-dist", "jszip", "mammoth"],
-  webpack: (config, { dev }) => {
+  webpack: (config, { dev, isServer }) => {
+    if (isServer) {
+      config.externals = [
+        ...(Array.isArray(config.externals) ? config.externals : []),
+        "pdfjs-dist/legacy/build/pdf.worker.mjs",
+      ];
+    }
     if (dev) {
       config.output = config.output ?? {};
       config.output.chunkLoadTimeout = 300_000;

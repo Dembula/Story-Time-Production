@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import type { Prisma } from "@/generated/prisma";
+import type { Prisma } from "@/lib/prisma-types";
 import { notifyUser } from "@/lib/notify-user";
 import { contractNotificationLink, contractProjectLink } from "@/lib/contract-notification";
 import { assertApprovalsComplete } from "@/lib/legal/contract-approval-service";

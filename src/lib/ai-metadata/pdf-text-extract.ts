@@ -1,18 +1,25 @@
 import "server-only";
 
-import { createRequire } from "node:module";
+import { existsSync } from "node:fs";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { extractPdfTextFromContentStreams } from "@/lib/ai-metadata/pdf-stream-text-extract";
 import {
   normalizeImportedScreenplayLayout,
   scoreScreenplayLayout,
 } from "@/lib/script-studio/screenplay-layout-repair";
 
-const require = createRequire(import.meta.url);
-
-export type PdfExtractionResult = {
-  text: string | null;
-  method: string | null;
-};
+function resolvePdfjsWorkerHref(): string | null {
+  const workerPath = path.join(
+    process.cwd(),
+    "node_modules",
+    "pdfjs-dist",
+    "legacy",
+    "build",
+    "pdf.worker.mjs",
+  );
+  return existsSync(workerPath) ? pathToFileURL(workerPath).href : null;
+}
 
 type PdfTextItem = {
   str?: string;
@@ -20,6 +27,11 @@ type PdfTextItem = {
   width?: number;
   height?: number;
   transform?: number[];
+};
+
+export type PdfExtractionResult = {
+  text: string | null;
+  method: string | null;
 };
 
 function letterCount(text: string): number {
@@ -111,8 +123,10 @@ async function ensurePdfParseWorker(): Promise<void> {
   if (pdfParseWorkerReady) return;
   try {
     const { PDFParse } = await import("pdf-parse");
-    const workerPath = require.resolve("pdfjs-dist/legacy/build/pdf.worker.mjs");
-    PDFParse.setWorker(workerPath);
+    const workerHref = resolvePdfjsWorkerHref();
+    if (workerHref) {
+      PDFParse.setWorker(workerHref);
+    }
     pdfParseWorkerReady = true;
   } catch (err) {
     console.warn("Could not configure pdf-parse worker:", err);
@@ -138,6 +152,10 @@ async function extractWithPdfParse(buffer: Buffer, disableNormalization = false)
 
 async function extractWithPdfJs(buffer: Buffer): Promise<string> {
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const workerHref = resolvePdfjsWorkerHref();
+  if (workerHref && pdfjs.GlobalWorkerOptions) {
+    pdfjs.GlobalWorkerOptions.workerSrc = workerHref;
+  }
   const doc = await pdfjs
     .getDocument({
       data: new Uint8Array(buffer),
