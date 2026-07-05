@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Document is too large to export" }, { status: 400 });
   }
 
-  const pdf = contractDocumentToPdfBuffer({
+  const pdf = await contractDocumentToPdfBuffer({
     title,
     terms,
     status: body?.status,

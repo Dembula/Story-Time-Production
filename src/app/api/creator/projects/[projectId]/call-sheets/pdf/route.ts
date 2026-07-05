@@ -62,7 +62,7 @@ export async function GET(
         mealBreakNotes: null,
       }) as Parameters<typeof buildCallSheetPdf>[0]["timing"];
 
-      const pdf = buildCallSheetPdf({
+      const pdf = await buildCallSheetPdf({
         header,
         timing,
         weather: (meta.weather as string) ?? null,
@@ -92,7 +92,7 @@ export async function GET(
       return NextResponse.json({ error: "Shoot day not found" }, { status: 404 });
     }
 
-    const pdf = buildCallSheetPdf({
+    const pdf = await buildCallSheetPdf({
       header: payload.header,
       timing: payload.timing,
       weather: payload.meta.weather,

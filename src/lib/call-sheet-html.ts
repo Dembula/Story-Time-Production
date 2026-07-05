@@ -28,14 +28,15 @@ const CALL_SHEET_CSS = `
 .call-sheet {
   max-width: 8.5in;
   margin: 0 auto;
-  padding: 0.5in;
+  padding: 0.5in 0.65in;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   font-size: 12px;
   line-height: 1.35;
   color: #0f172a;
   background: #fff;
+  box-sizing: border-box;
 }
-.call-sheet h1 { font-size: 1.35rem; margin: 0.25rem 0; }
+.call-sheet h1 { font-size: 1.35rem; margin: 0.25rem 0; font-weight: 700; }
 .call-sheet h2 {
   font-size: 10px;
   font-weight: 700;
@@ -46,15 +47,32 @@ const CALL_SHEET_CSS = `
   margin: 1.25rem 0 0.5rem;
   padding-bottom: 0.25rem;
 }
-.call-sheet table { width: 100%; border-collapse: collapse; font-size: 11px; }
-.call-sheet th, .call-sheet td { padding: 0.35rem 0.4rem; border-bottom: 1px solid #e2e8f0; vertical-align: top; text-align: left; }
+.call-sheet table { width: 100%; border-collapse: collapse; font-size: 11px; table-layout: fixed; }
+.call-sheet th, .call-sheet td {
+  padding: 0.35rem 0.4rem;
+  border-bottom: 1px solid #e2e8f0;
+  vertical-align: top;
+  text-align: left;
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+}
 .call-sheet th { font-weight: 600; }
+.call-sheet th:nth-child(1), .call-sheet td:nth-child(1) { width: 4%; }
+.call-sheet th:nth-child(2), .call-sheet td:nth-child(2) { width: 18%; }
+.call-sheet th:nth-child(3), .call-sheet td:nth-child(3) { width: 14%; }
+.call-sheet th:nth-child(4), .call-sheet td:nth-child(4) { width: 14%; }
+.call-sheet th:nth-child(5), .call-sheet td:nth-child(5) { width: 38%; }
+.call-sheet th:nth-child(6), .call-sheet td:nth-child(6) { width: 8%; text-align: right; }
+.call-sheet .cast-crew table th:nth-child(1), .call-sheet .cast-crew table td:nth-child(1) { width: 28%; }
+.call-sheet .cast-crew table th:nth-child(2), .call-sheet .cast-crew table td:nth-child(2) { width: 28%; }
+.call-sheet .cast-crew table th:nth-child(3), .call-sheet .cast-crew table td:nth-child(3) { width: 18%; }
+.call-sheet .cast-crew table th:nth-child(4), .call-sheet .cast-crew table td:nth-child(4) { width: 26%; }
 .call-sheet .kicker { font-size: 10px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: #64748b; }
 .call-sheet .header-meta { display: flex; flex-wrap: wrap; gap: 1rem 1.5rem; margin-top: 0.75rem; }
 .call-sheet .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
 .call-sheet footer { margin-top: 1.5rem; padding-top: 0.75rem; border-top: 1px solid #e2e8f0; font-size: 10px; color: #64748b; }
 @media print {
-  .call-sheet { padding: 0.4in; }
+  .call-sheet { padding: 0.4in 0.5in; }
 }
 `;
 
@@ -184,7 +202,7 @@ export function buildCallSheetDocumentHtml(input: CallSheetPdfInput & { sheetNot
     </table>
   </section>
 
-  <div class="grid-2">
+  <div class="grid-2 cast-crew">
     <section>
       <h2>Cast</h2>
       <table><thead><tr><th>Talent</th><th>Role</th><th>Call</th><th>Scenes</th></tr></thead><tbody>${castRows}</tbody></table>

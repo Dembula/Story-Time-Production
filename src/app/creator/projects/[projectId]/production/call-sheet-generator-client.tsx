@@ -13,7 +13,7 @@ import { useModocOptional } from "@/components/modoc";
 import { ProductionModocReportModal } from "./production-modoc-modal";
 import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
 import { buildCallSheetDocumentHtml } from "@/lib/call-sheet-html";
-import { printHtmlDocument } from "@/lib/pdf/print-html-document";
+import { printHtmlDocument, downloadPdfFromHtmlDocument } from "@/lib/pdf/print-html-document";
 import type {
   CallSheetCastRow,
   CallSheetHeader,
@@ -640,10 +640,41 @@ export function CallSheetGenerator({ projectId, title }: { projectId?: string; t
   const [pdfDownloading, setPdfDownloading] = useState(false);
 
   const handleDownloadPdf = useCallback(async () => {
-    if (!projectId || (!selectedDayId && !activeSheetId)) return;
+    if (!displayVm) {
+      setToast("Select a shoot day to download the call sheet.");
+      return;
+    }
     setPdfDownloading(true);
     setToast(null);
     try {
+      const { bodyHtml, extraCss } = buildCallSheetDocumentHtml({
+        header: displayVm.header,
+        timing: displayVm.timing,
+        weather: displayVm.weather,
+        equipment: displayVm.equipment,
+        schedule: displayVm.schedule,
+        cast: displayVm.cast,
+        crew: displayVm.crew,
+        locations: displayVm.locations,
+        tasks: displayVm.tasks,
+        safety: displayVm.safety,
+        dayNotes: displayVm.dayNotes,
+        sheetNotes: displayNotes,
+      });
+      const filename = `call-sheet-${displayVm.header.productionTitle.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.pdf`;
+
+      try {
+        await downloadPdfFromHtmlDocument({
+          title: `Call sheet — ${displayVm.header.productionTitle}`,
+          bodyHtml,
+          extraCss,
+          filename,
+        });
+        return;
+      } catch {
+        // Fall through to server PDF.
+      }
+
       const params = new URLSearchParams();
       if (activeSheetId) params.set("sheetId", activeSheetId);
       else params.set("shootDayId", selectedDayId);
@@ -671,7 +702,7 @@ export function CallSheetGenerator({ projectId, title }: { projectId?: string; t
     } finally {
       setPdfDownloading(false);
     }
-  }, [projectId, selectedDayId, activeSheetId, notes]);
+  }, [displayVm, displayNotes, projectId, selectedDayId, activeSheetId, notes]);
 
   const readOnlyShare = isShareMode;
   const mobileLayout = viewParam === "mobile" || deviceClass === "mobile";

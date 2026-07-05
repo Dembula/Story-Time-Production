@@ -1,6 +1,15 @@
-import { contractTermsToPdfBuffer } from "@/lib/legal/contract-pdf-export";
+import { buildDocumentPdf } from "@/lib/pdf/document-pdf";
 import type { BreakdownIntelligencePayload } from "@/lib/breakdown/types";
 import { CATEGORY_LABELS } from "@/lib/breakdown/departments";
+
+function plainTextToPdfBuffer(text: string, title: string): Buffer {
+  const lines = text.replace(/\r\n/g, "\n").split("\n");
+  return buildDocumentPdf({
+    title,
+    footer: title,
+    blocks: lines.map((line) => ({ type: "line" as const, text: line })),
+  });
+}
 
 function csvEscape(v: string | number): string {
   const s = String(v);
@@ -73,7 +82,7 @@ export function breakdownReportToPdfText(payload: BreakdownIntelligencePayload, 
     }
   }
 
-  return contractTermsToPdfBuffer(lines.join("\n"), `${projectTitle} — Breakdown`);
+  return plainTextToPdfBuffer(lines.join("\n"), `${projectTitle} — Breakdown`);
 }
 
 export function breakdownSceneSheetsToPdfText(payload: BreakdownIntelligencePayload, projectTitle: string): Buffer {
@@ -95,5 +104,5 @@ export function breakdownSceneSheetsToPdfText(payload: BreakdownIntelligencePayl
       "",
     );
   }
-  return contractTermsToPdfBuffer(blocks.join("\n"), `${projectTitle} — Scene Breakdown Sheets`);
+  return plainTextToPdfBuffer(blocks.join("\n"), `${projectTitle} — Scene Breakdown Sheets`);
 }

@@ -19,7 +19,7 @@ import {
   buildContractDocumentHtml,
   contractDocumentPrintTitle,
 } from "@/lib/legal/contract-document-html";
-import { printHtmlDocument } from "@/lib/pdf/print-html-document";
+import { printHtmlDocument, downloadPdfFromHtmlDocument } from "@/lib/pdf/print-html-document";
 
 export type ContractDocumentViewerProps = {
   title: string;
@@ -95,6 +95,22 @@ export function ContractDocumentViewer({
   const handleDownload = useCallback(async () => {
     setPdfBusy(true);
     try {
+      const { bodyHtml, extraCss } = buildContractDocumentHtml(documentMeta);
+      const printTitle = contractDocumentPrintTitle(documentMeta);
+      const filename = `${title.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.pdf`;
+
+      try {
+        await downloadPdfFromHtmlDocument({
+          title: printTitle,
+          bodyHtml,
+          extraCss,
+          filename,
+        });
+        return;
+      } catch {
+        // Fall through to server PDF when client render is unavailable.
+      }
+
       const res = pdfDownloadUrl
         ? await fetch(pdfDownloadUrl)
         : await fetch("/api/pdf/document", {
@@ -109,7 +125,7 @@ export function ContractDocumentViewer({
               jurisdiction,
               recipientLabel,
               signatures,
-              filename: `${title}.pdf`,
+              filename,
             }),
           });
       if (!res.ok) throw new Error("Could not export PDF");
@@ -119,17 +135,15 @@ export function ContractDocumentViewer({
       const disposition = res.headers.get("Content-Disposition") ?? "";
       const match = disposition.match(/filename="([^"]+)"/);
       a.href = url;
-      a.download = match?.[1] ?? `${title.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.pdf`;
+      a.download = match?.[1] ?? filename;
       document.body.appendChild(a);
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
     } catch {
-      const { bodyHtml, extraCss } = buildContractDocumentHtml(documentMeta);
       printHtmlDocument({
         title: contractDocumentPrintTitle(documentMeta),
-        bodyHtml,
-        extraCss,
+        ...buildContractDocumentHtml(documentMeta),
       });
     } finally {
       setPdfBusy(false);

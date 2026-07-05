@@ -25,7 +25,7 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ projec
 
   const terms = contract.versions[0].terms;
   const header = contract.subject ?? contract.type;
-  const pdf = contractDocumentToPdfBuffer({
+  const pdf = await contractDocumentToPdfBuffer({
     title: header,
     terms,
     status: contract.status,

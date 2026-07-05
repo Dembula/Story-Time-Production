@@ -33,7 +33,7 @@ const cloudflareCustomerPattern = parseRemotePattern(process.env.CLOUDFLARE_STRE
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  serverExternalPackages: ["pdf-parse", "pdfjs-dist", "jszip", "mammoth"],
+  serverExternalPackages: ["pdf-parse", "pdfjs-dist", "jszip", "mammoth", "playwright-core", "@sparticuz/chromium"],
   webpack: (config, { dev, isServer }) => {
     if (isServer) {
       config.externals = [

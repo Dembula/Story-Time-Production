@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   LINES_PER_PAGE,
   PAGE_GAP_PX,
-  detectLineElement,
   formatLineWhileTyping,
   handleScreenplayEnter,
   handleScreenplayTab,
@@ -31,6 +30,37 @@ type ScreenplayEditorProps = {
   theme?: "dark" | "light";
 };
 
+function splitContentIntoPages(content: string): string[] {
+  const lines = content.split("\n");
+  const pageCount = pageCountForContent(content);
+  const pages: string[] = [];
+  for (let pageIdx = 0; pageIdx < pageCount; pageIdx++) {
+    const start = pageIdx * LINES_PER_PAGE;
+    pages.push(lines.slice(start, start + LINES_PER_PAGE).join("\n"));
+  }
+  return pages;
+}
+
+function pageStartOffset(content: string, pageIdx: number): number {
+  const lines = content.split("\n");
+  let offset = 0;
+  const lineStart = pageIdx * LINES_PER_PAGE;
+  for (let i = 0; i < lineStart && i < lines.length; i++) {
+    offset += lines[i]!.length + 1;
+  }
+  return offset;
+}
+
+function pageIndexAtOffset(content: string, offset: number): number {
+  const lineIdx = lineIndexAt(content, offset);
+  return Math.floor(lineIdx / LINES_PER_PAGE);
+}
+
+function resizeTextarea(el: HTMLTextAreaElement, minHeightPx: number) {
+  el.style.height = "auto";
+  el.style.height = `${Math.max(minHeightPx, el.scrollHeight)}px`;
+}
+
 export function ScreenplayEditor({
   value,
   onChange,
@@ -47,86 +77,138 @@ export function ScreenplayEditor({
   onSelect,
   theme = "dark",
 }: ScreenplayEditorProps) {
-  const internalRef = useRef<HTMLTextAreaElement | null>(null);
-  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const pageRefs = useRef<Array<HTMLTextAreaElement | null>>([]);
   const [editingElement, setEditingElement] = useState<ScreenplayElementType>(activeElementProp);
+  const [activePageIdx, setActivePageIdx] = useState(0);
 
   useEffect(() => {
     setEditingElement(activeElementProp);
   }, [activeElementProp]);
 
-  const setTextareaRef = useCallback(
+  const lineHeightPx = fontSizePt * lineHeight * (96 / 72);
+  const pageContentHeight = LINES_PER_PAGE * lineHeightPx;
+  const pageCount = pageCountForContent(value);
+  const pageTexts = useMemo(() => splitContentIntoPages(value), [value]);
+
+  const syncExternalRef = useCallback(
     (el: HTMLTextAreaElement | null) => {
-      internalRef.current = el;
       if (externalRef) externalRef.current = el;
     },
     [externalRef],
   );
 
-  const lineHeightPx = fontSizePt * lineHeight * (96 / 72);
-  const pageContentHeight = LINES_PER_PAGE * lineHeightPx;
-  const pageCount = pageCountForContent(value);
-  const totalHeight = pageCount * pageContentHeight + Math.max(0, pageCount - 1) * PAGE_GAP_PX;
+  useEffect(() => {
+    syncExternalRef(pageRefs.current[activePageIdx] ?? null);
+  }, [activePageIdx, pageCount, syncExternalRef]);
 
-  const syncElementFromCursor = useCallback(() => {
-    const el = internalRef.current;
-    if (!el) return;
-    const lineIdx = lineIndexAt(value, el.selectionStart);
-    const lines = value.split("\n");
-    const element = resolveLineElement(lines[lineIdx] ?? "", {
-      prev: lineIdx > 0 ? lines[lineIdx - 1] : undefined,
-      next: lineIdx < lines.length - 1 ? lines[lineIdx + 1] : undefined,
-    }, editingElement);
-    setEditingElement(element);
-    onElementChange?.(element);
-  }, [value, editingElement, onElementChange]);
+  useEffect(() => {
+    pageRefs.current.forEach((el) => {
+      if (el) resizeTextarea(el, pageContentHeight);
+    });
+  }, [pageTexts, pageContentHeight, fontSizePt, lineHeight]);
+
+  const syncElementFromCursor = useCallback(
+    (pageIdx: number, selectionStart: number) => {
+      const globalStart = pageStartOffset(value, pageIdx) + selectionStart;
+      const lineIdx = lineIndexAt(value, globalStart);
+      const lines = value.split("\n");
+      const element = resolveLineElement(
+        lines[lineIdx] ?? "",
+        {
+          prev: lineIdx > 0 ? lines[lineIdx - 1] : undefined,
+          next: lineIdx < lines.length - 1 ? lines[lineIdx + 1] : undefined,
+        },
+        editingElement,
+      );
+      setEditingElement(element);
+      onElementChange?.(element);
+    },
+    [value, editingElement, onElementChange],
+  );
+
+  const focusAt = useCallback(
+    (globalOffset: number, selectionEnd = globalOffset, content = value) => {
+      const pageIdx = pageIndexAtOffset(content, globalOffset);
+      const localStart = globalOffset - pageStartOffset(content, pageIdx);
+      setActivePageIdx(pageIdx);
+      requestAnimationFrame(() => {
+        const el = pageRefs.current[pageIdx];
+        if (!el) return;
+        const localEnd = selectionEnd - pageStartOffset(content, pageIdx);
+        el.focus();
+        el.setSelectionRange(localStart, localEnd);
+        syncExternalRef(el);
+      });
+    },
+    [value, syncExternalRef],
+  );
 
   const applyEdit = useCallback(
-    (result: { content: string; selectionStart: number; selectionEnd: number; element?: ScreenplayElementType }) => {
+    (result: {
+      content: string;
+      selectionStart: number;
+      selectionEnd: number;
+      element?: ScreenplayElementType;
+    }) => {
       onChange(result.content);
       if (result.element) {
         setEditingElement(result.element);
         onElementChange?.(result.element);
       }
-      requestAnimationFrame(() => {
-        const el = internalRef.current;
-        if (!el) return;
-        el.focus();
-        el.setSelectionRange(result.selectionStart, result.selectionEnd);
-      });
+      focusAt(result.selectionStart, result.selectionEnd, result.content);
     },
-    [onChange, onElementChange],
+    [onChange, onElementChange, focusAt],
   );
 
-  const handleChange = useCallback(
-    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+  const replacePageText = useCallback(
+    (pageIdx: number, nextPageText: string) => {
+      const lines = value.split("\n");
+      const start = pageIdx * LINES_PER_PAGE;
+      const before = lines.slice(0, start);
+      const after = lines.slice(start + LINES_PER_PAGE);
+      const inserted = nextPageText.split("\n");
+      onChange([...before, ...inserted, ...after].join("\n"));
+    },
+    [value, onChange],
+  );
+
+  const handlePageChange = useCallback(
+    (pageIdx: number, e: React.ChangeEvent<HTMLTextAreaElement>) => {
       if (readOnly) return;
-      const el = internalRef.current;
+      const el = e.target;
       const raw = e.target.value;
-      if (!el) {
-        onChange(raw);
-        return;
-      }
+      const globalStart = pageStartOffset(value, pageIdx) + el.selectionStart;
 
       const formatted = formatLineWhileTyping(raw, el.selectionStart, editingElement);
       if (formatted) {
-        onChange(formatted.content);
+        const before = value.slice(0, pageStartOffset(value, pageIdx));
+        const afterStart = pageStartOffset(value, pageIdx) + pageTexts[pageIdx]!.length;
+        const after = value.slice(afterStart);
+        const nextContent = before + formatted.content + after;
+        onChange(nextContent);
         requestAnimationFrame(() => {
-          el.setSelectionRange(formatted.selectionStart, formatted.selectionEnd);
+          focusAt(
+            pageStartOffset(nextContent, pageIdx) + formatted.selectionStart,
+            pageStartOffset(nextContent, pageIdx) + formatted.selectionEnd,
+          );
         });
         return;
       }
 
-      onChange(raw);
+      replacePageText(pageIdx, raw);
+      requestAnimationFrame(() => {
+        focusAt(globalStart);
+      });
     },
-    [readOnly, onChange, editingElement],
+    [readOnly, value, pageTexts, editingElement, onChange, replacePageText, focusAt],
   );
 
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handlePageKeyDown = useCallback(
+    (pageIdx: number, e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (readOnly) return;
-      const el = internalRef.current;
-      if (!el) return;
+      const el = e.currentTarget;
+      const globalStart = pageStartOffset(value, pageIdx) + el.selectionStart;
+      const globalEnd = pageStartOffset(value, pageIdx) + el.selectionEnd;
 
       if (
         editingElement === "character" &&
@@ -138,15 +220,24 @@ export function ScreenplayEditor({
       ) {
         e.preventDefault();
         onBeforeChange?.();
-        const start = el.selectionStart;
-        const end = el.selectionEnd;
-        const next = value.slice(0, start) + e.key.toUpperCase() + value.slice(end);
-        const formatted = formatLineWhileTyping(next, start + 1, "character");
+        const next = value.slice(0, globalStart) + e.key.toUpperCase() + value.slice(globalEnd);
+        const formatted = formatLineWhileTyping(
+          next.slice(pageStartOffset(value, pageIdx)),
+          el.selectionStart + 1,
+          "character",
+        );
         if (formatted) {
-          applyEdit({ ...formatted, element: "character" });
+          const before = value.slice(0, pageStartOffset(value, pageIdx));
+          const afterStart = pageStartOffset(value, pageIdx) + pageTexts[pageIdx]!.length;
+          applyEdit({
+            content: before + formatted.content + value.slice(afterStart),
+            selectionStart: pageStartOffset(value, pageIdx) + formatted.selectionStart,
+            selectionEnd: pageStartOffset(value, pageIdx) + formatted.selectionEnd,
+            element: "character",
+          });
         } else {
           onChange(next);
-          requestAnimationFrame(() => el.setSelectionRange(start + 1, start + 1));
+          focusAt(globalStart + 1);
         }
         return;
       }
@@ -154,7 +245,7 @@ export function ScreenplayEditor({
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         onBeforeChange?.();
-        const result = handleScreenplayEnter(value, el.selectionStart, editingElement);
+        const result = handleScreenplayEnter(value, globalStart, editingElement);
         applyEdit(result);
         return;
       }
@@ -162,38 +253,82 @@ export function ScreenplayEditor({
       if (e.key === "Tab") {
         e.preventDefault();
         onBeforeChange?.();
-        const result = handleScreenplayTab(value, el.selectionStart, e.shiftKey ? -1 : 1, editingElement);
+        const result = handleScreenplayTab(value, globalStart, e.shiftKey ? -1 : 1, editingElement);
         applyEdit(result);
+        return;
+      }
+
+      if (e.key === "Backspace" && el.selectionStart === 0 && el.selectionEnd === 0 && pageIdx > 0) {
+        e.preventDefault();
+        onBeforeChange?.();
+        const mergeAt = pageStartOffset(value, pageIdx);
+        focusAt(mergeAt - 1);
+      }
+
+      if (e.key === "ArrowUp" && el.selectionStart === 0 && el.selectionEnd === 0 && pageIdx > 0) {
+        e.preventDefault();
+        const prevEl = pageRefs.current[pageIdx - 1];
+        if (!prevEl) return;
+        const pos = prevEl.value.length;
+        focusAt(pageStartOffset(value, pageIdx - 1) + pos);
+      }
+
+      if (
+        e.key === "ArrowDown" &&
+        el.selectionStart === el.value.length &&
+        el.selectionEnd === el.value.length &&
+        pageIdx < pageCount - 1
+      ) {
+        e.preventDefault();
+        focusAt(pageStartOffset(value, pageIdx + 1));
       }
     },
-    [readOnly, value, editingElement, onBeforeChange, applyEdit, onChange],
+    [
+      readOnly,
+      value,
+      pageTexts,
+      pageCount,
+      editingElement,
+      onBeforeChange,
+      applyEdit,
+      onChange,
+      focusAt,
+    ],
   );
 
-  const gapMaskClass = theme === "light" ? "bg-slate-100" : "bg-slate-950/70";
   const pageSurface =
     theme === "light"
       ? "bg-white border-slate-200 text-slate-900 shadow-[0_8px_30px_rgba(15,23,42,0.12)]"
       : "bg-[#101012] border-slate-700/80 text-slate-100 shadow-[0_12px_40px_rgba(0,0,0,0.45)]";
 
-  const pages = useMemo(() => Array.from({ length: pageCount }, (_, i) => i), [pageCount]);
+  const sharedTextStyle = {
+    fontFamily: fontCss,
+    fontSize: `${fontSizePt}pt`,
+    lineHeight,
+    caretColor: theme === "light" ? "#0f172a" : "#f8fafc",
+    paddingLeft: "1.5in",
+    paddingRight: "1in",
+    paddingTop: "0.65in",
+    paddingBottom: "0.5in",
+  } as const;
 
   return (
     <div className="space-y-2">
       <div
-        ref={scrollRef}
         className="overflow-y-auto overflow-x-hidden rounded-xl border border-slate-800/80 bg-slate-950/70 p-3 sm:p-4"
         data-screenplay-scroll
         style={{ maxHeight: "min(78vh, 920px)" }}
       >
-        <div className="relative mx-auto w-full max-w-[8.5in]">
-          {pages.map((pageIdx) => (
-            <div key={`page-${pageIdx}`}>
+        <div className="mx-auto w-full max-w-[8.5in] space-y-0">
+          {pageTexts.map((pageText, pageIdx) => (
+            <div
+              key={`page-${pageIdx}`}
+              className="relative overflow-hidden"
+              style={{ marginBottom: pageIdx < pageCount - 1 ? PAGE_GAP_PX : 0 }}
+            >
               <div
-                className={`pointer-events-none absolute left-0 right-0 rounded-sm border ${pageSurface}`}
-                style={{
-                  top: pageIdx * (pageContentHeight + PAGE_GAP_PX),
-                  height: pageContentHeight,
-                }}
+                className={`pointer-events-none absolute inset-0 rounded-sm border ${pageSurface}`}
+                aria-hidden
               >
                 <span
                   className="absolute bottom-2 right-3 text-[10px] text-slate-500"
@@ -202,49 +337,46 @@ export function ScreenplayEditor({
                   {pageIdx + 1}.
                 </span>
               </div>
-              {pageIdx < pageCount - 1 ? (
-                <div
-                  className={`pointer-events-none absolute left-0 right-0 z-[2] ${gapMaskClass}`}
-                  style={{
-                    top: pageIdx * (pageContentHeight + PAGE_GAP_PX) + pageContentHeight,
-                    height: PAGE_GAP_PX,
-                  }}
-                  aria-hidden
-                />
-              ) : null}
+
+              <textarea
+                ref={(el) => {
+                  pageRefs.current[pageIdx] = el;
+                  if (pageIdx === activePageIdx) syncExternalRef(el);
+                  if (el) resizeTextarea(el, pageContentHeight);
+                }}
+                value={pageText}
+                onChange={(e) => handlePageChange(pageIdx, e)}
+                onKeyDown={(e) => handlePageKeyDown(pageIdx, e)}
+                onSelect={(e) => {
+                  setActivePageIdx(pageIdx);
+                  syncExternalRef(e.currentTarget);
+                  syncElementFromCursor(pageIdx, e.currentTarget.selectionStart);
+                  onSelect?.();
+                }}
+                onClick={(e) => {
+                  setActivePageIdx(pageIdx);
+                  syncExternalRef(e.currentTarget);
+                  syncElementFromCursor(pageIdx, e.currentTarget.selectionStart);
+                }}
+                onFocus={() => {
+                  setActivePageIdx(pageIdx);
+                  syncExternalRef(pageRefs.current[pageIdx] ?? null);
+                }}
+                readOnly={readOnly}
+                spellCheck
+                rows={LINES_PER_PAGE}
+                className={`relative z-[1] block w-full resize-none overflow-hidden border-0 bg-transparent px-0 outline-none focus:ring-0 whitespace-pre-wrap break-words ${className ?? ""}`}
+                style={{
+                  ...sharedTextStyle,
+                  color: "inherit",
+                  minHeight: `${pageContentHeight}px`,
+                }}
+                placeholder={pageIdx === 0 ? placeholder : undefined}
+                autoCapitalize="off"
+                autoCorrect="off"
+              />
             </div>
           ))}
-
-          <textarea
-            ref={setTextareaRef}
-            value={value}
-            onChange={handleChange}
-            onKeyDown={handleKeyDown}
-            onSelect={() => {
-              syncElementFromCursor();
-              onSelect?.();
-            }}
-            onClick={syncElementFromCursor}
-            readOnly={readOnly}
-            spellCheck
-            rows={LINES_PER_PAGE}
-            className={`relative z-[1] block w-full resize-none overflow-hidden border-0 bg-transparent px-0 outline-none focus:ring-0 whitespace-pre-wrap ${className ?? ""}`}
-            style={{
-              fontFamily: fontCss,
-              fontSize: `${fontSizePt}pt`,
-              lineHeight,
-              color: "inherit",
-              minHeight: `${totalHeight}px`,
-              height: `${totalHeight}px`,
-              caretColor: theme === "light" ? "#0f172a" : "#f8fafc",
-              paddingLeft: "1.5in",
-              paddingRight: "1in",
-              paddingTop: "0.65in",
-            }}
-            placeholder={placeholder}
-            autoCapitalize="off"
-            autoCorrect="off"
-          />
         </div>
       </div>
 
