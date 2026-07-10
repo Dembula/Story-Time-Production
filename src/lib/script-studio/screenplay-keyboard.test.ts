@@ -7,6 +7,8 @@ import {
   resolveLineElement,
   padColumn,
   nextElementOnEnter,
+  hardWrapLineForElement,
+  wrapPlainText,
 } from "./screenplay-keyboard";
 import { SCREENPLAY_COL } from "./elements";
 
@@ -67,5 +69,13 @@ describe("screenplay-keyboard", () => {
     const line = formatLineForElement("transition", "cut to");
     assert.ok(line.trimEnd().endsWith("CUT TO:"));
     assert.ok(line.startsWith(" "));
+  });
+
+  it("hard-wraps long action lines within 60 characters", () => {
+    const long = "a".repeat(70);
+    const wrapped = hardWrapLineForElement("action", long);
+    assert.ok(wrapped.length >= 2);
+    assert.ok(wrapped.every((l) => l.length <= 60));
+    assert.deepEqual(wrapPlainText("one two three four", 8), ["one two", "three", "four"]);
   });
 });

@@ -7,15 +7,25 @@ import {
   formatLineWhileTyping,
   handleScreenplayEnter,
   handleScreenplayTab,
+  hardWrapDocument,
   lineIndexAt,
   pageCountForContent,
   resolveLineElement,
 } from "@/lib/script-studio/screenplay-keyboard";
+import { SCREENPLAY_LINE_WIDTH } from "@/lib/script-studio/elements";
 import {
   getScreenplaySuggestions,
   type ScreenplaySuggestion,
 } from "@/lib/script-studio/screenplay-autocomplete";
 import type { ScreenplayElementType } from "@/lib/script-studio/types";
+
+/** US Letter page geometry (screenplay standard). */
+const PAGE_WIDTH = "8.5in";
+const PAGE_HEIGHT = "11in";
+const MARGIN_TOP = "1in";
+const MARGIN_BOTTOM = "1in";
+const MARGIN_LEFT = "1.5in";
+const MARGIN_RIGHT = "1in";
 
 type ScreenplayEditorProps = {
   value: string;
@@ -56,13 +66,15 @@ function pageStartOffset(content: string, pageIdx: number): number {
 }
 
 function pageIndexAtOffset(content: string, offset: number): number {
-  const lineIdx = lineIndexAt(content, offset);
-  return Math.floor(lineIdx / LINES_PER_PAGE);
+  return Math.floor(lineIndexAt(content, offset) / LINES_PER_PAGE);
 }
 
-function resizeTextarea(el: HTMLTextAreaElement, minHeightPx: number) {
-  el.style.height = "auto";
-  el.style.height = `${Math.max(minHeightPx, el.scrollHeight)}px`;
+function mergePageIntoContent(content: string, pageIdx: number, pageText: string): string {
+  const allLines = content.split("\n");
+  const start = pageIdx * LINES_PER_PAGE;
+  const before = allLines.slice(0, start);
+  const after = allLines.slice(start + LINES_PER_PAGE);
+  return [...before, ...pageText.split("\n"), ...after].join("\n");
 }
 
 export function ScreenplayEditor({
@@ -74,7 +86,6 @@ export function ScreenplayEditor({
   readOnly,
   fontCss,
   fontSizePt,
-  lineHeight = 1.2,
   className,
   placeholder,
   textareaRef: externalRef,
@@ -91,8 +102,12 @@ export function ScreenplayEditor({
     setEditingElement(activeElementProp);
   }, [activeElementProp]);
 
-  const lineHeightPx = fontSizePt * lineHeight * (96 / 72);
-  const pageContentHeight = LINES_PER_PAGE * lineHeightPx;
+  // Keep existing/pasted scripts inside page width (idempotent).
+  useEffect(() => {
+    const wrapped = hardWrapDocument(value, editingElement);
+    if (wrapped !== value) onChange(wrapped);
+  }, [value, editingElement, onChange]);
+
   const pageCount = pageCountForContent(value);
   const pageTexts = useMemo(() => splitContentIntoPages(value), [value]);
 
@@ -107,18 +122,11 @@ export function ScreenplayEditor({
     syncExternalRef(pageRefs.current[activePageIdx] ?? null);
   }, [activePageIdx, pageCount, syncExternalRef]);
 
-  useEffect(() => {
-    pageRefs.current.forEach((el) => {
-      if (el) resizeTextarea(el, pageContentHeight);
-    });
-  }, [pageTexts, pageContentHeight, fontSizePt, lineHeight]);
-
   const refreshSuggestions = useCallback(
     (content: string, globalCursor: number, element: ScreenplayElementType) => {
       const lineIdx = lineIndexAt(content, globalCursor);
       const line = content.split("\n")[lineIdx] ?? "";
-      const next = getScreenplaySuggestions({ content, line, element });
-      setSuggestions(next);
+      setSuggestions(getScreenplaySuggestions({ content, line, element }));
       setSuggestionIndex(0);
     },
     [],
@@ -154,7 +162,8 @@ export function ScreenplayEditor({
         if (!el) return;
         const localEnd = selectionEnd - pageStartOffset(content, pageIdx);
         el.focus();
-        el.setSelectionRange(localStart, localEnd);
+        const max = el.value.length;
+        el.setSelectionRange(Math.min(Math.max(0, localStart), max), Math.min(Math.max(0, localEnd), max));
         syncExternalRef(el);
       });
     },
@@ -168,17 +177,20 @@ export function ScreenplayEditor({
       selectionEnd: number;
       element?: ScreenplayElementType;
     }) => {
-      onChange(result.content);
+      const wrapped = hardWrapDocument(result.content, result.element ?? editingElement);
+      const sel = Math.min(result.selectionStart, wrapped.length);
+      const selEnd = Math.min(result.selectionEnd, wrapped.length);
+      onChange(wrapped);
       if (result.element) {
         setEditingElement(result.element);
         onElementChange?.(result.element);
-        refreshSuggestions(result.content, result.selectionStart, result.element);
+        refreshSuggestions(wrapped, sel, result.element);
       } else {
         setSuggestions([]);
       }
-      focusAt(result.selectionStart, result.selectionEnd, result.content);
+      focusAt(sel, selEnd, wrapped);
     },
-    [onChange, onElementChange, focusAt, refreshSuggestions],
+    [onChange, onElementChange, focusAt, refreshSuggestions, editingElement],
   );
 
   const applySuggestion = useCallback(
@@ -192,83 +204,52 @@ export function ScreenplayEditor({
       lines[lineIdx] = suggestion.insert;
       const newContent = lines.join("\n");
       let lineStart = 0;
-      for (let i = 0; i < lineIdx; i++) {
-        lineStart += (lines[i]?.length ?? 0) + 1;
-      }
-      const element = suggestion.element ?? editingElement;
+      for (let i = 0; i < lineIdx; i++) lineStart += (lines[i]?.length ?? 0) + 1;
       applyEdit({
         content: newContent,
         selectionStart: lineStart + suggestion.insert.length,
         selectionEnd: lineStart + suggestion.insert.length,
-        element,
+        element: suggestion.element ?? editingElement,
       });
       setSuggestions([]);
     },
     [value, editingElement, onBeforeChange, applyEdit],
   );
 
-  const replacePageText = useCallback(
-    (pageIdx: number, nextPageText: string) => {
-      const lines = value.split("\n");
-      const start = pageIdx * LINES_PER_PAGE;
-      const before = lines.slice(0, start);
-      const after = lines.slice(start + LINES_PER_PAGE);
-      const inserted = nextPageText.split("\n");
-      onChange([...before, ...inserted, ...after].join("\n"));
+  const commitPageText = useCallback(
+    (pageIdx: number, pageText: string, localCursor: number) => {
+      const provisional = mergePageIntoContent(value, pageIdx, pageText);
+      const globalCursor = pageStartOffset(value, pageIdx) + localCursor;
+      const formatted = formatLineWhileTyping(provisional, globalCursor, editingElement);
+
+      if (formatted) {
+        const wrapped = hardWrapDocument(formatted.content, formatted.element ?? editingElement);
+        onChange(wrapped);
+        if (formatted.element) {
+          setEditingElement(formatted.element);
+          onElementChange?.(formatted.element);
+        }
+        const sel = Math.min(formatted.selectionStart, wrapped.length);
+        refreshSuggestions(wrapped, sel, formatted.element ?? editingElement);
+        requestAnimationFrame(() => focusAt(sel, Math.min(formatted.selectionEnd, wrapped.length), wrapped));
+        return;
+      }
+
+      const wrapped = hardWrapDocument(provisional, editingElement);
+      onChange(wrapped);
+      const sel = Math.min(globalCursor, wrapped.length);
+      refreshSuggestions(wrapped, sel, editingElement);
+      requestAnimationFrame(() => focusAt(sel, sel, wrapped));
     },
-    [value, onChange],
+    [value, editingElement, onChange, onElementChange, focusAt, refreshSuggestions],
   );
 
   const handlePageChange = useCallback(
     (pageIdx: number, e: React.ChangeEvent<HTMLTextAreaElement>) => {
       if (readOnly) return;
-      const el = e.target;
-      const raw = e.target.value;
-
-      // Map page-local content back into full document for formatting helpers
-      const before = value.slice(0, pageStartOffset(value, pageIdx));
-      const afterStart = pageStartOffset(value, pageIdx) + (pageTexts[pageIdx]?.length ?? 0);
-      const after = value.slice(afterStart);
-      const provisional = before + raw + after;
-      const localCursor = el.selectionStart;
-      const globalCursor = pageStartOffset(value, pageIdx) + localCursor;
-
-      const formatted = formatLineWhileTyping(provisional, globalCursor, editingElement);
-      if (formatted) {
-        onChange(formatted.content);
-        if (formatted.element) {
-          setEditingElement(formatted.element);
-          onElementChange?.(formatted.element);
-        }
-        refreshSuggestions(
-          formatted.content,
-          formatted.selectionStart,
-          formatted.element ?? editingElement,
-        );
-        requestAnimationFrame(() => {
-          focusAt(formatted.selectionStart, formatted.selectionEnd, formatted.content);
-        });
-        return;
-      }
-
-      replacePageText(pageIdx, raw);
-      const nextGlobal = pageStartOffset(value, pageIdx) + localCursor;
-      refreshSuggestions(provisional, nextGlobal, editingElement);
-      requestAnimationFrame(() => {
-        focusAt(nextGlobal, nextGlobal, provisional);
-      });
+      commitPageText(pageIdx, e.target.value, e.target.selectionStart);
     },
-    [
-      readOnly,
-      value,
-      pageTexts,
-      editingElement,
-      onChange,
-      onElementChange,
-      replacePageText,
-      focusAt,
-      refreshSuggestions,
-    ],
+    [readOnly, commitPageText],
   );
 
   const handlePageKeyDown = useCallback(
@@ -312,48 +293,36 @@ export function ScreenplayEditor({
         e.preventDefault();
         onBeforeChange?.();
         const next = value.slice(0, globalStart) + e.key.toUpperCase() + value.slice(globalEnd);
-        const formatted = formatLineWhileTyping(next, globalStart + 1, "character");
-        if (formatted) {
-          applyEdit({
-            content: formatted.content,
-            selectionStart: formatted.selectionStart,
-            selectionEnd: formatted.selectionEnd,
-            element: formatted.element ?? "character",
-          });
-        } else {
-          onChange(next);
-          focusAt(globalStart + 1, globalStart + 1, next);
-        }
+        applyEdit(
+          formatLineWhileTyping(next, globalStart + 1, "character") ?? {
+            content: next,
+            selectionStart: globalStart + 1,
+            selectionEnd: globalStart + 1,
+            element: "character",
+          },
+        );
         return;
       }
 
-      // Typing "(" switches to parenthetical
       if (e.key === "(" && editingElement !== "character" && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
         onBeforeChange?.();
         const next = value.slice(0, globalStart) + "(" + value.slice(globalEnd);
-        const formatted = formatLineWhileTyping(next, globalStart + 1, "parenthetical");
-        if (formatted) {
-          applyEdit({
-            ...formatted,
-            element: "parenthetical",
-          });
-        } else {
-          applyEdit({
+        applyEdit(
+          formatLineWhileTyping(next, globalStart + 1, "parenthetical") ?? {
             content: next,
             selectionStart: globalStart + 1,
             selectionEnd: globalStart + 1,
             element: "parenthetical",
-          });
-        }
+          },
+        );
         return;
       }
 
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         onBeforeChange?.();
-        const result = handleScreenplayEnter(value, globalStart, editingElement);
-        applyEdit(result);
+        applyEdit(handleScreenplayEnter(value, globalStart, editingElement));
         return;
       }
 
@@ -364,8 +333,7 @@ export function ScreenplayEditor({
           applySuggestion(suggestions[suggestionIndex] ?? suggestions[0]!, pageIdx);
           return;
         }
-        const result = handleScreenplayTab(value, globalStart, e.shiftKey ? -1 : 1, editingElement);
-        applyEdit(result);
+        applyEdit(handleScreenplayTab(value, globalStart, e.shiftKey ? -1 : 1, editingElement));
         return;
       }
 
@@ -375,7 +343,13 @@ export function ScreenplayEditor({
         focusAt(pageStartOffset(value, pageIdx) - 1);
       }
 
-      if (e.key === "ArrowUp" && suggestions.length === 0 && el.selectionStart === 0 && el.selectionEnd === 0 && pageIdx > 0) {
+      if (
+        e.key === "ArrowUp" &&
+        suggestions.length === 0 &&
+        el.selectionStart === 0 &&
+        el.selectionEnd === 0 &&
+        pageIdx > 0
+      ) {
         e.preventDefault();
         const prevEl = pageRefs.current[pageIdx - 1];
         if (!prevEl) return;
@@ -403,59 +377,47 @@ export function ScreenplayEditor({
       onBeforeChange,
       applyEdit,
       applySuggestion,
-      onChange,
       focusAt,
     ],
   );
 
   const pageSurface =
     theme === "light"
-      ? "bg-white border-slate-200 text-slate-900 shadow-[0_8px_30px_rgba(15,23,42,0.12)]"
-      : "bg-[#101012] border-slate-700/80 text-slate-100 shadow-[0_12px_40px_rgba(0,0,0,0.45)]";
-
-  const sharedTextStyle = {
-    fontFamily: fontCss,
-    fontSize: `${fontSizePt}pt`,
-    lineHeight,
-    caretColor: theme === "light" ? "#0f172a" : "#f8fafc",
-    // Industry page margins: 1.5" left, 1" right, ~1" top/bottom
-    paddingLeft: "1.5in",
-    paddingRight: "1in",
-    paddingTop: "1in",
-    paddingBottom: "1in",
-  } as const;
+      ? "bg-white border-slate-300 text-slate-900 shadow-[0_8px_30px_rgba(15,23,42,0.12)]"
+      : "bg-[#141416] border-slate-600 text-slate-100 shadow-[0_12px_40px_rgba(0,0,0,0.45)]";
 
   return (
     <div className="space-y-2">
       <div
-        className="overflow-y-auto overflow-x-hidden rounded-xl border border-slate-800/80 bg-slate-950/70 p-3 sm:p-4"
+        className="overflow-y-auto overflow-x-hidden rounded-xl border border-slate-800/80 bg-slate-950/80 p-3 sm:p-5"
         data-screenplay-scroll
-        style={{ maxHeight: "min(78vh, 920px)" }}
+        style={{ maxHeight: "min(82vh, 980px)" }}
       >
-        <div className="relative mx-auto w-full max-w-[8.5in] space-y-0">
+        <div className="relative mx-auto flex w-full max-w-[8.5in] flex-col items-center">
           {pageTexts.map((pageText, pageIdx) => (
             <div
               key={`page-${pageIdx}`}
-              className="relative overflow-hidden"
-              style={{ marginBottom: pageIdx < pageCount - 1 ? PAGE_GAP_PX : 0 }}
+              className={`relative overflow-hidden rounded-sm border ${pageSurface}`}
+              style={{
+                width: PAGE_WIDTH,
+                height: PAGE_HEIGHT,
+                maxWidth: "100%",
+                marginBottom: pageIdx < pageCount - 1 ? PAGE_GAP_PX : 0,
+                boxSizing: "border-box",
+              }}
             >
-              <div
-                className={`pointer-events-none absolute inset-0 rounded-sm border ${pageSurface}`}
+              <span
+                className="pointer-events-none absolute bottom-3 right-4 z-[2] text-[10px] text-slate-500"
+                style={{ fontFamily: fontCss }}
                 aria-hidden
               >
-                <span
-                  className="absolute bottom-3 right-4 text-[10px] text-slate-500"
-                  style={{ fontFamily: fontCss }}
-                >
-                  {pageIdx + 1}.
-                </span>
-              </div>
+                {pageIdx + 1}.
+              </span>
 
               <textarea
                 ref={(el) => {
                   pageRefs.current[pageIdx] = el;
                   if (pageIdx === activePageIdx) syncExternalRef(el);
-                  if (el) resizeTextarea(el, pageContentHeight);
                 }}
                 value={pageText}
                 onChange={(e) => handlePageChange(pageIdx, e)}
@@ -476,17 +438,31 @@ export function ScreenplayEditor({
                   syncExternalRef(pageRefs.current[pageIdx] ?? null);
                 }}
                 onBlur={() => {
-                  // Delay so suggestion click can register
                   setTimeout(() => setSuggestions([]), 150);
                 }}
                 readOnly={readOnly}
                 spellCheck
                 rows={LINES_PER_PAGE}
-                className={`relative z-[1] block w-full resize-none overflow-hidden border-0 bg-transparent px-0 outline-none focus:ring-0 whitespace-pre ${className ?? ""}`}
+                wrap="soft"
+                className={`relative z-[1] block resize-none border-0 bg-transparent outline-none focus:ring-0 ${className ?? ""}`}
                 style={{
-                  ...sharedTextStyle,
+                  fontFamily: fontCss,
+                  fontSize: `${Math.min(fontSizePt, 12)}pt`,
+                  lineHeight: 1,
+                  caretColor: theme === "light" ? "#0f172a" : "#f8fafc",
                   color: "inherit",
-                  minHeight: `${pageContentHeight}px`,
+                  width: "100%",
+                  height: "100%",
+                  boxSizing: "border-box",
+                  paddingTop: MARGIN_TOP,
+                  paddingBottom: MARGIN_BOTTOM,
+                  paddingLeft: MARGIN_LEFT,
+                  paddingRight: MARGIN_RIGHT,
+                  whiteSpace: "pre-wrap",
+                  overflowWrap: "anywhere",
+                  wordBreak: "break-word",
+                  overflowX: "hidden",
+                  overflowY: "hidden",
                 }}
                 placeholder={pageIdx === 0 ? placeholder : undefined}
                 autoCapitalize="off"
@@ -495,10 +471,9 @@ export function ScreenplayEditor({
             </div>
           ))}
 
-          {suggestions.length > 0 && activePageIdx >= 0 ? (
+          {suggestions.length > 0 ? (
             <div
-              className="absolute left-[1.5in] z-20 mt-1 max-h-48 w-72 overflow-y-auto rounded-md border border-slate-700 bg-slate-900 shadow-xl"
-              style={{ top: "auto" }}
+              className="absolute left-[1.5in] top-24 z-20 max-h-48 w-72 overflow-y-auto rounded-md border border-slate-700 bg-slate-900 shadow-xl"
               role="listbox"
             >
               {suggestions.map((s, i) => (
@@ -528,11 +503,11 @@ export function ScreenplayEditor({
 
       <div className="flex flex-wrap items-center justify-between gap-2 px-1">
         <p className="text-[10px] text-slate-500" style={{ fontFamily: fontCss }}>
-          {pageCount} page{pageCount === 1 ? "" : "s"} · ~{pageCount} min ·{" "}
+          {pageCount} page{pageCount === 1 ? "" : "s"} · US Letter 8.5×11 · {SCREENPLAY_LINE_WIDTH}-char wrap ·{" "}
           <span className="text-orange-300/90">{editingElement.replace(/_/g, " ")}</span>
         </p>
         <p className="text-[10px] text-slate-500" style={{ fontFamily: fontCss }}>
-          Enter advances · Tab cycles · Type int/cut/( for smart format · ↑↓ suggestions
+          Text wraps inside page margins · no horizontal overflow
         </p>
       </div>
     </div>

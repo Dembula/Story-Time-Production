@@ -220,6 +220,142 @@ export function formatLineForElement(element: ScreenplayElementType, rawLine: st
   }
 }
 
+/** Max printable characters for the element body (excluding leading indent spaces). */
+export function maxContentWidthForElement(element: ScreenplayElementType): number {
+  switch (element) {
+    case "dialogue":
+      return SCREENPLAY_COL.dialogueWidth;
+    case "parenthetical":
+      return 25;
+    case "character":
+      return 35;
+    case "transition":
+      return 40;
+    case "centered":
+    case "lyrics":
+      return 40;
+    default:
+      return SCREENPLAY_LINE_WIDTH;
+  }
+}
+
+export function indentForElement(element: ScreenplayElementType): number {
+  switch (element) {
+    case "dialogue":
+      return SCREENPLAY_COL.dialogue;
+    case "parenthetical":
+      return SCREENPLAY_COL.parenthetical;
+    case "character":
+      return SCREENPLAY_COL.character;
+    default:
+      return 0;
+  }
+}
+
+/** Wrap plain text to a max width, preferring word boundaries. */
+export function wrapPlainText(text: string, maxWidth: number): string[] {
+  const width = Math.max(1, maxWidth);
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (!normalized) return [""];
+  if (normalized.length <= width) return [normalized];
+
+  const lines: string[] = [];
+  let rest = normalized;
+  while (rest.length > width) {
+    let cut = rest.lastIndexOf(" ", width);
+    if (cut < Math.floor(width * 0.4)) cut = width;
+    lines.push(rest.slice(0, cut).trimEnd());
+    rest = rest.slice(cut).trimStart();
+  }
+  if (rest) lines.push(rest);
+  return lines.length ? lines : [""];
+}
+
+/**
+ * Format + hard-wrap a line into one or more page-safe lines.
+ * Dialogue/parenthetical/character keep their column indent on every wrapped row.
+ */
+export function hardWrapLineForElement(element: ScreenplayElementType, rawLine: string): string[] {
+  if (element === "transition") {
+    return [formatLineForElement(element, rawLine)];
+  }
+
+  let body = rawLine.trim();
+  if (!body) return [formatLineForElement(element, "")];
+
+  if (element === "parenthetical") {
+    body = body.replace(/^\(+|\)+$/g, "").trim();
+  } else if (UPPERCASE_ELEMENTS.has(element)) {
+    body = body.toUpperCase();
+  }
+
+  const maxWidth = maxContentWidthForElement(element);
+  const chunks = wrapPlainText(body, maxWidth);
+  const indent = indentForElement(element);
+
+  return chunks.map((chunk, index) => {
+    if (element === "parenthetical") {
+      const text =
+        chunks.length === 1 ? `(${chunk})` : index === 0 ? `(${chunk}` : index === chunks.length - 1 ? `${chunk})` : chunk;
+      return padColumn(text, indent);
+    }
+    if (element === "centered" || element === "lyrics") return centerText(chunk);
+    if (indent > 0) return padColumn(chunk, indent);
+    if (element === "scene_heading" || element === "shot" || element === "character") return chunk.toUpperCase();
+    return chunk;
+  });
+}
+
+/**
+ * Apply hard-wrap to the line under the cursor. Always runs so long action/dialogue
+ * cannot overflow the page width.
+ */
+export function applyHardWrapAtCursor(
+  content: string,
+  cursorPos: number,
+  activeElement: ScreenplayElementType,
+): { content: string; selectionStart: number; selectionEnd: number; element: ScreenplayElementType } {
+  const lineIdx = lineIndexAt(content, cursorPos);
+  const lines = content.split("\n");
+  const current = lines[lineIdx] ?? "";
+  const neighbors = {
+    prev: lineIdx > 0 ? lines[lineIdx - 1] : undefined,
+    next: lineIdx < lines.length - 1 ? lines[lineIdx + 1] : undefined,
+  };
+  const element = resolveLineElement(current, neighbors, activeElement);
+  const wrapped = hardWrapLineForElement(element, current);
+
+  const lineStart = lineStartAt(content, lineIdx);
+  const cursorInLine = Math.max(0, cursorPos - lineStart);
+  // Approximate caret: keep relative offset into the unwrapped trimmed body when possible
+  const before = lines.slice(0, lineIdx);
+  const after = lines.slice(lineIdx + 1);
+  const newLines = [...before, ...wrapped, ...after];
+  const newContent = newLines.join("\n");
+
+  // Place caret at end of the segment that absorbed the original cursor
+  let remaining = cursorInLine;
+  let targetLine = lineIdx;
+  let offsetInLine = wrapped[0]?.length ?? 0;
+  for (let i = 0; i < wrapped.length; i++) {
+    const len = wrapped[i]!.length;
+    if (remaining <= len || i === wrapped.length - 1) {
+      targetLine = lineIdx + i;
+      offsetInLine = Math.min(remaining, len);
+      break;
+    }
+    remaining -= len + 1; // account for the newline that replaced overflow
+  }
+
+  const selectionStart = lineStartAt(newContent, targetLine) + Math.max(0, offsetInLine);
+  return {
+    content: newContent,
+    selectionStart,
+    selectionEnd: selectionStart,
+    element,
+  };
+}
+
 /**
  * Final Draft–style Enter:
  * - empty Action → Character
@@ -303,7 +439,7 @@ export type ScreenplayKeyResult = {
   element: ScreenplayElementType;
 };
 
-/** Live-format the current line while typing (caps, columns, smart switches). */
+/** Live-format the current line while typing (caps, columns, hard-wrap, smart switches). */
 export function formatLineWhileTyping(
   content: string,
   cursorPos: number,
@@ -318,29 +454,28 @@ export function formatLineWhileTyping(
   };
   const element = resolveLineElement(current, neighbors, activeElement);
 
-  const shouldFormat =
-    UPPERCASE_ELEMENTS.has(element) ||
-    element === "dialogue" ||
-    element === "parenthetical" ||
-    element === "centered" ||
-    element === "lyrics";
+  const maxWidth = maxContentWidthForElement(element);
+  const bodyLen = current.trim().length;
+  const needsWrap = bodyLen > maxWidth;
+  const formattedSingle = formatLineForElement(element, current);
+  const needsFormat = formattedSingle !== current || element !== activeElement;
 
-  if (!shouldFormat && element === activeElement) return null;
+  if (!needsWrap && !needsFormat) return null;
 
-  const formatted = formatLineForElement(element, current);
-  if (formatted === current && element === activeElement) return null;
+  if (needsWrap) {
+    return applyHardWrapAtCursor(content, cursorPos, activeElement);
+  }
 
   const lineStart = lineStartAt(content, lineIdx);
   const lineEnd = lineStart + current.length;
   const cursorInLine = cursorPos - lineStart;
-  const newContent = content.slice(0, lineStart) + formatted + content.slice(lineEnd);
-  const delta = formatted.length - current.length;
+  const newContent = content.slice(0, lineStart) + formattedSingle + content.slice(lineEnd);
+  const delta = formattedSingle.length - current.length;
 
-  // Keep caret inside parenthetical content when possible
-  let newCursor = Math.max(lineStart, Math.min(lineStart + cursorInLine + delta, lineStart + formatted.length));
-  if (element === "parenthetical" && formatted.includes("(")) {
-    const open = formatted.indexOf("(");
-    const close = formatted.lastIndexOf(")");
+  let newCursor = Math.max(lineStart, Math.min(lineStart + cursorInLine + delta, lineStart + formattedSingle.length));
+  if (element === "parenthetical" && formattedSingle.includes("(")) {
+    const open = formattedSingle.indexOf("(");
+    const close = formattedSingle.lastIndexOf(")");
     if (close > open) {
       newCursor = Math.min(Math.max(lineStart + open + 1, newCursor), lineStart + close);
     }
@@ -542,4 +677,28 @@ export function paginateLineIndices(content: string): number[] {
 
 export function pageCountForContent(content: string): number {
   return Math.max(1, Math.ceil(content.split("\n").length / LINES_PER_PAGE));
+}
+
+/** Hard-wrap every line in the document so nothing can overflow page width. */
+export function hardWrapDocument(content: string, activeElement?: ScreenplayElementType): string {
+  const lines = content.split("\n");
+  const out: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i] ?? "";
+    const element = resolveLineElement(
+      line,
+      {
+        prev: i > 0 ? lines[i - 1] : undefined,
+        next: i < lines.length - 1 ? lines[i + 1] : undefined,
+      },
+      activeElement,
+    );
+    // Skip re-wrapping empty action lines (preserve blank structure)
+    if (!line.trim() && element === "action") {
+      out.push("");
+      continue;
+    }
+    out.push(...hardWrapLineForElement(element, line));
+  }
+  return out.join("\n");
 }
