@@ -6,29 +6,50 @@ import {
   formatLineForElement,
   resolveLineElement,
   padColumn,
+  nextElementOnEnter,
 } from "./screenplay-keyboard";
 import { SCREENPLAY_COL } from "./elements";
 
 describe("screenplay-keyboard", () => {
-  it("formats character lines in uppercase at character column", () => {
+  it("formats character lines in uppercase at character column (~3.7\")", () => {
     const line = formatLineForElement("character", "john");
     assert.equal(line, padColumn("JOHN", SCREENPLAY_COL.character));
+    assert.equal(SCREENPLAY_COL.character, 22);
   });
 
-  it("enters dialogue after character with cursor at dialogue column", () => {
+  it("formats parenthetical at ~3.1\" and dialogue at ~2.5\"", () => {
+    assert.equal(formatLineForElement("parenthetical", "whispering"), padColumn("(whispering)", SCREENPLAY_COL.parenthetical));
+    assert.equal(formatLineForElement("dialogue", "Hello."), padColumn("Hello.", SCREENPLAY_COL.dialogue));
+    assert.equal(SCREENPLAY_COL.parenthetical, 16);
+    assert.equal(SCREENPLAY_COL.dialogue, 10);
+  });
+
+  it("enters parenthetical after character with cursor inside parentheses", () => {
     const content = `${padColumn("SARAH", SCREENPLAY_COL.character)}`;
     const cursor = content.length;
     const result = handleScreenplayEnter(content, cursor, "character");
 
-    assert.equal(result.element, "dialogue");
+    assert.equal(result.element, "parenthetical");
     const lines = result.content.split("\n");
     assert.equal(lines.length, 2);
-    assert.ok(lines[1]!.startsWith(" ".repeat(SCREENPLAY_COL.dialogue)));
-    assert.equal(result.selectionStart, result.content.indexOf("\n") + 1 + SCREENPLAY_COL.dialogue);
-    assert.equal(result.selectionStart, result.selectionEnd);
+    assert.ok(lines[1]!.includes("("));
+    assert.ok(lines[1]!.startsWith(" ".repeat(SCREENPLAY_COL.parenthetical)));
   });
 
-  it("cycles elements with tab using active hint on empty line", () => {
+  it("double-enter on empty action switches to character", () => {
+    assert.equal(nextElementOnEnter("action", true), "character");
+    const result = handleScreenplayEnter("\n", 1, "action");
+    assert.equal(result.element, "character");
+  });
+
+  it("double-enter on empty dialogue switches to action", () => {
+    assert.equal(nextElementOnEnter("dialogue", true), "action");
+    const content = padColumn("", SCREENPLAY_COL.dialogue);
+    const result = handleScreenplayEnter(content, content.length, "dialogue");
+    assert.equal(result.element, "action");
+  });
+
+  it("cycles elements with tab including shot and centered", () => {
     const content = "INT. ROOM - DAY\n\n";
     const cursor = content.length;
     const result = handleScreenplayTab(content, cursor, 1, "action");
@@ -40,5 +61,11 @@ describe("screenplay-keyboard", () => {
     const line = "mike";
     const element = resolveLineElement(line, {}, "character");
     assert.equal(element, "character");
+  });
+
+  it("right-aligns transitions in uppercase", () => {
+    const line = formatLineForElement("transition", "cut to");
+    assert.ok(line.trimEnd().endsWith("CUT TO:"));
+    assert.ok(line.startsWith(" "));
   });
 });

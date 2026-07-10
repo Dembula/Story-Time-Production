@@ -11,6 +11,10 @@ import {
   pageCountForContent,
   resolveLineElement,
 } from "@/lib/script-studio/screenplay-keyboard";
+import {
+  getScreenplaySuggestions,
+  type ScreenplaySuggestion,
+} from "@/lib/script-studio/screenplay-autocomplete";
 import type { ScreenplayElementType } from "@/lib/script-studio/types";
 
 type ScreenplayEditorProps = {
@@ -80,6 +84,8 @@ export function ScreenplayEditor({
   const pageRefs = useRef<Array<HTMLTextAreaElement | null>>([]);
   const [editingElement, setEditingElement] = useState<ScreenplayElementType>(activeElementProp);
   const [activePageIdx, setActivePageIdx] = useState(0);
+  const [suggestions, setSuggestions] = useState<ScreenplaySuggestion[]>([]);
+  const [suggestionIndex, setSuggestionIndex] = useState(0);
 
   useEffect(() => {
     setEditingElement(activeElementProp);
@@ -107,6 +113,17 @@ export function ScreenplayEditor({
     });
   }, [pageTexts, pageContentHeight, fontSizePt, lineHeight]);
 
+  const refreshSuggestions = useCallback(
+    (content: string, globalCursor: number, element: ScreenplayElementType) => {
+      const lineIdx = lineIndexAt(content, globalCursor);
+      const line = content.split("\n")[lineIdx] ?? "";
+      const next = getScreenplaySuggestions({ content, line, element });
+      setSuggestions(next);
+      setSuggestionIndex(0);
+    },
+    [],
+  );
+
   const syncElementFromCursor = useCallback(
     (pageIdx: number, selectionStart: number) => {
       const globalStart = pageStartOffset(value, pageIdx) + selectionStart;
@@ -122,8 +139,9 @@ export function ScreenplayEditor({
       );
       setEditingElement(element);
       onElementChange?.(element);
+      refreshSuggestions(value, globalStart, element);
     },
-    [value, editingElement, onElementChange],
+    [value, editingElement, onElementChange, refreshSuggestions],
   );
 
   const focusAt = useCallback(
@@ -154,10 +172,39 @@ export function ScreenplayEditor({
       if (result.element) {
         setEditingElement(result.element);
         onElementChange?.(result.element);
+        refreshSuggestions(result.content, result.selectionStart, result.element);
+      } else {
+        setSuggestions([]);
       }
       focusAt(result.selectionStart, result.selectionEnd, result.content);
     },
-    [onChange, onElementChange, focusAt],
+    [onChange, onElementChange, focusAt, refreshSuggestions],
+  );
+
+  const applySuggestion = useCallback(
+    (suggestion: ScreenplaySuggestion, pageIdx: number) => {
+      onBeforeChange?.();
+      const el = pageRefs.current[pageIdx];
+      if (!el) return;
+      const globalCursor = pageStartOffset(value, pageIdx) + el.selectionStart;
+      const lineIdx = lineIndexAt(value, globalCursor);
+      const lines = value.split("\n");
+      lines[lineIdx] = suggestion.insert;
+      const newContent = lines.join("\n");
+      let lineStart = 0;
+      for (let i = 0; i < lineIdx; i++) {
+        lineStart += (lines[i]?.length ?? 0) + 1;
+      }
+      const element = suggestion.element ?? editingElement;
+      applyEdit({
+        content: newContent,
+        selectionStart: lineStart + suggestion.insert.length,
+        selectionEnd: lineStart + suggestion.insert.length,
+        element,
+      });
+      setSuggestions([]);
+    },
+    [value, editingElement, onBeforeChange, applyEdit],
   );
 
   const replacePageText = useCallback(
@@ -177,30 +224,51 @@ export function ScreenplayEditor({
       if (readOnly) return;
       const el = e.target;
       const raw = e.target.value;
-      const globalStart = pageStartOffset(value, pageIdx) + el.selectionStart;
 
-      const formatted = formatLineWhileTyping(raw, el.selectionStart, editingElement);
+      // Map page-local content back into full document for formatting helpers
+      const before = value.slice(0, pageStartOffset(value, pageIdx));
+      const afterStart = pageStartOffset(value, pageIdx) + (pageTexts[pageIdx]?.length ?? 0);
+      const after = value.slice(afterStart);
+      const provisional = before + raw + after;
+      const localCursor = el.selectionStart;
+      const globalCursor = pageStartOffset(value, pageIdx) + localCursor;
+
+      const formatted = formatLineWhileTyping(provisional, globalCursor, editingElement);
       if (formatted) {
-        const before = value.slice(0, pageStartOffset(value, pageIdx));
-        const afterStart = pageStartOffset(value, pageIdx) + pageTexts[pageIdx]!.length;
-        const after = value.slice(afterStart);
-        const nextContent = before + formatted.content + after;
-        onChange(nextContent);
+        onChange(formatted.content);
+        if (formatted.element) {
+          setEditingElement(formatted.element);
+          onElementChange?.(formatted.element);
+        }
+        refreshSuggestions(
+          formatted.content,
+          formatted.selectionStart,
+          formatted.element ?? editingElement,
+        );
         requestAnimationFrame(() => {
-          focusAt(
-            pageStartOffset(nextContent, pageIdx) + formatted.selectionStart,
-            pageStartOffset(nextContent, pageIdx) + formatted.selectionEnd,
-          );
+          focusAt(formatted.selectionStart, formatted.selectionEnd, formatted.content);
         });
         return;
       }
 
       replacePageText(pageIdx, raw);
+      const nextGlobal = pageStartOffset(value, pageIdx) + localCursor;
+      refreshSuggestions(provisional, nextGlobal, editingElement);
       requestAnimationFrame(() => {
-        focusAt(globalStart);
+        focusAt(nextGlobal, nextGlobal, provisional);
       });
     },
-    [readOnly, value, pageTexts, editingElement, onChange, replacePageText, focusAt],
+    [
+      readOnly,
+      value,
+      pageTexts,
+      editingElement,
+      onChange,
+      onElementChange,
+      replacePageText,
+      focusAt,
+      refreshSuggestions,
+    ],
   );
 
   const handlePageKeyDown = useCallback(
@@ -209,6 +277,29 @@ export function ScreenplayEditor({
       const el = e.currentTarget;
       const globalStart = pageStartOffset(value, pageIdx) + el.selectionStart;
       const globalEnd = pageStartOffset(value, pageIdx) + el.selectionEnd;
+
+      if (suggestions.length > 0) {
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          setSuggestionIndex((i) => (i + 1) % suggestions.length);
+          return;
+        }
+        if (e.key === "ArrowUp") {
+          e.preventDefault();
+          setSuggestionIndex((i) => (i - 1 + suggestions.length) % suggestions.length);
+          return;
+        }
+        if (e.key === "Escape") {
+          e.preventDefault();
+          setSuggestions([]);
+          return;
+        }
+        if (e.key === "Tab" && !e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+          applySuggestion(suggestions[suggestionIndex] ?? suggestions[0]!, pageIdx);
+          return;
+        }
+      }
 
       if (
         editingElement === "character" &&
@@ -221,23 +312,39 @@ export function ScreenplayEditor({
         e.preventDefault();
         onBeforeChange?.();
         const next = value.slice(0, globalStart) + e.key.toUpperCase() + value.slice(globalEnd);
-        const formatted = formatLineWhileTyping(
-          next.slice(pageStartOffset(value, pageIdx)),
-          el.selectionStart + 1,
-          "character",
-        );
+        const formatted = formatLineWhileTyping(next, globalStart + 1, "character");
         if (formatted) {
-          const before = value.slice(0, pageStartOffset(value, pageIdx));
-          const afterStart = pageStartOffset(value, pageIdx) + pageTexts[pageIdx]!.length;
           applyEdit({
-            content: before + formatted.content + value.slice(afterStart),
-            selectionStart: pageStartOffset(value, pageIdx) + formatted.selectionStart,
-            selectionEnd: pageStartOffset(value, pageIdx) + formatted.selectionEnd,
-            element: "character",
+            content: formatted.content,
+            selectionStart: formatted.selectionStart,
+            selectionEnd: formatted.selectionEnd,
+            element: formatted.element ?? "character",
           });
         } else {
           onChange(next);
-          focusAt(globalStart + 1);
+          focusAt(globalStart + 1, globalStart + 1, next);
+        }
+        return;
+      }
+
+      // Typing "(" switches to parenthetical
+      if (e.key === "(" && editingElement !== "character" && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        onBeforeChange?.();
+        const next = value.slice(0, globalStart) + "(" + value.slice(globalEnd);
+        const formatted = formatLineWhileTyping(next, globalStart + 1, "parenthetical");
+        if (formatted) {
+          applyEdit({
+            ...formatted,
+            element: "parenthetical",
+          });
+        } else {
+          applyEdit({
+            content: next,
+            selectionStart: globalStart + 1,
+            selectionEnd: globalStart + 1,
+            element: "parenthetical",
+          });
         }
         return;
       }
@@ -253,6 +360,10 @@ export function ScreenplayEditor({
       if (e.key === "Tab") {
         e.preventDefault();
         onBeforeChange?.();
+        if (suggestions.length > 0) {
+          applySuggestion(suggestions[suggestionIndex] ?? suggestions[0]!, pageIdx);
+          return;
+        }
         const result = handleScreenplayTab(value, globalStart, e.shiftKey ? -1 : 1, editingElement);
         applyEdit(result);
         return;
@@ -261,20 +372,19 @@ export function ScreenplayEditor({
       if (e.key === "Backspace" && el.selectionStart === 0 && el.selectionEnd === 0 && pageIdx > 0) {
         e.preventDefault();
         onBeforeChange?.();
-        const mergeAt = pageStartOffset(value, pageIdx);
-        focusAt(mergeAt - 1);
+        focusAt(pageStartOffset(value, pageIdx) - 1);
       }
 
-      if (e.key === "ArrowUp" && el.selectionStart === 0 && el.selectionEnd === 0 && pageIdx > 0) {
+      if (e.key === "ArrowUp" && suggestions.length === 0 && el.selectionStart === 0 && el.selectionEnd === 0 && pageIdx > 0) {
         e.preventDefault();
         const prevEl = pageRefs.current[pageIdx - 1];
         if (!prevEl) return;
-        const pos = prevEl.value.length;
-        focusAt(pageStartOffset(value, pageIdx - 1) + pos);
+        focusAt(pageStartOffset(value, pageIdx - 1) + prevEl.value.length);
       }
 
       if (
         e.key === "ArrowDown" &&
+        suggestions.length === 0 &&
         el.selectionStart === el.value.length &&
         el.selectionEnd === el.value.length &&
         pageIdx < pageCount - 1
@@ -286,11 +396,13 @@ export function ScreenplayEditor({
     [
       readOnly,
       value,
-      pageTexts,
       pageCount,
       editingElement,
+      suggestions,
+      suggestionIndex,
       onBeforeChange,
       applyEdit,
+      applySuggestion,
       onChange,
       focusAt,
     ],
@@ -306,10 +418,11 @@ export function ScreenplayEditor({
     fontSize: `${fontSizePt}pt`,
     lineHeight,
     caretColor: theme === "light" ? "#0f172a" : "#f8fafc",
+    // Industry page margins: 1.5" left, 1" right, ~1" top/bottom
     paddingLeft: "1.5in",
     paddingRight: "1in",
-    paddingTop: "0.65in",
-    paddingBottom: "0.5in",
+    paddingTop: "1in",
+    paddingBottom: "1in",
   } as const;
 
   return (
@@ -319,7 +432,7 @@ export function ScreenplayEditor({
         data-screenplay-scroll
         style={{ maxHeight: "min(78vh, 920px)" }}
       >
-        <div className="mx-auto w-full max-w-[8.5in] space-y-0">
+        <div className="relative mx-auto w-full max-w-[8.5in] space-y-0">
           {pageTexts.map((pageText, pageIdx) => (
             <div
               key={`page-${pageIdx}`}
@@ -331,7 +444,7 @@ export function ScreenplayEditor({
                 aria-hidden
               >
                 <span
-                  className="absolute bottom-2 right-3 text-[10px] text-slate-500"
+                  className="absolute bottom-3 right-4 text-[10px] text-slate-500"
                   style={{ fontFamily: fontCss }}
                 >
                   {pageIdx + 1}.
@@ -362,10 +475,14 @@ export function ScreenplayEditor({
                   setActivePageIdx(pageIdx);
                   syncExternalRef(pageRefs.current[pageIdx] ?? null);
                 }}
+                onBlur={() => {
+                  // Delay so suggestion click can register
+                  setTimeout(() => setSuggestions([]), 150);
+                }}
                 readOnly={readOnly}
                 spellCheck
                 rows={LINES_PER_PAGE}
-                className={`relative z-[1] block w-full resize-none overflow-hidden border-0 bg-transparent px-0 outline-none focus:ring-0 whitespace-pre-wrap break-words ${className ?? ""}`}
+                className={`relative z-[1] block w-full resize-none overflow-hidden border-0 bg-transparent px-0 outline-none focus:ring-0 whitespace-pre ${className ?? ""}`}
                 style={{
                   ...sharedTextStyle,
                   color: "inherit",
@@ -377,16 +494,45 @@ export function ScreenplayEditor({
               />
             </div>
           ))}
+
+          {suggestions.length > 0 && activePageIdx >= 0 ? (
+            <div
+              className="absolute left-[1.5in] z-20 mt-1 max-h-48 w-72 overflow-y-auto rounded-md border border-slate-700 bg-slate-900 shadow-xl"
+              style={{ top: "auto" }}
+              role="listbox"
+            >
+              {suggestions.map((s, i) => (
+                <button
+                  key={`${s.label}-${i}`}
+                  type="button"
+                  role="option"
+                  aria-selected={i === suggestionIndex}
+                  className={`block w-full px-3 py-1.5 text-left text-xs ${
+                    i === suggestionIndex
+                      ? "bg-orange-500/20 text-orange-100"
+                      : "text-slate-200 hover:bg-slate-800"
+                  }`}
+                  style={{ fontFamily: fontCss }}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    applySuggestion(s, activePageIdx);
+                  }}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2 px-1">
         <p className="text-[10px] text-slate-500" style={{ fontFamily: fontCss }}>
-          {pageCount} page{pageCount === 1 ? "" : "s"} ·{" "}
+          {pageCount} page{pageCount === 1 ? "" : "s"} · ~{pageCount} min ·{" "}
           <span className="text-orange-300/90">{editingElement.replace(/_/g, " ")}</span>
         </p>
         <p className="text-[10px] text-slate-500" style={{ fontFamily: fontCss }}>
-          Enter / Tab to format · Shift+Tab cycles elements · Character names auto-capitalize
+          Enter advances · Tab cycles · Type int/cut/( for smart format · ↑↓ suggestions
         </p>
       </div>
     </div>

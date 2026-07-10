@@ -8,6 +8,7 @@ export const SCREENPLAY_ELEMENT_LABELS: Record<ScreenplayElementType, string> = 
   dialogue: "Dialogue",
   transition: "Transition",
   shot: "Shot",
+  centered: "Centered",
   lyrics: "Lyrics",
   voice_over: "V.O.",
   off_screen: "O.S.",
@@ -18,15 +19,83 @@ export const SCREENPLAY_ELEMENT_LABELS: Record<ScreenplayElementType, string> = 
   flashforward: "Flashforward",
 };
 
-/** Standard script line width in monospace characters (6" @ 10 CPI). */
+/**
+ * Standard script line width in monospace characters (6" @ 10 CPI).
+ * Page: US Letter, left margin 1.5", right margin 1" → 6" writing area.
+ */
 export const SCREENPLAY_LINE_WIDTH = 60;
 
-/** Column positions from the left edge of the script text area. */
+/**
+ * Column positions from the left edge of the script text area
+ * (after the 1.5" page margin). At Courier 12pt / 10 CPI:
+ *   Character    ~3.7" page → 22 chars
+ *   Parenthetical ~3.1" page → 16 chars
+ *   Dialogue     ~2.5" page → 10 chars
+ *   Dialogue right edge ~6.0" page → width ~35 chars
+ */
 export const SCREENPLAY_COL = {
   dialogue: 10,
   parenthetical: 16,
   character: 22,
+  dialogueWidth: 35,
 } as const;
+
+export const SCENE_HEADING_PREFIXES = ["INT.", "EXT.", "INT./EXT.", "EXT./INT.", "EST.", "I/E."] as const;
+
+export const TIME_OF_DAY = [
+  "DAY",
+  "NIGHT",
+  "MORNING",
+  "AFTERNOON",
+  "EVENING",
+  "SUNSET",
+  "SUNRISE",
+  "LATER",
+  "CONTINUOUS",
+  "SAME TIME",
+  "DUSK",
+  "DAWN",
+] as const;
+
+export const CHARACTER_EXTENSIONS = [
+  "(V.O.)",
+  "(O.S.)",
+  "(CONT'D)",
+  "(OFF)",
+  "(PRE-LAP)",
+] as const;
+
+export const CAMERA_SHOTS = [
+  "CLOSE UP",
+  "EXTREME CLOSE UP",
+  "WIDE SHOT",
+  "MEDIUM SHOT",
+  "INSERT",
+  "POV",
+  "OVERHEAD",
+  "TRACKING SHOT",
+  "AERIAL SHOT",
+  "HANDHELD",
+  "STEADICAM",
+  "CRANE SHOT",
+  "DRONE SHOT",
+  "OVER THE SHOULDER",
+] as const;
+
+export const TRANSITIONS = [
+  "CUT TO:",
+  "MATCH CUT TO:",
+  "SMASH CUT TO:",
+  "FADE OUT.",
+  "FADE TO BLACK.",
+  "DISSOLVE TO:",
+  "WIPE TO:",
+  "JUMP CUT TO:",
+  "IRIS OUT.",
+  "CROSSFADE TO:",
+  "FADE IN:",
+  "FADE TO:",
+] as const;
 
 export type ElementSnippet = {
   text: string;
@@ -66,19 +135,19 @@ export function getElementSnippet(type: ScreenplayElementType): ElementSnippet {
       return { text: withBlankLine(line), select: { start: 0, end: line.length } };
     }
     case "character": {
-      const line = padColumn("CHARACTER NAME", SCREENPLAY_COL.character);
-      const nameStart = line.indexOf("CHARACTER NAME");
+      const line = padColumn("CHARACTER", SCREENPLAY_COL.character);
+      const nameStart = line.indexOf("CHARACTER");
       return {
         text: `${line}\n`,
-        select: { start: nameStart, end: nameStart + "CHARACTER NAME".length },
+        select: { start: nameStart, end: nameStart + "CHARACTER".length },
       };
     }
     case "parenthetical": {
       const line = padColumn("(beat)", SCREENPLAY_COL.parenthetical);
-      const parenStart = line.indexOf("(beat)");
+      const parenStart = line.indexOf("beat");
       return {
         text: `${line}\n`,
-        select: { start: parenStart, end: parenStart + "(beat)".length },
+        select: { start: parenStart, end: parenStart + "beat".length },
       };
     }
     case "dialogue": {
@@ -98,8 +167,16 @@ export function getElementSnippet(type: ScreenplayElementType): ElementSnippet {
       };
     }
     case "shot": {
-      const line = "ANGLE ON — subject.";
+      const line = "CLOSE UP";
       return { text: withBlankLine(line), select: { start: 0, end: line.length } };
+    }
+    case "centered": {
+      const line = centerText("THE END");
+      const start = line.indexOf("THE END");
+      return {
+        text: withBlankLine(line),
+        select: { start, end: start + "THE END".length },
+      };
     }
     case "lyrics": {
       const line = centerText("♪ Lyrics line ♪");
@@ -116,7 +193,10 @@ export function getElementSnippet(type: ScreenplayElementType): ElementSnippet {
       const voiceStart = dialogueLine.indexOf("Voice over line.");
       return {
         text,
-        select: { start: characterLine.length + 1 + voiceStart, end: characterLine.length + 1 + voiceStart + "Voice over line.".length },
+        select: {
+          start: characterLine.length + 1 + voiceStart,
+          end: characterLine.length + 1 + voiceStart + "Voice over line.".length,
+        },
       };
     }
     case "off_screen": {
@@ -126,7 +206,10 @@ export function getElementSnippet(type: ScreenplayElementType): ElementSnippet {
       const offStart = dialogueLine.indexOf("Off-screen line.");
       return {
         text,
-        select: { start: characterLine.length + 1 + offStart, end: characterLine.length + 1 + offStart + "Off-screen line.".length },
+        select: {
+          start: characterLine.length + 1 + offStart,
+          end: characterLine.length + 1 + offStart + "Off-screen line.".length,
+        },
       };
     }
     case "montage": {

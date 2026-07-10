@@ -6,6 +6,7 @@ export type ScreenplayElementType =
   | "dialogue"
   | "transition"
   | "shot"
+  | "centered"
   | "lyrics"
   | "voice_over"
   | "off_screen"

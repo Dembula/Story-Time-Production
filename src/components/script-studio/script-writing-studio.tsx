@@ -1085,7 +1085,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
               </div>
 
               <p className="text-[10px] text-slate-500">
-                Tab cycles elements · Enter formats and advances · Dialogue is centred; transitions are right-aligned in ALL CAPS
+                  Tab cycles elements · Enter advances (double-Enter: Action↔Character / Dialogue→Action) · Character → Parenthetical · Type int / cut / ( for smart format
               </p>
 
               {hasProject && draft.id ? (
