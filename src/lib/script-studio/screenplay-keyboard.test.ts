@@ -9,6 +9,8 @@ import {
   nextElementOnEnter,
   hardWrapLineForElement,
   wrapPlainText,
+  applyHardWrapAtCursor,
+  hardWrapDocument,
 } from "./screenplay-keyboard";
 import { SCREENPLAY_COL } from "./elements";
 
@@ -77,5 +79,32 @@ describe("screenplay-keyboard", () => {
     assert.ok(wrapped.length >= 2);
     assert.ok(wrapped.every((l) => l.length <= 60));
     assert.deepEqual(wrapPlainText("one two three four", 8), ["one two", "three", "four"]);
+  });
+
+  it("does not peel one character per keystroke when typing past the wrap width", () => {
+    let content = "a".repeat(60);
+    let cursor = content.length;
+    for (let i = 0; i < 5; i++) {
+      content = content.slice(0, cursor) + "x" + content.slice(cursor);
+      cursor += 1;
+      const result = applyHardWrapAtCursor(content, cursor, "action");
+      content = result.content;
+      cursor = result.selectionStart;
+    }
+    const lines = content.split("\n");
+    assert.ok(lines.length <= 3, `expected few lines, got ${lines.length}: ${JSON.stringify(lines)}`);
+    assert.ok(
+      !lines.some((l) => l.length === 1) || lines.length === 1,
+      `should not accumulate single-char lines: ${JSON.stringify(lines)}`,
+    );
+    assert.equal(content.replace(/\n/g, "").length, 65);
+  });
+
+  it("heals already peeled single-character remainder lines", () => {
+    const broken = ["a".repeat(60), "d", "l", "u", "b"].join("\n");
+    const healed = hardWrapDocument(broken);
+    const lines = healed.split("\n");
+    assert.ok(lines.length <= 2, `expected healed wrap, got ${lines.length}: ${JSON.stringify(lines)}`);
+    assert.equal(healed.replace(/\n/g, ""), "a".repeat(60) + "dlub");
   });
 });

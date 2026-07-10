@@ -216,7 +216,8 @@ export function formatLineForElement(element: ScreenplayElementType, rawLine: st
       return centerText(trimmed);
     case "action":
     default:
-      return trimmed;
+      // Preserve trailing spaces while typing; only strip leading indent noise
+      return rawLine.replace(/^\s+/, "");
   }
 }
 
@@ -252,10 +253,10 @@ export function indentForElement(element: ScreenplayElementType): number {
   }
 }
 
-/** Wrap plain text to a max width, preferring word boundaries. */
+/** Wrap plain text to a max width, preferring word boundaries. Never emits empty lines. */
 export function wrapPlainText(text: string, maxWidth: number): string[] {
-  const width = Math.max(1, maxWidth);
-  const normalized = text.replace(/\s+/g, " ").trim();
+  const width = Math.max(8, maxWidth); // never allow tiny widths that peel single characters
+  const normalized = text.replace(/\r\n/g, "\n").replace(/[ \t]+/g, " ").trim();
   if (!normalized) return [""];
   if (normalized.length <= width) return [normalized];
 
@@ -263,8 +264,16 @@ export function wrapPlainText(text: string, maxWidth: number): string[] {
   let rest = normalized;
   while (rest.length > width) {
     let cut = rest.lastIndexOf(" ", width);
-    if (cut < Math.floor(width * 0.4)) cut = width;
-    lines.push(rest.slice(0, cut).trimEnd());
+    // Only break on a space if it isn't near the start (avoid 1–2 char leftovers from early spaces)
+    if (cut < Math.floor(width * 0.5)) cut = width;
+    const piece = rest.slice(0, cut).trimEnd();
+    if (!piece) {
+      // Safety: force a hard cut so we cannot infinite-loop
+      lines.push(rest.slice(0, width));
+      rest = rest.slice(width);
+      continue;
+    }
+    lines.push(piece);
     rest = rest.slice(cut).trimStart();
   }
   if (rest) lines.push(rest);
@@ -306,9 +315,26 @@ export function hardWrapLineForElement(element: ScreenplayElementType, rawLine: 
   });
 }
 
+/** Rejoin hard-wrapped fragments so re-wrapping while typing doesn't peel one char per keystroke. */
+function joinWrapFragments(fragments: string[], maxWidth: number): string {
+  if (fragments.length === 0) return "";
+  const hardBrokenRun = fragments[0]!.trim().length >= maxWidth;
+  let result = fragments[0]!.trim();
+  for (let i = 1; i < fragments.length; i++) {
+    const prev = fragments[i - 1]!.trim();
+    const next = fragments[i]!.trim();
+    if (!next) continue;
+    // Full-width start (or previous) ⇒ hard break mid-token ⇒ concatenate with no space
+    if (hardBrokenRun || prev.length >= maxWidth) result += next;
+    else result += `${result.endsWith(" ") ? "" : " "}${next}`;
+  }
+  return result;
+}
+
 /**
- * Apply hard-wrap to the line under the cursor. Always runs so long action/dialogue
- * cannot overflow the page width.
+ * Apply hard-wrap to the line under the cursor.
+ * When typing at end of a full line, absorbs following short remainder lines first
+ * so characters are not peeled onto their own lines one keystroke at a time.
  */
 export function applyHardWrapAtCursor(
   content: string,
@@ -323,28 +349,83 @@ export function applyHardWrapAtCursor(
     next: lineIdx < lines.length - 1 ? lines[lineIdx + 1] : undefined,
   };
   const element = resolveLineElement(current, neighbors, activeElement);
-  const wrapped = hardWrapLineForElement(element, current);
-
+  const maxWidth = maxContentWidthForElement(element);
   const lineStart = lineStartAt(content, lineIdx);
   const cursorInLine = Math.max(0, cursorPos - lineStart);
-  // Approximate caret: keep relative offset into the unwrapped trimmed body when possible
+  const atEnd = cursorInLine >= current.length;
+
+  // Absorb peeled remainder lines when continuing to type at the end of a wrapped run
+  let endIdx = lineIdx;
+  if (atEnd) {
+    const bodyLen = current.trim().length;
+    if (bodyLen >= maxWidth) {
+      while (endIdx + 1 < lines.length) {
+        const nextLine = lines[endIdx + 1] ?? "";
+        if (!nextLine.trim()) break;
+        const nextEl = resolveLineElement(
+          nextLine,
+          {
+            prev: lines[endIdx],
+            next: endIdx + 2 < lines.length ? lines[endIdx + 2] : undefined,
+          },
+          element,
+        );
+        if (nextEl !== element) break;
+        if (nextLine.trim().length >= maxWidth) break;
+        endIdx += 1;
+      }
+    }
+  }
+
+  const fragmentBodies = lines.slice(lineIdx, endIdx + 1).map((l) => l.trim());
+  const joinedBody =
+    endIdx > lineIdx ? joinWrapFragments(fragmentBodies, maxWidth) : current.trim().length ? current.trim() : current;
+  const sourceForWrap = joinedBody.length > 0 ? joinedBody : current;
+  const wrapped = hardWrapLineForElement(element, sourceForWrap);
+
+  // If nothing exceeded the width, keep a single formatted line (avoid churn)
+  if (wrapped.length === 1 && endIdx === lineIdx && wrapped[0] === current) {
+    return {
+      content,
+      selectionStart: cursorPos,
+      selectionEnd: cursorPos,
+      element,
+    };
+  }
+
   const before = lines.slice(0, lineIdx);
-  const after = lines.slice(lineIdx + 1);
+  const after = lines.slice(endIdx + 1);
   const newLines = [...before, ...wrapped, ...after];
   const newContent = newLines.join("\n");
 
-  // Place caret at end of the segment that absorbed the original cursor
-  let remaining = cursorInLine;
+  // Typing at end ⇒ caret always at end of last wrapped segment (Word-like)
+  if (atEnd) {
+    const lastLineIdx = lineIdx + wrapped.length - 1;
+    const lastLine = wrapped[wrapped.length - 1] ?? "";
+    const selectionStart = lineStartAt(newContent, lastLineIdx) + lastLine.length;
+    return {
+      content: newContent,
+      selectionStart,
+      selectionEnd: selectionStart,
+      element,
+    };
+  }
+
+  // Map caret through wrapped body characters (ignore indent spaces for mapping)
+  const bodyCursor = Math.max(0, cursorInLine - indentForElement(element));
+  let remaining = bodyCursor;
   let targetLine = lineIdx;
-  let offsetInLine = wrapped[0]?.length ?? 0;
+  let offsetInLine = 0;
   for (let i = 0; i < wrapped.length; i++) {
-    const len = wrapped[i]!.length;
-    if (remaining <= len || i === wrapped.length - 1) {
+    const body = wrapped[i]!.trimEnd();
+    const bodyLen = body.trim().length || body.length;
+    const indent = indentForElement(element);
+    if (remaining <= bodyLen || i === wrapped.length - 1) {
       targetLine = lineIdx + i;
-      offsetInLine = Math.min(remaining, len);
+      offsetInLine = indent + Math.min(remaining, bodyLen);
       break;
     }
-    remaining -= len + 1; // account for the newline that replaced overflow
+    remaining -= bodyLen;
   }
 
   const selectionStart = lineStartAt(newContent, targetLine) + Math.max(0, offsetInLine);
@@ -456,9 +537,20 @@ export function formatLineWhileTyping(
 
   const maxWidth = maxContentWidthForElement(element);
   const bodyLen = current.trim().length;
-  const needsWrap = bodyLen > maxWidth;
+  const lineStart = lineStartAt(content, lineIdx);
+  const atEnd = cursorPos >= lineStart + current.length;
+  const nextBody = (lines[lineIdx + 1] ?? "").trim();
+  const hasPeeledTail =
+    atEnd &&
+    bodyLen >= maxWidth &&
+    nextBody.length > 0 &&
+    nextBody.length < maxWidth &&
+    resolveLineElement(lines[lineIdx + 1] ?? "", { prev: current, next: lines[lineIdx + 2] }, element) === element;
+
+  const needsWrap = bodyLen > maxWidth || hasPeeledTail;
   const formattedSingle = formatLineForElement(element, current);
-  const needsFormat = formattedSingle !== current || element !== activeElement;
+  const needsFormat =
+    element !== "action" && (formattedSingle !== current || element !== activeElement);
 
   if (!needsWrap && !needsFormat) return null;
 
@@ -466,7 +558,6 @@ export function formatLineWhileTyping(
     return applyHardWrapAtCursor(content, cursorPos, activeElement);
   }
 
-  const lineStart = lineStartAt(content, lineIdx);
   const lineEnd = lineStart + current.length;
   const cursorInLine = cursorPos - lineStart;
   const newContent = content.slice(0, lineStart) + formattedSingle + content.slice(lineEnd);
@@ -679,26 +770,53 @@ export function pageCountForContent(content: string): number {
   return Math.max(1, Math.ceil(content.split("\n").length / LINES_PER_PAGE));
 }
 
-/** Hard-wrap every line in the document so nothing can overflow page width. */
-export function hardWrapDocument(content: string, activeElement?: ScreenplayElementType): string {
+/**
+ * Hard-wrap overflowing lines. Does NOT use an active-element hint (that would
+ * reformat the whole script as Character/Dialogue). Also heals peeled 1-char tails.
+ */
+export function hardWrapDocument(content: string): string {
   const lines = content.split("\n");
   const out: string[] = [];
-  for (let i = 0; i < lines.length; i++) {
+  let i = 0;
+  while (i < lines.length) {
     const line = lines[i] ?? "";
-    const element = resolveLineElement(
-      line,
-      {
-        prev: i > 0 ? lines[i - 1] : undefined,
-        next: i < lines.length - 1 ? lines[i + 1] : undefined,
-      },
-      activeElement,
-    );
-    // Skip re-wrapping empty action lines (preserve blank structure)
-    if (!line.trim() && element === "action") {
+    if (!line.trim()) {
       out.push("");
+      i += 1;
       continue;
     }
-    out.push(...hardWrapLineForElement(element, line));
+
+    const element = detectLineElement(line, {
+      prev: i > 0 ? lines[i - 1] : undefined,
+      next: i < lines.length - 1 ? lines[i + 1] : undefined,
+    });
+    const maxWidth = maxContentWidthForElement(element);
+
+    // Absorb following short remainder lines (the 1-letter peel bug)
+    let end = i;
+    if (line.trim().length >= maxWidth) {
+      while (end + 1 < lines.length) {
+        const nextLine = lines[end + 1] ?? "";
+        if (!nextLine.trim()) break;
+        const nextEl = detectLineElement(nextLine, {
+          prev: lines[end],
+          next: end + 2 < lines.length ? lines[end + 2] : undefined,
+        });
+        if (nextEl !== element) break;
+        if (nextLine.trim().length >= maxWidth) break;
+        end += 1;
+      }
+    }
+
+    const joined =
+      end > i
+        ? joinWrapFragments(
+            lines.slice(i, end + 1).map((l) => l.trim()),
+            maxWidth,
+          )
+        : line;
+    out.push(...hardWrapLineForElement(element, joined));
+    i = end + 1;
   }
   return out.join("\n");
 }

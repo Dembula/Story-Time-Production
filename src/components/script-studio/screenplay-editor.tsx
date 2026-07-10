@@ -102,11 +102,15 @@ export function ScreenplayEditor({
     setEditingElement(activeElementProp);
   }, [activeElementProp]);
 
-  // Keep existing/pasted scripts inside page width (idempotent).
+  // One-time heal for scripts already damaged by peeled 1-char wrap lines.
+  const didHealRef = useRef(false);
   useEffect(() => {
-    const wrapped = hardWrapDocument(value, editingElement);
-    if (wrapped !== value) onChange(wrapped);
-  }, [value, editingElement, onChange]);
+    if (didHealRef.current) return;
+    didHealRef.current = true;
+    const healed = hardWrapDocument(value);
+    if (healed !== value) onChange(healed);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only heal
+  }, []);
 
   const pageCount = pageCountForContent(value);
   const pageTexts = useMemo(() => splitContentIntoPages(value), [value]);
@@ -177,20 +181,17 @@ export function ScreenplayEditor({
       selectionEnd: number;
       element?: ScreenplayElementType;
     }) => {
-      const wrapped = hardWrapDocument(result.content, result.element ?? editingElement);
-      const sel = Math.min(result.selectionStart, wrapped.length);
-      const selEnd = Math.min(result.selectionEnd, wrapped.length);
-      onChange(wrapped);
+      onChange(result.content);
       if (result.element) {
         setEditingElement(result.element);
         onElementChange?.(result.element);
-        refreshSuggestions(wrapped, sel, result.element);
+        refreshSuggestions(result.content, result.selectionStart, result.element);
       } else {
         setSuggestions([]);
       }
-      focusAt(sel, selEnd, wrapped);
+      focusAt(result.selectionStart, result.selectionEnd, result.content);
     },
-    [onChange, onElementChange, focusAt, refreshSuggestions, editingElement],
+    [onChange, onElementChange, focusAt, refreshSuggestions],
   );
 
   const applySuggestion = useCallback(
@@ -223,23 +224,25 @@ export function ScreenplayEditor({
       const formatted = formatLineWhileTyping(provisional, globalCursor, editingElement);
 
       if (formatted) {
-        const wrapped = hardWrapDocument(formatted.content, formatted.element ?? editingElement);
-        onChange(wrapped);
+        onChange(formatted.content);
         if (formatted.element) {
           setEditingElement(formatted.element);
           onElementChange?.(formatted.element);
         }
-        const sel = Math.min(formatted.selectionStart, wrapped.length);
-        refreshSuggestions(wrapped, sel, formatted.element ?? editingElement);
-        requestAnimationFrame(() => focusAt(sel, Math.min(formatted.selectionEnd, wrapped.length), wrapped));
+        refreshSuggestions(
+          formatted.content,
+          formatted.selectionStart,
+          formatted.element ?? editingElement,
+        );
+        requestAnimationFrame(() =>
+          focusAt(formatted.selectionStart, formatted.selectionEnd, formatted.content),
+        );
         return;
       }
 
-      const wrapped = hardWrapDocument(provisional, editingElement);
-      onChange(wrapped);
-      const sel = Math.min(globalCursor, wrapped.length);
-      refreshSuggestions(wrapped, sel, editingElement);
-      requestAnimationFrame(() => focusAt(sel, sel, wrapped));
+      onChange(provisional);
+      refreshSuggestions(provisional, globalCursor, editingElement);
+      requestAnimationFrame(() => focusAt(globalCursor, globalCursor, provisional));
     },
     [value, editingElement, onChange, onElementChange, focusAt, refreshSuggestions],
   );
