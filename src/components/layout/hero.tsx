@@ -52,11 +52,17 @@ export function Hero({ content }: { content: Content[] }) {
     );
   }
 
-  const backdrop = getDisplayBackdropUrl({
-    posterUrl: current.posterUrl,
-    backdropUrl: current.backdropUrl,
-    videoUrl: current.videoUrl,
-  });
+  // Prefer server-packed backdrop (signed HTTPS). Never use portrait poster when a
+  // backdrop was uploaded — that looks cropped/wrong on the wide hero.
+  const packedBackdrop = current.backdropUrl?.trim();
+  const backdrop =
+    packedBackdrop && /^https?:\/\//i.test(packedBackdrop)
+      ? packedBackdrop
+      : getDisplayBackdropUrl({
+          posterUrl: current.posterUrl,
+          backdropUrl: current.backdropUrl,
+          videoUrl: current.videoUrl,
+        });
 
   return (
     <div className="relative h-[72vh] min-h-[460px] flex items-end cinematic-vignette overflow-hidden">

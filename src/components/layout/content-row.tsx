@@ -47,7 +47,18 @@ function ContentCard({
   const { deviceClass } = useAdaptiveUi();
   const trailer = resolveTrailerSources(item.trailerUrl);
   const trailerVideo = isNativeVideoSafeSource(trailer) ? trailer : null;
-  const imageUrl = getDisplayPosterUrl(item);
+  // Browse page packs poster/backdrop server-side; prefer those https URLs directly.
+  const packedPoster =
+    item.posterUrl?.trim() &&
+    /^https?:\/\//i.test(item.posterUrl.trim()) &&
+    !item.posterUrl.trim().startsWith("s3://")
+      ? item.posterUrl.trim()
+      : null;
+  const packedBackdrop =
+    item.backdropUrl?.trim() && /^https?:\/\//i.test(item.backdropUrl.trim())
+      ? item.backdropUrl.trim()
+      : null;
+  const imageUrl = packedPoster ?? getDisplayPosterUrl(item) ?? packedBackdrop;
   const hoverGif = !trailerVideo
     ? getStreamThumbnailGifUrl(item.videoUrl ?? item.trailerUrl)
     : null;

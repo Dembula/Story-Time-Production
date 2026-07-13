@@ -7,14 +7,13 @@ import { ContentDetailClient } from "./content-detail-client";
 import { getViewerPlaybackState, isPpvEligibleContent } from "@/lib/viewer-access";
 import { getViewerProfileAge } from "@/lib/viewer-profiles";
 import type { SeasonItem } from "@/components/browse/content-episodes-section";
-import { getDisplayPosterUrl } from "@/lib/content-media-urls";
-import { packBrowserMediaUrl } from "@/lib/pack-storage-media-url";
+import { packPlatformImageUrl } from "@/lib/browse-media-pack";
 
 export const dynamic = "force-dynamic";
 
-function packCatalogueImage(url: string | null | undefined): string | null {
+async function packCatalogueImage(url: string | null | undefined): Promise<string | null> {
   if (!url?.trim()) return null;
-  return getDisplayPosterUrl({ posterUrl: url }) ?? packBrowserMediaUrl(url) ?? url;
+  return packPlatformImageUrl(url);
 }
 
 export default async function ContentDetailPage({
@@ -157,22 +156,27 @@ export default async function ContentDetailPage({
     <ContentDetailClient
       content={{
         ...content,
-        posterUrl: packCatalogueImage(content.posterUrl),
-        backdropUrl: packCatalogueImage(content.backdropUrl) ?? content.backdropUrl,
+        posterUrl: await packCatalogueImage(content.posterUrl),
+        backdropUrl:
+          (await packCatalogueImage(content.backdropUrl)) ?? content.backdropUrl,
         createdAt: content.createdAt.toISOString(),
         submittedAt: content.submittedAt?.toISOString() ?? null,
         ratingStats: {
           average: avgRating._avg.score ?? 0,
           count: avgRating._count,
         },
-        otherCreatorContent: otherCreatorContent.map((c) => ({
-          ...c,
-          posterUrl: packCatalogueImage(c.posterUrl),
-        })),
-        relatedContent: relatedContent.map((c) => ({
-          ...c,
-          posterUrl: packCatalogueImage(c.posterUrl),
-        })),
+        otherCreatorContent: await Promise.all(
+          otherCreatorContent.map(async (c) => ({
+            ...c,
+            posterUrl: await packCatalogueImage(c.posterUrl),
+          })),
+        ),
+        relatedContent: await Promise.all(
+          relatedContent.map(async (c) => ({
+            ...c,
+            posterUrl: await packCatalogueImage(c.posterUrl),
+          })),
+        ),
         soundtrack: content.syncDeals.map((sd) => sd.musicTrack),
         crewMembers: content.crewMembers,
       }}

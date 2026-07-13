@@ -35,7 +35,7 @@ export function getStreamThumbnailGifUrl(videoUrl: string | null | undefined): s
   return `https://videodelivery.net/${uid}/thumbnails/thumbnail.gif?time=1s&duration=4s&height=400`;
 }
 
-/** Portrait card art — always prefer the creator's uploaded poster. */
+/** Portrait card art — prefer the creator's uploaded poster (fall back to backdrop). */
 export function getDisplayPosterUrl(item: {
   posterUrl?: string | null;
   backdropUrl?: string | null;
@@ -43,18 +43,31 @@ export function getDisplayPosterUrl(item: {
   trailerUrl?: string | null;
 }): string | null {
   const poster = packDisplayImageUrl(item.posterUrl);
-  if (poster) return poster;
+  if (poster && !poster.startsWith("s3://")) return poster;
+  const backdrop = packDisplayImageUrl(item.backdropUrl);
+  if (backdrop && !backdrop.startsWith("s3://")) return backdrop;
   return getStreamThumbnailUrl(item.videoUrl, { time: "3s" }) ?? null;
 }
 
-/** Wide hero / detail backdrop — always prefer the creator's uploaded backdrop. */
+/**
+ * Wide hero / detail backdrop — prefer the creator's uploaded backdrop.
+ * Do not silently swap in portrait poster art when a backdrop exists but failed to pack;
+ * callers should pack `backdropUrl` server-side before rendering.
+ */
 export function getDisplayBackdropUrl(item: {
   posterUrl?: string | null;
   backdropUrl?: string | null;
   videoUrl?: string | null;
 }): string | null {
   const backdrop = packDisplayImageUrl(item.backdropUrl);
-  if (backdrop) return backdrop;
+  if (backdrop && !backdrop.startsWith("s3://")) return backdrop;
+
+  // Raw https already set by browse packaging
+  const rawBackdrop = item.backdropUrl?.trim();
+  if (rawBackdrop && /^https?:\/\//i.test(rawBackdrop) && !isCloudflareStreamUrl(rawBackdrop)) {
+    return rawBackdrop;
+  }
+
   const uid = extractCloudflareStreamUid(item.videoUrl ?? undefined);
   if (uid) {
     try {
@@ -69,5 +82,11 @@ export function getDisplayBackdropUrl(item: {
     }
     return `${buildCloudflarePlaybackUrls(uid, "https://videodelivery.net").thumbnailUrl}?time=5s&height=720`;
   }
-  return packDisplayImageUrl(item.posterUrl);
+
+  // Last resort only when there is no backdrop at all
+  if (!rawBackdrop) {
+    const poster = packDisplayImageUrl(item.posterUrl);
+    if (poster && !poster.startsWith("s3://")) return poster;
+  }
+  return null;
 }

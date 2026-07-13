@@ -12,7 +12,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getViewerProfileAge } from "@/lib/viewer-profiles";
 import { VIEWER_MODELS } from "@/lib/viewer-access";
-import { getDisplayPosterUrl } from "@/lib/content-media-urls";
+import { packBrowseContentList } from "@/lib/browse-media-pack";
 
 /** Catalogue must reflect admin publish/unpublish immediately. */
 export const dynamic = "force-dynamic";
@@ -192,27 +192,32 @@ export default async function BrowsePage({
     }
   }
 
-  const withPoster = <T extends { posterUrl: string | null; backdropUrl?: string | null; videoUrl?: string | null; trailerUrl?: string | null }>(
+  const withMedia = async <
+    T extends {
+      posterUrl: string | null;
+      backdropUrl?: string | null;
+      videoUrl?: string | null;
+      trailerUrl?: string | null;
+    },
+  >(
     items: T[],
-  ) =>
-    items.map((c) => ({
-      ...c,
-      posterUrl: getDisplayPosterUrl(c) ?? c.posterUrl,
-    }));
+  ) => packBrowseContentList(items);
 
-  featured = withPoster(featured);
-  trending = withPoster(trending);
-  movies = withPoster(movies);
-  series = withPoster(series);
-  animated = withPoster(animated);
-  shows = withPoster(shows);
-  liveMusic = withPoster(liveMusic);
-  comedyShows = withPoster(comedyShows);
-  podcasts = withPoster(podcasts);
-  afdaContent = withPoster(afdaContent);
-  const heroMapped = mostPopular.length > 0
-    ? withPoster(mostPopular.map(({ ratings: _r, _avgRating: _a, ...c }) => c))
-    : featured;
+  featured = await withMedia(featured);
+  mostPopular = await withMedia(mostPopular);
+  trending = await withMedia(trending);
+  movies = await withMedia(movies);
+  series = await withMedia(series);
+  animated = await withMedia(animated);
+  shows = await withMedia(shows);
+  liveMusic = await withMedia(liveMusic);
+  comedyShows = await withMedia(comedyShows);
+  podcasts = await withMedia(podcasts);
+  afdaContent = await withMedia(afdaContent);
+  const heroMapped =
+    mostPopular.length > 0
+      ? mostPopular.map(({ ratings: _r, _avgRating: _a, ...c }) => c)
+      : featured;
 
   // Hero: Most popular films (or featured if no popular)
   const heroContent =

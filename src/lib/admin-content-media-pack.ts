@@ -1,27 +1,12 @@
 import {
   getDisplayBackdropUrl,
   getDisplayPosterUrl,
-  packDisplayImageUrl,
 } from "@/lib/content-media-urls";
-import { resolveStorageObjectRef } from "@/lib/storage-object-ref";
-import { getStorageObjectSignedUrl } from "@/lib/storage-object-fetch";
-import { packBrowserMediaUrl } from "@/lib/pack-storage-media-url";
+import { packPlatformImageUrl } from "@/lib/browse-media-pack";
 
 /** Prefer a signed GET for private platform objects; fall back to packed HTTPS. */
 export async function packAdminImageUrl(value: string | null | undefined): Promise<string | null> {
-  const trimmed = value?.trim();
-  if (!trimmed) return null;
-
-  const packed = packDisplayImageUrl(trimmed) ?? packBrowserMediaUrl(trimmed);
-  const ref = resolveStorageObjectRef(trimmed) ?? (packed ? resolveStorageObjectRef(packed) : null);
-  if (ref) {
-    try {
-      return await getStorageObjectSignedUrl(ref, 60 * 60);
-    } catch {
-      // fall through to packed public URL
-    }
-  }
-  return packed;
+  return packPlatformImageUrl(value);
 }
 
 export async function packAdminContentMediaFields<
@@ -36,12 +21,12 @@ export async function packAdminContentMediaFields<
   const displayPoster = getDisplayPosterUrl(item);
   const displayBackdrop = getDisplayBackdropUrl(item);
 
-  let posterUrl = await packAdminImageUrl(item.posterUrl);
-  if (!posterUrl) posterUrl = await packAdminImageUrl(displayPoster);
+  let posterUrl = await packPlatformImageUrl(item.posterUrl);
+  if (!posterUrl) posterUrl = await packPlatformImageUrl(displayPoster);
   posterUrl = posterUrl ?? displayPoster;
 
-  let backdropUrl = await packAdminImageUrl(item.backdropUrl);
-  if (!backdropUrl) backdropUrl = await packAdminImageUrl(displayBackdrop);
+  let backdropUrl = await packPlatformImageUrl(item.backdropUrl);
+  if (!backdropUrl) backdropUrl = await packPlatformImageUrl(displayBackdrop);
   backdropUrl = backdropUrl ?? displayBackdrop;
 
   let btsVideos = item.btsVideos;
@@ -49,7 +34,7 @@ export async function packAdminContentMediaFields<
     btsVideos = await Promise.all(
       btsVideos.map(async (b) => ({
         ...b,
-        thumbnail: (await packAdminImageUrl(b.thumbnail)) ?? b.thumbnail ?? null,
+        thumbnail: (await packPlatformImageUrl(b.thumbnail)) ?? b.thumbnail ?? null,
       })),
     );
   }
