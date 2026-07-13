@@ -12,6 +12,8 @@ type MediaDropzoneProps = {
   done?: boolean;
   error?: string | null;
   onFile: (file: File) => void | Promise<void>;
+  /** Clear a completed or failed upload so a new file can be chosen */
+  onClear?: () => void;
   children?: React.ReactNode;
 };
 
@@ -24,6 +26,7 @@ export function MediaDropzone({
   done = false,
   error = null,
   onFile,
+  onClear,
   children,
 }: MediaDropzoneProps) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -34,11 +37,13 @@ export function MediaDropzone({
       const file = files?.[0];
       if (!file) return;
       void onFile(file);
+      if (inputRef.current) inputRef.current.value = "";
     },
     [onFile],
   );
 
   const pct = progress != null ? Math.min(100, Math.max(0, Math.round(progress))) : null;
+  const showReplace = Boolean(onClear) && (done || Boolean(error)) && !uploading;
 
   return (
     <div className="space-y-2">
@@ -50,23 +55,27 @@ export function MediaDropzone({
         role="button"
         tabIndex={0}
         onKeyDown={(e) => {
+          if (uploading) return;
           if (e.key === "Enter" || e.key === " ") inputRef.current?.click();
         }}
-        onClick={() => inputRef.current?.click()}
+        onClick={() => {
+          if (!uploading) inputRef.current?.click();
+        }}
         onDragOver={(e) => {
           e.preventDefault();
-          setDragOver(true);
+          if (!uploading) setDragOver(true);
         }}
         onDragLeave={() => setDragOver(false)}
         onDrop={(e) => {
           e.preventDefault();
           setDragOver(false);
-          handleFiles(e.dataTransfer.files);
+          if (!uploading) handleFiles(e.dataTransfer.files);
         }}
         className={[
           "cinematic-glass cursor-pointer rounded-2xl border-2 border-dashed p-6 text-center transition",
           dragOver ? "border-orange-400/60 bg-orange-500/5" : "border-white/12 hover:border-orange-400/35",
           uploading ? "pointer-events-none opacity-90" : "",
+          error ? "border-red-400/40" : "",
         ].join(" ")}
       >
         <input
@@ -76,7 +85,7 @@ export function MediaDropzone({
           className="hidden"
           onChange={(e) => handleFiles(e.target.files)}
         />
-        {done && !uploading ? (
+        {done && !uploading && !error ? (
           <CheckCircle className="mx-auto mb-2 h-8 w-8 text-emerald-400" />
         ) : error ? (
           <AlertCircle className="mx-auto mb-2 h-8 w-8 text-red-400" />
@@ -84,7 +93,13 @@ export function MediaDropzone({
           <Upload className="mx-auto mb-2 h-8 w-8 text-orange-300/80" />
         )}
         <p className="text-sm font-medium text-white">
-          {uploading ? "Uploading…" : done ? "Upload complete" : "Drag & drop or click to browse"}
+          {uploading
+            ? "Uploading…"
+            : error
+              ? "Upload failed — click to try another file"
+              : done
+                ? "Upload complete — click to replace"
+                : "Drag & drop or click to browse"}
         </p>
         {hint ? <p className="mt-1 text-xs text-slate-500">{hint}</p> : null}
         {uploading && pct != null ? (
@@ -104,6 +119,24 @@ export function MediaDropzone({
         ) : null}
         {error ? <p className="mt-2 text-xs text-red-300">{error}</p> : null}
       </div>
+      {showReplace ? (
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            className="rounded-lg border border-orange-400/30 px-3 py-1.5 text-xs font-medium text-orange-200 hover:bg-orange-500/10"
+          >
+            Replace file
+          </button>
+          <button
+            type="button"
+            onClick={() => onClear?.()}
+            className="rounded-lg border border-white/12 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-white/5"
+          >
+            Remove
+          </button>
+        </div>
+      ) : null}
       {children}
     </div>
   );

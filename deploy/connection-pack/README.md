@@ -38,11 +38,15 @@ Where to use:
 
 What it does:
 
-- Allows browsers on your app domains to GET/HEAD media objects from S3 origin.
+- Allows browsers on your app domains to **PUT** (direct catalogue uploads: poster, backdrop, main video, trailer, etc.), plus GET/HEAD for playback/previews.
+- Browser preflight uses OPTIONS; S3 answers that automatically when PUT is allowed.
 
 Where to use:
 
-- AWS S3 -> Bucket -> Permissions -> CORS configuration.
+- AWS S3 -> Bucket -> Permissions -> CORS configuration
+- Or run: `npx tsx scripts/apply-s3-cors.ts` (uses STORAGE_* env + `NEXT_PUBLIC_APP_URL` / `STORAGE_CORS_ORIGINS`)
+
+**Important:** If CORS only allows GET/HEAD, posters and videos fail in the browser with “Upload connection failed… S3 CORS (PUT + OPTIONS).”
 
 ### `cloudflare-setup.md`
 

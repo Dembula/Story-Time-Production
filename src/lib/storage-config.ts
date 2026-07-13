@@ -8,8 +8,20 @@ type StorageConfig = {
 };
 
 function clean(value: string | undefined): string | null {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : null;
+  if (value == null) return null;
+  // Strip inline comments and surrounding quotes from env templates
+  let trimmed = value.trim();
+  if (!trimmed) return null;
+  const hash = trimmed.indexOf(" #");
+  if (hash >= 0) trimmed = trimmed.slice(0, hash).trim();
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    trimmed = trimmed.slice(1, -1).trim();
+  }
+  if (!trimmed || trimmed === '""' || trimmed === "''") return null;
+  return trimmed;
 }
 
 export function getStorageConfig(): StorageConfig {

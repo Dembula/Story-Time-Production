@@ -21,6 +21,17 @@ function isAbortError(error: unknown): boolean {
   );
 }
 
+function isDirectUploadCorsOrNetworkError(message: string): boolean {
+  return /upload connection failed|s3 cors|cors \(put|network and s3|signature mismatch|accessdenied|direct upload was denied|direct upload to storage was rejected|direct upload failed/i.test(
+    message,
+  );
+}
+
+function isProxyFallbackEligible(file: File, message: string): boolean {
+  if (file.size > CONTENT_MEDIA_DIRECT_UPLOAD_MAX_BYTES) return false;
+  return isPresignUnavailableError(message) || isDirectUploadCorsOrNetworkError(message);
+}
+
 async function fetchWithRetry(
   input: RequestInfo | URL,
   init: RequestInit,
@@ -210,8 +221,9 @@ async function uploadContentMediaViaPresignedPut(
 
 /**
  * Uploads a file through `/api/upload/content-media`.
- * Uses presigned direct-to-S3 PUT for all sizes (fastest path). Small files fall back to
- * server proxy only when presigned uploads are unavailable (missing S3 credentials).
+ * Uses presigned direct-to-S3 PUT (fastest path, required for large video).
+ * Small files (poster, backdrop, script, etc. under ~4MB) fall back to the
+ * server proxy when browser→S3 CORS/network PUT fails.
  */
 export type UploadContentMediaOptions = {
   onProgress?: (pct: number) => void;
@@ -242,8 +254,21 @@ export async function uploadContentMediaViaApiFull(
   } catch (err) {
     if (isAbortError(err)) throw err;
     const message = err instanceof Error ? err.message : "";
-    if (file.size <= CONTENT_MEDIA_DIRECT_UPLOAD_MAX_BYTES && isPresignUnavailableError(message)) {
-      return uploadContentMediaViaServerProxy(file, onProgress, signal);
+    if (isProxyFallbackEligible(file, message)) {
+      try {
+        return await uploadContentMediaViaServerProxy(file, onProgress, signal);
+      } catch (proxyErr) {
+        if (isAbortError(proxyErr)) throw proxyErr;
+        const proxyMessage = proxyErr instanceof Error ? proxyErr.message : "Upload failed";
+        throw new Error(
+          `${message} Proxy fallback also failed: ${proxyMessage}`,
+        );
+      }
+    }
+    if (isDirectUploadCorsOrNetworkError(message) && file.size > CONTENT_MEDIA_DIRECT_UPLOAD_MAX_BYTES) {
+      throw new Error(
+        `${message} Large files must upload directly to storage — ask an admin to enable S3 CORS PUT + OPTIONS for this site origin (see deploy/connection-pack/s3-cors.json or scripts/apply-s3-cors.ts).`,
+      );
     }
     throw err;
   }

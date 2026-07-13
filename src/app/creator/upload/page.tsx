@@ -19,6 +19,7 @@ import { defaultMinAgeForRating } from "@/lib/fpb-compliance";
 import { isLongFormType } from "@/lib/content-types";
 import { SeriesEpisodesUpload, buildSeasonsPayload, type EpisodeDraft } from "@/components/creator/series-episodes-upload";
 import { UploadCreditRoleSelect } from "@/components/creator/upload-credit-role-select";
+import { GenreMultiSelect } from "@/components/creator/genre-multi-select";
 import {
   useCatalogueUpload,
   useJobAssetProgress,
@@ -40,219 +41,6 @@ const TYPES = [
   { value: "SERIES", label: "Series", icon: Tv, desc: "Multi-episode scripted series" },
   { value: "SHOW", label: "Show", icon: Star, desc: "Live show, variety, or reality" },
   { value: "PODCAST", label: "Podcast", icon: Music, desc: "Audio or video podcast series" },
-];
-
-const GENRES = [
-  // Core
-  "Action",
-  "Adventure",
-  "Animation",
-  "Anime",
-  "Biography",
-  "Comedy",
-  "Crime",
-  "Documentary",
-  "Drama",
-  "Family",
-  "Fantasy",
-  "History",
-  "Horror",
-  "Music",
-  "Musical",
-  "Mystery",
-  "Romance",
-  "Sci-Fi",
-  "Sport",
-  "Thriller",
-  "War",
-  "Western",
-  // Tone / form
-  "Dark Comedy",
-  "Romantic Comedy",
-  "Satire",
-  "Parody",
-  "Slapstick",
-  "Coming-of-Age",
-  "Slice of Life",
-  "Anthology",
-  "Experimental",
-  "Avant-Garde",
-  "Art House",
-  "Indie",
-  "Short Form",
-  "Feature",
-  "Miniseries",
-  "Limited Series",
-  "Reality",
-  "Unscripted",
-  "Variety",
-  "Talk Show",
-  "Game Show",
-  "Sketch Comedy",
-  "Stand-Up",
-  "Live Performance",
-  "Concert Film",
-  "Music Video",
-  "Podcast",
-  "Interview",
-  "News / Current Affairs",
-  // Subgenres
-  "Action-Comedy",
-  "Action-Thriller",
-  "Psychological Thriller",
-  "Political Thriller",
-  "Conspiracy Thriller",
-  "Legal Drama",
-  "Medical Drama",
-  "Police Procedural",
-  "Detective",
-  "Noir",
-  "Neo-Noir",
-  "Heist",
-  "Spy / Espionage",
-  "Survival",
-  "Disaster",
-  "Found Footage",
-  "Supernatural",
-  "Paranormal",
-  "Ghost Story",
-  "Vampire",
-  "Zombie",
-  "Monster",
-  "Creature Feature",
-  "Slasher",
-  "Body Horror",
-  "Folk Horror",
-  "Gothic",
-  "Mythology",
-  "Fairy Tale",
-  "Sword & Sorcery",
-  "Epic Fantasy",
-  "Urban Fantasy",
-  "Space Opera",
-  "Hard Sci-Fi",
-  "Cyberpunk",
-  "Steampunk",
-  "Dystopian",
-  "Utopian",
-  "Post-Apocalyptic",
-  "Time Travel",
-  "Alternate History",
-  "Superhero",
-  "Martial Arts",
-  "Wuxia",
-  "Samurai",
-  "Mecha",
-  "Kaiju",
-  // Nature & factual
-  "Nature",
-  "Wildlife",
-  "Natural History",
-  "Environment",
-  "Conservation",
-  "Science",
-  "Technology",
-  "Space / Astronomy",
-  "Ocean / Marine",
-  "Travel",
-  "Adventure Travel",
-  "Expedition",
-  "Food & Culinary",
-  "Lifestyle",
-  "Home & Garden",
-  "Fashion",
-  "Design",
-  "Architecture",
-  "Art & Culture",
-  "Photography",
-  "True Crime",
-  "Investigative",
-  "Social Issue",
-  "Social Commentary",
-  "Politics",
-  "Human Rights",
-  "Education",
-  "How-To / Instructional",
-  "Faith & Spirituality",
-  "Religion",
-  "Philosophy",
-  "Health & Wellness",
-  "Mental Health",
-  "Disability Stories",
-  "LGBTQ+",
-  "Women's Stories",
-  "Youth / Teen",
-  "Children",
-  "Kids & Family",
-  "Educational Kids",
-  // Sports & competition
-  "Sports Drama",
-  "Sports Documentary",
-  "Football / Soccer",
-  "Rugby",
-  "Cricket",
-  "Athletics",
-  "Combat Sports",
-  "Motorsport",
-  "Extreme Sports",
-  "Esports",
-  // Romance & relationships
-  "Period Romance",
-  "Contemporary Romance",
-  "Love Story",
-  "Melodrama",
-  "Soap",
-  "Telenovela",
-  // African / regional
-  "Afro-Futurism",
-  "Afro-Fantasy",
-  "African Cinema",
-  "Nollywood",
-  "South African",
-  "Township Drama",
-  "Township Comedy",
-  "Kasi Story",
-  "Oral Tradition / Folklore",
-  "Indigenous Stories",
-  "Pan-African",
-  "Diaspora",
-  "Colonial History",
-  "Liberation Struggle",
-  "Apartheid Stories",
-  "Ubuntu Stories",
-  // Period & historical
-  "Period Drama",
-  "Historical Drama",
-  "Costume Drama",
-  "Biopic",
-  "Memoir",
-  "Autobiography",
-  "War Documentary",
-  "Military",
-  // Feel / audience
-  "Feel-Good",
-  "Inspirational",
-  "Motivational",
-  "Tearjerker",
-  "Whodunnit",
-  "Courtroom",
-  "Workplace",
-  "Campus / School",
-  "Road Movie",
-  "Buddy Film",
-  "Ensemble",
-  "Mockumentary",
-  "Meta / Self-Referential",
-  "Silent / Mostly Silent",
-  "Black & White",
-  "Stop-Motion",
-  "Claymation",
-  "3D Animation",
-  "2D Animation",
-  "Mixed Media",
-  "VR / Immersive",
-  "Interactive",
-  "Other",
 ];
 
 const LANGUAGES = [
@@ -298,8 +86,10 @@ function DistributionUploadInner() {
   const userId = session?.user?.id ?? null;
   const {
     ensureJob,
+    findJob,
     updateJobMeta,
     enqueueAsset,
+    removeAsset,
     requestFinalize,
     jobs,
   } = useCatalogueUpload();
@@ -447,11 +237,19 @@ function DistributionUploadInner() {
     finalMasterReviewed: false,
   });
 
-  const mainVideoAsset = useJobAssetProgress(uploadJobId, "mainVideo");
-  const trailerAsset = useJobAssetProgress(uploadJobId, "trailer");
-  const posterAsset = useJobAssetProgress(uploadJobId, "poster");
-  const backdropAsset = useJobAssetProgress(uploadJobId, "backdrop");
-  const scriptAsset = useJobAssetProgress(uploadJobId, "script");
+  const matchedJob =
+    findJob({
+      jobId: uploadJobId,
+      contentId: editingContentId ?? contentIdFromUrl,
+      title: form.title,
+    }) ?? null;
+  const effectiveJobId = uploadJobId ?? matchedJob?.id ?? null;
+
+  const mainVideoAsset = useJobAssetProgress(effectiveJobId, "mainVideo");
+  const trailerAsset = useJobAssetProgress(effectiveJobId, "trailer");
+  const posterAsset = useJobAssetProgress(effectiveJobId, "poster");
+  const backdropAsset = useJobAssetProgress(effectiveJobId, "backdrop");
+  const scriptAsset = useJobAssetProgress(effectiveJobId, "script");
 
   const [seasonCount, setSeasonCount] = useState(1);
   const [episodesPerSeason, setEpisodesPerSeason] = useState<number[]>([6]);
@@ -467,10 +265,38 @@ function DistributionUploadInner() {
     });
   }, [uploadJobId, form.title, editingContentId, linkedProject?.id, updateJobMeta]);
 
+  // Reattach to the in-memory upload queue when returning to this page
+  useEffect(() => {
+    const existing = findJob({
+      jobId: uploadJobId,
+      contentId: editingContentId ?? contentIdFromUrl,
+      title: form.title,
+    });
+    if (!existing) return;
+    if (uploadJobId !== existing.id) setUploadJobId(existing.id);
+    const hasMediaActivity = existing.assets.some(
+      (a) =>
+        a.status === "queued" ||
+        a.status === "uploading" ||
+        a.status === "complete" ||
+        a.status === "failed",
+    );
+    if (hasMediaActivity && step < 3) setStep(3);
+  }, [
+    findJob,
+    uploadJobId,
+    editingContentId,
+    contentIdFromUrl,
+    form.title,
+    jobs,
+    step,
+  ]);
+
   // Mirror completed queue URLs into the form so submit/draft payloads stay current
   useEffect(() => {
-    if (!uploadJobId) return;
-    const job = jobs.find((j) => j.id === uploadJobId);
+    const jobId = effectiveJobId;
+    if (!jobId) return;
+    const job = jobs.find((j) => j.id === jobId);
     if (!job) return;
     for (const asset of job.assets) {
       if (asset.status !== "complete" || !asset.storageUrl) continue;
@@ -503,7 +329,7 @@ function DistributionUploadInner() {
         );
       }
     }
-  }, [jobs, uploadJobId]);
+  }, [jobs, effectiveJobId]);
 
   // Restore local draft (text/prefill) when not loading a server contentId yet
   useEffect(() => {
@@ -721,12 +547,6 @@ function DistributionUploadInner() {
     }
   }, [longFormUpload, seasonCount, episodesPerSeason, episodeDrafts.length]);
 
-  function toggleGenre(g: string) {
-    setSelectedGenres((prev) =>
-      prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]
-    );
-  }
-
   function updateField(field: string, value: string) {
     setForm((f) => ({ ...f, [field]: value }));
   }
@@ -751,7 +571,7 @@ function DistributionUploadInner() {
     const jobId =
       uploadJobId ??
       ensureJob({
-        contentId: editingContentId,
+        contentId: editingContentId ?? contentIdFromUrl,
         title: form.title || undefined,
         linkedProjectId: linkedProject?.id ?? null,
       });
@@ -764,6 +584,28 @@ function DistributionUploadInner() {
       file,
       meta,
     });
+  }
+
+  function clearMediaSlot(
+    kind: CatalogueAssetKind,
+    meta?: { seasonNumber?: number; episodeNumber?: number; btsIndex?: number },
+  ) {
+    const jobId =
+      uploadJobId ??
+      findJob({
+        contentId: editingContentId ?? contentIdFromUrl,
+        title: form.title,
+      })?.id ??
+      null;
+    if (jobId) {
+      removeAsset(jobId, kind, meta);
+      if (!uploadJobId) setUploadJobId(jobId);
+    }
+    if (kind === "mainVideo") updateField("videoUrl", "");
+    if (kind === "trailer") updateField("trailerUrl", "");
+    if (kind === "poster") updateField("posterUrl", "");
+    if (kind === "backdrop") updateField("backdropUrl", "");
+    if (kind === "script") updateField("scriptUrl", "");
   }
 
   function handleMainVideoUpload(file: File) {
@@ -1268,25 +1110,7 @@ function DistributionUploadInner() {
                 />
               </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">Genres (select all that apply)</label>
-              <div className="flex flex-wrap gap-2">
-                {GENRES.map((g) => (
-                  <button
-                    key={g}
-                    type="button"
-                    onClick={() => toggleGenre(g)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition ${
-                      selectedGenres.includes(g)
-                        ? "bg-orange-500 text-white"
-                        : "bg-slate-800/50 text-slate-400 border border-slate-700/50 hover:border-orange-500/50"
-                    }`}
-                  >
-                    {g}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <GenreMultiSelect value={selectedGenres} onChange={setSelectedGenres} />
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1.5">Tags</label>
               <input
@@ -1309,6 +1133,18 @@ function DistributionUploadInner() {
               ? "Upload catalogue poster, a cinematic backdrop for the title page, optional trailer, and all season episodes below."
               : "Upload your master video, BTS clips, poster, backdrop, and script (PDF) using the file pickers below."}
           </p>
+          {effectiveJobId &&
+          (mainVideoAsset.uploading ||
+            trailerAsset.uploading ||
+            posterAsset.uploading ||
+            backdropAsset.uploading ||
+            posterAsset.error ||
+            mainVideoAsset.error) ? (
+            <div className="rounded-xl border border-sky-400/25 bg-sky-500/[0.06] px-4 py-3 text-sm text-sky-100">
+              Resumed your in-progress media uploads. Progress stays in the notification bell if you leave this page.
+              Failed items (like a poster) can be removed and replaced below.
+            </div>
+          ) : null}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div className="space-y-4">
               {!longFormUpload && (
@@ -1319,7 +1155,9 @@ function DistributionUploadInner() {
                 uploading={mainVideoAsset.uploading}
                 progress={mainVideoAsset.progress}
                 done={(Boolean(form.videoUrl) || mainVideoAsset.done) && !mainVideoAsset.uploading}
+                error={mainVideoAsset.error}
                 onFile={handleMainVideoUpload}
+                onClear={() => clearMediaSlot("mainVideo")}
               >
                 <details className="rounded-lg border border-slate-700/60 bg-slate-900/30 px-3 py-2">
                   <summary className="cursor-pointer text-xs text-slate-500 hover:text-slate-300 list-none [&::-webkit-details-marker]:hidden">
@@ -1341,7 +1179,9 @@ function DistributionUploadInner() {
                 uploading={trailerAsset.uploading}
                 progress={trailerAsset.progress}
                 done={(Boolean(form.trailerUrl) || trailerAsset.done) && !trailerAsset.uploading}
+                error={trailerAsset.error}
                 onFile={handleTrailerUpload}
+                onClear={() => clearMediaSlot("trailer")}
               >
                 <details className="rounded-lg border border-slate-700/60 bg-slate-900/30 px-3 py-2">
                   <summary className="cursor-pointer text-xs text-slate-500 hover:text-slate-300 list-none [&::-webkit-details-marker]:hidden">
@@ -1369,6 +1209,7 @@ function DistributionUploadInner() {
                       const file = e.target.files?.[0];
                       if (!file) return;
                       enqueueMedia("poster", file);
+                      e.target.value = "";
                     }}
                     className="block w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-slate-700 file:text-white hover:file:bg-slate-600 cursor-pointer"
                   />
@@ -1378,8 +1219,29 @@ function DistributionUploadInner() {
                       {posterAsset.progress != null ? ` ${Math.round(posterAsset.progress)}%` : ""}
                     </p>
                   )}
+                  {posterAsset.error ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-xs text-red-300">{posterAsset.error}</p>
+                      <button
+                        type="button"
+                        onClick={() => clearMediaSlot("poster")}
+                        className="rounded-lg border border-white/12 px-2.5 py-1 text-[11px] text-slate-300 hover:bg-white/5"
+                      >
+                        Remove failed poster
+                      </button>
+                    </div>
+                  ) : null}
                   {posterAsset.done && !posterAsset.uploading && form.posterUrl ? (
-                    <p className="text-xs text-emerald-400">Poster image uploaded</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-xs text-emerald-400">Poster image uploaded</p>
+                      <button
+                        type="button"
+                        onClick={() => clearMediaSlot("poster")}
+                        className="rounded-lg border border-white/12 px-2.5 py-1 text-[11px] text-slate-300 hover:bg-white/5"
+                      >
+                        Remove / replace
+                      </button>
+                    </div>
                   ) : null}
                   <details className="rounded-lg border border-slate-700/60 bg-slate-900/30 px-3 py-2">
                     <summary className="cursor-pointer text-xs text-slate-500 hover:text-slate-300 list-none [&::-webkit-details-marker]:hidden">
@@ -1407,6 +1269,7 @@ function DistributionUploadInner() {
                       const file = e.target.files?.[0];
                       if (!file) return;
                       enqueueMedia("backdrop", file);
+                      e.target.value = "";
                     }}
                     className="block w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-slate-700 file:text-white hover:file:bg-slate-600 cursor-pointer"
                   />
@@ -1416,8 +1279,29 @@ function DistributionUploadInner() {
                       {backdropAsset.progress != null ? ` ${Math.round(backdropAsset.progress)}%` : ""}
                     </p>
                   )}
+                  {backdropAsset.error ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-xs text-red-300">{backdropAsset.error}</p>
+                      <button
+                        type="button"
+                        onClick={() => clearMediaSlot("backdrop")}
+                        className="rounded-lg border border-white/12 px-2.5 py-1 text-[11px] text-slate-300 hover:bg-white/5"
+                      >
+                        Remove failed backdrop
+                      </button>
+                    </div>
+                  ) : null}
                   {backdropAsset.done && !backdropAsset.uploading && form.backdropUrl ? (
-                    <p className="text-xs text-emerald-400">Backdrop / banner uploaded</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-xs text-emerald-400">Backdrop / banner uploaded</p>
+                      <button
+                        type="button"
+                        onClick={() => clearMediaSlot("backdrop")}
+                        className="rounded-lg border border-white/12 px-2.5 py-1 text-[11px] text-slate-300 hover:bg-white/5"
+                      >
+                        Remove / replace
+                      </button>
+                    </div>
                   ) : null}
                   <details className="rounded-lg border border-slate-700/60 bg-slate-900/30 px-3 py-2">
                     <summary className="cursor-pointer text-xs text-slate-500 hover:text-slate-300 list-none [&::-webkit-details-marker]:hidden">

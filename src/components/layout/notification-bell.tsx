@@ -14,6 +14,7 @@ import {
 } from "@/components/creator/catalogue-upload-provider";
 import {
   catalogueAssetStatusLabel,
+  dedupeCatalogueJobs,
   isJobInFlight,
   isJobVisibleInBell,
   jobActiveAssetLabel,
@@ -42,8 +43,9 @@ export function NotificationBell() {
   const [panelPos, setPanelPos] = useState<{ top: number; right: number }>({ top: 72, right: 16 });
   const [buttonEl, setButtonEl] = useState<HTMLButtonElement | null>(null);
 
-  const activeUploadJobs =
-    catalogueUploads?.activeJobs.filter(isJobVisibleInBell) ?? [];
+  const activeUploadJobs = dedupeCatalogueJobs(
+    (catalogueUploads?.activeJobs ?? []).filter(isJobVisibleInBell),
+  );
   const inFlightCount = activeUploadJobs.filter(isJobInFlight).length;
 
   const refreshPreview = async () => {
@@ -304,23 +306,41 @@ export function NotificationBell() {
                                       <p className="min-w-0 truncate text-[10px] font-medium text-slate-200">
                                         {asset.label}
                                       </p>
-                                      <span
-                                        className={[
-                                          "shrink-0 text-[9px] uppercase tracking-wide",
-                                          asset.status === "complete"
-                                            ? "text-emerald-400"
-                                            : asset.status === "failed"
-                                              ? "text-red-300"
-                                              : asset.status === "uploading"
-                                                ? "text-orange-300"
-                                                : "text-slate-500",
-                                        ].join(" ")}
-                                      >
-                                        {catalogueAssetStatusLabel(asset.status)}
-                                        {asset.status === "uploading" || asset.status === "queued"
-                                          ? ` ${assetPct}%`
-                                          : ""}
-                                      </span>
+                                      <div className="flex shrink-0 items-center gap-1.5">
+                                        <span
+                                          className={[
+                                            "text-[9px] uppercase tracking-wide",
+                                            asset.status === "complete"
+                                              ? "text-emerald-400"
+                                              : asset.status === "failed"
+                                                ? "text-red-300"
+                                                : asset.status === "uploading"
+                                                  ? "text-orange-300"
+                                                  : "text-slate-500",
+                                          ].join(" ")}
+                                        >
+                                          {catalogueAssetStatusLabel(asset.status)}
+                                          {asset.status === "uploading" || asset.status === "queued"
+                                            ? ` ${assetPct}%`
+                                            : ""}
+                                        </span>
+                                        {(asset.status === "failed" || asset.status === "complete") && (
+                                          <button
+                                            type="button"
+                                            title={
+                                              asset.status === "failed"
+                                                ? "Remove failed upload"
+                                                : "Remove so you can replace"
+                                            }
+                                            className="rounded p-0.5 text-slate-500 hover:bg-white/5 hover:text-slate-200"
+                                            onClick={() =>
+                                              catalogueUploads?.removeAsset(job.id, asset.kind, asset.meta)
+                                            }
+                                          >
+                                            <X className="h-3 w-3" />
+                                          </button>
+                                        )}
+                                      </div>
                                     </div>
                                     {(asset.status === "uploading" || asset.status === "queued") && (
                                       <div className="mt-1 h-1 overflow-hidden rounded-full bg-white/10">
@@ -334,6 +354,9 @@ export function NotificationBell() {
                                       <p className="mt-0.5 truncate text-[9px] text-slate-600">
                                         {asset.fileName}
                                       </p>
+                                    ) : null}
+                                    {asset.status === "failed" && asset.error ? (
+                                      <p className="mt-0.5 text-[9px] text-red-300/90">{asset.error}</p>
                                     ) : null}
                                   </li>
                                 );

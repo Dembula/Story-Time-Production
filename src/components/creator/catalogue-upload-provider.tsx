@@ -12,9 +12,12 @@ import {
 } from "react";
 import { preferredStorageReference, uploadContentMediaViaApiFull } from "@/lib/upload-content-media-client";
 import {
+  deriveCatalogueJobStatus,
+  dedupeCatalogueJobs,
   isJobInFlight,
   isJobVisibleInBell,
   jobOverallProgress,
+  jobsMatchCatalogueIdentity,
   MAX_CONCURRENT_JOBS,
   MAX_CONCURRENT_XHR,
   type CatalogueAssetKind,
@@ -57,11 +60,17 @@ type CatalogueUploadContextValue = {
   jobs: CatalogueUploadJob[];
   activeJobs: CatalogueUploadJob[];
   ensureJob: (input?: EnsureJobInput) => string;
+  findJob: (identity: { contentId?: string | null; title?: string | null; jobId?: string | null }) => CatalogueUploadJob | null;
   updateJobMeta: (
     jobId: string,
     patch: Partial<Pick<CatalogueUploadJob, "title" | "contentId" | "linkedProjectId">>,
   ) => void;
   enqueueAsset: (input: EnqueueAssetInput) => string;
+  removeAsset: (
+    jobId: string,
+    kind: CatalogueAssetKind,
+    meta?: CatalogueUploadAsset["meta"],
+  ) => void;
   getAsset: (jobId: string, assetId: string) => CatalogueUploadAsset | undefined;
   getAssetByKind: (
     jobId: string,
@@ -122,6 +131,25 @@ export function CatalogueUploadProvider({ children }: { children: ReactNode }) {
     setJobs((prev) => prev.map((j) => (j.id === jobId ? updater(j) : j)));
   }, []);
 
+  const findJob = useCallback(
+    (identity: { contentId?: string | null; title?: string | null; jobId?: string | null }) => {
+      if (identity.jobId) {
+        const byId = jobsRef.current.find((j) => j.id === identity.jobId);
+        if (byId) return byId;
+      }
+      const ranked = [...jobsRef.current]
+        .filter((j) => j.status !== "cancelled")
+        .sort((a, b) => {
+          const aLive = isJobInFlight(a) ? 1 : 0;
+          const bLive = isJobInFlight(b) ? 1 : 0;
+          if (aLive !== bLive) return bLive - aLive;
+          return b.updatedAt - a.updatedAt;
+        });
+      return ranked.find((j) => jobsMatchCatalogueIdentity(j, identity)) ?? null;
+    },
+    [],
+  );
+
   const ensureJob = useCallback((input?: EnsureJobInput): string => {
     const existingId = input?.jobId;
     if (existingId) {
@@ -141,13 +169,34 @@ export function CatalogueUploadProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    const byContent =
-      input?.contentId != null
-        ? jobsRef.current.find(
-            (j) => j.contentId === input.contentId && isJobInFlight(j),
-          )
-        : undefined;
-    if (byContent) return byContent.id;
+    const matched = findJob({
+      contentId: input?.contentId,
+      title: input?.title,
+    });
+    if (matched) {
+      if (input?.title || input?.contentId !== undefined || input?.linkedProjectId !== undefined) {
+        setJob(matched.id, (j) => ({
+          ...j,
+          title: input.title?.trim() || j.title,
+          contentId: input.contentId !== undefined ? input.contentId ?? j.contentId : j.contentId,
+          linkedProjectId:
+            input.linkedProjectId !== undefined ? input.linkedProjectId : j.linkedProjectId,
+          updatedAt: Date.now(),
+        }));
+      }
+      // Collapse empty/stale duplicate shells for the same title/content
+      setJobs((prev) =>
+        prev.filter((j) => {
+          if (j.id === matched.id) return true;
+          if (!jobsMatchCatalogueIdentity(j, { contentId: matched.contentId, title: matched.title })) {
+            return true;
+          }
+          if (isJobInFlight(j)) return true;
+          return j.assets.some((a) => a.status === "failed" || a.status === "complete");
+        }),
+      );
+      return matched.id;
+    }
 
     const inFlightCount = jobsRef.current.filter(isJobInFlight).length;
     if (inFlightCount >= MAX_CONCURRENT_JOBS) {
@@ -172,7 +221,7 @@ export function CatalogueUploadProvider({ children }: { children: ReactNode }) {
     };
     setJobs((prev) => [job, ...prev]);
     return id;
-  }, [setJob]);
+  }, [findJob, setJob]);
 
   const updateJobMeta = useCallback(
     (
@@ -213,6 +262,34 @@ export function CatalogueUploadProvider({ children }: { children: ReactNode }) {
     }
     setJobs((prev) => prev.filter((j) => j.id !== jobId));
   }, [cancelJob]);
+
+  const removeAsset = useCallback(
+    (jobId: string, kind: CatalogueAssetKind, meta?: CatalogueUploadAsset["meta"]) => {
+      const job = jobsRef.current.find((j) => j.id === jobId);
+      if (!job) return;
+      const target = job.assets.find((a) => assetMatchesMeta(a, kind, meta));
+      if (!target) return;
+      if (target.status === "queued" || target.status === "uploading") {
+        filesRef.current.get(target.id)?.abort.abort();
+        filesRef.current.delete(target.id);
+      }
+      setJob(jobId, (j) => {
+        const assets = j.assets.filter((a) => a.id !== target.id);
+        const next: CatalogueUploadJob = {
+          ...j,
+          assets,
+          error: null,
+          updatedAt: Date.now(),
+          finalizeWhenReady: j.finalizeWhenReady,
+          status: j.status,
+        };
+        next.status = deriveCatalogueJobStatus(next);
+        return next;
+      });
+      queueMicrotask(() => pumpRef.current());
+    },
+    [setJob],
+  );
 
   const patchFormUrlsFromJob = useCallback((jobId: string): Record<string, unknown> => {
     const job = jobsRef.current.find((j) => j.id === jobId);
@@ -395,7 +472,8 @@ export function CatalogueUploadProvider({ children }: { children: ReactNode }) {
     const current = jobsRef.current;
     const candidates: { jobId: string; asset: CatalogueUploadAsset }[] = [];
     for (const job of current) {
-      if (job.status === "cancelled" || job.status === "complete" || job.status === "failed") continue;
+      if (job.status === "cancelled" || job.status === "complete") continue;
+      // Keep pumping even if one asset failed — other slots (and retries) must continue
       for (const asset of job.assets) {
         if (asset.status === "queued" && filesRef.current.has(asset.id)) {
           candidates.push({ jobId: job.id, asset });
@@ -461,18 +539,23 @@ export function CatalogueUploadProvider({ children }: { children: ReactNode }) {
             }));
           } else {
             const message = err instanceof Error ? err.message : "Upload failed";
-            setJob(next.jobId, (j) => ({
-              ...j,
-              status: "failed",
-              error: message,
-              finalizeWhenReady: false,
-              updatedAt: Date.now(),
-              assets: j.assets.map((a) =>
+            setJob(next.jobId, (j) => {
+              const assets = j.assets.map((a) =>
                 a.id === next.asset.id
-                  ? { ...a, status: "failed", error: message }
+                  ? { ...a, status: "failed" as const, error: message }
                   : a,
-              ),
-            }));
+              );
+              const draft: CatalogueUploadJob = {
+                ...j,
+                assets,
+                error: message,
+                finalizeWhenReady: false,
+                updatedAt: Date.now(),
+                status: j.status,
+              };
+              draft.status = deriveCatalogueJobStatus(draft);
+              return draft;
+            });
             const job = jobsRef.current.find((j) => j.id === next.jobId);
             await notifyUploadEvent({
               type: "CONTENT_UPLOAD_FAILED",
@@ -550,15 +633,16 @@ export function CatalogueUploadProvider({ children }: { children: ReactNode }) {
 
       setJob(input.jobId, (j) => {
         const filtered = j.assets.filter((a) => !assetMatchesMeta(a, input.kind, input.meta));
-        return {
+        const assets = [...filtered, asset];
+        const draft: CatalogueUploadJob = {
           ...j,
-          status: j.status === "complete" || j.status === "failed" || j.status === "cancelled"
-            ? "queued"
-            : j.status,
           error: null,
-          assets: [...filtered, asset],
+          assets,
           updatedAt: Date.now(),
+          status: j.status,
         };
+        draft.status = deriveCatalogueJobStatus(draft);
+        return draft;
       });
 
       queueMicrotask(() => pumpRef.current());
@@ -609,15 +693,20 @@ export function CatalogueUploadProvider({ children }: { children: ReactNode }) {
     [ensureJob, runFinalize, setJob],
   );
 
-  const activeJobs = useMemo(() => jobs.filter(isJobVisibleInBell), [jobs]);
+  const activeJobs = useMemo(
+    () => dedupeCatalogueJobs(jobs.filter(isJobVisibleInBell)),
+    [jobs],
+  );
 
   const value = useMemo<CatalogueUploadContextValue>(
     () => ({
       jobs,
       activeJobs,
       ensureJob,
+      findJob,
       updateJobMeta,
       enqueueAsset,
+      removeAsset,
       getAsset,
       getAssetByKind,
       cancelJob,
@@ -629,8 +718,10 @@ export function CatalogueUploadProvider({ children }: { children: ReactNode }) {
       jobs,
       activeJobs,
       ensureJob,
+      findJob,
       updateJobMeta,
       enqueueAsset,
+      removeAsset,
       getAsset,
       getAssetByKind,
       cancelJob,
