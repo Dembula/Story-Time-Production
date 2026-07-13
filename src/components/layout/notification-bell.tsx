@@ -12,7 +12,12 @@ import {
   jobOverallProgress,
   useCatalogueUploadOptional,
 } from "@/components/creator/catalogue-upload-provider";
-import { isJobInFlight, jobActiveAssetLabel } from "@/lib/catalogue-upload/types";
+import {
+  catalogueAssetStatusLabel,
+  isJobInFlight,
+  isJobVisibleInBell,
+  jobActiveAssetLabel,
+} from "@/lib/catalogue-upload/types";
 
 type Notification = {
   id: string;
@@ -38,10 +43,8 @@ export function NotificationBell() {
   const [buttonEl, setButtonEl] = useState<HTMLButtonElement | null>(null);
 
   const activeUploadJobs =
-    catalogueUploads?.activeJobs.filter(
-      (j) => isJobInFlight(j) || j.status === "failed" || j.status === "complete",
-    ) ?? [];
-  const inFlightCount = catalogueUploads?.activeJobs.filter(isJobInFlight).length ?? 0;
+    catalogueUploads?.activeJobs.filter(isJobVisibleInBell) ?? [];
+  const inFlightCount = activeUploadJobs.filter(isJobInFlight).length;
 
   const refreshPreview = async () => {
     setLoading(true);
@@ -201,9 +204,12 @@ export function NotificationBell() {
                   <div className="mb-2 flex items-center gap-1.5">
                     <Upload className="h-3.5 w-3.5 text-orange-300" />
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-orange-200/90">
-                      Active uploads
+                      Media uploads
                     </p>
                   </div>
+                  <p className="mb-3 text-[10px] leading-relaxed text-slate-500">
+                    Only files you pick on Media &amp; Assets appear here — poster, backdrop, film, trailer, and more.
+                  </p>
                   <div className="space-y-3">
                     {activeUploadJobs.map((job) => {
                       const pct = jobOverallProgress(job);
@@ -211,6 +217,17 @@ export function NotificationBell() {
                       const href = job.contentId
                         ? `/creator/upload?contentId=${job.contentId}`
                         : "/creator/upload";
+                      const liveAssets = job.assets.filter(
+                        (a) =>
+                          a.status === "queued" ||
+                          a.status === "uploading" ||
+                          a.status === "failed" ||
+                          (a.status === "complete" && isJobInFlight(job)),
+                      );
+                      const assetsToShow =
+                        liveAssets.length > 0
+                          ? liveAssets
+                          : job.assets.filter((a) => a.status === "complete" || a.status === "failed").slice(-4);
                       return (
                         <div key={job.id} className="rounded-xl border border-white/8 bg-black/40 p-2.5">
                           <div className="flex items-start justify-between gap-2">
@@ -222,15 +239,22 @@ export function NotificationBell() {
                                 router.push(href);
                               }}
                             >
-                              <p className="truncate text-xs font-medium text-white">{job.title}</p>
+                              <p className="truncate text-xs font-medium text-white">
+                                {job.title || "Catalogue title"}
+                              </p>
                               <p className="mt-0.5 text-[10px] text-slate-400">
                                 {job.status === "failed"
                                   ? job.error || "Upload failed"
                                   : job.status === "complete"
-                                    ? "Complete"
-                                    : label
-                                      ? `${label} · ${pct}%`
-                                      : `${pct}%`}
+                                    ? "All media uploaded"
+                                    : job.status === "finalizing"
+                                      ? "Saving catalogue entry…"
+                                      : label
+                                        ? `Now: ${label}`
+                                        : "Preparing…"}
+                                {job.status !== "failed" && job.status !== "complete"
+                                  ? ` · ${pct}% overall`
+                                  : ""}
                               </p>
                             </button>
                             {isJobInFlight(job) ? (
@@ -266,6 +290,56 @@ export function NotificationBell() {
                               style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
                             />
                           </div>
+                          {assetsToShow.length > 0 ? (
+                            <ul className="mt-2 space-y-1.5">
+                              {assetsToShow.map((asset) => {
+                                const assetPct = Math.round(
+                                  asset.status === "complete"
+                                    ? 100
+                                    : Math.min(100, Math.max(0, asset.progress)),
+                                );
+                                return (
+                                  <li key={asset.id} className="rounded-lg bg-white/[0.03] px-2 py-1.5">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <p className="min-w-0 truncate text-[10px] font-medium text-slate-200">
+                                        {asset.label}
+                                      </p>
+                                      <span
+                                        className={[
+                                          "shrink-0 text-[9px] uppercase tracking-wide",
+                                          asset.status === "complete"
+                                            ? "text-emerald-400"
+                                            : asset.status === "failed"
+                                              ? "text-red-300"
+                                              : asset.status === "uploading"
+                                                ? "text-orange-300"
+                                                : "text-slate-500",
+                                        ].join(" ")}
+                                      >
+                                        {catalogueAssetStatusLabel(asset.status)}
+                                        {asset.status === "uploading" || asset.status === "queued"
+                                          ? ` ${assetPct}%`
+                                          : ""}
+                                      </span>
+                                    </div>
+                                    {(asset.status === "uploading" || asset.status === "queued") && (
+                                      <div className="mt-1 h-1 overflow-hidden rounded-full bg-white/10">
+                                        <div
+                                          className="h-full rounded-full bg-sky-400/90 transition-all"
+                                          style={{ width: `${assetPct}%` }}
+                                        />
+                                      </div>
+                                    )}
+                                    {asset.fileName ? (
+                                      <p className="mt-0.5 truncate text-[9px] text-slate-600">
+                                        {asset.fileName}
+                                      </p>
+                                    ) : null}
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          ) : null}
                         </div>
                       );
                     })}

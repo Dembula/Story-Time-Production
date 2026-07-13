@@ -31,6 +31,7 @@ import {
   type CatalogueUploadDraftSnapshot,
 } from "@/lib/catalogue-upload/draft-store";
 import type { CatalogueAssetKind } from "@/lib/catalogue-upload/types";
+import { catalogueAssetKindLabel } from "@/lib/catalogue-upload/types";
 
 const TYPES = [
   { value: "MOVIE", label: "Movie", icon: Film, desc: "Feature or short film" },
@@ -42,10 +43,216 @@ const TYPES = [
 ];
 
 const GENRES = [
-  "Action", "Adventure", "Animation", "Comedy", "Crime", "Documentary",
-  "Drama", "Family", "Fantasy", "Horror", "Musical", "Mystery",
-  "Romance", "Sci-Fi", "Thriller", "War", "Western", "Afro-Futurism",
-  "Township Drama", "Coming-of-Age", "Social Commentary", "Experimental",
+  // Core
+  "Action",
+  "Adventure",
+  "Animation",
+  "Anime",
+  "Biography",
+  "Comedy",
+  "Crime",
+  "Documentary",
+  "Drama",
+  "Family",
+  "Fantasy",
+  "History",
+  "Horror",
+  "Music",
+  "Musical",
+  "Mystery",
+  "Romance",
+  "Sci-Fi",
+  "Sport",
+  "Thriller",
+  "War",
+  "Western",
+  // Tone / form
+  "Dark Comedy",
+  "Romantic Comedy",
+  "Satire",
+  "Parody",
+  "Slapstick",
+  "Coming-of-Age",
+  "Slice of Life",
+  "Anthology",
+  "Experimental",
+  "Avant-Garde",
+  "Art House",
+  "Indie",
+  "Short Form",
+  "Feature",
+  "Miniseries",
+  "Limited Series",
+  "Reality",
+  "Unscripted",
+  "Variety",
+  "Talk Show",
+  "Game Show",
+  "Sketch Comedy",
+  "Stand-Up",
+  "Live Performance",
+  "Concert Film",
+  "Music Video",
+  "Podcast",
+  "Interview",
+  "News / Current Affairs",
+  // Subgenres
+  "Action-Comedy",
+  "Action-Thriller",
+  "Psychological Thriller",
+  "Political Thriller",
+  "Conspiracy Thriller",
+  "Legal Drama",
+  "Medical Drama",
+  "Police Procedural",
+  "Detective",
+  "Noir",
+  "Neo-Noir",
+  "Heist",
+  "Spy / Espionage",
+  "Survival",
+  "Disaster",
+  "Found Footage",
+  "Supernatural",
+  "Paranormal",
+  "Ghost Story",
+  "Vampire",
+  "Zombie",
+  "Monster",
+  "Creature Feature",
+  "Slasher",
+  "Body Horror",
+  "Folk Horror",
+  "Gothic",
+  "Mythology",
+  "Fairy Tale",
+  "Sword & Sorcery",
+  "Epic Fantasy",
+  "Urban Fantasy",
+  "Space Opera",
+  "Hard Sci-Fi",
+  "Cyberpunk",
+  "Steampunk",
+  "Dystopian",
+  "Utopian",
+  "Post-Apocalyptic",
+  "Time Travel",
+  "Alternate History",
+  "Superhero",
+  "Martial Arts",
+  "Wuxia",
+  "Samurai",
+  "Mecha",
+  "Kaiju",
+  // Nature & factual
+  "Nature",
+  "Wildlife",
+  "Natural History",
+  "Environment",
+  "Conservation",
+  "Science",
+  "Technology",
+  "Space / Astronomy",
+  "Ocean / Marine",
+  "Travel",
+  "Adventure Travel",
+  "Expedition",
+  "Food & Culinary",
+  "Lifestyle",
+  "Home & Garden",
+  "Fashion",
+  "Design",
+  "Architecture",
+  "Art & Culture",
+  "Photography",
+  "True Crime",
+  "Investigative",
+  "Social Issue",
+  "Social Commentary",
+  "Politics",
+  "Human Rights",
+  "Education",
+  "How-To / Instructional",
+  "Faith & Spirituality",
+  "Religion",
+  "Philosophy",
+  "Health & Wellness",
+  "Mental Health",
+  "Disability Stories",
+  "LGBTQ+",
+  "Women's Stories",
+  "Youth / Teen",
+  "Children",
+  "Kids & Family",
+  "Educational Kids",
+  // Sports & competition
+  "Sports Drama",
+  "Sports Documentary",
+  "Football / Soccer",
+  "Rugby",
+  "Cricket",
+  "Athletics",
+  "Combat Sports",
+  "Motorsport",
+  "Extreme Sports",
+  "Esports",
+  // Romance & relationships
+  "Period Romance",
+  "Contemporary Romance",
+  "Love Story",
+  "Melodrama",
+  "Soap",
+  "Telenovela",
+  // African / regional
+  "Afro-Futurism",
+  "Afro-Fantasy",
+  "African Cinema",
+  "Nollywood",
+  "South African",
+  "Township Drama",
+  "Township Comedy",
+  "Kasi Story",
+  "Oral Tradition / Folklore",
+  "Indigenous Stories",
+  "Pan-African",
+  "Diaspora",
+  "Colonial History",
+  "Liberation Struggle",
+  "Apartheid Stories",
+  "Ubuntu Stories",
+  // Period & historical
+  "Period Drama",
+  "Historical Drama",
+  "Costume Drama",
+  "Biopic",
+  "Memoir",
+  "Autobiography",
+  "War Documentary",
+  "Military",
+  // Feel / audience
+  "Feel-Good",
+  "Inspirational",
+  "Motivational",
+  "Tearjerker",
+  "Whodunnit",
+  "Courtroom",
+  "Workplace",
+  "Campus / School",
+  "Road Movie",
+  "Buddy Film",
+  "Ensemble",
+  "Mockumentary",
+  "Meta / Self-Referential",
+  "Silent / Mostly Silent",
+  "Black & White",
+  "Stop-Motion",
+  "Claymation",
+  "3D Animation",
+  "2D Animation",
+  "Mixed Media",
+  "VR / Immersive",
+  "Interactive",
+  "Other",
 ];
 
 const LANGUAGES = [
@@ -250,15 +457,6 @@ function DistributionUploadInner() {
   const [episodesPerSeason, setEpisodesPerSeason] = useState<number[]>([6]);
   const [episodeDrafts, setEpisodeDrafts] = useState<EpisodeDraft[]>([]);
   const longFormUpload = isLongFormType(form.type);
-
-  useEffect(() => {
-    const jobId = ensureJob({
-      contentId: editingContentId ?? contentIdFromUrl,
-      title: form.title || undefined,
-      linkedProjectId: linkedProject?.id ?? projectIdFromUrl,
-    });
-    setUploadJobId(jobId);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- one job per wizard mount
 
   useEffect(() => {
     if (!uploadJobId) return;
@@ -547,7 +745,6 @@ function DistributionUploadInner() {
 
   function enqueueMedia(
     kind: CatalogueAssetKind,
-    label: string,
     file: File,
     meta?: { seasonNumber?: number; episodeNumber?: number; btsIndex?: number },
   ) {
@@ -560,15 +757,21 @@ function DistributionUploadInner() {
       });
     if (!uploadJobId) setUploadJobId(jobId);
     setError("");
-    enqueueAsset({ jobId, kind, label, file, meta });
+    enqueueAsset({
+      jobId,
+      kind,
+      label: catalogueAssetKindLabel(kind, meta),
+      file,
+      meta,
+    });
   }
 
   function handleMainVideoUpload(file: File) {
-    enqueueMedia("mainVideo", "Main video", file);
+    enqueueMedia("mainVideo", file);
   }
 
   function handleTrailerUpload(file: File) {
-    enqueueMedia("trailer", "Trailer", file);
+    enqueueMedia("trailer", file);
   }
 
   function canAdvance(): boolean {
@@ -1165,15 +1368,19 @@ function DistributionUploadInner() {
                     onChange={(e) => {
                       const file = e.target.files?.[0];
                       if (!file) return;
-                      enqueueMedia("poster", "Poster", file);
+                      enqueueMedia("poster", file);
                     }}
                     className="block w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-slate-700 file:text-white hover:file:bg-slate-600 cursor-pointer"
                   />
                   {posterAsset.uploading && (
-                    <p className="text-xs text-slate-400">
-                      Uploading… {posterAsset.progress != null ? `${Math.round(posterAsset.progress)}%` : ""}
+                    <p className="text-xs text-orange-300">
+                      Uploading poster image…
+                      {posterAsset.progress != null ? ` ${Math.round(posterAsset.progress)}%` : ""}
                     </p>
                   )}
+                  {posterAsset.done && !posterAsset.uploading && form.posterUrl ? (
+                    <p className="text-xs text-emerald-400">Poster image uploaded</p>
+                  ) : null}
                   <details className="rounded-lg border border-slate-700/60 bg-slate-900/30 px-3 py-2">
                     <summary className="cursor-pointer text-xs text-slate-500 hover:text-slate-300 list-none [&::-webkit-details-marker]:hidden">
                       Optional: paste poster image URL instead
@@ -1199,15 +1406,19 @@ function DistributionUploadInner() {
                     onChange={(e) => {
                       const file = e.target.files?.[0];
                       if (!file) return;
-                      enqueueMedia("backdrop", "Backdrop", file);
+                      enqueueMedia("backdrop", file);
                     }}
                     className="block w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-slate-700 file:text-white hover:file:bg-slate-600 cursor-pointer"
                   />
                   {backdropAsset.uploading && (
-                    <p className="text-xs text-slate-400">
-                      Uploading… {backdropAsset.progress != null ? `${Math.round(backdropAsset.progress)}%` : ""}
+                    <p className="text-xs text-orange-300">
+                      Uploading backdrop / banner…
+                      {backdropAsset.progress != null ? ` ${Math.round(backdropAsset.progress)}%` : ""}
                     </p>
                   )}
+                  {backdropAsset.done && !backdropAsset.uploading && form.backdropUrl ? (
+                    <p className="text-xs text-emerald-400">Backdrop / banner uploaded</p>
+                  ) : null}
                   <details className="rounded-lg border border-slate-700/60 bg-slate-900/30 px-3 py-2">
                     <summary className="cursor-pointer text-xs text-slate-500 hover:text-slate-300 list-none [&::-webkit-details-marker]:hidden">
                       Optional: paste backdrop image URL instead
@@ -1287,16 +1498,19 @@ function DistributionUploadInner() {
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (!file) return;
-                    enqueueMedia("script", "Script PDF", file);
+                    enqueueMedia("script", file);
                   }}
                   className="block w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-slate-700 file:text-white hover:file:bg-slate-600 cursor-pointer"
                 />
                 {scriptAsset.uploading && (
-                  <p className="text-xs text-slate-400">
-                    Uploading script…{" "}
-                    {scriptAsset.progress != null ? `${Math.round(scriptAsset.progress)}%` : ""}
+                  <p className="text-xs text-orange-300">
+                    Uploading script (PDF)…
+                    {scriptAsset.progress != null ? ` ${Math.round(scriptAsset.progress)}%` : ""}
                   </p>
                 )}
+                {scriptAsset.done && !scriptAsset.uploading && form.scriptUrl ? (
+                  <p className="text-xs text-emerald-400">Script PDF uploaded</p>
+                ) : null}
               </div>
               <div className="space-y-1">
                 <details className="rounded-lg border border-slate-700/60 bg-slate-900/30 px-3 py-2">
@@ -1362,7 +1576,7 @@ function DistributionUploadInner() {
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (!file) return;
-                        enqueueMedia("bts", `BTS ${idx + 1}`, file, { btsIndex: idx });
+                        enqueueMedia("bts", file, { btsIndex: idx });
                       }}
                       className="block w-full max-w-xs text-xs text-slate-300 file:mr-2 file:py-1.5 file:px-2.5 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-slate-700 file:text-white hover:file:bg-slate-600 cursor-pointer"
                     />
@@ -1421,7 +1635,7 @@ function DistributionUploadInner() {
               onEpisodesChange={setEpisodeDrafts}
               onError={setError}
               onUploadEpisode={(seasonNumber, episodeNumber, file) => {
-                enqueueMedia("episode", `S${seasonNumber}E${episodeNumber}`, file, {
+                enqueueMedia("episode", file, {
                   seasonNumber,
                   episodeNumber,
                 });

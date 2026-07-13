@@ -13,6 +13,7 @@ import {
 import { preferredStorageReference, uploadContentMediaViaApiFull } from "@/lib/upload-content-media-client";
 import {
   isJobInFlight,
+  isJobVisibleInBell,
   jobOverallProgress,
   MAX_CONCURRENT_JOBS,
   MAX_CONCURRENT_XHR,
@@ -608,16 +609,7 @@ export function CatalogueUploadProvider({ children }: { children: ReactNode }) {
     [ensureJob, runFinalize, setJob],
   );
 
-  const activeJobs = useMemo(
-    () =>
-      jobs.filter(
-        (j) =>
-          isJobInFlight(j) ||
-          j.status === "failed" ||
-          (j.status === "complete" && Date.now() - j.updatedAt < 60_000),
-      ),
-    [jobs],
-  );
+  const activeJobs = useMemo(() => jobs.filter(isJobVisibleInBell), [jobs]);
 
   const value = useMemo<CatalogueUploadContextValue>(
     () => ({

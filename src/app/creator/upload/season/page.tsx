@@ -21,6 +21,7 @@ import {
 } from "@/components/creator/series-episodes-upload";
 import { contentTypeLabel, isLongFormType } from "@/lib/content-types";
 import { useCatalogueUpload } from "@/components/creator/catalogue-upload-provider";
+import { catalogueAssetKindLabel } from "@/lib/catalogue-upload/types";
 
 type SeriesInfo = {
   id: string;
@@ -55,14 +56,6 @@ function AddSeasonInner() {
   const [seasonTitle, setSeasonTitle] = useState("");
   const [deliveryNotes, setDeliveryNotes] = useState("");
   const [confirmed, setConfirmed] = useState(false);
-
-  useEffect(() => {
-    const jobId = ensureJob({
-      contentId: contentId || null,
-      title: seasonTitle || "New season",
-    });
-    setUploadJobId(jobId);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!uploadJobId) return;
@@ -300,7 +293,7 @@ function AddSeasonInner() {
               enqueueAsset({
                 jobId,
                 kind: "episode",
-                label: `S${seasonNumber}E${episodeNumber}`,
+                label: catalogueAssetKindLabel("episode", { seasonNumber, episodeNumber }),
                 file,
                 meta: { seasonNumber, episodeNumber },
               });

@@ -94,11 +94,66 @@ export function jobActiveAssetLabel(job: CatalogueUploadJob): string | null {
   return null;
 }
 
+/** Human-readable name for each media slot (bell + dropzone). */
+export function catalogueAssetKindLabel(
+  kind: CatalogueAssetKind,
+  meta?: CatalogueUploadAsset["meta"],
+): string {
+  switch (kind) {
+    case "mainVideo":
+      return "Main film / master video";
+    case "trailer":
+      return "Trailer";
+    case "poster":
+      return "Poster image";
+    case "backdrop":
+      return "Backdrop / banner image";
+    case "script":
+      return "Script (PDF)";
+    case "bts":
+      return meta?.btsIndex != null
+        ? `Behind-the-scenes clip #${meta.btsIndex + 1}`
+        : "Behind-the-scenes clip";
+    case "episode":
+      if (meta?.seasonNumber != null && meta?.episodeNumber != null) {
+        return `Episode video · S${meta.seasonNumber} E${meta.episodeNumber}`;
+      }
+      return "Episode video";
+    default:
+      return "Media file";
+  }
+}
+
+export function catalogueAssetStatusLabel(status: CatalogueAssetStatus): string {
+  switch (status) {
+    case "queued":
+      return "Waiting";
+    case "uploading":
+      return "Uploading";
+    case "complete":
+      return "Done";
+    case "failed":
+      return "Failed";
+    case "cancelled":
+      return "Cancelled";
+    default:
+      return status;
+  }
+}
+
+/** True only when real media is transferring or the job is saving after uploads. */
 export function isJobInFlight(job: CatalogueUploadJob): boolean {
-  return (
-    job.status === "queued" ||
-    job.status === "uploading" ||
-    job.status === "finalizing" ||
-    job.assets.some((a) => a.status === "queued" || a.status === "uploading")
-  );
+  if (job.status === "finalizing") return true;
+  return job.assets.some((a) => a.status === "queued" || a.status === "uploading");
+}
+
+/** Jobs that should appear in the notification bell (never empty placeholders). */
+export function isJobVisibleInBell(job: CatalogueUploadJob): boolean {
+  if (job.assets.length === 0 && job.status !== "finalizing") {
+    return false;
+  }
+  if (isJobInFlight(job)) return true;
+  if (job.status === "failed") return true;
+  if (job.status === "complete" && Date.now() - job.updatedAt < 60_000) return true;
+  return false;
 }
