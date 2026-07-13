@@ -20,6 +20,7 @@ import {
   type EpisodeDraft,
 } from "@/components/creator/series-episodes-upload";
 import { contentTypeLabel, isLongFormType } from "@/lib/content-types";
+import { useCatalogueUpload } from "@/components/creator/catalogue-upload-provider";
 
 type SeriesInfo = {
   id: string;
@@ -40,7 +41,9 @@ type SeriesInfo = {
 function AddSeasonInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { ensureJob, enqueueAsset, updateJobMeta, jobs } = useCatalogueUpload();
   const contentId = searchParams.get("contentId") ?? "";
+  const [uploadJobId, setUploadJobId] = useState<string | null>(null);
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -52,6 +55,48 @@ function AddSeasonInner() {
   const [seasonTitle, setSeasonTitle] = useState("");
   const [deliveryNotes, setDeliveryNotes] = useState("");
   const [confirmed, setConfirmed] = useState(false);
+
+  useEffect(() => {
+    const jobId = ensureJob({
+      contentId: contentId || null,
+      title: seasonTitle || "New season",
+    });
+    setUploadJobId(jobId);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!uploadJobId) return;
+    updateJobMeta(uploadJobId, {
+      title: seasonTitle.trim() || series?.title || "New season",
+      contentId: contentId || null,
+    });
+  }, [uploadJobId, seasonTitle, series?.title, contentId, updateJobMeta]);
+
+  useEffect(() => {
+    if (!uploadJobId) return;
+    const job = jobs.find((j) => j.id === uploadJobId);
+    if (!job) return;
+    for (const asset of job.assets) {
+      if (
+        asset.kind === "episode" &&
+        asset.status === "complete" &&
+        asset.storageUrl &&
+        asset.meta?.seasonNumber != null &&
+        asset.meta?.episodeNumber != null
+      ) {
+        const s = asset.meta.seasonNumber;
+        const e = asset.meta.episodeNumber;
+        const url = asset.storageUrl;
+        setEpisodeDrafts((prev) =>
+          prev.map((ep) =>
+            ep.seasonNumber === s && ep.episodeNumber === e && ep.videoUrl !== url
+              ? { ...ep, videoUrl: url }
+              : ep,
+          ),
+        );
+      }
+    }
+  }, [jobs, uploadJobId]);
 
   useEffect(() => {
     if (!contentId) {
@@ -110,7 +155,7 @@ function AddSeasonInner() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error ?? "Submission failed");
       setSuccess(true);
-      setTimeout(() => router.push("/creator/dashboard"), 2500);
+      setTimeout(() => router.push("/creator/catalogue"), 2500);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Submission failed");
     } finally {
@@ -244,6 +289,38 @@ function AddSeasonInner() {
             onEpisodesPerSeasonChange={() => {}}
             onEpisodesChange={setEpisodeDrafts}
             onError={setError}
+            onUploadEpisode={(seasonNumber, episodeNumber, file) => {
+              const jobId =
+                uploadJobId ??
+                ensureJob({
+                  contentId,
+                  title: seasonTitle || series.title,
+                });
+              if (!uploadJobId) setUploadJobId(jobId);
+              enqueueAsset({
+                jobId,
+                kind: "episode",
+                label: `S${seasonNumber}E${episodeNumber}`,
+                file,
+                meta: { seasonNumber, episodeNumber },
+              });
+            }}
+            episodeUploadProgress={(seasonNumber, episodeNumber) => {
+              const asset = uploadJobId
+                ? jobs
+                    .find((j) => j.id === uploadJobId)
+                    ?.assets.find(
+                      (a) =>
+                        a.kind === "episode" &&
+                        a.meta?.seasonNumber === seasonNumber &&
+                        a.meta?.episodeNumber === episodeNumber,
+                    )
+                : undefined;
+              return {
+                uploading: asset?.status === "queued" || asset?.status === "uploading",
+                progress: asset?.progress ?? null,
+              };
+            }}
           />
 
           <div className="flex gap-3">

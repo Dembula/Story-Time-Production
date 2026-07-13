@@ -24,6 +24,12 @@ type Props = {
   /** When adding a single season to an existing series */
   mode?: "full" | "singleSeason";
   fixedSeasonNumber?: number;
+  /** Prefer global queue upload when provided */
+  onUploadEpisode?: (seasonNumber: number, episodeNumber: number, file: File) => void;
+  episodeUploadProgress?: (seasonNumber: number, episodeNumber: number) => {
+    uploading: boolean;
+    progress: number | null;
+  };
 };
 
 const inputClass =
@@ -39,6 +45,8 @@ export function SeriesEpisodesUpload({
   onError,
   mode = "full",
   fixedSeasonNumber,
+  onUploadEpisode,
+  episodeUploadProgress,
 }: Props) {
   const singleSeason = mode === "singleSeason";
   const slots = useMemo(() => {
@@ -84,6 +92,10 @@ export function SeriesEpisodesUpload({
   }
 
   async function uploadEpisodeVideo(seasonNumber: number, episodeNumber: number, file: File) {
+    if (onUploadEpisode) {
+      onUploadEpisode(seasonNumber, episodeNumber, file);
+      return;
+    }
     try {
       const url = await uploadContentMediaViaApi(file);
       updateEpisode(seasonNumber, episodeNumber, { videoUrl: url });
@@ -213,11 +225,21 @@ export function SeriesEpisodesUpload({
                   }}
                   className="block w-full text-xs text-slate-300 file:mr-3 file:rounded-md file:border-0 file:bg-slate-700 file:px-3 file:py-2 file:text-xs file:font-medium file:text-white"
                 />
-                {ep.videoUrl ? (
-                  <p className="mt-1 text-xs text-green-400">Video uploaded</p>
-                ) : (
-                  <p className="mt-1 text-xs text-slate-500">Required before submit</p>
-                )}
+                {(() => {
+                  const progress = episodeUploadProgress?.(seasonNumber, episodeNumber);
+                  if (progress?.uploading) {
+                    return (
+                      <p className="mt-1 text-xs text-orange-300">
+                        Uploading…
+                        {progress.progress != null ? ` ${Math.round(progress.progress)}%` : ""}
+                      </p>
+                    );
+                  }
+                  if (ep.videoUrl) {
+                    return <p className="mt-1 text-xs text-green-400">Video uploaded</p>;
+                  }
+                  return <p className="mt-1 text-xs text-slate-500">Required before submit</p>;
+                })()}
               </div>
             </div>
           );

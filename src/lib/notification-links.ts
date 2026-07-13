@@ -45,6 +45,21 @@ export function resolveNotificationUrl(
   }
 
   if (meta.contentId) {
+    if (
+      n.type === "CONTENT_UPLOAD_COMPLETE" ||
+      n.type === "CONTENT_UPLOAD_FAILED" ||
+      n.type === "CONTENT_STREAM_READY"
+    ) {
+      if (role === "CONTENT_CREATOR" || role === "ADMIN") {
+        if (n.type === "CONTENT_UPLOAD_FAILED") {
+          return `/creator/upload?contentId=${meta.contentId}`;
+        }
+        if (n.type === "CONTENT_STREAM_READY") {
+          return `/creator/catalogue/reviews/${meta.contentId}`;
+        }
+        return `/creator/catalogue`;
+      }
+    }
     if (role === "CONTENT_CREATOR" || role === "ADMIN") {
       return `/creator/catalogue/reviews/${meta.contentId}`;
     }
@@ -144,6 +159,9 @@ export function resolveNotificationUrl(
 
 export function notificationActionLabel(n: NotificationItem): string {
   if (n.type === "VA_ACTION_COMPLETE") return "View result";
+  if (n.type === "CONTENT_UPLOAD_COMPLETE") return "View catalogue";
+  if (n.type === "CONTENT_UPLOAD_FAILED") return "Fix upload";
+  if (n.type === "CONTENT_STREAM_READY") return "View title";
   if (n.type.includes("MESSAGE") || n.type.includes("NETWORK")) return "View message";
   if (n.type.includes("INVITE")) return "View invite";
   if (n.type.includes("CONTRACT")) return "View contract";

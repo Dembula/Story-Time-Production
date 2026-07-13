@@ -11,6 +11,7 @@ import { NotificationBell } from "@/components/layout/notification-bell";
 import { CreatorPackageGate } from "@/components/creator/creator-package-gate";
 import { CreatorPipelineRouteGate } from "@/components/creator/creator-pipeline-route-gate";
 import { CreatorStudioActingLabel } from "@/components/creator/creator-studio-switcher";
+import { CatalogueUploadProvider } from "@/components/creator/catalogue-upload-provider";
 import { CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY, CREATOR_STUDIO_PROFILES_QUERY_KEY } from "@/lib/pricing";
 import { isCreatorPipelineToolPath } from "@/lib/project-tools";
 import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
@@ -25,6 +26,7 @@ const operatingNavItems = [
 
 const monetizationNavItems = [
   { href: "/creator/wallet", label: "Wallet & payouts" },
+  { href: "/creator/catalogue", label: "My catalogue", requiresCatalogue: true },
   { href: "/creator/upload", label: "Catalogue upload", requiresCatalogue: true },
 ];
 
@@ -76,6 +78,7 @@ export default function CreatorLayout({ children }: { children: React.ReactNode 
   }
 
   return (
+    <CatalogueUploadProvider>
     <DashboardSidebarShell
       className="text-slate-100 adaptive-tv-surface"
       sidebarAutoCollapse={isCreatorPipelineToolPath}
@@ -217,5 +220,6 @@ export default function CreatorLayout({ children }: { children: React.ReactNode 
         </CreatorPackageGate>
       </div>
     </DashboardSidebarShell>
+    </CatalogueUploadProvider>
   );
 }

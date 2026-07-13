@@ -48,7 +48,7 @@ export async function syncLinkedEntitiesAfterStreamReady(uid: string, state: str
   if (link.entityType === "Content" || link.entityType === "ContentTrailer") {
     const content = await prisma.content.findUnique({
       where: { id: link.entityId },
-      select: { id: true, videoUrl: true, posterUrl: true, trailerUrl: true },
+      select: { id: true, title: true, creatorId: true, videoUrl: true, posterUrl: true, trailerUrl: true },
     });
     if (!content) return;
 
@@ -94,6 +94,25 @@ export async function syncLinkedEntitiesAfterStreamReady(uid: string, state: str
 
     if (Object.keys(updates).length > 0) {
       await prisma.content.update({ where: { id: content.id }, data: updates });
+    }
+
+    // Notify creator once primary video encoding is ready (not trailers)
+    if (shouldSetVideo && playbackUrl && content.creatorId) {
+      try {
+        const { notifyUser } = await import("@/lib/notify-user");
+        await notifyUser({
+          userId: content.creatorId,
+          type: "CONTENT_STREAM_READY",
+          title: "Streaming ready",
+          body: `"${content.title}" has finished encoding and is ready for adaptive playback.`,
+          metadata: {
+            contentId: content.id,
+            url: `/creator/catalogue/reviews/${content.id}`,
+          },
+        });
+      } catch (notifyErr) {
+        console.error("CONTENT_STREAM_READY notify failed:", notifyErr);
+      }
     }
     return;
   }

@@ -1,15 +1,15 @@
 "use client";
 
 import { StoryTimeLoader, StoryTimeLoadingCenter } from "@/components/ui/storytime-loader";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import {
   Upload, Film, Info, Image as ImageIcon, Settings, Users, Music,
   ArrowRight, ArrowLeft, CheckCircle, AlertCircle, Send, Save,
   Clapperboard, Globe, Tag, Clock, Calendar, Star, Tv, Shield, FileText,
 } from "lucide-react";
-import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
 import { applyPrefillToUploadForm, type ProjectUploadPrefill } from "@/lib/project-upload-prefill";
 import { CheckoutModal } from "@/components/payments/checkout-modal";
 import { CREATOR_PER_FILM_UPLOAD_PRICE } from "@/lib/pricing";
@@ -19,6 +19,18 @@ import { defaultMinAgeForRating } from "@/lib/fpb-compliance";
 import { isLongFormType } from "@/lib/content-types";
 import { SeriesEpisodesUpload, buildSeasonsPayload, type EpisodeDraft } from "@/components/creator/series-episodes-upload";
 import { UploadCreditRoleSelect } from "@/components/creator/upload-credit-role-select";
+import {
+  useCatalogueUpload,
+  useJobAssetProgress,
+} from "@/components/creator/catalogue-upload-provider";
+import {
+  clearCatalogueUploadDraft,
+  loadCatalogueUploadDraft,
+  newCatalogueDraftTempId,
+  saveCatalogueUploadDraft,
+  type CatalogueUploadDraftSnapshot,
+} from "@/lib/catalogue-upload/draft-store";
+import type { CatalogueAssetKind } from "@/lib/catalogue-upload/types";
 
 const TYPES = [
   { value: "MOVIE", label: "Movie", icon: Film, desc: "Feature or short film" },
@@ -75,9 +87,22 @@ const selectClass =
 function DistributionUploadInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { data: session } = useSession();
+  const userId = session?.user?.id ?? null;
+  const {
+    ensureJob,
+    updateJobMeta,
+    enqueueAsset,
+    requestFinalize,
+    jobs,
+  } = useCatalogueUpload();
   const projectIdFromUrl = searchParams.get("projectId");
   const contentIdFromUrl = searchParams.get("contentId");
   const [editingContentId, setEditingContentId] = useState<string | null>(null);
+  const [uploadJobId, setUploadJobId] = useState<string | null>(null);
+  const [draftTempId] = useState(() => newCatalogueDraftTempId());
+  const [draftHydrated, setDraftHydrated] = useState(false);
+  const [backgroundSubmitNotice, setBackgroundSubmitNotice] = useState(false);
   const [resubmitMode, setResubmitMode] = useState(false);
   const [linkedProject, setLinkedProject] = useState<{ id: string; title: string } | null>(null);
   const [prefillData, setPrefillData] = useState<ProjectUploadPrefill | null>(null);
@@ -85,6 +110,7 @@ function DistributionUploadInner() {
   const [scriptSource, setScriptSource] = useState<"platform" | "upload">("upload");
   const [platformScriptVersionId, setPlatformScriptVersionId] = useState<string | null>(null);
   const [scriptPreview, setScriptPreview] = useState<string | null>(null);
+  const draftSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!projectIdFromUrl) {
@@ -214,18 +240,268 @@ function DistributionUploadInner() {
     finalMasterReviewed: false,
   });
 
-  const [uploadingMainVideo, setUploadingMainVideo] = useState(false);
-  const [mainVideoProgress, setMainVideoProgress] = useState<number | null>(null);
-  const [uploadingTrailer, setUploadingTrailer] = useState(false);
-  const [trailerProgress, setTrailerProgress] = useState<number | null>(null);
-  const [uploadingPoster, setUploadingPoster] = useState(false);
-  const [uploadingBackdrop, setUploadingBackdrop] = useState(false);
-  const [uploadingScript, setUploadingScript] = useState(false);
-  const [uploadingBtsIndex, setUploadingBtsIndex] = useState<number | null>(null);
+  const mainVideoAsset = useJobAssetProgress(uploadJobId, "mainVideo");
+  const trailerAsset = useJobAssetProgress(uploadJobId, "trailer");
+  const posterAsset = useJobAssetProgress(uploadJobId, "poster");
+  const backdropAsset = useJobAssetProgress(uploadJobId, "backdrop");
+  const scriptAsset = useJobAssetProgress(uploadJobId, "script");
+
   const [seasonCount, setSeasonCount] = useState(1);
   const [episodesPerSeason, setEpisodesPerSeason] = useState<number[]>([6]);
   const [episodeDrafts, setEpisodeDrafts] = useState<EpisodeDraft[]>([]);
   const longFormUpload = isLongFormType(form.type);
+
+  useEffect(() => {
+    const jobId = ensureJob({
+      contentId: editingContentId ?? contentIdFromUrl,
+      title: form.title || undefined,
+      linkedProjectId: linkedProject?.id ?? projectIdFromUrl,
+    });
+    setUploadJobId(jobId);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- one job per wizard mount
+
+  useEffect(() => {
+    if (!uploadJobId) return;
+    updateJobMeta(uploadJobId, {
+      title: form.title.trim() || "Untitled draft",
+      contentId: editingContentId,
+      linkedProjectId: linkedProject?.id ?? null,
+    });
+  }, [uploadJobId, form.title, editingContentId, linkedProject?.id, updateJobMeta]);
+
+  // Mirror completed queue URLs into the form so submit/draft payloads stay current
+  useEffect(() => {
+    if (!uploadJobId) return;
+    const job = jobs.find((j) => j.id === uploadJobId);
+    if (!job) return;
+    for (const asset of job.assets) {
+      if (asset.status !== "complete" || !asset.storageUrl) continue;
+      if (asset.kind === "mainVideo") {
+        setForm((f) => (f.videoUrl === asset.storageUrl ? f : { ...f, videoUrl: asset.storageUrl! }));
+      } else if (asset.kind === "trailer") {
+        setForm((f) => (f.trailerUrl === asset.storageUrl ? f : { ...f, trailerUrl: asset.storageUrl! }));
+      } else if (asset.kind === "poster") {
+        setForm((f) => (f.posterUrl === asset.storageUrl ? f : { ...f, posterUrl: asset.storageUrl! }));
+      } else if (asset.kind === "backdrop") {
+        setForm((f) => (f.backdropUrl === asset.storageUrl ? f : { ...f, backdropUrl: asset.storageUrl! }));
+      } else if (asset.kind === "script") {
+        setForm((f) => (f.scriptUrl === asset.storageUrl ? f : { ...f, scriptUrl: asset.storageUrl! }));
+      } else if (asset.kind === "episode" && asset.meta?.seasonNumber != null && asset.meta?.episodeNumber != null) {
+        const s = asset.meta.seasonNumber;
+        const e = asset.meta.episodeNumber;
+        const url = asset.storageUrl;
+        setEpisodeDrafts((prev) =>
+          prev.map((ep) =>
+            ep.seasonNumber === s && ep.episodeNumber === e && ep.videoUrl !== url
+              ? { ...ep, videoUrl: url }
+              : ep,
+          ),
+        );
+      } else if (asset.kind === "bts" && asset.meta?.btsIndex != null) {
+        const idx = asset.meta.btsIndex;
+        const url = asset.storageUrl;
+        setBtsVideos((prev) =>
+          prev.map((b, i) => (i === idx && b.videoUrl !== url ? { ...b, videoUrl: url } : b)),
+        );
+      }
+    }
+  }, [jobs, uploadJobId]);
+
+  // Restore local draft (text/prefill) when not loading a server contentId yet
+  useEffect(() => {
+    if (!userId || draftHydrated) return;
+    if (contentIdFromUrl) {
+      const serverDraft = loadCatalogueUploadDraft(userId, contentIdFromUrl);
+      if (serverDraft) {
+        applyDraftSnapshot(serverDraft, { preferServerUrls: false });
+      }
+      setDraftHydrated(true);
+      return;
+    }
+    const local = loadCatalogueUploadDraft(userId, draftTempId);
+    if (local) applyDraftSnapshot(local, { preferServerUrls: false });
+    setDraftHydrated(true);
+  }, [userId, contentIdFromUrl, draftTempId, draftHydrated]);
+
+  function applyDraftSnapshot(
+    snap: CatalogueUploadDraftSnapshot,
+    opts: { preferServerUrls: boolean },
+  ) {
+    setStep(snap.step || 1);
+    setForm((f) => ({
+      ...f,
+      ...snap.form,
+      ...(opts.preferServerUrls
+        ? {
+            videoUrl: f.videoUrl || snap.form.videoUrl || "",
+            trailerUrl: f.trailerUrl || snap.form.trailerUrl || "",
+            posterUrl: f.posterUrl || snap.form.posterUrl || "",
+            backdropUrl: f.backdropUrl || snap.form.backdropUrl || "",
+            scriptUrl: f.scriptUrl || snap.form.scriptUrl || "",
+          }
+        : {}),
+    }));
+    setSelectedGenres(snap.selectedGenres ?? []);
+    setCrew(snap.crew?.length ? snap.crew : [{ name: "", role: "" }]);
+    setBtsVideos(snap.btsVideos ?? []);
+    setLogline(snap.logline ?? "");
+    setContentWarnings(snap.contentWarnings ?? "");
+    setFestivalHistory(snap.festivalHistory ?? "");
+    setMinAge(snap.minAge ?? 0);
+    setAdvisoryFlags(snap.advisoryFlags ?? {});
+    setAdvisoryThemes(snap.advisoryThemes ?? "");
+    setDeliveryNotes(snap.deliveryNotes ?? "");
+    setReleaseContactName(snap.releaseContactName ?? "");
+    setReleaseContactEmail(snap.releaseContactEmail ?? "");
+    setReleaseContactPhone(snap.releaseContactPhone ?? "");
+    if (snap.complianceChecks) {
+      setComplianceChecks((c) => ({ ...c, ...snap.complianceChecks }));
+    }
+    setSeasonCount(snap.seasonCount ?? 1);
+    setEpisodesPerSeason(snap.episodesPerSeason ?? [6]);
+    setEpisodeDrafts(snap.episodeDrafts ?? []);
+    if (snap.dataSourceMode === "platform" || snap.dataSourceMode === "manual") {
+      setDataSourceMode(snap.dataSourceMode);
+    }
+    if (snap.linkedProjectId) {
+      setLinkedProject({
+        id: snap.linkedProjectId,
+        title: snap.linkedProjectTitle || "Linked project",
+      });
+    }
+    if (snap.platformScriptVersionId) {
+      setPlatformScriptVersionId(snap.platformScriptVersionId);
+      setScriptSource("platform");
+      setScriptPreview(snap.scriptPreview);
+    } else if (snap.scriptSource === "upload" || snap.scriptSource === "platform") {
+      setScriptSource(snap.scriptSource);
+    }
+    if (snap.contentId) setEditingContentId(snap.contentId);
+  }
+
+  // Debounced localStorage autosave for form text / prefill
+  useEffect(() => {
+    if (!userId || !draftHydrated) return;
+    if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
+    draftSaveTimer.current = setTimeout(() => {
+      const keyId = editingContentId || draftTempId;
+      const snapshot: CatalogueUploadDraftSnapshot = {
+        version: 1,
+        tempId: draftTempId,
+        contentId: editingContentId,
+        step,
+        form,
+        selectedGenres,
+        crew,
+        btsVideos,
+        logline,
+        contentWarnings,
+        festivalHistory,
+        minAge,
+        advisoryFlags,
+        advisoryThemes,
+        deliveryNotes,
+        releaseContactName,
+        releaseContactEmail,
+        releaseContactPhone,
+        complianceChecks,
+        seasonCount,
+        episodesPerSeason,
+        episodeDrafts,
+        dataSourceMode,
+        linkedProjectId: linkedProject?.id ?? null,
+        linkedProjectTitle: linkedProject?.title ?? null,
+        platformScriptVersionId,
+        scriptSource,
+        scriptPreview,
+        updatedAt: Date.now(),
+      };
+      saveCatalogueUploadDraft(userId, keyId, snapshot);
+    }, 600);
+    return () => {
+      if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
+    };
+  }, [
+    userId,
+    draftHydrated,
+    draftTempId,
+    editingContentId,
+    step,
+    form,
+    selectedGenres,
+    crew,
+    btsVideos,
+    logline,
+    contentWarnings,
+    festivalHistory,
+    minAge,
+    advisoryFlags,
+    advisoryThemes,
+    deliveryNotes,
+    releaseContactName,
+    releaseContactEmail,
+    releaseContactPhone,
+    complianceChecks,
+    seasonCount,
+    episodesPerSeason,
+    episodeDrafts,
+    dataSourceMode,
+    linkedProject,
+    platformScriptVersionId,
+    scriptSource,
+    scriptPreview,
+  ]);
+
+  // Early server DRAFT once title + type exist (so Continue Editing / My catalogue work)
+  useEffect(() => {
+    if (!form.title.trim() || !form.type || !draftHydrated) return;
+    const timer = setTimeout(() => {
+      void (async () => {
+        try {
+          const res = await fetch("/api/creator/content", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              ...form,
+              category: selectedGenres.join(", ") || form.category,
+              published: false,
+              reviewStatus: "DRAFT",
+              crew: crew.filter((c) => c.name && c.role),
+              btsVideos: btsVideos.filter((b) => b.title && b.videoUrl),
+              minAge,
+              ...(linkedProject ? { linkedProjectId: linkedProject.id } : {}),
+              ...(editingContentId ? { contentId: editingContentId } : {}),
+              ...(longFormUpload && episodeDrafts.some((e) => e.videoUrl)
+                ? {
+                    seasons: buildSeasonsPayload(episodeDrafts),
+                    episodes: episodeDrafts.length,
+                    videoUrl: null,
+                  }
+                : {}),
+            }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (res.ok && (data.id || data.contentId)) {
+            const id = (data.id || data.contentId) as string;
+            setEditingContentId(id);
+            if (uploadJobId) updateJobMeta(uploadJobId, { contentId: id });
+          }
+        } catch {
+          // ignore autosave network errors
+        }
+      })();
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, [
+    form.title,
+    form.type,
+    form.description,
+    form.videoUrl,
+    form.posterUrl,
+    form.backdropUrl,
+    draftHydrated,
+    // intentionally omit full form to avoid thrashing — title/type/key fields trigger
+  ]);
 
   useEffect(() => {
     if (longFormUpload && episodeDrafts.length === 0) {
@@ -269,40 +545,30 @@ function DistributionUploadInner() {
     setCrew((prev) => prev.filter((_, i) => i !== idx));
   }
 
-  async function uploadToStorage(file: File, onProgress?: (pct: number) => void): Promise<string> {
-    return uploadContentMediaViaApi(file, { onProgress });
+  function enqueueMedia(
+    kind: CatalogueAssetKind,
+    label: string,
+    file: File,
+    meta?: { seasonNumber?: number; episodeNumber?: number; btsIndex?: number },
+  ) {
+    const jobId =
+      uploadJobId ??
+      ensureJob({
+        contentId: editingContentId,
+        title: form.title || undefined,
+        linkedProjectId: linkedProject?.id ?? null,
+      });
+    if (!uploadJobId) setUploadJobId(jobId);
+    setError("");
+    enqueueAsset({ jobId, kind, label, file, meta });
   }
 
-  async function handleMainVideoUpload(file: File) {
-    try {
-      setUploadingMainVideo(true);
-      setMainVideoProgress(0);
-      setError("");
-      const url = await uploadToStorage(file, (pct) => setMainVideoProgress(pct));
-      updateField("videoUrl", url);
-    } catch (err) {
-      console.error(err);
-      setError(err instanceof Error ? err.message : "Failed to upload main video. Please try again.");
-    } finally {
-      setUploadingMainVideo(false);
-      setMainVideoProgress(null);
-    }
+  function handleMainVideoUpload(file: File) {
+    enqueueMedia("mainVideo", "Main video", file);
   }
 
-  async function handleTrailerUpload(file: File) {
-    try {
-      setUploadingTrailer(true);
-      setTrailerProgress(0);
-      setError("");
-      const url = await uploadToStorage(file, (pct) => setTrailerProgress(pct));
-      updateField("trailerUrl", url);
-    } catch (err) {
-      console.error(err);
-      setError(err instanceof Error ? err.message : "Failed to upload trailer. Please try again.");
-    } finally {
-      setUploadingTrailer(false);
-      setTrailerProgress(null);
-    }
+  function handleTrailerUpload(file: File) {
+    enqueueMedia("trailer", "Trailer", file);
   }
 
   function canAdvance(): boolean {
@@ -371,6 +637,7 @@ function DistributionUploadInner() {
 
   async function handleSubmit(asDraft: boolean) {
     setError("");
+    setBackgroundSubmitNotice(false);
     if (!asDraft) {
       const hasCoreRightsChecks =
         complianceChecks.rightsOwnershipConfirmed &&
@@ -439,27 +706,49 @@ function DistributionUploadInner() {
         ...(editingContentId ? { contentId: editingContentId } : {}),
       };
 
-      const res = await fetch("/api/creator/content", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      const jobId =
+        uploadJobId ??
+        ensureJob({
+          contentId: editingContentId,
+          title: form.title || undefined,
+          linkedProjectId: linkedProject?.id ?? null,
+        });
+      if (!uploadJobId) setUploadJobId(jobId);
 
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data?.requiresPayment) {
-        if (typeof data?.checkoutUrl === "string" && data.checkoutUrl) {
-          setCheckoutUrl(data.checkoutUrl);
+      const result = await requestFinalize(jobId, payload);
+      if (!result.ok) {
+        setError(result.error || "Submission failed");
+        return;
+      }
+
+      if (result.contentId) {
+        setEditingContentId(result.contentId);
+        if (userId) {
+          clearCatalogueUploadDraft(userId, draftTempId);
+          clearCatalogueUploadDraft(userId, result.contentId);
+        }
+      }
+
+      if (result.deferred) {
+        setBackgroundSubmitNotice(true);
+        return;
+      }
+
+      if (result.requiresPayment) {
+        if (result.checkoutUrl) {
+          setCheckoutUrl(result.checkoutUrl);
           setCheckoutOpen(true);
           return;
         }
         setError("Unable to start checkout. Please try again.");
-      } else if (res.ok && data?.reviewStatus === "AWAITING_PAYMENT") {
+      } else if (result.reviewStatus === "AWAITING_PAYMENT") {
         setError("Payment is required before your film can enter review.");
-      } else if (res.ok) {
+      } else if (asDraft) {
         setSuccess(true);
-        setTimeout(() => router.push("/creator/dashboard"), 2000);
+        setTimeout(() => router.push("/creator/catalogue"), 1500);
       } else {
-        setError(data.error || "Submission failed");
+        setSuccess(true);
+        setTimeout(() => router.push("/creator/catalogue"), 2000);
       }
     } finally {
       setLoading(false);
@@ -477,7 +766,7 @@ function DistributionUploadInner() {
           <p className="text-sm text-slate-400">
             Your content is in review. Our team will vet it before it can go live in the catalogue.
           </p>
-          <p className="text-xs text-slate-500">Redirecting to My Projects…</p>
+          <p className="text-xs text-slate-500">Redirecting to My catalogue…</p>
         </div>
       </div>
     );
@@ -525,7 +814,10 @@ function DistributionUploadInner() {
               Post-production hub
             </Link>
             <span className="text-slate-600">·</span>
-            <span>Autosave intent: use Save draft on the last step until you are ready.</span>
+            <span>
+              Uploads keep running if you leave this page — check the notification bell for progress.
+              Form text autosaves while you work.
+            </span>
           </div>
         </header>
 
@@ -535,6 +827,22 @@ function DistributionUploadInner() {
             <p className="mt-1 text-xs text-slate-400">
               You already paid for this title — resubmission after rejection or requested changes is free.
             </p>
+          </div>
+        ) : null}
+
+        {backgroundSubmitNotice ? (
+          <div className="creator-glass-panel rounded-xl border border-emerald-400/25 bg-emerald-500/[0.06] p-4">
+            <p className="text-sm font-medium text-emerald-100">Uploads continuing in the background</p>
+            <p className="mt-1 text-xs text-slate-400">
+              You can leave this page. Open the notification bell to watch progress — you will get a
+              notification when the catalogue entry is saved.
+            </p>
+            <Link
+              href="/creator/catalogue"
+              className="mt-2 inline-block text-xs font-medium text-orange-300 hover:text-orange-200"
+            >
+              Go to My catalogue
+            </Link>
           </div>
         ) : null}
 
@@ -805,9 +1113,9 @@ function DistributionUploadInner() {
                 label="Main Video *"
                 hint="Recommended: final delivery master in MP4 (H.264/H.265), 1080p or higher. Resumable direct upload for large files."
                 accept="video/*"
-                uploading={uploadingMainVideo}
-                progress={mainVideoProgress}
-                done={Boolean(form.videoUrl) && !uploadingMainVideo}
+                uploading={mainVideoAsset.uploading}
+                progress={mainVideoAsset.progress}
+                done={(Boolean(form.videoUrl) || mainVideoAsset.done) && !mainVideoAsset.uploading}
                 onFile={handleMainVideoUpload}
               >
                 <details className="rounded-lg border border-slate-700/60 bg-slate-900/30 px-3 py-2">
@@ -827,9 +1135,9 @@ function DistributionUploadInner() {
                 label="Trailer (optional)"
                 hint="Upload a short trailer or teaser. MOV/MP4 uploads are processed for adaptive streaming after submission."
                 accept="video/*"
-                uploading={uploadingTrailer}
-                progress={trailerProgress}
-                done={Boolean(form.trailerUrl) && !uploadingTrailer}
+                uploading={trailerAsset.uploading}
+                progress={trailerAsset.progress}
+                done={(Boolean(form.trailerUrl) || trailerAsset.done) && !trailerAsset.uploading}
                 onFile={handleTrailerUpload}
               >
                 <details className="rounded-lg border border-slate-700/60 bg-slate-900/30 px-3 py-2">
@@ -854,23 +1162,18 @@ function DistributionUploadInner() {
                   <input
                     type="file"
                     accept="image/*"
-                    onChange={async (e) => {
+                    onChange={(e) => {
                       const file = e.target.files?.[0];
                       if (!file) return;
-                      try {
-                        setUploadingPoster(true);
-                        const url = await uploadToStorage(file);
-                        updateField("posterUrl", url);
-                      } catch (err) {
-                        console.error(err);
-                        setError("Failed to upload poster. Please try again.");
-                      } finally {
-                        setUploadingPoster(false);
-                      }
+                      enqueueMedia("poster", "Poster", file);
                     }}
                     className="block w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-slate-700 file:text-white hover:file:bg-slate-600 cursor-pointer"
                   />
-                  {uploadingPoster && <p className="text-xs text-slate-400">Uploading…</p>}
+                  {posterAsset.uploading && (
+                    <p className="text-xs text-slate-400">
+                      Uploading… {posterAsset.progress != null ? `${Math.round(posterAsset.progress)}%` : ""}
+                    </p>
+                  )}
                   <details className="rounded-lg border border-slate-700/60 bg-slate-900/30 px-3 py-2">
                     <summary className="cursor-pointer text-xs text-slate-500 hover:text-slate-300 list-none [&::-webkit-details-marker]:hidden">
                       Optional: paste poster image URL instead
@@ -893,23 +1196,18 @@ function DistributionUploadInner() {
                   <input
                     type="file"
                     accept="image/*"
-                    onChange={async (e) => {
+                    onChange={(e) => {
                       const file = e.target.files?.[0];
                       if (!file) return;
-                      try {
-                        setUploadingBackdrop(true);
-                        const url = await uploadToStorage(file);
-                        updateField("backdropUrl", url);
-                      } catch (err) {
-                        console.error(err);
-                        setError("Failed to upload backdrop. Please try again.");
-                      } finally {
-                        setUploadingBackdrop(false);
-                      }
+                      enqueueMedia("backdrop", "Backdrop", file);
                     }}
                     className="block w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-slate-700 file:text-white hover:file:bg-slate-600 cursor-pointer"
                   />
-                  {uploadingBackdrop && <p className="text-xs text-slate-400">Uploading…</p>}
+                  {backdropAsset.uploading && (
+                    <p className="text-xs text-slate-400">
+                      Uploading… {backdropAsset.progress != null ? `${Math.round(backdropAsset.progress)}%` : ""}
+                    </p>
+                  )}
                   <details className="rounded-lg border border-slate-700/60 bg-slate-900/30 px-3 py-2">
                     <summary className="cursor-pointer text-xs text-slate-500 hover:text-slate-300 list-none [&::-webkit-details-marker]:hidden">
                       Optional: paste backdrop image URL instead
@@ -986,23 +1284,19 @@ function DistributionUploadInner() {
                 <input
                   type="file"
                   accept="application/pdf"
-                  onChange={async (e) => {
+                  onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (!file) return;
-                    try {
-                      setUploadingScript(true);
-                      const url = await uploadToStorage(file);
-                      updateField("scriptUrl", url);
-                    } catch (err) {
-                      console.error(err);
-                      setError("Failed to upload script PDF. Please try again.");
-                    } finally {
-                      setUploadingScript(false);
-                    }
+                    enqueueMedia("script", "Script PDF", file);
                   }}
                   className="block w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-slate-700 file:text-white hover:file:bg-slate-600 cursor-pointer"
                 />
-                {uploadingScript && <p className="text-xs text-slate-400">Uploading script…</p>}
+                {scriptAsset.uploading && (
+                  <p className="text-xs text-slate-400">
+                    Uploading script…{" "}
+                    {scriptAsset.progress != null ? `${Math.round(scriptAsset.progress)}%` : ""}
+                  </p>
+                )}
               </div>
               <div className="space-y-1">
                 <details className="rounded-lg border border-slate-700/60 bg-slate-900/30 px-3 py-2">
@@ -1065,29 +1359,24 @@ function DistributionUploadInner() {
                     <input
                       type="file"
                       accept="video/*"
-                      onChange={async (e) => {
+                      onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (!file) return;
-                        try {
-                          setUploadingBtsIndex(idx);
-                          const url = await uploadToStorage(file);
-                          setBtsVideos((prev) =>
-                            prev.map((item, i) =>
-                              i === idx ? { ...item, videoUrl: url } : item,
-                            ),
-                          );
-                        } catch (err) {
-                          console.error(err);
-                          setError("Failed to upload BTS video. Please try again.");
-                        } finally {
-                          setUploadingBtsIndex(null);
-                        }
+                        enqueueMedia("bts", `BTS ${idx + 1}`, file, { btsIndex: idx });
                       }}
                       className="block w-full max-w-xs text-xs text-slate-300 file:mr-2 file:py-1.5 file:px-2.5 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-slate-700 file:text-white hover:file:bg-slate-600 cursor-pointer"
                     />
-                    {uploadingBtsIndex === idx && (
-                      <span className="text-xs text-slate-400">Uploading…</span>
-                    )}
+                    {uploadJobId &&
+                      jobs
+                        .find((j) => j.id === uploadJobId)
+                        ?.assets.some(
+                          (a) =>
+                            a.kind === "bts" &&
+                            a.meta?.btsIndex === idx &&
+                            (a.status === "queued" || a.status === "uploading"),
+                        ) && (
+                        <span className="text-xs text-slate-400">Uploading…</span>
+                      )}
                     <details className="rounded-md border border-slate-700/60 bg-slate-900/40 px-2 py-1.5">
                       <summary className="cursor-pointer text-[11px] text-slate-500 hover:text-slate-300 list-none [&::-webkit-details-marker]:hidden">
                         Optional: paste BTS video URL
@@ -1131,6 +1420,28 @@ function DistributionUploadInner() {
               onEpisodesPerSeasonChange={setEpisodesPerSeason}
               onEpisodesChange={setEpisodeDrafts}
               onError={setError}
+              onUploadEpisode={(seasonNumber, episodeNumber, file) => {
+                enqueueMedia("episode", `S${seasonNumber}E${episodeNumber}`, file, {
+                  seasonNumber,
+                  episodeNumber,
+                });
+              }}
+              episodeUploadProgress={(seasonNumber, episodeNumber) => {
+                const asset = uploadJobId
+                  ? jobs
+                      .find((j) => j.id === uploadJobId)
+                      ?.assets.find(
+                        (a) =>
+                          a.kind === "episode" &&
+                          a.meta?.seasonNumber === seasonNumber &&
+                          a.meta?.episodeNumber === episodeNumber,
+                      )
+                  : undefined;
+                return {
+                  uploading: asset?.status === "queued" || asset?.status === "uploading",
+                  progress: asset?.progress ?? null,
+                };
+              }}
             />
           )}
         </div>

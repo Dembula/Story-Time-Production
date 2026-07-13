@@ -14,6 +14,13 @@ async function wait(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function isAbortError(error: unknown): boolean {
+  return (
+    (error instanceof DOMException && error.name === "AbortError") ||
+    (error instanceof Error && error.name === "AbortError")
+  );
+}
+
 async function fetchWithRetry(
   input: RequestInfo | URL,
   init: RequestInit,
@@ -24,6 +31,9 @@ async function fetchWithRetry(
   let lastErr: unknown;
   for (let i = 0; i < attempts; i += 1) {
     try {
+      if (init.signal?.aborted) {
+        throw new DOMException("Upload aborted", "AbortError");
+      }
       const res = await fetch(input, init);
       if (RETRYABLE_STATUS.has(res.status) && i < attempts - 1) {
         await wait(retryDelayMs * (i + 1));
@@ -32,6 +42,7 @@ async function fetchWithRetry(
       return res;
     } catch (err) {
       lastErr = err;
+      if (isAbortError(err)) break;
       if (!isNetworkFetchError(err) || i >= attempts - 1) break;
       await wait(retryDelayMs * (i + 1));
     }
@@ -57,8 +68,13 @@ async function xhrPutWithProgress(
   file: File,
   headers: Record<string, string>,
   onProgress?: (pct: number) => void,
+  signal?: AbortSignal,
 ): Promise<void> {
   await new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException("Upload aborted", "AbortError"));
+      return;
+    }
     const xhr = new XMLHttpRequest();
     xhr.open("PUT", url);
     Object.entries(headers).forEach(([k, v]) => xhr.setRequestHeader(k, v));
@@ -72,6 +88,11 @@ async function xhrPutWithProgress(
     };
     xhr.onerror = () =>
       reject(new Error("Upload connection failed. Check network and S3 CORS (PUT + OPTIONS)."));
+    xhr.onabort = () => reject(new DOMException("Upload aborted", "AbortError"));
+    const onAbort = () => xhr.abort();
+    if (signal) {
+      signal.addEventListener("abort", onAbort, { once: true });
+    }
     xhr.send(file);
   });
 }
@@ -83,6 +104,7 @@ function isPresignUnavailableError(message: string): boolean {
 async function uploadContentMediaViaServerProxy(
   file: File,
   onProgress?: (pct: number) => void,
+  signal?: AbortSignal,
 ): Promise<ContentMediaFinalizePayload> {
   onProgress?.(8);
   const formData = new FormData();
@@ -90,6 +112,7 @@ async function uploadContentMediaViaServerProxy(
   const res = await fetchWithRetry("/api/upload/content-media", {
     method: "POST",
     body: formData,
+    signal,
   });
   onProgress?.(85);
   const data = (await res.json().catch(() => ({}))) as Partial<ContentMediaFinalizePayload> & { error?: string };
@@ -106,17 +129,22 @@ async function uploadContentMediaViaServerProxy(
 async function uploadContentMediaViaPresignedPut(
   file: File,
   onProgress?: (pct: number) => void,
+  signal?: AbortSignal,
 ): Promise<ContentMediaFinalizePayload> {
   onProgress?.(2);
-  const presignRes = await fetchWithRetry("/api/upload/content-media/presign", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      fileName: file.name,
-      size: file.size,
-      contentType: file.type || undefined,
-    }),
-  });
+  const presignRes = await fetchWithRetry(
+    "/api/upload/content-media/presign",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fileName: file.name,
+        size: file.size,
+        contentType: file.type || undefined,
+      }),
+      signal,
+    },
+  );
   const presignJson = (await presignRes.json().catch(() => ({}))) as {
     error?: string;
     uploadUrl?: string;
@@ -137,10 +165,17 @@ async function uploadContentMediaViaPresignedPut(
   };
 
   try {
-    await xhrPutWithProgress(presignJson.uploadUrl, file, putHeaders, (pct) => {
-      onProgress?.(5 + pct * 0.88);
-    });
+    await xhrPutWithProgress(
+      presignJson.uploadUrl,
+      file,
+      putHeaders,
+      (pct) => {
+        onProgress?.(5 + pct * 0.88);
+      },
+      signal,
+    );
   } catch (err) {
+    if (isAbortError(err)) throw err;
     if (isNetworkFetchError(err)) {
       throw new Error(
         "Upload connection failed before storage accepted the file. Check S3 CORS allows PUT + OPTIONS from this site origin.",
@@ -158,6 +193,7 @@ async function uploadContentMediaViaPresignedPut(
       contentType: presignJson.contentType,
       fileName: file.name,
     }),
+    signal,
   });
   const completeData = (await completeRes.json().catch(() => ({}))) as Partial<ContentMediaFinalizePayload> & {
     error?: string;
@@ -177,9 +213,14 @@ async function uploadContentMediaViaPresignedPut(
  * Uses presigned direct-to-S3 PUT for all sizes (fastest path). Small files fall back to
  * server proxy only when presigned uploads are unavailable (missing S3 credentials).
  */
+export type UploadContentMediaOptions = {
+  onProgress?: (pct: number) => void;
+  signal?: AbortSignal;
+};
+
 export async function uploadContentMediaViaApi(
   file: File,
-  options?: { onProgress?: (pct: number) => void },
+  options?: UploadContentMediaOptions,
 ): Promise<string> {
   const data = await uploadContentMediaViaApiFull(file, options);
   return preferredStorageReference(data);
@@ -192,15 +233,17 @@ export function preferredStorageReference(payload: ContentMediaFinalizePayload):
 
 export async function uploadContentMediaViaApiFull(
   file: File,
-  options?: { onProgress?: (pct: number) => void },
+  options?: UploadContentMediaOptions,
 ): Promise<ContentMediaFinalizePayload> {
   const onProgress = options?.onProgress;
+  const signal = options?.signal;
   try {
-    return await uploadContentMediaViaPresignedPut(file, onProgress);
+    return await uploadContentMediaViaPresignedPut(file, onProgress, signal);
   } catch (err) {
+    if (isAbortError(err)) throw err;
     const message = err instanceof Error ? err.message : "";
     if (file.size <= CONTENT_MEDIA_DIRECT_UPLOAD_MAX_BYTES && isPresignUnavailableError(message)) {
-      return uploadContentMediaViaServerProxy(file, onProgress);
+      return uploadContentMediaViaServerProxy(file, onProgress, signal);
     }
     throw err;
   }

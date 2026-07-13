@@ -98,10 +98,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "title and type required" }, { status: 400 });
   }
   const isLongForm = ["SERIES", "SHOW", "PODCAST"].includes(String(body.type));
-  if (!isLongForm && !body.videoUrl) {
+  const isDraft = (body.reviewStatus || "DRAFT") === "DRAFT";
+  if (!isDraft && !isLongForm && !body.videoUrl) {
     return NextResponse.json({ error: "videoUrl required for this content type" }, { status: 400 });
   }
-  if (isLongForm && !Array.isArray(body.seasons)) {
+  if (!isDraft && isLongForm && !Array.isArray(body.seasons)) {
     return NextResponse.json({ error: "seasons and episodes required for series content" }, { status: 400 });
   }
   for (const [field, value] of [
@@ -131,7 +132,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Distribution license required. Complete onboarding first." }, { status: 403 });
   }
   const license = user.creatorDistributionLicense;
-  const isDraft = (body.reviewStatus || "DRAFT") === "DRAFT";
   const existingContentId = typeof body.contentId === "string" ? body.contentId.trim() : "";
 
   if (!isDraft && !creatorHasUnlimitedUploads(license)) {

@@ -289,7 +289,7 @@ export function CreatorDashboardClient() {
                     </div>
                   </div>
                   {c.reviewStatus === "DRAFT" && (
-                    <Link href="/creator/upload">
+                    <Link href={`/creator/upload?contentId=${c.id}`}>
                       <Button size="sm" className="bg-orange-500 hover:bg-orange-600 text-white text-xs">Continue Editing</Button>
                     </Link>
                   )}
