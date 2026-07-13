@@ -10,7 +10,11 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { preferredStorageReference, uploadContentMediaViaApiFull } from "@/lib/upload-content-media-client";
+import {
+  deleteContentMediaFromStorage,
+  preferredStorageReference,
+  uploadContentMediaViaApiFull,
+} from "@/lib/upload-content-media-client";
 import {
   deriveCatalogueJobStatus,
   dedupeCatalogueJobs,
@@ -29,6 +33,12 @@ type AssetFileEntry = {
   file: File;
   abort: AbortController;
 };
+
+function deleteStorageBestEffort(storageUrl: string | null | undefined) {
+  const value = storageUrl?.trim();
+  if (!value) return;
+  void deleteContentMediaFromStorage(value);
+}
 
 type EnqueueAssetInput = {
   jobId: string;
@@ -117,19 +127,25 @@ async function notifyUploadEvent(body: {
 }
 
 export function CatalogueUploadProvider({ children }: { children: ReactNode }) {
-  const [jobs, setJobs] = useState<CatalogueUploadJob[]>([]);
+  const [jobs, setJobsState] = useState<CatalogueUploadJob[]>([]);
   const jobsRef = useRef(jobs);
   const filesRef = useRef<Map<string, AssetFileEntry>>(new Map());
+  /** Prevents the same asset from being started twice when pump re-runs before React commits. */
+  const inFlightAssetIdsRef = useRef<Set<string>>(new Set());
   const activeXhrRef = useRef(0);
   const pumpRef = useRef<() => void>(() => {});
 
-  useEffect(() => {
-    jobsRef.current = jobs;
-  }, [jobs]);
+  const setJobs = useCallback((updater: CatalogueUploadJob[] | ((prev: CatalogueUploadJob[]) => CatalogueUploadJob[])) => {
+    setJobsState((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      jobsRef.current = next;
+      return next;
+    });
+  }, []);
 
   const setJob = useCallback((jobId: string, updater: (job: CatalogueUploadJob) => CatalogueUploadJob) => {
     setJobs((prev) => prev.map((j) => (j.id === jobId ? updater(j) : j)));
-  }, []);
+  }, [setJobs]);
 
   const findJob = useCallback(
     (identity: { contentId?: string | null; title?: string | null; jobId?: string | null }) => {
@@ -240,6 +256,7 @@ export function CatalogueUploadProvider({ children }: { children: ReactNode }) {
       const entry = filesRef.current.get(asset.id);
       entry?.abort.abort();
       filesRef.current.delete(asset.id);
+      inFlightAssetIdsRef.current.delete(asset.id);
     }
     setJob(jobId, (j) => ({
       ...j,
@@ -272,6 +289,11 @@ export function CatalogueUploadProvider({ children }: { children: ReactNode }) {
       if (target.status === "queued" || target.status === "uploading") {
         filesRef.current.get(target.id)?.abort.abort();
         filesRef.current.delete(target.id);
+        inFlightAssetIdsRef.current.delete(target.id);
+      }
+      // Drop completed objects from S3 so replace/remove does not leave orphans.
+      if (target.status === "complete") {
+        deleteStorageBestEffort(target.storageUrl);
       }
       setJob(jobId, (j) => {
         const assets = j.assets.filter((a) => a.id !== target.id);
@@ -473,9 +495,12 @@ export function CatalogueUploadProvider({ children }: { children: ReactNode }) {
     const candidates: { jobId: string; asset: CatalogueUploadAsset }[] = [];
     for (const job of current) {
       if (job.status === "cancelled" || job.status === "complete") continue;
-      // Keep pumping even if one asset failed — other slots (and retries) must continue
       for (const asset of job.assets) {
-        if (asset.status === "queued" && filesRef.current.has(asset.id)) {
+        if (
+          asset.status === "queued" &&
+          filesRef.current.has(asset.id) &&
+          !inFlightAssetIdsRef.current.has(asset.id)
+        ) {
           candidates.push({ jobId: job.id, asset });
         }
       }
@@ -483,9 +508,11 @@ export function CatalogueUploadProvider({ children }: { children: ReactNode }) {
 
     while (activeXhrRef.current < MAX_CONCURRENT_XHR && candidates.length > 0) {
       const next = candidates.shift()!;
+      if (inFlightAssetIdsRef.current.has(next.asset.id)) continue;
       const entry = filesRef.current.get(next.asset.id);
       if (!entry) continue;
 
+      inFlightAssetIdsRef.current.add(next.asset.id);
       activeXhrRef.current += 1;
       setJob(next.jobId, (j) => ({
         ...j,
@@ -496,52 +523,64 @@ export function CatalogueUploadProvider({ children }: { children: ReactNode }) {
         ),
       }));
 
+      const startedAssetId = next.asset.id;
+      const startedJobId = next.jobId;
+
       void (async () => {
         try {
           const payload = await uploadContentMediaViaApiFull(entry.file, {
             signal: entry.abort.signal,
             onProgress: (pct) => {
-              setJob(next.jobId, (j) => ({
+              // Ignore stale progress if this asset was replaced/removed mid-upload.
+              if (!inFlightAssetIdsRef.current.has(startedAssetId)) return;
+              setJob(startedJobId, (j) => ({
                 ...j,
                 assets: j.assets.map((a) =>
-                  a.id === next.asset.id ? { ...a, progress: pct } : a,
+                  a.id === startedAssetId
+                    ? { ...a, progress: Math.max(a.progress, Math.min(100, pct)) }
+                    : a,
                 ),
                 updatedAt: Date.now(),
               }));
             },
           });
+          if (!inFlightAssetIdsRef.current.has(startedAssetId)) return;
           const storageUrl = preferredStorageReference(payload);
-          filesRef.current.delete(next.asset.id);
-          setJob(next.jobId, (j) => ({
+          filesRef.current.delete(startedAssetId);
+          setJob(startedJobId, (j) => ({
             ...j,
             updatedAt: Date.now(),
             assets: j.assets.map((a) =>
-              a.id === next.asset.id
+              a.id === startedAssetId
                 ? { ...a, status: "complete", progress: 100, storageUrl, error: null }
                 : a,
             ),
           }));
-          await maybeFinalize(next.jobId);
+          await maybeFinalize(startedJobId);
         } catch (err) {
-          filesRef.current.delete(next.asset.id);
+          filesRef.current.delete(startedAssetId);
           const aborted =
             (err instanceof DOMException && err.name === "AbortError") ||
             (err instanceof Error && err.name === "AbortError");
+          // Asset was replaced — state already points at the new slot.
+          if (!inFlightAssetIdsRef.current.has(startedAssetId) && aborted) {
+            return;
+          }
           if (aborted) {
-            setJob(next.jobId, (j) => ({
+            setJob(startedJobId, (j) => ({
               ...j,
               updatedAt: Date.now(),
               assets: j.assets.map((a) =>
-                a.id === next.asset.id
+                a.id === startedAssetId
                   ? { ...a, status: "cancelled", error: "Cancelled" }
                   : a,
               ),
             }));
-          } else {
+          } else if (inFlightAssetIdsRef.current.has(startedAssetId)) {
             const message = err instanceof Error ? err.message : "Upload failed";
-            setJob(next.jobId, (j) => {
+            setJob(startedJobId, (j) => {
               const assets = j.assets.map((a) =>
-                a.id === next.asset.id
+                a.id === startedAssetId
                   ? { ...a, status: "failed" as const, error: message }
                   : a,
               );
@@ -556,7 +595,7 @@ export function CatalogueUploadProvider({ children }: { children: ReactNode }) {
               draft.status = deriveCatalogueJobStatus(draft);
               return draft;
             });
-            const job = jobsRef.current.find((j) => j.id === next.jobId);
+            const job = jobsRef.current.find((j) => j.id === startedJobId);
             await notifyUploadEvent({
               type: "CONTENT_UPLOAD_FAILED",
               title: "Catalogue file upload failed",
@@ -568,13 +607,13 @@ export function CatalogueUploadProvider({ children }: { children: ReactNode }) {
             });
           }
         } finally {
+          inFlightAssetIdsRef.current.delete(startedAssetId);
           activeXhrRef.current = Math.max(0, activeXhrRef.current - 1);
           pumpRef.current();
         }
       })();
     }
 
-    // Mark jobs idle→uploading aggregate
     for (const job of jobsRef.current) {
       if (job.status === "queued" && job.assets.some((a) => a.status === "uploading")) {
         setJob(job.id, (j) => ({ ...j, status: "uploading", updatedAt: Date.now() }));
@@ -606,13 +645,21 @@ export function CatalogueUploadProvider({ children }: { children: ReactNode }) {
       ensureJob({ jobId: input.jobId });
       const assetId = input.assetId || newId("asset");
 
-      // Cancel previous in-flight asset for same slot
+      // Cancel / replace previous asset for the same slot
       const job = jobsRef.current.find((j) => j.id === input.jobId);
       if (job) {
         const prev = job.assets.find((a) => assetMatchesMeta(a, input.kind, input.meta));
-        if (prev && (prev.status === "queued" || prev.status === "uploading")) {
-          filesRef.current.get(prev.id)?.abort.abort();
-          filesRef.current.delete(prev.id);
+        if (prev) {
+          if (prev.status === "queued" || prev.status === "uploading") {
+            filesRef.current.get(prev.id)?.abort.abort();
+            filesRef.current.delete(prev.id);
+            // Drop from in-flight so stale XHR callbacks ignore this id;
+            // activeXhr count is still decremented in that upload's finally.
+            inFlightAssetIdsRef.current.delete(prev.id);
+          }
+          if (prev.status === "complete") {
+            deleteStorageBestEffort(prev.storageUrl);
+          }
         }
       }
 
@@ -639,7 +686,9 @@ export function CatalogueUploadProvider({ children }: { children: ReactNode }) {
           error: null,
           assets,
           updatedAt: Date.now(),
-          status: j.status,
+          status: j.status === "complete" || j.status === "failed" || j.status === "cancelled"
+            ? "queued"
+            : j.status,
         };
         draft.status = deriveCatalogueJobStatus(draft);
         return draft;

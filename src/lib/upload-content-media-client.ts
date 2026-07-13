@@ -87,11 +87,16 @@ async function xhrPutWithProgress(
       return;
     }
     const xhr = new XMLHttpRequest();
+    let lastPct = 0;
     xhr.open("PUT", url);
     Object.entries(headers).forEach(([k, v]) => xhr.setRequestHeader(k, v));
     xhr.upload.onprogress = (ev) => {
-      if (!onProgress || !ev.lengthComputable) return;
-      onProgress((ev.loaded / ev.total) * 100);
+      if (!onProgress || !ev.lengthComputable || ev.total <= 0) return;
+      const next = (ev.loaded / ev.total) * 100;
+      // Never report a lower % for this XHR (avoids bar jitter from event ordering).
+      if (next + 0.05 < lastPct) return;
+      lastPct = Math.max(lastPct, next);
+      onProgress(lastPct);
     };
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) resolve();
@@ -243,11 +248,37 @@ export function preferredStorageReference(payload: ContentMediaFinalizePayload):
   return payload.storageRef || payload.publicUrl;
 }
 
+/** Best-effort delete of a prior upload when the user replaces or removes it. */
+export async function deleteContentMediaFromStorage(storageRefOrUrl: string): Promise<boolean> {
+  const value = storageRefOrUrl.trim();
+  if (!value) return false;
+  try {
+    const res = await fetch("/api/upload/content-media/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(
+        value.startsWith("s3://") || value.startsWith("http")
+          ? { storageRef: value }
+          : { key: value },
+      ),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 export async function uploadContentMediaViaApiFull(
   file: File,
   options?: UploadContentMediaOptions,
 ): Promise<ContentMediaFinalizePayload> {
-  const onProgress = options?.onProgress;
+  let highWater = 0;
+  const onProgress = options?.onProgress
+    ? (pct: number) => {
+        highWater = Math.max(highWater, Math.min(100, Math.max(0, pct)));
+        options.onProgress?.(highWater);
+      }
+    : undefined;
   const signal = options?.signal;
   try {
     return await uploadContentMediaViaPresignedPut(file, onProgress, signal);
@@ -256,6 +287,7 @@ export async function uploadContentMediaViaApiFull(
     const message = err instanceof Error ? err.message : "";
     if (isProxyFallbackEligible(file, message)) {
       try {
+        // Keep high-water so proxy fallback (which starts ~8%) does not yank the bar down.
         return await uploadContentMediaViaServerProxy(file, onProgress, signal);
       } catch (proxyErr) {
         if (isAbortError(proxyErr)) throw proxyErr;

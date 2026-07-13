@@ -43,7 +43,7 @@ export function MediaDropzone({
   );
 
   const pct = progress != null ? Math.min(100, Math.max(0, Math.round(progress))) : null;
-  const showReplace = Boolean(onClear) && (done || Boolean(error)) && !uploading;
+  const showReplace = Boolean(onClear) && (done || Boolean(error) || uploading);
 
   return (
     <div className="space-y-2">
@@ -74,7 +74,7 @@ export function MediaDropzone({
         className={[
           "cinematic-glass cursor-pointer rounded-2xl border-2 border-dashed p-6 text-center transition",
           dragOver ? "border-orange-400/60 bg-orange-500/5" : "border-white/12 hover:border-orange-400/35",
-          uploading ? "pointer-events-none opacity-90" : "",
+          uploading ? "opacity-90" : "",
           error ? "border-red-400/40" : "",
         ].join(" ")}
       >
@@ -88,7 +88,7 @@ export function MediaDropzone({
         {done && !uploading && !error ? (
           <CheckCircle className="mx-auto mb-2 h-8 w-8 text-emerald-400" />
         ) : error ? (
-          <AlertCircle className="mx-auto mb-2 h-8 w-8 text-red-400" />
+          <AlertCircle className="mx-auto mb-2 h-8 w-8 text-red-300" />
         ) : (
           <Upload className="mx-auto mb-2 h-8 w-8 text-orange-300/80" />
         )}
@@ -123,14 +123,20 @@ export function MediaDropzone({
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => inputRef.current?.click()}
+            onClick={(e) => {
+              e.stopPropagation();
+              inputRef.current?.click();
+            }}
             className="rounded-lg border border-orange-400/30 px-3 py-1.5 text-xs font-medium text-orange-200 hover:bg-orange-500/10"
           >
-            Replace file
+            {uploading ? "Replace (cancel current)" : "Replace file"}
           </button>
           <button
             type="button"
-            onClick={() => onClear?.()}
+            onClick={(e) => {
+              e.stopPropagation();
+              onClear?.();
+            }}
             className="rounded-lg border border-white/12 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-white/5"
           >
             Remove

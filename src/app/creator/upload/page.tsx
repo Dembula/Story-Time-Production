@@ -31,7 +31,7 @@ import {
   saveCatalogueUploadDraft,
   type CatalogueUploadDraftSnapshot,
 } from "@/lib/catalogue-upload/draft-store";
-import type { CatalogueAssetKind } from "@/lib/catalogue-upload/types";
+import type { CatalogueAssetKind, CatalogueUploadAsset } from "@/lib/catalogue-upload/types";
 import { catalogueAssetKindLabel } from "@/lib/catalogue-upload/types";
 
 const TYPES = [
@@ -292,41 +292,119 @@ function DistributionUploadInner() {
     step,
   ]);
 
-  // Mirror completed queue URLs into the form so submit/draft payloads stay current
+  // Mirror completed queue URLs into the form so submit/draft payloads stay current.
+  // While a slot is re-uploading / failed after remove, clear the stale URL.
+  // When a slot disappears from the queue (bell Remove), clear that form field too —
+  // storage objects are deleted on remove, so keeping the URL would point at a missing file.
+  const prevQueueSlotsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     const jobId = effectiveJobId;
     if (!jobId) return;
     const job = jobs.find((j) => j.id === jobId);
     if (!job) return;
+
+    const slotKey = (kind: CatalogueAssetKind, meta?: CatalogueUploadAsset["meta"]) => {
+      if (kind === "episode") return `episode:${meta?.seasonNumber ?? "?"}:${meta?.episodeNumber ?? "?"}`;
+      if (kind === "bts") return `bts:${meta?.btsIndex ?? "?"}`;
+      return kind;
+    };
+
+    const currentSlots = new Set(job.assets.map((a) => slotKey(a.kind, a.meta)));
+    for (const prev of prevQueueSlotsRef.current) {
+      if (currentSlots.has(prev)) continue;
+      if (prev === "mainVideo") setForm((f) => (f.videoUrl ? { ...f, videoUrl: "" } : f));
+      if (prev === "trailer") setForm((f) => (f.trailerUrl ? { ...f, trailerUrl: "" } : f));
+      if (prev === "poster") setForm((f) => (f.posterUrl ? { ...f, posterUrl: "" } : f));
+      if (prev === "backdrop") setForm((f) => (f.backdropUrl ? { ...f, backdropUrl: "" } : f));
+      if (prev === "script") setForm((f) => (f.scriptUrl ? { ...f, scriptUrl: "" } : f));
+      if (prev.startsWith("episode:")) {
+        const [, sRaw, eRaw] = prev.split(":");
+        const s = Number(sRaw);
+        const e = Number(eRaw);
+        if (Number.isFinite(s) && Number.isFinite(e)) {
+          setEpisodeDrafts((drafts) =>
+            drafts.map((ep) =>
+              ep.seasonNumber === s && ep.episodeNumber === e && ep.videoUrl
+                ? { ...ep, videoUrl: "" }
+                : ep,
+            ),
+          );
+        }
+      }
+      if (prev.startsWith("bts:")) {
+        const idx = Number(prev.split(":")[1]);
+        if (Number.isFinite(idx)) {
+          setBtsVideos((list) =>
+            list.map((b, i) => (i === idx && b.videoUrl ? { ...b, videoUrl: "" } : b)),
+          );
+        }
+      }
+    }
+    prevQueueSlotsRef.current = currentSlots;
+
+    const syncScalar = (
+      kind: CatalogueAssetKind,
+      field: "videoUrl" | "trailerUrl" | "posterUrl" | "backdropUrl" | "scriptUrl",
+    ) => {
+      const assets = job.assets.filter((a) => a.kind === kind);
+      const complete = assets.find((a) => a.status === "complete" && a.storageUrl);
+      if (complete?.storageUrl) {
+        setForm((f) => (f[field] === complete.storageUrl ? f : { ...f, [field]: complete.storageUrl! }));
+        return;
+      }
+      if (assets.some((a) => a.status === "queued" || a.status === "uploading" || a.status === "failed")) {
+        setForm((f) => (f[field] ? { ...f, [field]: "" } : f));
+      }
+    };
+
+    syncScalar("mainVideo", "videoUrl");
+    syncScalar("trailer", "trailerUrl");
+    syncScalar("poster", "posterUrl");
+    syncScalar("backdrop", "backdropUrl");
+    syncScalar("script", "scriptUrl");
+
     for (const asset of job.assets) {
-      if (asset.status !== "complete" || !asset.storageUrl) continue;
-      if (asset.kind === "mainVideo") {
-        setForm((f) => (f.videoUrl === asset.storageUrl ? f : { ...f, videoUrl: asset.storageUrl! }));
-      } else if (asset.kind === "trailer") {
-        setForm((f) => (f.trailerUrl === asset.storageUrl ? f : { ...f, trailerUrl: asset.storageUrl! }));
-      } else if (asset.kind === "poster") {
-        setForm((f) => (f.posterUrl === asset.storageUrl ? f : { ...f, posterUrl: asset.storageUrl! }));
-      } else if (asset.kind === "backdrop") {
-        setForm((f) => (f.backdropUrl === asset.storageUrl ? f : { ...f, backdropUrl: asset.storageUrl! }));
-      } else if (asset.kind === "script") {
-        setForm((f) => (f.scriptUrl === asset.storageUrl ? f : { ...f, scriptUrl: asset.storageUrl! }));
-      } else if (asset.kind === "episode" && asset.meta?.seasonNumber != null && asset.meta?.episodeNumber != null) {
+      if (asset.kind === "episode" && asset.meta?.seasonNumber != null && asset.meta?.episodeNumber != null) {
         const s = asset.meta.seasonNumber;
         const e = asset.meta.episodeNumber;
-        const url = asset.storageUrl;
-        setEpisodeDrafts((prev) =>
-          prev.map((ep) =>
-            ep.seasonNumber === s && ep.episodeNumber === e && ep.videoUrl !== url
-              ? { ...ep, videoUrl: url }
-              : ep,
-          ),
-        );
+        if (asset.status === "complete" && asset.storageUrl) {
+          const url = asset.storageUrl;
+          setEpisodeDrafts((prev) =>
+            prev.map((ep) =>
+              ep.seasonNumber === s && ep.episodeNumber === e && ep.videoUrl !== url
+                ? { ...ep, videoUrl: url }
+                : ep,
+            ),
+          );
+        } else if (
+          asset.status === "queued" ||
+          asset.status === "uploading" ||
+          asset.status === "failed"
+        ) {
+          setEpisodeDrafts((prev) =>
+            prev.map((ep) =>
+              ep.seasonNumber === s && ep.episodeNumber === e && ep.videoUrl
+                ? { ...ep, videoUrl: "" }
+                : ep,
+            ),
+          );
+        }
       } else if (asset.kind === "bts" && asset.meta?.btsIndex != null) {
         const idx = asset.meta.btsIndex;
-        const url = asset.storageUrl;
-        setBtsVideos((prev) =>
-          prev.map((b, i) => (i === idx && b.videoUrl !== url ? { ...b, videoUrl: url } : b)),
-        );
+        if (asset.status === "complete" && asset.storageUrl) {
+          const url = asset.storageUrl;
+          setBtsVideos((prev) =>
+            prev.map((b, i) => (i === idx && b.videoUrl !== url ? { ...b, videoUrl: url } : b)),
+          );
+        } else if (
+          asset.status === "queued" ||
+          asset.status === "uploading" ||
+          asset.status === "failed"
+        ) {
+          setBtsVideos((prev) =>
+            prev.map((b, i) => (i === idx && b.videoUrl ? { ...b, videoUrl: "" } : b)),
+          );
+        }
       }
     }
   }, [jobs, effectiveJobId]);
@@ -577,6 +655,27 @@ function DistributionUploadInner() {
       });
     if (!uploadJobId) setUploadJobId(jobId);
     setError("");
+    // Clear stale form URL immediately so the UI shows the new upload (not "done" at 0%).
+    if (kind === "mainVideo") updateField("videoUrl", "");
+    if (kind === "trailer") updateField("trailerUrl", "");
+    if (kind === "poster") updateField("posterUrl", "");
+    if (kind === "backdrop") updateField("backdropUrl", "");
+    if (kind === "script") updateField("scriptUrl", "");
+    if (kind === "episode" && meta?.seasonNumber != null && meta?.episodeNumber != null) {
+      const s = meta.seasonNumber;
+      const e = meta.episodeNumber;
+      setEpisodeDrafts((prev) =>
+        prev.map((ep) =>
+          ep.seasonNumber === s && ep.episodeNumber === e ? { ...ep, videoUrl: "" } : ep,
+        ),
+      );
+    }
+    if (kind === "bts" && meta?.btsIndex != null) {
+      const idx = meta.btsIndex;
+      setBtsVideos((prev) =>
+        prev.map((b, i) => (i === idx ? { ...b, videoUrl: "" } : b)),
+      );
+    }
     enqueueAsset({
       jobId,
       kind,
