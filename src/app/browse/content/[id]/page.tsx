@@ -7,8 +7,15 @@ import { ContentDetailClient } from "./content-detail-client";
 import { getViewerPlaybackState, isPpvEligibleContent } from "@/lib/viewer-access";
 import { getViewerProfileAge } from "@/lib/viewer-profiles";
 import type { SeasonItem } from "@/components/browse/content-episodes-section";
+import { getDisplayPosterUrl } from "@/lib/content-media-urls";
+import { packBrowserMediaUrl } from "@/lib/pack-storage-media-url";
 
 export const dynamic = "force-dynamic";
+
+function packCatalogueImage(url: string | null | undefined): string | null {
+  if (!url?.trim()) return null;
+  return getDisplayPosterUrl({ posterUrl: url }) ?? packBrowserMediaUrl(url) ?? url;
+}
 
 export default async function ContentDetailPage({
   params,
@@ -150,14 +157,22 @@ export default async function ContentDetailPage({
     <ContentDetailClient
       content={{
         ...content,
+        posterUrl: packCatalogueImage(content.posterUrl),
+        backdropUrl: packCatalogueImage(content.backdropUrl) ?? content.backdropUrl,
         createdAt: content.createdAt.toISOString(),
         submittedAt: content.submittedAt?.toISOString() ?? null,
         ratingStats: {
           average: avgRating._avg.score ?? 0,
           count: avgRating._count,
         },
-        otherCreatorContent,
-        relatedContent,
+        otherCreatorContent: otherCreatorContent.map((c) => ({
+          ...c,
+          posterUrl: packCatalogueImage(c.posterUrl),
+        })),
+        relatedContent: relatedContent.map((c) => ({
+          ...c,
+          posterUrl: packCatalogueImage(c.posterUrl),
+        })),
         soundtrack: content.syncDeals.map((sd) => sd.musicTrack),
         crewMembers: content.crewMembers,
       }}

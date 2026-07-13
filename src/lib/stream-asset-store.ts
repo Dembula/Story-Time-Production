@@ -89,10 +89,15 @@ export async function findStreamAssetBySourceUrl(
 ): Promise<StreamAssetPlaybackCandidate | null> {
   const trimmed = sourceUrl.trim();
   if (!trimmed) return null;
+
+  const { storageMediaLookupKeys } = await import("@/lib/pack-storage-media-url");
+  const keys = storageMediaLookupKeys(trimmed);
+  if (keys.length === 0) return null;
+
   const rows = (await prisma.$queryRaw`
     SELECT "uid", "sourceUrl", "status", "playbackUrl", "hlsUrl", "iframeUrl"
     FROM "StreamAsset"
-    WHERE "sourceUrl" = ${trimmed}
+    WHERE "sourceUrl" IN (${Prisma.join(keys)})
     LIMIT 1
   `) as StreamAssetPlaybackCandidate[];
   return rows[0] ?? null;
@@ -101,9 +106,12 @@ export async function findStreamAssetBySourceUrl(
 export async function getStreamAssetsByUrls(
   urls: Array<string | null | undefined>,
 ): Promise<Map<string, StreamAssetPlaybackCandidate>> {
-  const normalized = [...new Set(urls.map((url) => url?.trim()).filter((url): url is string => Boolean(url)))];
+  const { storageMediaLookupKeys } = await import("@/lib/pack-storage-media-url");
+  const inputUrls = [...new Set(urls.map((url) => url?.trim()).filter((url): url is string => Boolean(url)))];
   const result = new Map<string, StreamAssetPlaybackCandidate>();
-  if (normalized.length === 0) return result;
+  if (inputUrls.length === 0) return result;
+
+  const normalized = [...new Set(inputUrls.flatMap((url) => storageMediaLookupKeys(url)))];
 
   const uids = [...new Set(normalized.map((url) => extractCloudflareStreamUid(url)).filter((uid): uid is string => Boolean(uid)))];
   const rowsByUid = new Map<string, StreamAssetPlaybackCandidate>();
@@ -117,18 +125,26 @@ export async function getStreamAssetsByUrls(
   }
 
   const rowsBySource = new Map<string, StreamAssetPlaybackCandidate>();
-  const rows = (await prisma.$queryRaw`
-    SELECT "uid", "sourceUrl", "status", "playbackUrl", "hlsUrl", "iframeUrl"
-    FROM "StreamAsset"
-    WHERE "sourceUrl" IN (${Prisma.join(normalized)})
-  `) as StreamAssetPlaybackCandidate[];
-  for (const row of rows) {
-    if (row.sourceUrl) rowsBySource.set(row.sourceUrl, row);
+  if (normalized.length > 0) {
+    const rows = (await prisma.$queryRaw`
+      SELECT "uid", "sourceUrl", "status", "playbackUrl", "hlsUrl", "iframeUrl"
+      FROM "StreamAsset"
+      WHERE "sourceUrl" IN (${Prisma.join(normalized)})
+    `) as StreamAssetPlaybackCandidate[];
+    for (const row of rows) {
+      if (row.sourceUrl) rowsBySource.set(row.sourceUrl, row);
+    }
   }
 
-  for (const url of normalized) {
+  for (const url of inputUrls) {
     const uid = extractCloudflareStreamUid(url);
-    const asset = (uid ? rowsByUid.get(uid) : null) ?? rowsBySource.get(url);
+    let asset = (uid ? rowsByUid.get(uid) : null) ?? rowsBySource.get(url) ?? null;
+    if (!asset) {
+      for (const key of storageMediaLookupKeys(url)) {
+        asset = rowsBySource.get(key) ?? null;
+        if (asset) break;
+      }
+    }
     if (asset) result.set(url, asset);
   }
   return result;

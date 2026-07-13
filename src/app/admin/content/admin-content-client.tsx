@@ -16,8 +16,7 @@ import {
   type ReviewFeedbackKind,
 } from "@/lib/review-feedback";
 import { AdminProjectReviewDigest } from "@/components/admin/admin-project-review-digest";
-import { NativeSafeVideo } from "@/components/player/native-safe-video";
-import { resolveNativeVideoSafeUrl } from "@/lib/playback-sources";
+import { AdminReviewPlayer } from "@/components/admin/admin-review-player";
 import { parsePlatformScriptVersionId } from "@/lib/content-catalogue-tags";
 
 interface ContentItem {
@@ -103,7 +102,7 @@ export function AdminContentClient() {
   const [tab, setTab] = useState("ALL");
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [previewing, setPreviewing] = useState<string | null>(null);
+  const [previewing, setPreviewing] = useState<{ id: string; trailer: boolean } | null>(null);
   const [noteById, setNoteById] = useState<Record<string, string>>({});
   const [feedbackById, setFeedbackById] = useState<Record<string, FeedbackDraftRow[]>>({});
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -272,29 +271,67 @@ export function AdminContentClient() {
         </div>
       </div>
 
-      {/* Video Preview Modal */}
+      {/* Video Preview Modal — works for unpublished titles (Stream HLS or signed S3). */}
       {previewing && (() => {
-        const c = content.find((x) => x.id === previewing);
+        const c = content.find((x) => x.id === previewing.id);
         if (!c) return null;
+        const hasMain = Boolean(c.videoUrl);
+        const hasTrailer = Boolean(c.trailerUrl);
         return (
           <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setPreviewing(null)}>
             <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-4xl w-full overflow-hidden" onClick={(e) => e.stopPropagation()}>
-              <div className="p-4 border-b border-slate-700/50 flex items-center justify-between">
-                <div>
-                  <h3 className="text-white font-semibold">{c.title}</h3>
-                  <p className="text-xs text-slate-400">{c.type} · by {c.creator.name} · {c.duration ? `${c.duration} min` : "Duration unknown"}</p>
+              <div className="p-4 border-b border-slate-700/50 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <h3 className="text-white font-semibold truncate">{c.title}</h3>
+                  <p className="text-xs text-slate-400">
+                    {previewing.trailer ? "Trailer review" : "Main film review"} · {c.type} · by {c.creator.name}
+                    {c.duration ? ` · ${c.duration} min` : ""}
+                  </p>
                 </div>
-                <button onClick={() => setPreviewing(null)} className="text-slate-400 hover:text-white text-xl">✕</button>
+                <button onClick={() => setPreviewing(null)} className="text-slate-400 hover:text-white text-xl shrink-0">✕</button>
               </div>
-              <div className="aspect-video bg-black">
-                {resolveNativeVideoSafeUrl(c.videoUrl) ? (
-                  <NativeSafeVideo videoUrl={c.videoUrl} controls autoPlay className="w-full h-full" />
-                ) : c.videoUrl ? (
-                  <div className="flex h-full w-full items-center justify-center px-6 text-center text-sm text-slate-400">
-                    Stream preview plays in the in-browser watch player after publish.
-                  </div>
+              {(hasMain || hasTrailer) && (
+                <div className="flex gap-2 px-4 pt-3">
+                  {hasMain ? (
+                    <button
+                      type="button"
+                      onClick={() => setPreviewing({ id: c.id, trailer: false })}
+                      className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                        !previewing.trailer
+                          ? "bg-orange-500 text-white"
+                          : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                      }`}
+                    >
+                      Main film
+                    </button>
+                  ) : null}
+                  {hasTrailer ? (
+                    <button
+                      type="button"
+                      onClick={() => setPreviewing({ id: c.id, trailer: true })}
+                      className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                        previewing.trailer
+                          ? "bg-orange-500 text-white"
+                          : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                      }`}
+                    >
+                      Trailer
+                    </button>
+                  ) : null}
+                </div>
+              )}
+              <div className="aspect-video bg-black mt-3">
+                {(previewing.trailer ? hasTrailer : hasMain) ? (
+                  <AdminReviewPlayer
+                    key={`${previewing.id}-${previewing.trailer ? "trailer" : "main"}`}
+                    contentId={previewing.id}
+                    trailer={previewing.trailer}
+                    className="w-full h-full"
+                  />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-slate-500">No video URL provided</div>
+                  <div className="w-full h-full flex items-center justify-center text-slate-500">
+                    No {previewing.trailer ? "trailer" : "video"} provided
+                  </div>
                 )}
               </div>
               <div className="p-4 space-y-3">
@@ -362,7 +399,7 @@ export function AdminContentClient() {
                   </div>
                   <div className="flex items-center gap-2">
                     {c.videoUrl && (
-                      <button onClick={(e) => { e.stopPropagation(); setPreviewing(c.id); }} className="p-2 rounded-lg bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 transition" title="Preview video">
+                      <button onClick={(e) => { e.stopPropagation(); setPreviewing({ id: c.id, trailer: false }); }} className="p-2 rounded-lg bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 transition" title="Preview video">
                         <Play className="w-4 h-4" />
                       </button>
                     )}
@@ -461,7 +498,7 @@ export function AdminContentClient() {
                       </div>
 
                       {c.videoUrl && (
-                        <button onClick={() => setPreviewing(c.id)} className="mt-3 flex items-center gap-2 px-4 py-2 bg-orange-500/10 text-orange-400 border border-orange-500/30 rounded-lg text-sm hover:bg-orange-500/20 transition">
+                        <button onClick={() => setPreviewing({ id: c.id, trailer: false })} className="mt-3 flex items-center gap-2 px-4 py-2 bg-orange-500/10 text-orange-400 border border-orange-500/30 rounded-lg text-sm hover:bg-orange-500/20 transition">
                           <Play className="w-4 h-4" /> Watch Content
                         </button>
                       )}

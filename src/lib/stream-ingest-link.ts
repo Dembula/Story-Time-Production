@@ -13,6 +13,7 @@ import {
   type StreamAssetPlaybackCandidate,
 } from "@/lib/stream-asset-store";
 import { isAllowedStorageUrl } from "@/lib/storage-origin";
+import { normalizeStorageMediaUrl } from "@/lib/pack-storage-media-url";
 
 const VIDEO_URL_RE = /\.(mp4|mov|webm|mkv|m4v|avi|mpeg|mpg|m2ts|3gp|hevc)(\?|$)/i;
 
@@ -22,7 +23,14 @@ export function resolveStreamPlaybackUrl(asset: StreamAssetPlaybackCandidate | n
 }
 
 export function isLikelyVideoStorageUrl(url: string): boolean {
-  return VIDEO_URL_RE.test(url) || isCloudflareStreamUrl(url);
+  return VIDEO_URL_RE.test(url) || isCloudflareStreamUrl(url) || url.startsWith("s3://");
+}
+
+function resolveIngestableHttpUrl(url: string): string | null {
+  const normalized = normalizeStorageMediaUrl(url);
+  if (!normalized) return null;
+  if (!isAllowedStorageUrl(normalized) && !isCloudflareStreamUrl(normalized)) return null;
+  return normalized;
 }
 
 /** Queue Cloudflare Stream ingest for a video URL (no entity link). */
@@ -31,24 +39,31 @@ export async function ensureVideoIngested(
   meta?: Record<string, string>,
 ): Promise<void> {
   const trimmed = url?.trim();
-  if (!trimmed || !isAllowedStorageUrl(trimmed) || !isLikelyVideoStorageUrl(trimmed)) return;
+  if (!trimmed || !isLikelyVideoStorageUrl(trimmed)) return;
   if (extractCloudflareStreamUid(trimmed)) return;
+
+  const httpUrl = resolveIngestableHttpUrl(trimmed);
+  if (!httpUrl || !isAllowedStorageUrl(httpUrl)) return;
+  if (await findStreamAssetBySourceUrl(httpUrl)) return;
   if (await findStreamAssetBySourceUrl(trimmed)) return;
 
   try {
-    const contentType = resolveContentTypeForUpload({ name: trimmed.split("/").pop() ?? "video.mp4", type: "" });
+    const contentType = resolveContentTypeForUpload({
+      name: httpUrl.split("/").pop() ?? "video.mp4",
+      type: "",
+    });
     const stream = await ingestToCloudflareStreamFromUrl(
-      trimmed,
+      httpUrl,
       buildStreamIngestMeta({
         ...meta,
-        fileName: trimmed.split("/").pop() ?? "video.mp4",
+        fileName: httpUrl.split("/").pop() ?? "video.mp4",
         mime: contentType,
         source: meta?.source ?? "storytime-recovery",
       }),
     );
     await upsertStreamAsset({
       uid: stream.uid,
-      sourceUrl: trimmed,
+      sourceUrl: httpUrl,
       playbackUrl: stream.mp4Url,
       hlsUrl: stream.hlsUrl,
       iframeUrl: stream.iframeUrl,
@@ -67,7 +82,7 @@ export async function linkOrIngestStreamForUrl(
   meta?: Record<string, string>,
 ): Promise<StreamAssetPlaybackCandidate | null> {
   const trimmed = url?.trim();
-  if (!trimmed || !isAllowedStorageUrl(trimmed) || !isLikelyVideoStorageUrl(trimmed)) return null;
+  if (!trimmed || !isLikelyVideoStorageUrl(trimmed)) return null;
   const linkedEntityType =
     entityType === "Content" && meta?.area === "content-trailer" ? "ContentTrailer" : entityType;
 
@@ -79,7 +94,11 @@ export async function linkOrIngestStreamForUrl(
 
   if (isCloudflareStreamUrl(trimmed)) return findStreamAssetBySourceUrl(trimmed);
 
-  const existingAsset = await findStreamAssetBySourceUrl(trimmed);
+  const httpUrl = resolveIngestableHttpUrl(trimmed);
+  if (!httpUrl || !isAllowedStorageUrl(httpUrl)) return null;
+
+  const existingAsset =
+    (await findStreamAssetBySourceUrl(httpUrl)) ?? (await findStreamAssetBySourceUrl(trimmed));
   if (existingAsset) {
     await setStreamAssetEntity(existingAsset.uid, linkedEntityType, entityId);
     return existingAsset;
@@ -87,7 +106,7 @@ export async function linkOrIngestStreamForUrl(
 
   try {
     const stream = await ingestToCloudflareStreamFromUrl(
-      trimmed,
+      httpUrl,
       buildStreamIngestMeta({
         ...meta,
         entityType: linkedEntityType,
@@ -97,7 +116,7 @@ export async function linkOrIngestStreamForUrl(
     );
     await upsertStreamAsset({
       uid: stream.uid,
-      sourceUrl: trimmed,
+      sourceUrl: httpUrl,
       playbackUrl: stream.mp4Url,
       hlsUrl: stream.hlsUrl,
       iframeUrl: stream.iframeUrl,
@@ -108,7 +127,7 @@ export async function linkOrIngestStreamForUrl(
     await setStreamAssetEntity(stream.uid, linkedEntityType, entityId);
     return {
       uid: stream.uid,
-      sourceUrl: trimmed,
+      sourceUrl: httpUrl,
       status: stream.state,
       playbackUrl: stream.mp4Url,
       hlsUrl: stream.hlsUrl,

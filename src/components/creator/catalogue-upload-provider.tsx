@@ -545,7 +545,9 @@ export function CatalogueUploadProvider({ children }: { children: ReactNode }) {
             },
           });
           if (!inFlightAssetIdsRef.current.has(startedAssetId)) return;
-          const storageUrl = preferredStorageReference(payload);
+          const preferPublicUrl =
+            next.asset.kind === "poster" || next.asset.kind === "backdrop";
+          const storageUrl = preferredStorageReference(payload, { preferPublicUrl });
           filesRef.current.delete(startedAssetId);
           setJob(startedJobId, (j) => ({
             ...j,

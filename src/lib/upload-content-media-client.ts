@@ -243,8 +243,17 @@ export async function uploadContentMediaViaApi(
   return preferredStorageReference(data);
 }
 
-/** Prefer private storage ref for DB persistence; fall back to legacy public URL. */
-export function preferredStorageReference(payload: ContentMediaFinalizePayload): string {
+/** Prefer private storage ref for DB persistence; fall back to legacy public URL.
+ * For public catalogue artwork (posters/backdrops), prefer the HTTPS public URL so
+ * browsers and next/image can load the asset without packaging `s3://` refs.
+ */
+export function preferredStorageReference(
+  payload: ContentMediaFinalizePayload,
+  options?: { preferPublicUrl?: boolean },
+): string {
+  if (options?.preferPublicUrl) {
+    return payload.publicUrl || payload.storageRef;
+  }
   return payload.storageRef || payload.publicUrl;
 }
 

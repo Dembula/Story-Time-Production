@@ -70,8 +70,21 @@ async function main() {
   if (!storage.bucket || !storage.region) {
     throw new Error("Set STORAGE_BUCKET_NAME and STORAGE_REGION (or S3_* equivalents).");
   }
-  if (!storage.accessKeyId || !storage.secretAccessKey) {
-    throw new Error("Set STORAGE_ACCESS_KEY_ID and STORAGE_SECRET_ACCESS_KEY.");
+
+  // Prefer admin keys when present (uploader IAM is often least-privilege without PutBucketCORS).
+  const accessKeyId =
+    process.env.STORAGE_ADMIN_ACCESS_KEY_ID?.trim() ||
+    process.env.AWS_ACCESS_KEY_ID?.trim() ||
+    storage.accessKeyId;
+  const secretAccessKey =
+    process.env.STORAGE_ADMIN_SECRET_ACCESS_KEY?.trim() ||
+    process.env.AWS_SECRET_ACCESS_KEY?.trim() ||
+    storage.secretAccessKey;
+
+  if (!accessKeyId || !secretAccessKey) {
+    throw new Error(
+      "Set STORAGE_ACCESS_KEY_ID/STORAGE_SECRET_ACCESS_KEY (or STORAGE_ADMIN_* / AWS_* with s3:PutBucketCORS).",
+    );
   }
 
   const origins = originsFromEnv();
@@ -82,8 +95,8 @@ async function main() {
   const client = new S3Client({
     region: storage.region,
     credentials: {
-      accessKeyId: storage.accessKeyId,
-      secretAccessKey: storage.secretAccessKey,
+      accessKeyId,
+      secretAccessKey,
     },
     ...(storage.endpoint ? { endpoint: storage.endpoint, forcePathStyle: true } : {}),
   });
@@ -98,12 +111,29 @@ async function main() {
     },
   ];
 
-  await client.send(
-    new PutBucketCorsCommand({
-      Bucket: storage.bucket,
-      CORSConfiguration: { CORSRules: corsRules },
-    }),
-  );
+  try {
+    await client.send(
+      new PutBucketCorsCommand({
+        Bucket: storage.bucket,
+        CORSConfiguration: { CORSRules: corsRules },
+      }),
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (/PutBucketCORS|AccessDenied|not authorized/i.test(message)) {
+      console.error(`\nCould not apply CORS with the current AWS credentials.\n`);
+      console.error(`Bucket: s3://${storage.bucket}`);
+      console.error(`Required permission: s3:PutBucketCORS`);
+      console.error(`\nFastest fix (AWS Console, ~30s):`);
+      console.error(`1. Open https://s3.console.aws.amazon.com/s3/buckets/${storage.bucket}?region=${storage.region}&tab=permissions`);
+      console.error(`2. Scroll to Cross-origin resource sharing (CORS) → Edit`);
+      console.error(`3. Paste deploy/connection-pack/s3-cors.json and Save`);
+      console.error(`\nOr attach PutBucketCORS to the IAM user, then re-run:`);
+      console.error(`  npx tsx scripts/apply-s3-cors.ts\n`);
+      console.error(`AllowedOrigins that must be present:\n  - ${origins.join("\n  - ")}\n`);
+    }
+    throw err;
+  }
 
   const current = await client.send(new GetBucketCorsCommand({ Bucket: storage.bucket }));
   console.log(`Applied CORS to s3://${storage.bucket}`);

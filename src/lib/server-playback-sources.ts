@@ -8,6 +8,9 @@ import {
   findStreamAssetBySourceUrl,
   findStreamAssetByUid,
 } from "@/lib/stream-asset-store";
+import { normalizeStorageMediaUrl, packBrowserMediaUrl } from "@/lib/pack-storage-media-url";
+import { resolveStorageObjectRef } from "@/lib/storage-object-ref";
+import { getStorageObjectSignedUrl } from "@/lib/storage-object-fetch";
 
 const READY_STREAM_STATES = new Set(["ready", "live", "completed", "success"]);
 
@@ -17,7 +20,11 @@ function isReadyStreamState(status: string | null | undefined): boolean {
 }
 
 function isS3OrMp4Url(url: string): boolean {
-  return /\.mp4(\?|$)/i.test(url) || /amazonaws\.com|cloudfront\.net|r2\.cloudflarestorage\.com/i.test(url);
+  return (
+    url.startsWith("s3://") ||
+    /\.mp4(\?|$)/i.test(url) ||
+    /amazonaws\.com|cloudfront\.net|r2\.cloudflarestorage\.com/i.test(url)
+  );
 }
 
 async function resolveS3FallbackFromStreamUrl(
@@ -29,7 +36,25 @@ async function resolveS3FallbackFromStreamUrl(
   const asset = await findStreamAssetByUid(uid);
   const sourceUrl = asset?.sourceUrl?.trim();
   if (!sourceUrl || isCloudflareStreamUrl(sourceUrl)) return null;
-  return resolvePlaybackSources(sourceUrl);
+  return resolvePlayableMp4Source(sourceUrl);
+}
+
+async function resolvePlayableMp4Source(url: string): Promise<PlaybackSource | null> {
+  const httpUrl = packBrowserMediaUrl(url) ?? (url.startsWith("http") ? url : null);
+  if (!httpUrl) return null;
+
+  // Prefer short-lived signed GET when the object is platform storage (private buckets).
+  const ref = resolveStorageObjectRef(url) ?? resolveStorageObjectRef(httpUrl);
+  if (ref) {
+    try {
+      const signed = await getStorageObjectSignedUrl(ref, 60 * 60);
+      return { src: signed, type: "video/mp4" };
+    } catch (err) {
+      console.error("Signed S3 playback URL failed; falling back to public URL:", err);
+    }
+  }
+
+  return resolvePlaybackSources(httpUrl);
 }
 
 async function resolveStreamPlaybackSource(
@@ -61,7 +86,9 @@ export async function resolveServerPlaybackSource(
     return resolveStreamPlaybackSource(url);
   }
 
-  const asset = await findStreamAssetBySourceUrl(url);
+  const normalized = normalizeStorageMediaUrl(url) ?? url;
+  const asset =
+    (await findStreamAssetBySourceUrl(normalized)) ?? (await findStreamAssetBySourceUrl(url));
   const streamUrl = isReadyStreamState(asset?.status)
     ? asset?.hlsUrl ?? asset?.playbackUrl
     : null;
@@ -69,12 +96,18 @@ export async function resolveServerPlaybackSource(
     const streamPlayback = await resolveStreamPlaybackSource(streamUrl);
     if (streamPlayback) return streamPlayback;
     if (requiresSignedStreamPlayback()) {
-      if (isS3OrMp4Url(url)) return resolvePlaybackSources(url);
+      if (isS3OrMp4Url(url) || isS3OrMp4Url(normalized)) {
+        return resolvePlayableMp4Source(normalized);
+      }
       return null;
     }
   }
 
-  return resolvePlaybackSources(url);
+  if (isS3OrMp4Url(url) || isS3OrMp4Url(normalized)) {
+    return resolvePlayableMp4Source(normalized);
+  }
+
+  return resolvePlaybackSources(normalized);
 }
 
 export function isS3FallbackPlayback(source: PlaybackSource | null): boolean {

@@ -3,10 +3,9 @@
     "AllowedHeaders": ["*"],
     "AllowedMethods": ["GET", "HEAD", "PUT", "POST"],
     "AllowedOrigins": [
+      "https://story-time-production.vercel.app",
       "http://localhost:3000",
-      "https://localhost:3000",
-      "https://YOUR_APP_DOMAIN",
-      "https://YOUR_VERCEL_PREVIEW_DOMAIN"
+      "https://localhost:3000"
     ],
     "ExposeHeaders": ["ETag", "x-amz-request-id", "x-amz-id-2"],
     "MaxAgeSeconds": 3000

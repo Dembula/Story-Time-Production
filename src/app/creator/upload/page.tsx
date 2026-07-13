@@ -1331,15 +1331,27 @@ function DistributionUploadInner() {
                     </div>
                   ) : null}
                   {posterAsset.done && !posterAsset.uploading && form.posterUrl ? (
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-xs text-emerald-400">Poster image uploaded</p>
-                      <button
-                        type="button"
-                        onClick={() => clearMediaSlot("poster")}
-                        className="rounded-lg border border-white/12 px-2.5 py-1 text-[11px] text-slate-300 hover:bg-white/5"
-                      >
-                        Remove / replace
-                      </button>
+                    <div className="flex flex-wrap items-center gap-3">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={form.posterUrl.startsWith("http") ? form.posterUrl : ""}
+                        alt=""
+                        className={
+                          form.posterUrl.startsWith("http")
+                            ? "h-24 w-16 rounded-lg object-cover border border-white/10"
+                            : "hidden"
+                        }
+                      />
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-xs text-emerald-400">Poster image uploaded</p>
+                        <button
+                          type="button"
+                          onClick={() => clearMediaSlot("poster")}
+                          className="rounded-lg border border-white/12 px-2.5 py-1 text-[11px] text-slate-300 hover:bg-white/5"
+                        >
+                          Remove / replace
+                        </button>
+                      </div>
                     </div>
                   ) : null}
                   <details className="rounded-lg border border-slate-700/60 bg-slate-900/30 px-3 py-2">

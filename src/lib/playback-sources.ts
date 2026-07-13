@@ -66,10 +66,16 @@ export function requiresStreamPlaybackBundle(url: string | null | undefined): bo
 /**
  * MP4-only URL for lightweight native `<video>` previews (admin, BTS, profile).
  * Stream/HLS titles must use the in-browser watch player.
+ * Rejects `s3://` and other non-http(s) refs — browsers cannot play those.
  */
 export function resolveNativeVideoSafeUrl(videoUrl: string | null | undefined): string | null {
-  const source = resolvePlaybackSources(videoUrl);
-  if (isNativeVideoSafeSource(source)) return source!.src;
+  const raw = videoUrl?.trim();
+  if (!raw || raw.startsWith("s3://")) return null;
+
+  const source = resolvePlaybackSources(raw);
+  if (isNativeVideoSafeSource(source) && /^https?:\/\//i.test(source!.src)) {
+    return source!.src;
+  }
 
   const uid = extractCloudflareStreamUid(videoUrl ?? undefined);
   if (uid) {

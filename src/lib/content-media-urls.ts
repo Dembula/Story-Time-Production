@@ -1,9 +1,18 @@
 import { buildCloudflarePlaybackUrls, extractCloudflareStreamUid, isCloudflareStreamUrl } from "@/lib/cloudflare-stream";
+import { packBrowserMediaUrl } from "@/lib/pack-storage-media-url";
 
 function isUploadedImageUrl(url: string | null | undefined): boolean {
   const value = url?.trim();
   if (!value) return false;
   return !isCloudflareStreamUrl(value) && !/videodelivery\.net/i.test(value);
+}
+
+/** Pack `s3://` (or keep https) so `<img>` / next/image can load catalogue artwork. */
+export function packDisplayImageUrl(url: string | null | undefined): string | null {
+  const value = url?.trim();
+  if (!value) return null;
+  if (!isUploadedImageUrl(value)) return null;
+  return packBrowserMediaUrl(value) ?? (value.startsWith("s3://") ? null : value);
 }
 
 /** Stream-generated frame — fallback only when no creator artwork exists. */
@@ -33,7 +42,8 @@ export function getDisplayPosterUrl(item: {
   videoUrl?: string | null;
   trailerUrl?: string | null;
 }): string | null {
-  if (isUploadedImageUrl(item.posterUrl)) return item.posterUrl!.trim();
+  const poster = packDisplayImageUrl(item.posterUrl);
+  if (poster) return poster;
   return getStreamThumbnailUrl(item.videoUrl, { time: "3s" }) ?? null;
 }
 
@@ -43,7 +53,8 @@ export function getDisplayBackdropUrl(item: {
   backdropUrl?: string | null;
   videoUrl?: string | null;
 }): string | null {
-  if (isUploadedImageUrl(item.backdropUrl)) return item.backdropUrl!.trim();
+  const backdrop = packDisplayImageUrl(item.backdropUrl);
+  if (backdrop) return backdrop;
   const uid = extractCloudflareStreamUid(item.videoUrl ?? undefined);
   if (uid) {
     try {
@@ -58,6 +69,5 @@ export function getDisplayBackdropUrl(item: {
     }
     return `${buildCloudflarePlaybackUrls(uid, "https://videodelivery.net").thumbnailUrl}?time=5s&height=720`;
   }
-  if (isUploadedImageUrl(item.posterUrl)) return item.posterUrl!.trim();
-  return null;
+  return packDisplayImageUrl(item.posterUrl);
 }

@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getStoryTimeOriginalBadge } from "@/lib/storytime-original";
+import { packAdminContentMediaFields } from "@/lib/admin-content-media-pack";
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -36,21 +37,24 @@ export async function GET(req: NextRequest) {
     orderBy: { createdAt: "desc" },
   });
 
-  const enriched = content.map((item) => {
-    const latestPitch = item.linkedProject?.pitches[0] ?? null;
-    const originalBadge = getStoryTimeOriginalBadge(latestPitch);
-    return {
-      ...item,
-      linkedProject: item.linkedProject
-        ? {
-            id: item.linkedProject.id,
-            title: item.linkedProject.title,
-            originalBadge,
-            latestPitchStatus: latestPitch?.status ?? null,
-          }
-        : null,
-    };
-  });
+  const enriched = await Promise.all(
+    content.map(async (item) => {
+      const latestPitch = item.linkedProject?.pitches[0] ?? null;
+      const originalBadge = getStoryTimeOriginalBadge(latestPitch);
+      const packed = await packAdminContentMediaFields(item);
+      return {
+        ...packed,
+        linkedProject: item.linkedProject
+          ? {
+              id: item.linkedProject.id,
+              title: item.linkedProject.title,
+              originalBadge,
+              latestPitchStatus: latestPitch?.status ?? null,
+            }
+          : null,
+      };
+    }),
+  );
 
   return NextResponse.json(enriched);
 }
