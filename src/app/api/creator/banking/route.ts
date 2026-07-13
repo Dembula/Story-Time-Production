@@ -3,16 +3,34 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ensureCreatorStudioProfilesForUser, loadStudioPipelineContext } from "@/lib/creator-studio";
+import { assertPayoutKycApproved, requiresPayoutKyc } from "@/lib/payout-kyc";
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   const role = (session?.user as { role?: string })?.role;
-  if (role !== "CONTENT_CREATOR" && role !== "ADMIN") {
+  if (role !== "CONTENT_CREATOR" && role !== "MUSIC_CREATOR" && role !== "ADMIN") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const creatorId = session?.user?.id;
   if (!creatorId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  if (role === "CONTENT_CREATOR" || role === "MUSIC_CREATOR") {
+    if (requiresPayoutKyc(role)) {
+      const kyc = await assertPayoutKycApproved(creatorId);
+      if (!kyc.ok) {
+        return NextResponse.json(
+          {
+            error:
+              "Complete payout verification (KYC/KYB) before managing banking details. Open Payout verification to continue.",
+            code: "PAYOUT_KYC_REQUIRED",
+            verificationPath: "/payout-verification",
+          },
+          { status: 403 },
+        );
+      }
+    }
+  }
 
   if (role === "CONTENT_CREATOR") {
     await ensureCreatorStudioProfilesForUser(creatorId);
@@ -23,7 +41,12 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json();
-  const { bankName, accountNumber, accountType, branchCode } = body as { bankName?: string; accountNumber?: string; accountType?: string; branchCode?: string };
+  const { bankName, accountNumber, accountType, branchCode } = body as {
+    bankName?: string;
+    accountNumber?: string;
+    accountType?: string;
+    branchCode?: string;
+  };
 
   if (!bankName || !accountNumber) {
     return NextResponse.json({ error: "Bank name and account number required" }, { status: 400 });

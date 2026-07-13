@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import { AccountPrivacyControls } from "@/components/account/account-privacy-controls";
 import { CreatorAccountVaultHub } from "@/components/creator/creator-account-vault-hub";
-import { PayoutKycBanner } from "@/components/payout-kyc/payout-kyc-banner";
+import { requiresPayoutKyc } from "@/lib/payout-kyc-shared";
 import { CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY } from "@/lib/pricing";
 import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
 import { formatZar } from "@/lib/format-currency-zar";
@@ -176,7 +176,7 @@ export function CreatorAccountClient({ backHref = "/creator/command-center" }: {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const activeTab = parseAccountTabParam(searchParams.get("tab"));
-  const { update: updateSession } = useSession();
+  const { data: session, update: updateSession } = useSession();
   const goalsRawRef = useRef<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [profile, setProfile] = useState({
@@ -223,23 +223,29 @@ export function CreatorAccountClient({ backHref = "/creator/command-center" }: {
   const [revenuePeriod, setRevenuePeriod] = useState<"month" | "quarter">("month");
   const [loadingRevenue, setLoadingRevenue] = useState(true);
   const [revenueLoadFailed, setRevenueLoadFailed] = useState(false);
-  const [bankForm, setBankForm] = useState({
-    bankName: "",
-    accountNumber: "",
-    accountType: "CHEQUE",
-    branchCode: "",
-  });
-  const [submittingBank, setSubmittingBank] = useState(false);
 
   const { data: licenseForSuites } = useQuery({
     queryKey: [...CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY],
     queryFn: () => fetch("/api/creator/distribution-license").then((r) => r.json()),
   });
+  const payoutKycStatus = (session?.user as { payoutKycVerificationStatus?: string } | undefined)
+    ?.payoutKycVerificationStatus;
+  const needsPayoutKyc = requiresPayoutKyc(session?.user?.role ?? userRole);
+  const payoutKycApproved = !needsPayoutKyc || payoutKycStatus === "APPROVED";
+
   const accountTabs = useMemo(() => {
     const s = licenseForSuites?.suiteAccess as Record<string, boolean> | undefined;
-    if (!s || s.analytics !== false) return ACCOUNT_TAB_ITEMS;
-    return ACCOUNT_TAB_ITEMS.filter((t) => t.id !== "banking");
-  }, [licenseForSuites]);
+    let tabs = ACCOUNT_TAB_ITEMS;
+    if (s && s.analytics === false) {
+      tabs = tabs.filter((t) => t.id !== "banking");
+    }
+    // Banking & payouts account form is only for KYC-approved creators.
+    // Incomplete verification must use /payout-verification instead.
+    if (needsPayoutKyc && !payoutKycApproved) {
+      tabs = tabs.filter((t) => t.id !== "banking");
+    }
+    return tabs;
+  }, [licenseForSuites, needsPayoutKyc, payoutKycApproved]);
 
   useEffect(() => {
     let cancelled = false;
@@ -344,11 +350,15 @@ export function CreatorAccountClient({ backHref = "/creator/command-center" }: {
 
   useEffect(() => {
     const s = licenseForSuites?.suiteAccess as Record<string, boolean> | undefined;
-    if (!s || s.analytics !== false) return;
-    if (activeTab === "banking") {
+    if (s && s.analytics === false && activeTab === "banking") {
       goToAccountTab("profile");
+      return;
     }
-  }, [licenseForSuites, activeTab, pathname, router]);
+    // Incomplete KYC: banking tab is unavailable — send them to the KYC form.
+    if (needsPayoutKyc && !payoutKycApproved && activeTab === "banking") {
+      router.replace("/payout-verification");
+    }
+  }, [licenseForSuites, activeTab, pathname, router, needsPayoutKyc, payoutKycApproved]);
 
   function flashSuccess(msg: string) {
     setSuccess(msg);
@@ -440,31 +450,6 @@ export function CreatorAccountClient({ backHref = "/creator/command-center" }: {
     }
   }
 
-  async function submitBank(e: React.FormEvent) {
-    e.preventDefault();
-    setSubmittingBank(true);
-    setError("");
-    try {
-      const res = await fetch("/api/creator/banking", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(bankForm),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        flashError(typeof data.error === "string" ? data.error : "Could not save banking details.");
-        return;
-      }
-      setBankForm({ bankName: "", accountNumber: "", accountType: "CHEQUE", branchCode: "" });
-      const revRes = await fetch(`/api/creator/revenue?period=${revenuePeriod}`);
-      const rev = revRes.ok ? await revRes.json().catch(() => null) : null;
-      if (rev && typeof rev.revenue === "number") setRevenueData(rev as CreatorRevenuePayload);
-      flashSuccess("Banking details saved.");
-    } finally {
-      setSubmittingBank(false);
-    }
-  }
-
   async function persistPublicProfile(net: typeof network): Promise<boolean> {
     const imgCheck = tryNormalizeAvatarImageUrl(net.image);
     if (!imgCheck.ok) {
@@ -545,7 +530,15 @@ export function CreatorAccountClient({ backHref = "/creator/command-center" }: {
         {!loadingRevenue && (revenueData || revenueLoadFailed) && (
           <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2 text-xs">
             <span className="font-medium uppercase tracking-wide text-slate-500">Payout readiness</span>
-            {revenueLoadFailed || !revenueData ? (
+            {needsPayoutKyc && !payoutKycApproved ? (
+              <span className="font-medium text-amber-300/90">
+                Complete{" "}
+                <Link href="/payout-verification" className="underline text-orange-300 hover:text-orange-200">
+                  payout verification (KYC/KYB)
+                </Link>{" "}
+                before banking is available
+              </span>
+            ) : revenueLoadFailed || !revenueData ? (
               <span className="font-medium text-slate-400">Payout data unavailable for this session.</span>
             ) : (
               <span
@@ -561,7 +554,7 @@ export function CreatorAccountClient({ backHref = "/creator/command-center" }: {
                   ? "Bank on file · verified"
                   : revenueData.banking
                     ? "Bank on file · verification pending"
-                    : "Add bank details to receive payouts"}
+                    : "Bank details come from approved payout verification"}
               </span>
             )}
           </div>
@@ -837,8 +830,9 @@ export function CreatorAccountClient({ backHref = "/creator/command-center" }: {
           <Building2 className="w-5 h-5 text-emerald-400" />
           <h2 className="text-lg font-semibold text-white">Banking & payouts</h2>
         </div>
-        <p className="text-xs text-slate-500">Payout window figures and the bank account used for settlements.</p>
-        <PayoutKycBanner inline />
+        <p className="text-xs text-slate-500">
+          Payout window figures and the verified bank account from your KYC/KYB application.
+        </p>
         <div className="flex flex-wrap gap-2">
           {(["month", "quarter"] as const).map((p) => (
             <button
@@ -888,59 +882,28 @@ export function CreatorAccountClient({ backHref = "/creator/command-center" }: {
                       ••••{revenueData.banking.accountNumberLast4} · {revenueData.banking.accountType}
                     </p>
                     {revenueData.banking.verified ? (
-                      <span className="text-xs text-emerald-400">Verified</span>
+                      <span className="text-xs text-emerald-400">Verified via payout KYC</span>
                     ) : (
-                      <span className="text-xs text-slate-500">Verification pending</span>
+                      <span className="text-xs text-slate-500">On file from verification</span>
                     )}
                   </div>
                   <CreditCard className="w-8 h-8 text-slate-500 shrink-0" />
                 </div>
               ) : (
-                <p className="text-xs text-slate-500">No payout account on file yet. Add your details below.</p>
-              )}
-              <form onSubmit={submitBank} className="max-w-md space-y-3">
                 <p className="text-xs text-slate-500">
-                  Enter your full account number and branch code (SA) where applicable. Saving replaces the payout account on file.
+                  No payout account on file yet. Bank details are collected in payout verification.
                 </p>
-                <input
-                  type="text"
-                  placeholder="Bank name"
-                  value={bankForm.bankName}
-                  onChange={(e) => setBankForm((f) => ({ ...f, bankName: e.target.value }))}
-                  required
-                  className="storytime-input px-4 py-2.5 w-full"
-                />
-                <input
-                  type="text"
-                  placeholder="Account number"
-                  value={bankForm.accountNumber}
-                  onChange={(e) => setBankForm((f) => ({ ...f, accountNumber: e.target.value }))}
-                  required
-                  className="storytime-input px-4 py-2.5 w-full"
-                />
-                <select
-                  value={bankForm.accountType}
-                  onChange={(e) => setBankForm((f) => ({ ...f, accountType: e.target.value }))}
-                  className="storytime-select px-4 py-2.5 w-full"
-                >
-                  <option value="CHEQUE">Cheque</option>
-                  <option value="SAVINGS">Savings</option>
-                </select>
-                <input
-                  type="text"
-                  placeholder="Branch code (SA)"
-                  value={bankForm.branchCode}
-                  onChange={(e) => setBankForm((f) => ({ ...f, branchCode: e.target.value }))}
-                  className="storytime-input px-4 py-2.5 w-full"
-                />
-                <button
-                  type="submit"
-                  disabled={submittingBank}
-                  className="rounded-xl bg-orange-500 px-4 py-2.5 font-semibold text-white hover:bg-orange-600 disabled:opacity-50"
-                >
-                  {submittingBank ? "Saving…" : "Save banking details"}
-                </button>
-              </form>
+              )}
+              <p className="text-xs text-slate-500">
+                To add or update banking details, use payout verification (KYC/KYB) — they are not edited as a standalone
+                form here.
+              </p>
+              <Link
+                href="/payout-verification"
+                className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-orange-400"
+              >
+                Open payout verification
+              </Link>
             </div>
             <div className="rounded-xl border border-white/8 bg-white/[0.03] p-4">
               <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">

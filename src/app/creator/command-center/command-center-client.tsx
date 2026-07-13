@@ -626,9 +626,9 @@ export function CommandCenterClient() {
           ) : (
             <>No payout bank details on file yet.{" "}</>
           )}
-          Add or update them in{" "}
-          <Link href="/creator/account?tab=banking" className="text-orange-400 hover:underline">
-            My Account → Banking & payouts
+          Add or update them via{" "}
+          <Link href="/payout-verification" className="text-orange-400 hover:underline">
+            Payout verification (KYC/KYB)
           </Link>
           .
         </p>

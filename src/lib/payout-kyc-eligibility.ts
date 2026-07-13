@@ -127,5 +127,7 @@ export async function shouldShowPayoutKycPrompt(
 ): Promise<boolean> {
   if (!role || !requiresPayoutKyc(role)) return false;
   if (!isPayoutKycDashboardPath(pathname, role)) return false;
+  // Always allow the unfinished-KYC reminder on Wallet & payouts.
+  if (pathname.includes("/wallet")) return true;
   return hasCompletedPackagePaymentForPayoutKyc(userId, role);
 }

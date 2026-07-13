@@ -10,7 +10,7 @@ import { requiresPayoutKyc } from "@/lib/payout-kyc-shared";
 import { FunderVerificationBanner } from "@/components/funders/funder-verification-banner";
 import { getClientReturnPath } from "@/lib/payments/payfast-card-consent-client";
 import { useCardSaveReturnRefresh } from "@/lib/hooks/use-card-save-return";
-import { getAccountRouteForRole, getWalletRouteForRole } from "@/lib/wallet-route";
+import { getBankingEntryRouteForRole, getPayoutVerificationRouteForRole, getWalletRouteForRole } from "@/lib/wallet-route";
 import { EscrowActions } from "@/components/wallet/escrow-actions";
 
 const money = new Intl.NumberFormat("en-ZA", {
@@ -114,11 +114,13 @@ export function WalletDashboard({
   const payoutKycStatus = (session?.user as { payoutKycVerificationStatus?: string })?.payoutKycVerificationStatus;
   const funderStatus = (session?.user as { funderVerificationStatus?: string })?.funderVerificationStatus;
   const isFunder = role === "FUNDER";
+  const needsPayoutKyc = requiresPayoutKyc(role);
+  const payoutKycApproved = !needsPayoutKyc || payoutKycStatus === "APPROVED";
   const payoutsUnlocked =
-    (!requiresPayoutKyc(role) || payoutKycStatus === "APPROVED") &&
+    payoutKycApproved &&
     (!isFunder || funderStatus === "APPROVED");
-  const bankingHref = getAccountRouteForRole(role);
-  const verificationHref = bankingHref;
+  const bankingHref = getBankingEntryRouteForRole(role, payoutKycStatus);
+  const verificationHref = getPayoutVerificationRouteForRole(role);
   const verificationLabel = isFunder ? "funder verification" : "payout verification";
 
   return (
@@ -208,13 +210,21 @@ export function WalletDashboard({
         <div className="storytime-section p-6">
           <h2 className="text-lg font-semibold">Payout banking</h2>
           <p className="mt-1 text-xs text-slate-400">
-            Withdrawals are reviewed manually by admin. Bank details come from your verified profile — not entered here.
+            Withdrawals are reviewed manually by admin. Bank details come from your verified payout profile — complete
+            KYC/KYB before you can withdraw.
           </p>
-          {payoutBanking?.bankName ? (
+          {payoutBanking?.bankName && payoutKycApproved ? (
             <div className="mt-3 rounded-xl border border-slate-800 bg-slate-900/50 px-3 py-3 text-xs text-slate-300">
               <p>{payoutBanking.bankName}</p>
               <p className="mt-1 font-mono">{payoutBanking.accountNumberMasked}</p>
               <p className="mt-1 text-slate-500">{payoutBanking.accountType}</p>
+            </div>
+          ) : needsPayoutKyc && !payoutKycApproved ? (
+            <div className="mt-3 rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-3 text-xs text-amber-100">
+              Complete identity and banking verification (KYC/KYB) before you can request a payout.{" "}
+              <Link href={verificationHref} className="font-semibold text-orange-300 underline hover:text-orange-200">
+                Start payout verification
+              </Link>
             </div>
           ) : (
             <div className="mt-3 rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-3 text-xs text-amber-100">

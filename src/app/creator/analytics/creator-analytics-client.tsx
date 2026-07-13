@@ -90,8 +90,6 @@ export function CreatorAnalyticsClient() {
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<"month" | "quarter">("month");
   const [analyticsRange, setAnalyticsRange] = useState<CreatorAnalyticsPayload["rangeKey"]>("month");
-  const [bankForm, setBankForm] = useState({ bankName: "", accountNumber: "", accountType: "CHEQUE", branchCode: "" });
-  const [submittingBank, setSubmittingBank] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -118,25 +116,6 @@ export function CreatorAnalyticsClient() {
       cancelled = true;
     };
   }, [period, analyticsRange]);
-
-  async function submitBank(e: React.FormEvent) {
-    e.preventDefault();
-    setSubmittingBank(true);
-    try {
-      const res = await fetch("/api/creator/banking", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(bankForm),
-      });
-      if (res.ok) {
-        setBankForm({ bankName: "", accountNumber: "", accountType: "CHEQUE", branchCode: "" });
-        const d = await fetch(`/api/creator/revenue?period=${period}`).then((r) => r.json());
-        setRevenueData(d);
-      }
-    } finally {
-      setSubmittingBank(false);
-    }
-  }
 
   if (loading || !revenueData) {
     return (
@@ -486,47 +465,28 @@ export function CreatorAnalyticsClient() {
             <CreditCard className="w-8 h-8 text-slate-500" />
           </div>
         ) : (
-          <form onSubmit={submitBank} className="max-w-md space-y-4">
-            <input
-              type="text"
-              placeholder="Bank name"
-              value={bankForm.bankName}
-              onChange={(e) => setBankForm((f) => ({ ...f, bankName: e.target.value }))}
-              required
-              className="storytime-input px-4 py-2.5"
-            />
-            <input
-              type="text"
-              placeholder="Account number"
-              value={bankForm.accountNumber}
-              onChange={(e) => setBankForm((f) => ({ ...f, accountNumber: e.target.value }))}
-              required
-              className="storytime-input px-4 py-2.5"
-            />
-            <select
-              value={bankForm.accountType}
-              onChange={(e) => setBankForm((f) => ({ ...f, accountType: e.target.value }))}
-              className="storytime-select px-4 py-2.5"
+          <div className="space-y-3">
+            <p className="text-sm text-slate-400">
+              Bank details are collected through payout verification (KYC/KYB). They cannot be added from this page until
+              verification is approved.
+            </p>
+            <a
+              href="/payout-verification"
+              className="inline-flex rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-orange-400"
             >
-              <option value="CHEQUE">Cheque</option>
-              <option value="SAVINGS">Savings</option>
-            </select>
-            <input
-              type="text"
-              placeholder="Branch code (SA)"
-              value={bankForm.branchCode}
-              onChange={(e) => setBankForm((f) => ({ ...f, branchCode: e.target.value }))}
-              className="storytime-input px-4 py-2.5"
-            />
-            <button
-              type="submit"
-              disabled={submittingBank}
-              className="rounded-xl bg-orange-500 px-4 py-2.5 font-semibold text-white shadow-glow hover:-translate-y-0.5 hover:bg-orange-400 disabled:opacity-50"
-            >
-              Save banking details
-            </button>
-          </form>
+              Open payout verification
+            </a>
+          </div>
         )}
+        {data.banking ? (
+          <p className="mt-3 text-xs text-slate-500">
+            To update banking details, use{" "}
+            <a href="/payout-verification" className="text-orange-300 underline hover:text-orange-200">
+              payout verification
+            </a>
+            .
+          </p>
+        ) : null}
       </div>
 
       <div className="storytime-section p-6">

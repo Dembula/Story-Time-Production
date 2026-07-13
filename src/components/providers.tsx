@@ -13,7 +13,6 @@ import { MotionProvider } from "@/components/motion/motion-provider";
 import { MiniPlayer } from "@/components/player/mini-player";
 import { SessionTelemetry } from "@/components/session-telemetry";
 import { ProductAnalytics } from "@/components/product-analytics";
-import { PayoutKycBanner } from "@/components/payout-kyc/payout-kyc-banner";
 import { FunderVerificationBanner } from "@/components/funders/funder-verification-banner";
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -32,7 +31,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
                 <ModocRouteSync />
                 <ModocVaShell />
                 <ModocViewerShell />
-                <PayoutKycBanner />
                 <FunderVerificationBanner />
                 <MiniPlayer />
               </ModocProvider>

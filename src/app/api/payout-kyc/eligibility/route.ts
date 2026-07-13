@@ -26,10 +26,13 @@ export async function GET(req: NextRequest) {
   const pathname = req.nextUrl.searchParams.get("pathname") ?? "";
   const onDashboard = isPayoutKycDashboardPath(pathname, role);
   const packagePaid = await hasCompletedPackagePaymentForPayoutKyc(userId, role);
+  // Unfinished-KYC reminder is wallet-only (even before package payment).
+  const onWallet = pathname.includes("/wallet");
 
   return NextResponse.json({
-    showPrompt: onDashboard && packagePaid,
+    showPrompt: onWallet || (onDashboard && packagePaid),
     packagePaid,
     onDashboard,
+    onWallet,
   });
 }
