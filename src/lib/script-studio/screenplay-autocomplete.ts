@@ -79,8 +79,7 @@ export function getScreenplaySuggestions(options: {
   const query = trimmed.replace(/^\(+|\)+$/g, "").trim();
   const out: ScreenplaySuggestion[] = [];
 
-  const wantsSceneHeading =
-    element === "scene_heading" || (!trimmed && (element === "action" || element === "scene_heading"));
+  const wantsSceneHeading = element === "scene_heading" || (!trimmed && element === "action");
 
   if (wantsSceneHeading) {
     const prefixQuery = trimmed.replace(/\s+.*$/, "");
