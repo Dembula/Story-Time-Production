@@ -78,7 +78,7 @@ function WatchlistRowInner() {
           <Link
             key={c.id}
             href={`/browse/content/${c.id}`}
-            className={`group/card block w-full min-w-0 ${browsePosterCardClass}`}
+            className={`group/card block ${browsePosterCardClass}`}
           >
             <div className={`${browsePosterMediaClass} transition duration-300 group-hover/card:shadow-[var(--cin-depth-1)]`}>
               {poster ? (

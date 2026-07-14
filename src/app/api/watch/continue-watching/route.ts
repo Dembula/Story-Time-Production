@@ -8,7 +8,7 @@ import {
   getActiveViewerProfileId,
 } from "@/lib/watch-progress";
 import { getViewerProfileAge } from "@/lib/viewer-profiles";
-import { getDisplayPosterUrl } from "@/lib/content-media-urls";
+import { packBrowseContentMedia } from "@/lib/browse-media-pack";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -51,25 +51,30 @@ export async function GET() {
     },
   });
 
-  const items = rows
-    .filter((row) => {
-      const dur = row.durationSeconds ?? row.content.duration ?? null;
-      if (!dur || dur <= 0) return true;
-      return row.positionSeconds / dur < CONTINUE_WATCHING_MAX_FRACTION;
-    })
-    .map((row) => ({
-      ...row.content,
-      posterUrl: getDisplayPosterUrl(row.content) ?? row.content.posterUrl,
-      positionSeconds: row.positionSeconds,
-      durationSeconds: row.durationSeconds ?? row.content.duration,
-      progressPercent:
-        row.durationSeconds && row.durationSeconds > 0
-          ? Math.round((row.positionSeconds / row.durationSeconds) * 100)
-          : row.content.duration && row.content.duration > 0
-            ? Math.round((row.positionSeconds / row.content.duration) * 100)
-            : 0,
-      _count: { ratings: 0 },
-    }));
+  const items = await Promise.all(
+    rows
+      .filter((row) => {
+        const dur = row.durationSeconds ?? row.content.duration ?? null;
+        if (!dur || dur <= 0) return true;
+        return row.positionSeconds / dur < CONTINUE_WATCHING_MAX_FRACTION;
+      })
+      .slice(0, 12)
+      .map(async (row) => {
+        const packed = await packBrowseContentMedia(row.content);
+        return {
+          ...packed,
+          positionSeconds: row.positionSeconds,
+          durationSeconds: row.durationSeconds ?? row.content.duration,
+          progressPercent:
+            row.durationSeconds && row.durationSeconds > 0
+              ? Math.round((row.positionSeconds / row.durationSeconds) * 100)
+              : row.content.duration && row.content.duration > 0
+                ? Math.round((row.positionSeconds / row.content.duration) * 100)
+                : 0,
+          _count: { ratings: 0 },
+        };
+      }),
+  );
 
-  return NextResponse.json(items.slice(0, 12));
+  return NextResponse.json(items);
 }

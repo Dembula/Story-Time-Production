@@ -95,10 +95,10 @@ function ContentCard({
   }, []);
 
   return (
-    <motion.div className={`group/card ${browsePosterCardClass}`} {...hoverMotion}>
+    <motion.div className={`group/card ${browsePosterCardClass}`} style={{ flexShrink: 0 }} {...hoverMotion}>
     <Link
       href={`/browse/content/${item.id}`}
-      className="block w-full min-w-0"
+      className="block"
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
       onFocus={onEnter}

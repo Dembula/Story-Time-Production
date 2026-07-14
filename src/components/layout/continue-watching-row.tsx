@@ -68,7 +68,7 @@ function ContinueWatchingRowInner() {
         <Link
           key={item.id}
           href={`/browse/content/${item.id}/watch`}
-          className={`group/card block w-full min-w-0 ${browsePosterCardClass}`}
+          className={`group/card block ${browsePosterCardClass}`}
           onClick={() => markPlaybackPlayIntent()}
         >
           <div className={browsePosterMediaClass}>
