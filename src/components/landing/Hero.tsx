@@ -9,7 +9,7 @@ import { LandingSpotlightSlider } from "@/components/landing/LandingSpotlightSli
 
 export function Hero() {
   return (
-    <section className="relative flex min-h-[100svh] items-center overflow-x-hidden px-4 pb-10 pt-[4.5rem] sm:px-6 sm:pb-12 sm:pt-24 lg:min-h-[92svh] lg:overflow-hidden lg:pb-12 lg:pt-24">
+    <section className="relative flex min-h-[100svh] items-center overflow-x-clip px-4 pb-10 pt-[4.5rem] sm:px-6 sm:pb-12 sm:pt-24 lg:min-h-[92svh] lg:overflow-hidden lg:pb-12 lg:pt-24">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_18%,rgba(255,170,51,0.14),transparent_42%),linear-gradient(180deg,rgba(0,0,0,0.15),rgba(0,0,0,0.92))]" />
       <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.35),rgba(0,0,0,0.88))] lg:bg-[linear-gradient(90deg,rgba(0,0,0,0.96),rgba(0,0,0,0.72)_40%,rgba(0,0,0,0.78))]" />
 
@@ -91,10 +91,10 @@ export function Hero() {
         />
       </div>
 
-      <div className="relative z-10 mx-auto grid w-full max-w-7xl items-center gap-8 sm:gap-10 lg:gap-14 lg:grid-cols-[minmax(0,1.08fr)_minmax(320px,0.92fr)]">
-        <LandingReveal className="max-w-3xl lg:max-w-3xl">
+      <div className="relative z-10 mx-auto grid w-full min-w-0 max-w-7xl items-center gap-8 sm:gap-10 lg:gap-14 lg:grid-cols-[minmax(0,1.08fr)_minmax(320px,0.92fr)]">
+        <LandingReveal className="w-full min-w-0 max-w-3xl lg:max-w-3xl">
           {/* Mobile / tablet: cinematic intro */}
-          <div className="relative flex w-full flex-col items-center justify-center overflow-visible px-2 py-8 text-center sm:py-10 lg:hidden">
+          <div className="relative mx-auto flex w-full min-w-0 max-w-full flex-col items-center justify-center overflow-x-clip px-1 py-8 text-center sm:px-2 sm:py-10 lg:hidden">
             <motion.p
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -126,7 +126,7 @@ export function Hero() {
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.65, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
-              className="w-full max-w-[min(100%,22rem)] overflow-visible sm:max-w-md"
+              className="w-full min-w-0 max-w-[min(100%,22rem)] sm:max-w-md"
             >
               <h1 className="font-display text-[2.1rem] font-bold leading-[1.08] tracking-tight text-orange-200/90 drop-shadow-[0_4px_24px_rgba(249,115,22,0.22)] xs:text-[2.5rem] sm:text-[3rem]">
                 Be The Authority

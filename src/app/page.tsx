@@ -26,7 +26,7 @@ export default async function HomePage() {
   if (session) redirect(defaultHomeForRole(session.user.role));
 
   return (
-    <div className="min-h-screen bg-background text-white">
+    <div className="min-h-screen overflow-x-hidden bg-background text-white">
       <div className="fixed inset-0 -z-10 bg-[radial-gradient(ellipse_65%_42%_at_50%_-12%,rgba(255,162,44,0.16),transparent_58%)]" />
       <div className="fixed inset-x-0 top-0 -z-10 h-80 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),transparent)]" />
       <LandingHeader />
