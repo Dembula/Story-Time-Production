@@ -3,6 +3,7 @@ import {
   SCREENPLAY_COL,
   SCREENPLAY_LINE_WIDTH,
   getElementSnippet,
+  isSceneHeadingPrefixQuery,
 } from "./elements";
 
 export const LINES_PER_PAGE = 55;
@@ -174,7 +175,14 @@ export function resolveLineElement(
     if (activeElement === "dialogue" && indent >= SCREENPLAY_COL.dialogue - 2) return "dialogue";
   }
 
-  if (activeElement === "scene_heading" && SCENE_HEADING.test(trimmed)) return "scene_heading";
+  if (activeElement === "scene_heading") {
+    const token = trimmed.replace(/\s+.*$/, "");
+    if (!trimmed || SCENE_HEADING.test(trimmed) || SCENE_HEADING_START.test(trimmed) || isSceneHeadingPrefixQuery(token)) {
+      return "scene_heading";
+    }
+    // Typed prose that is no longer a slugline — leave scene-heading mode.
+    return detected;
+  }
   if (activeElement === "transition") return detected === "transition" ? "transition" : activeElement;
   if (activeElement === "shot") return "shot";
   if (activeElement === "centered") return "centered";

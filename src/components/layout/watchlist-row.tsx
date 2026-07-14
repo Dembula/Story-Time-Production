@@ -11,6 +11,7 @@ import {
   browsePosterCardClass,
   browsePosterCardImageSizes,
   browsePosterCardSkeletonClass,
+  browsePosterMediaClass,
   browseRowGapClass,
 } from "@/lib/browse-card-layout";
 import { HorizontalScrollRow } from "@/components/layout/horizontal-scroll-row";
@@ -77,11 +78,11 @@ function WatchlistRowInner() {
           <Link
             key={c.id}
             href={`/browse/content/${c.id}`}
-            className={`group/card ${browsePosterCardClass}`}
+            className={`group/card block w-full min-w-0 ${browsePosterCardClass}`}
           >
-            <div className="relative aspect-[2/3] overflow-hidden rounded-xl border border-white/8 bg-card shadow-media transition duration-300 group-hover/card:scale-[1.03] group-hover/card:shadow-[var(--cin-depth-1)] sm:rounded-2xl">
+            <div className={`${browsePosterMediaClass} transition duration-300 group-hover/card:shadow-[var(--cin-depth-1)]`}>
               {poster ? (
-                <Image src={poster} alt={c.title} fill sizes={browsePosterCardImageSizes} className="object-cover" />
+                <Image src={poster} alt={c.title} fill sizes={browsePosterCardImageSizes} className="object-cover transition duration-300 group-hover/card:scale-[1.03]" />
               ) : (
                 <div className="flex h-full items-center justify-center bg-slate-900">
                   <Bookmark className="h-8 w-8 text-slate-600" />

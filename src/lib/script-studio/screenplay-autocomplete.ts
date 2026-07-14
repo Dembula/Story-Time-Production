@@ -4,6 +4,7 @@ import {
   SCENE_HEADING_PREFIXES,
   TIME_OF_DAY,
   TRANSITIONS,
+  isSceneHeadingPrefixQuery,
 } from "./elements";
 import type { ScreenplayElementType } from "./types";
 import { detectLineElement, leadingSpaces, padColumn } from "./screenplay-keyboard";
@@ -14,6 +15,8 @@ export type ScreenplaySuggestion = {
   insert: string;
   element?: ScreenplayElementType;
 };
+
+export { isSceneHeadingPrefixQuery };
 
 function uniquePreserveOrder(items: string[]): string[] {
   const seen = new Set<string>();
@@ -76,11 +79,21 @@ export function getScreenplaySuggestions(options: {
   const query = trimmed.replace(/^\(+|\)+$/g, "").trim();
   const out: ScreenplaySuggestion[] = [];
 
-  if (element === "scene_heading" || (!trimmed && element === "action")) {
+  const wantsSceneHeading =
+    element === "scene_heading" || (!trimmed && (element === "action" || element === "scene_heading"));
+
+  if (wantsSceneHeading) {
     const prefixQuery = trimmed.replace(/\s+.*$/, "");
-    for (const prefix of SCENE_HEADING_PREFIXES) {
-      if (startsWithQuery(prefix, prefixQuery) || startsWithQuery(prefix.replace(/\./g, ""), prefixQuery)) {
-        out.push({ label: prefix, insert: `${prefix} `, element: "scene_heading" });
+    // Only offer INT./EXT. while the line is empty or still looks like a prefix — never trap prose.
+    if (!trimmed || isSceneHeadingPrefixQuery(prefixQuery)) {
+      for (const prefix of SCENE_HEADING_PREFIXES) {
+        if (
+          !prefixQuery ||
+          startsWithQuery(prefix, prefixQuery) ||
+          startsWithQuery(prefix.replace(/\./g, ""), prefixQuery)
+        ) {
+          out.push({ label: prefix, insert: `${prefix} `, element: "scene_heading" });
+        }
       }
     }
     if (/^(INT\.|EXT\.|INT\.\/EXT\.|EXT\.\/INT\.|EST\.|I\/E\.)/i.test(trimmed)) {

@@ -17,6 +17,7 @@ import {
   browsePosterCardClass,
   browsePosterCardImageSizes,
   browsePosterCardSkeletonClass,
+  browsePosterMediaClass,
   browseRowGapClass,
 } from "@/lib/browse-card-layout";
 import { HorizontalScrollRow } from "@/components/layout/horizontal-scroll-row";
@@ -97,20 +98,20 @@ function ContentCard({
     <motion.div className={`group/card ${browsePosterCardClass}`} {...hoverMotion}>
     <Link
       href={`/browse/content/${item.id}`}
-      className="block"
+      className="block w-full min-w-0"
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
       onFocus={onEnter}
       onBlur={onLeave}
     >
-      <div className="relative aspect-[2/3] overflow-hidden rounded-xl border border-white/8 bg-card shadow-media sm:rounded-2xl">
+      <div className={browsePosterMediaClass}>
         {imageUrl ? (
           <Image
             src={imageUrl}
             alt={item.title}
             fill
             sizes={browsePosterCardImageSizes}
-            className={`h-full w-full object-cover transition duration-500 ${
+            className={`object-cover transition duration-500 ${
               hovering && (trailerVideo || hoverGif) ? "opacity-0" : "opacity-100"
             } group-hover/card:scale-[1.04] group-hover/card:brightness-110`}
             unoptimized={Boolean(hoverGif && imageUrl?.includes(".gif"))}

@@ -173,7 +173,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
   const [highlightCharacter, setHighlightCharacter] = useState<string | null>(null);
   const [readerOpen, setReaderOpen] = useState(false);
   const [scriptsViewOpen, setScriptsViewOpen] = useState(false);
-  const [selectedElement, setSelectedElement] = useState<ScreenplayElementType>("scene_heading");
+  const [selectedElement, setSelectedElement] = useState<ScreenplayElementType>("action");
   const elementAutoInsertReady = useRef(false);
   const [rightPanelTab, setRightPanelTab] = useState<
     "pipeline" | "comments" | "versions" | "cards"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   LINES_PER_PAGE,
   PAGE_GAP_PX,
@@ -26,6 +26,9 @@ const MARGIN_TOP = "1in";
 const MARGIN_BOTTOM = "1in";
 const MARGIN_LEFT = "1.5in";
 const MARGIN_RIGHT = "1in";
+
+/** Dismiss unused autocomplete after this idle period. */
+const SUGGESTION_IDLE_MS = 3000;
 
 type ScreenplayEditorProps = {
   value: string;
@@ -97,6 +100,12 @@ export function ScreenplayEditor({
   const [activePageIdx, setActivePageIdx] = useState(0);
   const [suggestions, setSuggestions] = useState<ScreenplaySuggestion[]>([]);
   const [suggestionIndex, setSuggestionIndex] = useState(0);
+  const suggestionIdleTimerRef = useRef<number | null>(null);
+  const suppressSuggestionBlurRef = useRef(false);
+  /** Apply caret after React commits the controlled value — never in rAF before paint. */
+  const pendingCaretRef = useRef<{ start: number; end: number; content: string } | null>(null);
+  const valueRef = useRef(value);
+  valueRef.current = value;
 
   useEffect(() => {
     setEditingElement(activeElementProp);
@@ -112,6 +121,30 @@ export function ScreenplayEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only heal
   }, []);
 
+  const clearSuggestionIdle = useCallback(() => {
+    if (suggestionIdleTimerRef.current != null) {
+      window.clearTimeout(suggestionIdleTimerRef.current);
+      suggestionIdleTimerRef.current = null;
+    }
+  }, []);
+
+  const dismissSuggestions = useCallback(() => {
+    clearSuggestionIdle();
+    setSuggestions([]);
+    setSuggestionIndex(0);
+  }, [clearSuggestionIdle]);
+
+  const bumpSuggestionIdle = useCallback(() => {
+    clearSuggestionIdle();
+    suggestionIdleTimerRef.current = window.setTimeout(() => {
+      suggestionIdleTimerRef.current = null;
+      setSuggestions([]);
+      setSuggestionIndex(0);
+    }, SUGGESTION_IDLE_MS);
+  }, [clearSuggestionIdle]);
+
+  useEffect(() => () => clearSuggestionIdle(), [clearSuggestionIdle]);
+
   const pageCount = pageCountForContent(value);
   const pageTexts = useMemo(() => splitContentIntoPages(value), [value]);
 
@@ -126,14 +159,43 @@ export function ScreenplayEditor({
     syncExternalRef(pageRefs.current[activePageIdx] ?? null);
   }, [activePageIdx, pageCount, syncExternalRef]);
 
+  const applyPendingCaret = useCallback(() => {
+    const pending = pendingCaretRef.current;
+    if (!pending) return;
+    if (pending.content !== valueRef.current) return;
+    pendingCaretRef.current = null;
+    const pageIdx = pageIndexAtOffset(pending.content, pending.start);
+    const pageBase = pageStartOffset(pending.content, pageIdx);
+    const el = pageRefs.current[pageIdx];
+    if (!el) return;
+    setActivePageIdx(pageIdx);
+    const max = el.value.length;
+    const localStart = Math.min(Math.max(0, pending.start - pageBase), max);
+    const localEnd = Math.min(Math.max(0, pending.end - pageBase), max);
+    if (document.activeElement !== el) el.focus();
+    el.setSelectionRange(localStart, localEnd);
+    syncExternalRef(el);
+  }, [syncExternalRef]);
+
+  useLayoutEffect(() => {
+    applyPendingCaret();
+  }, [value, applyPendingCaret]);
+
+  const queueCaret = useCallback((content: string, start: number, end = start) => {
+    pendingCaretRef.current = { content, start, end };
+  }, []);
+
   const refreshSuggestions = useCallback(
     (content: string, globalCursor: number, element: ScreenplayElementType) => {
       const lineIdx = lineIndexAt(content, globalCursor);
       const line = content.split("\n")[lineIdx] ?? "";
-      setSuggestions(getScreenplaySuggestions({ content, line, element }));
+      const next = getScreenplaySuggestions({ content, line, element });
+      setSuggestions(next);
       setSuggestionIndex(0);
+      if (next.length > 0) bumpSuggestionIdle();
+      else clearSuggestionIdle();
     },
-    [],
+    [bumpSuggestionIdle, clearSuggestionIdle],
   );
 
   const syncElementFromCursor = useCallback(
@@ -157,21 +219,14 @@ export function ScreenplayEditor({
   );
 
   const focusAt = useCallback(
-    (globalOffset: number, selectionEnd = globalOffset, content = value) => {
-      const pageIdx = pageIndexAtOffset(content, globalOffset);
-      const localStart = globalOffset - pageStartOffset(content, pageIdx);
-      setActivePageIdx(pageIdx);
-      requestAnimationFrame(() => {
-        const el = pageRefs.current[pageIdx];
-        if (!el) return;
-        const localEnd = selectionEnd - pageStartOffset(content, pageIdx);
-        el.focus();
-        const max = el.value.length;
-        el.setSelectionRange(Math.min(Math.max(0, localStart), max), Math.min(Math.max(0, localEnd), max));
-        syncExternalRef(el);
-      });
+    (globalOffset: number, selectionEnd = globalOffset, content = valueRef.current) => {
+      queueCaret(content, globalOffset, selectionEnd);
+      // If value is already committed, apply immediately.
+      if (content === valueRef.current) {
+        requestAnimationFrame(() => applyPendingCaret());
+      }
     },
-    [value, syncExternalRef],
+    [queueCaret, applyPendingCaret],
   );
 
   const applyEdit = useCallback(
@@ -181,49 +236,51 @@ export function ScreenplayEditor({
       selectionEnd: number;
       element?: ScreenplayElementType;
     }) => {
+      queueCaret(result.content, result.selectionStart, result.selectionEnd);
       onChange(result.content);
       if (result.element) {
         setEditingElement(result.element);
         onElementChange?.(result.element);
         refreshSuggestions(result.content, result.selectionStart, result.element);
       } else {
-        setSuggestions([]);
+        dismissSuggestions();
       }
-      focusAt(result.selectionStart, result.selectionEnd, result.content);
     },
-    [onChange, onElementChange, focusAt, refreshSuggestions],
+    [onChange, onElementChange, queueCaret, refreshSuggestions, dismissSuggestions],
   );
 
   const applySuggestion = useCallback(
     (suggestion: ScreenplaySuggestion, pageIdx: number) => {
       onBeforeChange?.();
       const el = pageRefs.current[pageIdx];
-      if (!el) return;
-      const globalCursor = pageStartOffset(value, pageIdx) + el.selectionStart;
-      const lineIdx = lineIndexAt(value, globalCursor);
-      const lines = value.split("\n");
+      const content = valueRef.current;
+      const localCursor = el?.selectionStart ?? 0;
+      const globalCursor = pageStartOffset(content, pageIdx) + localCursor;
+      const lineIdx = lineIndexAt(content, globalCursor);
+      const lines = content.split("\n");
       lines[lineIdx] = suggestion.insert;
       const newContent = lines.join("\n");
       let lineStart = 0;
       for (let i = 0; i < lineIdx; i++) lineStart += (lines[i]?.length ?? 0) + 1;
+      dismissSuggestions();
       applyEdit({
         content: newContent,
         selectionStart: lineStart + suggestion.insert.length,
         selectionEnd: lineStart + suggestion.insert.length,
         element: suggestion.element ?? editingElement,
       });
-      setSuggestions([]);
     },
-    [value, editingElement, onBeforeChange, applyEdit],
+    [editingElement, onBeforeChange, applyEdit, dismissSuggestions],
   );
 
   const commitPageText = useCallback(
     (pageIdx: number, pageText: string, localCursor: number) => {
-      const provisional = mergePageIntoContent(value, pageIdx, pageText);
-      const globalCursor = pageStartOffset(value, pageIdx) + localCursor;
+      const provisional = mergePageIntoContent(valueRef.current, pageIdx, pageText);
+      const globalCursor = pageStartOffset(valueRef.current, pageIdx) + localCursor;
       const formatted = formatLineWhileTyping(provisional, globalCursor, editingElement);
 
       if (formatted) {
+        queueCaret(formatted.content, formatted.selectionStart, formatted.selectionEnd);
         onChange(formatted.content);
         if (formatted.element) {
           setEditingElement(formatted.element);
@@ -234,17 +291,14 @@ export function ScreenplayEditor({
           formatted.selectionStart,
           formatted.element ?? editingElement,
         );
-        requestAnimationFrame(() =>
-          focusAt(formatted.selectionStart, formatted.selectionEnd, formatted.content),
-        );
         return;
       }
 
+      // Native caret is correct for plain inserts/deletes — do not fight it with focusAt.
       onChange(provisional);
       refreshSuggestions(provisional, globalCursor, editingElement);
-      requestAnimationFrame(() => focusAt(globalCursor, globalCursor, provisional));
     },
-    [value, editingElement, onChange, onElementChange, focusAt, refreshSuggestions],
+    [editingElement, onChange, onElementChange, queueCaret, refreshSuggestions],
   );
 
   const handlePageChange = useCallback(
@@ -259,29 +313,42 @@ export function ScreenplayEditor({
     (pageIdx: number, e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (readOnly) return;
       const el = e.currentTarget;
-      const globalStart = pageStartOffset(value, pageIdx) + el.selectionStart;
-      const globalEnd = pageStartOffset(value, pageIdx) + el.selectionEnd;
+      const content = valueRef.current;
+      const globalStart = pageStartOffset(content, pageIdx) + el.selectionStart;
+      const globalEnd = pageStartOffset(content, pageIdx) + el.selectionEnd;
 
       if (suggestions.length > 0) {
         if (e.key === "ArrowDown") {
           e.preventDefault();
           setSuggestionIndex((i) => (i + 1) % suggestions.length);
+          bumpSuggestionIdle();
           return;
         }
         if (e.key === "ArrowUp") {
           e.preventDefault();
           setSuggestionIndex((i) => (i - 1 + suggestions.length) % suggestions.length);
+          bumpSuggestionIdle();
           return;
         }
         if (e.key === "Escape") {
           e.preventDefault();
-          setSuggestions([]);
+          dismissSuggestions();
           return;
         }
         if (e.key === "Tab" && !e.ctrlKey && !e.metaKey) {
           e.preventDefault();
           applySuggestion(suggestions[suggestionIndex] ?? suggestions[0]!, pageIdx);
           return;
+        }
+        if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+          applySuggestion(suggestions[suggestionIndex] ?? suggestions[0]!, pageIdx);
+          return;
+        }
+        // Backspace / Delete must never be trapped — let the textarea delete, then refresh via onChange.
+        if (e.key === "Backspace" || e.key === "Delete") {
+          bumpSuggestionIdle();
+          // fall through — do not preventDefault
         }
       }
 
@@ -295,7 +362,7 @@ export function ScreenplayEditor({
       ) {
         e.preventDefault();
         onBeforeChange?.();
-        const next = value.slice(0, globalStart) + e.key.toUpperCase() + value.slice(globalEnd);
+        const next = content.slice(0, globalStart) + e.key.toUpperCase() + content.slice(globalEnd);
         applyEdit(
           formatLineWhileTyping(next, globalStart + 1, "character") ?? {
             content: next,
@@ -310,7 +377,7 @@ export function ScreenplayEditor({
       if (e.key === "(" && editingElement !== "character" && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
         onBeforeChange?.();
-        const next = value.slice(0, globalStart) + "(" + value.slice(globalEnd);
+        const next = content.slice(0, globalStart) + "(" + content.slice(globalEnd);
         applyEdit(
           formatLineWhileTyping(next, globalStart + 1, "parenthetical") ?? {
             content: next,
@@ -325,7 +392,7 @@ export function ScreenplayEditor({
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         onBeforeChange?.();
-        applyEdit(handleScreenplayEnter(value, globalStart, editingElement));
+        applyEdit(handleScreenplayEnter(content, globalStart, editingElement));
         return;
       }
 
@@ -336,14 +403,28 @@ export function ScreenplayEditor({
           applySuggestion(suggestions[suggestionIndex] ?? suggestions[0]!, pageIdx);
           return;
         }
-        applyEdit(handleScreenplayTab(value, globalStart, e.shiftKey ? -1 : 1, editingElement));
+        applyEdit(handleScreenplayTab(content, globalStart, e.shiftKey ? -1 : 1, editingElement));
         return;
       }
 
+      // Soft page boundary: backspace at start of page N must delete the joining newline.
       if (e.key === "Backspace" && el.selectionStart === 0 && el.selectionEnd === 0 && pageIdx > 0) {
         e.preventDefault();
         onBeforeChange?.();
-        focusAt(pageStartOffset(value, pageIdx) - 1);
+        const joinAt = pageStartOffset(content, pageIdx);
+        if (joinAt <= 0) {
+          focusAt(0, 0, content);
+          return;
+        }
+        const newContent = content.slice(0, joinAt - 1) + content.slice(joinAt);
+        dismissSuggestions();
+        applyEdit({
+          content: newContent,
+          selectionStart: joinAt - 1,
+          selectionEnd: joinAt - 1,
+          element: editingElement,
+        });
+        return;
       }
 
       if (
@@ -356,7 +437,7 @@ export function ScreenplayEditor({
         e.preventDefault();
         const prevEl = pageRefs.current[pageIdx - 1];
         if (!prevEl) return;
-        focusAt(pageStartOffset(value, pageIdx - 1) + prevEl.value.length);
+        focusAt(pageStartOffset(content, pageIdx - 1) + prevEl.value.length, undefined, content);
       }
 
       if (
@@ -367,12 +448,11 @@ export function ScreenplayEditor({
         pageIdx < pageCount - 1
       ) {
         e.preventDefault();
-        focusAt(pageStartOffset(value, pageIdx + 1));
+        focusAt(pageStartOffset(content, pageIdx + 1), undefined, content);
       }
     },
     [
       readOnly,
-      value,
       pageCount,
       editingElement,
       suggestions,
@@ -381,6 +461,8 @@ export function ScreenplayEditor({
       applyEdit,
       applySuggestion,
       focusAt,
+      bumpSuggestionIdle,
+      dismissSuggestions,
     ],
   );
 
@@ -441,7 +523,11 @@ export function ScreenplayEditor({
                   syncExternalRef(pageRefs.current[pageIdx] ?? null);
                 }}
                 onBlur={() => {
-                  setTimeout(() => setSuggestions([]), 150);
+                  if (suppressSuggestionBlurRef.current) return;
+                  window.setTimeout(() => {
+                    if (suppressSuggestionBlurRef.current) return;
+                    dismissSuggestions();
+                  }, 180);
                 }}
                 readOnly={readOnly}
                 spellCheck
@@ -478,6 +564,9 @@ export function ScreenplayEditor({
             <div
               className="absolute left-[1.5in] top-24 z-20 max-h-48 w-72 overflow-y-auto rounded-md border border-slate-700 bg-slate-900 shadow-xl"
               role="listbox"
+              aria-label="Screenplay suggestions"
+              onMouseEnter={bumpSuggestionIdle}
+              onMouseMove={bumpSuggestionIdle}
             >
               {suggestions.map((s, i) => (
                 <button
@@ -491,14 +580,21 @@ export function ScreenplayEditor({
                       : "text-slate-200 hover:bg-slate-800"
                   }`}
                   style={{ fontFamily: fontCss }}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
+                  onMouseDown={(ev) => {
+                    ev.preventDefault();
+                    suppressSuggestionBlurRef.current = true;
                     applySuggestion(s, activePageIdx);
+                    window.setTimeout(() => {
+                      suppressSuggestionBlurRef.current = false;
+                    }, 0);
                   }}
                 >
                   {s.label}
                 </button>
               ))}
+              <p className="border-t border-slate-800 px-3 py-1.5 text-[10px] text-slate-500">
+                Enter/Tab to use · Esc to close · fades after 3s idle
+              </p>
             </div>
           ) : null}
         </div>
@@ -510,7 +606,7 @@ export function ScreenplayEditor({
           <span className="text-orange-300/90">{editingElement.replace(/_/g, " ")}</span>
         </p>
         <p className="text-[10px] text-slate-500" style={{ fontFamily: fontCss }}>
-          Text wraps inside page margins · no horizontal overflow
+          Enter / Tab accept suggestions · Esc dismisses
         </p>
       </div>
     </div>

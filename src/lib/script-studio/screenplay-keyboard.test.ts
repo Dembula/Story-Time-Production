@@ -67,6 +67,12 @@ describe("screenplay-keyboard", () => {
     assert.equal(element, "character");
   });
 
+  it("leaves scene-heading mode when typing non-slugline prose", () => {
+    assert.equal(resolveLineElement("fbhfhf", {}, "scene_heading"), "action");
+    assert.equal(resolveLineElement("IN", {}, "scene_heading"), "scene_heading");
+    assert.equal(resolveLineElement("INT. ROOM - DAY", {}, "scene_heading"), "scene_heading");
+  });
+
   it("right-aligns transitions in uppercase", () => {
     const line = formatLineForElement("transition", "cut to");
     assert.ok(line.trimEnd().endsWith("CUT TO:"));

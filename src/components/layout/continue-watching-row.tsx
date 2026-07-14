@@ -10,6 +10,7 @@ import {
   browsePosterCardClass,
   browsePosterCardImageSizes,
   browsePosterCardSkeletonClass,
+  browsePosterMediaClass,
   browseRowGapClass,
 } from "@/lib/browse-card-layout";
 import { markPlaybackPlayIntent } from "@/lib/player/play-intent";
@@ -67,10 +68,10 @@ function ContinueWatchingRowInner() {
         <Link
           key={item.id}
           href={`/browse/content/${item.id}/watch`}
-          className={`group/card block ${browsePosterCardClass}`}
+          className={`group/card block w-full min-w-0 ${browsePosterCardClass}`}
           onClick={() => markPlaybackPlayIntent()}
         >
-          <div className="relative aspect-[2/3] overflow-hidden rounded-xl border border-white/8 bg-card shadow-media sm:rounded-2xl">
+          <div className={browsePosterMediaClass}>
             {item.posterUrl || item.backdropUrl ? (
               <Image
                 src={item.posterUrl || item.backdropUrl || ""}

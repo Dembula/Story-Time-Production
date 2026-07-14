@@ -42,6 +42,16 @@ export const SCREENPLAY_COL = {
 
 export const SCENE_HEADING_PREFIXES = ["INT.", "EXT.", "INT./EXT.", "EXT./INT.", "EST.", "I/E."] as const;
 
+/** True while the typed token is still a plausible INT./EXT. (etc.) prefix. */
+export function isSceneHeadingPrefixQuery(query: string): boolean {
+  if (!query) return true;
+  const q = query.toUpperCase().replace(/\s+/g, "");
+  return SCENE_HEADING_PREFIXES.some((prefix) => {
+    const compact = prefix.replace(/\./g, "");
+    return prefix.startsWith(q) || compact.startsWith(q);
+  });
+}
+
 export const TIME_OF_DAY = [
   "DAY",
   "NIGHT",
