@@ -95,7 +95,7 @@ function ContentCard({
   }, []);
 
   return (
-    <motion.div className={`group/card ${browsePosterCardClass}`} style={{ flexShrink: 0 }} {...hoverMotion}>
+    <motion.div className={`group/card ${browsePosterCardClass}`} {...hoverMotion}>
     <Link
       href={`/browse/content/${item.id}`}
       className="block"

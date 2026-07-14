@@ -65,10 +65,10 @@ function ContinueWatchingRowInner() {
       scrollClassName={`flex overflow-x-auto scroll-smooth pb-2 scrollbar-hide [-webkit-overflow-scrolling:touch] ${browseRowGapClass}`}
     >
       {items.map((item) => (
+        <div key={item.id} className={browsePosterCardClass}>
         <Link
-          key={item.id}
           href={`/browse/content/${item.id}/watch`}
-          className={`group/card block ${browsePosterCardClass}`}
+          className="group/card block"
           onClick={() => markPlaybackPlayIntent()}
         >
           <div className={browsePosterMediaClass}>
@@ -100,6 +100,7 @@ function ContinueWatchingRowInner() {
             <p className="text-xs text-slate-400">{item.progressPercent}% watched</p>
           )}
         </Link>
+        </div>
       ))}
     </HorizontalScrollRow>
   );

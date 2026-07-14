@@ -75,10 +75,10 @@ function WatchlistRowInner() {
       {items.slice(0, 12).map(({ content: c }) => {
         const poster = getDisplayPosterUrl(c) ?? c.posterUrl;
         return (
+          <div key={c.id} className={browsePosterCardClass}>
           <Link
-            key={c.id}
             href={`/browse/content/${c.id}`}
-            className={`group/card block ${browsePosterCardClass}`}
+            className="group/card block"
           >
             <div className={`${browsePosterMediaClass} transition duration-300 group-hover/card:shadow-[var(--cin-depth-1)]`}>
               {poster ? (
@@ -91,6 +91,7 @@ function WatchlistRowInner() {
             </div>
             <p className="mt-2 truncate text-xs font-medium text-white sm:mt-3 sm:text-sm">{c.title}</p>
           </Link>
+          </div>
         );
       })}
     </HorizontalScrollRow>
