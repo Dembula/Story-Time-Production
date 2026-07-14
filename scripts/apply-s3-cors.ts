@@ -6,11 +6,21 @@
  *
  * Direct browser PUTs (poster, backdrop, main video, etc.) need PUT + OPTIONS
  * from your app origin. Without this, XHR uploads fail with a CORS/network error.
+ *
+ * Always includes the production canonical domains (story-time.online). Creators
+ * upload from that origin — never only the *.vercel.app preview host.
  */
 import { readFileSync, existsSync } from "fs";
 import { resolve } from "path";
 import { S3Client, PutBucketCorsCommand, GetBucketCorsCommand } from "@aws-sdk/client-s3";
 import { getStorageConfig } from "../src/lib/storage-config";
+
+/** Origins that must always be allowed — independent of local/.env NEXTAUTH_URL. */
+const CANONICAL_PRODUCTION_ORIGINS = [
+  "https://story-time.online",
+  "https://www.story-time.online",
+  "https://story-time-production.vercel.app",
+] as const;
 
 function loadEnvFile(filePath: string) {
   if (!existsSync(filePath)) return;
@@ -37,30 +47,38 @@ function loadEnvFile(filePath: string) {
 loadEnvFile(resolve(process.cwd(), ".env.local"));
 loadEnvFile(resolve(process.cwd(), ".env"));
 
+function normalizeOrigin(value: string): string {
+  return value.trim().replace(/\/$/, "");
+}
+
+function isValidOrigin(value: string): boolean {
+  try {
+    const u = new URL(value);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 function originsFromEnv(): string[] {
   const configured = [
+    ...CANONICAL_PRODUCTION_ORIGINS,
     process.env.NEXT_PUBLIC_APP_URL,
+    process.env.NEXT_PUBLIC_BASE_URL,
     process.env.NEXTAUTH_URL,
     process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
     "http://localhost:3000",
     "https://localhost:3000",
   ]
-    .map((v) => (typeof v === "string" ? v.trim().replace(/\/$/, "") : ""))
+    .map((v) => (typeof v === "string" ? normalizeOrigin(v) : ""))
     .filter(Boolean)
-    .filter((v) => {
-      try {
-        // eslint-disable-next-line no-new
-        new URL(v);
-        return true;
-      } catch {
-        return false;
-      }
-    });
+    .filter(isValidOrigin);
 
   const extra = (process.env.STORAGE_CORS_ORIGINS || process.env.S3_CORS_ORIGINS || "")
     .split(",")
-    .map((s) => s.trim().replace(/\/$/, ""))
-    .filter(Boolean);
+    .map((s) => normalizeOrigin(s))
+    .filter(Boolean)
+    .filter(isValidOrigin);
 
   return Array.from(new Set([...configured, ...extra]));
 }
@@ -90,6 +108,12 @@ async function main() {
   const origins = originsFromEnv();
   if (origins.length === 0) {
     throw new Error("No AllowedOrigins resolved. Set NEXT_PUBLIC_APP_URL or STORAGE_CORS_ORIGINS.");
+  }
+
+  for (const must of CANONICAL_PRODUCTION_ORIGINS) {
+    if (!origins.includes(must)) {
+      throw new Error(`Internal error: missing canonical origin ${must}`);
+    }
   }
 
   const client = new S3Client({
@@ -125,7 +149,9 @@ async function main() {
       console.error(`Bucket: s3://${storage.bucket}`);
       console.error(`Required permission: s3:PutBucketCORS`);
       console.error(`\nFastest fix (AWS Console, ~30s):`);
-      console.error(`1. Open https://s3.console.aws.amazon.com/s3/buckets/${storage.bucket}?region=${storage.region}&tab=permissions`);
+      console.error(
+        `1. Open https://s3.console.aws.amazon.com/s3/buckets/${storage.bucket}?region=${storage.region}&tab=permissions`,
+      );
       console.error(`2. Scroll to Cross-origin resource sharing (CORS) → Edit`);
       console.error(`3. Paste deploy/connection-pack/s3-cors.json and Save`);
       console.error(`\nOr attach PutBucketCORS to the IAM user, then re-run:`);

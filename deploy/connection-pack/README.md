@@ -44,7 +44,9 @@ What it does:
 Where to use:
 
 - AWS S3 -> Bucket -> Permissions -> CORS configuration
-- Or run: `npx tsx scripts/apply-s3-cors.ts` (uses STORAGE_* env + `NEXT_PUBLIC_APP_URL` / `STORAGE_CORS_ORIGINS`)
+- Or run: `npx tsx scripts/apply-s3-cors.ts` (always includes `https://story-time.online` + Vercel + localhost; also merges `NEXT_PUBLIC_APP_URL` / `STORAGE_CORS_ORIGINS`)
+
+**Critical:** Creators use `https://story-time.online`, not only `*.vercel.app`. If CORS omits the real domain, browser PUTs fail with “Upload connection failed… S3 CORS (PUT + OPTIONS).”
 
 **Important:** If CORS only allows GET/HEAD, posters and videos fail in the browser with “Upload connection failed… S3 CORS (PUT + OPTIONS).”
 

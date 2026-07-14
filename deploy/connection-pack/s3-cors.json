@@ -3,6 +3,8 @@
     "AllowedHeaders": ["*"],
     "AllowedMethods": ["GET", "HEAD", "PUT", "POST"],
     "AllowedOrigins": [
+      "https://story-time.online",
+      "https://www.story-time.online",
       "https://story-time-production.vercel.app",
       "http://localhost:3000",
       "https://localhost:3000"
