@@ -119,6 +119,44 @@ img {
   scrollbar-width: none;
 }
 
+/* Browse rows: belt-and-suspenders for iOS Safari flex + large poster art. */
+[data-browse-poster-card] {
+  box-sizing: border-box;
+  flex: 0 0 5.75rem;
+  width: 5.75rem;
+  max-width: 5.75rem;
+  min-width: 0;
+  overflow: hidden;
+}
+
+@media (min-width: 481px) {
+  [data-browse-poster-card] {
+    flex: 0 0 8rem;
+    width: 8rem;
+    max-width: 8rem;
+  }
+}
+
+@media (min-width: 769px) {
+  [data-browse-poster-card] {
+    flex: 0 0 10rem;
+    width: 10rem;
+    max-width: 10rem;
+  }
+}
+
+@media (min-width: 1025px) {
+  [data-browse-poster-card] {
+    flex: 0 0 12rem;
+    width: 12rem;
+    max-width: 12rem;
+  }
+}
+
+[data-browse-poster-media] {
+  contain: layout paint;
+}
+
 .storytime-panel {
   background: linear-gradient(180deg, rgba(20, 20, 20, 0.92), rgba(0, 0, 0, 0.96));
   border: 1px solid rgba(255, 255, 255, 0.08);

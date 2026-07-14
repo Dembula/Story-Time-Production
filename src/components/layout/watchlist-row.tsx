@@ -8,12 +8,12 @@ import { Bookmark } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getDisplayPosterUrl } from "@/lib/content-media-urls";
 import {
-  browsePosterCardClass,
   browsePosterCardImageSizes,
   browsePosterCardSkeletonClass,
   browsePosterMediaClass,
   browseRowGapClass,
 } from "@/lib/browse-card-layout";
+import { BrowsePosterCardShell } from "@/components/layout/browse-poster-card-shell";
 import { HorizontalScrollRow } from "@/components/layout/horizontal-scroll-row";
 
 type WatchlistItem = {
@@ -75,12 +75,12 @@ function WatchlistRowInner() {
       {items.slice(0, 12).map(({ content: c }) => {
         const poster = getDisplayPosterUrl(c) ?? c.posterUrl;
         return (
-          <div key={c.id} className={browsePosterCardClass}>
+          <BrowsePosterCardShell key={c.id}>
           <Link
             href={`/browse/content/${c.id}`}
             className="group/card block"
           >
-            <div className={`${browsePosterMediaClass} transition duration-300 group-hover/card:shadow-[var(--cin-depth-1)]`}>
+            <div className={`${browsePosterMediaClass} transition duration-300 md:group-hover/card:shadow-[var(--cin-depth-1)]`} data-browse-poster-media>
               {poster ? (
                 <Image src={poster} alt={c.title} fill sizes={browsePosterCardImageSizes} className="object-cover transition duration-300 group-hover/card:scale-[1.03]" />
               ) : (
@@ -91,7 +91,7 @@ function WatchlistRowInner() {
             </div>
             <p className="mt-2 truncate text-xs font-medium text-white sm:mt-3 sm:text-sm">{c.title}</p>
           </Link>
-          </div>
+          </BrowsePosterCardShell>
         );
       })}
     </HorizontalScrollRow>

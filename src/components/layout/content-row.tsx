@@ -4,22 +4,18 @@ import Link from "next/link";
 import Image from "next/image";
 import { Lock } from "lucide-react";
 import { useRef, useState, useCallback } from "react";
-import { motion } from "framer-motion";
 import { useContentPrefetch } from "@/hooks/use-content-prefetch";
-import { hoverPhysicsProps } from "@/lib/motion/presets";
-import { viewerHoverLiftProps } from "@/lib/motion/viewer-presets";
-import { useMotion } from "@/components/motion/motion-provider";
 import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
 import { Skeleton } from "@/components/ui/skeleton";
 import { isNativeVideoSafeSource, resolveTrailerSources } from "@/lib/playback-sources";
 import { getDisplayPosterUrl, getStreamThumbnailGifUrl } from "@/lib/content-media-urls";
 import {
-  browsePosterCardClass,
   browsePosterCardImageSizes,
   browsePosterCardSkeletonClass,
   browsePosterMediaClass,
   browseRowGapClass,
 } from "@/lib/browse-card-layout";
+import { BrowsePosterCardShell } from "@/components/layout/browse-poster-card-shell";
 import { HorizontalScrollRow } from "@/components/layout/horizontal-scroll-row";
 
 export type ContentItem = {
@@ -44,8 +40,8 @@ function ContentCard({
   const [hovering, setHovering] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const prefetch = useContentPrefetch();
-  const { intensity, prefersReducedMotion } = useMotion();
   const { deviceClass } = useAdaptiveUi();
+  const isMobile = deviceClass === "mobile";
   const trailer = resolveTrailerSources(item.trailerUrl);
   const trailerVideo = isNativeVideoSafeSource(trailer) ? trailer : null;
   // Browse page packs poster/backdrop server-side; prefer those https URLs directly.
@@ -60,14 +56,8 @@ function ContentCard({
       ? item.backdropUrl.trim()
       : null;
   const imageUrl = packedPoster ?? getDisplayPosterUrl(item) ?? packedBackdrop;
-  const hoverGif = !trailerVideo
-    ? getStreamThumbnailGifUrl(item.videoUrl ?? item.trailerUrl)
-    : null;
-  const hoverMotion = prefersReducedMotion
-    ? {}
-    : deviceClass === "mobile"
-      ? viewerHoverLiftProps(false)
-      : hoverPhysicsProps(intensity);
+  const hoverGif =
+    !isMobile && !trailerVideo ? getStreamThumbnailGifUrl(item.videoUrl ?? item.trailerUrl) : null;
 
   const onEnter = useCallback(() => {
     prefetch({
@@ -95,16 +85,16 @@ function ContentCard({
   }, []);
 
   return (
-    <motion.div className={`group/card ${browsePosterCardClass}`} {...hoverMotion}>
+    <BrowsePosterCardShell>
     <Link
       href={`/browse/content/${item.id}`}
-      className="block"
+      className="group/card block"
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
       onFocus={onEnter}
       onBlur={onLeave}
     >
-      <div className={browsePosterMediaClass}>
+      <div className={browsePosterMediaClass} data-browse-poster-media>
         {imageUrl ? (
           <Image
             src={imageUrl}
@@ -113,7 +103,7 @@ function ContentCard({
             sizes={browsePosterCardImageSizes}
             className={`object-cover transition duration-500 ${
               hovering && (trailerVideo || hoverGif) ? "opacity-0" : "opacity-100"
-            } group-hover/card:scale-[1.04] group-hover/card:brightness-110`}
+            } md:group-hover/card:scale-[1.04] md:group-hover/card:brightness-110`}
             unoptimized={Boolean(hoverGif && imageUrl?.includes(".gif"))}
           />
         ) : (
@@ -138,7 +128,7 @@ function ContentCard({
             preload="none"
           />
         ) : null}
-        <div className="absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/92 via-black/24 to-transparent p-4 opacity-0 transition-all duration-300 group-hover/card:opacity-100">
+        <div className="absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/92 via-black/24 to-transparent p-4 opacity-0 transition-all duration-300 md:group-hover/card:opacity-100">
           <p className="line-clamp-2 text-sm font-semibold text-white">{item.title}</p>
           {item.category && <p className="mt-1 text-xs text-slate-300">{item.category}</p>}
           <span className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-orange-300">
@@ -154,7 +144,7 @@ function ContentCard({
       <p className="mt-2 truncate text-xs font-medium text-white sm:mt-3 sm:text-sm group-hover/card:text-orange-100">{item.title}</p>
       {item.category && <p className="truncate text-[11px] text-slate-400 sm:text-xs">{item.category}</p>}
     </Link>
-    </motion.div>
+    </BrowsePosterCardShell>
   );
 }
 

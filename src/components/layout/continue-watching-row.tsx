@@ -7,12 +7,12 @@ import Image from "next/image";
 import { Play } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  browsePosterCardClass,
   browsePosterCardImageSizes,
   browsePosterCardSkeletonClass,
   browsePosterMediaClass,
   browseRowGapClass,
 } from "@/lib/browse-card-layout";
+import { BrowsePosterCardShell } from "@/components/layout/browse-poster-card-shell";
 import { markPlaybackPlayIntent } from "@/lib/player/play-intent";
 import { HorizontalScrollRow } from "@/components/layout/horizontal-scroll-row";
 
@@ -65,13 +65,13 @@ function ContinueWatchingRowInner() {
       scrollClassName={`flex overflow-x-auto scroll-smooth pb-2 scrollbar-hide [-webkit-overflow-scrolling:touch] ${browseRowGapClass}`}
     >
       {items.map((item) => (
-        <div key={item.id} className={browsePosterCardClass}>
+        <BrowsePosterCardShell key={item.id}>
         <Link
           href={`/browse/content/${item.id}/watch`}
           className="group/card block"
           onClick={() => markPlaybackPlayIntent()}
         >
-          <div className={browsePosterMediaClass}>
+          <div className={browsePosterMediaClass} data-browse-poster-media>
             {item.posterUrl || item.backdropUrl ? (
               <Image
                 src={item.posterUrl || item.backdropUrl || ""}
@@ -100,7 +100,7 @@ function ContinueWatchingRowInner() {
             <p className="text-xs text-slate-400">{item.progressPercent}% watched</p>
           )}
         </Link>
-        </div>
+        </BrowsePosterCardShell>
       ))}
     </HorizontalScrollRow>
   );
