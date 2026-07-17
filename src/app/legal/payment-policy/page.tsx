@@ -5,66 +5,111 @@ export default function PaymentPolicyPage() {
     <LegalPage
       eyebrow="Payments"
       title="Payment Policy"
-      summary="StoryTime processes transactions through secure third-party payment infrastructure with pricing transparency, gateway security controls, and dispute governance."
-      lastUpdated="April 2026"
-      highlights={["PayFast gateway", "Secure checkout", "Chargeback controls"]}
+      summary="This Payment Policy explains how STORYTIME STUDIOS (Pty) Ltd (“Story Time”) processes payments for subscriptions, licenses, and other digital services. It works together with our Subscription Terms, Refund Policy, and Privacy Policy, and is designed for transparent e-commerce under the CPA and ECTA."
+      lastUpdated="July 2026"
+      highlights={["PayFast", "No full card storage", "CPA pricing clarity", "Apple IAP note"]}
       sections={[
         {
-          title: "1. Payment processing",
+          title: "1. Payment processors",
           content: (
             <>
               <p>
-                All payments on StoryTime are processed through PayFast and other licensed
-                payment gateway partners. Users are subject to applicable processor terms
-                and banking/card-network rules.
+                Web and browser payments on Story Time are processed through licensed
+                payment gateway partners, primarily PayFast, and subject to applicable
+                processor terms, banking rules, and card-network operating regulations.
+              </p>
+              <p>
+                By completing a payment, you authorize Story Time and its processors to
+                charge the selected payment method for the disclosed amount and any
+                recurring fees you have agreed to.
               </p>
             </>
           ),
         },
         {
-          title: "2. Pricing and transaction disclosure",
+          title: "2. Pricing and pre-contract disclosure",
           content: (
             <>
               <p>
-                Prices are displayed before payment confirmation. Transaction type,
-                billing cycle, and recurring-charge details are shown prior to checkout
-                where applicable.
+                Prices, currency (typically South African Rand), transaction type
+                (one-time or recurring), billing cycle, and material entitlements are
+                displayed before you confirm payment. We do not charge undisclosed fees.
+              </p>
+              <p>
+                Taxes, currency conversion fees charged by your bank, or processor fees
+                outside Story Time’s control may still apply according to your financial
+                institution.
               </p>
             </>
           ),
         },
         {
-          title: "3. Data handling and security",
+          title: "3. Card data and security",
           content: (
             <>
               <p>
-                StoryTime does not intentionally store sensitive full card data (such
-                as PAN/CVV). Payment data is processed via secure gateway channels and
-                associated risk controls such as tokenization and authentication checks.
+                Story Time does not intentionally store full card PAN or CVV in its
+                databases. Sensitive card data is handled by PCI-DSS capable gateway
+                channels using tokenization, encryption in transit, and authentication
+                checks (including 3D Secure where required).
+              </p>
+              <p>
+                Limited transaction metadata (status, masked details, reference IDs,
+                dispute status) may be retained for reconciliation, fraud controls,
+                support, and legal record-keeping as described in our Privacy Policy.
               </p>
             </>
           ),
         },
         {
-          title: "4. Failed transactions",
+          title: "4. Failed, pending, and duplicate charges",
           content: (
             <>
               <p>
-                Users are not charged for unsuccessful transactions unless the gateway
-                confirms successful capture or settlement. Where uncertainty exists,
-                users should contact support with transaction references for review.
+                You are not charged for a transaction unless the gateway confirms
+                successful authorization or settlement. Pending or ambiguous states
+                should be reported to support with the transaction reference so we can
+                investigate with the processor.
+              </p>
+              <p>
+                If you believe you were charged twice for the same purchase, contact us
+                promptly. Confirmed duplicates are corrected under our Refund Policy.
               </p>
             </>
           ),
         },
         {
-          title: "5. Chargebacks and misuse",
+          title: "5. Chargebacks and dispute prevention",
           content: (
             <>
               <p>
-                Users are encouraged to contact StoryTime support before initiating
-                chargebacks. Fraudulent or abusive dispute behavior may result in
-                account restrictions, suspension, or legal escalation.
+                Please contact Story Time support before initiating a bank or card
+                chargeback. Many issues can be resolved faster through our billing team.
+                Fraudulent or abusive dispute behaviour may result in account restriction
+                or suspension.
+              </p>
+              <p>
+                Where a chargeback is filed, we may submit representment evidence
+                including billing records, access logs, and service-delivery records
+                through our payment partner.
+              </p>
+            </>
+          ),
+        },
+        {
+          title: "6. Apple App Store and other store billing",
+          content: (
+            <>
+              <p>
+                If digital content or subscriptions are sold inside a native iOS app
+                through Apple In-App Purchase, those transactions are billed by Apple
+                under Apple’s Media Services Terms and related App Store rules. Refunds
+                for Apple-billed purchases are generally handled by Apple, not Story Time,
+                except where we are legally required to assist.
+              </p>
+              <p>
+                Web payments processed via PayFast remain subject to this Payment Policy
+                and our Refund Policy.
               </p>
             </>
           ),
@@ -72,7 +117,9 @@ export default function PaymentPolicyPage() {
       ]}
       footerNote={
         <p>
-          Payments support: support@story-time.online | +27 61 657 2691.
+          Payments support: support@story-time.online | +27 61 657 2691. Include
+          account email, approximate payment time, amount, and any gateway reference
+          when contacting us.
         </p>
       }
     />

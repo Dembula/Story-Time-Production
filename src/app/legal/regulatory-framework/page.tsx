@@ -5,18 +5,20 @@ export default function RegulatoryFrameworkPage() {
     <LegalPage
       eyebrow="Compliance"
       title="Legal and Regulatory Framework"
-      summary="StoryTime (Pty) Ltd operates in compliance with South African law and maintains governance controls across privacy, transactions, cybersecurity, consumer protection, and access-to-information obligations."
-      lastUpdated="April 2026"
-      highlights={["POPIA", "ECTA", "CPA", "FICA", "Cybercrimes Act", "PAIA"]}
+      summary="STORYTIME STUDIOS (Pty) Ltd (“Story Time”) operates primarily under South African law and maintains governance controls across privacy, e-commerce, consumer protection, cybersecurity, payments, and access-to-information. This page also notes alignment with Apple App Store privacy and content expectations for digital distribution."
+      lastUpdated="July 2026"
+      highlights={["POPIA", "ECTA", "CPA", "PAIA", "Apple 5.1", "Cybercrimes Act"]}
       sections={[
         {
-          title: "1. Applicable laws and compliance scope",
+          title: "1. Operator and compliance scope",
           content: (
             <>
               <p>
-                StoryTime (Pty) Ltd operates in the Republic of South Africa and applies
-                legal controls in line with platform operations, including personal data
-                processing, e-commerce, payments, moderation, and records management.
+                Story Time is operated by STORYTIME STUDIOS (Pty) Ltd (CIPC registration
+                number 2026/269060/07), a private company in the Republic of South
+                Africa. Compliance controls cover personal-data processing, electronic
+                contracting, payments, content moderation, child and audience safety, and
+                records management across web and any mobile applications.
               </p>
             </>
           ),
@@ -26,10 +28,12 @@ export default function RegulatoryFrameworkPage() {
           content: (
             <>
               <p>
-                StoryTime processes personal information lawfully and for defined
-                purposes, obtains informed consent where required, secures data through
-                technical and organizational controls, supports lawful access/correction
-                requests, and applies breach response procedures.
+                We process personal information lawfully and for defined purposes, apply
+                purpose limitation and minimality, secure data through technical and
+                organisational measures, support access and correction requests, honour
+                account export and deletion controls, and maintain breach-response
+                procedures. Cross-border transfers are handled with section 72
+                safeguards. See our Privacy Policy.
               </p>
             </>
           ),
@@ -39,10 +43,10 @@ export default function RegulatoryFrameworkPage() {
           content: (
             <>
               <p>
-                Electronic agreements are presented in accessible form, service and
-                pricing disclosures are provided, and digital transaction flows are
-                designed for enforceability, record integrity, and secure
-                communications.
+                Electronic agreements are presented in accessible form. Service and
+                pricing disclosures are provided before paid transactions. Digital
+                records and communications are designed to support enforceability and
+                integrity of electronic contracts.
               </p>
             </>
           ),
@@ -52,22 +56,26 @@ export default function RegulatoryFrameworkPage() {
           content: (
             <>
               <p>
-                StoryTime supports fair, reasonable, and transparent consumer practices,
-                including clear service descriptions, transparent pricing, and
-                structured refund and cancellation processes.
+                Where users are consumers, Story Time supports fair, reasonable, and
+                transparent practices: clear service descriptions, transparent pricing,
+                fair contract terms, and structured refund and cancellation processes.
+                Non-waivable consumer rights are preserved in our Terms and Refund
+                Policy.
               </p>
             </>
           ),
         },
         {
-          title: "5. FICA (Financial Intelligence Centre Act 38 of 2001)",
+          title: "5. FICA and payment-partner obligations",
           content: (
             <>
               <p>
-                For relevant payment and financial-risk scenarios, StoryTime may perform
-                verification checks, maintain transaction records, monitor suspicious
-                activity signals, and cooperate with licensed financial institutions and
-                processors.
+                For relevant payment, payout, and financial-risk scenarios, Story Time
+                may perform verification checks, maintain transaction records, monitor
+                suspicious activity, and cooperate with licensed financial institutions
+                and processors (including PayFast). FICA-related duties apply to
+                accountable institutions; Story Time supports partner compliance where
+                required for platform payments and payouts.
               </p>
             </>
           ),
@@ -77,9 +85,10 @@ export default function RegulatoryFrameworkPage() {
           content: (
             <>
               <p>
-                StoryTime enforces cybersecurity controls, monitors unauthorized access
-                attempts, preserves evidence where required, and may cooperate with law
-                enforcement for unlawful platform activity.
+                We enforce cybersecurity controls, monitor unauthorized access attempts,
+                preserve evidence where required, prohibit unlawful system interference,
+                and may cooperate with law enforcement regarding offences committed
+                through or against the platform.
               </p>
             </>
           ),
@@ -89,20 +98,56 @@ export default function RegulatoryFrameworkPage() {
           content: (
             <>
               <p>
-                StoryTime maintains a PAIA process for lawful requests to access records
-                held by the company, subject to statutory procedures, eligibility, and
-                lawful limitations.
+                We maintain a PAIA request process for lawful access to company records,
+                subject to statutory procedures and grounds for refusal. See our PAIA
+                Manual summary.
               </p>
             </>
           ),
         },
         {
-          title: "8. Companies Act 71 of 2008",
+          title: "8. Films and Publications Act and content standards",
           content: (
             <>
               <p>
-                StoryTime operates as a private company and maintains governance and
-                operational controls in line with applicable corporate requirements.
+                Age ratings, advisories, and distribution controls are applied with
+                regard to the Films and Publications Act 65 of 1996 (as amended) and
+                related standards where applicable, supported by our Content Policy and
+                Acceptable Use Policy.
+              </p>
+            </>
+          ),
+        },
+        {
+          title: "9. Companies Act 71 of 2008",
+          content: (
+            <>
+              <p>
+                STORYTIME STUDIOS (Pty) Ltd (CIPC registration number 2026/269060/07)
+                operates as a private company and maintains governance and operational
+                controls in line with applicable corporate requirements under the
+                Companies Act 71 of 2008.
+              </p>
+            </>
+          ),
+        },
+        {
+          title: "10. Apple App Store and platform-partner expectations",
+          content: (
+            <>
+              <p>
+                For App Store distribution readiness, Story Time maintains:
+              </p>
+              <ul className="list-disc space-y-1 pl-5">
+                <li>a publicly accessible Privacy Policy describing collection, use, sharing, retention, and deletion;</li>
+                <li>in-product account data export and permanent account deletion (Guideline 5.1.1(v));</li>
+                <li>clear subscription auto-renewal and cancellation disclosures;</li>
+                <li>content and child-safety rules aligned with store content standards; and</li>
+                <li>App Tracking Transparency readiness for any future cross-app tracking on iOS.</li>
+              </ul>
+              <p>
+                Web payments via PayFast and any future Apple In-App Purchases are
+                disclosed in our Payment and Subscription Terms.
               </p>
             </>
           ),

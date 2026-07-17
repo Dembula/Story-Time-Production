@@ -11,7 +11,7 @@ export function LandingFooter() {
             <Image src="/logo.png" alt="Story Time" width={28} height={28} className="rounded-lg shadow-glow" />
             <div className="flex flex-col">
               <span className="font-semibold tracking-[0.14em] text-slate-200">STORY <span className="storytime-brand-text">TIME</span></span>
-              <span className="text-[10px] tracking-wide text-slate-500">STORYTIME STUDIOS (Pty) Ltd</span>
+              <span className="text-[10px] tracking-wide text-slate-500">STORYTIME STUDIOS (Pty) Ltd · 2026/269060/07</span>
             </div>
           </Link>
           <div className="flex flex-wrap gap-6 text-sm text-slate-400">
@@ -37,7 +37,7 @@ export function LandingFooter() {
           <Link href="/legal/disclaimer" className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 transition hover:border-white/20 hover:text-slate-200">Disclaimer</Link>
           <Link href="/legal/copyright" className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 transition hover:border-white/20 hover:text-slate-200">Copyright</Link>
         </div>
-        <p className="mt-4 text-xs text-slate-600">&copy; {new Date().getFullYear()} Story Time. All rights reserved. (by STORYTIME STUDIOS (Pty) Ltd)</p>
+        <p className="mt-4 text-xs text-slate-600">&copy; {new Date().getFullYear()} Story Time. All rights reserved. STORYTIME STUDIOS (Pty) Ltd (CIPC 2026/269060/07)</p>
       </div>
     </footer>
   );

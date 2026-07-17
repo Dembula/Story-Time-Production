@@ -4,10 +4,10 @@ export default function CopyrightPage() {
   return (
     <LegalPage
       eyebrow="Rights"
-      title="Copyright and Takedown"
-      summary="Story Time respects creator ownership and third-party intellectual-property rights. This notice explains how ownership works on the platform and how infringement complaints may be handled."
-      lastUpdated="April 2026"
-      highlights={["Creator-owned works", "Platform license", "Notice process", "South African IP law"]}
+      title="Copyright and Intellectual Property Notice"
+      summary="STORYTIME STUDIOS (Pty) Ltd (“Story Time”) respects creator ownership and third-party intellectual-property rights. This notice explains ownership on the platform, the limited license granted to operate the service, and how infringement complaints are handled under South African copyright law and App Store IP expectations."
+      lastUpdated="July 2026"
+      highlights={["Creator-owned works", "Notice & takedown", "Counter-notice", "Repeat infringers"]}
       sections={[
         {
           title: "1. Ownership on Story Time",
@@ -16,12 +16,13 @@ export default function CopyrightPage() {
               <p>
                 Unless stated otherwise, content available through Story Time belongs to
                 Story Time, the relevant creator, or the applicable rights holder or
-                licensor.
+                licensor. Platform software, trademarks, logos, and branding remain the
+                property of STORYTIME STUDIOS (Pty) Ltd or its licensors.
               </p>
               <p>
-                Uploading content to Story Time does not transfer ownership to the
-                platform. Creators remain responsible for ensuring that they hold the
-                rights needed for distribution and use.
+                Uploading content does not transfer ownership to Story Time. Creators
+                remain responsible for ensuring they hold the rights needed for
+                distribution and use.
               </p>
             </>
           ),
@@ -32,13 +33,15 @@ export default function CopyrightPage() {
             <>
               <p>
                 By uploading or submitting content, creators grant Story Time the
-                limited rights needed to store, display, stream, review, administer,
-                promote, and distribute that content within the scope of the service
-                and any applicable product workflow.
+                limited, worldwide, non-exclusive rights needed to store, reproduce,
+                display, stream, review, administer, promote, and distribute that content
+                within the scope of the service and applicable product workflows.
               </p>
               <p>
-                This license is limited to operating the platform and does not reduce
-                the creator&apos;s underlying ownership.
+                This license is limited to operating and improving the platform and does
+                not reduce the creator’s underlying ownership. It ends when content is
+                removed from the service, except for reasonable residual copies retained
+                for backup, legal, or dispute purposes.
               </p>
             </>
           ),
@@ -48,19 +51,21 @@ export default function CopyrightPage() {
           content: (
             <>
               <p>
-                If you believe content on Story Time infringes your rights, your notice
-                should identify the protected work, the allegedly infringing material,
-                your authority to act, your good-faith basis for the complaint, and the
-                information reasonably needed to review the claim.
+                If you believe content on Story Time infringes your rights, send a notice
+                to support@story-time.online that includes:
               </p>
+              <ul className="list-disc space-y-1 pl-5">
+                <li>identification of the protected work;</li>
+                <li>identification of the allegedly infringing material and its location (URL or title);</li>
+                <li>your contact details;</li>
+                <li>a statement of your authority to act for the rights holder;</li>
+                <li>a good-faith statement that use is not authorized; and</li>
+                <li>a statement that the information in the notice is accurate.</li>
+              </ul>
               <p>
-                Story Time may remove or disable access to material while a complaint is
-                being assessed and may act against repeat infringers where justified.
-              </p>
-              <p>
-                Notices should include sufficient details to support legal review under
-                applicable copyright frameworks, including South African Copyright Act
-                98 of 1978 standards and equivalent rights frameworks where relevant.
+                We may remove or disable access while assessing a complaint and may act
+                against repeat infringers. Notices should support review under the
+                Copyright Act 98 of 1978 and related frameworks.
               </p>
             </>
           ),
@@ -70,9 +75,11 @@ export default function CopyrightPage() {
           content: (
             <>
               <p>
-                If content is removed and the affected user believes the notice was
-                mistaken or invalid, Story Time may allow a counter-notice process
-                consistent with applicable law and operational policy.
+                If content is removed and the uploader believes the notice was mistaken
+                or invalid, they may submit a counter-notice with identification of the
+                material, contact details, a good-faith statement explaining the error,
+                and consent to jurisdiction of South African courts for related disputes
+                where appropriate.
               </p>
               <p>
                 We may keep content disabled while a legal or rights dispute remains
@@ -82,16 +89,25 @@ export default function CopyrightPage() {
           ),
         },
         {
-          title: "5. Platform disclaimer",
+          title: "5. Trademarks and platform brand",
           content: (
             <>
               <p>
-                User-uploaded content reflects the views and responsibility of the
-                relevant uploader or rights holder, not necessarily Story Time.
+                “Story Time”, related marks, and the Story Time logo may not be used in
+                a way that suggests endorsement or affiliation without prior written
+                permission, except for truthful references permitted by law.
               </p>
+            </>
+          ),
+        },
+        {
+          title: "6. Platform disclaimer",
+          content: (
+            <>
               <p>
-                Story Time does not guarantee that all user-submitted material is
-                accurate, lawful, or free from third-party claims, even where review
+                User-uploaded content reflects the responsibility of the uploader or
+                rights holder. Story Time does not guarantee that all submitted material
+                is accurate, lawful, or free from third-party claims, even where review
                 steps are used.
               </p>
             </>

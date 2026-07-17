@@ -3,68 +3,59 @@ import Image from "next/image";
 
 const sections = [
   {
-    title: "Platform Overview",
+    title: "Who we are",
     paragraphs: [
-      "StoryTime (Pty) Ltd is a digital content platform that enables creators to publish, distribute, and monetize story-based content while providing users with access to premium and free content experiences.",
-      "The platform facilitates interactions between content creators and users through secure, scalable, and legally compliant infrastructure.",
+      "STORYTIME STUDIOS (Pty) Ltd (CIPC registration number 2026/269060/07) operates Story Time (story-time.online), a South African digital entertainment and production platform that connects audiences with story-based content and gives creators tools to publish, distribute, and monetize their work.",
+      "We build secure, scalable infrastructure for streaming, creator workflows, marketplace collaboration, and compliant payment processing under South African law.",
     ],
   },
   {
-    title: "Service Description",
+    title: "What Story Time offers",
     paragraphs: [
-      "StoryTime provides hosting and distribution of storytelling content, creator monetization tooling, access to free and paid user experiences, and secure payment processing through third-party providers.",
-      "Users may browse, purchase, or subscribe to content, while creators may upload and monetize their work subject to platform terms and applicable law.",
+      "Viewers can browse and watch free and premium storytelling experiences, manage age-aware profiles, and subscribe to unlock catalogue access.",
+      "Creators and production stakeholders can upload projects, manage metadata and ratings, collaborate through marketplace tools (including equipment, locations, crew, casting, and catering), and participate in monetization subject to platform terms.",
     ],
   },
   {
-    title: "Creator Monetization Model",
+    title: "Creator monetization",
     paragraphs: [
-      "Creators may generate revenue through one-time paid access, subscription-based access to exclusive content, and platform-supported revenue-sharing models.",
-      "StoryTime may retain a service fee or commission for facilitating transactions, disclosed where applicable. Creator earnings are subject to platform terms, payout timelines, and applicable deductions.",
+      "Creators may earn through paid access, subscriptions to exclusive content, and platform-supported revenue models where available.",
+      "STORYTIME STUDIOS (Pty) Ltd may retain a disclosed service fee or commission for facilitating transactions. Earnings are subject to payout timelines, verification requirements, and applicable deductions as set out in product flows and legal terms.",
     ],
   },
   {
-    title: "User Payment Obligations",
+    title: "Payments and pricing transparency",
     paragraphs: [
-      "Certain content requires payment prior to access. Pricing is displayed before any transaction is completed and may include subscriptions, one-time purchases, or other digital service charges.",
-      "All payments are final unless otherwise stated in the Refund Policy. By transacting, users accept pricing, billing terms, and service-delivery conditions.",
+      "Prices are shown before checkout. Subscription cycles, recurring charges, and one-time fees are disclosed prior to payment. We do not add hidden fees without consent.",
+      "Web payments are processed through licensed gateways such as PayFast. Story Time does not intentionally store full card PAN or CVV. Processor terms and card-network rules also apply to each transaction.",
     ],
   },
   {
-    title: "Payment Processing Disclosure",
+    title: "Refunds, disputes, and support",
     paragraphs: [
-      "All financial transactions on StoryTime are securely processed through licensed payment gateway partners (PayFast).",
-      "By making a payment, users accept the payment processor terms. Payment data is handled under industry-standard security controls, and StoryTime does not store sensitive card details.",
-      "Processing times, transaction confirmations, and payment disputes are subject to the payment provider's operational policies.",
+      "Refund eligibility is governed by our Refund Policy and applicable consumer law, including the Consumer Protection Act where relevant. We ask users to contact support before initiating chargebacks so we can investigate quickly.",
+      "Customer support: +27 61 657 2691 | support@story-time.online. We aim to respond within a reasonable timeframe consistent with our service standards.",
     ],
   },
   {
-    title: "Pricing Transparency, Refunds, and Disputes",
+    title: "Privacy, Apple readiness, and account control",
     paragraphs: [
-      "StoryTime is committed to clear pricing. All prices are displayed before payment, hidden fees are not charged without consent, subscription cycles are disclosed, and recurring charges are shown before users subscribe.",
-      "Users should contact support before filing chargebacks. StoryTime may investigate disputes and take action, including account restrictions where abuse is detected. Refund eligibility is governed by the Refund and Cancellation Policy.",
+      "Our Privacy Policy explains what we collect, why we use it, and how you can exercise POPIA rights. Signed-in users can export their data and permanently delete their account from in-product Privacy & account control settings, aligned with Apple App Store Guideline 5.1.1(v).",
+      "Where Sign in with Apple or other OAuth providers are enabled, authentication data is handled under our Privacy Policy and the provider’s terms.",
     ],
   },
   {
-    title: "Customer Support",
+    title: "Onboarding and consent",
     paragraphs: [
-      "StoryTime provides support for user inquiries, technical issues, and transaction-related matters.",
-      "Contact Information: +27 61 657 2691 | Email: support@story-time.online",
-      "Support requests are handled within a reasonable timeframe in line with internal service standards.",
+      "Users create an account, review and accept the Terms of Service and Privacy Policy, review pricing where applicable, and then complete secure checkout for paid features.",
+      "No paid activation proceeds without disclosure of the commercial terms that apply to the selected plan or purchase.",
     ],
   },
   {
-    title: "User Onboarding and Consent Flow",
+    title: "Compliance posture",
     paragraphs: [
-      "StoryTime applies a structured onboarding process to ensure legal compliance and user awareness. Users create an account, review and accept Terms of Service and Privacy Policy, review pricing and plan options, and then proceed to secure payment where applicable.",
-      "No account activation or transaction processing occurs without explicit consent to the applicable legal and commercial terms.",
-    ],
-  },
-  {
-    title: "Risk Mitigation and Compliance",
-    paragraphs: [
-      "StoryTime actively implements transparent billing practices, clear refund and dispute handling, secure payment integration, suspicious activity monitoring, and enforcement of acceptable use standards.",
-      "These controls are designed to protect users, creators, and payment partners while supporting lawful platform operations.",
+      "Story Time is operated with regard to POPIA, ECTA, the CPA, PAIA, the Cybercrimes Act, applicable intellectual-property law, and payment-partner requirements.",
+      "We maintain transparent billing practices, content moderation standards, security controls, and enforcement of acceptable use to protect audiences, creators, and partners.",
     ],
   },
 ];
@@ -99,13 +90,14 @@ export default function AboutPage() {
               About Story Time
             </div>
             <h1 className="font-display text-3xl font-semibold tracking-tight text-white md:text-4xl">
-              PLATFORM DISCLOSURE, MONETIZATION & USER FLOW
+              About STORYTIME STUDIOS (Pty) Ltd
             </h1>
             <p className="max-w-3xl text-sm leading-7 text-slate-300 md:text-base">
-              Professional overview of how StoryTime (Pty) Ltd operates, how creators
-              and users engage with paid services, and how legal, payment, and support
-              commitments are applied across the platform.
+              How Story Time operates, how creators and audiences engage with free and
+              paid services, and how privacy, payment, and support commitments are
+              applied across the platform.
             </p>
+            <p className="text-xs text-slate-500">Last updated: July 2026</p>
           </div>
         </section>
 
@@ -126,11 +118,16 @@ export default function AboutPage() {
         </section>
 
         <section className="mt-6 rounded-3xl border border-dashed border-white/10 bg-white/[0.02] p-6 text-sm leading-7 text-slate-400">
-          StoryTime (Pty) Ltd maintains a unified legal and operations suite covering
-          Terms of Service, Privacy Policy, Payment Policy, Refund and Cancellation
-          Policy, Cookie Policy, Acceptable Use Policy, PAIA Manual, Security Policy,
-          and Disclaimer disclosures for users, creators, partners, and compliance
-          reviewers.
+          <p>
+            STORYTIME STUDIOS (Pty) Ltd (CIPC registration number 2026/269060/07)
+            maintains a unified legal suite covering Terms of Service, Privacy Policy,
+            Payment Policy, Refund Policy, Subscription Terms, Content Policy, Cookie
+            Policy, Acceptable Use Policy, PAIA Manual, Security Policy, Copyright
+            Notice, Disclaimer, and Regulatory Framework disclosures.
+          </p>
+          <p className="mt-3">
+            Contact: support@story-time.online | +27 61 657 2691
+          </p>
         </section>
       </main>
     </div>

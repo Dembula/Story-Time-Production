@@ -5,178 +5,319 @@ export default function TermsPage() {
     <LegalPage
       eyebrow="Legal"
       title="Terms of Service"
-      summary="These Terms explain how Story Time may be used by viewers, creators, partners, and administrators. They cover access, content ownership, subscriptions, enforcement, payment processing, and legal rights under South African law."
-      lastUpdated="April 2026"
-      highlights={["South Africa", "Consumer Protection Act", "ECTA", "Content ownership"]}
+      summary="These Terms of Service (“Terms”) form a binding agreement between you and STORYTIME STUDIOS (Pty) Ltd (CIPC registration number 2026/269060/07) (“Story Time”, “we”, “us”, or “our”) governing access to and use of the Story Time platform. They should be read with our Privacy Policy, Subscription Terms, Payment Policy, Refund Policy, Content Policy, Cookie Policy, Acceptable Use Policy, and Copyright Notice."
+      lastUpdated="July 2026"
+      highlights={["South Africa", "CPA & ECTA", "Apple App Store ready", "Account deletion"]}
       sections={[
         {
-          title: "1. Who these Terms apply to",
+          title: "1. Acceptance of these Terms",
+          content: (
+            <>
+              <p>
+                By creating an account, browsing the service, uploading material,
+                purchasing a plan, or otherwise using Story Time, you agree to these
+                Terms and the related policies listed above. If you do not agree, do not
+                use the service.
+              </p>
+              <p>
+                Electronic contracts and notices on Story Time are intended to be valid
+                under the Electronic Communications and Transactions Act 25 of 2002
+                (“ECTA”). Plain-language disclosures and fair-contract standards under
+                the Consumer Protection Act 68 of 2008 (“CPA”) apply where you are a
+                consumer.
+              </p>
+            </>
+          ),
+        },
+        {
+          title: "2. Who these Terms apply to",
           content: (
             <>
               <p>
                 These Terms apply to anyone who accesses Story Time, including viewers,
-                creators, music contributors, equipment companies, location owners,
-                crew teams, casting agencies, and catering providers.
+                creators, music contributors, equipment companies, location owners, crew
+                teams, casting agencies, catering providers, and administrators.
               </p>
               <p>
-                By creating an account, browsing the service, uploading material, or
-                using any paid plan, you agree to these Terms together with our Privacy
-                Policy, Subscription Terms, Refund Policy, Content Policy, Copyright
-                Notice, Cookie Policy, and Acceptable Use Policy.
-              </p>
-              <p>
-                These Terms are interpreted in line with applicable South African law,
-                including the Electronic Communications and Transactions Act 25 of 2002
-                (&quot;ECTA&quot;), the Consumer Protection Act 68 of 2008 (&quot;CPA&quot;),
-                the Protection of Personal Information Act 4 of 2013 (&quot;POPIA&quot;),
-                and the Cybercrimes Act 19 of 2020.
+                If you use Story Time on behalf of a business, you represent that you
+                have authority to bind that business, and “you” includes that entity.
               </p>
             </>
           ),
         },
         {
-          title: "2. Accounts, access, and security",
+          title: "3. Eligibility and account age",
           content: (
             <>
               <p>
-                You must provide accurate registration information and keep your login
-                credentials confidential. You are responsible for activity that takes
-                place through your account unless you promptly notify Story Time of
-                unauthorized access.
+                You must be at least 18 years old (or the age of majority where you live)
+                to create a primary Story Time account and enter into paid transactions.
+                Parents or legal guardians may set up and supervise child viewer profiles
+                where that feature is available.
               </p>
               <p>
-                Story Time uses authenticated account access, session controls,
-                role-based permissions, and activity logging to protect the platform.
-                We may suspend access where we detect abuse, fraud risk, suspicious
-                behavior, or a breach of platform rules.
+                You are responsible for ensuring that any profile under your account
+                complies with age ratings, advisories, and parental-control settings.
               </p>
             </>
           ),
         },
         {
-          title: "3. What users may and may not do",
+          title: "4. Accounts, security, and deletion",
           content: (
             <>
               <p>
-                You may use Story Time only for lawful purposes and in line with the
-                workflows the platform provides for streaming, uploading, licensing,
-                discovery, production management, and collaboration.
+                You must provide accurate registration information and keep login
+                credentials confidential. You are responsible for activity under your
+                account unless you promptly notify us of unauthorized access.
               </p>
               <p>
-                You may not upload unlawful or infringing material, impersonate others,
-                bypass age or subscription controls, scrape or overload the service,
-                attempt unauthorized access, interfere with platform operations, or use
-                Story Time to promote harmful, fraudulent, or abusive conduct.
+                We use authenticated access, session controls, role-based permissions,
+                and activity logging. We may suspend or restrict access where we detect
+                abuse, fraud risk, security threats, or policy breaches.
+              </p>
+              <p>
+                You may export your data and permanently delete your account from
+                in-product Privacy &amp; account control settings, consistent with Apple
+                App Store Guideline 5.1.1(v) and our Privacy Policy. Deletion removes
+                personal data we are not legally required to retain.
               </p>
             </>
           ),
         },
         {
-          title: "4. Content ownership and platform rights",
+          title: "5. The Story Time service",
           content: (
             <>
               <p>
-                Creators retain ownership of the content they submit, subject to any
-                rights already granted to collaborators, licensors, or third parties.
-                You may upload only content you own or are authorized to use.
+                Story Time is a digital entertainment and production platform that may
+                include streaming catalogues, creator publishing and monetization tools,
+                marketplace listings, collaboration features, and related workflows.
+                Features may vary by role, plan, geography, and device.
               </p>
               <p>
-                By uploading or submitting material to Story Time, you grant us the
-                limited rights needed to host, store, process, review, stream, display,
-                distribute, promote, and administer that material within the platform
-                and its business operations.
-              </p>
-              <p>
-                Story Time may review submissions, metadata, age ratings, advisories,
-                and related account activity before public publication or continued
-                availability.
+                We may modify, suspend, or discontinue features with reasonable notice
+                where practicable. We do not guarantee that every title, tool, or
+                marketplace listing will remain available indefinitely.
               </p>
             </>
           ),
         },
         {
-          title: "5. Payments, subscriptions, and platform economics",
+          title: "6. Acceptable use",
           content: (
             <>
               <p>
-                Certain features require a paid plan or platform fee. Viewer
-                subscriptions unlock streaming access, while creator and company tools
-                may require distribution or listing licenses.
-              </p>
-              <p>
-                Pricing, billing terms, plan effects, and eligibility rules are
-                described in the relevant subscription and product flows. You authorize
-                Story Time to charge applicable fees for the plan, license, or service
-                you choose.
-              </p>
-              <p>
-                Payments may be processed through licensed third-party payment gateway
-                providers using tokenized card processing, 3D Secure authentication
-                where required, transaction risk checks, and card-network dispute
-                workflows. Story Time does not intentionally store full card PAN or CVV
-                in platform databases.
-              </p>
-              <p>
-                Revenue participation, creator economics, or business benefits may
-                depend on the product structure, audience activity, licensing status,
-                platform rules, and any additional agreements that apply to your role.
+                You may use Story Time only for lawful purposes and in line with our{" "}
+                <a href="/legal/acceptable-use" className="text-orange-300 underline-offset-2 hover:underline">
+                  Acceptable Use Policy
+                </a>
+                . Without limitation, you may not upload unlawful or infringing material,
+                impersonate others, bypass age or subscription controls, scrape or
+                overload the service, attempt unauthorized access, interfere with
+                operations, or engage in fraudulent or abusive conduct.
               </p>
             </>
           ),
         },
         {
-          title: "6. Enforcement, moderation, and takedowns",
+          title: "7. Content ownership and licenses",
           content: (
             <>
               <p>
-                We may remove content, restrict visibility, reject submissions, pause
+                Creators retain ownership of content they submit, subject to rights
+                already granted to collaborators, licensors, or third parties. You may
+                upload only content you own or are authorized to use.
+              </p>
+              <p>
+                By uploading or submitting material, you grant Story Time a worldwide,
+                non-exclusive, royalty-free license to host, store, process, review,
+                stream, display, distribute, promote, and administer that material as
+                needed to operate and improve the platform and related business
+                operations, for as long as the content remains on the service or as
+                otherwise required for legal compliance.
+              </p>
+              <p>
+                Viewers receive a limited, personal, non-transferable, non-exclusive
+                license to stream or access content solely through authorized Story Time
+                interfaces while entitled under an applicable plan. No ownership of
+                underlying intellectual property is transferred to viewers.
+              </p>
+            </>
+          ),
+        },
+        {
+          title: "8. Moderation and enforcement",
+          content: (
+            <>
+              <p>
+                We may review submissions, metadata, age ratings, and advisories. We may
+                remove content, restrict visibility, reject submissions, pause
                 distribution, or suspend or terminate accounts where we believe a user
                 has violated these Terms, our policies, or the law.
               </p>
               <p>
-                Story Time may also respond to valid copyright notices, legal process,
-                platform safety concerns, moderation findings, and repeated policy
-                violations.
+                We may also respond to valid copyright notices, legal process, safety
+                concerns, and repeated policy violations. Enforcement decisions are made
+                in good faith to protect users, rights holders, and platform integrity.
               </p>
             </>
           ),
         },
         {
-          title: "7. Liability and service availability",
+          title: "9. Payments, subscriptions, and digital goods",
           content: (
             <>
               <p>
-                Story Time is provided on an &quot;as available&quot; basis. We work to
-                maintain platform quality and reliability, but we do not guarantee that
-                the service will always be uninterrupted, error-free, or suitable for
-                every purpose.
+                Certain features require payment. Pricing, billing cycles, and
+                entitlements are disclosed before checkout. Viewer subscriptions,
+                creator licenses, and business plans are governed by our{" "}
+                <a href="/legal/subscription-terms" className="text-orange-300 underline-offset-2 hover:underline">
+                  Subscription Terms
+                </a>
+                ,{" "}
+                <a href="/legal/payment-policy" className="text-orange-300 underline-offset-2 hover:underline">
+                  Payment Policy
+                </a>
+                , and{" "}
+                <a href="/legal/refund-policy" className="text-orange-300 underline-offset-2 hover:underline">
+                  Refund Policy
+                </a>
+                .
               </p>
               <p>
-                To the maximum extent permitted by law, Story Time is not liable for
-                indirect, incidental, consequential, or special loss arising from use
-                of the platform, user-generated content, third-party actions, or
-                service interruptions.
+                Web and browser payments are typically processed through licensed
+                gateways such as PayFast. Story Time does not intentionally store full
+                card PAN or CVV. If a native iOS application is distributed through the
+                Apple App Store and Apple requires In-App Purchase for digital content,
+                those purchases will additionally be subject to Apple’s terms, billing,
+                and refund rules for the relevant transaction.
               </p>
             </>
           ),
         },
         {
-          title: "8. Governing law",
+          title: "10. Third-party services and Apple distribution",
           content: (
             <>
               <p>
-                These Terms are governed by the laws of South Africa, subject to any
-                mandatory consumer protections that may apply in your jurisdiction.
+                The platform may integrate third-party services (authentication,
+                payments, hosting, analytics). Your use of those services may be subject
+                to their own terms and privacy policies.
               </p>
               <p>
-                If any part of these Terms is unenforceable, the remaining provisions
-                will continue to apply.
+                If you access Story Time through an Apple device or a future App Store
+                application: (a) these Terms are between you and STORYTIME STUDIOS (Pty)
+                Ltd, not Apple; (b) Apple has no obligation to provide maintenance or
+                support for the app beyond what Apple’s own rules require; (c) to the
+                maximum extent permitted by law, Apple has no warranty obligation for
+                the app; (d) Apple is not responsible for product claims, consumer
+                protection claims, or intellectual-property infringement claims arising
+                from the app; and (e) Apple and Apple’s subsidiaries are third-party
+                beneficiaries of this section and may enforce it.
+              </p>
+            </>
+          ),
+        },
+        {
+          title: "11. Privacy",
+          content: (
+            <>
+              <p>
+                Our collection and use of personal information is described in the{" "}
+                <a href="/legal/privacy" className="text-orange-300 underline-offset-2 hover:underline">
+                  Privacy Policy
+                </a>
+                . By using Story Time, you acknowledge that processing described there.
+              </p>
+            </>
+          ),
+        },
+        {
+          title: "12. Disclaimers and limitation of liability",
+          content: (
+            <>
+              <p>
+                Story Time is provided on an “as available” basis. We work to maintain
+                quality and reliability, but we do not guarantee uninterrupted,
+                error-free, or complete suitability for every purpose.
               </p>
               <p>
-                To the extent required by the CPA, nothing in these Terms is intended
-                to waive non-waivable consumer rights, including fair and reasonable
-                terms (sections 48 and 49), plain language disclosure (section 22), and
-                rights linked to service performance (section 54).
+                User-generated content is the responsibility of the uploader. To the
+                maximum extent permitted by law, Story Time is not liable for indirect,
+                incidental, consequential, special, or punitive loss arising from use of
+                the platform, user content, third-party actions, or service
+                interruptions.
+              </p>
+              <p>
+                Nothing in these Terms excludes or limits liability that cannot be
+                excluded under the CPA or other mandatory law, including liability for
+                gross negligence where such exclusion is prohibited.
+              </p>
+            </>
+          ),
+        },
+        {
+          title: "13. Indemnity",
+          content: (
+            <>
+              <p>
+                To the extent permitted by law, you agree to indemnify and hold harmless
+                STORYTIME STUDIOS (Pty) Ltd and its directors, employees, and agents
+                from claims, damages, and costs arising from your content, your misuse of
+                the service, or your breach of these Terms or applicable law, except to
+                the extent caused by our unlawful conduct.
+              </p>
+            </>
+          ),
+        },
+        {
+          title: "14. Suspension and termination",
+          content: (
+            <>
+              <p>
+                You may stop using Story Time and delete your account at any time. We may
+                suspend or terminate access for breach, legal risk, non-payment, or
+                extended inactivity. Provisions that by nature should survive
+                (including ownership, licenses already exercised, payment obligations,
+                disclaimers, and liability limits) will survive termination.
+              </p>
+            </>
+          ),
+        },
+        {
+          title: "15. Governing law and disputes",
+          content: (
+            <>
+              <p>
+                These Terms are governed by the laws of the Republic of South Africa,
+                subject to any mandatory consumer protections that apply in your
+                jurisdiction.
+              </p>
+              <p>
+                Please contact support first so we can attempt to resolve concerns
+                informally. Nothing in these Terms prevents you from referring a
+                consumer dispute to the National Consumer Commission or another
+                competent forum where the CPA or other law so provides.
+              </p>
+              <p>
+                To the extent required by the CPA, nothing here waives non-waivable
+                consumer rights, including fair and reasonable terms (sections 48–49),
+                plain-language disclosure (section 22), and rights linked to service
+                performance (section 54).
+              </p>
+            </>
+          ),
+        },
+        {
+          title: "16. Changes to these Terms",
+          content: (
+            <>
+              <p>
+                We may update these Terms from time to time. The “Last updated” date will
+                change when we do. Material changes will be posted on the platform or
+                communicated where required by law. Continued use after the effective
+                date constitutes acceptance to the extent permitted by applicable law.
               </p>
             </>
           ),
@@ -186,7 +327,8 @@ export default function TermsPage() {
         <p>
           Official legal and operational contact: support@story-time.online | +27
           61 657 2691. For legal notices, billing disputes, policy questions, or
-          escalation requests, contact Story Time through these channels.
+          escalation requests, contact STORYTIME STUDIOS (Pty) Ltd (CIPC registration
+          number 2026/269060/07) through these channels.
         </p>
       }
     />
