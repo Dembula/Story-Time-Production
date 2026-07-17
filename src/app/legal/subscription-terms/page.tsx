@@ -5,9 +5,9 @@ export default function SubscriptionTermsPage() {
     <LegalPage
       eyebrow="Billing"
       title="Subscription Terms"
-      summary="These Subscription Terms explain how STORYTIME STUDIOS (Pty) Ltd (“Story Time”) structures viewer subscriptions, creator distribution licenses, and company listing plans—including billing authorization, renewals, cancellation, and store-specific rules for Apple App Store purchases."
+      summary="These Subscription Terms explain how STORYTIME STUDIOS (Pty) Ltd (“Story Time”) structures viewer subscriptions, creator distribution licenses, and company listing plans—including billing authorization, renewals, cancellation, and store-specific rules for Apple App Store, Google Play, and other distributor billing."
       lastUpdated="July 2026"
-      highlights={["ZAR pricing", "Auto-renewal disclosed", "Cancel anytime", "Apple IAP"]}
+      highlights={["ZAR pricing", "Auto-renewal disclosed", "Cancel anytime", "Apple & Play Billing"]}
       sections={[
         {
           title: "1. Viewer subscriptions",
@@ -47,9 +47,9 @@ export default function SubscriptionTermsPage() {
           content: (
             <>
               <p>
-                By starting a paid plan, you authorize Story Time (or Apple, for App
-                Store–billed plans) to charge the disclosed price for each billing period
-                until you cancel.
+                By starting a paid plan, you authorize Story Time (or the relevant store
+                operator—such as Apple or Google—for store-billed plans) to charge the
+                disclosed price for each billing period until you cancel.
               </p>
               <p>
                 Recurring plans renew automatically at the end of each period unless
@@ -72,8 +72,11 @@ export default function SubscriptionTermsPage() {
               <p>
                 You may cancel auto-renewal at any time through account billing settings.
                 For subscriptions purchased via Apple, manage or cancel in your Apple ID
-                subscription settings. Cancellation takes effect at the end of the
-                current paid period unless otherwise required by law.
+                subscription settings. For subscriptions purchased via Google Play,
+                manage or cancel in Google Play → Payments &amp; subscriptions (or the
+                equivalent Google account subscription controls). Cancellation takes
+                effect at the end of the current paid period unless otherwise required by
+                law or store rules.
               </p>
               <p>
                 Story Time may change pricing, packaging, or entitlements for future
@@ -89,7 +92,8 @@ export default function SubscriptionTermsPage() {
           content: (
             <>
               <p>
-                If you subscribe through a native iOS app using Apple In-App Purchase:
+                If you subscribe through a native iOS or Apple TV app using Apple In-App
+                Purchase:
               </p>
               <ul className="list-disc space-y-1 pl-5">
                 <li>payment is charged to your Apple ID account;</li>
@@ -105,13 +109,38 @@ export default function SubscriptionTermsPage() {
           ),
         },
         {
-          title: "6. Non-payment and access",
+          title: "6. Google Play and Android / TV store subscriptions",
+          content: (
+            <>
+              <p>
+                If you subscribe through a Google Play–distributed Android, Android TV,
+                or Google TV application using Google Play Billing:
+              </p>
+              <ul className="list-disc space-y-1 pl-5">
+                <li>payment is charged to the Google account used on Google Play;</li>
+                <li>subscription terms, price, and billing period are shown in the Play purchase flow before confirmation;</li>
+                <li>the subscription renews automatically until you cancel through Google Play subscription management;</li>
+                <li>cancellation and refund pathways follow Google Play’s policies in addition to these Terms; and</li>
+                <li>where Google requires an easy in-app path to manage or cancel subscriptions, Story Time will surface store subscription management links or equivalent controls.</li>
+              </ul>
+              <p>
+                Subscriptions purchased through Amazon Appstore, Samsung, LG, Roku, or
+                other TV / OEM stores are likewise subject to that store’s billing,
+                renewal, and cancellation rules in addition to these Subscription Terms.
+              </p>
+            </>
+          ),
+        },
+        {
+          title: "7. Non-payment and access",
           content: (
             <>
               <p>
                 If a renewal payment fails, we may retry billing, notify you, and
                 suspend premium access until payment succeeds or the plan ends. Fraud
-                controls may also limit access where payment risk is detected.
+                controls may also limit access where payment risk is detected. Store
+                operators may independently suspend store-billed entitlements under their
+                own policies.
               </p>
             </>
           ),
@@ -121,7 +150,9 @@ export default function SubscriptionTermsPage() {
         <p>
           Billing and subscription contact: support@story-time.online | +27 61 657
           2691. Refund eligibility and chargebacks are governed by the Refund Policy
-          and applicable South African consumer protections.
+          and applicable South African consumer protections. For Apple- or
+          Google-billed plans, also use the relevant store subscription or refund
+          tools.
         </p>
       }
     />

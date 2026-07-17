@@ -50,7 +50,19 @@ const CONTENT_TYPES = [
   { value: "MOVIE", label: "Movies" },
   { value: "SERIES", label: "Series" },
   { value: "SHOW", label: "Shows" },
+  { value: "ANIMATION", label: "Animation" },
+  { value: "SPORTS", label: "Sports" },
+  { value: "COMEDY_SKIT", label: "Comedy" },
+  { value: "DOCUMENTARY", label: "Documentaries" },
   { value: "PODCAST", label: "Podcasts" },
+  { value: "SHORT_FILM", label: "Short Films" },
+  { value: "STAND_UP", label: "Stand-Up" },
+  { value: "LIVE_EVENT", label: "Live Events" },
+  { value: "MUSIC_VIDEO", label: "Music Videos" },
+  { value: "REALITY", label: "Reality" },
+  { value: "WEB_SERIES", label: "Web Series" },
+  { value: "NEWS", label: "News" },
+  { value: "EDUCATIONAL", label: "Educational" },
 ];
 
 function buildSearchUrl(query: string, contentType: string, filter?: string) {

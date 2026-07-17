@@ -5,7 +5,7 @@ export default function CopyrightPage() {
     <LegalPage
       eyebrow="Rights"
       title="Copyright and Intellectual Property Notice"
-      summary="STORYTIME STUDIOS (Pty) Ltd (“Story Time”) respects creator ownership and third-party intellectual-property rights. This notice explains ownership on the platform, the limited license granted to operate the service, and how infringement complaints are handled under South African copyright law and App Store IP expectations."
+      summary="STORYTIME STUDIOS (Pty) Ltd (“Story Time”) respects creator ownership and third-party intellectual-property rights. This notice explains ownership on the platform, the limited license granted to operate the service, and how infringement complaints are handled under South African copyright law and the IP expectations of major app and TV distributors."
       lastUpdated="July 2026"
       highlights={["Creator-owned works", "Notice & takedown", "Counter-notice", "Repeat infringers"]}
       sections={[

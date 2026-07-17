@@ -7,7 +7,7 @@ export default function PaymentPolicyPage() {
       title="Payment Policy"
       summary="This Payment Policy explains how STORYTIME STUDIOS (Pty) Ltd (“Story Time”) processes payments for subscriptions, licenses, and other digital services. It works together with our Subscription Terms, Refund Policy, and Privacy Policy, and is designed for transparent e-commerce under the CPA and ECTA."
       lastUpdated="July 2026"
-      highlights={["PayFast", "No full card storage", "CPA pricing clarity", "Apple IAP note"]}
+      highlights={["PayFast", "No full card storage", "CPA pricing clarity", "Apple · Play · TV billing"]}
       sections={[
         {
           title: "1. Payment processors",
@@ -97,17 +97,31 @@ export default function PaymentPolicyPage() {
           ),
         },
         {
-          title: "6. Apple App Store and other store billing",
+          title: "6. App store and connected-TV billing",
           content: (
             <>
               <p>
-                If digital content or subscriptions are sold inside a native iOS app
-                through Apple In-App Purchase, those transactions are billed by Apple
-                under Apple’s Media Services Terms and related App Store rules. Refunds
-                for Apple-billed purchases are generally handled by Apple, not Story Time,
-                except where we are legally required to assist.
+                If digital content or subscriptions are sold inside a store-distributed
+                app, billing may be handled by the platform operator rather than PayFast:
               </p>
+              <ul className="list-disc space-y-1 pl-5">
+                <li>
+                  <strong className="text-slate-200">Apple In-App Purchase</strong> —
+                  billed by Apple under Apple’s Media Services Terms and App Store rules;
+                  refunds are generally handled by Apple.
+                </li>
+                <li>
+                  <strong className="text-slate-200">Google Play Billing</strong> —
+                  billed by Google under Google Play payment terms; refunds and
+                  cancellations generally follow Google Play’s policies and tools.
+                </li>
+                <li>
+                  <strong className="text-slate-200">Amazon, Samsung, LG, Roku, and other TV / OEM stores</strong>{" "}
+                  — billed under that store’s commerce rules where those channels are used.
+                </li>
+              </ul>
               <p>
+                Story Time will cooperate with store operators where reasonably requested.
                 Web payments processed via PayFast remain subject to this Payment Policy
                 and our Refund Policy.
               </p>
@@ -118,8 +132,9 @@ export default function PaymentPolicyPage() {
       footerNote={
         <p>
           Payments support: support@story-time.online | +27 61 657 2691. Include
-          account email, approximate payment time, amount, and any gateway reference
-          when contacting us.
+          account email, approximate payment time, amount, gateway or store reference,
+          and whether the charge came from the website, Apple, Google Play, or another
+          store when contacting us.
         </p>
       }
     />

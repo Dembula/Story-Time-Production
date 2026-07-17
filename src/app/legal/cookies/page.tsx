@@ -5,9 +5,9 @@ export default function CookiesPage() {
     <LegalPage
       eyebrow="Cookies"
       title="Cookie Policy"
-      summary="This Cookie Policy explains how STORYTIME STUDIOS (Pty) Ltd (“Story Time”) uses cookies and similar technologies on story-time.online and related services. It should be read with our Privacy Policy and is aligned with POPIA transparency principles, ECTA disclosure expectations, and Apple platform rules on tracking consent where applicable."
+      summary="This Cookie Policy explains how STORYTIME STUDIOS (Pty) Ltd (“Story Time”) uses cookies and similar technologies on story-time.online and related services. It should be read with our Privacy Policy and is aligned with POPIA transparency principles, ECTA disclosure expectations, and platform rules from Apple, Google Play / Android, and connected-TV distributors where applicable."
       lastUpdated="July 2026"
-      highlights={["Essential auth", "Preferences", "Security", "ATT-ready"]}
+      highlights={["Essential auth", "Preferences", "ATT & Ad ID", "TV platforms"]}
       sections={[
         {
           title: "1. What are cookies and similar technologies?",
@@ -63,20 +63,29 @@ export default function CookiesPage() {
           ),
         },
         {
-          title: "3. Apple App Tracking Transparency",
+          title: "3. Apple, Android, and device privacy controls",
           content: (
             <>
               <p>
-                If Story Time is distributed as a native iOS application and seeks to
-                track users across apps or websites owned by other companies for purposes
-                defined by Apple, we will request permission through Apple’s App Tracking
-                Transparency (ATT) framework and honour the user’s choice.
+                If Story Time is distributed as a native iOS or Apple TV application and
+                seeks to track users across apps or websites owned by other companies for
+                purposes defined by Apple, we will request permission through Apple’s App
+                Tracking Transparency (ATT) framework and honour the user’s choice.
               </p>
               <p>
-                First-party measurement needed to operate the app (for example, fraud
-                prevention or authenticated session analytics that is not “tracking” under
-                Apple’s definition) may continue as permitted by Apple’s rules and
-                applicable law.
+                On Android and Google Play–distributed apps (including Android TV /
+                Google TV where applicable), we will follow Google Play User Data policy
+                requirements for declaration, consent, and use of advertising IDs or
+                similar identifiers. Users may reset or limit advertising identifiers in
+                device settings.
+              </p>
+              <p>
+                First-party measurement needed to operate the service (for example, fraud
+                prevention, authenticated session analytics, or playback diagnostics that
+                is not “tracking” under the relevant platform definition) may continue as
+                permitted by that platform’s rules and applicable law. Connected-TV OEMs
+                (Amazon Fire TV, Samsung, LG, Roku, and similar) may impose additional
+                privacy or analytics controls that we will honour where they apply.
               </p>
             </>
           ),
@@ -93,8 +102,9 @@ export default function CookiesPage() {
               <p>
                 You can clear stored cookies and local storage through your browser or
                 device settings at any time. Device-level advertising or tracking
-                controls (including Apple’s Settings → Privacy &amp; Security options)
-                should also be respected where they apply.
+                controls—including Apple’s Privacy &amp; Security settings, Android /
+                Google advertising controls, and TV or OEM privacy menus—should also be
+                respected where they apply.
               </p>
             </>
           ),

@@ -38,10 +38,10 @@ const sections = [
     ],
   },
   {
-    title: "Privacy, Apple readiness, and account control",
+    title: "Privacy, stores, and account control",
     paragraphs: [
-      "Our Privacy Policy explains what we collect, why we use it, and how you can exercise POPIA rights. Signed-in users can export their data and permanently delete their account from in-product Privacy & account control settings, aligned with Apple App Store Guideline 5.1.1(v).",
-      "Where Sign in with Apple or other OAuth providers are enabled, authentication data is handled under our Privacy Policy and the provider’s terms.",
+      "Our Privacy Policy explains what we collect, why we use it, and how you can exercise POPIA rights. Signed-in users can export their data and permanently delete their account from in-product Privacy & account control settings, aligned with Apple App Store Guideline 5.1.1(v) and Google Play User Data policy (including an external web / support deletion pathway).",
+      "Where Sign in with Apple, Google, or other OAuth providers are enabled, authentication data is handled under our Privacy Policy and the provider’s terms. Store-billed purchases on Apple, Google Play, Amazon, or TV platforms follow the relevant store’s billing rules in addition to our Payment and Subscription Terms.",
     ],
   },
   {
@@ -54,7 +54,7 @@ const sections = [
   {
     title: "Compliance posture",
     paragraphs: [
-      "Story Time is operated with regard to POPIA, ECTA, the CPA, PAIA, the Cybercrimes Act, applicable intellectual-property law, and payment-partner requirements.",
+      "Story Time is operated with regard to POPIA, ECTA, the CPA, PAIA, the Cybercrimes Act, applicable intellectual-property law, payment-partner requirements, and major app-distributor expectations (Apple, Google Play, Amazon Appstore, and connected-TV platforms).",
       "We maintain transparent billing practices, content moderation standards, security controls, and enforcement of acceptable use to protect audiences, creators, and partners.",
     ],
   },

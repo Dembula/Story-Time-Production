@@ -18,6 +18,7 @@ import { getStreamAssetsByUrls } from "@/lib/stream-asset-store";
 import { linkOrIngestStreamForUrl } from "@/lib/stream-ingest-link";
 import { buildStreamIngestMeta } from "@/lib/stream-ingest-meta";
 import { creatorIsStudentAtUpload } from "@/lib/student-work";
+import { isCatalogueContentType, isLongFormType } from "@/lib/content-types";
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -97,7 +98,10 @@ export async function POST(request: NextRequest) {
   if (!body.title || !body.type) {
     return NextResponse.json({ error: "title and type required" }, { status: 400 });
   }
-  const isLongForm = ["SERIES", "SHOW", "PODCAST"].includes(String(body.type));
+  if (!isCatalogueContentType(String(body.type))) {
+    return NextResponse.json({ error: "Unsupported content type" }, { status: 400 });
+  }
+  const isLongForm = isLongFormType(String(body.type));
   const isDraft = (body.reviewStatus || "DRAFT") === "DRAFT";
   if (!isDraft && !isLongForm && !body.videoUrl) {
     return NextResponse.json({ error: "videoUrl required for this content type" }, { status: 400 });

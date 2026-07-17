@@ -5,9 +5,9 @@ export default function PrivacyPage() {
     <LegalPage
       eyebrow="Privacy"
       title="Privacy Policy"
-      summary="This Privacy Policy explains how STORYTIME STUDIOS (Pty) Ltd (“Story Time”, “we”, “us”, or “our”) collects, uses, shares, retains, and protects personal information when you use the Story Time platform at story-time.online and related services. It is designed to meet the Protection of Personal Information Act 4 of 2013 (“POPIA”), applicable South African law, and Apple App Store privacy expectations (including Guidelines 5.1 and 5.1.1)."
+      summary="This Privacy Policy explains how STORYTIME STUDIOS (Pty) Ltd (“Story Time”, “we”, “us”, or “our”) collects, uses, shares, retains, and protects personal information when you use the Story Time platform at story-time.online and related services. It is designed to meet the Protection of Personal Information Act 4 of 2013 (“POPIA”), applicable South African law, and the privacy expectations of major app distributors—including the Apple App Store, Google Play, Amazon Appstore, and connected TV / streaming platforms."
       lastUpdated="July 2026"
-      highlights={["POPIA", "Apple App Store 5.1.1", "Account export & delete", "No sale of personal data"]}
+      highlights={["POPIA", "Apple & Google Play", "In-app + web deletion", "TV / multi-platform"]}
       sections={[
         {
           title: "1. Who we are and how to contact us",
@@ -44,14 +44,18 @@ export default function PrivacyPage() {
                 This Policy applies to viewers, creators, music contributors, marketplace
                 stakeholders (including equipment, location, crew, casting, and catering
                 businesses), administrators, and visitors who access Story Time via web,
-                mobile browser, or any future native application distributed through the
-                Apple App Store or Google Play.
+                mobile browser, progressive web apps, or native / store-distributed
+                applications—including iOS, Android, tablets, and connected-TV or
+                living-room devices (for example Android TV / Google TV, Apple TV,
+                Amazon Fire TV, Samsung Tizen, LG webOS, Roku, or similar platforms where
+                Story Time is made available).
               </p>
               <p>
-                It covers personal information collected online through registration,
+                It covers personal information collected through registration,
                 authentication (including Sign in with Apple, Google, and other OAuth
                 providers where enabled), subscriptions, payments, content uploads,
-                messaging, support requests, and platform analytics.
+                messaging, support requests, device and playback diagnostics, and
+                platform analytics.
               </p>
             </>
           ),
@@ -61,8 +65,9 @@ export default function PrivacyPage() {
           content: (
             <>
               <p>
-                Consistent with transparent disclosure expectations (including Apple App
-                Privacy labelling principles), we may collect the following categories:
+                Consistent with transparent disclosure expectations used by major stores
+                (including Apple App Privacy labelling and Google Play Data safety
+                declarations), we may collect the following categories:
               </p>
               <ul className="list-disc space-y-2 pl-5">
                 <li>
@@ -96,9 +101,11 @@ export default function PrivacyPage() {
                 </li>
                 <li>
                   <strong className="text-slate-200">Usage and device data:</strong>{" "}
-                  IP address, browser or device type, approximate location derived from
-                  IP, app or page interactions, crash or diagnostic signals, and cookie
-                  or similar technology identifiers.
+                  IP address, browser or device type, operating system, app version,
+                  approximate location derived from IP, crash or diagnostic signals,
+                  playback quality metrics on supported devices (including TV clients),
+                  advertising or app-instance identifiers where permitted by platform
+                  rules, cookie or similar technology identifiers, and interaction logs.
                 </li>
                 <li>
                   <strong className="text-slate-200">Communications:</strong> support
@@ -219,10 +226,12 @@ export default function PrivacyPage() {
               </p>
               <p>
                 Essential cookies are required for the service to function. Where
-                non-essential analytics or tracking technologies are introduced
-                (including in any future native iOS app subject to Apple App Tracking
-                Transparency), we will obtain any required consent and provide controls
-                consistent with applicable law and platform rules.
+                non-essential analytics, advertising identifiers, or tracking
+                technologies are introduced, we will obtain any required consent and
+                provide controls consistent with applicable law and platform rules—
+                including Apple App Tracking Transparency on iOS, Google Play User Data
+                and advertising-ID requirements on Android, and equivalent TV or OEM
+                privacy controls where those platforms impose them.
               </p>
             </>
           ),
@@ -247,7 +256,7 @@ export default function PrivacyPage() {
           ),
         },
         {
-          title: "10. Your rights (POPIA) and Apple-aligned account controls",
+          title: "10. Your rights and multi-store account controls",
           content: (
             <>
               <p>
@@ -258,8 +267,9 @@ export default function PrivacyPage() {
                 may also lodge a complaint with the Information Regulator (South Africa).
               </p>
               <p>
-                In line with Apple App Store Guideline 5.1.1(v) and comparable store
-                requirements, signed-in users can:
+                In line with Apple App Store Guideline 5.1.1(v), Google Play User Data
+                policy (including in-app and external web account-deletion requirements),
+                and comparable rules of other app distributors, signed-in users can:
               </p>
               <ul className="list-disc space-y-1 pl-5">
                 <li>
@@ -271,27 +281,40 @@ export default function PrivacyPage() {
                   <strong className="text-slate-200">Delete</strong> their account from
                   those same in-product controls (viewers: Settings; creators and music
                   creators: Account → Security; marketplace stakeholders: Profile /
-                  Account pages).
+                  Account pages), including within store-distributed mobile or TV apps
+                  where account creation is offered.
                 </li>
               </ul>
               <p>
-                Account deletion removes the account and associated personal data that we
-                are not legally required to retain. Where hard deletion is blocked by
-                legal, tax, fraud, or safety obligations, we anonymise or de-identify
-                personal identifiers so the account can no longer be used to sign in.
-                Deletion is not merely temporary deactivation.
+                <strong className="text-slate-200">Google Play web deletion resource:</strong>{" "}
+                Users may also request account and associated data deletion without using
+                the native app by contacting support@story-time.online (or +27 61 657
+                2691) and identifying the account email, or by using Story Time’s web
+                account Privacy &amp; account control settings at story-time.online when
+                signed in. This Privacy Policy page and those channels are intended to
+                satisfy Google Play’s requirement for an external web resource linked
+                from Play Console Data safety / Data deletion disclosures.
               </p>
               <p>
-                If you signed in with Apple, account deletion includes steps reasonably
-                available to discontinue associated platform credentials. Where Apple
-                token revocation APIs apply to our integration, we revoke or invalidate
-                related tokens as part of deletion processing.
+                Account deletion removes the account and associated personal data that we
+                are not legally required to retain. Temporary deactivation or “freezing”
+                alone is not treated as deletion. Where hard deletion is blocked by
+                legal, tax, fraud-prevention, safety, or regulatory obligations, we
+                anonymise or de-identify personal identifiers so the account can no longer
+                be used to sign in, and we disclose those retention categories in this
+                Policy.
+              </p>
+              <p>
+                If you signed in with Apple or Google, account deletion includes steps
+                reasonably available to discontinue associated platform credentials.
+                Where provider token-revocation APIs apply to our integration, we revoke
+                or invalidate related tokens as part of deletion processing.
               </p>
             </>
           ),
         },
         {
-          title: "11. Children and age-restricted experiences",
+          title: "11. Children, Families, and age-restricted experiences",
           content: (
             <>
               <p>
@@ -304,15 +327,45 @@ export default function PrivacyPage() {
               <p>
                 We use profile age settings and content ratings to restrict access to
                 age-inappropriate material. We do not knowingly collect personal
-                information from children for marketing purposes. If you believe a child
-                has provided personal information without appropriate authority, contact
-                us and we will take reasonable steps to delete it.
+                information from children for marketing purposes, and we design
+                age-gating with regard to store Families / child-safety expectations
+                (including Google Play Families Policy principles and Apple kids /
+                age-rating rules) where those distribution channels apply. If you believe
+                a child has provided personal information without appropriate authority,
+                contact us and we will take reasonable steps to delete it.
               </p>
             </>
           ),
         },
         {
-          title: "12. Security safeguards",
+          title: "12. App stores, Android, and connected-TV platforms",
+          content: (
+            <>
+              <p>
+                When Story Time is distributed through third-party app marketplaces or
+                device platforms, additional store or OEM rules may apply to how we
+                declare data practices, obtain permissions, process payments, and handle
+                account deletion. Without limiting the rest of this Policy, we aim to
+                align with:
+              </p>
+              <ul className="list-disc space-y-1 pl-5">
+                <li>Apple App Store Review Guidelines (including privacy Guideline 5.1);</li>
+                <li>Google Play Developer Program Policies and User Data policy (including Data safety forms and account deletion);</li>
+                <li>Amazon Appstore and Fire TV content / privacy requirements where listed;</li>
+                <li>Android TV / Google TV, Apple TV, Samsung, LG, Roku, and similar TV or set-top distribution policies where Story Time is offered; and</li>
+                <li>any mandatory local consumer or privacy law that applies in the territories where the app is made available.</li>
+              </ul>
+              <p>
+                Store operators (Apple, Google, Amazon, TV OEMs, and others) are
+                independent controllers of data they collect under their own products
+                (for example Google account, Play Billing, or device diagnostics). Their
+                privacy notices also apply to that processing.
+              </p>
+            </>
+          ),
+        },
+        {
+          title: "13. Security safeguards",
           content: (
             <>
               <p>
@@ -328,13 +381,13 @@ export default function PrivacyPage() {
               <p>
                 No method of transmission or storage is completely secure. You should
                 use strong credentials, protect your devices, and sign out of shared
-                systems.
+                systems—especially on household TV or shared living-room profiles.
               </p>
             </>
           ),
         },
         {
-          title: "13. Automated decision-making and profiling",
+          title: "14. Automated decision-making and profiling",
           content: (
             <>
               <p>
@@ -349,11 +402,11 @@ export default function PrivacyPage() {
           ),
         },
         {
-          title: "14. Changes to this Policy",
+          title: "15. Changes to this Policy",
           content: (
             <>
               <p>
-                We may update this Privacy Policy to reflect product, legal, or
+                We may update this Privacy Policy to reflect product, legal, store, or
                 operational changes. The “Last updated” date at the top of this page
                 will change when we do. Material changes will be highlighted on the
                 platform or communicated by email where appropriate. Continued use after
@@ -369,8 +422,9 @@ export default function PrivacyPage() {
           Privacy and data-rights contact for STORYTIME STUDIOS (Pty) Ltd (CIPC
           registration number 2026/269060/07): support@story-time.online | +27 61 657
           2691. Use these channels for access, correction, deletion, objection, export,
-          Sign in with Apple credential concerns, and complaints. You may also escalate
-          to the Information Regulator (South Africa) where appropriate.
+          Google Play / App Store deletion requests, Sign in with Apple or Google
+          credential concerns, and complaints. You may also escalate to the Information
+          Regulator (South Africa) where appropriate.
         </p>
       }
     />

@@ -9,6 +9,8 @@ import {
   Upload, Film, Info, Image as ImageIcon, Settings, Users, Music,
   ArrowRight, ArrowLeft, CheckCircle, AlertCircle, Send, Save,
   Clapperboard, Globe, Tag, Clock, Calendar, Star, Tv, Shield, FileText,
+  Laugh, Mic2, Trophy, Palette, Video, Radio, Newspaper, GraduationCap,
+  Sparkles, ChevronDown, ChevronUp, type LucideIcon,
 } from "lucide-react";
 import { applyPrefillToUploadForm, type ProjectUploadPrefill } from "@/lib/project-upload-prefill";
 import { CheckoutModal } from "@/components/payments/checkout-modal";
@@ -16,7 +18,13 @@ import { CREATOR_PER_FILM_UPLOAD_PRICE } from "@/lib/pricing";
 import { formatZar } from "@/lib/format-currency-zar";
 import { MediaDropzone } from "@/components/ecosystem/media-dropzone";
 import { defaultMinAgeForRating } from "@/lib/fpb-compliance";
-import { isLongFormType } from "@/lib/content-types";
+import {
+  CONTENT_TYPE_LABELS,
+  MORE_UPLOAD_TYPE_VALUES,
+  PRIMARY_UPLOAD_TYPE_VALUES,
+  UPLOAD_TYPE_DESCRIPTIONS,
+  isLongFormType,
+} from "@/lib/content-types";
 import { SeriesEpisodesUpload, buildSeasonsPayload, type EpisodeDraft } from "@/components/creator/series-episodes-upload";
 import { UploadCreditRoleSelect } from "@/components/creator/upload-credit-role-select";
 import { GenreMultiSelect } from "@/components/creator/genre-multi-select";
@@ -34,14 +42,43 @@ import {
 import type { CatalogueAssetKind, CatalogueUploadAsset } from "@/lib/catalogue-upload/types";
 import { catalogueAssetKindLabel } from "@/lib/catalogue-upload/types";
 
-const TYPES = [
-  { value: "MOVIE", label: "Movie", icon: Film, desc: "Feature or short film" },
-  { value: "DOCUMENTARY", label: "Documentary", icon: Film, desc: "Feature or episodic documentary" },
-  { value: "SHORT_FILM", label: "Short Film", icon: Film, desc: "Short-form narrative or experimental" },
-  { value: "SERIES", label: "Series", icon: Tv, desc: "Multi-episode scripted series" },
-  { value: "SHOW", label: "Show", icon: Star, desc: "Live show, variety, or reality" },
-  { value: "PODCAST", label: "Podcast", icon: Music, desc: "Audio or video podcast series" },
-];
+const TYPE_ICONS: Record<string, LucideIcon> = {
+  MOVIE: Film,
+  SERIES: Tv,
+  SHOW: Star,
+  DOCUMENTARY: Clapperboard,
+  SHORT_FILM: Film,
+  PODCAST: Music,
+  COMEDY_SKIT: Laugh,
+  STAND_UP: Mic2,
+  ANIMATION: Palette,
+  SPORTS: Trophy,
+  MUSIC_VIDEO: Video,
+  LIVE_EVENT: Radio,
+  REALITY: Sparkles,
+  WEB_SERIES: Tv,
+  NEWS: Newspaper,
+  EDUCATIONAL: GraduationCap,
+};
+
+type UploadTypeOption = {
+  value: string;
+  label: string;
+  icon: LucideIcon;
+  desc: string;
+};
+
+function buildTypeOptions(values: readonly string[]): UploadTypeOption[] {
+  return values.map((value) => ({
+    value,
+    label: CONTENT_TYPE_LABELS[value] ?? value,
+    icon: TYPE_ICONS[value] ?? Film,
+    desc: UPLOAD_TYPE_DESCRIPTIONS[value] ?? "Catalogue title",
+  }));
+}
+
+const PRIMARY_TYPES = buildTypeOptions(PRIMARY_UPLOAD_TYPE_VALUES);
+const MORE_TYPES = buildTypeOptions(MORE_UPLOAD_TYPE_VALUES);
 
 const LANGUAGES = [
   "English", "isiZulu", "isiXhosa", "Afrikaans", "Sesotho", "Setswana",
@@ -191,6 +228,7 @@ function DistributionUploadInner() {
   }
 
   const [step, setStep] = useState(1);
+  const [showMoreTypes, setShowMoreTypes] = useState(false);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
@@ -255,6 +293,12 @@ function DistributionUploadInner() {
   const [episodesPerSeason, setEpisodesPerSeason] = useState<number[]>([6]);
   const [episodeDrafts, setEpisodeDrafts] = useState<EpisodeDraft[]>([]);
   const longFormUpload = isLongFormType(form.type);
+
+  useEffect(() => {
+    if (form.type && (MORE_UPLOAD_TYPE_VALUES as readonly string[]).includes(form.type)) {
+      setShowMoreTypes(true);
+    }
+  }, [form.type]);
 
   useEffect(() => {
     if (!uploadJobId) return;
@@ -1133,11 +1177,17 @@ function DistributionUploadInner() {
       {/* Step 1: Content Type */}
       {step === 1 && (
         <div className="space-y-6">
-          <h2 className="text-xl font-semibold text-white">What are you delivering?</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {TYPES.map((t) => (
+          <div>
+            <h2 className="text-xl font-semibold text-white">What are you delivering?</h2>
+            <p className="mt-1 text-sm text-slate-400">
+              Choose the format that best matches your title. More specialised formats are under View more.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            {PRIMARY_TYPES.map((t) => (
               <button
                 key={t.value}
+                type="button"
                 onClick={() => updateField("type", t.value)}
                 className={`p-6 rounded-xl border text-left transition space-y-2 ${
                   form.type === t.value
@@ -1151,6 +1201,74 @@ function DistributionUploadInner() {
               </button>
             ))}
           </div>
+
+          {!showMoreTypes && MORE_TYPES.some((t) => t.value === form.type) && (
+            <div className="flex flex-wrap items-center gap-3 rounded-xl border border-orange-500/25 bg-orange-500/10 px-4 py-3 text-sm text-orange-100">
+              <span>
+                Selected format:{" "}
+                <strong className="text-orange-200">
+                  {CONTENT_TYPE_LABELS[form.type] ?? form.type}
+                </strong>
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowMoreTypes(true)}
+                className="rounded-lg border border-orange-400/30 bg-orange-500/15 px-2.5 py-1 text-xs font-medium text-orange-200 transition hover:bg-orange-500/25"
+              >
+                Change
+              </button>
+            </div>
+          )}
+
+          {showMoreTypes && (
+            <div className="space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                More formats
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {MORE_TYPES.map((t) => (
+                  <button
+                    key={t.value}
+                    type="button"
+                    onClick={() => {
+                      updateField("type", t.value);
+                      setShowMoreTypes(true);
+                    }}
+                    className={`p-5 rounded-xl border text-left transition space-y-2 ${
+                      form.type === t.value
+                        ? "border-orange-500 bg-orange-500/10"
+                        : "border-slate-700/50 bg-slate-800/30 hover:border-slate-600"
+                    }`}
+                  >
+                    <t.icon className={`w-7 h-7 ${form.type === t.value ? "text-orange-400" : "text-slate-500"}`} />
+                    <p className={`font-semibold ${form.type === t.value ? "text-orange-400" : "text-white"}`}>{t.label}</p>
+                    <p className="text-xs text-slate-500">{t.desc}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setShowMoreTypes((v) => !v)}
+            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:border-orange-400/40 hover:bg-orange-500/10 hover:text-orange-200"
+          >
+            {showMoreTypes ? (
+              <>
+                <ChevronUp className="h-4 w-4" />
+                Show fewer formats
+              </>
+            ) : (
+              <>
+                <ChevronDown className="h-4 w-4" />
+                View more formats
+                <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[11px] text-slate-400">
+                  {MORE_TYPES.length}
+                </span>
+              </>
+            )}
+          </button>
         </div>
       )}
 
@@ -1764,7 +1882,7 @@ function DistributionUploadInner() {
                 className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white placeholder-slate-500 text-sm focus:border-orange-500 focus:outline-none transition"
               />
             </div>
-            {(form.type === "SERIES" || form.type === "PODCAST") && (
+            {(isLongFormType(form.type)) && (
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-1.5 flex items-center gap-1.5">
                   <Tag className="w-4 h-4 text-orange-400" /> Number of Episodes
@@ -1830,7 +1948,7 @@ function DistributionUploadInner() {
               </div>
               <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
                 <div><span className="text-slate-500">Title:</span> <span className="text-white">{form.title || "—"}</span></div>
-                <div><span className="text-slate-500">Type:</span> <span className="text-white">{form.type || "—"}</span></div>
+                <div><span className="text-slate-500">Type:</span> <span className="text-white">{form.type ? (CONTENT_TYPE_LABELS[form.type] ?? form.type) : "—"}</span></div>
                 <div><span className="text-slate-500">Genres:</span> <span className="text-white">{selectedGenres.join(", ") || "—"}</span></div>
                 <div><span className="text-slate-500">Language:</span> <span className="text-white">{form.language || "—"}</span></div>
                 <div><span className="text-slate-500">Country:</span> <span className="text-white">{form.country || "—"}</span></div>

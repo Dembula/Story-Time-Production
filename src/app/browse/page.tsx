@@ -13,6 +13,7 @@ import { redirect } from "next/navigation";
 import { getViewerProfileAge } from "@/lib/viewer-profiles";
 import { VIEWER_MODELS } from "@/lib/viewer-access";
 import { packBrowseContentList } from "@/lib/browse-media-pack";
+import { contentTypePluralLabel } from "@/lib/content-types";
 
 /** Catalogue must reflect admin publish/unpublish immediately. */
 export const dynamic = "force-dynamic";
@@ -72,6 +73,9 @@ export default async function BrowsePage({
   let movies: ContentWithCount[] = [];
   let series: ContentWithCount[] = [];
   let animated: ContentWithCount[] = [];
+  let sports: ContentWithCount[] = [];
+  let comedySkits: ContentWithCount[] = [];
+  let documentaries: ContentWithCount[] = [];
   let shows: ContentWithCount[] = [];
   let liveMusic: ContentWithCount[] = [];
   let comedyShows: ContentWithCount[] = [];
@@ -120,7 +124,7 @@ export default async function BrowsePage({
         include: { _count: { select: { ratings: true } } },
       }),
       prisma.content.findMany({
-        where: { ...where, type: "MOVIE", category: { not: "Animated Film" } },
+        where: { ...where, type: "MOVIE" },
         take: 16,
         include: { _count: { select: { ratings: true } } },
       }),
@@ -130,7 +134,22 @@ export default async function BrowsePage({
         include: { _count: { select: { ratings: true } } },
       }),
       prisma.content.findMany({
-        where: { ...where, type: "MOVIE", category: "Animated Film" },
+        where: { ...where, type: "ANIMATION" },
+        take: 16,
+        include: { _count: { select: { ratings: true } } },
+      }),
+      prisma.content.findMany({
+        where: { ...where, type: "SPORTS" },
+        take: 16,
+        include: { _count: { select: { ratings: true } } },
+      }),
+      prisma.content.findMany({
+        where: { ...where, type: { in: ["COMEDY_SKIT", "STAND_UP"] } },
+        take: 16,
+        include: { _count: { select: { ratings: true } } },
+      }),
+      prisma.content.findMany({
+        where: { ...where, type: "DOCUMENTARY" },
         take: 16,
         include: { _count: { select: { ratings: true } } },
       }),
@@ -140,12 +159,12 @@ export default async function BrowsePage({
         include: { _count: { select: { ratings: true } } },
       }),
       prisma.content.findMany({
-        where: { ...where, type: "SHOW", category: "Live Music" },
+        where: { ...where, type: "LIVE_EVENT" },
         take: 16,
         include: { _count: { select: { ratings: true } } },
       }),
       prisma.content.findMany({
-        where: { ...where, type: "SHOW", category: "Comedy" },
+        where: { ...where, type: "SHOW", category: { contains: "Comedy" } },
         take: 16,
         include: { _count: { select: { ratings: true } } },
       }),
@@ -177,14 +196,17 @@ export default async function BrowsePage({
     movies = results[3];
     series = results[4];
     animated = results[5];
-    shows = results[6];
-    liveMusic = results[7];
-    comedyShows = results[8];
-    podcasts = results[9];
-    musicTracks = results[10];
-    afdaContent = results[11];
-    afdaMusic = results[12];
-    allCount = results[13];
+    sports = results[6];
+    comedySkits = results[7];
+    documentaries = results[8];
+    shows = results[9];
+    liveMusic = results[10];
+    comedyShows = results[11];
+    podcasts = results[12];
+    musicTracks = results[13];
+    afdaContent = results[14];
+    afdaMusic = results[15];
+    allCount = results[16];
   } catch (err) {
     loadError = true;
     if (process.env.NODE_ENV === "development") {
@@ -209,6 +231,9 @@ export default async function BrowsePage({
   movies = await withMedia(movies);
   series = await withMedia(series);
   animated = await withMedia(animated);
+  sports = await withMedia(sports);
+  comedySkits = await withMedia(comedySkits);
+  documentaries = await withMedia(documentaries);
   shows = await withMedia(shows);
   liveMusic = await withMedia(liveMusic);
   comedyShows = await withMedia(comedyShows);
@@ -237,11 +262,11 @@ export default async function BrowsePage({
       <div className="max-w-[1800px] mx-auto px-4 sm:px-6 md:px-12 -mt-10 md:-mt-16 relative z-10">
         {type && (
           <div className="mb-6">
-            <h2 className="text-2xl font-semibold text-white capitalize">
-              {type.toLowerCase()}
+            <h2 className="text-2xl font-semibold text-white">
+              {contentTypePluralLabel(type)}
             </h2>
             <p className="mt-1 text-sm text-slate-400">
-              Browse our collection of {type.toLowerCase()}
+              Browse our collection of {contentTypePluralLabel(type).toLowerCase()}
             </p>
           </div>
         )}
@@ -330,7 +355,7 @@ export default async function BrowsePage({
             {movies.length > 0 && (
               <ContentRow
                 title="Movies"
-                subtitle="Feature films and documentaries"
+                subtitle="Feature films and theatrical titles"
                 contents={movies}
                 ppvMode={isPpvViewer}
               />
@@ -345,9 +370,33 @@ export default async function BrowsePage({
             )}
             {animated.length > 0 && (
               <ContentRow
-                title="Animated Films"
-                subtitle="Family favorites and animated adventures"
+                title="Animation"
+                subtitle="Animated films, series, and shorts"
                 contents={animated}
+                ppvMode={isPpvViewer}
+              />
+            )}
+            {sports.length > 0 && (
+              <ContentRow
+                title="Sports"
+                subtitle="Matches, highlights, and sports coverage"
+                contents={sports}
+                ppvMode={isPpvViewer}
+              />
+            )}
+            {comedySkits.length > 0 && (
+              <ContentRow
+                title="Comedy"
+                subtitle="Skits, sketch comedy, and stand-up"
+                contents={comedySkits}
+                ppvMode={isPpvViewer}
+              />
+            )}
+            {documentaries.length > 0 && (
+              <ContentRow
+                title="Documentaries"
+                subtitle="True stories and non-fiction features"
+                contents={documentaries}
                 ppvMode={isPpvViewer}
               />
             )}
@@ -361,8 +410,8 @@ export default async function BrowsePage({
             )}
             {liveMusic.length > 0 && (
               <ContentRow
-                title="Live Music"
-                subtitle="Concert recordings and performances"
+                title="Live Events"
+                subtitle="Concerts, festivals, and live captures"
                 contents={liveMusic}
                 ppvMode={isPpvViewer}
               />
@@ -370,7 +419,7 @@ export default async function BrowsePage({
             {comedyShows.length > 0 && (
               <ContentRow
                 title="Comedy Shows"
-                subtitle="Stand-up and sketch comedy"
+                subtitle="Comedy entertainment shows"
                 contents={comedyShows}
                 ppvMode={isPpvViewer}
               />
@@ -410,18 +459,8 @@ export default async function BrowsePage({
 
         {type && !filter && (
           <ContentRow
-            title={type === "MOVIE" ? "Movies" : type === "SERIES" ? "Series" : type === "SHOW" ? "Shows" : type === "PODCAST" ? "Podcasts" : type}
-            subtitle={
-              type === "MOVIE"
-                ? "Feature films and documentaries"
-                : type === "SERIES"
-                  ? "Binge-worthy shows"
-                  : type === "SHOW"
-                    ? "Variety and entertainment"
-                    : type === "PODCAST"
-                      ? "Conversations and stories"
-                      : `All ${type.toLowerCase()}`
-            }
+            title={contentTypePluralLabel(type)}
+            subtitle={`All ${contentTypePluralLabel(type).toLowerCase()}`}
             contents={trending}
             ppvMode={isPpvViewer}
           />

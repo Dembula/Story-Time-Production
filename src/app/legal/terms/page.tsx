@@ -7,7 +7,7 @@ export default function TermsPage() {
       title="Terms of Service"
       summary="These Terms of Service (“Terms”) form a binding agreement between you and STORYTIME STUDIOS (Pty) Ltd (CIPC registration number 2026/269060/07) (“Story Time”, “we”, “us”, or “our”) governing access to and use of the Story Time platform. They should be read with our Privacy Policy, Subscription Terms, Payment Policy, Refund Policy, Content Policy, Cookie Policy, Acceptable Use Policy, and Copyright Notice."
       lastUpdated="July 2026"
-      highlights={["South Africa", "CPA & ECTA", "Apple App Store ready", "Account deletion"]}
+      highlights={["South Africa", "CPA & ECTA", "Apple · Google Play · TV", "Account deletion"]}
       sections={[
         {
           title: "1. Acceptance of these Terms",
@@ -79,8 +79,9 @@ export default function TermsPage() {
               <p>
                 You may export your data and permanently delete your account from
                 in-product Privacy &amp; account control settings, consistent with Apple
-                App Store Guideline 5.1.1(v) and our Privacy Policy. Deletion removes
-                personal data we are not legally required to retain.
+                App Store Guideline 5.1.1(v), Google Play User Data policy (in-app and
+                web deletion), and our Privacy Policy. Deletion removes personal data we
+                are not legally required to retain.
               </p>
             </>
           ),
@@ -188,33 +189,54 @@ export default function TermsPage() {
               <p>
                 Web and browser payments are typically processed through licensed
                 gateways such as PayFast. Story Time does not intentionally store full
-                card PAN or CVV. If a native iOS application is distributed through the
-                Apple App Store and Apple requires In-App Purchase for digital content,
-                those purchases will additionally be subject to Apple’s terms, billing,
-                and refund rules for the relevant transaction.
+                card PAN or CVV. If a native application is distributed through the Apple
+                App Store, Google Play, Amazon Appstore, or a connected-TV store and that
+                platform requires its own billing system for digital content or
+                subscriptions (for example Apple In-App Purchase or Google Play Billing),
+                those purchases will additionally be subject to the store operator’s
+                terms, billing, and refund rules for the relevant transaction.
               </p>
             </>
           ),
         },
         {
-          title: "10. Third-party services and Apple distribution",
+          title: "10. Third-party services and app / TV distribution",
           content: (
             <>
               <p>
                 The platform may integrate third-party services (authentication,
-                payments, hosting, analytics). Your use of those services may be subject
-                to their own terms and privacy policies.
+                payments, hosting, analytics, DRM or playback SDKs). Your use of those
+                services may be subject to their own terms and privacy policies.
               </p>
               <p>
-                If you access Story Time through an Apple device or a future App Store
-                application: (a) these Terms are between you and STORYTIME STUDIOS (Pty)
-                Ltd, not Apple; (b) Apple has no obligation to provide maintenance or
-                support for the app beyond what Apple’s own rules require; (c) to the
-                maximum extent permitted by law, Apple has no warranty obligation for
-                the app; (d) Apple is not responsible for product claims, consumer
-                protection claims, or intellectual-property infringement claims arising
-                from the app; and (e) Apple and Apple’s subsidiaries are third-party
-                beneficiaries of this section and may enforce it.
+                <strong className="text-slate-200">Apple App Store.</strong> If you
+                access Story Time through an Apple device or App Store application:
+                (a) these Terms are between you and STORYTIME STUDIOS (Pty) Ltd, not
+                Apple; (b) Apple has no obligation to provide maintenance or support for
+                the app beyond what Apple’s own rules require; (c) to the maximum extent
+                permitted by law, Apple has no warranty obligation for the app;
+                (d) Apple is not responsible for product claims, consumer protection
+                claims, or intellectual-property infringement claims arising from the
+                app; and (e) Apple and Apple’s subsidiaries are third-party beneficiaries
+                of this Apple paragraph and may enforce it.
+              </p>
+              <p>
+                <strong className="text-slate-200">Google Play and Android.</strong> If
+                you access Story Time through Google Play or an Android device, these
+                Terms are between you and STORYTIME STUDIOS (Pty) Ltd, not Google. Google
+                is not a party to this agreement and is not responsible for the app,
+                its content, or support, except as required under Google’s own
+                agreements with you. Google Play Billing purchases are also subject to
+                Google’s payment and refund policies.
+              </p>
+              <p>
+                <strong className="text-slate-200">Other distributors and TV platforms.</strong>{" "}
+                The same principle applies to Amazon Appstore / Fire TV, Android TV /
+                Google TV, Apple TV, Samsung Tizen, LG webOS, Roku, carrier stores, and
+                other OEMs or aggregators that may distribute Story Time: the agreement
+                for the Story Time service is with STORYTIME STUDIOS (Pty) Ltd, while
+                store billing, device accounts, and platform-level privacy controls remain
+                governed by the relevant distributor’s terms.
               </p>
             </>
           ),

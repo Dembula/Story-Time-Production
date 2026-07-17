@@ -5,9 +5,9 @@ export default function RegulatoryFrameworkPage() {
     <LegalPage
       eyebrow="Compliance"
       title="Legal and Regulatory Framework"
-      summary="STORYTIME STUDIOS (Pty) Ltd (“Story Time”) operates primarily under South African law and maintains governance controls across privacy, e-commerce, consumer protection, cybersecurity, payments, and access-to-information. This page also notes alignment with Apple App Store privacy and content expectations for digital distribution."
+      summary="STORYTIME STUDIOS (Pty) Ltd (“Story Time”) operates primarily under South African law and maintains governance controls across privacy, e-commerce, consumer protection, cybersecurity, payments, and access-to-information. This page also describes alignment with major app distributors—including Apple App Store, Google Play, Amazon Appstore, and connected-TV platforms."
       lastUpdated="July 2026"
-      highlights={["POPIA", "ECTA", "CPA", "PAIA", "Apple 5.1", "Cybercrimes Act"]}
+      highlights={["POPIA", "ECTA", "CPA", "Google Play", "Apple 5.1", "TV platforms"]}
       sections={[
         {
           title: "1. Operator and compliance scope",
@@ -18,7 +18,7 @@ export default function RegulatoryFrameworkPage() {
                 number 2026/269060/07), a private company in the Republic of South
                 Africa. Compliance controls cover personal-data processing, electronic
                 contracting, payments, content moderation, child and audience safety, and
-                records management across web and any mobile applications.
+                records management across web, mobile, and connected-TV applications.
               </p>
             </>
           ),
@@ -132,22 +132,54 @@ export default function RegulatoryFrameworkPage() {
           ),
         },
         {
-          title: "10. Apple App Store and platform-partner expectations",
+          title: "10. App stores, Google Play, Apple, and connected-TV distributors",
           content: (
             <>
               <p>
-                For App Store distribution readiness, Story Time maintains:
+                For multi-platform distribution readiness, Story Time maintains
+                governance designed to align with major marketplace and device-store
+                expectations:
               </p>
-              <ul className="list-disc space-y-1 pl-5">
-                <li>a publicly accessible Privacy Policy describing collection, use, sharing, retention, and deletion;</li>
-                <li>in-product account data export and permanent account deletion (Guideline 5.1.1(v));</li>
-                <li>clear subscription auto-renewal and cancellation disclosures;</li>
-                <li>content and child-safety rules aligned with store content standards; and</li>
-                <li>App Tracking Transparency readiness for any future cross-app tracking on iOS.</li>
+              <ul className="list-disc space-y-2 pl-5">
+                <li>
+                  <strong className="text-slate-200">Public privacy disclosures</strong> —
+                  a Privacy Policy describing collection, use, sharing, retention,
+                  security, and deletion, suitable for Apple App Privacy, Google Play
+                  Data safety, and similar store questionnaires.
+                </li>
+                <li>
+                  <strong className="text-slate-200">Account deletion</strong> —
+                  in-product permanent account deletion and data export (Apple Guideline
+                  5.1.1(v)), plus an external web / support deletion pathway for Google
+                  Play User Data policy compliance (not mere account freezing).
+                </li>
+                <li>
+                  <strong className="text-slate-200">Subscriptions and billing clarity</strong>{" "}
+                  — auto-renewal, pricing, and cancellation disclosures for web (PayFast)
+                  and store billing (Apple In-App Purchase, Google Play Billing, and other
+                  OEM / TV stores where used).
+                </li>
+                <li>
+                  <strong className="text-slate-200">Content and child safety</strong> —
+                  Content Policy, Acceptable Use Policy, age ratings / advisories, and
+                  Families-oriented design principles for store and TV catalogues.
+                </li>
+                <li>
+                  <strong className="text-slate-200">Platform-specific privacy controls</strong>{" "}
+                  — readiness for Apple App Tracking Transparency, Android advertising-ID
+                  / User Data requirements, and TV or OEM privacy settings.
+                </li>
+                <li>
+                  <strong className="text-slate-200">Distributor independence</strong> —
+                  Apple, Google, Amazon, Samsung, LG, Roku, and similar distributors are
+                  not parties to the Story Time user agreement for the service itself;
+                  their store terms govern store accounts, device services, and
+                  store-processed payments.
+                </li>
               </ul>
               <p>
-                Web payments via PayFast and any future Apple In-App Purchases are
-                disclosed in our Payment and Subscription Terms.
+                Detailed operational disclosures appear in our Privacy Policy, Terms of
+                Service, Subscription Terms, Payment Policy, and Refund Policy.
               </p>
             </>
           ),

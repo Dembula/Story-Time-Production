@@ -7,7 +7,7 @@ export default function RefundPolicyPage() {
       title="Refund and Cancellation Policy"
       summary="This Policy explains how STORYTIME STUDIOS (Pty) Ltd (“Story Time”) handles cancellations, refunds, billing disputes, failed charges, and chargebacks. It is applied with regard to the Consumer Protection Act 68 of 2008 (“CPA”) where you are a consumer, and with card-network and payment-partner rules."
       lastUpdated="July 2026"
-      highlights={["CPA aware", "Cancel anytime", "Fair review", "Apple IAP path"]}
+      highlights={["CPA aware", "Cancel anytime", "Fair review", "Apple · Play refunds"]}
       sections={[
         {
           title: "1. Cancellation of subscriptions",
@@ -15,10 +15,10 @@ export default function RefundPolicyPage() {
             <>
               <p>
                 You may cancel a recurring Story Time subscription at any time through
-                your account billing settings (or through Apple subscriptions management
-                for App Store–billed plans). Cancellation stops future renewals; it does
-                not automatically refund the current paid period unless this Policy or
-                applicable law requires otherwise.
+                your account billing settings (or through Apple / Google Play /
+                other-store subscription management for store-billed plans). Cancellation
+                stops future renewals; it does not automatically refund the current paid
+                period unless this Policy or applicable law requires otherwise.
               </p>
               <p>
                 Access typically continues until the end of the already-paid billing
@@ -81,14 +81,24 @@ export default function RefundPolicyPage() {
           ),
         },
         {
-          title: "5. Apple In-App Purchase refunds",
+          title: "5. Apple, Google Play, and other store refunds",
           content: (
             <>
               <p>
                 Purchases billed by Apple through In-App Purchase are generally refunded
                 by Apple under Apple’s policies. Request those refunds via Apple’s report
-                a problem / purchase history tools. Story Time will cooperate with Apple
-                where reasonably requested.
+                a problem / purchase history tools.
+              </p>
+              <p>
+                Purchases billed by Google through Google Play Billing are generally
+                refunded by Google under Google Play’s refund policies. Request those
+                refunds through Google Play order history or Google’s refund tools.
+              </p>
+              <p>
+                Purchases billed by Amazon, Samsung, LG, Roku, or another TV / OEM store
+                should be refunded through that store’s support or order tools. Story Time
+                will cooperate with store operators where reasonably requested and where
+                we are legally required to assist.
               </p>
             </>
           ),

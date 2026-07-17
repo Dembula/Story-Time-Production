@@ -5,9 +5,9 @@ export default function ContentPolicyPage() {
     <LegalPage
       eyebrow="Moderation"
       title="Content Policy"
-      summary="STORYTIME STUDIOS (Pty) Ltd (“Story Time”) operates a structured entertainment platform—not an unrestricted file host. This Content Policy sets creator responsibilities, prohibited material, age and classification standards, and enforcement expectations under South African law (including the Films and Publications Act where applicable) and Apple App Store content safety principles."
+      summary="STORYTIME STUDIOS (Pty) Ltd (“Story Time”) operates a structured entertainment platform—not an unrestricted file host. This Content Policy sets creator responsibilities, prohibited material, age and classification standards, and enforcement expectations under South African law (including the Films and Publications Act where applicable) and major distributor content-safety principles (Apple App Store, Google Play, Amazon Appstore, and connected-TV catalogues)."
       lastUpdated="July 2026"
-      highlights={["Creator clearances", "Child safety", "Age ratings", "Takedowns"]}
+      highlights={["Creator clearances", "Child safety", "Age ratings", "Store & TV safe"]}
       sections={[
         {
           title: "1. Creator responsibility and rights clearances",
@@ -45,8 +45,9 @@ export default function ContentPolicyPage() {
               <p>
                 We may also reject or restrict material that creates unacceptable legal,
                 brand, payment-partner, platform-safety, or audience-trust risk,
-                including content that would be inappropriate under Apple App Store
-                content guidelines for apps that reach general audiences.
+                including content that would be inappropriate under Apple App Store,
+                Google Play, Amazon Appstore, or connected-TV catalogue content
+                guidelines for apps that reach general audiences.
               </p>
             </>
           ),
