@@ -103,9 +103,34 @@ export async function GET(
           await linkOrIngestStreamForUrl(videoUrl, "Content", id, {
             area: isTrailer ? "content-trailer" : "admin-review-recovery",
             contentId: id,
+            source: "storytime-admin-preview-recovery",
           });
         } catch (err) {
           console.error("admin playback-preview stream recovery failed:", err);
+        }
+      });
+    }
+
+    // If Stream previously failed, kick a re-encode while still serving S3 fallback.
+    if (playback?.src && videoUrl) {
+      after(async () => {
+        try {
+          const { findStreamAssetBySourceUrl } = await import("@/lib/stream-asset-store");
+          const { isFailedStreamStatus } = await import("@/lib/content-approve-publish");
+          const { linkOrIngestStreamForUrl } = await import("@/lib/stream-ingest-link");
+          const { normalizeStorageMediaUrl } = await import("@/lib/pack-storage-media-url");
+          const normalized = normalizeStorageMediaUrl(videoUrl) ?? videoUrl;
+          const asset =
+            (await findStreamAssetBySourceUrl(normalized)) ??
+            (await findStreamAssetBySourceUrl(videoUrl));
+          if (asset && isFailedStreamStatus(asset.status)) {
+            await linkOrIngestStreamForUrl(videoUrl, "Content", id, {
+              area: "admin-preview-reencode",
+              source: "storytime-admin-preview-reencode",
+            });
+          }
+        } catch (err) {
+          console.error("admin playback-preview failed-stream reencode failed:", err);
         }
       });
     }

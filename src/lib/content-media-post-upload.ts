@@ -58,6 +58,7 @@ export function buildContentMediaFinalizePayload(options: {
 /** Ingest a video from S3 into Cloudflare Stream (run in background via `after()`). */
 export async function ingestVideoStreamForContentMedia(options: {
   sourceUrl: string;
+  storageRef?: string | null;
   contentType: string;
   fileNameForMeta?: string;
   creatorId?: string;
@@ -65,8 +66,13 @@ export async function ingestVideoStreamForContentMedia(options: {
   if (!options.contentType.startsWith("video/")) return;
 
   try {
+    const { resolveIngestSourceUrlForCloudflare } = await import("@/lib/stream-ingest-source");
+    const ingestUrl =
+      (await resolveIngestSourceUrlForCloudflare(options.storageRef || options.sourceUrl)) ??
+      options.sourceUrl;
+
     const stream = await ingestToCloudflareStreamFromUrl(
-      options.sourceUrl,
+      ingestUrl,
       buildStreamIngestMeta({
         fileName: options.fileNameForMeta ?? "video",
         creatorId: options.creatorId,
@@ -77,6 +83,7 @@ export async function ingestVideoStreamForContentMedia(options: {
     );
     await upsertStreamAsset({
       uid: stream.uid,
+      // Persist the stable catalogue/source URL (not the temporary signed GET).
       sourceUrl: options.sourceUrl,
       playbackUrl: stream.mp4Url,
       hlsUrl: stream.hlsUrl,

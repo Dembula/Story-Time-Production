@@ -98,9 +98,30 @@ export async function findStreamAssetBySourceUrl(
     SELECT "uid", "sourceUrl", "status", "playbackUrl", "hlsUrl", "iframeUrl"
     FROM "StreamAsset"
     WHERE "sourceUrl" IN (${Prisma.join(keys)})
+    ORDER BY
+      CASE
+        WHEN lower(coalesce("status", '')) IN ('ready', 'live', 'completed', 'success') THEN 0
+        WHEN lower(coalesce("status", '')) IN ('error', 'failed') THEN 2
+        ELSE 1
+      END,
+      "updatedAt" DESC
     LIMIT 1
   `) as StreamAssetPlaybackCandidate[];
   return rows[0] ?? null;
+}
+
+/** Remove failed StreamAsset rows for a source so a re-ingest can become the canonical record. */
+export async function deleteFailedStreamAssetsForSourceUrl(sourceUrl: string): Promise<void> {
+  const trimmed = sourceUrl.trim();
+  if (!trimmed) return;
+  const { storageMediaLookupKeys } = await import("@/lib/pack-storage-media-url");
+  const keys = storageMediaLookupKeys(trimmed);
+  if (keys.length === 0) return;
+  await prisma.$executeRaw`
+    DELETE FROM "StreamAsset"
+    WHERE "sourceUrl" IN (${Prisma.join(keys)})
+      AND lower(coalesce("status", '')) IN ('error', 'failed')
+  `;
 }
 
 export async function getStreamAssetsByUrls(

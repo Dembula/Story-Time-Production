@@ -1,7 +1,7 @@
 [
   {
     "AllowedHeaders": ["*"],
-    "AllowedMethods": ["GET", "HEAD", "PUT", "POST"],
+    "AllowedMethods": ["GET", "HEAD", "PUT", "POST", "DELETE"],
     "AllowedOrigins": [
       "https://story-time.online",
       "https://www.story-time.online",
@@ -9,7 +9,14 @@
       "http://localhost:3000",
       "https://localhost:3000"
     ],
-    "ExposeHeaders": ["ETag", "x-amz-request-id", "x-amz-id-2"],
+    "ExposeHeaders": [
+      "ETag",
+      "etag",
+      "x-amz-request-id",
+      "x-amz-id-2",
+      "x-amz-version-id",
+      "x-amz-server-side-encryption"
+    ],
     "MaxAgeSeconds": 3000
   }
 ]

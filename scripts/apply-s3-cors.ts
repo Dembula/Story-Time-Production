@@ -128,9 +128,16 @@ async function main() {
   const corsRules = [
     {
       AllowedHeaders: ["*"],
-      AllowedMethods: ["GET", "HEAD", "PUT", "POST"],
+      AllowedMethods: ["GET", "HEAD", "PUT", "POST", "DELETE"],
       AllowedOrigins: origins,
-      ExposeHeaders: ["ETag", "x-amz-request-id", "x-amz-id-2"],
+      ExposeHeaders: [
+        "ETag",
+        "etag",
+        "x-amz-request-id",
+        "x-amz-id-2",
+        "x-amz-version-id",
+        "x-amz-server-side-encryption",
+      ],
       MaxAgeSeconds: 3000,
     },
   ];

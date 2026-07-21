@@ -85,6 +85,7 @@ async function xhrPutWithProgress(
   headers: Record<string, string>,
   onProgress?: (pct: number) => void,
   signal?: AbortSignal,
+  options?: { timeoutMs?: number },
 ): Promise<{ etag: string | null }> {
   return await new Promise<{ etag: string | null }>((resolve, reject) => {
     if (signal?.aborted) {
@@ -93,7 +94,9 @@ async function xhrPutWithProgress(
     }
     const xhr = new XMLHttpRequest();
     let lastPct = 0;
+    const timeoutMs = options?.timeoutMs ?? 0;
     xhr.open("PUT", url);
+    if (timeoutMs > 0) xhr.timeout = timeoutMs;
     Object.entries(headers).forEach(([k, v]) => xhr.setRequestHeader(k, v));
     xhr.upload.onprogress = (ev) => {
       if (!onProgress || !ev.lengthComputable || ev.total <= 0) return;
@@ -105,13 +108,23 @@ async function xhrPutWithProgress(
     };
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
-        resolve({ etag: xhr.getResponseHeader("ETag") });
+        const etag =
+          xhr.getResponseHeader("ETag") ||
+          xhr.getResponseHeader("etag") ||
+          xhr.getResponseHeader("Etag");
+        resolve({ etag });
       } else {
         reject(new Error(buildDirectUploadFailureMessage(xhr.status, xhr.responseText || "")));
       }
     };
     xhr.onerror = () =>
-      reject(new Error("Upload connection failed. Check network and S3 CORS (PUT + OPTIONS)."));
+      reject(
+        new Error(
+          "Upload connection failed (often S3 CORS). Ensure bucket CORS allows PUT + OPTIONS from this exact site origin and ExposeHeaders includes ETag. See deploy/connection-pack/s3-cors.json.",
+        ),
+      );
+    xhr.ontimeout = () =>
+      reject(new Error("Upload part timed out. Check your connection and retry — large masters upload in chunks."));
     xhr.onabort = () => reject(new DOMException("Upload aborted", "AbortError"));
     const onAbort = () => xhr.abort();
     if (signal) {
@@ -119,6 +132,41 @@ async function xhrPutWithProgress(
     }
     xhr.send(body);
   });
+}
+
+async function uploadPartWithRetries(options: {
+  uploadUrl: string;
+  blob: Blob;
+  partNumber: number;
+  onProgress?: (pct: number) => void;
+  signal?: AbortSignal;
+}): Promise<string | null> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      if (options.signal?.aborted) {
+        throw new DOMException("Upload aborted", "AbortError");
+      }
+      // ~15 minutes per 64MB part on very slow links
+      const { etag } = await xhrPutWithProgress(
+        options.uploadUrl,
+        options.blob,
+        {},
+        options.onProgress,
+        options.signal,
+        { timeoutMs: 15 * 60 * 1000 },
+      );
+      return etag;
+    } catch (err) {
+      lastError = err;
+      if (isAbortError(err)) throw err;
+      if (attempt >= 2) break;
+      await wait(800 * (attempt + 1));
+    }
+  }
+  throw lastError instanceof Error
+    ? lastError
+    : new Error(`Failed to upload part ${options.partNumber}`);
 }
 
 function isPresignUnavailableError(message: string): boolean {
@@ -236,11 +284,11 @@ async function uploadContentMediaViaMultipart(
         }
 
         let partLoaded = 0;
-        const { etag } = await xhrPutWithProgress(
-          signJson.uploadUrl,
+        const etag = await uploadPartWithRetries({
+          uploadUrl: signJson.uploadUrl,
           blob,
-          {},
-          (pct) => {
+          partNumber,
+          onProgress: (pct) => {
             const delta = blob.size * (pct / 100) - partLoaded;
             if (delta > 0) {
               uploadedBytes += delta;
@@ -249,13 +297,7 @@ async function uploadContentMediaViaMultipart(
             }
           },
           signal,
-        );
-
-        if (!etag) {
-          throw new Error(
-            `Missing ETag for part ${partNumber}. Ensure S3 CORS ExposeHeaders includes ETag.`,
-          );
-        }
+        });
 
         // Catch any remaining bytes if progress events were sparse.
         if (partLoaded < blob.size) {
@@ -263,7 +305,12 @@ async function uploadContentMediaViaMultipart(
           reportProgress();
         }
 
-        completedParts.push({ PartNumber: partNumber, ETag: etag });
+        // ETag is optional on the client — server ListParts is authoritative.
+        if (etag) {
+          completedParts.push({ PartNumber: partNumber, ETag: etag });
+        } else {
+          completedParts.push({ PartNumber: partNumber, ETag: "" });
+        }
       },
     );
   } catch (err) {
@@ -280,7 +327,10 @@ async function uploadContentMediaViaMultipart(
       uploadId,
       contentType,
       fileName: file.name,
-      parts: completedParts.sort((a, b) => a.PartNumber - b.PartNumber),
+      expectedPartCount: totalParts,
+      parts: completedParts
+        .filter((p) => p.ETag)
+        .sort((a, b) => a.PartNumber - b.PartNumber),
     }),
     signal,
   });

@@ -162,9 +162,19 @@ export async function PATCH(req: NextRequest) {
         return Boolean(asset?.status && isFailedStreamStatus(asset.status));
       });
       if (failed) {
+        // Attempt automatic re-ingest before blocking approve permanently.
+        try {
+          const { linkOrIngestStreamForUrl } = await import("@/lib/stream-ingest-link");
+          await linkOrIngestStreamForUrl(failed.url, "Content", contentId, {
+            area: "admin-approve-reencode",
+            source: "storytime-admin-reencode",
+          });
+        } catch (reencodeErr) {
+          console.error("admin approve re-encode failed:", reencodeErr);
+        }
         return NextResponse.json(
           {
-            error: `The ${failed.label} failed to encode for playback. Ask the creator to re-upload the file.`,
+            error: `The ${failed.label} failed to encode for playback. Re-encoding was re-queued — wait a few minutes and try Approve again. If it keeps failing, ask the creator to re-upload.`,
           },
           { status: 409 },
         );

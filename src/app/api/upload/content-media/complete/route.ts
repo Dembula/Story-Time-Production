@@ -52,6 +52,7 @@ export async function POST(request: NextRequest) {
       after(async () => {
         await ingestVideoStreamForContentMedia({
           sourceUrl: payload.sourceUrl,
+          storageRef: payload.storageRef,
           contentType,
           fileNameForMeta: nameHint,
           creatorId: userId,
