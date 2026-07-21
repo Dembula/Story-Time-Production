@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PutObjectCommand } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { CreateMultipartUploadCommand } from "@aws-sdk/client-s3";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import {
   ALLOWED_CONTENT_MEDIA_MIME_TYPES,
+  CONTENT_MEDIA_MULTIPART_PART_SIZE_BYTES,
   buildUserScopedUploadKey,
   contentMediaMaxUploadBytes,
   formatUploadSizeLimitLabel,
@@ -25,9 +25,9 @@ export async function POST(request: NextRequest) {
     }
 
     const limited = await enforceUserRateLimit({
-      key: "upload-presign",
+      key: "upload-multipart-init",
       userId,
-      maxAttempts: 120,
+      maxAttempts: 60,
       windowMs: 60 * 60 * 1000,
     });
     if (limited) return limited;
@@ -43,10 +43,12 @@ export async function POST(request: NextRequest) {
         { status: 500 },
       );
     }
-
     if (!storage.accessKeyId || !storage.secretAccessKey) {
       return NextResponse.json(
-        { error: "S3 credentials are required for direct uploads. Set STORAGE_ACCESS_KEY_ID and STORAGE_SECRET_ACCESS_KEY." },
+        {
+          error:
+            "S3 credentials are required for direct uploads. Set STORAGE_ACCESS_KEY_ID and STORAGE_SECRET_ACCESS_KEY.",
+        },
         { status: 500 },
       );
     }
@@ -76,7 +78,6 @@ export async function POST(request: NextRequest) {
 
     const hint = typeof body.contentType === "string" ? body.contentType : "";
     const contentType = resolveContentTypeForUpload({ name: body.fileName, type: hint });
-
     if (!ALLOWED_CONTENT_MEDIA_MIME_TYPES.has(contentType)) {
       return NextResponse.json(
         {
@@ -88,28 +89,29 @@ export async function POST(request: NextRequest) {
     }
 
     const key = buildUserScopedUploadKey(userId, body.fileName.trim());
+    const created = await client.send(
+      new CreateMultipartUploadCommand({
+        Bucket: bucket,
+        Key: key,
+        ContentType: contentType,
+      }),
+    );
 
-    const command = new PutObjectCommand({
-      Bucket: bucket,
-      Key: key,
-      ContentType: contentType,
-    });
-
-    const uploadUrl = await getSignedUrl(client, command, { expiresIn: 60 * 30 });
+    if (!created.UploadId) {
+      return NextResponse.json({ error: "Could not start multipart upload." }, { status: 500 });
+    }
 
     return NextResponse.json(
       {
-        uploadUrl,
+        uploadId: created.UploadId,
         key,
         contentType,
-        headers: {
-          "Content-Type": contentType,
-        },
+        partSize: CONTENT_MEDIA_MULTIPART_PART_SIZE_BYTES,
       },
       { status: 200 },
     );
   } catch (err) {
-    console.error("Presign error:", err);
-    return NextResponse.json({ error: "Could not start upload." }, { status: 500 });
+    console.error("Multipart init error:", err);
+    return NextResponse.json({ error: "Could not start multipart upload." }, { status: 500 });
   }
 }

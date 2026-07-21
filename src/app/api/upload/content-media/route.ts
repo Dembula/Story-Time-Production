@@ -7,6 +7,7 @@ import {
   ALLOWED_CONTENT_MEDIA_MIME_TYPES,
   buildUserScopedUploadKey,
   contentMediaMaxUploadBytes,
+  formatUploadSizeLimitLabel,
   resolveContentTypeForUpload,
 } from "@/lib/content-media-shared";
 import {
@@ -74,7 +75,7 @@ export async function POST(request: NextRequest) {
     if (file.size > maxBytes) {
       return NextResponse.json(
         {
-          error: `File too large. Max size is ${Math.floor(maxBytes / (1024 * 1024))}MB.`,
+          error: `File too large. Max size is ${formatUploadSizeLimitLabel(maxBytes)}.`,
         },
         { status: 413 },
       );

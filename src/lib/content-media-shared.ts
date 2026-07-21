@@ -1,6 +1,26 @@
 /** Shared rules for `/api/upload/content-media` (server + client hints). */
 
+/** Small assets may fall back to server proxy when S3 CORS PUT fails. */
 export const CONTENT_MEDIA_DIRECT_UPLOAD_MAX_BYTES = 4 * 1024 * 1024;
+
+/**
+ * AWS S3 single PutObject hard limit is 5 GiB.
+ * Feature-film masters above this MUST use multipart upload.
+ */
+export const S3_SINGLE_PUT_MAX_BYTES = 5 * 1024 * 1024 * 1024;
+
+/** Use multipart for files at/above this size (reliability + >5GB support). */
+export const CONTENT_MEDIA_MULTIPART_THRESHOLD_BYTES = 100 * 1024 * 1024;
+
+/** Preferred part size for multipart masters (must be ≥ 5 MiB except the last part). */
+export const CONTENT_MEDIA_MULTIPART_PART_SIZE_BYTES = 64 * 1024 * 1024;
+
+/**
+ * Default catalogue media ceiling: 30 GiB.
+ * Covers long feature masters (≈2h at delivery bitrates) without requiring env.
+ * Override with UPLOAD_MAX_FILE_SIZE_MB (e.g. 51200 for 50GB).
+ */
+export const DEFAULT_CONTENT_MEDIA_MAX_UPLOAD_MB = 30720;
 
 export const ALLOWED_CONTENT_MEDIA_MIME_TYPES = new Set([
   "application/pdf",
@@ -101,11 +121,27 @@ export function resolveContentTypeForUpload(file: Pick<File, "name" | "type">): 
   return raw || fromExt || "application/octet-stream";
 }
 
-export function contentMediaMaxUploadBytes(): number {
-  const DEFAULT_MAX_UPLOAD_MB = 1024;
+export function contentMediaMaxUploadMb(): number {
   const parsed = Number(process.env.UPLOAD_MAX_FILE_SIZE_MB);
-  const mb = Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_MAX_UPLOAD_MB;
-  return Math.floor(mb * 1024 * 1024);
+  const mb = Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_CONTENT_MEDIA_MAX_UPLOAD_MB;
+  return Math.floor(mb);
+}
+
+export function contentMediaMaxUploadBytes(): number {
+  return contentMediaMaxUploadMb() * 1024 * 1024;
+}
+
+export function shouldUseMultipartUpload(sizeBytes: number): boolean {
+  return sizeBytes >= CONTENT_MEDIA_MULTIPART_THRESHOLD_BYTES;
+}
+
+export function formatUploadSizeLimitLabel(maxBytes = contentMediaMaxUploadBytes()): string {
+  const gb = maxBytes / (1024 * 1024 * 1024);
+  if (gb >= 1) {
+    const rounded = gb >= 10 ? Math.round(gb) : Math.round(gb * 10) / 10;
+    return `${rounded}GB`;
+  }
+  return `${Math.floor(maxBytes / (1024 * 1024))}MB`;
 }
 
 export function buildUserScopedUploadKey(userId: string, fileName: string): string {

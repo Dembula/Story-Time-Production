@@ -22,7 +22,7 @@ Required storage keys:
 - `STORAGE_SECRET_ACCESS_KEY`
 - `STORAGE_PUBLIC_BASE_URL`
 - `STORAGE_ENDPOINT` (blank for normal S3)
-- `UPLOAD_MAX_FILE_SIZE_MB` (optional, defaults to `200`)
+- `UPLOAD_MAX_FILE_SIZE_MB` (optional, defaults to `30720` = 30GB for feature masters; set higher e.g. `51200` if needed)
 
 ### 2) Redeploy
 

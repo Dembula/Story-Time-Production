@@ -1,10 +1,15 @@
-import { CONTENT_MEDIA_DIRECT_UPLOAD_MAX_BYTES } from "@/lib/content-media-shared";
+import {
+  CONTENT_MEDIA_DIRECT_UPLOAD_MAX_BYTES,
+  CONTENT_MEDIA_MULTIPART_PART_SIZE_BYTES,
+  shouldUseMultipartUpload,
+} from "@/lib/content-media-shared";
 import type { ContentMediaFinalizePayload } from "@/lib/content-media-post-upload";
 
 export type { ContentMediaFinalizePayload };
 
 const NETWORK_ERROR_NAMES = new Set(["TypeError"]);
 const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
+const MULTIPART_CONCURRENCY = 3;
 
 function isNetworkFetchError(error: unknown): boolean {
   return error instanceof Error && NETWORK_ERROR_NAMES.has(error.name);
@@ -22,7 +27,7 @@ function isAbortError(error: unknown): boolean {
 }
 
 function isDirectUploadCorsOrNetworkError(message: string): boolean {
-  return /upload connection failed|s3 cors|cors \(put|network and s3|signature mismatch|accessdenied|direct upload was denied|direct upload to storage was rejected|direct upload failed/i.test(
+  return /upload connection failed|s3 cors|cors \(put|network and s3|signature mismatch|accessdenied|direct upload was denied|direct upload to storage was rejected|direct upload failed|multipart/i.test(
     message,
   );
 }
@@ -76,12 +81,12 @@ function buildDirectUploadFailureMessage(status: number, detail: string): string
 
 async function xhrPutWithProgress(
   url: string,
-  file: File,
+  body: Blob,
   headers: Record<string, string>,
   onProgress?: (pct: number) => void,
   signal?: AbortSignal,
-): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
+): Promise<{ etag: string | null }> {
+  return await new Promise<{ etag: string | null }>((resolve, reject) => {
     if (signal?.aborted) {
       reject(new DOMException("Upload aborted", "AbortError"));
       return;
@@ -99,8 +104,11 @@ async function xhrPutWithProgress(
       onProgress(lastPct);
     };
     xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) resolve();
-      else reject(new Error(buildDirectUploadFailureMessage(xhr.status, xhr.responseText || "")));
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve({ etag: xhr.getResponseHeader("ETag") });
+      } else {
+        reject(new Error(buildDirectUploadFailureMessage(xhr.status, xhr.responseText || "")));
+      }
     };
     xhr.onerror = () =>
       reject(new Error("Upload connection failed. Check network and S3 CORS (PUT + OPTIONS)."));
@@ -109,12 +117,187 @@ async function xhrPutWithProgress(
     if (signal) {
       signal.addEventListener("abort", onAbort, { once: true });
     }
-    xhr.send(file);
+    xhr.send(body);
   });
 }
 
 function isPresignUnavailableError(message: string): boolean {
-  return /credentials are required|not configured|could not start upload/i.test(message);
+  return /credentials are required|not configured|could not start upload|could not start multipart/i.test(
+    message,
+  );
+}
+
+async function abortMultipartUpload(key: string, uploadId: string): Promise<void> {
+  try {
+    await fetch("/api/upload/content-media/multipart/abort", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key, uploadId }),
+    });
+  } catch {
+    // Best-effort cleanup.
+  }
+}
+
+async function runWithConcurrency<T>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T) => Promise<void>,
+): Promise<void> {
+  let index = 0;
+  const runners = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (index < items.length) {
+      const current = items[index];
+      index += 1;
+      await worker(current);
+    }
+  });
+  await Promise.all(runners);
+}
+
+async function uploadContentMediaViaMultipart(
+  file: File,
+  onProgress?: (pct: number) => void,
+  signal?: AbortSignal,
+): Promise<ContentMediaFinalizePayload> {
+  onProgress?.(1);
+  const initRes = await fetchWithRetry(
+    "/api/upload/content-media/multipart/init",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fileName: file.name,
+        size: file.size,
+        contentType: file.type || undefined,
+      }),
+      signal,
+    },
+  );
+  const initJson = (await initRes.json().catch(() => ({}))) as {
+    error?: string;
+    uploadId?: string;
+    key?: string;
+    contentType?: string;
+    partSize?: number;
+  };
+  if (!initRes.ok) {
+    throw new Error(typeof initJson.error === "string" ? initJson.error : "Could not start multipart upload");
+  }
+  if (!initJson.uploadId || !initJson.key || !initJson.contentType) {
+    throw new Error("Invalid multipart init response");
+  }
+
+  const uploadId = initJson.uploadId;
+  const key = initJson.key;
+  const contentType = initJson.contentType;
+  const partSize =
+    typeof initJson.partSize === "number" && initJson.partSize > 0
+      ? initJson.partSize
+      : CONTENT_MEDIA_MULTIPART_PART_SIZE_BYTES;
+  const totalParts = Math.max(1, Math.ceil(file.size / partSize));
+  const completedParts: { PartNumber: number; ETag: string }[] = [];
+  let uploadedBytes = 0;
+
+  const reportProgress = () => {
+    const pct = 2 + Math.min(93, (uploadedBytes / Math.max(1, file.size)) * 93);
+    onProgress?.(pct);
+  };
+
+  try {
+    await runWithConcurrency(
+      Array.from({ length: totalParts }, (_, i) => i + 1),
+      MULTIPART_CONCURRENCY,
+      async (partNumber) => {
+        if (signal?.aborted) {
+          throw new DOMException("Upload aborted", "AbortError");
+        }
+        const start = (partNumber - 1) * partSize;
+        const end = Math.min(start + partSize, file.size);
+        const blob = file.slice(start, end);
+
+        const signRes = await fetchWithRetry(
+          "/api/upload/content-media/multipart/sign-part",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ key, uploadId, partNumber }),
+            signal,
+          },
+        );
+        const signJson = (await signRes.json().catch(() => ({}))) as {
+          error?: string;
+          uploadUrl?: string;
+        };
+        if (!signRes.ok || !signJson.uploadUrl) {
+          throw new Error(
+            typeof signJson.error === "string" ? signJson.error : `Could not sign part ${partNumber}`,
+          );
+        }
+
+        let partLoaded = 0;
+        const { etag } = await xhrPutWithProgress(
+          signJson.uploadUrl,
+          blob,
+          {},
+          (pct) => {
+            const delta = blob.size * (pct / 100) - partLoaded;
+            if (delta > 0) {
+              uploadedBytes += delta;
+              partLoaded += delta;
+              reportProgress();
+            }
+          },
+          signal,
+        );
+
+        if (!etag) {
+          throw new Error(
+            `Missing ETag for part ${partNumber}. Ensure S3 CORS ExposeHeaders includes ETag.`,
+          );
+        }
+
+        // Catch any remaining bytes if progress events were sparse.
+        if (partLoaded < blob.size) {
+          uploadedBytes += blob.size - partLoaded;
+          reportProgress();
+        }
+
+        completedParts.push({ PartNumber: partNumber, ETag: etag });
+      },
+    );
+  } catch (err) {
+    await abortMultipartUpload(key, uploadId);
+    throw err;
+  }
+
+  onProgress?.(96);
+  const completeRes = await fetchWithRetry("/api/upload/content-media/multipart/complete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      key,
+      uploadId,
+      contentType,
+      fileName: file.name,
+      parts: completedParts.sort((a, b) => a.PartNumber - b.PartNumber),
+    }),
+    signal,
+  });
+  const completeData = (await completeRes.json().catch(() => ({}))) as Partial<ContentMediaFinalizePayload> & {
+    error?: string;
+  };
+  if (!completeRes.ok) {
+    await abortMultipartUpload(key, uploadId);
+    throw new Error(
+      typeof completeData.error === "string" ? completeData.error : "Could not finalize multipart upload",
+    );
+  }
+  if (!completeData.publicUrl) {
+    throw new Error("Finalize did not return a file URL");
+  }
+  onProgress?.(100);
+  return completeData as ContentMediaFinalizePayload;
 }
 
 async function uploadContentMediaViaServerProxy(
@@ -289,6 +472,16 @@ export async function uploadContentMediaViaApiFull(
       }
     : undefined;
   const signal = options?.signal;
+
+  if (shouldUseMultipartUpload(file.size)) {
+    try {
+      return await uploadContentMediaViaMultipart(file, onProgress, signal);
+    } catch (err) {
+      if (isAbortError(err)) throw err;
+      throw err instanceof Error ? err : new Error("Multipart upload failed");
+    }
+  }
+
   try {
     return await uploadContentMediaViaPresignedPut(file, onProgress, signal);
   } catch (err) {
