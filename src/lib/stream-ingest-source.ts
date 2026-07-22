@@ -18,8 +18,8 @@ export async function resolveIngestSourceUrlForCloudflare(
   const ref = resolveStorageObjectRef(trimmed) ?? resolveStorageObjectRef(normalized);
   if (ref) {
     try {
-      // 12h — enough for Cloudflare to pull large feature masters.
-      return await getStorageObjectSignedUrl(ref, 60 * 60 * 12);
+      // 48h — Cloudflare needs time to pull multi‑GB feature masters.
+      return await getStorageObjectSignedUrl(ref, 60 * 60 * 48);
     } catch (err) {
       console.error("Signed ingest URL failed; falling back to public source URL:", err);
     }

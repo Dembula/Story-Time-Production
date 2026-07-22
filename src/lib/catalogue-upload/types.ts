@@ -52,7 +52,8 @@ export type CatalogueUploadJob = {
 };
 
 export const MAX_CONCURRENT_JOBS = 3;
-export const MAX_CONCURRENT_XHR = 2;
+/** Parallel catalogue asset uploads (poster + video can overlap; video uses internal multipart concurrency). */
+export const MAX_CONCURRENT_XHR = 3;
 
 export const EDITABLE_CATALOGUE_STATUSES = [
   "DRAFT",

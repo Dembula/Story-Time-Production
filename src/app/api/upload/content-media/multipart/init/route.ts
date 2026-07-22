@@ -4,9 +4,10 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import {
   ALLOWED_CONTENT_MEDIA_MIME_TYPES,
-  CONTENT_MEDIA_MULTIPART_PART_SIZE_BYTES,
+  CONTENT_MEDIA_MULTIPART_CONCURRENCY,
   buildUserScopedUploadKey,
   contentMediaMaxUploadBytes,
+  contentMediaMultipartPartSizeBytes,
   formatUploadSizeLimitLabel,
   resolveContentTypeForUpload,
 } from "@/lib/content-media-shared";
@@ -106,7 +107,8 @@ export async function POST(request: NextRequest) {
         uploadId: created.UploadId,
         key,
         contentType,
-        partSize: CONTENT_MEDIA_MULTIPART_PART_SIZE_BYTES,
+        partSize: contentMediaMultipartPartSizeBytes(size),
+        concurrency: CONTENT_MEDIA_MULTIPART_CONCURRENCY,
       },
       { status: 200 },
     );

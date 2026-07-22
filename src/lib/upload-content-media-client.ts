@@ -1,5 +1,6 @@
 import {
   CONTENT_MEDIA_DIRECT_UPLOAD_MAX_BYTES,
+  CONTENT_MEDIA_MULTIPART_CONCURRENCY,
   CONTENT_MEDIA_MULTIPART_PART_SIZE_BYTES,
   shouldUseMultipartUpload,
 } from "@/lib/content-media-shared";
@@ -9,7 +10,12 @@ export type { ContentMediaFinalizePayload };
 
 const NETWORK_ERROR_NAMES = new Set(["TypeError"]);
 const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
-const MULTIPART_CONCURRENCY = 3;
+/** How many part URLs to fetch ahead of the upload pool. */
+const SIGN_BATCH_SIZE = 24;
+/** Abort a stalled part if no progress bytes for this long. */
+const PART_STALL_TIMEOUT_MS = 90_000;
+/** Absolute ceiling per part attempt (slow links still finish large chunks). */
+const PART_HARD_TIMEOUT_MS = 45 * 60 * 1000;
 
 function isNetworkFetchError(error: unknown): boolean {
   return error instanceof Error && NETWORK_ERROR_NAMES.has(error.name);
@@ -85,7 +91,7 @@ async function xhrPutWithProgress(
   headers: Record<string, string>,
   onProgress?: (pct: number) => void,
   signal?: AbortSignal,
-  options?: { timeoutMs?: number },
+  options?: { timeoutMs?: number; stallTimeoutMs?: number; onBytes?: (loaded: number) => void },
 ): Promise<{ etag: string | null }> {
   return await new Promise<{ etag: string | null }>((resolve, reject) => {
     if (signal?.aborted) {
@@ -94,11 +100,53 @@ async function xhrPutWithProgress(
     }
     const xhr = new XMLHttpRequest();
     let lastPct = 0;
+    let lastLoaded = 0;
+    let lastProgressAt = Date.now();
+    let settled = false;
     const timeoutMs = options?.timeoutMs ?? 0;
+    const stallTimeoutMs = options?.stallTimeoutMs ?? 0;
+    let stallTimer: ReturnType<typeof setInterval> | null = null;
+
+    const cleanup = () => {
+      settled = true;
+      if (stallTimer) {
+        clearInterval(stallTimer);
+        stallTimer = null;
+      }
+      if (signal) signal.removeEventListener("abort", onAbort);
+    };
+
+    const fail = (err: Error) => {
+      if (settled) return;
+      cleanup();
+      try {
+        xhr.abort();
+      } catch {
+        // ignore
+      }
+      reject(err);
+    };
+
+    const succeed = (etag: string | null) => {
+      if (settled) return;
+      cleanup();
+      resolve({ etag });
+    };
+
+    const onAbort = () => {
+      fail(new DOMException("Upload aborted", "AbortError"));
+    };
+
     xhr.open("PUT", url);
     if (timeoutMs > 0) xhr.timeout = timeoutMs;
     Object.entries(headers).forEach(([k, v]) => xhr.setRequestHeader(k, v));
     xhr.upload.onprogress = (ev) => {
+      const loaded = ev.lengthComputable ? ev.loaded : ev.loaded;
+      if (loaded > lastLoaded) {
+        lastLoaded = loaded;
+        lastProgressAt = Date.now();
+        options?.onBytes?.(loaded);
+      }
       if (!onProgress || !ev.lengthComputable || ev.total <= 0) return;
       const next = (ev.loaded / ev.total) * 100;
       // Never report a lower % for this XHR (avoids bar jitter from event ordering).
@@ -108,65 +156,45 @@ async function xhrPutWithProgress(
     };
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
+        options?.onBytes?.(body.size);
         const etag =
           xhr.getResponseHeader("ETag") ||
           xhr.getResponseHeader("etag") ||
           xhr.getResponseHeader("Etag");
-        resolve({ etag });
+        succeed(etag);
       } else {
-        reject(new Error(buildDirectUploadFailureMessage(xhr.status, xhr.responseText || "")));
+        fail(new Error(buildDirectUploadFailureMessage(xhr.status, xhr.responseText || "")));
       }
     };
     xhr.onerror = () =>
-      reject(
+      fail(
         new Error(
           "Upload connection failed (often S3 CORS). Ensure bucket CORS allows PUT + OPTIONS from this exact site origin and ExposeHeaders includes ETag. See deploy/connection-pack/s3-cors.json.",
         ),
       );
     xhr.ontimeout = () =>
-      reject(new Error("Upload part timed out. Check your connection and retry — large masters upload in chunks."));
-    xhr.onabort = () => reject(new DOMException("Upload aborted", "AbortError"));
-    const onAbort = () => xhr.abort();
+      fail(new Error("Upload part timed out. Check your connection and retry — large masters upload in chunks."));
+    xhr.onabort = () => {
+      if (settled) return;
+      fail(new DOMException("Upload aborted", "AbortError"));
+    };
     if (signal) {
-      signal.addEventListener("abort", onAbort, { once: true });
+      signal.addEventListener("abort", onAbort);
+    }
+    if (stallTimeoutMs > 0) {
+      stallTimer = setInterval(() => {
+        if (settled) return;
+        if (Date.now() - lastProgressAt >= stallTimeoutMs) {
+          fail(
+            new Error(
+              "Upload stalled (no progress). Retrying this chunk — keep the tab open and check your connection.",
+            ),
+          );
+        }
+      }, Math.min(5_000, Math.max(1_000, Math.floor(stallTimeoutMs / 6))));
     }
     xhr.send(body);
   });
-}
-
-async function uploadPartWithRetries(options: {
-  uploadUrl: string;
-  blob: Blob;
-  partNumber: number;
-  onProgress?: (pct: number) => void;
-  signal?: AbortSignal;
-}): Promise<string | null> {
-  let lastError: unknown;
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    try {
-      if (options.signal?.aborted) {
-        throw new DOMException("Upload aborted", "AbortError");
-      }
-      // ~15 minutes per 64MB part on very slow links
-      const { etag } = await xhrPutWithProgress(
-        options.uploadUrl,
-        options.blob,
-        {},
-        options.onProgress,
-        options.signal,
-        { timeoutMs: 15 * 60 * 1000 },
-      );
-      return etag;
-    } catch (err) {
-      lastError = err;
-      if (isAbortError(err)) throw err;
-      if (attempt >= 2) break;
-      await wait(800 * (attempt + 1));
-    }
-  }
-  throw lastError instanceof Error
-    ? lastError
-    : new Error(`Failed to upload part ${options.partNumber}`);
 }
 
 function isPresignUnavailableError(message: string): boolean {
@@ -184,6 +212,173 @@ async function abortMultipartUpload(key: string, uploadId: string): Promise<void
     });
   } catch {
     // Best-effort cleanup.
+  }
+}
+
+async function fetchSignedPartUrls(options: {
+  key: string;
+  uploadId: string;
+  partNumbers: number[];
+  signal?: AbortSignal;
+}): Promise<Map<number, string>> {
+  const map = new Map<number, string>();
+  if (options.partNumbers.length === 0) return map;
+
+  const batchRes = await fetchWithRetry(
+    "/api/upload/content-media/multipart/sign-batch",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        key: options.key,
+        uploadId: options.uploadId,
+        partNumbers: options.partNumbers,
+      }),
+      signal: options.signal,
+    },
+    { attempts: 4, retryDelayMs: 400 },
+  );
+  const batchJson = (await batchRes.json().catch(() => ({}))) as {
+    error?: string;
+    urls?: Array<{ partNumber?: number; uploadUrl?: string }>;
+  };
+
+  if (batchRes.ok && Array.isArray(batchJson.urls) && batchJson.urls.length > 0) {
+    for (const row of batchJson.urls) {
+      const n = Number(row.partNumber);
+      const url = typeof row.uploadUrl === "string" ? row.uploadUrl : "";
+      if (Number.isInteger(n) && url) map.set(n, url);
+    }
+    return map;
+  }
+
+  // Fallback: older deploy without sign-batch — sign one-by-one.
+  await Promise.all(
+    options.partNumbers.map(async (partNumber) => {
+      const signRes = await fetchWithRetry(
+        "/api/upload/content-media/multipart/sign-part",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            key: options.key,
+            uploadId: options.uploadId,
+            partNumber,
+          }),
+          signal: options.signal,
+        },
+      );
+      const signJson = (await signRes.json().catch(() => ({}))) as {
+        error?: string;
+        uploadUrl?: string;
+      };
+      if (!signRes.ok || !signJson.uploadUrl) {
+        throw new Error(
+          typeof signJson.error === "string"
+            ? signJson.error
+            : typeof batchJson.error === "string"
+              ? batchJson.error
+              : `Could not sign part ${partNumber}`,
+        );
+      }
+      map.set(partNumber, signJson.uploadUrl);
+    }),
+  );
+  return map;
+}
+
+class SignedUrlPrefetcher {
+  private readonly urls = new Map<number, string>();
+  private nextToPrefetch = 1;
+  private activePrefetch: Promise<void> | null = null;
+
+  constructor(
+    private readonly key: string,
+    private readonly uploadId: string,
+    private readonly totalParts: number,
+    private readonly signal?: AbortSignal,
+  ) {}
+
+  /** Queue background signing so upload workers rarely wait on Vercel. */
+  kick(aheadOfPart = 1): void {
+    const desired = Math.min(this.totalParts, aheadOfPart + SIGN_BATCH_SIZE);
+    if (this.nextToPrefetch > desired || this.nextToPrefetch > this.totalParts) return;
+    void this.runPrefetchLoop(desired);
+  }
+
+  private async runPrefetchLoop(desired: number): Promise<void> {
+    if (this.activePrefetch) {
+      await this.activePrefetch;
+      if (this.nextToPrefetch <= desired && this.nextToPrefetch <= this.totalParts) {
+        await this.runPrefetchLoop(desired);
+      }
+      return;
+    }
+
+    this.activePrefetch = (async () => {
+      while (this.nextToPrefetch <= desired && this.nextToPrefetch <= this.totalParts) {
+        if (this.signal?.aborted) {
+          throw new DOMException("Upload aborted", "AbortError");
+        }
+        const start = this.nextToPrefetch;
+        const end = Math.min(this.totalParts, start + SIGN_BATCH_SIZE - 1, desired);
+        const needed: number[] = [];
+        for (let n = start; n <= end; n += 1) {
+          if (!this.urls.has(n)) needed.push(n);
+        }
+        this.nextToPrefetch = end + 1;
+        if (needed.length === 0) continue;
+        const signed = await fetchSignedPartUrls({
+          key: this.key,
+          uploadId: this.uploadId,
+          partNumbers: needed,
+          signal: this.signal,
+        });
+        for (const [n, url] of signed) this.urls.set(n, url);
+      }
+    })();
+
+    try {
+      await this.activePrefetch;
+    } finally {
+      this.activePrefetch = null;
+    }
+  }
+
+  async getUrl(partNumber: number): Promise<string> {
+    this.kick(partNumber);
+    for (let i = 0; i < 60; i += 1) {
+      if (this.signal?.aborted) {
+        throw new DOMException("Upload aborted", "AbortError");
+      }
+      const hit = this.urls.get(partNumber);
+      if (hit) {
+        this.kick(partNumber + 1);
+        return hit;
+      }
+      if (this.activePrefetch) {
+        await this.activePrefetch.catch(() => undefined);
+        continue;
+      }
+      break;
+    }
+
+    const signed = await fetchSignedPartUrls({
+      key: this.key,
+      uploadId: this.uploadId,
+      partNumbers: [partNumber],
+      signal: this.signal,
+    });
+    const url = signed.get(partNumber);
+    if (!url) throw new Error(`Could not sign part ${partNumber}`);
+    this.urls.set(partNumber, url);
+    this.kick(partNumber + 1);
+    return url;
+  }
+
+  /** Drop a cached URL so retries get a fresh signature. */
+  invalidate(partNumber: number): void {
+    this.urls.delete(partNumber);
   }
 }
 
@@ -228,6 +423,7 @@ async function uploadContentMediaViaMultipart(
     key?: string;
     contentType?: string;
     partSize?: number;
+    concurrency?: number;
   };
   if (!initRes.ok) {
     throw new Error(typeof initJson.error === "string" ? initJson.error : "Could not start multipart upload");
@@ -243,19 +439,36 @@ async function uploadContentMediaViaMultipart(
     typeof initJson.partSize === "number" && initJson.partSize > 0
       ? initJson.partSize
       : CONTENT_MEDIA_MULTIPART_PART_SIZE_BYTES;
+  const concurrency = Math.min(
+    12,
+    Math.max(
+      2,
+      typeof initJson.concurrency === "number" && initJson.concurrency > 0
+        ? Math.floor(initJson.concurrency)
+        : CONTENT_MEDIA_MULTIPART_CONCURRENCY,
+    ),
+  );
   const totalParts = Math.max(1, Math.ceil(file.size / partSize));
   const completedParts: { PartNumber: number; ETag: string }[] = [];
-  let uploadedBytes = 0;
+  /** Bytes fully committed from finished parts + in-flight part progress. */
+  const partLoadedBytes = new Map<number, number>();
+  let committedBytes = 0;
 
   const reportProgress = () => {
+    let inFlight = 0;
+    for (const n of partLoadedBytes.values()) inFlight += n;
+    const uploadedBytes = committedBytes + inFlight;
     const pct = 2 + Math.min(93, (uploadedBytes / Math.max(1, file.size)) * 93);
     onProgress?.(pct);
   };
 
+  const signer = new SignedUrlPrefetcher(key, uploadId, totalParts, signal);
+  signer.kick(1);
+
   try {
     await runWithConcurrency(
       Array.from({ length: totalParts }, (_, i) => i + 1),
-      MULTIPART_CONCURRENCY,
+      concurrency,
       async (partNumber) => {
         if (signal?.aborted) {
           throw new DOMException("Upload aborted", "AbortError");
@@ -264,53 +477,53 @@ async function uploadContentMediaViaMultipart(
         const end = Math.min(start + partSize, file.size);
         const blob = file.slice(start, end);
 
-        const signRes = await fetchWithRetry(
-          "/api/upload/content-media/multipart/sign-part",
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ key, uploadId, partNumber }),
-            signal,
-          },
-        );
-        const signJson = (await signRes.json().catch(() => ({}))) as {
-          error?: string;
-          uploadUrl?: string;
-        };
-        if (!signRes.ok || !signJson.uploadUrl) {
-          throw new Error(
-            typeof signJson.error === "string" ? signJson.error : `Could not sign part ${partNumber}`,
-          );
-        }
-
-        let partLoaded = 0;
-        const etag = await uploadPartWithRetries({
-          uploadUrl: signJson.uploadUrl,
-          blob,
-          partNumber,
-          onProgress: (pct) => {
-            const delta = blob.size * (pct / 100) - partLoaded;
-            if (delta > 0) {
-              uploadedBytes += delta;
-              partLoaded += delta;
-              reportProgress();
+        let lastError: unknown;
+        for (let attempt = 0; attempt < 4; attempt += 1) {
+          try {
+            if (signal?.aborted) {
+              throw new DOMException("Upload aborted", "AbortError");
             }
-          },
-          signal,
-        });
+            // Fresh URL on retry after stall/network failure.
+            if (attempt > 0) signer.invalidate(partNumber);
+            const uploadUrl = await signer.getUrl(partNumber);
 
-        // Catch any remaining bytes if progress events were sparse.
-        if (partLoaded < blob.size) {
-          uploadedBytes += blob.size - partLoaded;
-          reportProgress();
-        }
+            partLoadedBytes.set(partNumber, 0);
+            reportProgress();
 
-        // ETag is optional on the client — server ListParts is authoritative.
-        if (etag) {
-          completedParts.push({ PartNumber: partNumber, ETag: etag });
-        } else {
-          completedParts.push({ PartNumber: partNumber, ETag: "" });
+            const { etag } = await xhrPutWithProgress(
+              uploadUrl,
+              blob,
+              {},
+              undefined,
+              signal,
+              {
+                timeoutMs: PART_HARD_TIMEOUT_MS,
+                stallTimeoutMs: PART_STALL_TIMEOUT_MS,
+                onBytes: (loaded) => {
+                  partLoadedBytes.set(partNumber, Math.min(blob.size, Math.max(0, loaded)));
+                  reportProgress();
+                },
+              },
+            );
+
+            partLoadedBytes.delete(partNumber);
+            committedBytes += blob.size;
+            reportProgress();
+
+            completedParts.push({ PartNumber: partNumber, ETag: etag || "" });
+            return;
+          } catch (err) {
+            lastError = err;
+            partLoadedBytes.delete(partNumber);
+            reportProgress();
+            if (isAbortError(err)) throw err;
+            if (attempt >= 3) break;
+            await wait(600 * (attempt + 1));
+          }
         }
+        throw lastError instanceof Error
+          ? lastError
+          : new Error(`Failed to upload part ${partNumber}`);
       },
     );
   } catch (err) {

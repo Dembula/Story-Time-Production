@@ -16,7 +16,7 @@ import {
 } from "@/lib/content-media-post-upload";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 type CompletedPart = { PartNumber: number; ETag: string };
 

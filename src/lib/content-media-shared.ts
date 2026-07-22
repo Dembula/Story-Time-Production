@@ -10,17 +10,34 @@ export const CONTENT_MEDIA_DIRECT_UPLOAD_MAX_BYTES = 4 * 1024 * 1024;
 export const S3_SINGLE_PUT_MAX_BYTES = 5 * 1024 * 1024 * 1024;
 
 /** Use multipart for files at/above this size (reliability + >5GB support). */
-export const CONTENT_MEDIA_MULTIPART_THRESHOLD_BYTES = 100 * 1024 * 1024;
+export const CONTENT_MEDIA_MULTIPART_THRESHOLD_BYTES = 32 * 1024 * 1024;
 
-/** Preferred part size for multipart masters (must be ≥ 5 MiB except the last part). */
-export const CONTENT_MEDIA_MULTIPART_PART_SIZE_BYTES = 64 * 1024 * 1024;
+/** Fallback part size when adaptive sizing is unavailable. */
+export const CONTENT_MEDIA_MULTIPART_PART_SIZE_BYTES = 128 * 1024 * 1024;
+
+/** Parallel S3 part uploads for feature masters. */
+export const CONTENT_MEDIA_MULTIPART_CONCURRENCY = 8;
 
 /**
- * Default catalogue media ceiling: 30 GiB.
- * Covers long feature masters (≈2h at delivery bitrates) without requiring env.
- * Override with UPLOAD_MAX_FILE_SIZE_MB (e.g. 51200 for 50GB).
+ * Adaptive part size for throughput:
+ * - fewer parts → fewer Vercel sign round-trips
+ * - larger parts → better saturation of typical broadband
+ * S3 limits: min 5 MiB (except last), max 5 GiB, max 10,000 parts.
  */
-export const DEFAULT_CONTENT_MEDIA_MAX_UPLOAD_MB = 30720;
+export function contentMediaMultipartPartSizeBytes(fileSizeBytes: number): number {
+  const size = Math.max(0, fileSizeBytes);
+  if (size < 512 * 1024 * 1024) return 32 * 1024 * 1024; // <512MB
+  if (size < 2 * 1024 * 1024 * 1024) return 64 * 1024 * 1024; // <2GB
+  if (size < 8 * 1024 * 1024 * 1024) return 128 * 1024 * 1024; // <8GB
+  if (size < 20 * 1024 * 1024 * 1024) return 256 * 1024 * 1024; // <20GB (15GB masters land here)
+  return 512 * 1024 * 1024; // 20GB+
+}
+
+/**
+ * Default catalogue media ceiling: 50 GiB.
+ * Override with UPLOAD_MAX_FILE_SIZE_MB.
+ */
+export const DEFAULT_CONTENT_MEDIA_MAX_UPLOAD_MB = 51200;
 
 export const ALLOWED_CONTENT_MEDIA_MIME_TYPES = new Set([
   "application/pdf",

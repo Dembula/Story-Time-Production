@@ -47,7 +47,8 @@ async function resolvePlayableMp4Source(url: string): Promise<PlaybackSource | n
   const ref = resolveStorageObjectRef(url) ?? resolveStorageObjectRef(httpUrl);
   if (ref) {
     try {
-      const signed = await getStorageObjectSignedUrl(ref, 60 * 60);
+      // Long enough for progressive MP4 fallback while a feature is watched / Stream encodes.
+      const signed = await getStorageObjectSignedUrl(ref, 60 * 60 * 6);
       return { src: signed, type: "video/mp4" };
     } catch (err) {
       console.error("Signed S3 playback URL failed; falling back to public URL:", err);
