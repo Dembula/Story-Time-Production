@@ -402,6 +402,7 @@ async function uploadContentMediaViaMultipart(
   file: File,
   onProgress?: (pct: number) => void,
   signal?: AbortSignal,
+  mediaMeta?: { durationSeconds?: number; estimatedBitrateMbps?: number },
 ): Promise<ContentMediaFinalizePayload> {
   onProgress?.(1);
   const initRes = await fetchWithRetry(
@@ -541,6 +542,8 @@ async function uploadContentMediaViaMultipart(
       contentType,
       fileName: file.name,
       expectedPartCount: totalParts,
+      durationSeconds: mediaMeta?.durationSeconds,
+      estimatedBitrateMbps: mediaMeta?.estimatedBitrateMbps,
       parts: completedParts
         .filter((p) => p.ETag)
         .sort((a, b) => a.PartNumber - b.PartNumber),
@@ -592,6 +595,7 @@ async function uploadContentMediaViaPresignedPut(
   file: File,
   onProgress?: (pct: number) => void,
   signal?: AbortSignal,
+  mediaMeta?: { durationSeconds?: number; estimatedBitrateMbps?: number },
 ): Promise<ContentMediaFinalizePayload> {
   onProgress?.(2);
   const presignRes = await fetchWithRetry(
@@ -654,6 +658,8 @@ async function uploadContentMediaViaPresignedPut(
       key: presignJson.key,
       contentType: presignJson.contentType,
       fileName: file.name,
+      durationSeconds: mediaMeta?.durationSeconds,
+      estimatedBitrateMbps: mediaMeta?.estimatedBitrateMbps,
     }),
     signal,
   });
@@ -679,6 +685,9 @@ async function uploadContentMediaViaPresignedPut(
 export type UploadContentMediaOptions = {
   onProgress?: (pct: number) => void;
   signal?: AbortSignal;
+  /** Browser-probed duration for Stream bitrate routing. */
+  durationSeconds?: number;
+  estimatedBitrateMbps?: number;
 };
 
 export async function uploadContentMediaViaApi(
@@ -735,10 +744,14 @@ export async function uploadContentMediaViaApiFull(
       }
     : undefined;
   const signal = options?.signal;
+  const mediaMeta = {
+    durationSeconds: options?.durationSeconds,
+    estimatedBitrateMbps: options?.estimatedBitrateMbps,
+  };
 
   if (shouldUseMultipartUpload(file.size)) {
     try {
-      return await uploadContentMediaViaMultipart(file, onProgress, signal);
+      return await uploadContentMediaViaMultipart(file, onProgress, signal, mediaMeta);
     } catch (err) {
       if (isAbortError(err)) throw err;
       throw err instanceof Error ? err : new Error("Multipart upload failed");
@@ -746,7 +759,7 @@ export async function uploadContentMediaViaApiFull(
   }
 
   try {
-    return await uploadContentMediaViaPresignedPut(file, onProgress, signal);
+    return await uploadContentMediaViaPresignedPut(file, onProgress, signal, mediaMeta);
   } catch (err) {
     if (isAbortError(err)) throw err;
     const message = err instanceof Error ? err.message : "";

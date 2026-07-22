@@ -162,19 +162,32 @@ export async function PATCH(req: NextRequest) {
         return Boolean(asset?.status && isFailedStreamStatus(asset.status));
       });
       if (failed) {
-        // Attempt automatic re-ingest before blocking approve permanently.
+        const { isMediaConvertMezzanineConfigured } = await import("@/lib/mediaconvert-mezzanine");
+        const mezzanineEnabled = isMediaConvertMezzanineConfigured();
         try {
-          const { linkOrIngestStreamForUrl } = await import("@/lib/stream-ingest-link");
-          await linkOrIngestStreamForUrl(failed.url, "Content", contentId, {
-            area: "admin-approve-reencode",
-            source: "storytime-admin-reencode",
-          });
+          if (mezzanineEnabled) {
+            const { recoverFromStreamBitrateFailure } = await import("@/lib/stream-encode-pipeline");
+            await recoverFromStreamBitrateFailure({
+              sourceUrl: failed.url,
+              lastError: "bitrate exceeds 200Mbps",
+              entityType: "Content",
+              entityId: contentId,
+            });
+          } else {
+            const { linkOrIngestStreamForUrl } = await import("@/lib/stream-ingest-link");
+            await linkOrIngestStreamForUrl(failed.url, "Content", contentId, {
+              area: "admin-approve-reencode",
+              source: "storytime-admin-reencode",
+            });
+          }
         } catch (reencodeErr) {
           console.error("admin approve re-encode failed:", reencodeErr);
         }
         return NextResponse.json(
           {
-            error: `The ${failed.label} failed to encode for playback. Re-encoding was re-queued — wait a few minutes and try Approve again. If it keeps failing, ask the creator to re-upload.`,
+            error: mezzanineEnabled
+              ? `The ${failed.label} failed Stream encode (often bitrate >200 Mbps). A mezzanine compress job was queued — wait for encoding, then Approve again.`
+              : `The ${failed.label} failed to encode for playback. Cloudflare Stream rejects masters over 200 Mbps (uncompressed/ProRes). Export an H.264 delivery master under ~180 Mbps, or set MEDIACONVERT_ROLE_ARN for automatic mezzanine compression.`,
           },
           { status: 409 },
         );
@@ -182,12 +195,27 @@ export async function PATCH(req: NextRequest) {
 
       const processing = playbackItems.find((item) => {
         const asset = streamAssets.get(item.url.trim());
-        return Boolean(asset?.status && !isReadyStreamStatus(asset.status));
+        if (!asset?.status) return false;
+        if (isReadyStreamStatus(asset.status)) return false;
+        if (isFailedStreamStatus(asset.status)) return false;
+        return true;
       });
       if (processing) {
+        const asset = streamAssets.get(processing.url.trim());
+        const mezzanining = asset?.status?.toLowerCase() === "mezzanining";
+        if (mezzanining && asset?.uid.startsWith("mc_")) {
+          try {
+            const { advanceMezzaninePlaceholder } = await import("@/lib/stream-encode-pipeline");
+            await advanceMezzaninePlaceholder(asset.uid);
+          } catch (err) {
+            console.error("admin approve mezzanine poll failed:", err);
+          }
+        }
         return NextResponse.json(
           {
-            error: `The ${processing.label} is still encoding. Wait a few minutes and try again.`,
+            error: mezzanining
+              ? `The ${processing.label} is still being compressed for Stream (high-bitrate master). Try Approve again shortly.`
+              : `The ${processing.label} is still encoding. Wait a few minutes and try again.`,
           },
           { status: 409 },
         );

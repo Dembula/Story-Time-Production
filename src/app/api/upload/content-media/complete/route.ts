@@ -27,6 +27,8 @@ export async function POST(request: NextRequest) {
       key?: string;
       contentType?: string;
       fileName?: string;
+      durationSeconds?: number;
+      estimatedBitrateMbps?: number;
     } | null;
 
     const key = typeof body?.key === "string" ? body.key.trim() : "";
@@ -49,6 +51,14 @@ export async function POST(request: NextRequest) {
     const payload = buildContentMediaFinalizePayload({ key, contentType });
 
     if (contentType.startsWith("video/")) {
+      const durationSeconds =
+        typeof body?.durationSeconds === "number" && Number.isFinite(body.durationSeconds)
+          ? body.durationSeconds
+          : null;
+      const estimatedBitrateMbps =
+        typeof body?.estimatedBitrateMbps === "number" && Number.isFinite(body.estimatedBitrateMbps)
+          ? body.estimatedBitrateMbps
+          : null;
       after(async () => {
         await ingestVideoStreamForContentMedia({
           sourceUrl: payload.sourceUrl,
@@ -56,6 +66,8 @@ export async function POST(request: NextRequest) {
           contentType,
           fileNameForMeta: nameHint,
           creatorId: userId,
+          durationSeconds,
+          estimatedBitrateMbps,
         });
       });
     }

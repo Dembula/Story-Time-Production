@@ -528,8 +528,38 @@ export function CatalogueUploadProvider({ children }: { children: ReactNode }) {
 
       void (async () => {
         try {
+          let durationSeconds: number | undefined;
+          let estimatedBitrateMbps: number | undefined;
+          const isVideo =
+            next.asset.kind === "mainVideo" ||
+            next.asset.kind === "trailer" ||
+            next.asset.kind === "bts" ||
+            next.asset.kind === "episode" ||
+            entry.file.type.startsWith("video/");
+
+          if (isVideo) {
+            const { probeVideoFile } = await import("@/lib/video-file-probe-client");
+            const {
+              bitrateTooHighUserMessage,
+              isOverStreamBitrateLimit,
+              streamDeliveryMasterHint,
+            } = await import("@/lib/stream-input-limits");
+            const probe = await probeVideoFile(entry.file);
+            durationSeconds = probe?.durationSeconds;
+            estimatedBitrateMbps = probe?.estimatedBitrateMbps ?? undefined;
+            const mezzanineClientEnabled =
+              process.env.NEXT_PUBLIC_STREAM_MEZZANINE_ENABLED === "true";
+            if (isOverStreamBitrateLimit(estimatedBitrateMbps ?? null) && !mezzanineClientEnabled) {
+              throw new Error(
+                `${bitrateTooHighUserMessage(estimatedBitrateMbps!)} ${streamDeliveryMasterHint()}`,
+              );
+            }
+          }
+
           const payload = await uploadContentMediaViaApiFull(entry.file, {
             signal: entry.abort.signal,
+            durationSeconds,
+            estimatedBitrateMbps,
             onProgress: (pct) => {
               // Ignore stale progress if this asset was replaced/removed mid-upload.
               if (!inFlightAssetIdsRef.current.has(startedAssetId)) return;

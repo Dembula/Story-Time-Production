@@ -1367,7 +1367,7 @@ function DistributionUploadInner() {
               {!longFormUpload && (
               <MediaDropzone
                 label="Main Video *"
-                hint="Recommended: final delivery master in MP4 (H.264/H.265), 1080p or higher. Large feature files (up to ~50GB) use fast multipart direct upload."
+                hint="Delivery master: MP4 H.264 + AAC, under ~180 Mbps average (not ProRes/uncompressed). Large files up to ~50GB use fast multipart upload; Stream encodes after upload."
                 accept="video/*"
                 uploading={mainVideoAsset.uploading}
                 progress={mainVideoAsset.progress}

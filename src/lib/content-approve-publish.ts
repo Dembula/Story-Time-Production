@@ -4,6 +4,15 @@ import { syncLinkedEntitiesAfterStreamReady } from "@/lib/stream-entity-sync";
 
 const READY_STREAM_STATES = new Set(["ready", "live", "completed", "success"]);
 const FAILED_STREAM_STATES = new Set(["error", "failed"]);
+const PROCESSING_STREAM_STATES = new Set([
+  "queued",
+  "inprogress",
+  "inprogressing",
+  "processing",
+  "pendingupload",
+  "downloading",
+  "mezzanining",
+]);
 
 export function isReadyStreamStatus(status: string | null | undefined): boolean {
   return Boolean(status && READY_STREAM_STATES.has(status.toLowerCase()));
@@ -11,6 +20,13 @@ export function isReadyStreamStatus(status: string | null | undefined): boolean 
 
 export function isFailedStreamStatus(status: string | null | undefined): boolean {
   return Boolean(status && FAILED_STREAM_STATES.has(status.toLowerCase()));
+}
+
+export function isProcessingStreamStatus(status: string | null | undefined): boolean {
+  if (!status) return false;
+  const normalized = status.toLowerCase();
+  if (READY_STREAM_STATES.has(normalized) || FAILED_STREAM_STATES.has(normalized)) return false;
+  return PROCESSING_STREAM_STATES.has(normalized) || normalized.includes("progress");
 }
 
 export function pickStreamHlsUrl(

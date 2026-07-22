@@ -1,0 +1,140 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Story Time — MediaConvert service role for high-bitrate mezzanine compression before Cloudflare Stream.",
+  "Parameters": {
+    "BucketName": {
+      "Type": "String",
+      "Description": "S3 bucket used for catalogue uploads (same as STORAGE_BUCKET_NAME)."
+    },
+    "RoleName": {
+      "Type": "String",
+      "Default": "StorytimeMediaConvertRole",
+      "Description": "IAM role name assumed by MediaConvert."
+    },
+    "AppUserName": {
+      "Type": "String",
+      "Default": "",
+      "Description": "Optional IAM user name (e.g. storytime-uploader) to attach MediaConvert API permissions. Leave blank to skip."
+    }
+  },
+  "Conditions": {
+    "AttachAppUser": {
+      "Fn::Not": [{ "Fn::Equals": [{ "Ref": "AppUserName" }, ""] }]
+    }
+  },
+  "Resources": {
+    "MediaConvertServiceRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": { "Ref": "RoleName" },
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": { "Service": "mediaconvert.amazonaws.com" },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "StorytimeMediaConvertS3Access",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Sid": "ReadUploadMasters",
+                  "Effect": "Allow",
+                  "Action": ["s3:GetObject", "s3:GetObjectVersion"],
+                  "Resource": {
+                    "Fn::Sub": "arn:aws:s3:::${BucketName}/uploads/*"
+                  }
+                },
+                {
+                  "Sid": "WriteMezzanineOutputs",
+                  "Effect": "Allow",
+                  "Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"],
+                  "Resource": {
+                    "Fn::Sub": "arn:aws:s3:::${BucketName}/mezzanine/*"
+                  }
+                },
+                {
+                  "Sid": "ListBucket",
+                  "Effect": "Allow",
+                  "Action": ["s3:ListBucket", "s3:GetBucketLocation"],
+                  "Resource": {
+                    "Fn::Sub": "arn:aws:s3:::${BucketName}"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "AppMediaConvertApiPolicy": {
+      "Type": "AWS::IAM::ManagedPolicy",
+      "Properties": {
+        "ManagedPolicyName": {
+          "Fn::Sub": "StorytimeMediaConvertApi-${AWS::StackName}"
+        },
+        "Description": "Allow the Story Time app to create/poll MediaConvert jobs and read mezzanine outputs.",
+        "Users": {
+          "Fn::If": [
+            "AttachAppUser",
+            [{ "Ref": "AppUserName" }],
+            { "Ref": "AWS::NoValue" }
+          ]
+        },
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "MediaConvertJobs",
+              "Effect": "Allow",
+              "Action": [
+                "mediaconvert:CreateJob",
+                "mediaconvert:GetJob",
+                "mediaconvert:DescribeEndpoints",
+                "mediaconvert:ListJobs",
+                "mediaconvert:GetQueue",
+                "mediaconvert:ListQueues"
+              ],
+              "Resource": "*"
+            },
+            {
+              "Sid": "PassMediaConvertRole",
+              "Effect": "Allow",
+              "Action": "iam:PassRole",
+              "Resource": { "Fn::GetAtt": ["MediaConvertServiceRole", "Arn"] },
+              "Condition": {
+                "StringEquals": {
+                  "iam:PassedToService": "mediaconvert.amazonaws.com"
+                }
+              }
+            },
+            {
+              "Sid": "ReadMezzanineForStreamIngest",
+              "Effect": "Allow",
+              "Action": ["s3:GetObject", "s3:HeadObject"],
+              "Resource": {
+                "Fn::Sub": "arn:aws:s3:::${BucketName}/mezzanine/*"
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "MediaConvertRoleArn": {
+      "Description": "Set this as MEDIACONVERT_ROLE_ARN in Vercel",
+      "Value": { "Fn::GetAtt": ["MediaConvertServiceRole", "Arn"] }
+    },
+    "AppMediaConvertPolicyArn": {
+      "Description": "Attach this policy to the app IAM user if AppUserName was left blank",
+      "Value": { "Ref": "AppMediaConvertApiPolicy" }
+    }
+  }
+}

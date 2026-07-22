@@ -1,6 +1,4 @@
-import { ingestToCloudflareStreamFromUrl } from "@/lib/cloudflare-stream";
-import { buildStreamIngestMeta } from "@/lib/stream-ingest-meta";
-import { upsertStreamAsset } from "@/lib/stream-asset-store";
+import { runStreamEncodePipeline } from "@/lib/stream-encode-pipeline";
 import { getStorageConfig } from "@/lib/storage-config";
 
 export type ContentMediaFinalizePayload = {
@@ -62,33 +60,24 @@ export async function ingestVideoStreamForContentMedia(options: {
   contentType: string;
   fileNameForMeta?: string;
   creatorId?: string;
+  durationSeconds?: number | null;
+  estimatedBitrateMbps?: number | null;
 }): Promise<void> {
   if (!options.contentType.startsWith("video/")) return;
 
   try {
-    const { resolveIngestSourceUrlForCloudflare } = await import("@/lib/stream-ingest-source");
-    const ingestUrl =
-      (await resolveIngestSourceUrlForCloudflare(options.storageRef || options.sourceUrl)) ??
-      options.sourceUrl;
-
-    const stream = await ingestToCloudflareStreamFromUrl(
-      ingestUrl,
-      buildStreamIngestMeta({
-        fileName: options.fileNameForMeta ?? "video",
-        creatorId: options.creatorId,
-        mime: options.contentType,
+    await runStreamEncodePipeline({
+      catalogueSourceUrl: options.sourceUrl,
+      storageRef: options.storageRef,
+      contentType: options.contentType,
+      fileName: options.fileNameForMeta,
+      creatorId: options.creatorId,
+      durationSeconds: options.durationSeconds,
+      estimatedBitrateMbps: options.estimatedBitrateMbps,
+      meta: {
         area: "content-media-upload",
         source: "storytime-upload",
-      }),
-    );
-    await upsertStreamAsset({
-      uid: stream.uid,
-      // Persist the stable catalogue/source URL (not the temporary signed GET).
-      sourceUrl: options.sourceUrl,
-      playbackUrl: stream.mp4Url,
-      hlsUrl: stream.hlsUrl,
-      iframeUrl: stream.iframeUrl,
-      status: stream.state,
+      },
     });
   } catch (streamErr) {
     console.error("Cloudflare Stream ingestion failed; S3 URL remains available:", streamErr);

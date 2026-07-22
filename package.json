@@ -21,6 +21,7 @@
     "test:load:tools": "tsx scripts/load-test-tool-pages.ts",
     "stream:verify": "tsx scripts/verify-cloudflare-setup.ts",
     "stream:require-signed": "tsx scripts/enable-stream-require-signed-urls.ts",
+    "mediaconvert:setup": "tsx scripts/setup-mediaconvert.ts",
     "content:enrich-backfill": "tsx scripts/backfill-content-enrichment.ts",
     "rag:backfill": "tsx scripts/backfill-knowledge-chunks.ts",
     "graph:backfill": "tsx scripts/backfill-knowledge-graph.ts",
@@ -49,6 +50,9 @@
   "dependencies": {
     "@ai-sdk/openai": "^2.0.103",
     "@ai-sdk/react": "^3.0.204",
+    "@aws-sdk/client-cloudformation": "^3.1092.0",
+    "@aws-sdk/client-iam": "^3.1092.0",
+    "@aws-sdk/client-mediaconvert": "^3.1092.0",
     "@aws-sdk/client-s3": "^3.1003.0",
     "@aws-sdk/s3-request-presigner": "^3.1037.0",
     "@next-auth/prisma-adapter": "^1.0.7",

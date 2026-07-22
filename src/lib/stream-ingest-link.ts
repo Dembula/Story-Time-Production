@@ -1,22 +1,17 @@
 import {
   extractCloudflareStreamUid,
-  ingestToCloudflareStreamFromUrl,
   isCloudflareStreamUrl,
 } from "@/lib/cloudflare-stream";
-import { resolveContentTypeForUpload } from "@/lib/content-media-shared";
-import { buildStreamIngestMeta } from "@/lib/stream-ingest-meta";
-import { resolveIngestSourceUrlForCloudflare } from "@/lib/stream-ingest-source";
+import { isReadyStreamStatus, isFailedStreamStatus } from "@/lib/content-approve-publish";
+import { runStreamEncodePipeline } from "@/lib/stream-encode-pipeline";
 import {
   findStreamAssetBySourceUrl,
   findStreamAssetByUid,
   setStreamAssetEntity,
-  upsertStreamAsset,
-  deleteFailedStreamAssetsForSourceUrl,
   type StreamAssetPlaybackCandidate,
 } from "@/lib/stream-asset-store";
 import { isAllowedStorageUrl } from "@/lib/storage-origin";
 import { normalizeStorageMediaUrl } from "@/lib/pack-storage-media-url";
-import { isFailedStreamStatus, isReadyStreamStatus } from "@/lib/content-approve-publish";
 
 const VIDEO_URL_RE = /\.(mp4|mov|webm|mkv|m4v|avi|mpeg|mpg|m2ts|3gp|hevc)(\?|$)/i;
 
@@ -39,63 +34,11 @@ function resolveIngestableHttpUrl(url: string): string | null {
 function shouldReinjestExistingAsset(asset: StreamAssetPlaybackCandidate | null | undefined): boolean {
   if (!asset) return true;
   if (isReadyStreamStatus(asset.status)) return false;
+  if (asset.status?.toLowerCase() === "mezzanining") return false;
   if (isFailedStreamStatus(asset.status)) return true;
   // Missing playback URLs after a long queued/processing state → try again.
   if (!asset.hlsUrl && !asset.playbackUrl) return true;
   return false;
-}
-
-async function ingestAndStore(options: {
-  catalogueSourceUrl: string;
-  ingestHttpUrl: string;
-  meta?: Record<string, string>;
-  entityType?: string;
-  entityId?: string;
-}): Promise<StreamAssetPlaybackCandidate | null> {
-  const contentType = resolveContentTypeForUpload({
-    name: options.catalogueSourceUrl.split("/").pop() ?? "video.mp4",
-    type: "",
-  });
-  const signedOrPublic =
-    (await resolveIngestSourceUrlForCloudflare(options.catalogueSourceUrl)) ?? options.ingestHttpUrl;
-
-  await deleteFailedStreamAssetsForSourceUrl(options.catalogueSourceUrl);
-
-  const stream = await ingestToCloudflareStreamFromUrl(
-    signedOrPublic,
-    buildStreamIngestMeta({
-      ...options.meta,
-      fileName: options.catalogueSourceUrl.split("/").pop() ?? "video.mp4",
-      mime: contentType,
-      entityType: options.entityType,
-      entityId: options.entityId,
-      source: options.meta?.source ?? "storytime-catalogue",
-    }),
-  );
-
-  await upsertStreamAsset({
-    uid: stream.uid,
-    sourceUrl: options.catalogueSourceUrl,
-    playbackUrl: stream.mp4Url,
-    hlsUrl: stream.hlsUrl,
-    iframeUrl: stream.iframeUrl,
-    status: stream.state,
-    entityType: options.entityType ?? null,
-    entityId: options.entityId ?? null,
-  });
-
-  if (options.entityType && options.entityId) {
-    await setStreamAssetEntity(stream.uid, options.entityType, options.entityId);
-  }
-
-  return {
-    uid: stream.uid,
-    sourceUrl: options.catalogueSourceUrl,
-    status: stream.state,
-    playbackUrl: stream.mp4Url,
-    hlsUrl: stream.hlsUrl,
-    iframeUrl: stream.iframeUrl,
-  };
 }
 
 /** Queue Cloudflare Stream ingest for a video URL (no entity link). */
@@ -115,10 +58,12 @@ export async function ensureVideoIngested(
   if (existing && !shouldReinjestExistingAsset(existing)) return;
 
   try {
-    await ingestAndStore({
+    await runStreamEncodePipeline({
       catalogueSourceUrl: httpUrl,
-      ingestHttpUrl: httpUrl,
+      storageRef: httpUrl,
       meta: { ...meta, source: meta?.source ?? "storytime-recovery" },
+      durationSeconds: meta?.durationSeconds ? Number(meta.durationSeconds) : null,
+      estimatedBitrateMbps: meta?.estimatedBitrateMbps ? Number(meta.estimatedBitrateMbps) : null,
     });
   } catch (streamErr) {
     console.error("Background video ingest failed:", streamErr);
@@ -157,12 +102,15 @@ export async function linkOrIngestStreamForUrl(
   }
 
   try {
-    return await ingestAndStore({
+    return await runStreamEncodePipeline({
       catalogueSourceUrl: httpUrl,
-      ingestHttpUrl: httpUrl,
+      storageRef: httpUrl,
       meta: { ...meta, source: meta?.source ?? "storytime-catalogue" },
       entityType: linkedEntityType,
       entityId,
+      durationSeconds: meta?.durationSeconds ? Number(meta.durationSeconds) : null,
+      estimatedBitrateMbps: meta?.estimatedBitrateMbps ? Number(meta.estimatedBitrateMbps) : null,
+      forceMezzanine: meta?.forceMezzanine === "1" || meta?.forceMezzanine === "true",
     });
   } catch (streamErr) {
     console.error("Cloudflare Stream ingestion failed for linked URL:", streamErr);

@@ -91,6 +91,27 @@ export async function POST(req: NextRequest) {
     lastWebhookAt: new Date(),
   });
 
+  const failed =
+    state.toLowerCase() === "error" ||
+    state.toLowerCase() === "failed";
+  if (failed && errorMessage) {
+    try {
+      const { findStreamAssetByUid } = await import("@/lib/stream-asset-store");
+      const { isCloudflareBitrateRejectError } = await import("@/lib/stream-input-limits");
+      const { recoverFromStreamBitrateFailure } = await import("@/lib/stream-encode-pipeline");
+      const asset = await findStreamAssetByUid(uid);
+      const errText = String(errorMessage);
+      if (asset?.sourceUrl && isCloudflareBitrateRejectError(errText)) {
+        await recoverFromStreamBitrateFailure({
+          sourceUrl: asset.sourceUrl,
+          lastError: errText,
+        });
+      }
+    } catch (recoverErr) {
+      console.error("Stream bitrate recovery failed:", recoverErr);
+    }
+  }
+
   try {
     await syncLinkedEntitiesAfterStreamReady(uid, state);
   } catch (syncErr) {

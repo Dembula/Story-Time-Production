@@ -42,7 +42,10 @@ export async function upsertStreamAsset(input: {
       "status" = COALESCE(EXCLUDED."status","StreamAsset"."status"),
       "entityType" = COALESCE(EXCLUDED."entityType","StreamAsset"."entityType"),
       "entityId" = COALESCE(EXCLUDED."entityId","StreamAsset"."entityId"),
-      "lastError" = COALESCE(EXCLUDED."lastError","StreamAsset"."lastError"),
+      "lastError" = CASE
+        WHEN ${input.lastError !== undefined} THEN EXCLUDED."lastError"
+        ELSE "StreamAsset"."lastError"
+      END,
       "lastWebhookAt" = COALESCE(EXCLUDED."lastWebhookAt","StreamAsset"."lastWebhookAt"),
       "updatedAt" = now()
   `;

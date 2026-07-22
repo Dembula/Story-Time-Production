@@ -64,6 +64,20 @@ What it does:
 
 ---
 
+### `mediaconvert-setup.md` + `mediaconvert-cloudformation.json`
+
+What it does:
+
+- Auto-compresses high-bitrate masters (ProRes / >~200 Mbps) with AWS MediaConvert
+  before Cloudflare Stream ingest — required for many camera/feature deliveries.
+
+Where to use:
+
+- Follow `deploy/connection-pack/mediaconvert-setup.md`
+- Or run: `npx tsx scripts/setup-mediaconvert.ts` with admin AWS keys
+
+---
+
 ## API keys / tokens you need
 
 ### Required now
