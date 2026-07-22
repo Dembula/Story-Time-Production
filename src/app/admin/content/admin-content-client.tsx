@@ -17,6 +17,7 @@ import {
 } from "@/lib/review-feedback";
 import { AdminProjectReviewDigest } from "@/components/admin/admin-project-review-digest";
 import { AdminEncodeProgress } from "@/components/admin/admin-encode-progress";
+import { AdminReviewPlayer } from "@/components/admin/admin-review-player";
 import { parsePlatformScriptVersionId } from "@/lib/content-catalogue-tags";
 
 interface ContentItem {
