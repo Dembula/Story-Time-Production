@@ -19,6 +19,7 @@ const navSections: DashboardNavSection[] = [
     title: "Catalogue & rights",
     items: [
       { href: "/admin/content", label: "Content" },
+      { href: "/admin/encode-health", label: "Encode health" },
       { href: "/admin/credit-people", label: "Credit identities" },
       { href: "/admin/originals", label: "Originals", highlight: true },
       { href: "/admin/music", label: "Music" },

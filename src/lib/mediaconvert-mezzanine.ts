@@ -45,6 +45,11 @@ export function mediaConvertJobIdFromPlaceholderUid(uid: string): string | null 
   return uid.slice(3) || null;
 }
 
+/** Exported for admin diagnostics (ListJobs). */
+export async function createMediaConvertClientForAdmin(): Promise<MediaConvertClient> {
+  return createMediaConvertClient();
+}
+
 async function createMediaConvertClient(): Promise<MediaConvertClient> {
   const storage = getStorageConfig();
   const region = clean(process.env.MEDIACONVERT_REGION) || storage.region || "us-east-1";
@@ -206,58 +211,70 @@ export type MezzanineJobPollResult =
   | { status: "COMPLETE"; outputS3Uri: string; meta: MezzanineJobMeta };
 
 export async function pollStreamMezzanineJob(jobId: string): Promise<MezzanineJobPollResult> {
-  const client = await createMediaConvertClient();
-  const res = await client.send(new GetJobCommand({ Id: jobId }));
-  const job = res.Job;
-  if (!job) {
-    return { status: "ERROR", message: "MediaConvert job not found." };
-  }
+  try {
+    const client = await createMediaConvertClient();
+    const res = await client.send(new GetJobCommand({ Id: jobId }));
+    const job = res.Job;
+    if (!job) {
+      return { status: "ERROR", message: "MediaConvert job not found." };
+    }
 
-  const metaRaw = job.UserMetadata ?? {};
-  const meta: MezzanineJobMeta = {
-    sourceUrl: metaRaw.sourceUrl ?? "",
-    storageRef: metaRaw.storageRef ?? null,
-    entityType: metaRaw.entityType ?? null,
-    entityId: metaRaw.entityId ?? null,
-    creatorId: metaRaw.creatorId ?? null,
-    fileName: metaRaw.fileName ?? null,
-  };
+    const metaRaw = job.UserMetadata ?? {};
+    const meta: MezzanineJobMeta = {
+      sourceUrl: metaRaw.sourceUrl ?? "",
+      storageRef: metaRaw.storageRef ?? null,
+      entityType: metaRaw.entityType ?? null,
+      entityId: metaRaw.entityId ?? null,
+      creatorId: metaRaw.creatorId ?? null,
+      fileName: metaRaw.fileName ?? null,
+    };
 
-  const status = String(job.Status ?? "UNKNOWN").toUpperCase();
-  if (status === "COMPLETE") {
-    const paths: string[] = [];
-    for (const group of job.OutputGroupDetails ?? []) {
-      for (const detail of group.OutputDetails ?? []) {
-        const anyDetail = detail as { OutputFilePaths?: string[]; outputFilePaths?: string[] };
-        for (const p of anyDetail.OutputFilePaths ?? anyDetail.outputFilePaths ?? []) {
-          if (typeof p === "string") paths.push(p);
+    const status = String(job.Status ?? "UNKNOWN").toUpperCase();
+    if (status === "COMPLETE") {
+      const paths: string[] = [];
+      for (const group of job.OutputGroupDetails ?? []) {
+        for (const detail of group.OutputDetails ?? []) {
+          const anyDetail = detail as { OutputFilePaths?: string[]; outputFilePaths?: string[] };
+          for (const p of anyDetail.OutputFilePaths ?? anyDetail.outputFilePaths ?? []) {
+            if (typeof p === "string") paths.push(p);
+          }
         }
       }
+      const outputS3Uri = paths.find((p) => p.startsWith("s3://"));
+      if (!outputS3Uri || !meta.sourceUrl) {
+        return {
+          status: "ERROR",
+          message: "MediaConvert completed but output path or source metadata was missing.",
+        };
+      }
+      return { status: "COMPLETE", outputS3Uri, meta };
     }
-    const outputS3Uri = paths.find((p) => p.startsWith("s3://"));
-    if (!outputS3Uri || !meta.sourceUrl) {
+
+    if (status === "ERROR" || status === "CANCELED") {
+      const messages = job.Messages as { Message?: string }[] | { Info?: { Message?: string }[] } | undefined;
+      const fromArray = Array.isArray(messages)
+        ? messages.map((m) => m.Message).filter(Boolean).join("; ")
+        : "";
+      const message =
+        job.ErrorMessage ||
+        fromArray ||
+        `MediaConvert job ${status.toLowerCase()}`;
+      return { status: "ERROR", message };
+    }
+
+    return {
+      status: status === "PROGRESSING" || status === "SUBMITTED" ? (status as "PROGRESSING" | "SUBMITTED") : "UNKNOWN",
+      progress: typeof job.JobPercentComplete === "number" ? job.JobPercentComplete : undefined,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const name = err && typeof err === "object" && "name" in err ? String((err as { name?: string }).name) : "";
+    if (/not\s*found|NotFound|ResourceNotFoundException/i.test(`${name} ${message}`)) {
       return {
         status: "ERROR",
-        message: "MediaConvert completed but output path or source metadata was missing.",
+        message: `MediaConvert job not found in region (check MEDIACONVERT_REGION matches the AWS console). ${message}`,
       };
     }
-    return { status: "COMPLETE", outputS3Uri, meta };
+    return { status: "ERROR", message: `MediaConvert GetJob failed: ${message}` };
   }
-
-  if (status === "ERROR" || status === "CANCELED") {
-    const messages = job.Messages as { Message?: string }[] | { Info?: { Message?: string }[] } | undefined;
-    const fromArray = Array.isArray(messages)
-      ? messages.map((m) => m.Message).filter(Boolean).join("; ")
-      : "";
-    const message =
-      job.ErrorMessage ||
-      fromArray ||
-      `MediaConvert job ${status.toLowerCase()}`;
-    return { status: "ERROR", message };
-  }
-
-  return {
-    status: status === "PROGRESSING" || status === "SUBMITTED" ? (status as "PROGRESSING" | "SUBMITTED") : "UNKNOWN",
-    progress: typeof job.JobPercentComplete === "number" ? job.JobPercentComplete : undefined,
-  };
 }

@@ -172,6 +172,7 @@ export async function PATCH(req: NextRequest) {
               lastError: "bitrate exceeds 200Mbps",
               entityType: "Content",
               entityId: contentId,
+              forceRestart: true,
             });
           } else {
             const { linkOrIngestStreamForUrl } = await import("@/lib/stream-ingest-link");
@@ -186,7 +187,7 @@ export async function PATCH(req: NextRequest) {
         return NextResponse.json(
           {
             error: mezzanineEnabled
-              ? `The ${failed.label} failed Stream encode (often bitrate >200 Mbps). A mezzanine compress job was queued — wait for encoding, then Approve again.`
+              ? `The ${failed.label} failed Stream encode (often bitrate >200 Mbps). A mezzanine compress job was queued — open AWS MediaConvert in region ${process.env.MEDIACONVERT_REGION || process.env.STORAGE_REGION || "(STORAGE_REGION)"} and wait, then Approve again.`
               : `The ${failed.label} failed to encode for playback. Cloudflare Stream rejects masters over 200 Mbps (uncompressed/ProRes). Export an H.264 delivery master under ~180 Mbps, or set MEDIACONVERT_ROLE_ARN for automatic mezzanine compression.`,
           },
           { status: 409 },
@@ -203,18 +204,44 @@ export async function PATCH(req: NextRequest) {
       if (processing) {
         const asset = streamAssets.get(processing.url.trim());
         const mezzanining = asset?.status?.toLowerCase() === "mezzanining";
-        if (mezzanining && asset?.uid.startsWith("mc_")) {
+        if (mezzanining) {
           try {
-            const { advanceMezzaninePlaceholder } = await import("@/lib/stream-encode-pipeline");
-            await advanceMezzaninePlaceholder(asset.uid);
+            const { recoverFromStreamBitrateFailure, advanceMezzaninePlaceholder } = await import(
+              "@/lib/stream-encode-pipeline"
+            );
+            if (asset?.uid.startsWith("mc_")) {
+              const advanced = await advanceMezzaninePlaceholder(asset.uid);
+              if (advanced === "error") {
+                // Stuck placeholder with no real AWS job — start a fresh MediaConvert job.
+                await recoverFromStreamBitrateFailure({
+                  sourceUrl: processing.url,
+                  lastError: "bitrate exceeds 200Mbps",
+                  entityType: "Content",
+                  entityId: contentId,
+                  forceRestart: true,
+                });
+              }
+            } else {
+              await recoverFromStreamBitrateFailure({
+                sourceUrl: processing.url,
+                lastError: "bitrate exceeds 200Mbps",
+                entityType: "Content",
+                entityId: contentId,
+                forceRestart: true,
+              });
+            }
           } catch (err) {
-            console.error("admin approve mezzanine poll failed:", err);
+            console.error("admin approve mezzanine poll/restart failed:", err);
           }
         }
+        const region =
+          process.env.MEDIACONVERT_REGION?.trim() ||
+          process.env.STORAGE_REGION?.trim() ||
+          "your STORAGE_REGION";
         return NextResponse.json(
           {
             error: mezzanining
-              ? `The ${processing.label} is still being compressed for Stream (high-bitrate master). Try Approve again shortly.`
+              ? `The ${processing.label} is still being compressed for Stream. Check AWS MediaConvert → Jobs in region ${region}. If the job list is empty, Approve again to restart compress. Then Approve once Stream is ready.`
               : `The ${processing.label} is still encoding. Wait a few minutes and try again.`,
           },
           { status: 409 },

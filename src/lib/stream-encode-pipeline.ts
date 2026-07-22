@@ -276,16 +276,29 @@ export async function recoverFromStreamBitrateFailure(options: {
   lastError?: string | null;
   entityType?: string | null;
   entityId?: string | null;
+  /** When true, replace a stuck mezzanining placeholder with a fresh MediaConvert job. */
+  forceRestart?: boolean;
 }): Promise<StreamAssetPlaybackCandidate | null> {
-  if (!isCloudflareBitrateRejectError(options.lastError) && !options.lastError) {
-    // Still allow explicit recovery calls with empty error when admin re-queues.
-  }
   if (options.lastError && !isCloudflareBitrateRejectError(options.lastError) && !/bitrate/i.test(options.lastError)) {
     return null;
   }
 
   const existing = await findStreamAssetBySourceUrl(options.sourceUrl);
-  if (existing?.status?.toLowerCase() === "mezzanining") return existing;
+  if (existing?.status?.toLowerCase() === "mezzanining" && isMediaConvertPlaceholderUid(existing.uid)) {
+    if (!options.forceRestart) {
+      const advanced = await advanceMezzaninePlaceholder(existing.uid);
+      if (advanced === "pending" || advanced === "ready") {
+        return (await findStreamAssetBySourceUrl(options.sourceUrl)) ?? existing;
+      }
+      // Job missing / failed — fall through and create a new MediaConvert job.
+    }
+    try {
+      const { prisma } = await import("@/lib/prisma");
+      await prisma.$executeRaw`DELETE FROM "StreamAsset" WHERE "uid" = ${existing.uid}`;
+    } catch (err) {
+      console.error("Failed to clear stuck mezzanine placeholder:", err);
+    }
+  }
 
   return runStreamEncodePipeline({
     catalogueSourceUrl: options.sourceUrl,
