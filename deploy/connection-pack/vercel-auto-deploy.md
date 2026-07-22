@@ -1,63 +1,49 @@
-# Fix: pushes from Cursor/GitHub not deploying on Vercel
+# Fix: pushes not creating Vercel builds
 
-Your commits were reaching GitHub, but Vercel was not creating builds
-(broken Git webhook / pending authorization). This repo now includes a
-**GitHub Action** that forces a production deploy on every `main` push.
+Your Deploy Hook can show **green on GitHub** while Vercel never starts a build
+(known when Git integration/webhooks are broken). Use **Vercel CLI from GitHub Actions** instead — it uploads and deploys directly.
 
-## One-time setup (do this once — ~3 minutes)
+## One-time setup (~5 minutes)
 
-### A) Create a Vercel Deploy Hook
+### 1) Create a Vercel token
 
-1. Open [Vercel Dashboard](https://vercel.com/dashboard) → your **Story Time** project  
-2. **Settings** → **Git**  
-3. Scroll to **Deploy Hooks**  
-4. Create hook:
-   - Name: `github-main`
-   - Branch: `main`
-5. **Copy the hook URL** (keep it secret)
+1. [vercel.com/account/tokens](https://vercel.com/account/tokens)  
+2. Create → name `github-actions` → copy token  
 
-### B) Add the secret on GitHub
+### 2) Copy Project ID + Team/Org ID
 
-1. GitHub → `Dembula/Story-Time-Production` → **Settings** → **Secrets and variables** → **Actions**  
-2. **New repository secret**
-   - Name: `VERCEL_DEPLOY_HOOK_URL`
-   - Value: paste the Deploy Hook URL  
-3. Save
+1. Vercel → your Story Time project → **Settings** → **General**  
+2. Copy **Project ID** → this is `VERCEL_PROJECT_ID`  
+3. Copy **Team ID** (or for Hobby personal account, the account/team id shown there) → `VERCEL_ORG_ID`  
 
-### C) Reconnect native Git (recommended)
+If unsure about Org ID: after installing Vercel CLI locally you can run `vercel link` and read `.vercel/project.json` (`orgId` / `projectId`).
 
-Still do this so Vercel’s normal Git integration works again:
+### 3) Add three **repository** secrets on GitHub
 
-1. Vercel → Project → **Settings** → **Git**  
-2. **Disconnect** the repository  
-3. **Connect** again → choose `Dembula/Story-Time-Production`  
-4. Production Branch = `main`  
-5. GitHub → **Settings** → **Applications** → **Vercel** → ensure this repo is allowed
+Repo → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**:
 
-### D) Authorize if Vercel asks
+| Name | Value |
+|------|--------|
+| `VERCEL_TOKEN` | token from step 1 |
+| `VERCEL_ORG_ID` | Team/Org ID |
+| `VERCEL_PROJECT_ID` | Project ID |
 
-If Deployments show **Pending authorization** (common after `vercel.json` / env changes on public repos), click **Authorize**.
+You can leave or delete `VERCEL_DEPLOY_HOOK_URL` — the workflow no longer needs it.
 
----
+### 4) Run the workflow
 
-## After setup
+GitHub → **Actions** → **Deploy production to Vercel** → **Run workflow**
 
-Every push to `main` (including from Cursor) will:
+Watch the job logs. When it finishes, Vercel → **Deployments** should show a new **Production** deployment with a URL.
 
-1. Run `.github/workflows/deploy-vercel.yml`
-2. POST the Deploy Hook
-3. Start a Production build in Vercel
+### 5) (Optional) Reconnect Git in Vercel
 
-You can also run it manually: GitHub → **Actions** → **Deploy production to Vercel** → **Run workflow**.
+So the dashboard Git integration works again too:
+
+1. Vercel → Project → **Settings** → **Git** → Disconnect → Connect `Dembula/Story-Time-Production`  
+2. Production branch = `main`  
+3. Authorize any “Pending authorization” deployments  
 
 ---
 
-## Optional: CLI deploy fallback
-
-If the Deploy Hook fails, add these GitHub secrets too (from Vercel → Account → Tokens / Project Settings):
-
-- `VERCEL_TOKEN`
-- `VERCEL_ORG_ID` (also in `.vercel/project.json` after `vercel link`)
-- `VERCEL_PROJECT_ID`
-
-The workflow’s second job will deploy via CLI when the hook job fails and these secrets exist.
+After this, every Cursor push to `main` runs the Action and deploys to Production.
