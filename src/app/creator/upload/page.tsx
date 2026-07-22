@@ -136,6 +136,8 @@ function DistributionUploadInner() {
   const [uploadJobId, setUploadJobId] = useState<string | null>(null);
   const [draftTempId] = useState(() => newCatalogueDraftTempId());
   const [draftHydrated, setDraftHydrated] = useState(false);
+  /** When editing an existing title, wait for server cast/crew/BTS before draft autosave. */
+  const [serverContentHydrated, setServerContentHydrated] = useState(() => !contentIdFromUrl);
   const [backgroundSubmitNotice, setBackgroundSubmitNotice] = useState(false);
   const [resubmitMode, setResubmitMode] = useState(false);
   const [linkedProject, setLinkedProject] = useState<{ id: string; title: string } | null>(null);
@@ -178,12 +180,15 @@ function DistributionUploadInner() {
     if (!contentIdFromUrl) {
       setEditingContentId(null);
       setResubmitMode(false);
+      setServerContentHydrated(true);
       return;
     }
+    setServerContentHydrated(false);
+    let cancelled = false;
     fetch(`/api/creator/content?id=${encodeURIComponent(contentIdFromUrl)}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (!data?.id) return;
+        if (cancelled || !data?.id) return;
         setEditingContentId(data.id);
         setResubmitMode(["REJECTED", "CHANGES_REQUESTED", "UNPUBLISHED"].includes(data.reviewStatus));
         setForm((f) => ({
@@ -208,8 +213,63 @@ function DistributionUploadInner() {
         if (data.category) {
           setSelectedGenres(data.category.split(",").map((g: string) => g.trim()).filter(Boolean));
         }
+
+        const crewRows = Array.isArray(data.crewMembers)
+          ? data.crewMembers
+              .map((c: { name?: string; role?: string }) => ({
+                name: typeof c.name === "string" ? c.name : "",
+                role: typeof c.role === "string" ? c.role : "",
+              }))
+              .filter((c: { name: string; role: string }) => c.name || c.role)
+          : [];
+        setCrew(crewRows.length > 0 ? crewRows : [{ name: "", role: "" }]);
+
+        const btsRows = Array.isArray(data.btsVideos)
+          ? data.btsVideos
+              .map((b: { title?: string; videoUrl?: string | null; thumbnail?: string | null }) => ({
+                title: typeof b.title === "string" ? b.title : "",
+                videoUrl: typeof b.videoUrl === "string" ? b.videoUrl : "",
+                thumbnail: typeof b.thumbnail === "string" ? b.thumbnail : "",
+              }))
+              .filter((b: { title: string; videoUrl: string }) => b.title || b.videoUrl)
+          : [];
+        setBtsVideos(btsRows);
+
+        if (typeof data.minAge === "number" && Number.isFinite(data.minAge)) {
+          setMinAge(data.minAge);
+        }
+
+        const advisory = data.advisory && typeof data.advisory === "object" ? (data.advisory as Record<string, unknown>) : null;
+        if (advisory) {
+          const flags: Record<string, boolean> = {};
+          for (const [key, value] of Object.entries(advisory)) {
+            if (key === "themes" || key === "compliance") continue;
+            if (typeof value === "boolean") flags[key] = value;
+          }
+          setAdvisoryFlags(flags);
+          if (typeof advisory.themes === "string") setAdvisoryThemes(advisory.themes);
+          if (advisory.compliance && typeof advisory.compliance === "object") {
+            setComplianceChecks((c) => ({
+              ...c,
+              ...(advisory.compliance as Partial<typeof c>),
+            }));
+          }
+        }
+
+        if (data.linkedProject?.id) {
+          setLinkedProject({
+            id: data.linkedProject.id,
+            title: data.linkedProject.title || "Linked project",
+          });
+        }
+        setServerContentHydrated(true);
       })
-      .catch(() => {});
+      .catch(() => {
+        if (!cancelled) setServerContentHydrated(true);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [contentIdFromUrl]);
 
   function applyPlatformPrefill() {
@@ -459,7 +519,8 @@ function DistributionUploadInner() {
     if (contentIdFromUrl) {
       const serverDraft = loadCatalogueUploadDraft(userId, contentIdFromUrl);
       if (serverDraft) {
-        applyDraftSnapshot(serverDraft, { preferServerUrls: false });
+        // Keep cast/crew/BTS for the server hydrate — local drafts often have empty credits after send-back.
+        applyDraftSnapshot(serverDraft, { preferServerUrls: false, skipCredits: true });
       }
       setDraftHydrated(true);
       return;
@@ -471,7 +532,7 @@ function DistributionUploadInner() {
 
   function applyDraftSnapshot(
     snap: CatalogueUploadDraftSnapshot,
-    opts: { preferServerUrls: boolean },
+    opts: { preferServerUrls: boolean; skipCredits?: boolean },
   ) {
     setStep(snap.step || 1);
     setForm((f) => ({
@@ -488,14 +549,16 @@ function DistributionUploadInner() {
         : {}),
     }));
     setSelectedGenres(snap.selectedGenres ?? []);
-    setCrew(snap.crew?.length ? snap.crew : [{ name: "", role: "" }]);
-    setBtsVideos(snap.btsVideos ?? []);
+    if (!opts.skipCredits) {
+      setCrew(snap.crew?.length ? snap.crew : [{ name: "", role: "" }]);
+      setBtsVideos(snap.btsVideos ?? []);
+      setMinAge(snap.minAge ?? 0);
+      setAdvisoryFlags(snap.advisoryFlags ?? {});
+      setAdvisoryThemes(snap.advisoryThemes ?? "");
+    }
     setLogline(snap.logline ?? "");
     setContentWarnings(snap.contentWarnings ?? "");
     setFestivalHistory(snap.festivalHistory ?? "");
-    setMinAge(snap.minAge ?? 0);
-    setAdvisoryFlags(snap.advisoryFlags ?? {});
-    setAdvisoryThemes(snap.advisoryThemes ?? "");
     setDeliveryNotes(snap.deliveryNotes ?? "");
     setReleaseContactName(snap.releaseContactName ?? "");
     setReleaseContactEmail(snap.releaseContactEmail ?? "");
@@ -601,9 +664,21 @@ function DistributionUploadInner() {
   // Early server DRAFT once title + type exist (so Continue Editing / My catalogue work)
   useEffect(() => {
     if (!form.title.trim() || !form.type || !draftHydrated) return;
+    // Never autosave credits until existing titles have reloaded cast/crew from the server.
+    if (contentIdFromUrl && !serverContentHydrated) return;
     const timer = setTimeout(() => {
       void (async () => {
         try {
+          const hydratedCrew = crew.filter((c) => c.name && c.role);
+          const hydratedBts = btsVideos.filter((b) => b.title && b.videoUrl);
+          const advisoryPayload =
+            Object.keys(advisoryFlags).length > 0 || advisoryThemes.trim()
+              ? {
+                  ...advisoryFlags,
+                  ...(advisoryThemes.trim() && { themes: advisoryThemes.trim() }),
+                  compliance: complianceChecks,
+                }
+              : undefined;
           const res = await fetch("/api/creator/content", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -612,9 +687,15 @@ function DistributionUploadInner() {
               category: selectedGenres.join(", ") || form.category,
               published: false,
               reviewStatus: "DRAFT",
-              crew: crew.filter((c) => c.name && c.role),
-              btsVideos: btsVideos.filter((b) => b.title && b.videoUrl),
-              minAge,
+              // Only send credits after hydrate so we never wipe DB cast/crew with [].
+              ...(serverContentHydrated || !contentIdFromUrl
+                ? {
+                    crew: hydratedCrew,
+                    btsVideos: hydratedBts,
+                    minAge,
+                    ...(advisoryPayload ? { advisory: advisoryPayload } : {}),
+                  }
+                : {}),
               ...(linkedProject ? { linkedProjectId: linkedProject.id } : {}),
               ...(editingContentId ? { contentId: editingContentId } : {}),
               ...(longFormUpload && episodeDrafts.some((e) => e.videoUrl)
@@ -646,6 +727,8 @@ function DistributionUploadInner() {
     form.posterUrl,
     form.backdropUrl,
     draftHydrated,
+    serverContentHydrated,
+    contentIdFromUrl,
     // intentionally omit full form to avoid thrashing — title/type/key fields trigger
   ]);
 

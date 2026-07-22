@@ -46,6 +46,14 @@ export async function GET(request: NextRequest) {
         _count: { select: { watchSessions: true, ratings: true, comments: true } },
         ratings: { select: { score: true } },
         linkedProject: { select: { id: true, title: true } },
+        crewMembers: {
+          orderBy: { createdAt: "asc" },
+          select: { id: true, name: true, role: true, bio: true },
+        },
+        btsVideos: {
+          orderBy: { sortOrder: "asc" },
+          select: { id: true, title: true, videoUrl: true, thumbnail: true, sortOrder: true },
+        },
       },
     });
     if (!one) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -160,8 +168,18 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const minAge = typeof body.minAge === "number" ? Math.max(0, Math.min(21, body.minAge)) : body.minAge != null ? Math.max(0, Math.min(21, parseInt(String(body.minAge), 10) || 0)) : 0;
-  const advisory = body.advisory && typeof body.advisory === "object" ? body.advisory : null;
+  const minAgeProvided = Object.prototype.hasOwnProperty.call(body, "minAge");
+  const advisoryProvided = Object.prototype.hasOwnProperty.call(body, "advisory");
+  const crewProvided = Object.prototype.hasOwnProperty.call(body, "crew") && Array.isArray(body.crew);
+  const btsProvided = Object.prototype.hasOwnProperty.call(body, "btsVideos") && Array.isArray(body.btsVideos);
+
+  const minAge = minAgeProvided
+    ? typeof body.minAge === "number"
+      ? Math.max(0, Math.min(21, body.minAge))
+      : Math.max(0, Math.min(21, parseInt(String(body.minAge), 10) || 0))
+    : 0;
+  const advisory =
+    advisoryProvided && body.advisory && typeof body.advisory === "object" ? body.advisory : null;
 
   let linkedProjectId: string | null = null;
   const rawLink = body.linkedProjectId;
@@ -198,7 +216,7 @@ export async function POST(request: NextRequest) {
       ? "PENDING"
       : "AWAITING_PAYMENT";
 
-  const contentData = {
+  const contentData: Record<string, unknown> = {
     title: body.title,
     description: body.description || null,
     type: body.type,
@@ -212,8 +230,6 @@ export async function POST(request: NextRequest) {
     language: body.language || null,
     country: body.country || null,
     ageRating: body.ageRating || null,
-    minAge,
-    advisory,
     year: body.year ? parseInt(body.year) : null,
     duration: body.duration ? parseInt(body.duration) : null,
     episodes: body.episodes ? parseInt(body.episodes) : null,
@@ -225,24 +241,33 @@ export async function POST(request: NextRequest) {
     ...(linkedProjectId ? { linkedProjectId } : {}),
   };
 
+  // Only overwrite advisory/minAge when the client explicitly sent them (prevents draft autosave wiping).
+  if (!existingContentId || minAgeProvided) {
+    contentData.minAge = minAge;
+  }
+  if (!existingContentId || advisoryProvided) {
+    contentData.advisory = advisory;
+  }
+
   let content;
   if (existingContentId) {
     content = await prisma.content.update({
       where: { id: existingContentId },
-      data: contentData,
+      data: contentData as Parameters<typeof prisma.content.update>[0]["data"],
     });
-    await prisma.crewMember.deleteMany({ where: { contentId: content.id } });
   } else {
     content = await prisma.content.create({
       data: {
-        ...contentData,
+        ...(contentData as object),
         creatorId,
-      },
+      } as Parameters<typeof prisma.content.create>[0]["data"],
     });
   }
 
-  if (body.crew && Array.isArray(body.crew)) {
-    for (const c of body.crew) {
+  // Replace cast/crew only when the client sent a crew array (never delete on omit / empty autosave gaps).
+  if (crewProvided) {
+    await prisma.crewMember.deleteMany({ where: { contentId: content.id } });
+    for (const c of body.crew as Array<{ name?: string; role?: string }>) {
       if (c.name && c.role) {
         const { resolveOrCreateCreditPerson } = await import("@/lib/credit-person");
         const person = await resolveOrCreateCreditPerson({ name: c.name, bio: null });
@@ -306,7 +331,8 @@ export async function POST(request: NextRequest) {
   }
 
   let createdBts: Array<{ id: string; videoUrl: string | null }> = [];
-  if (btsVideosPrepared.length > 0) {
+  if (btsProvided) {
+    await prisma.btsVideo.deleteMany({ where: { contentId: content.id } });
     for (const clip of btsVideosPrepared as Array<{ videoUrl?: unknown; thumbnail?: unknown }>) {
       const videoErr = validateStorageUrlField(clip.videoUrl, "btsVideos.videoUrl", { allowNull: false });
       if (videoErr) return NextResponse.json({ error: videoErr }, { status: 400 });
