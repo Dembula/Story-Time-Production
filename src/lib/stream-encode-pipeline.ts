@@ -122,6 +122,9 @@ async function startMezzanine(input: EncodePipelineInput): Promise<StreamAssetPl
     entityId: input.entityId ?? null,
   });
 
+  // Kick early polls so short jobs finish without waiting on the 5‑minute cron.
+  void scheduleMezzanineAdvance(started.placeholderUid);
+
   return {
     uid: started.placeholderUid,
     sourceUrl: input.catalogueSourceUrl,
@@ -130,6 +133,25 @@ async function startMezzanine(input: EncodePipelineInput): Promise<StreamAssetPl
     hlsUrl: null,
     iframeUrl: null,
   };
+}
+
+async function scheduleMezzanineAdvance(placeholderUid: string): Promise<void> {
+  try {
+    const { after } = await import("next/server");
+    after(async () => {
+      for (let i = 0; i < 8; i += 1) {
+        await new Promise((r) => setTimeout(r, 15_000));
+        try {
+          const result = await advanceMezzaninePlaceholder(placeholderUid);
+          if (result !== "pending") return;
+        } catch (err) {
+          console.error("Mezzanine advance poll failed:", err);
+        }
+      }
+    });
+  } catch {
+    // outside a Next request context — cron / admin approve will advance
+  }
 }
 
 const STREAM_SAFE_FALLBACK_HINT_MBPS = 250;
@@ -190,6 +212,9 @@ export async function runStreamEncodePipeline(
 
   const existing = await findStreamAssetBySourceUrl(input.catalogueSourceUrl);
   if (existing?.status?.toLowerCase() === "mezzanining" && isMediaConvertPlaceholderUid(existing.uid)) {
+    void advanceMezzaninePlaceholder(existing.uid).catch((err) =>
+      console.error("Mezzanine advance on re-entry failed:", err),
+    );
     return existing;
   }
 

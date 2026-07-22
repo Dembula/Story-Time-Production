@@ -119,10 +119,16 @@ export async function GET(
           const { isFailedStreamStatus } = await import("@/lib/content-approve-publish");
           const { linkOrIngestStreamForUrl } = await import("@/lib/stream-ingest-link");
           const { normalizeStorageMediaUrl } = await import("@/lib/pack-storage-media-url");
+          const { advanceMezzaninePlaceholder } = await import("@/lib/stream-encode-pipeline");
+          const { isMediaConvertPlaceholderUid } = await import("@/lib/mediaconvert-mezzanine");
           const normalized = normalizeStorageMediaUrl(videoUrl) ?? videoUrl;
           const asset =
             (await findStreamAssetBySourceUrl(normalized)) ??
             (await findStreamAssetBySourceUrl(videoUrl));
+          if (asset?.status?.toLowerCase() === "mezzanining" && isMediaConvertPlaceholderUid(asset.uid)) {
+            await advanceMezzaninePlaceholder(asset.uid);
+            return;
+          }
           if (asset && isFailedStreamStatus(asset.status)) {
             await linkOrIngestStreamForUrl(videoUrl, "Content", id, {
               area: "admin-preview-reencode",

@@ -146,7 +146,7 @@ export async function startStreamMezzanineJob(meta: MezzanineJobMeta): Promise<M
                     MoovPlacement: "PROGRESSIVE_DOWNLOAD",
                   },
                 },
-                VideoDescription: {
+                  VideoDescription: {
                   CodecSettings: {
                     Codec: "H_264",
                     H264Settings: {
@@ -164,8 +164,7 @@ export async function startStreamMezzanineJob(meta: MezzanineJobMeta): Promise<M
                       NumberBFramesBetweenReferenceFrames: 2,
                     },
                   },
-                  // Cap extreme camera masters; Stream re-encodes adaptive ladder from this.
-                  Height: 2160,
+                  // Keep source resolution (do not force 4K upscale); Stream builds the adaptive ladder.
                   ScalingBehavior: "DEFAULT",
                 },
                 AudioDescriptions: [

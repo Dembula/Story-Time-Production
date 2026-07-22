@@ -22,6 +22,7 @@
     "stream:verify": "tsx scripts/verify-cloudflare-setup.ts",
     "stream:require-signed": "tsx scripts/enable-stream-require-signed-urls.ts",
     "mediaconvert:setup": "tsx scripts/setup-mediaconvert.ts",
+    "mediaconvert:verify": "tsx scripts/verify-mediaconvert-setup.ts",
     "content:enrich-backfill": "tsx scripts/backfill-content-enrichment.ts",
     "rag:backfill": "tsx scripts/backfill-knowledge-chunks.ts",
     "graph:backfill": "tsx scripts/backfill-knowledge-graph.ts",
