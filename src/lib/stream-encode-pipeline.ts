@@ -148,8 +148,9 @@ async function scheduleMezzanineAdvance(placeholderUid: string): Promise<void> {
   try {
     const { after } = await import("next/server");
     after(async () => {
-      for (let i = 0; i < 8; i += 1) {
-        await new Promise((r) => setTimeout(r, 15_000));
+      // Hobby Vercel only allows daily crons — poll aggressively here after job start.
+      for (let i = 0; i < 20; i += 1) {
+        await new Promise((r) => setTimeout(r, 20_000));
         try {
           const result = await advanceMezzaninePlaceholder(placeholderUid);
           if (result !== "pending") return;
@@ -159,7 +160,7 @@ async function scheduleMezzanineAdvance(placeholderUid: string): Promise<void> {
       }
     });
   } catch {
-    // outside a Next request context — cron / admin approve will advance
+    // outside a Next request context — daily cron / admin approve will advance
   }
 }
 
