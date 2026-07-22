@@ -110,6 +110,25 @@ export function AdminEncodeHealthClient() {
     void load();
   }, [load]);
 
+  async function retryFinish(row: Placeholder) {
+    setRestartingUid(row.uid);
+    setActionMsg(null);
+    try {
+      const res = await fetch("/api/admin/encode-health", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ retryFinish: true, placeholderUid: row.uid }),
+      });
+      const json = (await res.json()) as { ok?: boolean; message?: string; error?: string };
+      setActionMsg(json.message || json.error || "Retry finish done");
+      await load(true);
+    } catch (err) {
+      setActionMsg(err instanceof Error ? err.message : "Retry finish failed");
+    } finally {
+      setRestartingUid(null);
+    }
+  }
+
   async function restartPlaceholder(row: Placeholder) {
     const confirmed = window.confirm(
       "Restart MediaConvert compress for this video? Only do this if the AWS job is missing or failed — not while it is still progressing.",
@@ -284,19 +303,38 @@ export function AdminEncodeHealthClient() {
                       {row.updatedAt ? new Date(row.updatedAt).toLocaleString() : "—"}
                     </td>
                     <td className="px-4 py-3 align-top">
-                      <button
-                        type="button"
-                        onClick={() => void restartPlaceholder(row)}
-                        disabled={restartingUid === row.uid}
-                        className="inline-flex items-center gap-1.5 rounded-md border border-slate-700 px-2.5 py-1.5 text-xs text-slate-300 transition hover:border-orange-500/50 hover:text-white disabled:opacity-50"
-                      >
-                        {restartingUid === row.uid ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <RotateCcw className="h-3.5 w-3.5" />
+                      <div className="flex flex-col gap-1.5">
+                        {(row.aws.status === "COMPLETE" ||
+                          row.status === "error" ||
+                          /output path|source metadata|Too Many Requests/i.test(row.lastError || "")) && (
+                          <button
+                            type="button"
+                            onClick={() => void retryFinish(row)}
+                            disabled={restartingUid === row.uid}
+                            className="inline-flex items-center gap-1.5 rounded-md border border-emerald-700/60 px-2.5 py-1.5 text-xs text-emerald-200 transition hover:border-emerald-500/50 hover:text-white disabled:opacity-50"
+                          >
+                            {restartingUid === row.uid ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <RefreshCw className="h-3.5 w-3.5" />
+                            )}
+                            Retry finish
+                          </button>
                         )}
-                        Restart
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => void restartPlaceholder(row)}
+                          disabled={restartingUid === row.uid}
+                          className="inline-flex items-center gap-1.5 rounded-md border border-slate-700 px-2.5 py-1.5 text-xs text-slate-300 transition hover:border-orange-500/50 hover:text-white disabled:opacity-50"
+                        >
+                          {restartingUid === row.uid ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <RotateCcw className="h-3.5 w-3.5" />
+                          )}
+                          Restart job
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

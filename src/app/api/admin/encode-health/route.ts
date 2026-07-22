@@ -53,27 +53,33 @@ export async function GET() {
     console.error("encode-health placeholder query failed:", err);
   }
 
-  const placeholderProbes = await Promise.all(
-    placeholders.slice(0, 10).map(async (row) => {
-      const jobId = mediaConvertJobIdFromPlaceholderUid(row.uid);
-      if (!jobId) {
-        return { ...row, jobId: null, aws: { status: "ERROR", message: "Not an mc_ placeholder uid" } };
-      }
-      try {
-        const aws = await pollStreamMezzanineJob(jobId);
-        return { ...row, jobId, aws };
-      } catch (err) {
-        return {
-          ...row,
-          jobId,
-          aws: {
-            status: "ERROR" as const,
-            message: err instanceof Error ? err.message : String(err),
-          },
-        };
-      }
-    }),
-  );
+  const placeholderProbes = [];
+  for (const row of placeholders.slice(0, 8)) {
+    const jobId = mediaConvertJobIdFromPlaceholderUid(row.uid);
+    if (!jobId) {
+      placeholderProbes.push({
+        ...row,
+        jobId: null,
+        aws: { status: "ERROR" as const, message: "Not an mc_ placeholder uid" },
+      });
+      continue;
+    }
+    try {
+      const aws = await pollStreamMezzanineJob(jobId);
+      placeholderProbes.push({ ...row, jobId, aws });
+    } catch (err) {
+      placeholderProbes.push({
+        ...row,
+        jobId,
+        aws: {
+          status: "ERROR" as const,
+          message: err instanceof Error ? err.message : String(err),
+        },
+      });
+    }
+    // Avoid MediaConvert Too Many Requests when probing several jobs.
+    await new Promise((r) => setTimeout(r, 400));
+  }
 
   let recentAwsJobs: Array<{ id?: string; status?: string; createdAt?: string }> = [];
   let listJobsError: string | null = null;
@@ -134,12 +140,36 @@ export async function POST(req: NextRequest) {
 
   const body = (await req.json().catch(() => ({}))) as {
     restart?: boolean;
+    /** Re-run COMPLETE → Stream ingest without creating a new MediaConvert job. */
+    retryFinish?: boolean;
+    placeholderUid?: string;
     sourceUrl?: string;
     contentId?: string;
   };
 
+  if (body.retryFinish && body.placeholderUid?.startsWith("mc_")) {
+    const { advanceMezzaninePlaceholder } = await import("@/lib/stream-encode-pipeline");
+    const result = await advanceMezzaninePlaceholder(body.placeholderUid);
+    return NextResponse.json({
+      ok: result === "ready",
+      result,
+      message:
+        result === "ready"
+          ? "Mezzanine ingested into Stream. You can Approve the title now."
+          : result === "pending"
+            ? "Job still compressing — wait and refresh."
+            : "Finish step failed — check the placeholder message, or Restart if the AWS job is gone.",
+    });
+  }
+
   if (!body.restart) {
-    return NextResponse.json({ error: "Pass { restart: true, sourceUrl } or { restart: true, contentId }" }, { status: 400 });
+    return NextResponse.json(
+      {
+        error:
+          "Pass { restart: true, sourceUrl|contentId } or { retryFinish: true, placeholderUid: \"mc_…\" }",
+      },
+      { status: 400 },
+    );
   }
 
   let sourceUrl = body.sourceUrl?.trim() || null;

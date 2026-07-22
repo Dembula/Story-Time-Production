@@ -69,6 +69,16 @@ export function isEditableCatalogueStatus(status: string): boolean {
   return (EDITABLE_CATALOGUE_STATUSES as readonly string[]).includes(status);
 }
 
+/** Creators may remove mistaken uploads that are not live in the approved catalogue. */
+export const DELETABLE_CATALOGUE_STATUSES = [
+  ...EDITABLE_CATALOGUE_STATUSES,
+  "PENDING",
+] as const;
+
+export function isDeletableCatalogueStatus(status: string): boolean {
+  return (DELETABLE_CATALOGUE_STATUSES as readonly string[]).includes(status);
+}
+
 export function jobOverallProgress(job: CatalogueUploadJob): number {
   if (job.assets.length === 0) {
     if (job.status === "finalizing") return 95;

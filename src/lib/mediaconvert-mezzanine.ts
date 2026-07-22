@@ -3,6 +3,7 @@ import {
   DescribeEndpointsCommand,
   GetJobCommand,
   MediaConvertClient,
+  type Job,
 } from "@aws-sdk/client-mediaconvert";
 import { getStorageConfig } from "@/lib/storage-config";
 import { resolveStorageObjectRef } from "@/lib/storage-object-ref";
@@ -15,6 +16,8 @@ export type MezzanineJobMeta = {
   entityId?: string | null;
   creatorId?: string | null;
   fileName?: string | null;
+  /** S3 key prefix under the media bucket, e.g. mezzanine/abc123/ */
+  outputPrefix?: string | null;
 };
 
 export type MezzanineJobStart = {
@@ -45,6 +48,9 @@ export function mediaConvertJobIdFromPlaceholderUid(uid: string): string | null 
   return uid.slice(3) || null;
 }
 
+type CachedClient = { client: MediaConvertClient; cacheKey: string };
+let cachedMediaConvert: CachedClient | null = null;
+
 /** Exported for admin diagnostics (ListJobs). */
 export async function createMediaConvertClientForAdmin(): Promise<MediaConvertClient> {
   return createMediaConvertClient();
@@ -59,7 +65,13 @@ async function createMediaConvertClient(): Promise<MediaConvertClient> {
     throw new Error("Storage credentials are required for MediaConvert mezzanine jobs.");
   }
 
-  let endpoint = clean(process.env.MEDIACONVERT_ENDPOINT);
+  const endpointEnv = clean(process.env.MEDIACONVERT_ENDPOINT);
+  const cacheKey = `${region}|${accessKeyId}|${endpointEnv ?? ""}`;
+  if (cachedMediaConvert?.cacheKey === cacheKey) {
+    return cachedMediaConvert.client;
+  }
+
+  let endpoint = endpointEnv;
   if (!endpoint) {
     const probe = new MediaConvertClient({
       region,
@@ -72,15 +84,85 @@ async function createMediaConvertClient(): Promise<MediaConvertClient> {
     }
   }
 
-  return new MediaConvertClient({
+  const client = new MediaConvertClient({
     region,
     endpoint,
     credentials: { accessKeyId, secretAccessKey },
   });
+  cachedMediaConvert = { client, cacheKey };
+  return client;
 }
 
 function toS3Uri(bucket: string, key: string): string {
   return `s3://${bucket}/${key.replace(/^\/+/, "")}`;
+}
+
+function inputBaseName(fileInput: string): string {
+  const leaf = fileInput.split("/").pop() || "mezzanine";
+  return leaf.replace(/\.[^.]+$/, "") || "mezzanine";
+}
+
+/** GetJob rarely includes EventBridge-only outputFilePaths — reconstruct from Settings. */
+function reconstructMezzanineOutputS3Uri(job: Job, meta: MezzanineJobMeta): string | null {
+  const paths: string[] = [];
+  const groups =
+    (job as { OutputGroupDetails?: unknown; outputGroupDetails?: unknown }).OutputGroupDetails ??
+    (job as { outputGroupDetails?: unknown }).outputGroupDetails;
+  if (Array.isArray(groups)) {
+    for (const group of groups) {
+      const details =
+        (group as { OutputDetails?: unknown; outputDetails?: unknown }).OutputDetails ??
+        (group as { outputDetails?: unknown }).outputDetails;
+      if (!Array.isArray(details)) continue;
+      for (const detail of details) {
+        const filePaths =
+          (detail as { OutputFilePaths?: unknown; outputFilePaths?: unknown }).OutputFilePaths ??
+          (detail as { outputFilePaths?: unknown }).outputFilePaths;
+        if (!Array.isArray(filePaths)) continue;
+        for (const p of filePaths) {
+          if (typeof p === "string" && p.startsWith("s3://")) paths.push(p);
+        }
+      }
+    }
+  }
+  if (paths[0]) return paths[0];
+
+  const settings = job.Settings;
+  const outputGroup = settings?.OutputGroups?.[0];
+  const destination = outputGroup?.OutputGroupSettings?.FileGroupSettings?.Destination?.trim();
+  const nameModifier = outputGroup?.Outputs?.[0]?.NameModifier ?? "_stream";
+  const fileInput = settings?.Inputs?.[0]?.FileInput?.trim();
+
+  if (destination && fileInput) {
+    const dest = destination.endsWith("/") ? destination : `${destination}/`;
+    return `${dest}${inputBaseName(fileInput)}${nameModifier}.mp4`;
+  }
+
+  if (meta.outputPrefix && fileInput) {
+    const ref = resolveStorageObjectRef(meta.storageRef || meta.sourceUrl || fileInput);
+    if (ref) {
+      const prefix = meta.outputPrefix.replace(/^\/+/, "").replace(/\/?$/, "/");
+      return toS3Uri(ref.bucket, `${prefix}${inputBaseName(fileInput)}${nameModifier}.mp4`);
+    }
+  }
+
+  return null;
+}
+
+function metaFromJob(job: Job): MezzanineJobMeta {
+  const metaRaw = job.UserMetadata ?? {};
+  const fileInput = job.Settings?.Inputs?.[0]?.FileInput?.trim() || "";
+  const sourceUrl = clean(metaRaw.sourceUrl) || fileInput;
+  const storageRef = clean(metaRaw.storageRef) || (fileInput.startsWith("s3://") ? fileInput : null);
+  return {
+    sourceUrl: sourceUrl || "",
+    storageRef,
+    entityType: clean(metaRaw.entityType),
+    entityId: clean(metaRaw.entityId),
+    creatorId: clean(metaRaw.creatorId),
+    fileName: clean(metaRaw.fileName),
+    outputPrefix: clean(metaRaw.outputPrefix),
+  };
 }
 
 /**
@@ -109,6 +191,7 @@ export async function startStreamMezzanineJob(meta: MezzanineJobMeta): Promise<M
   const userMetadata: Record<string, string> = {
     sourceUrl: meta.sourceUrl.slice(0, 250),
     purpose: "stream-mezzanine",
+    outputPrefix: outputPrefix.slice(0, 120),
   };
   if (meta.storageRef) userMetadata.storageRef = meta.storageRef.slice(0, 250);
   if (meta.entityType) userMetadata.entityType = meta.entityType;
@@ -151,7 +234,7 @@ export async function startStreamMezzanineJob(meta: MezzanineJobMeta): Promise<M
                     MoovPlacement: "PROGRESSIVE_DOWNLOAD",
                   },
                 },
-                  VideoDescription: {
+                VideoDescription: {
                   CodecSettings: {
                     Codec: "H_264",
                     H264Settings: {
@@ -210,6 +293,10 @@ export type MezzanineJobPollResult =
   | { status: "ERROR"; message: string }
   | { status: "COMPLETE"; outputS3Uri: string; meta: MezzanineJobMeta };
 
+function isThrottleError(message: string, name: string): boolean {
+  return /Too Many Requests|Throttl|Rate exceeded|429/i.test(`${name} ${message}`);
+}
+
 export async function pollStreamMezzanineJob(jobId: string): Promise<MezzanineJobPollResult> {
   try {
     const client = await createMediaConvertClient();
@@ -219,32 +306,16 @@ export async function pollStreamMezzanineJob(jobId: string): Promise<MezzanineJo
       return { status: "ERROR", message: "MediaConvert job not found." };
     }
 
-    const metaRaw = job.UserMetadata ?? {};
-    const meta: MezzanineJobMeta = {
-      sourceUrl: metaRaw.sourceUrl ?? "",
-      storageRef: metaRaw.storageRef ?? null,
-      entityType: metaRaw.entityType ?? null,
-      entityId: metaRaw.entityId ?? null,
-      creatorId: metaRaw.creatorId ?? null,
-      fileName: metaRaw.fileName ?? null,
-    };
-
+    const meta = metaFromJob(job);
     const status = String(job.Status ?? "UNKNOWN").toUpperCase();
     if (status === "COMPLETE") {
-      const paths: string[] = [];
-      for (const group of job.OutputGroupDetails ?? []) {
-        for (const detail of group.OutputDetails ?? []) {
-          const anyDetail = detail as { OutputFilePaths?: string[]; outputFilePaths?: string[] };
-          for (const p of anyDetail.OutputFilePaths ?? anyDetail.outputFilePaths ?? []) {
-            if (typeof p === "string") paths.push(p);
-          }
-        }
-      }
-      const outputS3Uri = paths.find((p) => p.startsWith("s3://"));
+      const outputS3Uri = reconstructMezzanineOutputS3Uri(job, meta);
       if (!outputS3Uri || !meta.sourceUrl) {
         return {
           status: "ERROR",
-          message: "MediaConvert completed but output path or source metadata was missing.",
+          message: `MediaConvert completed but output path or source metadata was missing.${
+            outputS3Uri ? "" : " (no OutputFilePaths on GetJob — reconstruction failed)"
+          }${!meta.sourceUrl ? " (sourceUrl empty)" : ""}`,
         };
       }
       return { status: "COMPLETE", outputS3Uri, meta };
@@ -269,6 +340,10 @@ export async function pollStreamMezzanineJob(jobId: string): Promise<MezzanineJo
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const name = err && typeof err === "object" && "name" in err ? String((err as { name?: string }).name) : "";
+    // Never mark the asset failed for API throttling — retry later.
+    if (isThrottleError(message, name)) {
+      return { status: "UNKNOWN" };
+    }
     if (/not\s*found|NotFound|ResourceNotFoundException/i.test(`${name} ${message}`)) {
       return {
         status: "ERROR",

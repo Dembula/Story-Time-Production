@@ -148,9 +148,9 @@ async function scheduleMezzanineAdvance(placeholderUid: string): Promise<void> {
   try {
     const { after } = await import("next/server");
     after(async () => {
-      // Hobby Vercel only allows daily crons — poll aggressively here after job start.
-      for (let i = 0; i < 20; i += 1) {
-        await new Promise((r) => setTimeout(r, 20_000));
+      // Hobby cron is daily — poll here, but slowly to avoid MediaConvert "Too Many Requests".
+      for (let i = 0; i < 12; i += 1) {
+        await new Promise((r) => setTimeout(r, 45_000));
         try {
           const result = await advanceMezzaninePlaceholder(placeholderUid);
           if (result !== "pending") return;
@@ -319,11 +319,28 @@ export async function advanceMezzaninePlaceholder(
   const jobId = mediaConvertJobIdFromPlaceholderUid(placeholderUid);
   if (!jobId) return "error";
 
+  const { prisma } = await import("@/lib/prisma");
+  const placeholderRows = (await prisma.$queryRaw`
+    SELECT "uid", "sourceUrl", "entityType", "entityId"
+    FROM "StreamAsset"
+    WHERE "uid" = ${placeholderUid}
+    LIMIT 1
+  `) as Array<{
+    uid: string;
+    sourceUrl: string | null;
+    entityType: string | null;
+    entityId: string | null;
+  }>;
+  const placeholder = placeholderRows[0] ?? null;
+
   const polled = await pollStreamMezzanineJob(jobId);
   if (polled.status === "PROGRESSING" || polled.status === "SUBMITTED" || polled.status === "UNKNOWN") {
     await upsertStreamAsset({
       uid: placeholderUid,
+      sourceUrl: placeholder?.sourceUrl ?? undefined,
       status: "mezzanining",
+      entityType: placeholder?.entityType ?? undefined,
+      entityId: placeholder?.entityId ?? undefined,
       lastError:
         typeof polled.progress === "number"
           ? `Compressing mezzanine… ${Math.round(polled.progress)}%`
@@ -335,6 +352,7 @@ export async function advanceMezzaninePlaceholder(
   if (polled.status === "ERROR") {
     await upsertStreamAsset({
       uid: placeholderUid,
+      sourceUrl: placeholder?.sourceUrl ?? undefined,
       status: "error",
       lastError: polled.message,
     });
@@ -346,6 +364,23 @@ export async function advanceMezzaninePlaceholder(
   }
 
   const { outputS3Uri, meta } = polled;
+  const catalogueSourceUrl =
+    cleanNonEmpty(meta.sourceUrl) ||
+    cleanNonEmpty(placeholder?.sourceUrl) ||
+    cleanNonEmpty(meta.storageRef);
+  if (!catalogueSourceUrl) {
+    await upsertStreamAsset({
+      uid: placeholderUid,
+      status: "error",
+      lastError:
+        "Mezzanine finished but catalogue sourceUrl was missing on the job and placeholder. Restart compress from Encode health.",
+    });
+    return "error";
+  }
+
+  const entityType = meta.entityType ?? placeholder?.entityType ?? null;
+  const entityId = meta.entityId ?? placeholder?.entityId ?? null;
+
   const mezzRef = resolveStorageObjectRef(outputS3Uri);
   const mezzStorageRef = mezzRef ? buildStorageRef(mezzRef.bucket, mezzRef.key) : outputS3Uri;
   const ingestUrl =
@@ -355,8 +390,9 @@ export async function advanceMezzaninePlaceholder(
   if (!ingestUrl) {
     await upsertStreamAsset({
       uid: placeholderUid,
+      sourceUrl: catalogueSourceUrl,
       status: "error",
-      lastError: "Mezzanine finished but could not build a signed URL for Stream ingest.",
+      lastError: `Mezzanine finished but could not build a signed URL for Stream ingest (${outputS3Uri}).`,
     });
     return "error";
   }
@@ -366,8 +402,8 @@ export async function advanceMezzaninePlaceholder(
     buildStreamIngestMeta({
       fileName: meta.fileName ?? "mezzanine.mp4",
       mime: "video/mp4",
-      entityType: meta.entityType ?? undefined,
-      entityId: meta.entityId ?? undefined,
+      entityType: entityType ?? undefined,
+      entityId: entityId ?? undefined,
       creatorId: meta.creatorId ?? undefined,
       source: "storytime-mezzanine",
       area: "mezzanine",
@@ -377,29 +413,33 @@ export async function advanceMezzaninePlaceholder(
   // Keep catalogue sourceUrl on the original master; Stream encodes from mezzanine.
   await upsertStreamAsset({
     uid: stream.uid,
-    sourceUrl: meta.sourceUrl,
+    sourceUrl: catalogueSourceUrl,
     playbackUrl: stream.mp4Url,
     hlsUrl: stream.hlsUrl,
     iframeUrl: stream.iframeUrl,
     status: stream.state,
-    entityType: meta.entityType ?? null,
-    entityId: meta.entityId ?? null,
+    entityType,
+    entityId,
     lastError: null,
   });
 
-  if (meta.entityType && meta.entityId) {
-    await setStreamAssetEntity(stream.uid, meta.entityType, meta.entityId);
+  if (entityType && entityId) {
+    await setStreamAssetEntity(stream.uid, entityType, entityId);
   }
 
   // Drop placeholder so lookups prefer the real Stream asset.
   try {
-    const { prisma } = await import("@/lib/prisma");
     await prisma.$executeRaw`DELETE FROM "StreamAsset" WHERE "uid" = ${placeholderUid}`;
   } catch (err) {
     console.error("Failed to delete mezzanine placeholder asset:", err);
   }
 
   return "ready";
+}
+
+function cleanNonEmpty(value: string | null | undefined): string | null {
+  const v = value?.trim();
+  return v ? v : null;
 }
 
 export async function advanceAllMezzanineJobs(limit = 20): Promise<{ checked: number; advanced: number }> {
@@ -417,6 +457,7 @@ export async function advanceAllMezzanineJobs(limit = 20): Promise<{ checked: nu
   for (const row of rows) {
     const result = await advanceMezzaninePlaceholder(row.uid);
     if (result !== "pending") advanced += 1;
+    await new Promise((r) => setTimeout(r, 500));
   }
   return { checked: rows.length, advanced };
 }

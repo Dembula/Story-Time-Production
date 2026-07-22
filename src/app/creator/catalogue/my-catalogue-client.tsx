@@ -1,9 +1,13 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { Film, Pencil, Plus, Eye, AlertCircle } from "lucide-react";
-import { isEditableCatalogueStatus } from "@/lib/catalogue-upload/types";
+import { useState } from "react";
+import { Film, Pencil, Plus, Eye, AlertCircle, Trash2, Loader2 } from "lucide-react";
+import {
+  isDeletableCatalogueStatus,
+  isEditableCatalogueStatus,
+} from "@/lib/catalogue-upload/types";
 import { isLongFormType } from "@/lib/content-types";
 
 type CatalogueItem = {
@@ -58,6 +62,10 @@ function statusClass(status: string): string {
 }
 
 export function MyCatalogueClient() {
+  const queryClient = useQueryClient();
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
   const { data, isLoading, error } = useQuery({
     queryKey: ["creator-catalogue"],
     queryFn: async () => {
@@ -66,6 +74,36 @@ export function MyCatalogueClient() {
       return (await res.json()) as CatalogueItem[];
     },
   });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (item: CatalogueItem) => {
+      const res = await fetch(`/api/creator/content/${item.id}`, { method: "DELETE" });
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(json.error || "Failed to delete title");
+      return item.id;
+    },
+    onMutate: (item) => {
+      setDeletingId(item.id);
+      setActionError(null);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["creator-catalogue"] });
+    },
+    onError: (err) => {
+      setActionError(err instanceof Error ? err.message : "Failed to delete title");
+    },
+    onSettled: () => {
+      setDeletingId(null);
+    },
+  });
+
+  function confirmDelete(item: CatalogueItem) {
+    const ok = window.confirm(
+      `Delete “${item.title}”? This removes the catalogue entry permanently. Uploaded media files in storage are not automatically purged.`,
+    );
+    if (!ok) return;
+    deleteMutation.mutate(item);
+  }
 
   const items = Array.isArray(data) ? data : [];
 
@@ -81,9 +119,8 @@ export function MyCatalogueClient() {
             My catalogue
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-400">
-            Manage titles you have submitted for distribution. Edit drafts and returned titles, track
-            review status, and add seasons to approved series — without confusing live review or
-            approved catalogue entries.
+            Manage titles you have submitted for distribution. Edit or delete drafts and mistaken
+            uploads, track review status, and add seasons to approved series.
           </p>
           <div className="mt-4">
             <Link
@@ -95,6 +132,13 @@ export function MyCatalogueClient() {
             </Link>
           </div>
         </header>
+
+        {actionError ? (
+          <div className="flex items-center gap-2 rounded-xl border border-red-400/30 bg-red-500/10 p-4 text-sm text-red-200">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            {actionError}
+          </div>
+        ) : null}
 
         {isLoading ? (
           <p className="text-sm text-slate-400">Loading your titles…</p>
@@ -114,8 +158,10 @@ export function MyCatalogueClient() {
           <ul className="space-y-3">
             {items.map((item) => {
               const editable = isEditableCatalogueStatus(item.reviewStatus);
+              const deletable = isDeletableCatalogueStatus(item.reviewStatus);
               const canAddSeason =
                 item.reviewStatus === "APPROVED" && isLongFormType(item.type);
+              const busy = deletingId === item.id;
               return (
                 <li
                   key={item.id}
@@ -146,6 +192,21 @@ export function MyCatalogueClient() {
                         <Pencil className="h-3.5 w-3.5" />
                         Edit
                       </Link>
+                    ) : null}
+                    {deletable ? (
+                      <button
+                        type="button"
+                        onClick={() => confirmDelete(item)}
+                        disabled={busy}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-red-400/30 px-3 py-1.5 text-xs font-medium text-red-200 hover:bg-red-500/10 disabled:opacity-50"
+                      >
+                        {busy ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-3.5 w-3.5" />
+                        )}
+                        Delete
+                      </button>
                     ) : null}
                     {(item.reviewStatus === "REJECTED" ||
                       item.reviewStatus === "CHANGES_REQUESTED" ||
