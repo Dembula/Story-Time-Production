@@ -24,9 +24,15 @@ Required storage keys:
 - `STORAGE_ENDPOINT` (blank for normal S3)
 - `UPLOAD_MAX_FILE_SIZE_MB` (optional, defaults to `30720` = 30GB for feature masters; set higher e.g. `51200` if needed)
 
-### 2) Redeploy
+### 2) Redeploy / auto-deploy from Git
 
 After adding env vars, redeploy your project so runtime picks up new values.
+
+**If pushes from Cursor/GitHub stop showing builds in Vercel**, follow:
+
+- `deploy/connection-pack/vercel-auto-deploy.md`
+
+That sets up a Deploy Hook + GitHub Action so every `main` push triggers Production.
 
 ### 3) Domain alignment
 

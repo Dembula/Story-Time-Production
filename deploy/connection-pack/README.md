@@ -78,6 +78,19 @@ Where to use:
 
 ---
 
+### `vercel-auto-deploy.md`
+
+What it does:
+
+- Restores automatic Production deploys when Vercel’s GitHub webhook stops firing
+  (Deploy Hook + GitHub Action on every `main` push).
+
+Where to use:
+
+- Follow `deploy/connection-pack/vercel-auto-deploy.md` once (add `VERCEL_DEPLOY_HOOK_URL` secret)
+
+---
+
 ## API keys / tokens you need
 
 ### Required now

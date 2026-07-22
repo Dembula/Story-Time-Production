@@ -1,0 +1,45 @@
+name: Deploy production to Vercel
+
+# Ensures every push to main triggers a Vercel Production deploy, even when
+# Vercel’s native GitHub webhook is broken.
+#
+# Required GitHub Actions secret:
+#   VERCEL_DEPLOY_HOOK_URL  — from Vercel → Project → Settings → Git → Deploy Hooks
+# See: deploy/connection-pack/vercel-auto-deploy.md
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: vercel-production
+  cancel-in-progress: false
+
+jobs:
+  trigger-deploy-hook:
+    name: Trigger Vercel Deploy Hook
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call production Deploy Hook
+        env:
+          HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "::error::Missing GitHub secret VERCEL_DEPLOY_HOOK_URL."
+            echo "1) Vercel → Project → Settings → Git → Deploy Hooks"
+            echo "2) Create hook for branch main, copy URL"
+            echo "3) GitHub → Settings → Secrets → Actions → New secret VERCEL_DEPLOY_HOOK_URL"
+            echo "Guide: deploy/connection-pack/vercel-auto-deploy.md"
+            exit 1
+          fi
+          echo "Triggering Vercel production deploy hook…"
+          code=$(curl -sS -o /tmp/vercel-hook-body.txt -w "%{http_code}" -X POST "$HOOK")
+          echo "HTTP $code"
+          cat /tmp/vercel-hook-body.txt || true
+          echo
+          if [ "$code" != "201" ] && [ "$code" != "200" ]; then
+            echo "::error::Deploy hook failed with HTTP $code"
+            exit 1
+          fi
+          echo "Deploy hook accepted. Check Vercel → Deployments for the new build."
