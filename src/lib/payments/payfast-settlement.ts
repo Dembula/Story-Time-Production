@@ -150,8 +150,17 @@ export function getPaymentSettlementAmount(payment: {
   amount: number;
   settlementAmount?: number | null;
 }): number {
-  if (payment.settlementAmount != null && Number.isFinite(payment.settlementAmount) && payment.settlementAmount > 0) {
-    return roundMoney(payment.settlementAmount);
+  const gross = Number(payment.amount);
+  if (!Number.isFinite(gross) || gross <= 0) return 0;
+  if (
+    payment.settlementAmount != null &&
+    Number.isFinite(payment.settlementAmount) &&
+    payment.settlementAmount >= 0
+  ) {
+    // Allow settlement 0 only when gross is also effectively free; otherwise fall back.
+    if (payment.settlementAmount > 0 || gross <= 0) {
+      return roundMoney(payment.settlementAmount);
+    }
   }
-  return roundMoney(payment.amount);
+  return roundMoney(gross);
 }

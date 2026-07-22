@@ -165,6 +165,12 @@ export function buildPayFastCheckoutFields(args: {
   const itemName = args.purpose.replace(/_/g, " ").slice(0, 100);
   const baseAmount = args.metadata?.baseAmount;
   const feeAmount = args.metadata?.feeAmount;
+  const tokenize =
+    args.metadata?.tokenize === true ||
+    args.metadata?.saveCard === true ||
+    String(args.purpose).includes("subscription") ||
+    String(args.purpose).includes("license") ||
+    String(args.purpose).includes("renewal");
 
   const fields: Record<string, string> = {
     merchant_id: getPayFastMerchantId(),
@@ -180,6 +186,11 @@ export function buildPayFastCheckoutFields(args: {
     item_name: itemName,
     custom_str1: args.paymentRecordId,
   };
+
+  // subscription_type=2 tokenizes the card for later adhoc renewals (our cron).
+  if (tokenize) {
+    fields.subscription_type = "2";
+  }
 
   if (typeof baseAmount === "number" && typeof feeAmount === "number" && feeAmount > 0) {
     fields.item_description = `Service R${Number(baseAmount).toFixed(2)} + Story Time transaction fee R${Number(feeAmount).toFixed(2)}`;

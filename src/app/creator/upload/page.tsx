@@ -33,12 +33,15 @@ import {
   useJobAssetProgress,
 } from "@/components/creator/catalogue-upload-provider";
 import {
+  clearActiveCatalogueDraftPointer,
   clearCatalogueUploadDraft,
+  findLatestCatalogueUploadDraft,
   loadCatalogueUploadDraft,
   newCatalogueDraftTempId,
   saveCatalogueUploadDraft,
   type CatalogueUploadDraftSnapshot,
 } from "@/lib/catalogue-upload/draft-store";
+import { isEditableCatalogueStatus } from "@/lib/catalogue-upload/types";
 import type { CatalogueAssetKind, CatalogueUploadAsset } from "@/lib/catalogue-upload/types";
 import { catalogueAssetKindLabel } from "@/lib/catalogue-upload/types";
 
@@ -132,12 +135,21 @@ function DistributionUploadInner() {
   } = useCatalogueUpload();
   const projectIdFromUrl = searchParams.get("projectId");
   const contentIdFromUrl = searchParams.get("contentId");
+  const forceNewUpload = searchParams.get("new") === "1";
   const [editingContentId, setEditingContentId] = useState<string | null>(null);
   const [uploadJobId, setUploadJobId] = useState<string | null>(null);
   const [draftTempId] = useState(() => newCatalogueDraftTempId());
   const [draftHydrated, setDraftHydrated] = useState(false);
+  const [resumeRedirecting, setResumeRedirecting] = useState(false);
   /** When editing an existing title, wait for server cast/crew/BTS before draft autosave. */
   const [serverContentHydrated, setServerContentHydrated] = useState(() => !contentIdFromUrl);
+
+  function uploadUrlWithContentId(contentId: string) {
+    const params = new URLSearchParams();
+    params.set("contentId", contentId);
+    if (projectIdFromUrl) params.set("projectId", projectIdFromUrl);
+    return `/creator/upload?${params.toString()}`;
+  }
   const [backgroundSubmitNotice, setBackgroundSubmitNotice] = useState(false);
   const [resubmitMode, setResubmitMode] = useState(false);
   const [linkedProject, setLinkedProject] = useState<{ id: string; title: string } | null>(null);
@@ -178,9 +190,11 @@ function DistributionUploadInner() {
 
   useEffect(() => {
     if (!contentIdFromUrl) {
-      setEditingContentId(null);
-      setResubmitMode(false);
-      setServerContentHydrated(true);
+      if (forceNewUpload) {
+        setEditingContentId(null);
+        setResubmitMode(false);
+        setServerContentHydrated(true);
+      }
       return;
     }
     setServerContentHydrated(false);
@@ -235,6 +249,46 @@ function DistributionUploadInner() {
           : [];
         setBtsVideos(btsRows);
 
+        if (Array.isArray(data.seasons) && data.seasons.length > 0) {
+          const episodes: EpisodeDraft[] = [];
+          const perSeason: number[] = [];
+          for (const season of data.seasons as Array<{
+            seasonNumber?: number;
+            episodes?: Array<{
+              episodeNumber?: number;
+              title?: string;
+              description?: string | null;
+              videoUrl?: string | null;
+              duration?: number | null;
+            }>;
+          }>) {
+            const seasonNumber = Number(season.seasonNumber) || 1;
+            const eps = Array.isArray(season.episodes) ? season.episodes : [];
+            perSeason[seasonNumber - 1] = eps.length || 1;
+            for (const ep of eps) {
+              episodes.push({
+                seasonNumber,
+                episodeNumber: Number(ep.episodeNumber) || 1,
+                title: typeof ep.title === "string" ? ep.title : `Episode ${ep.episodeNumber ?? 1}`,
+                description: typeof ep.description === "string" ? ep.description : "",
+                videoUrl: typeof ep.videoUrl === "string" ? ep.videoUrl : "",
+                duration: ep.duration != null ? String(ep.duration) : "",
+              });
+            }
+          }
+          if (episodes.length > 0) {
+            const seasonTotal = Math.max(
+              1,
+              ...episodes.map((e) => e.seasonNumber),
+              Array.isArray(data.seasons) ? data.seasons.length : 1,
+            );
+            const filledPerSeason = Array.from({ length: seasonTotal }, (_, i) => perSeason[i] || 6);
+            setSeasonCount(seasonTotal);
+            setEpisodesPerSeason(filledPerSeason);
+            setEpisodeDrafts(episodes);
+          }
+        }
+
         if (typeof data.minAge === "number" && Number.isFinite(data.minAge)) {
           setMinAge(data.minAge);
         }
@@ -262,6 +316,12 @@ function DistributionUploadInner() {
             title: data.linkedProject.title || "Linked project",
           });
         }
+
+        // Jump to media step when files already exist so refresh still shows completed uploads.
+        if (data.videoUrl || data.posterUrl || data.trailerUrl || data.backdropUrl) {
+          setStep((s) => Math.max(s, 3));
+        }
+
         setServerContentHydrated(true);
       })
       .catch(() => {
@@ -270,7 +330,7 @@ function DistributionUploadInner() {
     return () => {
       cancelled = true;
     };
-  }, [contentIdFromUrl]);
+  }, [contentIdFromUrl, forceNewUpload]);
 
   function applyPlatformPrefill() {
     if (!prefillData) return;
@@ -513,22 +573,65 @@ function DistributionUploadInner() {
     }
   }, [jobs, effectiveJobId]);
 
-  // Restore local draft (text/prefill) when not loading a server contentId yet
+  // Restore local draft, or redirect to the in-progress contentId so refresh keeps uploads.
   useEffect(() => {
     if (!userId || draftHydrated) return;
+
+    if (forceNewUpload) {
+      clearActiveCatalogueDraftPointer(userId);
+      setDraftHydrated(true);
+      return;
+    }
+
     if (contentIdFromUrl) {
       const serverDraft = loadCatalogueUploadDraft(userId, contentIdFromUrl);
       if (serverDraft) {
         // Keep cast/crew/BTS for the server hydrate — local drafts often have empty credits after send-back.
-        applyDraftSnapshot(serverDraft, { preferServerUrls: false, skipCredits: true });
+        applyDraftSnapshot(serverDraft, { preferServerUrls: true, skipCredits: true });
       }
+      setDraftHydrated(true);
+      setResumeRedirecting(false);
+      return;
+    }
+
+    const latest = findLatestCatalogueUploadDraft(userId);
+    if (latest?.contentId) {
+      setResumeRedirecting(true);
+      router.replace(uploadUrlWithContentId(latest.contentId));
+      return;
+    }
+
+    if (latest && (latest.form?.title || latest.form?.videoUrl || latest.form?.posterUrl)) {
+      applyDraftSnapshot(latest, { preferServerUrls: false });
       setDraftHydrated(true);
       return;
     }
-    const local = loadCatalogueUploadDraft(userId, draftTempId);
-    if (local) applyDraftSnapshot(local, { preferServerUrls: false });
-    setDraftHydrated(true);
-  }, [userId, contentIdFromUrl, draftTempId, draftHydrated]);
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/creator/content");
+        if (!res.ok) throw new Error("list failed");
+        const list = (await res.json()) as Array<{ id: string; reviewStatus: string; updatedAt?: string }>;
+        const editable = (Array.isArray(list) ? list : []).find((item) =>
+          isEditableCatalogueStatus(item.reviewStatus),
+        );
+        if (cancelled) return;
+        if (editable?.id) {
+          setResumeRedirecting(true);
+          router.replace(uploadUrlWithContentId(editable.id));
+          return;
+        }
+      } catch {
+        // ignore — blank new upload
+      }
+      if (!cancelled) setDraftHydrated(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, contentIdFromUrl, draftTempId, draftHydrated, forceNewUpload, router, projectIdFromUrl]);
 
   function applyDraftSnapshot(
     snap: CatalogueUploadDraftSnapshot,
@@ -712,6 +815,9 @@ function DistributionUploadInner() {
             const id = (data.id || data.contentId) as string;
             setEditingContentId(id);
             if (uploadJobId) updateJobMeta(uploadJobId, { contentId: id });
+            if (!contentIdFromUrl || contentIdFromUrl !== id) {
+              router.replace(uploadUrlWithContentId(id));
+            }
           }
         } catch {
           // ignore autosave network errors
@@ -726,10 +832,17 @@ function DistributionUploadInner() {
     form.videoUrl,
     form.posterUrl,
     form.backdropUrl,
+    form.trailerUrl,
+    form.scriptUrl,
     draftHydrated,
     serverContentHydrated,
     contentIdFromUrl,
-    // intentionally omit full form to avoid thrashing — title/type/key fields trigger
+    editingContentId,
+    uploadJobId,
+    updateJobMeta,
+    router,
+    projectIdFromUrl,
+    // intentionally omit full form to avoid thrashing — title/type/key media fields trigger
   ]);
 
   useEffect(() => {
@@ -1024,6 +1137,15 @@ function DistributionUploadInner() {
     } finally {
       setLoading(false);
     }
+  }
+
+  if (resumeRedirecting && !contentIdFromUrl) {
+    return (
+      <div className="flex min-h-[50vh] flex-col items-center justify-center gap-3 px-6">
+        <StoryTimeLoader />
+        <p className="text-sm text-slate-400">Restoring your in-progress catalogue upload…</p>
+      </div>
+    );
   }
 
   if (success) {

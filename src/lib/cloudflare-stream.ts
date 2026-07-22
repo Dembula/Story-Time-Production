@@ -149,3 +149,57 @@ export async function ensureCloudflareStreamPlaybackUrl(
   return result.mp4Url;
 }
 
+export type CloudflareStreamVideoDetails = {
+  uid: string;
+  state: string;
+  pctComplete: number | null;
+  readyToStream: boolean;
+  errorReasonText: string | null;
+};
+
+/** Live Stream video details (includes encoding pctComplete when available). */
+export async function getCloudflareStreamVideoDetails(
+  uid: string,
+): Promise<CloudflareStreamVideoDetails | null> {
+  const api = getCloudflareStreamApiCredentials();
+  if (!api || !uid.trim()) return null;
+  const res = await fetch(
+    `https://api.cloudflare.com/client/v4/accounts/${api.accountId}/stream/${encodeURIComponent(uid.trim())}`,
+    {
+      headers: { Authorization: `Bearer ${api.apiToken}` },
+      cache: "no-store",
+    },
+  );
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Cloudflare Stream details failed (${res.status}): ${text.slice(0, 200)}`);
+  }
+  const payload = (await res.json()) as {
+    result?: {
+      uid?: string;
+      readyToStream?: boolean;
+      status?: {
+        state?: string;
+        pctComplete?: string | number;
+        errorReasonText?: string;
+      };
+    };
+  };
+  const result = payload.result;
+  if (!result?.uid) return null;
+  const rawPct = result.status?.pctComplete;
+  const pct =
+    typeof rawPct === "number"
+      ? rawPct
+      : typeof rawPct === "string" && rawPct.trim()
+        ? Number.parseFloat(rawPct)
+        : null;
+  return {
+    uid: result.uid,
+    state: result.status?.state ?? "unknown",
+    pctComplete: Number.isFinite(pct) ? Math.max(0, Math.min(100, pct as number)) : null,
+    readyToStream: Boolean(result.readyToStream),
+    errorReasonText: result.status?.errorReasonText?.trim() || null,
+  };
+}
+

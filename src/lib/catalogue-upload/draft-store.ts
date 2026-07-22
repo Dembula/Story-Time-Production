@@ -36,6 +36,10 @@ function draftKey(userId: string, draftKeyId: string): string {
   return `catalogue-upload-draft:${userId}:${draftKeyId}`;
 }
 
+function activePointerKey(userId: string): string {
+  return `catalogue-upload-draft-active:${userId}`;
+}
+
 export function saveCatalogueUploadDraft(
   userId: string,
   draftKeyId: string,
@@ -47,6 +51,8 @@ export function saveCatalogueUploadDraft(
     if (snapshot.contentId && snapshot.contentId !== draftKeyId) {
       localStorage.setItem(draftKey(userId, snapshot.contentId), JSON.stringify(snapshot));
     }
+    const pointer = snapshot.contentId || draftKeyId;
+    localStorage.setItem(activePointerKey(userId), pointer);
   } catch {
     // Quota / private mode — ignore
   }
@@ -68,10 +74,49 @@ export function loadCatalogueUploadDraft(
   }
 }
 
+/** Most recently saved draft for this user (survives temp-* key rotation on refresh). */
+export function findLatestCatalogueUploadDraft(userId: string): CatalogueUploadDraftSnapshot | null {
+  if (typeof window === "undefined") return null;
+  const prefix = `catalogue-upload-draft:${userId}:`;
+  let best: CatalogueUploadDraftSnapshot | null = null;
+  try {
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      if (!key?.startsWith(prefix)) continue;
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw) as CatalogueUploadDraftSnapshot;
+      if (!parsed || parsed.version !== 1) continue;
+      if (!best || (parsed.updatedAt ?? 0) > (best.updatedAt ?? 0)) best = parsed;
+    }
+    const activeId = localStorage.getItem(activePointerKey(userId));
+    if (activeId) {
+      const active = loadCatalogueUploadDraft(userId, activeId);
+      if (active && (!best || (active.updatedAt ?? 0) >= (best.updatedAt ?? 0))) {
+        return active;
+      }
+    }
+  } catch {
+    return best;
+  }
+  return best;
+}
+
 export function clearCatalogueUploadDraft(userId: string, draftKeyId: string): void {
   if (typeof window === "undefined") return;
   try {
     localStorage.removeItem(draftKey(userId, draftKeyId));
+    const active = localStorage.getItem(activePointerKey(userId));
+    if (active === draftKeyId) localStorage.removeItem(activePointerKey(userId));
+  } catch {
+    // ignore
+  }
+}
+
+export function clearActiveCatalogueDraftPointer(userId: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(activePointerKey(userId));
   } catch {
     // ignore
   }

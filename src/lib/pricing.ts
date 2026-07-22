@@ -167,9 +167,12 @@ export function isCreatorLicensePeriodActive(license: {
   yearlyExpiresAt: Date | string | null;
   status?: string | null;
 }): boolean {
-  if (license.status === "CANCELLED" || license.status === "PAST_DUE") return false;
+  if (license.status === "CANCELLED") return false;
   if (isCreatorPerFilmLicense(license.type)) return true;
-  if (!license.yearlyExpiresAt) return true;
+  if (!license.yearlyExpiresAt) {
+    // Open-ended / awaiting first payment — not cancelled means period still usable for entitlement checks.
+    return true;
+  }
   const end = new Date(license.yearlyExpiresAt);
   return end.getTime() > Date.now();
 }

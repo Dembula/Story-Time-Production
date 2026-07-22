@@ -111,3 +111,32 @@ export function computeDiscountedAmount(baseAmount: number, promo: { kind: strin
   }
   return baseAmount;
 }
+
+/** True when the promo covers the full list price (no cash checkout). */
+export function isFullyCompedPromo(promo: { kind: string; amount: number | null }) {
+  if (promo.kind === "FREE_YEAR_SUBSCRIPTION") return true;
+  if (promo.kind === "DISCOUNT_PERCENT" && (promo.amount ?? 0) >= 100) return true;
+  return false;
+}
+
+/**
+ * Entitlement end for a fully-comped promo.
+ * Free-year / 100% codes grant one year; other comps follow the product's normal period.
+ */
+export function promoGrantPeriodEnd(
+  from: Date,
+  promo: { kind: string; amount: number | null },
+  fallback: "month" | "year" = "month",
+): Date {
+  const end = new Date(from);
+  if (isFullyCompedPromo(promo)) {
+    end.setFullYear(end.getFullYear() + 1);
+    return end;
+  }
+  if (fallback === "year") {
+    end.setFullYear(end.getFullYear() + 1);
+  } else {
+    end.setMonth(end.getMonth() + 1);
+  }
+  return end;
+}

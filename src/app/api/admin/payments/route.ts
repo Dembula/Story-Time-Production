@@ -3,7 +3,11 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { splitViewerRevenue } from "@/lib/payments/fees";
-import { getPaymentSettlementAmount } from "@/lib/payments/payfast-settlement";
+import {
+  getCashSettlementAmount,
+  isCashRecognizedPayment,
+  paymentFundingSource,
+} from "@/lib/payments/cash-recognition";
 import { getPlatformTreasuryUserId } from "@/lib/payments/treasury-inflow";
 import { getWalletSnapshot } from "@/lib/payments/wallet";
 import { VIEWER_CREATOR_SPLIT, VIEWER_PLATFORM_SPLIT } from "@/lib/payments/config";
@@ -76,48 +80,31 @@ export async function GET(req: NextRequest) {
     const transactionsTyped = transactions as any[];
     const payoutsTyped = payouts as any[];
     const escrowsTyped = escrows as any[];
-    const invoicesTyped = invoices as any[];
 
-    const succeededPayments = paymentRecordsTyped.filter((p: any) => p.status === "SUCCEEDED");
-    const grossInflow = succeededPayments.reduce((sum: number, p: any) => sum + Number(p.amount ?? 0), 0);
-    const netInflow = succeededPayments.reduce(
-      (sum: number, p: any) =>
-        sum +
-        getPaymentSettlementAmount({
-          amount: Number(p.amount ?? 0),
-          settlementAmount: p.settlementAmount != null ? Number(p.settlementAmount) : null,
-        }),
-      0,
-    );
-    const payfastFeesTotal = succeededPayments.reduce(
+    const cashPayments = paymentRecordsTyped.filter((p: any) => isCashRecognizedPayment(p));
+    const grossInflow = cashPayments.reduce((sum: number, p: any) => sum + Number(p.amount ?? 0), 0);
+    const netInflow = cashPayments.reduce((sum: number, p: any) => sum + getCashSettlementAmount(p), 0);
+    const payfastFeesTotal = cashPayments.reduce(
       (sum: number, p: any) => sum + Number(p.providerFeeAmount ?? 0),
       0,
     );
 
-    const viewerPoolPayments = succeededPayments.filter((p: any) => isViewerPoolPaymentPurpose(p.purpose));
+    const viewerPoolPayments = cashPayments.filter((p: any) => isViewerPoolPaymentPurpose(p.purpose));
     const viewerSubGross = viewerPoolPayments.reduce((sum: number, p: any) => sum + Number(p.amount ?? 0), 0);
-    const viewerSubNet = viewerPoolPayments.reduce(
-      (sum: number, p: any) =>
-        sum +
-        getPaymentSettlementAmount({
-          amount: Number(p.amount ?? 0),
-          settlementAmount: p.settlementAmount != null ? Number(p.settlementAmount) : null,
-        }),
-      0,
-    );
+    const viewerSubNet = viewerPoolPayments.reduce((sum: number, p: any) => sum + getCashSettlementAmount(p), 0);
     const viewerSplit = splitViewerRevenue(viewerSubNet);
 
     const marketplaceFees = transactionsTyped
       .filter((t: any) => t.status === "COMPLETED")
       .reduce((sum: number, t: any) => sum + Number(t.feeAmount ?? 0), 0);
 
-    const platformServiceRevenue = succeededPayments
+    const platformServiceRevenue = cashPayments
       .filter((p: any) =>
-        ["SCRIPT_REVIEW", "CASTING_ACQUISITION_FEE", "AUDITION_LISTING", "CREATOR_", "COMPANY_"].some((prefix) =>
-          String(p.purpose ?? "").startsWith(prefix),
+        ["SCRIPT_REVIEW", "CASTING_ACQUISITION_FEE", "AUDITION_LISTING", "CREATOR_", "COMPANY_", "creator_", "company_"].some(
+          (prefix) => String(p.purpose ?? "").startsWith(prefix),
         ),
       )
-      .reduce((sum: number, p: any) => sum + Number(p.amount ?? 0), 0);
+      .reduce((sum: number, p: any) => sum + getCashSettlementAmount(p), 0);
 
     const platformCharges = marketplaceFees + viewerSplit.platform + platformServiceRevenue;
 
@@ -142,9 +129,20 @@ export async function GET(req: NextRequest) {
     const platformRevenueRecognized = Number(accountByType.get("PLATFORM_REVENUE")?.balance ?? 0);
     const netRetained = treasuryAvailable + creatorPoolHeld + platformRevenueRecognized;
 
+    const enrichedPaymentRecords = paymentRecordsTyped.map((p: any) => ({
+      ...p,
+      fundingSource: paymentFundingSource(p),
+      cashRecognized: isCashRecognizedPayment(p),
+      netSettlement: getCashSettlementAmount(p),
+    }));
+
     const metrics = {
       paymentPending: paymentRecordsTyped.filter((p: any) => p.status === "PENDING").length,
-      paymentSucceeded: succeededPayments.length,
+      paymentSucceeded: cashPayments.length,
+      paymentSucceededAll: paymentRecordsTyped.filter((p: any) => p.status === "SUCCEEDED").length,
+      paymentPromoOrDemo: paymentRecordsTyped.filter(
+        (p: any) => p.status === "SUCCEEDED" && !isCashRecognizedPayment(p),
+      ).length,
       txPending: transactionsTyped.filter((t: any) => t.status === "PENDING").length,
       txCompleted: transactionsTyped.filter((t: any) => t.status === "COMPLETED").length,
       escrowHeld: escrowsTyped.filter((e: any) => e.status === "HELD").length,
@@ -226,7 +224,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       metrics: { ...metrics, ...trialMetrics },
-      paymentRecords,
+      paymentRecords: enrichedPaymentRecords,
       transactions,
       payouts,
       escrows,

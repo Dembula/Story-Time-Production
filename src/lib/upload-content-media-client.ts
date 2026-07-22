@@ -1,7 +1,7 @@
 import {
   CONTENT_MEDIA_DIRECT_UPLOAD_MAX_BYTES,
-  CONTENT_MEDIA_MULTIPART_CONCURRENCY,
   CONTENT_MEDIA_MULTIPART_PART_SIZE_BYTES,
+  contentMediaMultipartConcurrency,
   shouldUseMultipartUpload,
 } from "@/lib/content-media-shared";
 import type { ContentMediaFinalizePayload } from "@/lib/content-media-post-upload";
@@ -12,10 +12,28 @@ const NETWORK_ERROR_NAMES = new Set(["TypeError"]);
 const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
 /** How many part URLs to fetch ahead of the upload pool. */
 const SIGN_BATCH_SIZE = 24;
-/** Abort a stalled part if no progress bytes for this long. */
-const PART_STALL_TIMEOUT_MS = 90_000;
 /** Absolute ceiling per part attempt (slow links still finish large chunks). */
 const PART_HARD_TIMEOUT_MS = 45 * 60 * 1000;
+/** Max attempts per part (stalls / flaky Wi‑Fi). */
+const PART_MAX_ATTEMPTS = 6;
+
+class UploadStallError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UploadStallError";
+  }
+}
+
+function isUploadStallError(error: unknown): boolean {
+  return error instanceof UploadStallError || (error instanceof Error && error.name === "UploadStallError");
+}
+
+/** Stall window grows with part size; never fail a quiet chunk too quickly. */
+function partStallTimeoutMs(partBytes: number): number {
+  // ~40 KB/s effective floor → time to notice a true freeze, not a slow uplink.
+  const fromSize = Math.ceil(partBytes / (40 * 1024)) * 1000;
+  return Math.min(12 * 60 * 1000, Math.max(3 * 60 * 1000, fromSize));
+}
 
 function isNetworkFetchError(error: unknown): boolean {
   return error instanceof Error && NETWORK_ERROR_NAMES.has(error.name);
@@ -114,6 +132,9 @@ async function xhrPutWithProgress(
         stallTimer = null;
       }
       if (signal) signal.removeEventListener("abort", onAbort);
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", onVisibility);
+      }
     };
 
     const fail = (err: Error) => {
@@ -137,9 +158,18 @@ async function xhrPutWithProgress(
       fail(new DOMException("Upload aborted", "AbortError"));
     };
 
+    /** Background tabs throttle XHR progress — freeze the stall clock while hidden. */
+    const onVisibility = () => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      lastProgressAt = Date.now();
+    };
+
     xhr.open("PUT", url);
     if (timeoutMs > 0) xhr.timeout = timeoutMs;
     Object.entries(headers).forEach(([k, v]) => xhr.setRequestHeader(k, v));
+    xhr.upload.onloadstart = () => {
+      lastProgressAt = Date.now();
+    };
     xhr.upload.onprogress = (ev) => {
       const loaded = ev.lengthComputable ? ev.loaded : ev.loaded;
       if (loaded > lastLoaded) {
@@ -181,17 +211,25 @@ async function xhrPutWithProgress(
     if (signal) {
       signal.addEventListener("abort", onAbort);
     }
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", onVisibility);
+    }
     if (stallTimeoutMs > 0) {
       stallTimer = setInterval(() => {
         if (settled) return;
+        // Don't abort while the tab is backgrounded — browsers pause progress events.
+        if (typeof document !== "undefined" && document.hidden) {
+          lastProgressAt = Date.now();
+          return;
+        }
         if (Date.now() - lastProgressAt >= stallTimeoutMs) {
           fail(
-            new Error(
-              "Upload stalled (no progress). Retrying this chunk — keep the tab open and check your connection.",
+            new UploadStallError(
+              "Upload chunk paused — retrying automatically. Keep this tab open until the upload finishes.",
             ),
           );
         }
-      }, Math.min(5_000, Math.max(1_000, Math.floor(stallTimeoutMs / 6))));
+      }, Math.min(8_000, Math.max(2_000, Math.floor(stallTimeoutMs / 8))));
     }
     xhr.send(body);
   });
@@ -446,7 +484,7 @@ async function uploadContentMediaViaMultipart(
       2,
       typeof initJson.concurrency === "number" && initJson.concurrency > 0
         ? Math.floor(initJson.concurrency)
-        : CONTENT_MEDIA_MULTIPART_CONCURRENCY,
+        : contentMediaMultipartConcurrency(file.size),
     ),
   );
   const totalParts = Math.max(1, Math.ceil(file.size / partSize));
@@ -454,6 +492,7 @@ async function uploadContentMediaViaMultipart(
   /** Bytes fully committed from finished parts + in-flight part progress. */
   const partLoadedBytes = new Map<number, number>();
   let committedBytes = 0;
+  const stallTimeoutMs = partStallTimeoutMs(partSize);
 
   const reportProgress = () => {
     let inFlight = 0;
@@ -479,7 +518,7 @@ async function uploadContentMediaViaMultipart(
         const blob = file.slice(start, end);
 
         let lastError: unknown;
-        for (let attempt = 0; attempt < 4; attempt += 1) {
+        for (let attempt = 0; attempt < PART_MAX_ATTEMPTS; attempt += 1) {
           try {
             if (signal?.aborted) {
               throw new DOMException("Upload aborted", "AbortError");
@@ -499,7 +538,7 @@ async function uploadContentMediaViaMultipart(
               signal,
               {
                 timeoutMs: PART_HARD_TIMEOUT_MS,
-                stallTimeoutMs: PART_STALL_TIMEOUT_MS,
+                stallTimeoutMs,
                 onBytes: (loaded) => {
                   partLoadedBytes.set(partNumber, Math.min(blob.size, Math.max(0, loaded)));
                   reportProgress();
@@ -507,24 +546,38 @@ async function uploadContentMediaViaMultipart(
               },
             );
 
+            if (!etag) {
+              throw new Error(
+                `Part ${partNumber} uploaded but S3 did not return an ETag. Check bucket CORS ExposeHeaders includes ETag.`,
+              );
+            }
+
             partLoadedBytes.delete(partNumber);
             committedBytes += blob.size;
             reportProgress();
 
-            completedParts.push({ PartNumber: partNumber, ETag: etag || "" });
+            completedParts.push({ PartNumber: partNumber, ETag: etag });
             return;
           } catch (err) {
             lastError = err;
             partLoadedBytes.delete(partNumber);
             reportProgress();
             if (isAbortError(err)) throw err;
-            if (attempt >= 3) break;
-            await wait(600 * (attempt + 1));
+            if (attempt >= PART_MAX_ATTEMPTS - 1) break;
+            // Longer backoff after stalls so the link can recover.
+            const base = isUploadStallError(err) ? 1_500 : 600;
+            await wait(base * (attempt + 1) + Math.floor(Math.random() * 400));
           }
         }
-        throw lastError instanceof Error
-          ? lastError
-          : new Error(`Failed to upload part ${partNumber}`);
+        const finalMessage =
+          lastError instanceof Error
+            ? lastError.message
+            : `Failed to upload part ${partNumber}`;
+        throw new Error(
+          isUploadStallError(lastError)
+            ? `Upload kept pausing on chunk ${partNumber}/${totalParts}. Check your connection, keep this tab in the foreground, and try again. (${finalMessage})`
+            : finalMessage,
+        );
       },
     );
   } catch (err) {

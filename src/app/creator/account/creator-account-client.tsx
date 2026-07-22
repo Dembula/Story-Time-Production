@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { AccountPrivacyControls } from "@/components/account/account-privacy-controls";
 import { CreatorAccountVaultHub } from "@/components/creator/creator-account-vault-hub";
+import { CreatorBillingPanel } from "@/components/creator/creator-billing-panel";
 import { requiresPayoutKyc } from "@/lib/payout-kyc-shared";
 import { CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY } from "@/lib/pricing";
 import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
@@ -46,7 +47,7 @@ type CreatorRevenuePayload = {
   payouts: { id: string; amount: number; currency: string; status: string; period: string; paidAt: string | null }[];
 };
 
-const ACCOUNT_TABS = ["profile", "security", "banking", "public", "registry"] as const;
+const ACCOUNT_TABS = ["profile", "security", "banking", "billing", "public", "registry"] as const;
 type AccountTab = (typeof ACCOUNT_TABS)[number];
 
 function isValidAccountTab(s: string): s is AccountTab {
@@ -89,6 +90,7 @@ const ACCOUNT_TAB_ITEMS: { id: AccountTab; label: string }[] = [
   { id: "profile", label: "Profile" },
   { id: "security", label: "Security & contact" },
   { id: "banking", label: "Banking & payouts" },
+  { id: "billing", label: "Package & billing" },
   { id: "public", label: "Public profile" },
   { id: "registry", label: "Registry & compliance" },
 ];
@@ -930,6 +932,8 @@ export function CreatorAccountClient({ backHref = "/creator/command-center" }: {
         )}
       </div>
       )}
+
+      {activeTab === "billing" && <CreatorBillingPanel />}
 
       {activeTab === "registry" && (
         <div className="storytime-plan-card space-y-4 p-5 md:p-6">

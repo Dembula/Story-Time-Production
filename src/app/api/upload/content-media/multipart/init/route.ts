@@ -4,9 +4,9 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import {
   ALLOWED_CONTENT_MEDIA_MIME_TYPES,
-  CONTENT_MEDIA_MULTIPART_CONCURRENCY,
   buildUserScopedUploadKey,
   contentMediaMaxUploadBytes,
+  contentMediaMultipartConcurrency,
   contentMediaMultipartPartSizeBytes,
   formatUploadSizeLimitLabel,
   resolveContentTypeForUpload,
@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
         key,
         contentType,
         partSize: contentMediaMultipartPartSizeBytes(size),
-        concurrency: CONTENT_MEDIA_MULTIPART_CONCURRENCY,
+        concurrency: contentMediaMultipartConcurrency(size),
       },
       { status: 200 },
     );

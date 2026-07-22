@@ -54,6 +54,23 @@ export async function GET(request: NextRequest) {
           orderBy: { sortOrder: "asc" },
           select: { id: true, title: true, videoUrl: true, thumbnail: true, sortOrder: true },
         },
+        seasons: {
+          orderBy: { seasonNumber: "asc" },
+          select: {
+            seasonNumber: true,
+            title: true,
+            episodes: {
+              orderBy: { episodeNumber: "asc" },
+              select: {
+                episodeNumber: true,
+                title: true,
+                description: true,
+                videoUrl: true,
+                duration: true,
+              },
+            },
+          },
+        },
       },
     });
     if (!one) return NextResponse.json({ error: "Not found" }, { status: 404 });

@@ -2,6 +2,7 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import { DEMO_PAYMENT_PROVIDER } from "@/lib/payments/config";
+import { isCashRecognizedPayment } from "@/lib/payments/cash-recognition";
 import { recordGatewayEventIfNew } from "@/lib/payments/idempotency";
 import { applyPaymentRecordSettlementEffects } from "@/lib/payments/settlement-effects";
 import { allocateGatewayPaymentLedger } from "@/lib/payments/gateway-allocation";
@@ -83,6 +84,7 @@ export async function completeGatewayPayment(
     amount: payment.amount,
     settlementAmount: settlement.settlementAmount,
   });
+  const isDemo = provider === DEMO_PAYMENT_PROVIDER;
 
   await db.paymentRecord.update({
     where: { id: paymentRecordId },
@@ -99,7 +101,7 @@ export async function completeGatewayPayment(
       settlementSource: settlement.settlementSource,
       metadata: {
         ...metadata,
-        demoCompletedAt: now.toISOString(),
+        ...(isDemo ? { demoCompletedAt: now.toISOString() } : {}),
         gatewayReference: options?.reference ?? metadata.gatewayReference ?? null,
         payfastSettlement: {
           amountGross: settlement.amountGross,
@@ -134,17 +136,33 @@ export async function completeGatewayPayment(
     signatureVerified: provider === DEMO_PAYMENT_PROVIDER ? true : Boolean(options?.reference),
   });
 
-  await allocateGatewayPaymentLedger({
-    id: paymentRecordId,
+  const cashRecognized = isCashRecognizedPayment({
     amount: payment.amount,
-    settlementAmount: allocatableAmount,
-    providerFeeAmount: settlement.providerFeeAmount,
+    settlementAmount: settlement.settlementAmount,
+    status: "SUCCEEDED",
     purpose: payment.purpose,
-    relatedEntityType: payment.relatedEntityType,
-    relatedEntityId: payment.relatedEntityId,
-  }).catch((err: unknown) => {
-    console.error("gateway allocation skipped", err);
+    provider,
+    metadata: {
+      ...metadata,
+      ...(isDemo ? { demoCompletedAt: now.toISOString() } : {}),
+    },
+    settlementSource: settlement.settlementSource,
   });
+
+  // Domain entitlements always apply; ledger cash only for real PayFast money.
+  if (cashRecognized && allocatableAmount > 0) {
+    await allocateGatewayPaymentLedger({
+      id: paymentRecordId,
+      amount: payment.amount,
+      settlementAmount: allocatableAmount,
+      providerFeeAmount: settlement.providerFeeAmount,
+      purpose: payment.purpose,
+      relatedEntityType: payment.relatedEntityType,
+      relatedEntityId: payment.relatedEntityId,
+    }).catch((err: unknown) => {
+      console.error("gateway allocation skipped", err);
+    });
+  }
 
   await applyPaymentRecordSettlementEffects({
     id: paymentRecordId,

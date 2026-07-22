@@ -124,7 +124,7 @@ export function MyCatalogueClient() {
           </p>
           <div className="mt-4">
             <Link
-              href="/creator/upload"
+              href="/creator/upload?new=1"
               className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-orange-600"
             >
               <Plus className="h-4 w-4" />
@@ -150,7 +150,7 @@ export function MyCatalogueClient() {
         ) : items.length === 0 ? (
           <div className="creator-glass-panel rounded-xl border border-white/8 p-8 text-center">
             <p className="text-sm text-slate-300">No catalogue titles yet.</p>
-            <Link href="/creator/upload" className="mt-3 inline-block text-sm text-orange-300 hover:text-orange-200">
+            <Link href="/creator/upload?new=1" className="mt-3 inline-block text-sm text-orange-300 hover:text-orange-200">
               Start your first upload
             </Link>
           </div>

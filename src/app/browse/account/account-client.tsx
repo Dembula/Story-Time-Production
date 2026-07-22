@@ -54,11 +54,37 @@ export function AccountClient({
     try {
       const res = await fetch("/api/viewer/subscription/renew", { method: "POST" });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Renewal failed");
+      if (!res.ok) {
+        const consentUrl = (data as { cardConsentUrl?: string }).cardConsentUrl;
+        if (consentUrl) {
+          window.location.href = consentUrl;
+          return;
+        }
+        throw new Error(data.error || "Renewal failed");
+      }
       window.location.reload();
     } catch (error) {
       setRenewError(error instanceof Error ? error.message : "Renewal failed");
     } finally {
+      setRenewing(false);
+    }
+  }
+
+  async function saveCardForAutoRenew() {
+    setRenewError("");
+    setRenewing(true);
+    try {
+      const res = await fetch("/api/payments/payfast/card-consent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ returnPath: "/browse/account" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Unable to start card setup");
+      if (!data.checkoutUrl) throw new Error("No checkout URL returned");
+      window.location.href = data.checkoutUrl;
+    } catch (error) {
+      setRenewError(error instanceof Error ? error.message : "Unable to start card setup");
       setRenewing(false);
     }
   }
@@ -213,6 +239,24 @@ export function AccountClient({
             </Link>
           </div>
         )}
+        {!isPpv && !subscription.paymentMethodLabel ? (
+          <div className="mt-4 rounded-xl border border-amber-400/25 bg-amber-500/10 p-4 text-sm text-amber-50">
+            <p className="font-medium text-white">Automatic monthly billing needs a saved card</p>
+            <p className="mt-1 text-amber-100/90">
+              PayFast can only renew your subscription if a card token is on file. Save a card once — the daily billing
+              job will charge it when your period ends.
+            </p>
+            <button
+              type="button"
+              onClick={() => void saveCardForAutoRenew()}
+              disabled={renewing}
+              className="mt-3 inline-flex items-center gap-2 rounded-lg bg-amber-500/25 px-4 py-2 text-sm font-semibold text-amber-50 hover:bg-amber-500/35 disabled:opacity-60"
+            >
+              {renewing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
+              Save card for auto-renew
+            </button>
+          </div>
+        ) : null}
         <div className="mt-4 flex flex-wrap gap-3">
           <Link href="/browse/account/change-plan" className="inline-flex items-center gap-2 rounded-xl bg-orange-500/12 px-4 py-2.5 text-sm font-medium text-orange-300 hover:bg-orange-500/18">
             <RefreshCw className="w-4 h-4" /> {isPpv ? "Change viewer model" : "Change plan"}
@@ -221,17 +265,22 @@ export function AccountClient({
             <button
               type="button"
               onClick={retryRenewal}
-              disabled={renewing || !subscription.paymentMethodLabel}
+              disabled={renewing}
               className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm font-medium text-slate-300 hover:bg-white/[0.05] disabled:opacity-50"
             >
               {renewing ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-              Retry saved-card renewal
+              Retry renewal / charge card
             </button>
           )}
           {!isPpv && !subscription.paymentMethodLabel ? (
-            <Link href="/browse/account/change-plan" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm font-medium text-slate-300 hover:bg-white/[0.05]">
-              Add payment method
-            </Link>
+            <button
+              type="button"
+              onClick={() => void saveCardForAutoRenew()}
+              disabled={renewing}
+              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm font-medium text-slate-300 hover:bg-white/[0.05] disabled:opacity-50"
+            >
+              <CreditCard className="w-4 h-4" /> Add payment method
+            </button>
           ) : null}
           {canManageSubscription && !subscription.cancelAtPeriodEnd ? (
             <button

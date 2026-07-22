@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
 
   const url = new URL(req.url);
   const hoursRaw = url.searchParams.get("hours");
-  const windowHours = hoursRaw ? Math.min(168, Math.max(1, parseInt(hoursRaw, 10))) : 24;
+  const windowHours = hoursRaw ? Math.min(720, Math.max(1, parseInt(hoursRaw, 10))) : 24;
 
   const body = await fetchAiAdminDashboardBundle(windowHours);
   return NextResponse.json(body);

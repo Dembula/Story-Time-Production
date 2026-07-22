@@ -53,6 +53,13 @@ export async function getCreatorPackageStatus(
   }
 
   if (!isCreatorLicensePeriodActive(license)) {
+    // Persist expiry so dashboards / renewals don't keep treating the row as active.
+    if (license.status === "ACTIVE" && license.yearlyExpiresAt && new Date(license.yearlyExpiresAt).getTime() <= Date.now()) {
+      await prisma.creatorDistributionLicense.update({
+        where: { id: license.id },
+        data: { status: "PAST_DUE", autoRenew: false, lastPaymentError: "Package period ended. Choose a plan to continue." },
+      }).catch(() => {});
+    }
     return {
       complete: false,
       reason: "expired",

@@ -106,7 +106,7 @@ export async function upsertPayFastPaymentMethod(args: {
   });
 
   if (existing) {
-    return db.viewerPaymentMethod.update({
+    const updated = await db.viewerPaymentMethod.update({
       where: { id: existing.id },
       data: {
         label,
@@ -119,9 +119,14 @@ export async function upsertPayFastPaymentMethod(args: {
         provider: "PAYFAST",
       },
     });
+    await db.viewerSubscription.updateMany({
+      where: { userId: args.userId, viewerModel: "SUBSCRIPTION" },
+      data: { paymentMethodId: updated.id },
+    });
+    return updated;
   }
 
-  return db.viewerPaymentMethod.create({
+  const created = await db.viewerPaymentMethod.create({
     data: {
       userId: args.userId,
       provider: "PAYFAST",
@@ -135,6 +140,11 @@ export async function upsertPayFastPaymentMethod(args: {
       isDefault: true,
     },
   });
+  await db.viewerSubscription.updateMany({
+    where: { userId: args.userId, viewerModel: "SUBSCRIPTION" },
+    data: { paymentMethodId: created.id },
+  });
+  return created;
 }
 
 /** Start PayFast tokenization (R0 subscription_type=2) — no card data touches Story Time. */

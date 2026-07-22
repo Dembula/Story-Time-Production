@@ -24,10 +24,17 @@ export default async function BrowseAccountPage({
           paymentMethod: { select: { label: true, lastFour: true } },
         },
       },
+      viewerPaymentMethods: {
+        where: { reusable: true },
+        orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
+        take: 1,
+        select: { label: true, lastFour: true },
+      },
     },
   });
 
   const raw = user?.viewerSubscriptions?.[0] ?? null;
+  const savedCard = raw?.paymentMethod ?? user?.viewerPaymentMethods?.[0] ?? null;
   const activePpvTitles =
     raw?.viewerModel === "PPV" && user
       ? await prisma.viewerContentAccess.count({
@@ -49,7 +56,7 @@ export default async function BrowseAccountPage({
         deviceCount: raw.deviceCount,
         profileLimit: raw.profileLimit,
         billingEmail: raw.billingEmail,
-        paymentMethodLabel: raw.paymentMethod?.label ?? null,
+        paymentMethodLabel: savedCard?.label ?? null,
         cancelAtPeriodEnd: raw.cancelAtPeriodEnd,
         lastPaymentStatus: raw.lastPaymentStatus,
         lastPaymentError: raw.lastPaymentError,

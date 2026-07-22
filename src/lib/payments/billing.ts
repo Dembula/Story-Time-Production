@@ -33,6 +33,9 @@ export async function initializeCheckout(args: {
   returnUrl: string;
   metadata?: Record<string, unknown>;
 }) {
+  if (!(Number(args.amount) > 0)) {
+    throw new Error("Checkout amount must be greater than zero. Promo-funded access should not create a payment.");
+  }
   const platformFeeAmount = calculatePlatformTransactionFee(args.amount);
   const marketplaceMeta = args.metadata ?? {};
   const isMarketplace = marketplaceMeta.marketplace === true;

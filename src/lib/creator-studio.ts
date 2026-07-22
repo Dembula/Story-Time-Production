@@ -116,6 +116,11 @@ const distributionLicenseRecordSelect = {
   id: true,
   type: true,
   yearlyExpiresAt: true,
+  status: true,
+  autoRenew: true,
+  cancelAtPeriodEnd: true,
+  lastPaymentError: true,
+  lastPaymentStatus: true,
   userId: true,
   creatorStudioProfileId: true,
   externalPaymentId: true,
@@ -163,6 +168,11 @@ export type StudioPipelineContext = {
     id: string;
     type: string;
     yearlyExpiresAt: Date | null;
+    status?: string | null;
+    autoRenew?: boolean | null;
+    cancelAtPeriodEnd?: boolean | null;
+    lastPaymentError?: string | null;
+    lastPaymentStatus?: string | null;
     userId: string;
     creatorStudioProfileId: string | null;
     externalPaymentId: string | null;

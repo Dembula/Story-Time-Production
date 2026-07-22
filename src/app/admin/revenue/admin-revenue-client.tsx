@@ -125,7 +125,8 @@ export function AdminRevenueClient() {
             <h3 className="text-white font-semibold mb-4 flex items-center gap-2"><PieChart className="w-5 h-5 text-orange-400" /> Revenue Split Breakdown</h3>
             <p className="text-sm text-slate-400 mb-4">
               Viewer subscription revenue splits <strong className="text-slate-300">60% creator pool</strong> /{" "}
-              <strong className="text-slate-300">40% Story Time</strong>. The creator pool below is allocated by watch-time
+              <strong className="text-slate-300">40% Story Time</strong> on <strong className="text-slate-300">net</strong>{" "}
+              PayFast settlement (after gateway fees). Promo and demo completions are excluded from this pool.
               proportion across the period.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -151,7 +152,8 @@ export function AdminRevenueClient() {
             <div className="bg-slate-900/50 rounded-lg p-4 font-mono text-sm text-slate-300 space-y-1">
               <p>Creator Revenue = (Creator Watch Time / Total Watch Time) × Creator Pool</p>
               <p className="text-xs text-slate-500">
-                Creator Pool = Viewer Pool Revenue × 0.60 = {formatZar(data?.viewerSub?.viewerSubRevenue ?? p.revenuePool, { maximumFractionDigits: 0 })} × 0.60 ={" "}
+                Creator Pool = Net viewer cash (after PayFast fees) × 0.60 ={" "}
+                {formatZar(data?.viewerSub?.viewerSubRevenue ?? p.revenuePool, { maximumFractionDigits: 0 })} × 0.60 ={" "}
                 {formatZar(p.creatorPool)}
               </p>
               <p className="text-xs text-slate-500">

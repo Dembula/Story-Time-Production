@@ -1,34 +1,37 @@
 import { prisma } from "./prisma";
-import { getPaymentSettlementAmount } from "@/lib/payments/payfast-settlement";
+import { getCashSettlementAmount, isCashRecognizedPayment } from "@/lib/payments/cash-recognition";
 import { VIEWER_POOL_PAYMENT_PURPOSES } from "@/lib/payments/viewer-pool-purposes";
 import { revenueEligibleWatchSessionWhere } from "@/lib/revenue-eligible-watch";
 
-/** Viewer pool revenue (subscriptions + PPV) in ZAR — net after PayFast fees when recorded. */
+/**
+ * Viewer pool revenue (subscriptions + PPV) in ZAR — net after PayFast fees.
+ * Uses PaymentRecord only (SubscriptionPayment is a legacy mirror and must not double-count).
+ * Excludes promo-covered and demo completions.
+ */
 export async function getViewerPoolRevenue(periodStart: Date, periodEnd: Date): Promise<number> {
-  const [gatewayPayments, legacyPayments] = await Promise.all([
-    prisma.paymentRecord.findMany({
-      where: {
-        status: "SUCCEEDED",
-        purpose: { in: [...VIEWER_POOL_PAYMENT_PURPOSES] },
-        paidAt: { gte: periodStart, lte: periodEnd },
-      },
-      select: { amount: true, settlementAmount: true },
-    }),
-    prisma.subscriptionPayment.aggregate({
-      where: {
-        status: "COMPLETED",
-        paidAt: { gte: periodStart, lte: periodEnd },
-      },
-      _sum: { amount: true },
-    }),
-  ]);
+  const gatewayPayments = await prisma.paymentRecord.findMany({
+    where: {
+      status: "SUCCEEDED",
+      purpose: { in: [...VIEWER_POOL_PAYMENT_PURPOSES] },
+      paidAt: { gte: periodStart, lte: periodEnd },
+      amount: { gt: 0 },
+    },
+    select: {
+      amount: true,
+      settlementAmount: true,
+      status: true,
+      purpose: true,
+      metadata: true,
+      provider: true,
+      settlementSource: true,
+    },
+  });
 
-  const gatewayNet = gatewayPayments.reduce(
-    (sum, p) => sum + getPaymentSettlementAmount({ amount: p.amount, settlementAmount: p.settlementAmount }),
-    0,
-  );
+  const gatewayNet = gatewayPayments
+    .filter((p) => isCashRecognizedPayment(p))
+    .reduce((sum, p) => sum + getCashSettlementAmount(p), 0);
 
-  return roundMoney(gatewayNet + (legacyPayments._sum.amount ?? 0));
+  return roundMoney(gatewayNet);
 }
 
 /** @deprecated Use getViewerPoolRevenue — includes subscriptions and PPV. */

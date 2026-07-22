@@ -248,8 +248,9 @@ export default function AdminPaymentsPage() {
           Payments control center
         </h1>
         <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
-          Viewer subs split 60% creator pool / 40% Story Time. Marketplace 3%, licences, script review, and casting fees
-          book to platform revenue. All withdrawal requests are reviewed and paid manually here.
+          Viewer subs split 60% creator pool / 40% Story Time on net PayFast settlement (after gateway fees). Promo and
+          demo rows are labelled and excluded from cash inflow. Marketplace 3%, licences, and platform fees book to
+          Story Time revenue. Withdrawals are reviewed and paid manually here.
         </p>
       </header>
 
@@ -526,10 +527,21 @@ export default function AdminPaymentsPage() {
                     {p.user?.name || p.user?.email || "Unknown payer"} · {p.user?.role || "—"}
                   </p>
                 </div>
-                <StatusPill value={p.status} />
+                <div className="flex flex-col items-start gap-1 sm:items-center">
+                  <StatusPill value={p.status} />
+                  {p.fundingSource && p.fundingSource !== "cash" ? (
+                    <span className="rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-amber-200">
+                      {p.fundingSource}
+                    </span>
+                  ) : null}
+                </div>
                 <div className="text-right sm:text-left">
-                  <span className="font-medium text-white">R{money.format(Number(p.amount ?? 0))}</span>
-                  {p.settlementAmount != null && Number(p.settlementAmount) !== Number(p.amount) ? (
+                  <span className={`font-medium ${p.cashRecognized === false ? "text-slate-500 line-through" : "text-white"}`}>
+                    R{money.format(Number(p.amount ?? 0))}
+                  </span>
+                  {p.cashRecognized === false ? (
+                    <p className="text-[10px] text-amber-300/90">not cash revenue</p>
+                  ) : p.settlementAmount != null && Number(p.settlementAmount) !== Number(p.amount) ? (
                     <p className="text-[10px] text-emerald-400">
                       net R{money.format(Number(p.settlementAmount))}
                     </p>

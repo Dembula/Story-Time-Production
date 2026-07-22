@@ -96,16 +96,18 @@ export async function applyPaymentRecordSettlementEffects(paymentRecord: {
       },
     });
 
-    await db.subscriptionPayment.create({
-      data: {
-        viewerSubscriptionId: paymentRecord.relatedEntityId,
-        amount: paymentRecord.amount,
-        currency: "ZAR",
-        status: "COMPLETED",
-        purpose: paymentRecord.purpose ?? "viewer_subscription",
-        paidAt: now,
-      },
-    });
+    if (typeof paymentRecord.amount === "number" && paymentRecord.amount > 0) {
+      await db.subscriptionPayment.create({
+        data: {
+          viewerSubscriptionId: paymentRecord.relatedEntityId,
+          amount: paymentRecord.amount,
+          currency: "ZAR",
+          status: "COMPLETED",
+          purpose: paymentRecord.purpose ?? "viewer_subscription",
+          paidAt: now,
+        },
+      });
+    }
   }
 
   if (paymentRecord.relatedEntityType === "ViewerContentAccess" && paymentRecord.relatedEntityId) {

@@ -9,10 +9,27 @@ import {
   getPlatformStats,
   getViewerSubscriptionRevenue,
 } from "@/lib/financial-ledger";
+import { getCashSettlementAmount, isCashRecognizedPayment } from "@/lib/payments/cash-recognition";
 import { VIEWER_CREATOR_SPLIT, VIEWER_PLATFORM_SPLIT } from "@/lib/payments/config";
 import { getPlatformTreasuryUserId } from "@/lib/payments/treasury-inflow";
 import { getWalletSnapshot } from "@/lib/payments/wallet";
 import { hasCreatorPoolDistribution, getPreviousCalendarMonthRange } from "@/lib/payments/creator-pool-distribution";
+
+function sumCashPayments(
+  payments: Array<{
+    amount: number;
+    settlementAmount?: number | null;
+    status?: string | null;
+    purpose?: string | null;
+    provider?: string | null;
+    metadata?: unknown;
+    settlementSource?: string | null;
+  }>,
+) {
+  return payments
+    .filter((p) => isCashRecognizedPayment({ ...p, status: p.status ?? "SUCCEEDED" }))
+    .reduce((sum, p) => sum + getCashSettlementAmount({ ...p, status: "SUCCEEDED" }), 0);
+}
 
 export async function fetchAdminRevenueBundle() {
   const { periodStart, periodEnd } = getCalendarMonthToDateRange();
@@ -31,36 +48,82 @@ export async function fetchAdminRevenueBundle() {
     where: {
       status: "SUCCEEDED",
       purpose: {
-        in: [ADMIN_PAYMENT_PURPOSE.COMPANY_SUBSCRIPTION, ADMIN_PAYMENT_PURPOSE.COMPANY_SUBSCRIPTION_RENEWAL],
+        in: [
+          ADMIN_PAYMENT_PURPOSE.COMPANY_SUBSCRIPTION,
+          ADMIN_PAYMENT_PURPOSE.COMPANY_SUBSCRIPTION_RENEWAL,
+          "company_subscription",
+          "company_subscription_renewal",
+        ],
       },
       paidAt: { gte: periodStart, lte: periodEnd },
+      amount: { gt: 0 },
     },
-    select: { amount: true, metadata: true },
+    select: {
+      amount: true,
+      settlementAmount: true,
+      metadata: true,
+      provider: true,
+      settlementSource: true,
+      status: true,
+      purpose: true,
+    },
   });
-  const companySubTotal = companySubRevenue.reduce((sum, payment) => sum + payment.amount, 0);
+  const companySubTotal = sumCashPayments(companySubRevenue);
   const yearlyLicensePayments = await prisma.paymentRecord.findMany({
     where: {
       status: "SUCCEEDED",
-      purpose: ADMIN_PAYMENT_PURPOSE.CREATOR_YEARLY_LICENSE,
+      purpose: {
+        in: [
+          ADMIN_PAYMENT_PURPOSE.CREATOR_YEARLY_LICENSE,
+          "creator_distribution_license",
+          "creator_pipeline_yearly",
+          "creator_upload_only_yearly",
+          "creator_distribution_yearly",
+        ],
+      },
       paidAt: { gte: periodStart, lte: periodEnd },
+      amount: { gt: 0 },
     },
-    select: { amount: true },
+    select: {
+      amount: true,
+      settlementAmount: true,
+      metadata: true,
+      provider: true,
+      settlementSource: true,
+      status: true,
+      purpose: true,
+    },
   });
   const perUploadPayments = await prisma.paymentRecord.findMany({
     where: {
       status: "SUCCEEDED",
       purpose: {
-        in: [ADMIN_PAYMENT_PURPOSE.CREATOR_CONTENT_UPLOAD, ADMIN_PAYMENT_PURPOSE.CREATOR_MUSIC_UPLOAD],
+        in: [
+          ADMIN_PAYMENT_PURPOSE.CREATOR_CONTENT_UPLOAD,
+          ADMIN_PAYMENT_PURPOSE.CREATOR_MUSIC_UPLOAD,
+          "creator_film_upload",
+          "creator_music_upload",
+          "music_track_publish",
+        ],
       },
       paidAt: { gte: periodStart, lte: periodEnd },
+      amount: { gt: 0 },
     },
-    select: { amount: true },
+    select: {
+      amount: true,
+      settlementAmount: true,
+      metadata: true,
+      provider: true,
+      settlementSource: true,
+      status: true,
+      purpose: true,
+    },
   });
-  const yearlyCount = yearlyLicensePayments.length;
-  const perUploadCount = perUploadPayments.length;
-  const distRevenue =
-    yearlyLicensePayments.reduce((sum, payment) => sum + payment.amount, 0) +
-    perUploadPayments.reduce((sum, payment) => sum + payment.amount, 0);
+  const yearlyCash = yearlyLicensePayments.filter((p) => isCashRecognizedPayment(p));
+  const perUploadCash = perUploadPayments.filter((p) => isCashRecognizedPayment(p));
+  const yearlyCount = yearlyCash.length;
+  const perUploadCount = perUploadCash.length;
+  const distRevenue = sumCashPayments(yearlyLicensePayments) + sumCashPayments(perUploadPayments);
 
   const creators = await prisma.user.findMany({
     where: { OR: [{ role: "CONTENT_CREATOR" }, { role: "MUSIC_CREATOR" }] },
@@ -144,7 +207,7 @@ export async function fetchAdminRevenueBundle() {
       previousMonthDistributed,
     },
     transactionFees: { totalFees: transactionFees._sum.feeAmount ?? 0, totalVolume: transactionFees._sum.totalAmount ?? 0 },
-    companySubs: { count: companySubRevenue.length, revenue: companySubTotal },
+    companySubs: { count: companySubRevenue.filter((p) => isCashRecognizedPayment(p)).length, revenue: companySubTotal },
     distributionLicenses: { yearlyCount, perUploadCount, revenue: distRevenue },
   };
 }

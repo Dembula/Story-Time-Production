@@ -9,7 +9,7 @@ import {
   isInitialSubscriptionPaymentPending,
   subscriptionNeedsReactivation,
 } from "@/lib/viewer-access";
-import { computeDiscountedAmount, redeemPromoCode, resolvePromoCode } from "@/lib/promo-codes";
+import { computeDiscountedAmount, promoGrantPeriodEnd, redeemPromoCode, resolvePromoCode } from "@/lib/promo-codes";
 import { initializeCheckout } from "@/lib/payments/billing";
 import { getPaymentGateway } from "@/lib/payments/gateway";
 import { buildPaymentReturnUrl } from "@/lib/payments/return-url";
@@ -211,11 +211,43 @@ export async function POST(req: Request) {
         referenceId: subscription.id,
         discountAmount: Math.max(0, basePrice - finalPrice),
         resultingPlan: planType,
-        metadata: { basePrice, finalPrice, reactivation: true },
+        metadata: { basePrice, finalPrice, reactivation: true, fundingSource: finalPrice <= 0 ? "promo" : "cash" },
       });
       if (!redemption.ok) {
         return NextResponse.json({ error: promoFailureMessage(redemption.reason) }, { status: 400 });
       }
+    }
+
+    if (finalPrice <= 0 && appliedPromo) {
+      const grantEnd = promoGrantPeriodEnd(now, appliedPromo, "year");
+      const activated = await prisma.viewerSubscription.update({
+        where: { id: subscription.id },
+        data: {
+          status: "ACTIVE",
+          trialEndsAt: null,
+          currentPeriodEnd: grantEnd,
+          lastPaymentStatus: "PROMO",
+          lastPaymentAt: now,
+          lastPaymentError: null,
+        },
+      });
+      return NextResponse.json({
+        subscription: activated,
+        profileId: null,
+        redirectTo: postTrialReturnPath,
+        requiresPayment: false,
+        deferCheckout: false,
+        checkoutUrl: null,
+        reactivated: true,
+        pricing: {
+          basePrice,
+          finalPrice: 0,
+          promoCode: appliedPromo.code,
+          discountAmount: Math.max(0, basePrice - finalPrice),
+          fundingSource: "promo",
+        },
+        message: "Promo applied. Subscription restarted for the promo period — no payment was charged.",
+      });
     }
 
     try {
@@ -228,7 +260,7 @@ export async function POST(req: Request) {
         referenceType: "ViewerSubscription",
         referenceId: subscription.id,
         returnUrl: buildPaymentReturnUrl(postTrialReturnPath, "viewer_subscription_reactivate"),
-        metadata: { planType, reactivation: true },
+        metadata: { planType, reactivation: true, tokenize: true },
       });
 
       return NextResponse.json({
@@ -364,6 +396,37 @@ export async function POST(req: Request) {
 
     let checkoutUrl: string | null = null;
     let checkoutWarning: string | null = null;
+    if (finalPrice <= 0 && appliedPromo) {
+      const grantEnd = promoGrantPeriodEnd(now, appliedPromo, "year");
+      await prisma.viewerSubscription.update({
+        where: { id: subscription.id },
+        data: {
+          status: "ACTIVE",
+          trialEndsAt: null,
+          currentPeriodEnd: grantEnd,
+          lastPaymentStatus: "PROMO",
+          lastPaymentAt: now,
+          lastPaymentError: null,
+          cancelAtPeriodEnd: false,
+        },
+      });
+      return NextResponse.json({
+        subscription: await prisma.viewerSubscription.findUnique({ where: { id: subscription.id } }),
+        profileId: null,
+        redirectTo: checkoutReturnPath,
+        requiresPayment: false,
+        deferCheckout: false,
+        checkoutUrl: null,
+        pricing: {
+          basePrice,
+          finalPrice: 0,
+          promoCode: appliedPromo.code,
+          discountAmount: Math.max(0, basePrice - finalPrice),
+          fundingSource: "promo",
+        },
+        message: "Promo applied. Your subscription is active for the promo period — no payment was charged.",
+      });
+    }
     if (useTrial) {
       try {
         const gateway = getPaymentGateway();
@@ -394,7 +457,7 @@ export async function POST(req: Request) {
           referenceType: "ViewerSubscription",
           referenceId: subscription.id,
           returnUrl: buildPaymentReturnUrl(checkoutReturnPath, "viewer_subscription"),
-          metadata: { planType },
+          metadata: { planType, tokenize: true },
         });
         checkoutUrl = checkout.checkout.checkoutUrl;
       } catch (error) {
@@ -524,6 +587,36 @@ export async function POST(req: Request) {
 
   let checkoutUrl: string | null = null;
   let checkoutWarning: string | null = null;
+  if (!useTrial && finalPrice <= 0 && appliedPromo) {
+    const grantEnd = promoGrantPeriodEnd(now, appliedPromo, "year");
+    const activated = await prisma.viewerSubscription.update({
+      where: { id: subscription.id },
+      data: {
+        status: "ACTIVE",
+        trialEndsAt: null,
+        currentPeriodEnd: grantEnd,
+        lastPaymentStatus: "PROMO",
+        lastPaymentAt: now,
+        lastPaymentError: null,
+      },
+    });
+    return NextResponse.json({
+      subscription: activated,
+      profileId: null,
+      redirectTo: "/onboarding/account",
+      requiresPayment: false,
+      deferCheckout: false,
+      checkoutUrl: null,
+      pricing: {
+        basePrice,
+        finalPrice: 0,
+        promoCode: appliedPromo.code,
+        discountAmount: Math.max(0, basePrice - finalPrice),
+        fundingSource: "promo",
+      },
+      message: "Promo applied. Your subscription is active for the promo period — no payment was charged.",
+    });
+  }
   if (useTrial) {
     try {
       const gateway = getPaymentGateway();
@@ -558,7 +651,7 @@ export async function POST(req: Request) {
         referenceType: "ViewerSubscription",
         referenceId: subscription.id,
         returnUrl: buildPaymentReturnUrl("/onboarding/account", "viewer_subscription"),
-        metadata: { planType },
+        metadata: { planType, tokenize: true },
       });
       checkoutUrl = checkout.checkout.checkoutUrl;
     } catch (error) {

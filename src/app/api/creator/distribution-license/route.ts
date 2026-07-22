@@ -7,7 +7,13 @@ import { defaultSuiteAccessOpen } from "@/lib/creator-suite-access";
 import { isMissingCreatorStudioInfrastructure } from "@/lib/prisma-missing-table";
 import { getCreatorPackageStatus } from "@/lib/creator-package-gate";
 import { CREATOR_LICENSE_CONFIG, CREATOR_LICENSE_TYPE, CREATOR_ONBOARDING_PLANS, formatCreatorLicenseSummary, isCreatorPerFilmLicense } from "@/lib/pricing";
-import { computeDiscountedAmount, redeemPromoCode, resolvePromoCode } from "@/lib/promo-codes";
+import {
+  computeDiscountedAmount,
+  isFullyCompedPromo,
+  promoGrantPeriodEnd,
+  redeemPromoCode,
+  resolvePromoCode,
+} from "@/lib/promo-codes";
 import { initializeCheckout } from "@/lib/payments/billing";
 import { buildPaymentReturnUrl } from "@/lib/payments/return-url";
 
@@ -112,8 +118,23 @@ export async function POST(req: Request) {
     const role = (session.user as { role?: string })?.role;
     if (!user || (role !== "CONTENT_CREATOR" && role !== "MUSIC_CREATOR")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
+    const body = (await req.json().catch(() => null)) as
+    | {
+        /** New onboarding */
+        package?: "PER_FILM" | "UPLOAD_YEARLY" | "UPLOAD_ONLY" | "PIPELINE";
+        billing?: "YEARLY" | "MONTHLY";
+        /** Legacy music / old UI */
+        type?: string;
+        promoCode?: string;
+        /** Change / renew an existing package (same shape as onboarding). */
+        action?: "change_plan" | "renew";
+      }
+    | null;
+
     const existing = await prisma.creatorDistributionLicense.findUnique({ where: { userId: user.id } });
-    if (existing) {
+    const isChangePlan = body?.action === "change_plan" || body?.action === "renew";
+
+    if (existing && !isChangePlan) {
     const needsPayment = creatorLicenseNeedsUpfrontPayment(existing.type);
     const isPaid =
       !needsPayment ||
@@ -124,6 +145,12 @@ export async function POST(req: Request) {
             relatedEntityId: existing.id,
             status: "SUCCEEDED",
           },
+          select: { id: true },
+        }),
+      ) ||
+      Boolean(
+        await prisma.promoCodeRedemption.findFirst({
+          where: { userId: user.id, context: "CREATOR_LICENSE", referenceId: existing.id },
           select: { id: true },
         }),
       );
@@ -145,7 +172,7 @@ export async function POST(req: Request) {
                 creatorPostPaymentRedirect(role),
                 "creator_distribution_license",
               ),
-              metadata: { storedType: existing.type, role },
+              metadata: { storedType: existing.type, role, tokenize: true },
             })
           ).checkout.checkoutUrl;
         } catch (error) {
@@ -177,17 +204,6 @@ export async function POST(req: Request) {
         requiresPayment: false,
       });
     }
-
-  const body = (await req.json().catch(() => null)) as
-    | {
-        /** New onboarding */
-        package?: "PER_FILM" | "UPLOAD_YEARLY" | "UPLOAD_ONLY" | "PIPELINE";
-        billing?: "YEARLY" | "MONTHLY";
-        /** Legacy music / old UI */
-        type?: string;
-        promoCode?: string;
-      }
-    | null;
 
   let storedType: string;
   let periodEnd: Date | null;
@@ -228,7 +244,7 @@ export async function POST(req: Request) {
   basePrice = resolveCreatorLicensePrice(storedType);
 
   let finalPrice = basePrice;
-  let appliedPromo: { id: string; code: string } | null = null;
+  let appliedPromo: { id: string; code: string; kind: string; amount: number | null } | null = null;
   const promoCode = typeof body?.promoCode === "string" ? body.promoCode.trim() : "";
   if (promoCode) {
     const promoResult = await resolvePromoCode(promoCode, "CREATOR_LICENSE");
@@ -249,8 +265,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Promo code already used for this creator account." }, { status: 400 });
     }
     finalPrice = computeDiscountedAmount(basePrice, promoResult.promo);
-    appliedPromo = { id: promoResult.promo.id, code: promoResult.promo.code };
+    appliedPromo = {
+      id: promoResult.promo.id,
+      code: promoResult.promo.code,
+      kind: promoResult.promo.kind,
+      amount: promoResult.promo.amount ?? null,
+    };
+    if (isFullyCompedPromo(appliedPromo) && periodEnd) {
+      periodEnd = promoGrantPeriodEnd(new Date(), appliedPromo, "year");
+    }
   }
+
+  const promoFreeGrant = finalPrice <= 0 && Boolean(appliedPromo);
+  // Promo-funded periods do not auto-charge when they end — creator must re-subscribe.
+  const autoRenew = !promoFreeGrant && finalPrice > 0;
 
     await ensureCreatorStudioProfilesForUser(user.id);
     let profileId: string | null = null;
@@ -262,33 +290,48 @@ export async function POST(req: Request) {
       profileId = null;
     }
 
+  const licenseData = {
+    creatorStudioProfileId: profileId,
+    type: storedType,
+    yearlyExpiresAt: periodEnd,
+    autoRenew,
+    cancelAtPeriodEnd: false,
+    status: finalPrice > 0 ? "PAST_DUE" : "ACTIVE",
+    externalPaymentId: null as string | null,
+    lastPaymentError: null as string | null,
+    renewalAttemptCount: 0,
+    pastDueSince: null as Date | null,
+  };
+
   let license;
-  try {
-    license = await prisma.creatorDistributionLicense.create({
-      data: {
-        userId: user.id,
-        creatorStudioProfileId: profileId,
-        type: storedType,
-        yearlyExpiresAt: periodEnd,
-        autoRenew: true,
-        status: finalPrice > 0 ? "PAST_DUE" : "ACTIVE",
-        externalPaymentId: null,
-      },
+  if (existing && isChangePlan) {
+    license = await prisma.creatorDistributionLicense.update({
+      where: { id: existing.id },
+      data: licenseData,
     });
-  } catch (e) {
-    if (isMissingCreatorStudioInfrastructure(e)) {
+  } else {
+    try {
       license = await prisma.creatorDistributionLicense.create({
         data: {
           userId: user.id,
-          type: storedType,
-          yearlyExpiresAt: periodEnd,
-          autoRenew: true,
-          status: finalPrice > 0 ? "PAST_DUE" : "ACTIVE",
-          externalPaymentId: null,
+          ...licenseData,
         },
       });
-    } else {
-      throw e;
+    } catch (e) {
+      if (isMissingCreatorStudioInfrastructure(e)) {
+        license = await prisma.creatorDistributionLicense.create({
+          data: {
+            userId: user.id,
+            type: storedType,
+            yearlyExpiresAt: periodEnd,
+            autoRenew,
+            status: finalPrice > 0 ? "PAST_DUE" : "ACTIVE",
+            externalPaymentId: null,
+          },
+        });
+      } else {
+        throw e;
+      }
     }
   }
 
@@ -300,10 +343,19 @@ export async function POST(req: Request) {
       referenceId: license.id,
       discountAmount: Math.max(0, basePrice - finalPrice),
       resultingPlan: storedType,
-      metadata: { basePrice, finalPrice, role },
+      metadata: {
+        basePrice,
+        finalPrice,
+        role,
+        fundingSource: "promo",
+        promoFreeGrant,
+        periodEndsAt: periodEnd?.toISOString() ?? null,
+      },
     });
     if (!redemption.ok) {
-      await prisma.creatorDistributionLicense.delete({ where: { id: license.id } });
+      if (!existing) {
+        await prisma.creatorDistributionLicense.delete({ where: { id: license.id } });
+      }
       return NextResponse.json({ error: promoFailureMessage(redemption.reason) }, { status: 400 });
     }
   }
@@ -323,7 +375,18 @@ export async function POST(req: Request) {
             creatorPostPaymentRedirect(role),
             "creator_distribution_license",
           ),
-          metadata: { storedType, role },
+          metadata: {
+            storedType,
+            role,
+            tokenize: true,
+            ...(appliedPromo
+              ? {
+                  promoCode: appliedPromo.code,
+                  fundingSource: "partial_promo",
+                  finalPriceAfterPromo: finalPrice,
+                }
+              : {}),
+          },
         })
       ).checkout.checkoutUrl;
     } catch (error) {

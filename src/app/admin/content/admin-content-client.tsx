@@ -16,7 +16,7 @@ import {
   type ReviewFeedbackKind,
 } from "@/lib/review-feedback";
 import { AdminProjectReviewDigest } from "@/components/admin/admin-project-review-digest";
-import { AdminReviewPlayer } from "@/components/admin/admin-review-player";
+import { AdminEncodeProgress } from "@/components/admin/admin-encode-progress";
 import { parsePlatformScriptVersionId } from "@/lib/content-catalogue-tags";
 
 interface ContentItem {
@@ -496,6 +496,8 @@ export function AdminContentClient() {
                           </div>
                         ))}
                       </div>
+
+                      {(c.videoUrl || c.trailerUrl) && <AdminEncodeProgress contentId={c.id} />}
 
                       {c.videoUrl && (
                         <button onClick={() => setPreviewing({ id: c.id, trailer: false })} className="mt-3 flex items-center gap-2 px-4 py-2 bg-orange-500/10 text-orange-400 border border-orange-500/30 rounded-lg text-sm hover:bg-orange-500/20 transition">

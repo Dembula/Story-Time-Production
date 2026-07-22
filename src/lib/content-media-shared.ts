@@ -15,22 +15,37 @@ export const CONTENT_MEDIA_MULTIPART_THRESHOLD_BYTES = 32 * 1024 * 1024;
 /** Fallback part size when adaptive sizing is unavailable. */
 export const CONTENT_MEDIA_MULTIPART_PART_SIZE_BYTES = 128 * 1024 * 1024;
 
-/** Parallel S3 part uploads for feature masters. */
+/** Parallel S3 part uploads for feature masters (fallback / small files). */
 export const CONTENT_MEDIA_MULTIPART_CONCURRENCY = 8;
+
+/**
+ * Adaptive concurrency: large masters + high concurrency starve individual parts
+ * and trip false "upload stalled" aborts on typical home/office uplink.
+ */
+export function contentMediaMultipartConcurrency(fileSizeBytes: number): number {
+  const size = Math.max(0, fileSizeBytes);
+  if (size >= 10 * 1024 * 1024 * 1024) return 3; // 10GB+
+  if (size >= 4 * 1024 * 1024 * 1024) return 4; // 4–10GB
+  if (size >= 1 * 1024 * 1024 * 1024) return 5; // 1–4GB
+  if (size >= 256 * 1024 * 1024) return 6;
+  return CONTENT_MEDIA_MULTIPART_CONCURRENCY;
+}
 
 /**
  * Adaptive part size for throughput:
  * - fewer parts → fewer Vercel sign round-trips
  * - larger parts → better saturation of typical broadband
  * S3 limits: min 5 MiB (except last), max 5 GiB, max 10,000 parts.
+ *
+ * Cap part size so a single chunk can finish on modest uplinks without looking "stalled".
  */
 export function contentMediaMultipartPartSizeBytes(fileSizeBytes: number): number {
   const size = Math.max(0, fileSizeBytes);
   if (size < 512 * 1024 * 1024) return 32 * 1024 * 1024; // <512MB
   if (size < 2 * 1024 * 1024 * 1024) return 64 * 1024 * 1024; // <2GB
-  if (size < 8 * 1024 * 1024 * 1024) return 128 * 1024 * 1024; // <8GB
-  if (size < 20 * 1024 * 1024 * 1024) return 256 * 1024 * 1024; // <20GB (15GB masters land here)
-  return 512 * 1024 * 1024; // 20GB+
+  if (size < 8 * 1024 * 1024 * 1024) return 96 * 1024 * 1024; // <8GB — was 128MB
+  if (size < 20 * 1024 * 1024 * 1024) return 128 * 1024 * 1024; // <20GB — was 256MB
+  return 256 * 1024 * 1024; // 20GB+ — was 512MB
 }
 
 /**
