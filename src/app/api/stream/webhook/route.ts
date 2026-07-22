@@ -53,6 +53,39 @@ function webhookAuthorized(req: NextRequest, rawBody: string): boolean {
   return false;
 }
 
+function extractWebhookError(payload: Record<string, unknown>): string | null {
+  const candidates: unknown[] = [
+    payload.error,
+    payload.errorReason,
+    payload.errReason,
+    Array.isArray(payload.errors) ? payload.errors[0] : null,
+  ];
+
+  const status = payload.status;
+  if (status && typeof status === "object") {
+    const s = status as Record<string, unknown>;
+    candidates.push(s.error, s.errorReason, s.errorReasonText, s.errReason, s.errorCodeMessage);
+  }
+
+  const result = payload.result;
+  if (result && typeof result === "object") {
+    const r = result as Record<string, unknown>;
+    candidates.push(r.error);
+    if (r.status && typeof r.status === "object") {
+      const rs = r.status as Record<string, unknown>;
+      candidates.push(rs.error, rs.errorReason, rs.errorReasonText, rs.errReason);
+    }
+  }
+
+  for (const c of candidates) {
+    if (typeof c === "string" && c.trim()) return c.trim();
+    if (c && typeof c === "object" && "message" in c && typeof (c as { message?: unknown }).message === "string") {
+      return String((c as { message: string }).message);
+    }
+  }
+  return null;
+}
+
 export async function POST(req: NextRequest) {
   const rawBody = await req.text();
 
@@ -71,12 +104,7 @@ export async function POST(req: NextRequest) {
   if (!uid) return NextResponse.json({ error: "Missing stream uid" }, { status: 400 });
 
   const state = pickStatus(payload);
-  const errorMessage =
-    payload.error ??
-    (Array.isArray(payload.errors) ? payload.errors[0] : null) ??
-    (payload.result && typeof payload.result === "object"
-      ? (payload.result as { error?: unknown }).error
-      : null);
+  const errorMessage = extractWebhookError(payload);
 
   const cfg = getCloudflareStreamConfig();
   const urls = cfg ? buildCloudflarePlaybackUrls(uid, cfg.customerSubdomain) : null;
@@ -91,20 +119,29 @@ export async function POST(req: NextRequest) {
     lastWebhookAt: new Date(),
   });
 
-  const failed =
-    state.toLowerCase() === "error" ||
-    state.toLowerCase() === "failed";
-  if (failed && errorMessage) {
+  const failed = state.toLowerCase() === "error" || state.toLowerCase() === "failed";
+  if (failed) {
     try {
       const { findStreamAssetByUid } = await import("@/lib/stream-asset-store");
       const { isCloudflareBitrateRejectError } = await import("@/lib/stream-input-limits");
+      const { isMediaConvertMezzanineConfigured } = await import("@/lib/mediaconvert-mezzanine");
       const { recoverFromStreamBitrateFailure } = await import("@/lib/stream-encode-pipeline");
       const asset = await findStreamAssetByUid(uid);
-      const errText = String(errorMessage);
-      if (asset?.sourceUrl && isCloudflareBitrateRejectError(errText)) {
+      const errText = errorMessage ? String(errorMessage) : "";
+      const bitrateReject = isCloudflareBitrateRejectError(errText) || /bitrate|200\s*mbps|uncompress/i.test(errText);
+      // When MediaConvert is on, any failed encode with bitrate-ish text (or empty reason) → mezzanine.
+      const shouldMezzanine =
+        Boolean(asset?.sourceUrl) &&
+        (bitrateReject || (isMediaConvertMezzanineConfigured() && (!errText || bitrateReject)));
+
+      if (shouldMezzanine && asset?.sourceUrl) {
+        console.info("stream-webhook: recovering failed encode via MediaConvert mezzanine", {
+          uid,
+          errText: errText.slice(0, 160),
+        });
         await recoverFromStreamBitrateFailure({
           sourceUrl: asset.sourceUrl,
-          lastError: errText,
+          lastError: errText || "bitrate exceeds 200Mbps",
         });
       }
     } catch (recoverErr) {

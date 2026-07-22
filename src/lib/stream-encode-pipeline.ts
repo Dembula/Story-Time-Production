@@ -104,35 +104,44 @@ async function startMezzanine(input: EncodePipelineInput): Promise<StreamAssetPl
     return markFailed(input, message);
   }
 
-  const started = await startStreamMezzanineJob({
-    sourceUrl: input.catalogueSourceUrl,
-    storageRef: input.storageRef,
-    entityType: input.entityType,
-    entityId: input.entityId,
-    creatorId: input.creatorId,
-    fileName: input.fileName,
-  });
+  try {
+    const started = await startStreamMezzanineJob({
+      sourceUrl: input.catalogueSourceUrl,
+      storageRef: input.storageRef,
+      entityType: input.entityType,
+      entityId: input.entityId,
+      creatorId: input.creatorId,
+      fileName: input.fileName,
+    });
 
-  await upsertStreamAsset({
-    uid: started.placeholderUid,
-    sourceUrl: input.catalogueSourceUrl,
-    status: "mezzanining",
-    lastError: mezzanineQueuedUserMessage(),
-    entityType: input.entityType ?? null,
-    entityId: input.entityId ?? null,
-  });
+    await upsertStreamAsset({
+      uid: started.placeholderUid,
+      sourceUrl: input.catalogueSourceUrl,
+      status: "mezzanining",
+      lastError: mezzanineQueuedUserMessage(),
+      entityType: input.entityType ?? null,
+      entityId: input.entityId ?? null,
+    });
 
-  // Kick early polls so short jobs finish without waiting on the 5‑minute cron.
-  void scheduleMezzanineAdvance(started.placeholderUid);
+    // Kick early polls so short jobs finish without waiting on the 5‑minute cron.
+    void scheduleMezzanineAdvance(started.placeholderUid);
 
-  return {
-    uid: started.placeholderUid,
-    sourceUrl: input.catalogueSourceUrl,
-    status: "mezzanining",
-    playbackUrl: null,
-    hlsUrl: null,
-    iframeUrl: null,
-  };
+    return {
+      uid: started.placeholderUid,
+      sourceUrl: input.catalogueSourceUrl,
+      status: "mezzanining",
+      playbackUrl: null,
+      hlsUrl: null,
+      iframeUrl: null,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("MediaConvert mezzanine start failed:", err);
+    return markFailed(
+      input,
+      `Auto-compress (MediaConvert) failed: ${message}. Check MEDIACONVERT_ROLE_ARN, IAM PassRole, and that the uploader user can call mediaconvert:CreateJob.`,
+    );
+  }
 }
 
 async function scheduleMezzanineAdvance(placeholderUid: string): Promise<void> {
@@ -201,9 +210,13 @@ async function ingestDirectToStream(
 
 /**
  * Encode path for catalogue / upload videos:
- * 1) High bitrate → MediaConvert mezzanine (when configured) then Stream
- * 2) Safe bitrate → Cloudflare Stream copy
- * 3) Bitrate reject recovery → mezzanine
+ * 1) Known-safe bitrate → Cloudflare Stream copy
+ * 2) High bitrate OR unknown bitrate (when MediaConvert is configured) → mezzanine first
+ * 3) Stream bitrate reject → mezzanine recovery
+ *
+ * Critical: never send unknown-bitrate masters to Stream when MediaConvert is on —
+ * browser metadata often fails on ProRes/MOV, which previously skipped compress and
+ * hit Cloudflare's 200 Mbps hard limit.
  */
 export async function runStreamEncodePipeline(
   input: EncodePipelineInput,
@@ -218,10 +231,25 @@ export async function runStreamEncodePipeline(
     return existing;
   }
 
+  const mcConfigured = isMediaConvertMezzanineConfigured();
   const bitrate = await resolveBitrateMbps(input);
-  const needsMezzanine = Boolean(input.forceMezzanine) || isOverStreamBitrateLimit(bitrate);
+  const knownSafe =
+    typeof bitrate === "number" && Number.isFinite(bitrate) && !isOverStreamBitrateLimit(bitrate);
+
+  // Only skip mezzanine when we positively know the master is under Stream's limit.
+  const needsMezzanine =
+    Boolean(input.forceMezzanine) ||
+    isOverStreamBitrateLimit(bitrate) ||
+    (mcConfigured && !knownSafe);
 
   if (needsMezzanine) {
+    console.info("encode-pipeline: routing to MediaConvert mezzanine", {
+      source: input.catalogueSourceUrl.slice(0, 120),
+      bitrate,
+      force: Boolean(input.forceMezzanine),
+      knownSafe,
+      mcConfigured,
+    });
     return startMezzanine(input);
   }
 
@@ -233,7 +261,7 @@ export async function runStreamEncodePipeline(
     return await ingestDirectToStream(input, signedOrPublic);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    if (isCloudflareBitrateRejectError(message) || /bitrate/i.test(message)) {
+    if (isCloudflareBitrateRejectError(message) || /bitrate|200\s*mbps|uncompress/i.test(message)) {
       return startMezzanine({ ...input, forceMezzanine: true });
     }
     console.error("Stream encode pipeline ingest failed:", err);

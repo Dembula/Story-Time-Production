@@ -110,7 +110,10 @@ export async function linkOrIngestStreamForUrl(
       entityId,
       durationSeconds: meta?.durationSeconds ? Number(meta.durationSeconds) : null,
       estimatedBitrateMbps: meta?.estimatedBitrateMbps ? Number(meta.estimatedBitrateMbps) : null,
-      forceMezzanine: meta?.forceMezzanine === "1" || meta?.forceMezzanine === "true",
+      forceMezzanine:
+        meta?.forceMezzanine === "1" ||
+        meta?.forceMezzanine === "true" ||
+        (Boolean(existingAsset && isFailedStreamStatus(existingAsset.status))),
     });
   } catch (streamErr) {
     console.error("Cloudflare Stream ingestion failed for linked URL:", streamErr);

@@ -23,8 +23,9 @@ export function isOverStreamBitrateLimit(bitrateMbps: number | null | undefined)
 
 export function isCloudflareBitrateRejectError(message: string | null | undefined): boolean {
   if (!message) return false;
-  return /average bitrate exceeds|bitrate exceeds\s*200\s*mbps|compress your video first|uncompressed video/i.test(
-    message,
+  const text = typeof message === "string" ? message : JSON.stringify(message);
+  return /average bitrate exceeds|bitrate exceeds\s*200\s*mbps|200\s*mbps|compress your video first|uncompressed video|below 200\s*mbps/i.test(
+    text,
   );
 }
 
