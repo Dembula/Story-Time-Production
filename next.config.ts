@@ -34,23 +34,6 @@ const cloudflareCustomerPattern = parseRemotePattern(process.env.CLOUDFLARE_STRE
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   serverExternalPackages: ["pdf-parse", "pdfjs-dist", "jszip", "mammoth", "playwright-core", "@sparticuz/chromium"],
-  // Only the RHEL engine (Vercel runtime). Avoid `/*` + full `generated/prisma/**`
-  // — that balloons every serverless function past Vercel size limits and fails deploy.
-  outputFileTracingIncludes: {
-    "/api/**/*": [
-      "./generated/prisma/libquery_engine-rhel-openssl-3.0.x.so.node",
-      "./generated/prisma/schema.prisma",
-    ],
-    "/profiles": [
-      "./generated/prisma/libquery_engine-rhel-openssl-3.0.x.so.node",
-    ],
-    "/browse": [
-      "./generated/prisma/libquery_engine-rhel-openssl-3.0.x.so.node",
-    ],
-    "/browse/**/*": [
-      "./generated/prisma/libquery_engine-rhel-openssl-3.0.x.so.node",
-    ],
-  },
   webpack: (config, { dev, isServer }) => {
     if (isServer) {
       config.externals = [
