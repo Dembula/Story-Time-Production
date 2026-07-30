@@ -46,8 +46,8 @@ export function playbackBundleQueryKey(
   episodeId?: string | null,
   options?: { trailer?: boolean },
 ) {
-  // v2: platform intro is client MP4 (Stream fMP4 cannot be HLS-stitched).
-  return ["playback-bundle", "v2-client-intro", contentId, episodeId ?? "main", options?.trailer ? "trailer" : "feature"] as const;
+  // v3: Stream-compatible fMP4 demuxed intro stitch in playback.src.
+  return ["playback-bundle", "v3-fmp4-intro", contentId, episodeId ?? "main", options?.trailer ? "trailer" : "feature"] as const;
 }
 
 export async function fetchPlaybackBundle(

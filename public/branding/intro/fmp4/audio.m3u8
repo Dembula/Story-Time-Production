@@ -1,0 +1,14 @@
+#EXTM3U
+#EXT-X-VERSION:7
+#EXT-X-TARGETDURATION:3
+#EXT-X-MEDIA-SEQUENCE:0
+#EXT-X-PLAYLIST-TYPE:VOD
+#EXT-X-INDEPENDENT-SEGMENTS
+#EXT-X-MAP:URI="/branding/intro/fmp4/init_a.mp4"
+#EXTINF:2.005333,
+/branding/intro/fmp4/a_000.m4s
+#EXTINF:2.005333,
+/branding/intro/fmp4/a_001.m4s
+#EXTINF:0.042667,
+/branding/intro/fmp4/a_002.m4s
+#EXT-X-ENDLIST

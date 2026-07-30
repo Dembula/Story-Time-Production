@@ -1,21 +1,23 @@
 /**
  * Story Time platform bumper — plays before every feature title (not trailers).
  *
- * Cloudflare Stream serves demuxed fMP4 HLS (separate AUDIO + #EXT-X-MAP). Stitching
- * our MPEG-TS bumper into that playlist makes film audio overlap the animation and
- * blacks out on mobile after discontinuity. So the bumper is delivered as a client
- * MP4 played before the clean feature HLS URL.
+ * Primary delivery for apps: stitched into `/api/content/[id]/hls-manifest` as
+ * demuxed fMP4 (video + audio) matching Cloudflare Stream, so one HLS URL plays
+ * bumper → feature without an app update.
+ *
+ * Web also treats `stitchedIntoPlayback: true` and does not double-play the MP4.
+ * MP4 `src` remains for rare non-HLS catalogue sources.
  */
 export const PLATFORM_INTRO = {
   src: "/branding/storytime-platform-intro.mp4",
   mimeType: "video/mp4" as const,
-  /** MP4 bumper length (~4.02s). Skip uses media `ended` preferentially. */
-  durationSeconds: 4.02,
-  skipAtSeconds: 4.02,
+  /** Bumper length (fMP4 video intro ≈ 4.0s; audio ≈ 4.05s). */
+  durationSeconds: 4.0,
+  skipAtSeconds: 4.0,
 } as const;
 
 export type PlatformIntroPayload = {
-  /** Always false for Stream titles — bumper is never inside playback.src. */
+  /** When true, bumper is already inside `playback.src` HLS. */
   stitchedIntoPlayback: boolean;
   durationSeconds: number;
   skipAtSeconds: number;
@@ -25,8 +27,17 @@ export type PlatformIntroPayload = {
 
 export function getPlatformIntroPayload(options?: {
   trailer?: boolean;
+  /** True when playback goes through our HLS proxy (intro stitched server-side). */
+  hlsProxied?: boolean;
 }): PlatformIntroPayload | null {
   if (options?.trailer) return null;
+  if (options?.hlsProxied) {
+    return {
+      stitchedIntoPlayback: true,
+      durationSeconds: PLATFORM_INTRO.durationSeconds,
+      skipAtSeconds: PLATFORM_INTRO.skipAtSeconds,
+    };
+  }
   return {
     stitchedIntoPlayback: false,
     durationSeconds: PLATFORM_INTRO.durationSeconds,
