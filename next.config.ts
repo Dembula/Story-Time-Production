@@ -33,7 +33,27 @@ const cloudflareCustomerPattern = parseRemotePattern(process.env.CLOUDFLARE_STRE
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  serverExternalPackages: ["pdf-parse", "pdfjs-dist", "jszip", "mammoth", "playwright-core", "@sparticuz/chromium"],
+  // Keep Prisma + native helpers outside the webpack bundle so Query Engine
+  // binaries are loadable on Vercel (rhel-openssl-3.0.x).
+  serverExternalPackages: [
+    "@prisma/client",
+    "prisma",
+    "pdf-parse",
+    "pdfjs-dist",
+    "jszip",
+    "mammoth",
+    "playwright-core",
+    "@sparticuz/chromium",
+  ],
+  // Custom Prisma output lives under ./generated/prisma — file tracing often
+  // skips the .so.node engines unless we include them explicitly.
+  outputFileTracingIncludes: {
+    "/*": ["./generated/prisma/**/*"],
+    "/api/**/*": ["./generated/prisma/**/*"],
+    "/profiles": ["./generated/prisma/**/*"],
+    "/browse": ["./generated/prisma/**/*"],
+    "/browse/**/*": ["./generated/prisma/**/*"],
+  },
   webpack: (config, { dev, isServer }) => {
     if (isServer) {
       config.externals = [

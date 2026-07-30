@@ -110,8 +110,7 @@ export async function GET() {
     return NextResponse.json({ profiles: profiles.map(toProfileResponse) });
   } catch (e) {
     console.error("GET /api/viewer/profiles", e);
-    const message = e instanceof Error ? e.message : "Failed to load profiles";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: "Failed to load profiles" }, { status: 500 });
   }
 }
 
@@ -203,8 +202,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ profile: toProfileResponse(profile) }, { status: 201 });
   } catch (e) {
     console.error("POST /api/viewer/profiles", e);
-    const message = e instanceof Error ? e.message : "Failed to create profile";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: "Failed to create profile" }, { status: 500 });
   }
 }
 
