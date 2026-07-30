@@ -33,26 +33,23 @@ const cloudflareCustomerPattern = parseRemotePattern(process.env.CLOUDFLARE_STRE
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  // Keep Prisma + native helpers outside the webpack bundle so Query Engine
-  // binaries are loadable on Vercel (rhel-openssl-3.0.x).
-  serverExternalPackages: [
-    "@prisma/client",
-    "prisma",
-    "pdf-parse",
-    "pdfjs-dist",
-    "jszip",
-    "mammoth",
-    "playwright-core",
-    "@sparticuz/chromium",
-  ],
-  // Custom Prisma output lives under ./generated/prisma — file tracing often
-  // skips the .so.node engines unless we include them explicitly.
+  serverExternalPackages: ["pdf-parse", "pdfjs-dist", "jszip", "mammoth", "playwright-core", "@sparticuz/chromium"],
+  // Only the RHEL engine (Vercel runtime). Avoid `/*` + full `generated/prisma/**`
+  // — that balloons every serverless function past Vercel size limits and fails deploy.
   outputFileTracingIncludes: {
-    "/*": ["./generated/prisma/**/*"],
-    "/api/**/*": ["./generated/prisma/**/*"],
-    "/profiles": ["./generated/prisma/**/*"],
-    "/browse": ["./generated/prisma/**/*"],
-    "/browse/**/*": ["./generated/prisma/**/*"],
+    "/api/**/*": [
+      "./generated/prisma/libquery_engine-rhel-openssl-3.0.x.so.node",
+      "./generated/prisma/schema.prisma",
+    ],
+    "/profiles": [
+      "./generated/prisma/libquery_engine-rhel-openssl-3.0.x.so.node",
+    ],
+    "/browse": [
+      "./generated/prisma/libquery_engine-rhel-openssl-3.0.x.so.node",
+    ],
+    "/browse/**/*": [
+      "./generated/prisma/libquery_engine-rhel-openssl-3.0.x.so.node",
+    ],
   },
   webpack: (config, { dev, isServer }) => {
     if (isServer) {
