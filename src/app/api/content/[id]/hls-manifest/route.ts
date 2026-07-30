@@ -6,6 +6,7 @@ import {
   loadPlatformIntroMediaPlaylist,
   playlistIsMaster,
   rewriteMasterPlaylistForIntroStitch,
+  shouldSkipIntroStitch,
   stitchIntroIntoMediaPlaylist,
 } from "@/lib/playback-intro-stitch";
 import { resolvePublishedContentVideoUrl } from "@/lib/playback-content-url";
@@ -47,9 +48,13 @@ export async function GET(
     const episodeId = req.nextUrl.searchParams.get("episodeId")?.trim() || null;
     const isTrailer = req.nextUrl.searchParams.get("trailer") === "1";
     const variantRef = req.nextUrl.searchParams.get("variant")?.trim() || null;
-    // Trailer never gets the bumper. Opt out with intro=0 (e.g. diagnostics).
-    const shouldStitchIntro =
-      !isTrailer && req.nextUrl.searchParams.get("intro") !== "0";
+    // Force-disable stitch: Stream fMP4 + demuxed audio cannot take our MPEG-TS bumper.
+    // Opt-in intro=1 only for rare muxed MPEG-TS sources that pass safety checks.
+    const wantStitch =
+      !isTrailer &&
+      req.nextUrl.searchParams.get("intro") !== "0" &&
+      // Default OFF — stitching Stream titles caused film-audio-over-intro + mobile black screens.
+      req.nextUrl.searchParams.get("intro") === "1";
 
     if (variantRef) {
       const variantUrl = decodeVariantRef(variantRef);
@@ -59,7 +64,7 @@ export async function GET(
       const mediaRaw = await fetchUpstreamManifest(variantUrl);
       if (!mediaRaw) return new NextResponse("Upstream manifest unavailable", { status: 502 });
       const media = rewriteHlsManifestForProxy(mediaRaw, variantUrl);
-      if (!shouldStitchIntro) return hlsResponse(media);
+      if (!wantStitch || shouldSkipIntroStitch(media)) return hlsResponse(media);
       try {
         const intro = await loadPlatformIntroMediaPlaylist();
         return hlsResponse(stitchIntroIntoMediaPlaylist(intro, media));
@@ -87,14 +92,26 @@ export async function GET(
 
     const rewritten = rewriteHlsManifestForProxy(raw, playback.src);
 
-    if (!shouldStitchIntro) {
+    if (!wantStitch || shouldSkipIntroStitch(rewritten)) {
       return hlsResponse(rewritten);
     }
 
     if (playlistIsMaster(rewritten)) {
+      // Peek first variant — if fMP4/demuxed, serve clean master (no stitch proxy).
+      const firstVariant = rewritten
+        .split("\n")
+        .map((l) => l.trim())
+        .find((l) => l && !l.startsWith("#") && /^https?:\/\//i.test(l));
+      if (firstVariant) {
+        const sample = await fetchUpstreamManifest(firstVariant);
+        if (sample && shouldSkipIntroStitch(sample)) {
+          return hlsResponse(rewritten);
+        }
+      }
       const stitchedMaster = rewriteMasterPlaylistForIntroStitch(rewritten, (absoluteVariantUrl) => {
         const params = new URLSearchParams();
         if (episodeId) params.set("episodeId", episodeId);
+        params.set("intro", "1");
         params.set("variant", encodeVariantRef(absoluteVariantUrl));
         return `/api/content/${id}/hls-manifest?${params.toString()}`;
       });
@@ -113,3 +130,4 @@ export async function GET(
     return new NextResponse("Failed", { status: 500 });
   }
 }
+

@@ -128,6 +128,26 @@ export function playlistIsMaster(body: string): boolean {
   return /#EXT-X-STREAM-INF/i.test(body);
 }
 
+/** Cloudflare Stream (and similar) demux audio into EXT-X-MEDIA — unsafe to stitch. */
+export function masterHasDemuxedAudio(body: string): boolean {
+  return /#EXT-X-MEDIA\s*:[^\n]*TYPE=AUDIO/i.test(body);
+}
+
+/** fMP4 / CMAF media playlists — incompatible with our MPEG-TS intro segments. */
+export function playlistUsesFragmentedMp4(body: string): boolean {
+  return /#EXT-X-MAP:/i.test(body);
+}
+
+/**
+ * True when server-side bumper stitch would break players (overlap / black screen).
+ * In that case clients must play the MP4 bumper, then the clean feature HLS.
+ */
+export function shouldSkipIntroStitch(playlistBody: string): boolean {
+  if (masterHasDemuxedAudio(playlistBody)) return true;
+  if (playlistUsesFragmentedMp4(playlistBody)) return true;
+  return false;
+}
+
 export function encodeVariantRef(absoluteUrl: string): string {
   return Buffer.from(absoluteUrl, "utf8").toString("base64url");
 }

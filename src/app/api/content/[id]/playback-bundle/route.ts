@@ -160,7 +160,6 @@ export async function GET(
         playback,
         platformIntro: getPlatformIntroPayload({
           trailer: isTrailer,
-          hlsProxied: playback?.type === "application/x-mpegurl",
         }),
         playbackProtection: {
           signedUrl: requiresSignedStreamPlayback(),

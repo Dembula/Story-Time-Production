@@ -155,6 +155,7 @@ export function StorytimeMediaPlayer({
   const watchShellRef = useRef<HTMLDivElement>(null);
   const leavingWatchRef = useRef(false);
   const appleNativeCleanupRef = useRef<(() => void) | null>(null);
+  const pendingMainPlayAfterIntroRef = useRef(false);
 
   const setAmbientUiVisible = usePlaybackSession((s) => s.setAmbientUiVisible);
   const useTouchControls = deviceProfile.useTouchControls;
@@ -332,6 +333,9 @@ export function StorytimeMediaPlayer({
   }, []);
 
   const finishPlatformIntro = useCallback(() => {
+    // Keep the user-gesture play intent so the feature starts immediately after the bumper.
+    pendingMainPlayAfterIntroRef.current = true;
+    setUserStartRequested(true);
     setIntroSkipped(true);
     setPlaybackPhase("main");
     setCurrentTime(startTime > 0 ? startTime : 0);
@@ -659,19 +663,14 @@ export function StorytimeMediaPlayer({
     await requestNativeFullscreen();
   }, [requestNativeFullscreen]);
 
-  const startPlaybackFromGesture = useCallback(async () => {
+  const unmuteAndPlay = useCallback(async () => {
     const player = getPlayback();
     if (!player) return;
-    manualPauseRef.current = false;
-    setUserStartRequested(true);
-    configureVideoForDevice();
     const video = player.getVideoElement() ?? getVideoElement();
     if (video) {
-      // Mobile autoplay policies start muted — unmute after the user taps play
-      // so the platform bumper has audible audio.
       video.muted = false;
       try {
-        video.volume = video.volume > 0 ? video.volume : 1;
+        if (video.volume === 0) video.volume = 1;
       } catch {
         // ignore
       }
@@ -679,10 +678,19 @@ export function StorytimeMediaPlayer({
     try {
       await player.play();
     } catch {
-      // Browser policy may still require interaction with native controls.
+      // May need another tap on strict autoplay policies.
     }
+  }, [getPlayback, getVideoElement]);
+
+  const startPlaybackFromGesture = useCallback(async () => {
+    const player = getPlayback();
+    if (!player) return;
+    manualPauseRef.current = false;
+    setUserStartRequested(true);
+    configureVideoForDevice();
+    await unmuteAndPlay();
     resetIdleTimer();
-  }, [configureVideoForDevice, getPlayback, getVideoElement, resetIdleTimer]);
+  }, [configureVideoForDevice, getPlayback, unmuteAndPlay, resetIdleTimer]);
 
   useEffect(() => {
     if (!activeSource || isPlaying || blockAutoplayUntilHls) return;
@@ -690,17 +698,12 @@ export function StorytimeMediaPlayer({
     if (!userStartRequested && !deviceProfile.canAutoplayAudible) return;
 
     const start = () => {
-      const player = getPlayback();
-      if (!player) return;
       configureVideoForDevice();
-      const video = player.getVideoElement() ?? getVideoElement();
-      if (video && (userStartRequested || deviceProfile.canAutoplayAudible)) {
-        video.muted = false;
-      }
-      void player.play().catch(() => {});
+      void unmuteAndPlay();
     };
 
-    if (userStartRequested) {
+    if (userStartRequested || pendingMainPlayAfterIntroRef.current) {
+      pendingMainPlayAfterIntroRef.current = false;
       start();
       return;
     }
@@ -712,10 +715,9 @@ export function StorytimeMediaPlayer({
     blockAutoplayUntilHls,
     configureVideoForDevice,
     deviceProfile.canAutoplayAudible,
-    getPlayback,
-    getVideoElement,
     isPlaying,
     playbackPhase,
+    unmuteAndPlay,
     userStartRequested,
   ]);
 
@@ -998,6 +1000,10 @@ export function StorytimeMediaPlayer({
           onHlsReady={() => {
             setHlsInstanceReady(true);
             applyStartTime();
+            if (pendingMainPlayAfterIntroRef.current || userStartRequested) {
+              pendingMainPlayAfterIntroRef.current = false;
+              void unmuteAndPlay();
+            }
           }}
           onError={() => setHlsLoadFailed(true)}
           onPlay={() => {
@@ -1039,6 +1045,10 @@ export function StorytimeMediaPlayer({
         onCanPlay={() => {
           configureVideoForDevice();
           if (!usesInBrowserHlsEngine() || playbackPhase === "intro") setHlsInstanceReady(true);
+          if (pendingMainPlayAfterIntroRef.current || (userStartRequested && playbackPhase === "main")) {
+            pendingMainPlayAfterIntroRef.current = false;
+            void unmuteAndPlay();
+          }
         }}
         onPlay={() => {
           manualPauseRef.current = false;
