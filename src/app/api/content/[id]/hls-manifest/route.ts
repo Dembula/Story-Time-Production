@@ -11,6 +11,7 @@ import {
   playlistUsesFragmentedMp4,
   rewriteMasterPlaylistForIntroStitch,
   stitchIntroIntoMediaPlaylist,
+  withPublicOrigin,
 } from "@/lib/playback-intro-stitch";
 import { resolvePublishedContentVideoUrl } from "@/lib/playback-content-url";
 import { rewriteHlsManifestForProxy } from "@/lib/playback-manifest-rewrite";
@@ -42,15 +43,17 @@ async function fetchUpstreamManifest(url: string): Promise<string | null> {
   return upstream.text();
 }
 
-async function stitchWithMatchingIntro(featureMedia: string): Promise<string> {
+async function stitchWithMatchingIntro(
+  featureMedia: string,
+  origin: string,
+): Promise<string> {
   // Stream demuxed fMP4 → stitch matching fMP4 intro video/audio tracks.
   // Legacy MPEG-TS features → stitch MPEG-TS intro.
   if (playlistUsesFragmentedMp4(featureMedia)) {
-    // Caller decides video vs audio intro via which loader they pass — default video.
-    const intro = await loadPlatformIntroFmp4VideoPlaylist();
+    const intro = withPublicOrigin(await loadPlatformIntroFmp4VideoPlaylist(), origin);
     return stitchIntroIntoMediaPlaylist(intro, featureMedia);
   }
-  const intro = await loadPlatformIntroMediaPlaylist();
+  const intro = withPublicOrigin(await loadPlatformIntroMediaPlaylist(), origin);
   return stitchIntroIntoMediaPlaylist(intro, featureMedia);
 }
 
@@ -66,6 +69,7 @@ export async function GET(
     const audioRef = req.nextUrl.searchParams.get("audio")?.trim() || null;
     // Default ON for apps that only play playback.src. Opt out with intro=0.
     const wantStitch = !isTrailer && req.nextUrl.searchParams.get("intro") !== "0";
+    const origin = req.nextUrl.origin;
 
     if (audioRef) {
       const audioUrl = decodeVariantRef(audioRef);
@@ -77,7 +81,7 @@ export async function GET(
       const media = rewriteHlsManifestForProxy(mediaRaw, audioUrl);
       if (!wantStitch) return hlsResponse(media);
       try {
-        const intro = await loadPlatformIntroFmp4AudioPlaylist();
+        const intro = withPublicOrigin(await loadPlatformIntroFmp4AudioPlaylist(), origin);
         return hlsResponse(stitchIntroIntoMediaPlaylist(intro, media));
       } catch (err) {
         console.error("platform intro audio stitch failed; serving feature audio only", err);
@@ -95,7 +99,7 @@ export async function GET(
       const media = rewriteHlsManifestForProxy(mediaRaw, variantUrl);
       if (!wantStitch) return hlsResponse(media);
       try {
-        return hlsResponse(await stitchWithMatchingIntro(media));
+        return hlsResponse(await stitchWithMatchingIntro(media, origin));
       } catch (err) {
         console.error("platform intro stitch failed; serving feature only", err);
         return hlsResponse(media);
@@ -130,7 +134,6 @@ export async function GET(
       if (!masterHasDemuxedAudio(rewritten)) {
         return hlsResponse(rewritten);
       }
-      const origin = req.nextUrl.origin;
       const stitchedMaster = rewriteMasterPlaylistForIntroStitch(rewritten, {
         buildVariantProxyUrl: (absoluteVariantUrl) => {
           const params = new URLSearchParams();
@@ -149,7 +152,7 @@ export async function GET(
     }
 
     try {
-      return hlsResponse(await stitchWithMatchingIntro(rewritten));
+      return hlsResponse(await stitchWithMatchingIntro(rewritten, origin));
     } catch (err) {
       console.error("platform intro stitch failed; serving feature only", err);
       return hlsResponse(rewritten);

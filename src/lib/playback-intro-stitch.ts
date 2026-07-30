@@ -74,6 +74,27 @@ export async function loadPlatformIntroFmp4AudioPlaylist(): Promise<string> {
   return cachedIntroFmp4AudioBody;
 }
 
+/** Make intro segment URIs origin-absolute so native apps resolve them reliably. */
+export function withPublicOrigin(playlist: string, origin: string): string {
+  const base = origin.replace(/\/$/, "");
+  if (!base) return playlist;
+  return playlist
+    .split("\n")
+    .map((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return line;
+      if (trimmed.startsWith("#EXT-X-MAP:")) {
+        return line.replace(/URI=("|'|)(\/branding\/[^"'\s,]+)\1/i, (_m, _q, uri: string) => {
+          return `URI="${base}${uri}"`;
+        });
+      }
+      if (trimmed.startsWith("#")) return line;
+      if (trimmed.startsWith("/branding/")) return `${base}${trimmed}`;
+      return line;
+    })
+    .join("\n");
+}
+
 /** Extract MAP + media segment lines (and accompanying tags) for stitching. */
 export function extractMediaBodyLines(playlist: string): {
   bodyLines: string[];
@@ -92,6 +113,7 @@ export function extractMediaBodyLines(playlist: string): {
     if (trimmed.startsWith("#EXT-X-VERSION:")) continue;
     if (trimmed.startsWith("#EXT-X-TARGETDURATION:")) continue;
     if (trimmed.startsWith("#EXT-X-MEDIA-SEQUENCE:")) continue;
+    if (trimmed.startsWith("#EXT-X-DISCONTINUITY-SEQUENCE:")) continue;
     if (trimmed.startsWith("#EXT-X-PLAYLIST-TYPE:")) continue;
     if (trimmed.startsWith("#EXT-X-INDEPENDENT-SEGMENTS")) continue;
     if (trimmed.startsWith("#EXT-X-PROGRAM-DATE-TIME")) continue;
@@ -129,6 +151,7 @@ export function stitchIntroIntoMediaPlaylist(introPlaylist: string, featurePlayl
     `#EXT-X-VERSION:${version}`,
     `#EXT-X-TARGETDURATION:${targetDuration}`,
     "#EXT-X-MEDIA-SEQUENCE:0",
+    "#EXT-X-DISCONTINUITY-SEQUENCE:0",
     "#EXT-X-PLAYLIST-TYPE:VOD",
     "#EXT-X-INDEPENDENT-SEGMENTS",
     ...intro.bodyLines,

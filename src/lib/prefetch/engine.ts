@@ -1,7 +1,10 @@
+import { PLATFORM_INTRO_PREFETCH_PATHS } from "@/lib/platform-intro";
+
 const warmedManifests = new Set<string>();
 const warmedOrigins = new Set<string>();
 const warmedRoutes = new Set<string>();
 const warmedMetadata = new Map<string, number>();
+let introAssetsWarmed = false;
 
 const METADATA_TTL_MS = 60_000;
 
@@ -34,6 +37,7 @@ export function warmPlaybackManifest(manifestUrl: string | null | undefined) {
   if (!isManifest) return;
 
   warmMediaOrigin(url);
+  warmPlatformIntroAssets();
   if (warmedManifests.has(url)) return;
   warmedManifests.add(url);
 
@@ -47,6 +51,17 @@ export function warmPlaybackManifest(manifestUrl: string | null | undefined) {
   void fetch(url, { method: "GET", mode: "cors", credentials: "omit" }).catch(() => {
     warmedManifests.delete(url);
   });
+}
+
+/** Prefetch bumper fMP4 segments so slow networks don't stall the first frames. */
+function warmPlatformIntroAssets() {
+  if (introAssetsWarmed || typeof window === "undefined") return;
+  introAssetsWarmed = true;
+  for (const path of PLATFORM_INTRO_PREFETCH_PATHS) {
+    void fetch(path, { method: "GET", mode: "cors", credentials: "omit", priority: "low" } as RequestInit).catch(
+      () => {},
+    );
+  }
 }
 
 function warmMediaOrigin(url: string) {

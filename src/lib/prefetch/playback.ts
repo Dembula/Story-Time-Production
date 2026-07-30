@@ -46,8 +46,8 @@ export function playbackBundleQueryKey(
   episodeId?: string | null,
   options?: { trailer?: boolean },
 ) {
-  // v3: Stream-compatible fMP4 demuxed intro stitch in playback.src.
-  return ["playback-bundle", "v3-fmp4-intro", contentId, episodeId ?? "main", options?.trailer ? "trailer" : "feature"] as const;
+  // v4: single-player stitched intro (no client MP4 dual-source).
+  return ["playback-bundle", "v4-unified-intro", contentId, episodeId ?? "main", options?.trailer ? "trailer" : "feature"] as const;
 }
 
 export async function fetchPlaybackBundle(
