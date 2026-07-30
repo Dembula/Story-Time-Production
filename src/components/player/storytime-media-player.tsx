@@ -54,10 +54,7 @@ import { leaveWatchRoute } from "@/lib/player/leave-watch";
 import { StoryTimeLoader, StoryTimeLoaderOverlay } from "@/components/ui/storytime-loader";
 import { PlaybackBufferingOverlay } from "./playback-buffering-overlay";
 import { PLAYBACK_COMMAND_EVENT, type PlaybackCommand } from "@/lib/input/platform-events";
-
-
-
-const INTRO_SKIP_SECONDS = 90;
+import { PLATFORM_INTRO } from "@/lib/platform-intro";
 
 const IDLE_HIDE_MS = 3200;
 
@@ -144,6 +141,10 @@ export function StorytimeMediaPlayer({
   const [currentTime, setCurrentTime] = useState(startTime);
   const [duration, setDuration] = useState(0);
   const [introSkipped, setIntroSkipped] = useState(false);
+  /** Platform bumper plays before the feature unless resuming mid-title or watching a trailer. */
+  const [playbackPhase, setPlaybackPhase] = useState<"intro" | "main">(() =>
+    isTrailer || startTime > 2 ? "main" : "intro",
+  );
   const [nextCountdown, setNextCountdown] = useState<number | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -205,14 +206,38 @@ export function StorytimeMediaPlayer({
     return fallbackSource;
   }, [bundle?.playback, fallbackSource, signedPlaybackRequired]);
 
-  const missingSource = !source;
-  const needsHlsJs = isHlsPlaybackSource(source);
+  const platformIntro = useMemo(() => {
+    if (isTrailer || startTime > 2) return null;
+    const fromBundle = bundle?.platformIntro;
+    if (fromBundle?.src) return fromBundle;
+    // Bundle may still be loading — use the known platform bumper so first paint can start.
+    if (playbackPhase === "intro") {
+      return {
+        src: PLATFORM_INTRO.src,
+        type: PLATFORM_INTRO.mimeType,
+        durationSeconds: PLATFORM_INTRO.durationSeconds,
+        skipAtSeconds: PLATFORM_INTRO.skipAtSeconds,
+      };
+    }
+    return null;
+  }, [bundle?.platformIntro, isTrailer, playbackPhase, startTime]);
+
+  const activeSource = useMemo((): PlaybackSource | null => {
+    if (playbackPhase === "intro" && platformIntro?.src) {
+      return { src: platformIntro.src, type: platformIntro.type };
+    }
+    return source;
+  }, [playbackPhase, platformIntro, source]);
+
+  const missingSource = !activeSource;
+  const needsHlsJs = playbackPhase === "main" && isHlsPlaybackSource(activeSource);
   const usesBrowserHls = usesInBrowserHlsEngine();
   const hlsJsUnsupported = needsHlsJs && usesBrowserHls && !isHlsJsSupported();
   const waitingForPlaybackBundle =
-    requiresPlaybackBundle && bundleLoading && !source;
+    requiresPlaybackBundle && bundleLoading && !source && playbackPhase === "main";
 
-  const useDirectDesktopHls = usesBrowserHls && needsHlsJs && Boolean(source?.src);
+  const useDirectDesktopHls =
+    playbackPhase === "main" && usesBrowserHls && needsHlsJs && Boolean(activeSource?.src);
   const waitingForHlsEngine = useDirectDesktopHls && !hlsInstanceReady;
   const blockAutoplayUntilHls = useDirectDesktopHls && !hlsInstanceReady;
   const useAppleNativeUi = usesAppleNativePlayer();
@@ -284,11 +309,19 @@ export function StorytimeMediaPlayer({
     setHlsLoadFailed(true);
   }, []);
 
+  const finishPlatformIntro = useCallback(() => {
+    setIntroSkipped(true);
+    setPlaybackPhase("main");
+    setCurrentTime(startTime > 0 ? startTime : 0);
+    setDuration(0);
+    setIsPlaying(false);
+  }, [startTime]);
+
   useEffect(() => {
     setHlsLoadFailed(false);
     setHlsInstanceReady(false);
     manualPauseRef.current = false;
-  }, [source?.src, source?.type]);
+  }, [activeSource?.src, activeSource?.type, playbackPhase]);
 
   const handleDesktopTimeUpdate = useCallback(() => {
     const player = getPlayback();
@@ -296,6 +329,15 @@ export function StorytimeMediaPlayer({
     const t = player.currentTime;
     const d = player.duration;
     setCurrentTime(t);
+    if (playbackPhase === "intro") {
+      const skipAt = platformIntro?.skipAtSeconds ?? PLATFORM_INTRO.skipAtSeconds;
+      if (d > 0 && t >= Math.max(0.5, d - 0.2)) {
+        finishPlatformIntro();
+      } else if (t >= skipAt) {
+        finishPlatformIntro();
+      }
+      return;
+    }
     onTimeUpdate?.(t, d);
     if (nextEpisode && d > 0 && d - t <= 15 && d - t > 0.5) {
       setNextCountdown(Math.ceil(d - t));
@@ -307,9 +349,21 @@ export function StorytimeMediaPlayer({
       lastSavedRef.current = pos;
       onProgressSave(t, d);
     }
-  }, [getPlayback, nextEpisode, onProgressSave, onTimeUpdate]);
+  }, [
+    finishPlatformIntro,
+    getPlayback,
+    nextEpisode,
+    onProgressSave,
+    onTimeUpdate,
+    playbackPhase,
+    platformIntro?.skipAtSeconds,
+  ]);
 
   const handleDesktopEnded = useCallback(() => {
+    if (playbackPhase === "intro") {
+      finishPlatformIntro();
+      return;
+    }
     const player = getPlayback();
     if (player && onProgressSave) {
       onProgressSave(player.currentTime, player.duration);
@@ -317,7 +371,7 @@ export function StorytimeMediaPlayer({
     if (nextEpisode) {
       router.push(nextEpisode.href ?? `/browse/content/${nextEpisode.id}/watch`);
     }
-  }, [getPlayback, nextEpisode, onProgressSave, router]);
+  }, [finishPlatformIntro, getPlayback, nextEpisode, onProgressSave, playbackPhase, router]);
 
 
 
@@ -371,7 +425,7 @@ export function StorytimeMediaPlayer({
 
     const player = getPlayback();
 
-    if (!player || startTime <= 0) return;
+    if (!player || startTime <= 0 || playbackPhase !== "main") return;
 
     if (player.duration > 0 && startTime < player.duration - 5) {
 
@@ -381,23 +435,17 @@ export function StorytimeMediaPlayer({
 
     }
 
-  }, [getPlayback, startTime]);
+  }, [getPlayback, playbackPhase, startTime]);
 
 
 
   const skipIntro = useCallback(() => {
-
-    const player = getPlayback();
-
-    if (!player) return;
-
-    player.setCurrentTime(INTRO_SKIP_SECONDS);
-
-    setCurrentTime(INTRO_SKIP_SECONDS);
-
-    setIntroSkipped(true);
-
-  }, [getPlayback]);
+    if (playbackPhase === "intro") {
+      finishPlatformIntro();
+      return;
+    }
+    finishPlatformIntro();
+  }, [finishPlatformIntro, playbackPhase]);
 
 
 
@@ -581,7 +629,7 @@ export function StorytimeMediaPlayer({
   }, [configureVideoForDevice, getPlayback, resetIdleTimer]);
 
   useEffect(() => {
-    if (!source || isPlaying || blockAutoplayUntilHls) return;
+    if (!activeSource || isPlaying || blockAutoplayUntilHls) return;
     if (manualPauseRef.current) return;
     if (!userStartRequested && !deviceProfile.canAutoplayAudible) return;
 
@@ -600,12 +648,13 @@ export function StorytimeMediaPlayer({
     const timer = window.setTimeout(start, 80);
     return () => window.clearTimeout(timer);
   }, [
+    activeSource,
     blockAutoplayUntilHls,
     configureVideoForDevice,
     deviceProfile.canAutoplayAudible,
     getPlayback,
     isPlaying,
-    source,
+    playbackPhase,
     userStartRequested,
   ]);
 
@@ -788,7 +837,7 @@ export function StorytimeMediaPlayer({
     );
   }
 
-  if (missingSource || !source) {
+  if (missingSource || !activeSource) {
 
     return (
 
@@ -825,7 +874,9 @@ export function StorytimeMediaPlayer({
 
 
   const showSkipIntro =
-    !introSkipped && currentTime < INTRO_SKIP_SECONDS && duration > INTRO_SKIP_SECONDS + 30;
+    playbackPhase === "intro" &&
+    !introSkipped &&
+    Boolean(platformIntro?.src);
 
 
 
@@ -872,10 +923,11 @@ export function StorytimeMediaPlayer({
       onClick={resetIdleTimer}
       onKeyDown={resetIdleTimer}
     >
-      {useDirectDesktopHls ? (
+      {useDirectDesktopHls && activeSource ? (
         <StorytimeDesktopHlsPlayer
+          key={`main-${activeSource.src}`}
           ref={desktopPlaybackRef}
-          src={source.src}
+          src={activeSource.src}
           poster={poster || undefined}
           className="h-full w-full"
           autoPlay={deviceProfile.canAutoplayAudible && !blockAutoplayUntilHls}
@@ -900,17 +952,18 @@ export function StorytimeMediaPlayer({
           onTimeUpdate={handleDesktopTimeUpdate}
           onEnded={handleDesktopEnded}
         />
-      ) : (
+      ) : activeSource ? (
       <MediaPlayer
+        key={`${playbackPhase}-${activeSource.src}`}
         ref={playerRef}
         className="storytime-vidstack-player h-full w-full [&_video]:object-contain"
-        title={title}
-        src={{ src: source.src, type: source.type as "application/x-mpegurl" | "video/mp4" }}
-        poster={poster || undefined}
+        title={playbackPhase === "intro" ? `${title} — Intro` : title}
+        src={{ src: activeSource.src, type: activeSource.type as "application/x-mpegurl" | "video/mp4" }}
+        poster={playbackPhase === "intro" ? undefined : poster || undefined}
         playsInline={true}
         preferNativeHLS={usesAppleNativePlayer()}
         autoPlay={deviceProfile.canAutoplayAudible && !blockAutoplayUntilHls}
-        load="idle"
+        load="eager"
         onProviderChange={handleProviderChange}
         onHlsLibLoadError={handleHlsLibLoadError}
         onHlsInstance={applyHlsDrmConfig}
@@ -920,7 +973,7 @@ export function StorytimeMediaPlayer({
         }}
         onCanPlay={() => {
           configureVideoForDevice();
-          if (!usesInBrowserHlsEngine()) setHlsInstanceReady(true);
+          if (!usesInBrowserHlsEngine() || playbackPhase === "intro") setHlsInstanceReady(true);
         }}
         onPlay={() => {
           manualPauseRef.current = false;
@@ -948,7 +1001,7 @@ export function StorytimeMediaPlayer({
           <DefaultVideoLayout icons={defaultLayoutIcons} />
         ) : null}
       </MediaPlayer>
-      )}
+      ) : null}
 
       {!useTouchControls && !useAppleNativeUi && !isTrailer && activeSceneLabel && uiVisible ? (
         <div className="pointer-events-none absolute bottom-24 left-4 z-20 max-w-md">
@@ -1019,7 +1072,7 @@ export function StorytimeMediaPlayer({
                     <SkipForward className="h-3.5 w-3.5" /> Skip intro
                   </button>
                 ) : null}
-                {!isTrailer ? (
+                {!isTrailer && playbackPhase === "main" ? (
                   <button
                     type="button"
                     onClick={() => setMetadataOpen((v) => !v)}

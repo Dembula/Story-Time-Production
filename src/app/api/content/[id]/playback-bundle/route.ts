@@ -15,6 +15,7 @@ import {
 } from "@/lib/playback-content-url";
 import type { PlaybackSource } from "@/lib/playback-sources";
 import { contentHasScriptSource } from "@/lib/ai-metadata/content-script-source";
+import { getPlatformIntroPayload } from "@/lib/platform-intro";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -157,6 +158,7 @@ export async function GET(
         id: content.id,
         title: content.title,
         playback,
+        platformIntro: getPlatformIntroPayload({ trailer: isTrailer }),
         playbackProtection: {
           signedUrl: requiresSignedStreamPlayback(),
           proxiedManifest: playback?.type === "application/x-mpegurl",

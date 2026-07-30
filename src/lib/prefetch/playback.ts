@@ -7,6 +7,13 @@ export type PlaybackBundleResponse = {
   id: string;
   title: string;
   playback: PlaybackSource | null;
+  /** Platform bumper before the feature. Null for trailers. */
+  platformIntro?: {
+    src: string;
+    type: "video/mp4";
+    durationSeconds: number;
+    skipAtSeconds: number;
+  } | null;
   playbackProtection?: {
     signedUrl?: boolean;
     proxiedManifest?: boolean;
