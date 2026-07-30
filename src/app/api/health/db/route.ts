@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { ensurePrismaQueryEngineLibrary } from "@/lib/prisma-engine-path";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,14 +8,10 @@ export const dynamic = "force-dynamic";
  * Does not expose secrets; only ok/error class.
  */
 export async function GET() {
-  const enginePath = ensurePrismaQueryEngineLibrary();
   try {
     const { prisma } = await import("@/lib/prisma");
     await prisma.$queryRaw`SELECT 1`;
-    return NextResponse.json({
-      ok: true,
-      engineResolved: Boolean(enginePath),
-    });
+    return NextResponse.json({ ok: true });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Database check failed";
     const engineMissing =
@@ -25,7 +20,6 @@ export async function GET() {
     return NextResponse.json(
       {
         ok: false,
-        engineResolved: Boolean(enginePath),
         code: engineMissing ? "PRISMA_ENGINE" : "DB_ERROR",
         error: engineMissing
           ? "Prisma Query Engine is missing or mismatched for this runtime."

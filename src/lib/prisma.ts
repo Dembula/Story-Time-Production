@@ -1,5 +1,4 @@
 import type { PrismaClient as PrismaClientType } from "../../generated/prisma";
-import { ensurePrismaQueryEngineLibrary } from "@/lib/prisma-engine-path";
 
 const { PrismaClient } = require("../../generated/prisma") as {
   PrismaClient: new (options?: { log?: string[] }) => any;
@@ -8,7 +7,6 @@ const { PrismaClient } = require("../../generated/prisma") as {
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClientType };
 
 function createPrismaClient(): PrismaClientType {
-  ensurePrismaQueryEngineLibrary();
   return new PrismaClient({
     log: process.env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
   }) as PrismaClientType;
