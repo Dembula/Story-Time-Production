@@ -141,6 +141,7 @@ export function StorytimeMediaPlayer({
   const [currentTime, setCurrentTime] = useState(startTime);
   const [duration, setDuration] = useState(0);
   const [introSkipped, setIntroSkipped] = useState(false);
+  const [bumperPhase, setBumperPhase] = useState(false);
   const [nextCountdown, setNextCountdown] = useState<number | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -230,9 +231,21 @@ export function StorytimeMediaPlayer({
   }, [bundle?.platformIntro, isTrailer, source]);
 
   const introOffsetSeconds =
-    !isTrailer && platformIntro?.stitchedIntoPlayback
+    !isTrailer &&
+    platformIntro?.stitchedIntoPlayback &&
+    // Desktop web plays the MP4 bumper on the same <video>, then clean HLS (no stitch offset).
+    !(usesInBrowserHlsEngine() && isHlsPlaybackSource(source) && startTime <= 2)
       ? platformIntro.skipAtSeconds ?? PLATFORM_INTRO.skipAtSeconds
       : 0;
+
+  const desktopBumperSrc =
+    !isTrailer &&
+    startTime <= 2 &&
+    Boolean(platformIntro) &&
+    usesInBrowserHlsEngine() &&
+    isHlsPlaybackSource(source)
+      ? PLATFORM_INTRO.src
+      : null;
 
   const activeSource = source;
   const missingSource = !activeSource;
@@ -244,8 +257,11 @@ export function StorytimeMediaPlayer({
 
   const useDirectDesktopHls =
     usesBrowserHls && needsHlsJs && Boolean(activeSource?.src);
-  const waitingForHlsEngine = useDirectDesktopHls && !hlsInstanceReady;
-  const blockAutoplayUntilHls = useDirectDesktopHls && !hlsInstanceReady;
+  // Bumper plays on the same <video> before HLS attaches — don't block on hls ready.
+  const waitingForHlsEngine =
+    useDirectDesktopHls && !hlsInstanceReady && !desktopBumperSrc && !bumperPhase;
+  const blockAutoplayUntilHls =
+    useDirectDesktopHls && !hlsInstanceReady && !desktopBumperSrc && !bumperPhase;
   const useAppleNativeUi = usesAppleNativePlayer();
   const showTouchStyleControls = useTouchControls && !useAppleNativeUi;
   const showDesktopHlsBar = useDirectDesktopHls && !useTouchControls;
@@ -327,6 +343,10 @@ export function StorytimeMediaPlayer({
     const t = player.currentTime;
     const d = player.duration;
     setCurrentTime(t);
+    if (bumperPhase || player.isBumperPhase?.()) {
+      if (d > 0) setDuration(d);
+      return;
+    }
     const contentTime = Math.max(0, t - introOffsetSeconds);
     const contentDuration = Math.max(0, d - introOffsetSeconds);
     onTimeUpdate?.(contentTime, contentDuration);
@@ -341,6 +361,7 @@ export function StorytimeMediaPlayer({
       onProgressSave(contentTime, contentDuration);
     }
   }, [
+    bumperPhase,
     getPlayback,
     introOffsetSeconds,
     nextEpisode,
@@ -382,24 +403,6 @@ export function StorytimeMediaPlayer({
     // Resuming mid-title: treat bumper as already passed.
     if (startTime > 2) setIntroSkipped(true);
   }, [startTime]);
-
-  // Web/hls.js can pause at the bumper→feature discontinuity; nudge + resume if not user-paused.
-  useEffect(() => {
-    if (!platformIntro?.stitchedIntoPlayback || !useDirectDesktopHls) return;
-    const skipAt = platformIntro.skipAtSeconds ?? PLATFORM_INTRO.skipAtSeconds;
-    const timer = window.setInterval(() => {
-      if (manualPauseRef.current) return;
-      const player = getPlayback();
-      const video = player?.getVideoElement();
-      if (!video || video.ended) return;
-      const t = video.currentTime;
-      if (video.paused && t >= skipAt - 0.5 && t < skipAt + 0.4) {
-        video.currentTime = skipAt + 0.05;
-        void video.play().catch(() => {});
-      }
-    }, 700);
-    return () => window.clearInterval(timer);
-  }, [getPlayback, platformIntro, useDirectDesktopHls]);
 
 
 
@@ -450,13 +453,19 @@ export function StorytimeMediaPlayer({
   }, [getPlayback, introOffsetSeconds, startTime]);
 
   const skipIntro = useCallback(() => {
+    if (bumperPhase) {
+      desktopPlaybackRef.current?.skipBumper?.();
+      setIntroSkipped(true);
+      setBumperPhase(false);
+      return;
+    }
     const player = getPlayback();
     if (!player) return;
     const skipAt = platformIntro?.skipAtSeconds ?? PLATFORM_INTRO.skipAtSeconds;
     player.setCurrentTime(skipAt);
     setCurrentTime(skipAt);
     setIntroSkipped(true);
-  }, [getPlayback, platformIntro?.skipAtSeconds]);
+  }, [bumperPhase, getPlayback, platformIntro?.skipAtSeconds]);
 
 
 
@@ -899,8 +908,10 @@ export function StorytimeMediaPlayer({
   const showSkipIntro =
     !introSkipped &&
     !isTrailer &&
-    Boolean(platformIntro?.stitchedIntoPlayback) &&
-    currentTime < (platformIntro?.skipAtSeconds ?? PLATFORM_INTRO.skipAtSeconds);
+    (bumperPhase ||
+      (Boolean(platformIntro?.stitchedIntoPlayback) &&
+        introOffsetSeconds > 0 &&
+        currentTime < (platformIntro?.skipAtSeconds ?? PLATFORM_INTRO.skipAtSeconds)));
 
 
 
@@ -949,14 +960,17 @@ export function StorytimeMediaPlayer({
     >
       {useDirectDesktopHls && activeSource ? (
         <StorytimeDesktopHlsPlayer
-          key={`main-${activeSource.src}`}
+          key={`main-${activeSource.src}-${desktopBumperSrc ? "bump" : "plain"}`}
           ref={desktopPlaybackRef}
           src={activeSource.src}
-          poster={poster || undefined}
+          bumperSrc={desktopBumperSrc}
+          poster={desktopBumperSrc ? undefined : poster || undefined}
           className="h-full w-full"
           autoPlay={deviceProfile.canAutoplayAudible && !blockAutoplayUntilHls}
+          onBumperPhaseChange={setBumperPhase}
           onHlsReady={() => {
             setHlsInstanceReady(true);
+            setBumperPhase(false);
             applyStartTime();
             if (userStartRequested) {
               void unmuteAndPlay();
@@ -964,21 +978,15 @@ export function StorytimeMediaPlayer({
           }}
           onError={() => setHlsLoadFailed(true)}
           userPausedRef={manualPauseRef}
-          discontinuityAtSeconds={
-            platformIntro?.stitchedIntoPlayback
-              ? platformIntro.skipAtSeconds ?? PLATFORM_INTRO.skipAtSeconds
-              : undefined
-          }
           onPlay={() => {
             manualPauseRef.current = false;
             setIsPlaying(true);
           }}
           onPause={() => {
-            // Do not mark stall/discontinuity pauses as user pauses — that blocks resume.
             setIsPlaying(false);
           }}
           onDurationChange={() => {
-            applyStartTime();
+            if (!bumperPhase) applyStartTime();
             const player = getPlayback();
             if (player) setDuration(player.duration);
           }}

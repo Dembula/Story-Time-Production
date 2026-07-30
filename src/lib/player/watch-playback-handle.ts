@@ -7,6 +7,8 @@ export type StorytimePlaybackHandle = {
   setCurrentTime(time: number): void;
   readonly paused: boolean;
   getVideoElement(): HTMLVideoElement | null;
+  skipBumper?: () => void;
+  isBumperPhase?: () => boolean;
 };
 
 export function createVidstackPlaybackHandle(
