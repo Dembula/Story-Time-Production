@@ -352,10 +352,10 @@ export function StorytimeMediaPlayer({
     const d = player.duration;
     setCurrentTime(t);
     if (playbackPhase === "intro") {
-      const skipAt = platformIntro?.skipAtSeconds ?? PLATFORM_INTRO.skipAtSeconds;
-      if (d > 0 && t >= Math.max(0.5, d - 0.2)) {
-        finishPlatformIntro();
-      } else if (t >= skipAt) {
+      // Only advance when the bumper has truly finished — never cut on a
+      // hardcoded clock while frames/audio are still playing (causes film
+      // audio to overlap the end of the animation).
+      if (d > 0 && t >= Math.max(0.35, d - 0.05)) {
         finishPlatformIntro();
       }
       return;
@@ -381,7 +381,6 @@ export function StorytimeMediaPlayer({
     onProgressSave,
     onTimeUpdate,
     playbackPhase,
-    platformIntro?.skipAtSeconds,
   ]);
 
   const handleDesktopEnded = useCallback(() => {
@@ -666,13 +665,24 @@ export function StorytimeMediaPlayer({
     manualPauseRef.current = false;
     setUserStartRequested(true);
     configureVideoForDevice();
+    const video = player.getVideoElement() ?? getVideoElement();
+    if (video) {
+      // Mobile autoplay policies start muted — unmute after the user taps play
+      // so the platform bumper has audible audio.
+      video.muted = false;
+      try {
+        video.volume = video.volume > 0 ? video.volume : 1;
+      } catch {
+        // ignore
+      }
+    }
     try {
       await player.play();
     } catch {
       // Browser policy may still require interaction with native controls.
     }
     resetIdleTimer();
-  }, [configureVideoForDevice, getPlayback, resetIdleTimer]);
+  }, [configureVideoForDevice, getPlayback, getVideoElement, resetIdleTimer]);
 
   useEffect(() => {
     if (!activeSource || isPlaying || blockAutoplayUntilHls) return;
@@ -683,6 +693,10 @@ export function StorytimeMediaPlayer({
       const player = getPlayback();
       if (!player) return;
       configureVideoForDevice();
+      const video = player.getVideoElement() ?? getVideoElement();
+      if (video && (userStartRequested || deviceProfile.canAutoplayAudible)) {
+        video.muted = false;
+      }
       void player.play().catch(() => {});
     };
 
@@ -699,6 +713,7 @@ export function StorytimeMediaPlayer({
     configureVideoForDevice,
     deviceProfile.canAutoplayAudible,
     getPlayback,
+    getVideoElement,
     isPlaying,
     playbackPhase,
     userStartRequested,
@@ -1010,6 +1025,7 @@ export function StorytimeMediaPlayer({
         src={{ src: activeSource.src, type: activeSource.type as "application/x-mpegurl" | "video/mp4" }}
         poster={playbackPhase === "intro" ? undefined : poster || undefined}
         playsInline={true}
+        muted={false}
         preferNativeHLS={usesAppleNativePlayer()}
         autoPlay={deviceProfile.canAutoplayAudible && !blockAutoplayUntilHls}
         load="eager"

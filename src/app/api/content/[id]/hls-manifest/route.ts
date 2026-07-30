@@ -47,7 +47,9 @@ export async function GET(
     const episodeId = req.nextUrl.searchParams.get("episodeId")?.trim() || null;
     const isTrailer = req.nextUrl.searchParams.get("trailer") === "1";
     const variantRef = req.nextUrl.searchParams.get("variant")?.trim() || null;
-    const shouldStitchIntro = !isTrailer;
+    // Trailer never gets the bumper. Opt out with intro=0 (e.g. diagnostics).
+    const shouldStitchIntro =
+      !isTrailer && req.nextUrl.searchParams.get("intro") !== "0";
 
     if (variantRef) {
       const variantUrl = decodeVariantRef(variantRef);

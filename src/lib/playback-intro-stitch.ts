@@ -9,6 +9,16 @@ export const PLATFORM_INTRO_HLS_PUBLIC_PREFIX = "/branding/intro";
 
 let cachedIntroMediaBody: string | null = null;
 
+/** Sum of #EXTINF durations in the platform intro playlist (authoritative stitch offset). */
+export function measureIntroPlaylistDurationSeconds(introPlaylist: string): number {
+  let total = 0;
+  for (const line of introPlaylist.split("\n")) {
+    const match = line.trim().match(/^#EXTINF:([\d.]+)/i);
+    if (match) total += Number(match[1]) || 0;
+  }
+  return total > 0 ? total : PLATFORM_INTRO.durationSeconds;
+}
+
 function parseTargetDuration(body: string): number {
   const match = body.match(/#EXT-X-TARGETDURATION:(\d+)/i);
   return match ? Number(match[1]) : 0;
@@ -81,6 +91,8 @@ export function stitchIntroIntoMediaPlaylist(introPlaylist: string, featurePlayl
     if (trimmed.startsWith("#EXT-X-TARGETDURATION:")) continue;
     if (trimmed.startsWith("#EXT-X-MEDIA-SEQUENCE:")) continue;
     if (trimmed.startsWith("#EXT-X-PLAYLIST-TYPE:")) continue;
+    if (trimmed.startsWith("#EXT-X-INDEPENDENT-SEGMENTS")) continue;
+    if (trimmed.startsWith("#EXT-X-PROGRAM-DATE-TIME")) continue;
     if (trimmed === "#EXT-X-ENDLIST") continue;
     if (
       !sawMedia &&
@@ -103,6 +115,7 @@ export function stitchIntroIntoMediaPlaylist(introPlaylist: string, featurePlayl
     `#EXT-X-TARGETDURATION:${targetDuration}`,
     "#EXT-X-MEDIA-SEQUENCE:0",
     "#EXT-X-PLAYLIST-TYPE:VOD",
+    "#EXT-X-INDEPENDENT-SEGMENTS",
     ...intro.segmentLines,
     "#EXT-X-DISCONTINUITY",
     ...featureBody,

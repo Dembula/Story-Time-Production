@@ -1,17 +1,21 @@
 /**
  * Story Time platform bumper — plays before every feature title (not trailers).
  *
- * Primary delivery: stitched into `/api/content/[id]/hls-manifest` so any client
- * that plays the single HLS URL gets the bumper without app-specific logic.
+ * Primary delivery: stitched into `/api/content/[id]/hls-manifest` (AAC 48 kHz
+ * to match Cloudflare Stream) so one HLS URL plays bumper → feature without a
+ * second autoplay gesture (critical on iOS/Android).
  * MP4 fallback remains for non-HLS catalogue sources.
  */
 export const PLATFORM_INTRO = {
   /** Progressive MP4 fallback (client-sequenced only when HLS stitch is unavailable). */
   src: "/branding/storytime-platform-intro.mp4",
   mimeType: "video/mp4" as const,
-  durationSeconds: 4,
-  /** Seek target for Skip intro on a stitched HLS timeline (bumper length). */
-  skipAtSeconds: 4,
+  /**
+   * Bumper length in seconds (sum of intro HLS #EXTINF ≈ 4.08).
+   * Used for Skip intro seek and content-time offset on stitched timelines.
+   */
+  durationSeconds: 4.08,
+  skipAtSeconds: 4.08,
 } as const;
 
 export type PlatformIntroPayload = {
