@@ -383,6 +383,24 @@ export function StorytimeMediaPlayer({
     if (startTime > 2) setIntroSkipped(true);
   }, [startTime]);
 
+  // Web/hls.js can pause at the bumper→feature discontinuity; nudge + resume if not user-paused.
+  useEffect(() => {
+    if (!platformIntro?.stitchedIntoPlayback || !useDirectDesktopHls) return;
+    const skipAt = platformIntro.skipAtSeconds ?? PLATFORM_INTRO.skipAtSeconds;
+    const timer = window.setInterval(() => {
+      if (manualPauseRef.current) return;
+      const player = getPlayback();
+      const video = player?.getVideoElement();
+      if (!video || video.ended) return;
+      const t = video.currentTime;
+      if (video.paused && t >= skipAt - 0.5 && t < skipAt + 0.4) {
+        video.currentTime = skipAt + 0.05;
+        void video.play().catch(() => {});
+      }
+    }, 700);
+    return () => window.clearInterval(timer);
+  }, [getPlayback, platformIntro, useDirectDesktopHls]);
+
 
 
   const resetIdleTimer = useCallback(() => {
@@ -945,12 +963,18 @@ export function StorytimeMediaPlayer({
             }
           }}
           onError={() => setHlsLoadFailed(true)}
+          userPausedRef={manualPauseRef}
+          discontinuityAtSeconds={
+            platformIntro?.stitchedIntoPlayback
+              ? platformIntro.skipAtSeconds ?? PLATFORM_INTRO.skipAtSeconds
+              : undefined
+          }
           onPlay={() => {
             manualPauseRef.current = false;
             setIsPlaying(true);
           }}
           onPause={() => {
-            manualPauseRef.current = true;
+            // Do not mark stall/discontinuity pauses as user pauses — that blocks resume.
             setIsPlaying(false);
           }}
           onDurationChange={() => {
@@ -993,7 +1017,7 @@ export function StorytimeMediaPlayer({
           setIsPlaying(true);
         }}
         onPause={() => {
-          manualPauseRef.current = true;
+          // Stall pauses must not lock out auto-resume across the bumper handoff.
           setIsPlaying(false);
         }}
         onDurationChange={() => {

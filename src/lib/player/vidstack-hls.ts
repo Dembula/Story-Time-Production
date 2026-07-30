@@ -47,6 +47,10 @@ export function configureVidstackHlsProvider(provider: MediaProviderAdapter | nu
     preferManagedMediaSource: false,
     enableWorker: true,
     lowLatencyMode: false,
+    maxBufferHole: 1.5,
+    nudgeOffset: 0.2,
+    nudgeMaxRetry: 10,
+    highBufferWatchdogPeriod: 1,
   };
 }
 
