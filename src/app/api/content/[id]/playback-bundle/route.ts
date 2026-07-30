@@ -158,7 +158,10 @@ export async function GET(
         id: content.id,
         title: content.title,
         playback,
-        platformIntro: getPlatformIntroPayload({ trailer: isTrailer }),
+        platformIntro: getPlatformIntroPayload({
+          trailer: isTrailer,
+          hlsProxied: playback?.type === "application/x-mpegurl",
+        }),
         playbackProtection: {
           signedUrl: requiresSignedStreamPlayback(),
           proxiedManifest: playback?.type === "application/x-mpegurl",

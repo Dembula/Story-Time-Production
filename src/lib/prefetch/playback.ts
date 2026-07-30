@@ -9,8 +9,9 @@ export type PlaybackBundleResponse = {
   playback: PlaybackSource | null;
   /** Platform bumper before the feature. Null for trailers. */
   platformIntro?: {
-    src: string;
-    type: "video/mp4";
+    stitchedIntoPlayback?: boolean;
+    src?: string;
+    type?: "video/mp4";
     durationSeconds: number;
     skipAtSeconds: number;
   } | null;

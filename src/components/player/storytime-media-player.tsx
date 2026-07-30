@@ -141,10 +141,8 @@ export function StorytimeMediaPlayer({
   const [currentTime, setCurrentTime] = useState(startTime);
   const [duration, setDuration] = useState(0);
   const [introSkipped, setIntroSkipped] = useState(false);
-  /** Platform bumper plays before the feature unless resuming mid-title or watching a trailer. */
-  const [playbackPhase, setPlaybackPhase] = useState<"intro" | "main">(() =>
-    isTrailer || startTime > 2 ? "main" : "intro",
-  );
+  /** Client-only bumper phase (non-HLS fallback). HLS titles stitch the bumper server-side. */
+  const [playbackPhase, setPlaybackPhase] = useState<"intro" | "main">("main");
   const [nextCountdown, setNextCountdown] = useState<number | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -207,24 +205,48 @@ export function StorytimeMediaPlayer({
   }, [bundle?.playback, fallbackSource, signedPlaybackRequired]);
 
   const platformIntro = useMemo(() => {
-    if (isTrailer || startTime > 2) return null;
-    const fromBundle = bundle?.platformIntro;
-    if (fromBundle?.src) return fromBundle;
-    // Bundle may still be loading — use the known platform bumper so first paint can start.
-    if (playbackPhase === "intro") {
-      return {
-        src: PLATFORM_INTRO.src,
-        type: PLATFORM_INTRO.mimeType,
-        durationSeconds: PLATFORM_INTRO.durationSeconds,
-        skipAtSeconds: PLATFORM_INTRO.skipAtSeconds,
-      };
+    if (isTrailer) return null;
+    return (bundle?.platformIntro as
+      | {
+          stitchedIntoPlayback?: boolean;
+          src?: string;
+          type?: "video/mp4";
+          durationSeconds: number;
+          skipAtSeconds: number;
+        }
+      | null
+      | undefined) ?? null;
+  }, [bundle?.platformIntro, isTrailer]);
+
+  const introOffsetSeconds =
+    !isTrailer && platformIntro?.stitchedIntoPlayback
+      ? platformIntro.skipAtSeconds ?? PLATFORM_INTRO.skipAtSeconds
+      : 0;
+
+  useEffect(() => {
+    if (isTrailer || startTime > 2) {
+      setPlaybackPhase("main");
+      return;
     }
-    return null;
-  }, [bundle?.platformIntro, isTrailer, playbackPhase, startTime]);
+    if (!bundle) return;
+    if (platformIntro?.stitchedIntoPlayback) {
+      setPlaybackPhase("main");
+      return;
+    }
+    if (platformIntro?.src) {
+      setPlaybackPhase("intro");
+      return;
+    }
+    setPlaybackPhase("main");
+  }, [bundle, isTrailer, platformIntro?.src, platformIntro?.stitchedIntoPlayback, startTime]);
 
   const activeSource = useMemo((): PlaybackSource | null => {
-    if (playbackPhase === "intro" && platformIntro?.src) {
-      return { src: platformIntro.src, type: platformIntro.type };
+    if (
+      playbackPhase === "intro" &&
+      platformIntro?.src &&
+      !platformIntro.stitchedIntoPlayback
+    ) {
+      return { src: platformIntro.src, type: platformIntro.type ?? "video/mp4" };
     }
     return source;
   }, [playbackPhase, platformIntro, source]);
@@ -269,7 +291,7 @@ export function StorytimeMediaPlayer({
 
 
 
-  const activeScene = findActiveScene(scenes, currentTime);
+  const activeScene = findActiveScene(scenes, Math.max(0, currentTime - introOffsetSeconds));
   const activeSceneActors = parseSceneActors(activeScene?.actors).slice(0, 6);
   const activeSceneLabel = formatActiveSceneLabel(activeScene);
   const sceneIntelligencePending = Boolean(
@@ -338,20 +360,23 @@ export function StorytimeMediaPlayer({
       }
       return;
     }
-    onTimeUpdate?.(t, d);
-    if (nextEpisode && d > 0 && d - t <= 15 && d - t > 0.5) {
-      setNextCountdown(Math.ceil(d - t));
+    const contentTime = Math.max(0, t - introOffsetSeconds);
+    const contentDuration = Math.max(0, d - introOffsetSeconds);
+    onTimeUpdate?.(contentTime, contentDuration);
+    if (nextEpisode && contentDuration > 0 && contentDuration - contentTime <= 15 && contentDuration - contentTime > 0.5) {
+      setNextCountdown(Math.ceil(contentDuration - contentTime));
     } else {
       setNextCountdown(null);
     }
-    const pos = Math.floor(t);
+    const pos = Math.floor(contentTime);
     if (onProgressSave && pos - lastSavedRef.current >= 10) {
       lastSavedRef.current = pos;
-      onProgressSave(t, d);
+      onProgressSave(contentTime, contentDuration);
     }
   }, [
     finishPlatformIntro,
     getPlayback,
+    introOffsetSeconds,
     nextEpisode,
     onProgressSave,
     onTimeUpdate,
@@ -366,12 +391,22 @@ export function StorytimeMediaPlayer({
     }
     const player = getPlayback();
     if (player && onProgressSave) {
-      onProgressSave(player.currentTime, player.duration);
+      const contentTime = Math.max(0, player.currentTime - introOffsetSeconds);
+      const contentDuration = Math.max(0, player.duration - introOffsetSeconds);
+      onProgressSave(contentTime, contentDuration);
     }
     if (nextEpisode) {
       router.push(nextEpisode.href ?? `/browse/content/${nextEpisode.id}/watch`);
     }
-  }, [finishPlatformIntro, getPlayback, nextEpisode, onProgressSave, playbackPhase, router]);
+  }, [
+    finishPlatformIntro,
+    getPlayback,
+    introOffsetSeconds,
+    nextEpisode,
+    onProgressSave,
+    playbackPhase,
+    router,
+  ]);
 
 
 
@@ -425,17 +460,23 @@ export function StorytimeMediaPlayer({
 
     const player = getPlayback();
 
-    if (!player || startTime <= 0 || playbackPhase !== "main") return;
+    if (!player || playbackPhase !== "main") return;
 
-    if (player.duration > 0 && startTime < player.duration - 5) {
+    const seekToSeconds =
+      startTime > 0 ? startTime + introOffsetSeconds : introOffsetSeconds > 0 && startTime <= 0 ? 0 : 0;
 
-      player.setCurrentTime(startTime);
+    // Fresh start on stitched HLS: begin at 0 (bumper). Resume: seek past bumper into feature.
+    if (startTime <= 0) return;
 
-      setCurrentTime(startTime);
+    if (player.duration > 0 && seekToSeconds < player.duration - 5) {
+
+      player.setCurrentTime(seekToSeconds);
+
+      setCurrentTime(seekToSeconds);
 
     }
 
-  }, [getPlayback, playbackPhase, startTime]);
+  }, [getPlayback, introOffsetSeconds, playbackPhase, startTime]);
 
 
 
@@ -444,8 +485,13 @@ export function StorytimeMediaPlayer({
       finishPlatformIntro();
       return;
     }
-    finishPlatformIntro();
-  }, [finishPlatformIntro, playbackPhase]);
+    const player = getPlayback();
+    if (!player) return;
+    const skipAt = platformIntro?.skipAtSeconds ?? PLATFORM_INTRO.skipAtSeconds;
+    player.setCurrentTime(skipAt);
+    setCurrentTime(skipAt);
+    setIntroSkipped(true);
+  }, [finishPlatformIntro, getPlayback, playbackPhase, platformIntro?.skipAtSeconds]);
 
 
 
@@ -874,9 +920,12 @@ export function StorytimeMediaPlayer({
 
 
   const showSkipIntro =
-    playbackPhase === "intro" &&
     !introSkipped &&
-    Boolean(platformIntro?.src);
+    !isTrailer &&
+    ((playbackPhase === "intro" && Boolean(platformIntro?.src)) ||
+      (playbackPhase === "main" &&
+        Boolean(platformIntro?.stitchedIntoPlayback) &&
+        currentTime < (platformIntro?.skipAtSeconds ?? PLATFORM_INTRO.skipAtSeconds)));
 
 
 
