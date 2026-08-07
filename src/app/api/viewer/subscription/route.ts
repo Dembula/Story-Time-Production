@@ -61,7 +61,24 @@ export async function GET() {
   });
 
   const sub = user?.viewerSubscriptions?.[0] ?? null;
-  return NextResponse.json({ subscription: sub });
+  if (!sub) {
+    return NextResponse.json({ subscription: null });
+  }
+
+  // iOS apps treat ACTIVE / TRIALING / PAID as usable. Map TRIAL_ACTIVE → TRIALING for clarity.
+  const statusForClient =
+    sub.status === "TRIAL_ACTIVE"
+      ? "TRIALING"
+      : sub.status === "ACTIVE"
+        ? "ACTIVE"
+        : sub.status;
+
+  return NextResponse.json({
+    subscription: {
+      ...sub,
+      status: statusForClient,
+    },
+  });
 }
 
 export async function POST(req: Request) {

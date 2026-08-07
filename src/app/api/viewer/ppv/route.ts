@@ -12,28 +12,70 @@ import {
 import { initializeCheckout } from "@/lib/payments/billing";
 import { buildPaymentReturnUrl } from "@/lib/payments/return-url";
 
+function isIosAppRequest(req: NextRequest) {
+  const platform = req.headers.get("x-st-platform")?.toLowerCase() ?? "";
+  const ua = req.headers.get("user-agent") ?? "";
+  return platform === "ios" || /story\s*time/i.test(ua);
+}
+
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      {
+        success: false,
+        alreadyOwned: false,
+        requiresPayment: false,
+        checkoutUrl: null,
+        error: "Unauthorized",
+      },
+      { status: 401 },
+    );
   }
 
   const role = (session.user as { role?: string })?.role;
   if (role !== "SUBSCRIBER") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return NextResponse.json(
+      {
+        success: false,
+        alreadyOwned: false,
+        requiresPayment: false,
+        checkoutUrl: null,
+        error: "Forbidden",
+      },
+      { status: 403 },
+    );
   }
 
   const body = (await req.json().catch(() => null)) as { contentId?: string } | null;
   const contentId = body?.contentId?.trim();
   if (!contentId) {
-    return NextResponse.json({ error: "contentId is required" }, { status: 400 });
+    return NextResponse.json(
+      {
+        success: false,
+        alreadyOwned: false,
+        requiresPayment: false,
+        checkoutUrl: null,
+        error: "contentId is required",
+      },
+      { status: 400 },
+    );
   }
   const user =
     (session.user.id
       ? await prisma.user.findUnique({ where: { id: session.user.id }, select: { id: true } })
       : await prisma.user.findUnique({ where: { email: session.user.email }, select: { id: true } })) ?? null;
   if (!user?.id) {
-    return NextResponse.json({ error: "User not found" }, { status: 404 });
+    return NextResponse.json(
+      {
+        success: false,
+        alreadyOwned: false,
+        requiresPayment: false,
+        checkoutUrl: null,
+        error: "User not found",
+      },
+      { status: 404 },
+    );
   }
 
   const content = await prisma.content.findUnique({
@@ -42,20 +84,69 @@ export async function POST(req: NextRequest) {
   });
 
   if (!content || !content.videoUrl) {
-    return NextResponse.json({ error: "Title not found" }, { status: 404 });
+    return NextResponse.json(
+      {
+        success: false,
+        alreadyOwned: false,
+        requiresPayment: false,
+        checkoutUrl: null,
+        error: "Title not found",
+      },
+      { status: 404 },
+    );
   }
 
   if (!isPpvEligibleContent(content.type)) {
-    return NextResponse.json({ error: "This title is not available for pay per view" }, { status: 400 });
+    return NextResponse.json(
+      {
+        success: false,
+        alreadyOwned: false,
+        requiresPayment: false,
+        checkoutUrl: null,
+        error: "This title is not available for pay per view",
+      },
+      { status: 400 },
+    );
   }
 
   const playback = await getViewerPlaybackState(user.id, content.id);
-  if (!playback.subscription || playback.viewerModel !== VIEWER_MODELS.PPV || !hasActivePpvViewerModel(playback.subscription)) {
-    return NextResponse.json({ error: "Switch this account to Pay Per View before purchasing titles" }, { status: 403 });
+  if (playback.hasActivePpvAccess) {
+    return NextResponse.json({
+      success: true,
+      alreadyOwned: true,
+      requiresPayment: false,
+      checkoutUrl: null,
+      error: null,
+      access: playback.contentAccess,
+    });
   }
 
-  if (playback.hasActivePpvAccess) {
-    return NextResponse.json({ access: playback.contentAccess, alreadyOwned: true });
+  // iOS StoreKit: open IAP; do not start PayFast.
+  if (isIosAppRequest(req)) {
+    return NextResponse.json({
+      success: true,
+      alreadyOwned: false,
+      requiresPayment: true,
+      checkoutUrl: null,
+      error: null,
+    });
+  }
+
+  if (
+    !playback.subscription ||
+    playback.viewerModel !== VIEWER_MODELS.PPV ||
+    !hasActivePpvViewerModel(playback.subscription)
+  ) {
+    return NextResponse.json(
+      {
+        success: false,
+        alreadyOwned: false,
+        requiresPayment: false,
+        checkoutUrl: null,
+        error: "Switch this account to Pay Per View before purchasing titles",
+      },
+      { status: 403 },
+    );
   }
 
   const access = await prisma.viewerContentAccess.create({
@@ -91,7 +182,13 @@ export async function POST(req: NextRequest) {
       data: { status: "FAILED" },
     });
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unable to initialize checkout." },
+      {
+        success: false,
+        alreadyOwned: false,
+        requiresPayment: true,
+        checkoutUrl: null,
+        error: error instanceof Error ? error.message : "Unable to initialize checkout.",
+      },
       { status: 502 },
     );
   }
@@ -101,5 +198,6 @@ export async function POST(req: NextRequest) {
     requiresPayment: true,
     alreadyOwned: false,
     checkoutUrl,
+    error: null,
   });
 }
