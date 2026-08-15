@@ -18,7 +18,7 @@ export function Hero() {
 
       <div className="relative z-10 mx-auto w-full min-w-0 max-w-6xl">
         <LandingReveal className="w-full min-w-0">
-          {/* Mobile: transparent ST at full phone width (old hero feel) — no size enlarge */}
+          {/* Mobile: transparent ST image at full phone width — do not enlarge via size */}
           <div className="relative left-1/2 w-screen max-w-[100vw] -translate-x-1/2 lg:hidden">
             <div className="mx-auto flex w-full flex-col items-center text-center">
               <motion.div
