@@ -2,10 +2,16 @@ import Image from "next/image";
 import Link from "next/link";
 
 const MARK_SRC = "/st-mark.png";
+const MARK_ASPECT = 963 / 451;
 
 type StoryTimeMarkProps = {
-  /** Visual height in pixels (width scales from the wide mark). */
+  /** Visual height in pixels (width scales from the wide mark). Ignored when `fullWidth` is set. */
   size?: number;
+  /**
+   * Stretch the mark to the full width of its parent (mobile hero).
+   * Prefer this over bumping `size` when the mark should read edge-to-edge.
+   */
+  fullWidth?: boolean;
   className?: string;
   priority?: boolean;
 };
@@ -13,8 +19,27 @@ type StoryTimeMarkProps = {
 /**
  * Transparent S.T brand mark — use alone in headers (no “STORY TIME” wordmark).
  */
-export function StoryTimeMark({ size = 36, className = "", priority = false }: StoryTimeMarkProps) {
-  const width = Math.round(size * 2.15);
+export function StoryTimeMark({
+  size = 36,
+  fullWidth = false,
+  className = "",
+  priority = false,
+}: StoryTimeMarkProps) {
+  if (fullWidth) {
+    return (
+      <Image
+        src={MARK_SRC}
+        alt="Story Time"
+        width={963}
+        height={451}
+        priority={priority}
+        sizes="100vw"
+        className={`h-auto w-full max-w-none object-contain ${className}`.trim()}
+      />
+    );
+  }
+
+  const width = Math.round(size * MARK_ASPECT);
   return (
     <Image
       src={MARK_SRC}

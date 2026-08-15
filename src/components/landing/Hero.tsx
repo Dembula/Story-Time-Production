@@ -18,24 +18,30 @@ export function Hero() {
 
       <div className="relative z-10 mx-auto w-full min-w-0 max-w-6xl">
         <LandingReveal className="w-full min-w-0">
-          {/* Mobile: transparent mark + Top 10 only — no tacky hero CTAs */}
-          <div className="mx-auto flex w-full flex-col items-center text-center lg:hidden">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.94 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-              className="mb-2"
-            >
-              <StoryTimeMark size={88} priority className="opacity-95 drop-shadow-[0_16px_48px_rgba(255,140,0,0.32)]" />
-            </motion.div>
-            <motion.p
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.45, delay: 0.1 }}
-              className="mb-1 text-[11px] font-medium uppercase tracking-[0.3em] text-orange-300/80"
-            >
-              Story Time
-            </motion.p>
+          {/* Mobile: transparent ST at full phone width (old hero feel) — no size enlarge */}
+          <div className="relative left-1/2 w-screen max-w-[100vw] -translate-x-1/2 lg:hidden">
+            <div className="mx-auto flex w-full flex-col items-center text-center">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.96 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+                className="mb-1 w-full"
+              >
+                <StoryTimeMark
+                  fullWidth
+                  priority
+                  className="opacity-95 drop-shadow-[0_16px_48px_rgba(255,140,0,0.32)]"
+                />
+              </motion.div>
+              <motion.p
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.45, delay: 0.1 }}
+                className="mb-1 text-[11px] font-medium uppercase tracking-[0.3em] text-orange-300/80"
+              >
+                Story Time
+              </motion.p>
+            </div>
           </div>
 
           {/* Desktop: professional copy + orange CTAs */}
