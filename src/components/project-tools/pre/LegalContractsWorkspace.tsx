@@ -139,7 +139,7 @@ export function LegalContractsWorkspace({ projectId, title }: LegalContractsWork
   });
 
   const templates = ((hasProject ? data?.templates : standaloneTemplates?.templates) ?? []) as ContractTemplateMeta[];
-  const contracts = (data?.contracts ?? []) as ContractRow[];
+  const contracts = useMemo(() => (data?.contracts ?? []) as ContractRow[], [data?.contracts]);
   const resourceContext = data?.resourceContext as
     | {
         project: {
@@ -422,7 +422,7 @@ export function LegalContractsWorkspace({ projectId, title }: LegalContractsWork
         "",
     );
     setRecordSignedConfirmed(false);
-  }, [selectedContract?.id]);
+  }, [selectedContract]);
 
   const filteredContracts = useMemo(() => {
     if (filterTab === "ALL") return contracts;

@@ -11,10 +11,11 @@ export function useModocToolRefresh(options?: {
   onFieldFill?: (detail: ModocFieldFillDetail) => void;
 }) {
   const queryClient = useQueryClient();
-  const keys = options?.queryKeys ?? [];
   const onFieldFill = options?.onFieldFill;
+  const queryKeys = options?.queryKeys;
 
   useEffect(() => {
+    const keys = queryKeys ?? [];
     const onToolsChanged = (e: Event) => {
       const detail = (e as CustomEvent<{ action?: string; queryKeys?: string[] }>).detail;
       const invalidate = new Set([...keys, ...(detail?.queryKeys ?? [])]);
@@ -38,5 +39,5 @@ export function useModocToolRefresh(options?: {
       window.removeEventListener("modoc:tools-changed", onToolsChanged);
       window.removeEventListener("modoc:field-fill", onFill);
     };
-  }, [queryClient, keys, onFieldFill]);
+  }, [queryClient, queryKeys, onFieldFill]);
 }

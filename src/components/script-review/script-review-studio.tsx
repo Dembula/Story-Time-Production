@@ -219,7 +219,7 @@ export function ScriptReviewStudio({ projectId, title }: ScriptReviewStudioProps
     }
   }, [allowedLayers, activeLayer]);
 
-  const annotations = session?.annotations ?? [];
+  const annotations = useMemo(() => session?.annotations ?? [], [session?.annotations]);
 
   const postCollaboration = useCallback(
     (cursor?: { x: number; y: number; lineIndex: number }) => {
