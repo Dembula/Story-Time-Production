@@ -123,7 +123,10 @@ export function warmMediaUrls(urls: Array<string | null | undefined>, limit = 36
     new Set(
       urls
         .map((u) => u?.trim())
-        .filter((u): u is string => Boolean(u) && (/^https?:\/\//i.test(u) || u.startsWith("/"))),
+        .filter((u): u is string => {
+          if (!u) return false;
+          return /^https?:\/\//i.test(u) || u.startsWith("/");
+        }),
     ),
   ).slice(0, limit);
 

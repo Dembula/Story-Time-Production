@@ -57,8 +57,10 @@ export function Hero({ content }: { content: Content[] }) {
 
     const links: HTMLLinkElement[] = [];
     for (const url of urls) {
-      const existing = document.head.querySelector(`link[data-hero-backdrop="${CSS.escape(url)}"]`);
-      if (existing) continue;
+      const already = Array.from(document.head.querySelectorAll("link[data-hero-backdrop]")).some(
+        (node) => node.getAttribute("data-hero-backdrop") === url,
+      );
+      if (already) continue;
       const link = document.createElement("link");
       link.rel = "preload";
       link.as = "image";
@@ -68,7 +70,6 @@ export function Hero({ content }: { content: Content[] }) {
       links.push(link);
     }
     return () => {
-      // Keep preloads in head for the session; nothing to clean for stability.
       void links;
     };
   }, [activeIndex, backdrops]);
