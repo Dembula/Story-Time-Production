@@ -76,7 +76,7 @@ export function NotificationBell() {
       (j) => j.status === "complete" || j.status === "failed",
     );
     if (justFinished) void refreshPreview();
-  }, [catalogueUploads?.jobs]);
+  }, [catalogueUploads]);
 
   useEffect(() => {
     setMounted(true);

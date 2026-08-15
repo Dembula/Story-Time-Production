@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useSession, signOut } from "next-auth/react";
 import { StoryTimeMark } from "@/components/brand/story-time-mark";
 import { User, Search, ChevronDown } from "lucide-react";

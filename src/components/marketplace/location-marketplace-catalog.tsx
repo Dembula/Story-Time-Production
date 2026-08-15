@@ -104,7 +104,7 @@ export function LocationMarketplaceCatalog({
     if (!startDate || !endDate) return;
     const timer = setTimeout(() => void loadQuoteProfile(expandedId, startDate, endDate), 400);
     return () => clearTimeout(timer);
-  }, [expandedId, requestForm.startDate, requestForm.endDate, requestForm.locationId]);
+  }, [expandedId, requestForm]);
 
   async function submitRequest(e: React.FormEvent, locationId: string) {
     e.preventDefault();
