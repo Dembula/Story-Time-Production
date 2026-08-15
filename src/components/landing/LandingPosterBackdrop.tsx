@@ -68,40 +68,42 @@ export function LandingPosterBackdrop() {
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
       {/* Mobile: 3 clean equal rows — no overlap */}
-      <div className="absolute inset-0 flex flex-col justify-center gap-2 px-1 pt-14 pb-36 opacity-[0.2] lg:hidden">
-        {mobileRows.map((row, rowIndex) => (
-          <div key={`m-row-${rowIndex}`} className="flex w-full justify-center gap-2">
-            {row.map((poster, i) => (
-              <div
-                key={`m-${rowIndex}-${poster.src}-${i}`}
-                className="relative aspect-[2/3] w-[18%] min-w-0 flex-1 overflow-hidden rounded-md"
-              >
-                <Image
-                  src={poster.src}
-                  alt=""
-                  fill
-                  sizes="72px"
-                  className="object-cover"
-                  unoptimized={poster.src.includes(".gif")}
-                />
-              </div>
-            ))}
-          </div>
-        ))}
+      <div className="absolute inset-0 lg:hidden">
+        <div className="absolute inset-x-0 top-0 bottom-[28%] flex flex-col justify-start gap-2 px-2 pt-14 opacity-[0.22]">
+          {mobileRows.map((row, rowIndex) => (
+            <div key={`m-row-${rowIndex}`} className="grid grid-cols-5 gap-2">
+              {row.map((poster, i) => (
+                <div
+                  key={`m-${rowIndex}-${poster.src}-${i}`}
+                  className="relative aspect-[2/3] overflow-hidden rounded-md"
+                >
+                  <Image
+                    src={poster.src}
+                    alt=""
+                    fill
+                    sizes="72px"
+                    className="object-cover"
+                    unoptimized={poster.src.includes(".gif")}
+                  />
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(0,0,0,0.28)_18%,rgba(0,0,0,0.78)_68%,#000_100%)]" />
         <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-black via-black/85 to-transparent" />
-        <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/90 to-transparent" />
+        <div className="absolute inset-x-0 top-0 h-14 bg-gradient-to-b from-black/70 to-transparent" />
       </div>
 
       {/* Desktop: 3 clean rows on the right — no staggered overlap */}
       <div className="absolute inset-y-0 right-0 hidden w-[50%] lg:block xl:w-[46%]">
         <div className="absolute inset-y-[10%] right-0 flex w-full flex-col justify-center gap-3 px-3 opacity-[0.32]">
           {desktopRows.map((row, rowIndex) => (
-            <div key={`d-row-${rowIndex}`} className="flex w-full justify-end gap-3">
+            <div key={`d-row-${rowIndex}`} className="grid grid-cols-4 gap-3">
               {row.map((poster, i) => (
                 <div
                   key={`d-${rowIndex}-${poster.src}-${i}`}
-                  className="relative aspect-[2/3] w-[22%] max-w-[7.5rem] flex-1 overflow-hidden rounded-lg border border-white/[0.06]"
+                  className="relative aspect-[2/3] overflow-hidden rounded-lg border border-white/[0.06]"
                 >
                   <Image
                     src={poster.src}
