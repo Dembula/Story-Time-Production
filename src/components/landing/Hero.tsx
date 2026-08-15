@@ -29,7 +29,7 @@ export function Hero() {
               <StoryTimeMark
                 size={120}
                 priority
-                className="mx-auto opacity-95 drop-shadow-[0_18px_52px_rgba(255,140,0,0.38)]"
+                className="mx-auto block opacity-95 drop-shadow-[0_18px_52px_rgba(255,140,0,0.38)]"
               />
             </motion.div>
             <motion.p
