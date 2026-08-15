@@ -75,7 +75,7 @@ export function LandingHeader() {
       className={[
         "fixed top-0 left-0 right-0 z-50 transition-all duration-200",
         scrolled
-          ? "border-b border-white/10 bg-black/92 shadow-panel backdrop-blur-2xl"
+          ? "border-b border-orange-400/15 bg-black/92 shadow-panel backdrop-blur-2xl"
           : "border-b border-white/6 bg-black/58 backdrop-blur-xl",
       ].join(" ")}
     >
