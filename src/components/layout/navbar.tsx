@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { useSession, signOut } from "next-auth/react";
+import { StoryTimeMark } from "@/components/brand/story-time-mark";
 import { User, Search, ChevronDown } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
@@ -137,17 +137,8 @@ export function Navbar() {
       ].join(" ")}
     >
       <div className="flex min-w-0 items-center gap-3 sm:gap-6 xl:gap-8">
-        <Link href="/browse" className="flex shrink-0 items-center gap-3">
-          <Image
-            src="/logo.png"
-            alt="Story Time"
-            width={compactNav ? 32 : 40}
-            height={compactNav ? 32 : 40}
-            className="rounded-xl shadow-glow"
-          />
-          <span className={`${tvMode ? "text-2xl" : "text-lg"} font-semibold tracking-[0.14em] text-white`}>
-            STORY <span className="storytime-brand-text">TIME</span>
-          </span>
+        <Link href="/browse" className="flex shrink-0 items-center" aria-label="Story Time home">
+          <StoryTimeMark size={tvMode ? 48 : compactNav ? 30 : 38} priority />
         </Link>
         <div className={`${compactNav ? "hidden" : "hidden lg:flex"} items-center gap-4 xl:gap-6`}>
           <Link href="/browse" className={`${navLinkClass("/browse")} adaptive-interactive rounded-md px-1`}>

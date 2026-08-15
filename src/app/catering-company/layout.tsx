@@ -33,11 +33,7 @@ export default function CateringCompanyLayout({ children }: { children: React.Re
   return (
     <DashboardSidebarShell
       brandHref="/catering-company/dashboard"
-      brandLabel={
-        <>
-          <span className="storytime-brand-text">STORY TIME</span> Catering
-        </>
-      }
+      brandLabel="Catering"
       headerEnd={
         <>
           <NotificationBell />

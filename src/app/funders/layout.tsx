@@ -32,11 +32,7 @@ export default function FundersLayout({ children }: { children: React.ReactNode 
   return (
     <DashboardSidebarShell
       brandHref="/funders"
-      brandLabel={
-        <>
-          <span className="storytime-brand-text">STORY TIME</span> Funders
-        </>
-      }
+      brandLabel="Funders"
       headerEnd={
         <>
           <Link

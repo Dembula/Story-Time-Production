@@ -3,11 +3,11 @@
 import { signIn } from "next-auth/react";
 import { useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { ArrowLeft, Shield } from "lucide-react";
 import { AuthButton, AuthForm, AuthInput } from "@/components/auth/auth-form-controls";
 import { OAuthSignInButtons } from "@/components/auth/oauth-sign-in-buttons";
 import { defaultHomeForRole } from "@/lib/auth-sign-in-path";
+import { StoryTimeMark } from "@/components/brand/story-time-mark";
 
 export function SignInClient({ callbackUrl }: { callbackUrl: string | null }) {
   const [email, setEmail] = useState("");
@@ -66,17 +66,15 @@ export function SignInClient({ callbackUrl }: { callbackUrl: string | null }) {
   const oauthCallback = callbackUrl ?? "/profiles";
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-background px-4 py-12">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_40%_at_50%_40%,rgba(249,115,22,0.08),transparent_60%)]" />
+    <div className="relative flex min-h-screen items-center justify-center bg-black px-4 py-12">
       <div className="w-full max-w-md relative z-10">
         <Link href="/" prefetch={false} className="mb-8 inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white">
           <ArrowLeft className="w-4 h-4" />
           Back to home
         </Link>
 
-        <Link href="/" prefetch={false} className="mb-10 flex items-center justify-center gap-3">
-          <Image src="/logo.png" alt="Story Time" width={52} height={52} className="rounded-xl shadow-glow" />
-          <span className="text-2xl font-semibold tracking-[0.14em] text-white">STORY <span className="storytime-brand-text">TIME</span></span>
+        <Link href="/" prefetch={false} className="mb-10 flex items-center justify-center" aria-label="Story Time">
+          <StoryTimeMark size={56} priority />
         </Link>
 
         <div className="storytime-section p-8">

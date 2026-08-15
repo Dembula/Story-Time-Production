@@ -3,8 +3,8 @@
 import { getSession, signIn } from "next-auth/react";
 import { useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { ArrowLeft, Shield } from "lucide-react";
+import { StoryTimeMark } from "@/components/brand/story-time-mark";
 import { resolvePostSignInRedirect } from "@/lib/auth-sign-in-path";
 import { OAuthSignInButtons } from "@/components/auth/oauth-sign-in-buttons";
 
@@ -67,26 +67,15 @@ export function CreatorSignInClient({
   }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-950 px-4 py-12">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.12),transparent_32%),linear-gradient(135deg,rgba(255,214,153,0.14),transparent_42%),linear-gradient(180deg,#000000_0%,#0a0a0a_55%,#000000_100%)]" />
-      <div className="absolute inset-x-0 top-0 h-48 bg-gradient-to-b from-amber-100/12 to-transparent" />
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-black px-4 py-12">
       <div className="w-full max-w-md relative z-10">
         <Link href="/" prefetch={false} className="mb-8 inline-flex items-center gap-2 text-sm text-slate-300 transition hover:text-white">
           <ArrowLeft className="w-4 h-4" />
           Back to home
         </Link>
 
-        <Link href="/" prefetch={false} className="mb-10 flex items-center justify-center gap-3">
-          <Image
-            src="/creator-logo.png"
-            alt="Story Time Creator"
-            width={52}
-            height={52}
-            className="rounded-xl shadow-glow"
-          />
-          <span className="text-2xl font-semibold tracking-[0.14em] text-white">
-            STORY <span className="storytime-brand-text">TIME</span>
-          </span>
+        <Link href="/" prefetch={false} className="mb-10 flex items-center justify-center" aria-label="Story Time">
+          <StoryTimeMark size={56} priority />
         </Link>
 
         <div className="rounded-[28px] border border-white/15 bg-gradient-to-br from-white via-stone-50 to-amber-50 p-8 text-slate-950 shadow-[0_30px_80px_-32px_rgba(0,0,0,0.72)] backdrop-blur-xl">

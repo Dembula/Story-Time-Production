@@ -31,11 +31,7 @@ export default function CrewTeamLayout({ children }: { children: React.ReactNode
   return (
     <DashboardSidebarShell
       brandHref="/crew-team/dashboard"
-      brandLabel={
-        <>
-          <span className="storytime-brand-text">STORY TIME</span> Crew Team
-        </>
-      }
+      brandLabel="Crew"
       headerEnd={
         <>
           <NotificationBell />

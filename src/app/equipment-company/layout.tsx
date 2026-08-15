@@ -33,11 +33,7 @@ export default function EquipmentCompanyLayout({ children }: { children: React.R
   return (
     <DashboardSidebarShell
       brandHref="/equipment-company/dashboard"
-      brandLabel={
-        <>
-          <span className="storytime-brand-text">STORY TIME</span> Equipment
-        </>
-      }
+      brandLabel="Equipment"
       headerEnd={
         <>
           <NotificationBell />

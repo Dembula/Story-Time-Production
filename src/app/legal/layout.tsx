@@ -1,5 +1,5 @@
 import Link from "next/link";
-import Image from "next/image";
+import { StoryTimeMark } from "@/components/brand/story-time-mark";
 
 const legalLinks = [
   { href: "/legal/regulatory-framework", label: "Regulatory Framework" },
@@ -24,32 +24,31 @@ export default function LegalLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-background text-white">
-      <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_top,rgba(255,170,82,0.14),transparent_28%),linear-gradient(180deg,#000000_0%,#000000_40%,#000000_100%)]" />
-      <div className="fixed inset-x-0 top-0 -z-10 h-72 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),transparent)]" />
-
-      <header className="sticky top-0 z-20 border-b border-white/8 bg-slate-950/70 px-6 py-4 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3">
-          <Link href="/" className="flex items-center gap-2 font-semibold tracking-[0.14em] text-slate-200 transition hover:text-white">
-            <Image src="/logo.png" alt="Story Time" width={24} height={24} className="rounded-md" />
-            <span>STORY <span className="storytime-brand-text">TIME</span></span>
+    <div className="min-h-screen overflow-x-hidden bg-black text-white">
+      <header className="sticky top-0 z-20 border-b border-white/8 bg-black/90 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4">
+          <Link href="/" className="shrink-0" aria-label="Story Time home">
+            <StoryTimeMark size={32} />
           </Link>
-          <div className="flex items-center gap-3 text-sm">
-            <Link href="/about" className="text-slate-400 transition hover:text-slate-200">
-              About us
+          <div className="flex min-w-0 items-center gap-3 text-xs sm:gap-4 sm:text-sm">
+            <Link href="/about" className="shrink-0 text-slate-400 transition hover:text-slate-200">
+              About
             </Link>
-            <Link href="/" className="text-slate-500 transition hover:text-slate-300">
-              Back to home
+            <Link href="/" className="shrink-0 text-slate-500 transition hover:text-slate-300">
+              Home
             </Link>
           </div>
         </div>
 
-        <nav className="mx-auto mt-4 flex max-w-5xl flex-wrap gap-2">
+        <nav
+          className="mx-auto flex max-w-5xl gap-2 overflow-x-auto px-4 pb-3 [-ms-overflow-style:none] [scrollbar-width:none] sm:flex-wrap sm:px-6 sm:pb-4 [&::-webkit-scrollbar]:hidden"
+          aria-label="Legal documents"
+        >
           {legalLinks.map((link) => (
             <Link
               key={link.href}
               href={link.href}
-              className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:border-white/20 hover:bg-white/[0.05] hover:text-white"
+              className="shrink-0 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-[11px] font-medium text-slate-300 transition hover:border-white/20 hover:bg-white/[0.05] hover:text-white sm:px-3 sm:text-xs"
             >
               {link.label}
             </Link>
@@ -57,10 +56,8 @@ export default function LegalLayout({
         </nav>
       </header>
 
-      <main className="mx-auto max-w-5xl px-6 py-10 md:py-12">
-        <div className="rounded-[32px] border border-white/8 bg-slate-900/35 p-4 shadow-panel backdrop-blur-xl md:p-6">
-          {children}
-        </div>
+      <main className="mx-auto w-full max-w-5xl px-3 py-5 sm:px-6 sm:py-10 md:py-12">
+        {children}
       </main>
     </div>
   );

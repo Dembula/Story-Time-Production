@@ -33,11 +33,7 @@ export default function CastingAgencyLayout({ children }: { children: React.Reac
   return (
     <DashboardSidebarShell
       brandHref="/casting-agency/dashboard"
-      brandLabel={
-        <>
-          <span className="storytime-brand-text">STORY TIME</span> Casting
-        </>
-      }
+      brandLabel="Casting"
       headerEnd={
         <>
           <NotificationBell />

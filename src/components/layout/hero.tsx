@@ -65,7 +65,7 @@ export function Hero({ content }: { content: Content[] }) {
         });
 
   return (
-    <div className="relative h-[72vh] min-h-[460px] flex items-end cinematic-vignette overflow-hidden">
+    <div className="relative flex h-[58vh] min-h-[320px] max-h-[640px] items-end overflow-hidden cinematic-vignette sm:h-[64vh] sm:min-h-[400px] md:h-[68vh] md:min-h-[440px]">
       <AnimatePresence mode="wait">
         <motion.div
           key={current.id}
@@ -87,12 +87,12 @@ export function Hero({ content }: { content: Content[] }) {
           ) : (
             <div className="h-full w-full bg-gradient-to-b from-slate-900 to-slate-950" />
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/75 to-black/15" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_12%,rgba(255,165,54,0.18),transparent_32%)]" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/70 to-black/20" />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/55 via-transparent to-transparent" />
         </motion.div>
       </AnimatePresence>
 
-      <div className="relative z-10 w-full max-w-6xl mx-auto px-6 md:px-12 pb-20 pt-32">
+      <div className="relative z-10 mx-auto w-full max-w-6xl px-4 pb-12 pt-24 sm:px-6 sm:pb-14 md:px-12 md:pb-16">
         <motion.div
           key={`copy-${current.id}`}
           initial={{ opacity: 0, y: 16 }}

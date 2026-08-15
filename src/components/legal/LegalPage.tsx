@@ -25,28 +25,28 @@ export function LegalPage({
   footerNote,
 }: LegalPageProps) {
   return (
-    <article className="space-y-6">
-      <section className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.03))] p-6 shadow-panel backdrop-blur-xl md:p-8">
-        <div className="space-y-4">
-          <div className="inline-flex items-center rounded-full border border-orange-500/20 bg-orange-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-orange-300">
+    <article className="space-y-4 overflow-x-hidden sm:space-y-6">
+      <section className="rounded-2xl border border-white/10 bg-zinc-950/80 p-4 shadow-panel sm:rounded-[28px] sm:p-6 md:p-8">
+        <div className="space-y-3 sm:space-y-4">
+          <div className="inline-flex items-center rounded-md border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400 sm:text-[11px]">
             {eyebrow}
           </div>
-          <div className="space-y-3">
-            <h1 className="font-display text-3xl font-semibold tracking-tight text-white md:text-4xl">
+          <div className="space-y-2 sm:space-y-3">
+            <h1 className="font-display text-2xl font-semibold tracking-tight text-white sm:text-3xl md:text-4xl">
               {title}
             </h1>
-            <p className="max-w-3xl text-sm leading-7 text-slate-300 md:text-base">
+            <p className="max-w-3xl text-sm leading-relaxed text-slate-300 break-words md:text-base md:leading-7">
               {summary}
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-3 text-sm text-slate-400">
-            <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400 sm:gap-3 sm:text-sm">
+            <span className="rounded-md border border-white/10 bg-white/[0.03] px-2.5 py-1 sm:px-3 sm:py-1.5">
               Last updated: {lastUpdated}
             </span>
             {highlights.map((item) => (
               <span
                 key={item}
-                className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-slate-300"
+                className="rounded-md border border-white/10 bg-white/[0.03] px-2.5 py-1 text-slate-300 sm:px-3 sm:py-1.5"
               >
                 {item}
               </span>
@@ -55,14 +55,14 @@ export function LegalPage({
         </div>
       </section>
 
-      <div className="grid gap-4">
+      <div className="grid gap-3 sm:gap-4">
         {sections.map((section) => (
           <section
             key={section.title}
-            className="rounded-3xl border border-white/8 bg-slate-950/55 p-6 shadow-panel backdrop-blur-xl"
+            className="rounded-2xl border border-white/8 bg-zinc-950/60 p-4 shadow-panel sm:rounded-3xl sm:p-6"
           >
-            <h2 className="mb-3 text-xl font-semibold text-white">{section.title}</h2>
-            <div className="space-y-3 text-sm leading-7 text-slate-300 md:text-[15px]">
+            <h2 className="mb-2 text-lg font-semibold text-white sm:mb-3 sm:text-xl">{section.title}</h2>
+            <div className="space-y-3 break-words text-sm leading-relaxed text-slate-300 sm:leading-7 md:text-[15px]">
               {section.content}
             </div>
           </section>
@@ -70,7 +70,7 @@ export function LegalPage({
       </div>
 
       {footerNote && (
-        <section className="rounded-3xl border border-dashed border-white/10 bg-white/[0.02] p-6 text-sm leading-7 text-slate-400">
+        <section className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-4 text-sm leading-relaxed text-slate-400 sm:rounded-3xl sm:p-6 sm:leading-7">
           {footerNote}
         </section>
       )}

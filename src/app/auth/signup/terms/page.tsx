@@ -15,7 +15,7 @@ export default function ViewerSignupTermsPage() {
   }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-background px-4 py-12">
+    <div className="relative flex min-h-screen items-center justify-center bg-black px-4 py-12">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_40%_at_50%_40%,rgba(249,115,22,0.08),transparent_60%)]" />
       <div className="w-full max-w-2xl relative z-10">
         <Link href="/auth/signup" className="mb-8 inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white">

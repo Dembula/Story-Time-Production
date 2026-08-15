@@ -1,18 +1,15 @@
 import Link from "next/link";
-import Image from "next/image";
 import { PlaybackComplianceBadge } from "@/components/player/playback-compliance-badge";
+import { StoryTimeMark } from "@/components/brand/story-time-mark";
 
 export function LandingFooter() {
   return (
     <footer className="border-t border-white/8 py-12 px-6">
       <div className="max-w-6xl mx-auto">
         <div className="flex flex-col md:flex-row items-center justify-between gap-6 mb-8">
-          <Link href="/" className="flex items-center gap-3">
-            <Image src="/logo.png" alt="Story Time" width={28} height={28} className="rounded-lg shadow-glow" />
-            <div className="flex flex-col">
-              <span className="font-semibold tracking-[0.14em] text-slate-200">STORY <span className="storytime-brand-text">TIME</span></span>
-              <span className="text-[10px] tracking-wide text-slate-500">STORYTIME STUDIOS (Pty) Ltd · 2026/269060/07</span>
-            </div>
+          <Link href="/" className="flex flex-col items-center gap-2 md:items-start" aria-label="Story Time home">
+            <StoryTimeMark size={32} />
+            <span className="text-[10px] tracking-wide text-slate-500">STORYTIME STUDIOS (Pty) Ltd · 2026/269060/07</span>
           </Link>
           <div className="flex flex-wrap gap-6 text-sm text-slate-400">
             <Link href="/auth/signin" className="hover:text-white">Sign In</Link>

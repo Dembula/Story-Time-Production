@@ -1,28 +1,25 @@
-import { Shield } from "lucide-react";
-
 export function Security() {
   const items = [
     "Authenticated accounts",
     "Role-based access",
-    "Age-aware viewing controls",
-    "Admin review workflow",
+    "Age-aware profiles",
+    "Admin review",
   ];
 
   return (
-    <section className="border-t border-white/8 py-20 px-6">
-      <div className="max-w-4xl mx-auto text-center">
-        <Shield className="mx-auto mb-6 h-12 w-12 text-orange-300" />
-        <h2 className="mb-4 font-display text-2xl font-bold tracking-tight text-white md:text-3xl">Protection Without Compromise</h2>
-        <p className="mx-auto mb-10 max-w-xl text-slate-300/80">
-          Story Time is structured to protect access, audience trust, and the integrity
-          of what gets published. The platform uses controlled account access,
-          moderation workflows, and age-aware viewing rules to keep the experience
-          orderly and credible.
-        </p>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {items.map((item, i) => (
-            <div key={i} className="storytime-panel rounded-2xl p-4 hover:-translate-y-0.5">
-              <p className="text-sm font-medium text-slate-200">{item}</p>
+    <section className="border-t border-white/8 px-4 py-12 sm:px-6 sm:py-14">
+      <div className="mx-auto max-w-4xl text-center">
+        <p className="text-[10px] font-medium uppercase tracking-[0.28em] text-slate-500">Built with care</p>
+        <h2 className="mt-2 font-display text-xl font-semibold text-white sm:text-2xl">
+          Secure by default
+        </h2>
+        <div className="mt-8 grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
+          {items.map((item) => (
+            <div
+              key={item}
+              className="rounded-xl border border-white/[0.08] bg-white/[0.02] px-3 py-3 text-xs font-medium text-slate-300 sm:text-sm"
+            >
+              {item}
             </div>
           ))}
         </div>

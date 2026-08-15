@@ -71,11 +71,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <DashboardSidebarShell
         className="relative z-10"
         brandHref="/admin"
-        brandLabel={
-          <>
-            <span className="storytime-brand-text">STORY TIME</span> Admin
-          </>
-        }
+        brandLabel="Admin"
         headerEnd={
           <>
             <NotificationBell />

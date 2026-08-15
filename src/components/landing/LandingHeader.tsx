@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
+import { StoryTimeMark } from "@/components/brand/story-time-mark";
 
 const AUTH_MENU_PANEL_CLASS =
   "absolute right-0 top-full z-[60] mt-2 w-48 rounded-xl border border-white/14 bg-black p-1.5 shadow-2xl ring-1 ring-black/40";
@@ -80,9 +80,8 @@ export function LandingHeader() {
       ].join(" ")}
     >
       <div className="max-w-7xl mx-auto px-4 py-2.5 sm:px-6 sm:py-3 flex items-center justify-between gap-3">
-        <Link href="/" className="flex items-center gap-3">
-          <Image src="/logo.png" alt="Story Time" width={40} height={40} className="rounded-xl shadow-glow" />
-          <span className="text-sm sm:text-lg font-semibold tracking-[0.12em] sm:tracking-[0.14em] text-white">STORY <span className="storytime-brand-text">TIME</span></span>
+        <Link href="/" className="flex shrink-0 items-center" aria-label="Story Time home">
+          <StoryTimeMark size={38} priority />
         </Link>
         <nav ref={authMenuRef} className="relative flex items-center gap-1 sm:gap-2">
           {isPortraitMobile ? (

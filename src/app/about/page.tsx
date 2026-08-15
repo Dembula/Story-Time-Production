@@ -1,5 +1,5 @@
 import Link from "next/link";
-import Image from "next/image";
+import { StoryTimeMark } from "@/components/brand/story-time-mark";
 
 const sections = [
   {
@@ -62,37 +62,33 @@ const sections = [
 
 export default function AboutPage() {
   return (
-    <div className="min-h-screen bg-background text-white">
-      <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_top,rgba(255,170,82,0.14),transparent_28%),linear-gradient(180deg,#000000_0%,#000000_40%,#000000_100%)]" />
-      <div className="fixed inset-x-0 top-0 -z-10 h-72 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),transparent)]" />
-
-      <header className="sticky top-0 z-20 border-b border-white/8 bg-slate-950/70 px-6 py-4 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3">
-          <Link href="/" className="flex items-center gap-2 font-semibold tracking-[0.14em] text-slate-200 transition hover:text-white">
-            <Image src="/logo.png" alt="Story Time" width={24} height={24} className="rounded-md" />
-            <span>STORY <span className="storytime-brand-text">TIME</span></span>
+    <div className="min-h-screen overflow-x-hidden bg-black text-white">
+      <header className="sticky top-0 z-20 border-b border-white/8 bg-black/90 px-4 py-3 backdrop-blur-xl sm:px-6 sm:py-4">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
+          <Link href="/" className="shrink-0" aria-label="Story Time home">
+            <StoryTimeMark size={32} />
           </Link>
-          <div className="flex items-center gap-3 text-sm">
+          <div className="flex items-center gap-3 text-xs sm:gap-4 sm:text-sm">
             <Link href="/legal/terms" className="text-slate-400 transition hover:text-slate-200">
               Legal
             </Link>
             <Link href="/" className="text-slate-500 transition hover:text-slate-300">
-              Back to home
+              Home
             </Link>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-6 py-10 md:py-12">
-        <section className="rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.03))] p-6 shadow-panel backdrop-blur-xl md:p-8">
+      <main className="mx-auto max-w-5xl px-3 py-6 sm:px-6 sm:py-10 md:py-12">
+        <section className="rounded-2xl border border-white/10 bg-zinc-950/80 p-4 shadow-panel sm:rounded-[32px] sm:p-6 md:p-8">
           <div className="space-y-4">
-            <div className="inline-flex items-center rounded-full border border-orange-500/20 bg-orange-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-orange-300">
+            <div className="inline-flex items-center rounded-md border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400 sm:text-[11px]">
               About Story Time
             </div>
-            <h1 className="font-display text-3xl font-semibold tracking-tight text-white md:text-4xl">
+            <h1 className="font-display text-2xl font-semibold tracking-tight text-white sm:text-3xl md:text-4xl">
               About STORYTIME STUDIOS (Pty) Ltd
             </h1>
-            <p className="max-w-3xl text-sm leading-7 text-slate-300 md:text-base">
+            <p className="max-w-3xl text-sm leading-relaxed text-slate-300 break-words md:text-base md:leading-7">
               How Story Time operates, how creators and audiences engage with free and
               paid services, and how privacy, payment, and support commitments are
               applied across the platform.
@@ -101,14 +97,14 @@ export default function AboutPage() {
           </div>
         </section>
 
-        <section className="mt-6 grid gap-4 md:grid-cols-2">
+        <section className="mt-4 grid gap-3 sm:mt-6 sm:gap-4 md:grid-cols-2">
           {sections.map((item) => (
             <div
               key={item.title}
-              className="rounded-3xl border border-white/8 bg-slate-950/55 p-6 shadow-panel backdrop-blur-xl"
+              className="rounded-2xl border border-white/8 bg-zinc-950/60 p-4 shadow-panel sm:rounded-3xl sm:p-6"
             >
-              <h2 className="mb-3 text-xl font-semibold text-white">{item.title}</h2>
-              <div className="space-y-3 text-sm leading-7 text-slate-300">
+              <h2 className="mb-2 text-lg font-semibold text-white sm:mb-3 sm:text-xl">{item.title}</h2>
+              <div className="space-y-3 break-words text-sm leading-relaxed text-slate-300 sm:leading-7">
                 {item.paragraphs.map((paragraph) => (
                   <p key={paragraph}>{paragraph}</p>
                 ))}
@@ -117,7 +113,7 @@ export default function AboutPage() {
           ))}
         </section>
 
-        <section className="mt-6 rounded-3xl border border-dashed border-white/10 bg-white/[0.02] p-6 text-sm leading-7 text-slate-400">
+        <section className="mt-4 rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-4 text-sm leading-relaxed text-slate-400 sm:mt-6 sm:rounded-3xl sm:p-6 sm:leading-7">
           <p>
             STORYTIME STUDIOS (Pty) Ltd (CIPC registration number 2026/269060/07)
             maintains a unified legal suite covering Terms of Service, Privacy Policy,

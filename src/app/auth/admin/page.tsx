@@ -4,7 +4,7 @@ import { StoryTimeLoader, StoryTimeLoadingCenter } from "@/components/ui/storyti
 import { signIn, signOut, useSession } from "next-auth/react";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import Image from "next/image";
+import { StoryTimeMark } from "@/components/brand/story-time-mark";
 import { ArrowLeft, Shield, Lock, UserPlus, ChevronDown, ChevronUp } from "lucide-react";
 
 export default function AdminLoginPage() {
@@ -78,15 +78,14 @@ export default function AdminLoginPage() {
 
   if (status === "loading") {
     return (
-      <div className="relative flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="relative flex min-h-screen items-center justify-center bg-black px-4">
         <StoryTimeLoader size="sm" hideTrack />
       </div>
     );
   }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-background px-4 py-12">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_60%_40%_at_50%_40%,rgba(249,115,22,0.08),transparent_60%)]" />
+    <div className="relative flex min-h-screen items-center justify-center bg-black px-4 py-12">
       <div className="relative z-10 w-full max-w-md">
         <Link
           href="/"
@@ -97,11 +96,8 @@ export default function AdminLoginPage() {
           Back to home
         </Link>
 
-        <Link href="/" prefetch={false} className="mb-10 flex items-center justify-center gap-3">
-          <Image src="/logo.png" alt="Story Time" width={52} height={52} className="rounded-xl shadow-glow" />
-          <span className="text-2xl font-semibold tracking-[0.14em] text-white">
-            STORY <span className="storytime-brand-text">TIME</span>
-          </span>
+        <Link href="/" prefetch={false} className="mb-10 flex items-center justify-center" aria-label="Story Time">
+          <StoryTimeMark size={56} priority />
         </Link>
 
         <div className="storytime-section p-8">

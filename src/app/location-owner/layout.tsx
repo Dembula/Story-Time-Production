@@ -35,11 +35,7 @@ export default function LocationOwnerLayout({ children }: { children: React.Reac
   return (
     <DashboardSidebarShell
       brandHref="/location-owner/dashboard"
-      brandLabel={
-        <>
-          <span className="storytime-brand-text">STORY TIME</span> Locations
-        </>
-      }
+      brandLabel="Locations"
       headerEnd={
         <>
           <NotificationBell />

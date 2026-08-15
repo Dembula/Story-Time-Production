@@ -65,11 +65,7 @@ export default function MusicCreatorLayout({ children }: { children: React.React
   return (
     <DashboardSidebarShell
       brandHref="/music-creator/dashboard"
-      brandLabel={
-        <>
-          <span className="storytime-brand-text">STORY TIME</span> Music
-        </>
-      }
+      brandLabel="Music"
       headerEnd={
         <>
           <CreatorStudioActingLabel />

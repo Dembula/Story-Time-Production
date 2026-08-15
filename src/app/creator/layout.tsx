@@ -83,11 +83,7 @@ export default function CreatorLayout({ children }: { children: React.ReactNode 
       className="text-slate-100 adaptive-tv-surface"
       sidebarAutoCollapse={isCreatorPipelineToolPath}
       brandHref="/creator/command-center"
-      brandLabel={
-        <>
-          <span className="storytime-brand-text">STORY TIME</span> Creator
-        </>
-      }
+      brandLabel="Creator"
       headerEnd={
         <>
           <CreatorStudioActingLabel />

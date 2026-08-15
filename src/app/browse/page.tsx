@@ -259,7 +259,7 @@ export default async function BrowsePage({
       )}
       <Hero content={heroContent} />
 
-      <div className="max-w-[1800px] mx-auto px-4 sm:px-6 md:px-12 -mt-10 md:-mt-16 relative z-10">
+      <div className="relative z-10 mx-auto max-w-[1800px] px-4 pt-6 sm:px-6 sm:pt-8 md:px-12 md:pt-10">
         {type && (
           <div className="mb-6">
             <h2 className="text-2xl font-semibold text-white">

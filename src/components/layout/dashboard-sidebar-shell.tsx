@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
+import { StoryTimeMark } from "@/components/brand/story-time-mark";
 
 export type DashboardNavItem = {
   href: string;
@@ -176,9 +177,10 @@ export function DashboardSidebarShell({
             <Link
               href={brandHref}
               onClick={closeSidebar}
-              className="min-w-0 truncate text-sm font-semibold text-white sm:text-base md:text-xl"
+              className="inline-flex min-w-0 items-center gap-2.5 text-sm font-medium text-slate-200 sm:text-base"
             >
-              {brandLabel}
+              <StoryTimeMark size={30} />
+              <span className="truncate">{brandLabel}</span>
             </Link>
           </div>
           {headerEnd ? (
