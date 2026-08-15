@@ -9,39 +9,37 @@ import { LandingSpotlightSlider } from "@/components/landing/LandingSpotlightSli
 
 export function Hero() {
   return (
-    <section className="relative overflow-x-clip px-3 pb-10 pt-[4.75rem] sm:px-6 sm:pb-14 sm:pt-24 lg:pb-16 lg:pt-28">
+    <section className="relative flex min-h-[100dvh] flex-col overflow-x-clip px-4 pb-5 pt-[4.75rem] sm:min-h-0 sm:px-6 sm:pb-14 sm:pt-24 lg:pb-16 lg:pt-28">
       {/* Black + orange atmosphere */}
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,#050505_0%,#0a0704_42%,#000_100%)]" />
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_70%_48%_at_50%_-8%,rgba(255,140,0,0.18),transparent_58%)]" />
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_45%_35%_at_85%_30%,rgba(255,120,40,0.08),transparent_50%)]" />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-36 bg-gradient-to-t from-black to-transparent" />
 
-      <div className="relative z-10 mx-auto w-full min-w-0 max-w-6xl">
-        <LandingReveal className="w-full min-w-0">
-          {/* Mobile: transparent ST image at full phone width — do not enlarge via size */}
-          <div className="relative left-1/2 w-screen max-w-[100vw] -translate-x-1/2 lg:hidden">
-            <div className="mx-auto flex w-full flex-col items-center text-center">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.96 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-                className="mb-1 w-full"
-              >
-                <StoryTimeMark
-                  fullWidth
-                  priority
-                  className="opacity-95 drop-shadow-[0_16px_48px_rgba(255,140,0,0.32)]"
-                />
-              </motion.div>
-              <motion.p
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.45, delay: 0.1 }}
-                className="mb-1 text-[11px] font-medium uppercase tracking-[0.3em] text-orange-300/80"
-              >
-                Story Time
-              </motion.p>
-            </div>
+      <div className="relative z-10 mx-auto flex w-full min-w-0 max-w-6xl flex-1 flex-col lg:block lg:flex-none">
+        <LandingReveal className="flex w-full min-w-0 flex-1 flex-col lg:block" y={16}>
+          {/* Mobile: compact centered brand in the middle of the first screen */}
+          <div className="mx-auto flex w-full max-w-[9.5rem] flex-1 flex-col items-center justify-center text-center lg:hidden">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+              className="mb-2"
+            >
+              <StoryTimeMark
+                size={44}
+                priority
+                className="opacity-95 drop-shadow-[0_10px_28px_rgba(255,140,0,0.26)]"
+              />
+            </motion.div>
+            <motion.p
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.45, delay: 0.1 }}
+              className="text-[10px] font-medium uppercase tracking-[0.32em] text-orange-300/80"
+            >
+              Story Time
+            </motion.p>
           </div>
 
           {/* Desktop: professional copy + orange CTAs */}
@@ -96,7 +94,8 @@ export function Hero() {
             </motion.div>
           </div>
 
-          <div className="mt-8 w-full min-w-0 sm:mt-10 lg:mt-14">
+          {/* Mobile: Top 10 sits at the bottom of the first screen */}
+          <div className="mt-auto w-full min-w-0 shrink-0 pt-6 sm:mt-10 sm:pt-0 lg:mt-14">
             <LandingSpotlightSlider variant="hero" />
           </div>
         </LandingReveal>

@@ -47,7 +47,7 @@ export function StoryTimeMark({
       width={width}
       height={size}
       priority={priority}
-      className={`object-contain ${className}`.trim()}
+      className={`h-auto max-h-full w-auto object-contain ${className}`.trim()}
       style={{ height: size, width: "auto", maxWidth: width }}
     />
   );
