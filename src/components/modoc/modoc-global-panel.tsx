@@ -224,7 +224,7 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
       await loadContextRef.current();
       requestAnimationFrame(() => scrollToBottom("auto"));
     })();
-  }, [open, scrollToBottom]);
+  }, [open, pathname, scrollToBottom]);
 
   // Proactive awareness: creator opened VA after a tool-save pulse.
   useEffect(() => {
