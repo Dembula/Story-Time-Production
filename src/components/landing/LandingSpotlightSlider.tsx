@@ -45,9 +45,9 @@ export function LandingSpotlightSlider({ variant = "default" }: LandingSpotlight
   if (!items?.length) return null;
 
   // Fixed rem widths (not vw) so the row never widens the page.
-  // Hero cards are a touch larger for a stronger poster presence; swipe to scroll — no arrow buttons.
+  // Hero cards ~25–30% smaller than the prior oversized set; swipe to scroll — no arrow buttons.
   const cardClass = hero
-    ? "group relative block shrink-0 snap-start overflow-hidden w-[11.25rem] min-w-[11.25rem] max-w-[11.25rem] sm:w-[10rem] sm:min-w-[10rem] sm:max-w-[10rem] lg:w-[11rem] lg:min-w-[11rem] lg:max-w-[11rem]"
+    ? "group relative block shrink-0 snap-start overflow-hidden w-[8rem] min-w-[8rem] max-w-[8rem] sm:w-[7.25rem] sm:min-w-[7.25rem] sm:max-w-[7.25rem] lg:w-[8rem] lg:min-w-[8rem] lg:max-w-[8rem]"
     : "group relative block shrink-0 snap-start overflow-hidden w-[8.5rem] min-w-[8.5rem] max-w-[8.5rem] sm:w-[7.25rem] sm:min-w-[7.25rem] sm:max-w-[7.25rem]";
 
   return (
@@ -78,7 +78,7 @@ export function LandingSpotlightSlider({ variant = "default" }: LandingSpotlight
                     src={item.posterUrl}
                     alt={item.title}
                     fill
-                    sizes={hero ? "(max-width: 640px) 180px, (max-width: 1024px) 160px, 176px" : "(max-width: 640px) 136px, 116px"}
+                    sizes={hero ? "(max-width: 640px) 128px, (max-width: 1024px) 116px, 128px" : "(max-width: 640px) 136px, 116px"}
                     className="object-cover transition duration-300 group-hover:scale-[1.03]"
                     unoptimized={item.posterUrl.includes(".gif")}
                   />
@@ -90,7 +90,7 @@ export function LandingSpotlightSlider({ variant = "default" }: LandingSpotlight
                   </div>
                 )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-transparent" />
-                <span className="absolute bottom-1.5 left-1.5 font-display text-4xl font-bold leading-none text-orange-200 drop-shadow-[0_2px_10px_rgba(0,0,0,0.95)] sm:text-4xl">
+                <span className="absolute bottom-1.5 left-1.5 font-display text-3xl font-bold leading-none text-orange-200 drop-shadow-[0_2px_10px_rgba(0,0,0,0.95)] sm:text-3xl">
                   {index + 1}
                 </span>
               </div>

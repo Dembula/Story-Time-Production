@@ -10,22 +10,22 @@ import { LandingSpotlightSlider } from "@/components/landing/LandingSpotlightSli
 
 export function Hero() {
   return (
-    <section className="relative overflow-x-clip px-3 pb-10 pt-[4.75rem] sm:px-6 sm:pb-14 sm:pt-24 lg:min-h-[min(92svh,52rem)] lg:pb-16 lg:pt-28">
+    <section className="relative flex min-h-[100svh] flex-col overflow-x-clip px-3 pb-8 pt-[4.75rem] sm:px-6 sm:pb-12 sm:pt-24 lg:min-h-[min(92svh,52rem)] lg:pb-16 lg:pt-28">
       {/* Quiet black field — posters carry the visual, no orange glow orbs */}
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,#050505_0%,#0a0a0a_45%,#000_100%)]" />
       <LandingPosterBackdrop />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black to-transparent" />
 
-      <div className="relative z-10 mx-auto w-full min-w-0 max-w-6xl">
-        <LandingReveal className="w-full min-w-0">
-          {/* Mobile: full-bleed ST mark (slightly scaled up) + Top 10 — no hero CTAs */}
-          <div className="relative left-1/2 w-screen max-w-[100vw] -translate-x-1/2 lg:hidden">
-            <div className="mx-auto flex w-full flex-col items-center text-center">
+      <div className="relative z-10 mx-auto flex w-full min-w-0 max-w-6xl flex-1 flex-col">
+        <LandingReveal className="flex w-full min-w-0 flex-1 flex-col">
+          {/* Mobile: mid-size mark (~28% smaller than full-bleed) + Top 10 */}
+          <div className="relative flex flex-1 flex-col justify-center lg:hidden">
+            <div className="mx-auto flex w-full max-w-sm flex-col items-center text-center">
               <motion.div
                 initial={{ opacity: 0, scale: 0.96 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-                className="mb-1 w-full origin-center scale-[1.12]"
+                className="mb-2 w-[72%]"
               >
                 <StoryTimeMark fullWidth priority className="opacity-95" />
               </motion.div>
@@ -41,7 +41,7 @@ export function Hero() {
           </div>
 
           {/* Desktop: professional copy + orange CTAs; posters fill the right */}
-          <div className="relative mx-auto hidden max-w-2xl flex-col items-start text-left lg:mx-0 lg:flex lg:max-w-xl lg:pt-6">
+          <div className="relative mx-auto hidden max-w-2xl flex-col items-start text-left lg:mx-0 lg:flex lg:max-w-xl lg:flex-1 lg:justify-center lg:pt-2">
             <motion.p
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
@@ -92,7 +92,7 @@ export function Hero() {
             </motion.div>
           </div>
 
-          <div className="mt-8 w-full min-w-0 sm:mt-10 lg:mt-14">
+          <div className="mt-4 w-full min-w-0 sm:mt-8 lg:mt-10">
             <LandingSpotlightSlider variant="hero" />
           </div>
         </LandingReveal>

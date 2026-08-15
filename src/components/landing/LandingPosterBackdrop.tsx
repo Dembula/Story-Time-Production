@@ -1,9 +1,15 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 const FALLBACK_POSTERS = [
+  "/posters/poster-1.svg",
+  "/posters/poster-2.svg",
+  "/posters/poster-3.svg",
+  "/posters/poster-1.svg",
+  "/posters/poster-2.svg",
+  "/posters/poster-3.svg",
   "/posters/poster-1.svg",
   "/posters/poster-2.svg",
   "/posters/poster-3.svg",
@@ -14,10 +20,19 @@ const FALLBACK_POSTERS = [
 
 type Poster = { src: string; alt: string };
 
+function chunkRows(posters: Poster[], rows: number, perRow: number): Poster[][] {
+  const needed = rows * perRow;
+  const pool = [...posters];
+  while (pool.length < needed) pool.push(...posters);
+  return Array.from({ length: rows }, (_, row) =>
+    pool.slice(row * perRow, row * perRow + perRow)
+  );
+}
+
 /**
- * Faded film-poster rows behind the hero — no glow orbs.
- * Mobile: fills the upper field behind the mark.
- * Desktop: fills the empty right side of the hero.
+ * Faded film-poster backdrop — clean non-overlapping rows, no glow orbs.
+ * Mobile: 3 even rows behind the mark.
+ * Desktop: 3 even rows filling the empty right side.
  */
 export function LandingPosterBackdrop() {
   const [posters, setPosters] = useState<Poster[]>(
@@ -36,9 +51,7 @@ export function LandingPosterBackdrop() {
           .filter((item) => Boolean(item.posterUrl))
           .map((item) => ({ src: item.posterUrl as string, alt: item.title }));
         if (fromApi.length >= 3) {
-          // Repeat to fill a wide row without looking sparse
-          const filled = [...fromApi, ...fromApi, ...fromApi].slice(0, 12);
-          setPosters(filled);
+          setPosters(fromApi);
         }
       } catch {
         // Keep SVG fallbacks
@@ -49,63 +62,62 @@ export function LandingPosterBackdrop() {
     };
   }, []);
 
+  const mobileRows = useMemo(() => chunkRows(posters, 3, 5), [posters]);
+  const desktopRows = useMemo(() => chunkRows(posters, 3, 4), [posters]);
+
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
-      {/* Mobile / tablet: lined-up faded poster rows behind the mark */}
-      <div className="absolute inset-0 lg:hidden">
-        <div className="absolute left-1/2 top-[18%] flex w-[160%] -translate-x-1/2 gap-2 opacity-[0.22]">
-          {posters.slice(0, 8).map((poster, i) => (
-            <div
-              key={`m-a-${poster.src}-${i}`}
-              className="relative aspect-[2/3] w-[22%] min-w-[5.5rem] shrink-0 overflow-hidden rounded-md"
-            >
-              <Image src={poster.src} alt="" fill sizes="90px" className="object-cover" unoptimized={poster.src.includes(".gif")} />
-            </div>
-          ))}
-        </div>
-        <div className="absolute left-1/2 top-[42%] flex w-[170%] -translate-x-1/2 gap-2 opacity-[0.14]">
-          {posters.slice(2, 10).map((poster, i) => (
-            <div
-              key={`m-b-${poster.src}-${i}`}
-              className="relative aspect-[2/3] w-[20%] min-w-[5rem] shrink-0 overflow-hidden rounded-md"
-            >
-              <Image src={poster.src} alt="" fill sizes="80px" className="object-cover" unoptimized={poster.src.includes(".gif")} />
-            </div>
-          ))}
-        </div>
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(0,0,0,0.35)_20%,rgba(0,0,0,0.82)_70%,#000_100%)]" />
-        <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-black via-black/80 to-transparent" />
-        <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/90 to-transparent" />
+      {/* Mobile: 3 clean equal rows — no overlap */}
+      <div className="absolute inset-0 flex flex-col justify-center gap-2 px-1 pt-14 pb-36 opacity-[0.2] lg:hidden">
+        {mobileRows.map((row, rowIndex) => (
+          <div key={`m-row-${rowIndex}`} className="flex w-full justify-center gap-2">
+            {row.map((poster, i) => (
+              <div
+                key={`m-${rowIndex}-${poster.src}-${i}`}
+                className="relative aspect-[2/3] w-[18%] min-w-0 flex-1 overflow-hidden rounded-md"
+              >
+                <Image
+                  src={poster.src}
+                  alt=""
+                  fill
+                  sizes="72px"
+                  className="object-cover"
+                  unoptimized={poster.src.includes(".gif")}
+                />
+              </div>
+            ))}
+          </div>
+        ))}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(0,0,0,0.28)_18%,rgba(0,0,0,0.78)_68%,#000_100%)]" />
+        <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-black via-black/85 to-transparent" />
+        <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/90 to-transparent" />
       </div>
 
-      {/* Desktop: faded poster stack filling the empty right side */}
-      <div className="absolute inset-y-0 right-0 hidden w-[52%] lg:block xl:w-[48%]">
-        <div className="absolute inset-y-[8%] right-0 flex items-center justify-end gap-3 pr-2 xl:gap-4 xl:pr-4">
-          {posters.slice(0, 5).map((poster, i) => (
-            <div
-              key={`d-${poster.src}-${i}`}
-              className={[
-                "relative aspect-[2/3] shrink-0 overflow-hidden rounded-xl border border-white/[0.06]",
-                i === 0 ? "h-[58%] opacity-[0.28]" : "",
-                i === 1 ? "h-[68%] opacity-[0.34]" : "",
-                i === 2 ? "h-[78%] opacity-[0.38]" : "",
-                i === 3 ? "h-[66%] opacity-[0.3]" : "",
-                i === 4 ? "h-[56%] opacity-[0.24]" : "",
-              ].join(" ")}
-            >
-              <Image
-                src={poster.src}
-                alt=""
-                fill
-                sizes="(max-width: 1280px) 140px, 180px"
-                className="object-cover"
-                priority={i < 2}
-                unoptimized={poster.src.includes(".gif")}
-              />
+      {/* Desktop: 3 clean rows on the right — no staggered overlap */}
+      <div className="absolute inset-y-0 right-0 hidden w-[50%] lg:block xl:w-[46%]">
+        <div className="absolute inset-y-[10%] right-0 flex w-full flex-col justify-center gap-3 px-3 opacity-[0.32]">
+          {desktopRows.map((row, rowIndex) => (
+            <div key={`d-row-${rowIndex}`} className="flex w-full justify-end gap-3">
+              {row.map((poster, i) => (
+                <div
+                  key={`d-${rowIndex}-${poster.src}-${i}`}
+                  className="relative aspect-[2/3] w-[22%] max-w-[7.5rem] flex-1 overflow-hidden rounded-lg border border-white/[0.06]"
+                >
+                  <Image
+                    src={poster.src}
+                    alt=""
+                    fill
+                    sizes="120px"
+                    className="object-cover"
+                    priority={rowIndex === 0 && i < 2}
+                    unoptimized={poster.src.includes(".gif")}
+                  />
+                </div>
+              ))}
             </div>
           ))}
         </div>
-        <div className="absolute inset-0 bg-[linear-gradient(90deg,#000_0%,rgba(0,0,0,0.72)_18%,rgba(0,0,0,0.35)_48%,rgba(0,0,0,0.55)_100%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,#000_0%,rgba(0,0,0,0.75)_16%,rgba(0,0,0,0.28)_50%,rgba(0,0,0,0.5)_100%)]" />
         <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-black to-transparent" />
         <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/70 to-transparent" />
       </div>
