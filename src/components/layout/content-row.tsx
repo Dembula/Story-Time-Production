@@ -65,6 +65,7 @@ function ContentCard({
       videoUrl: item.videoUrl,
       trailerUrl: item.trailerUrl,
       posterUrl: imageUrl,
+      backdropUrl: packedBackdrop,
     });
     setHovering(true);
     const v = videoRef.current;
@@ -72,7 +73,7 @@ function ContentCard({
     v.src = trailerVideo.src;
     v.currentTime = 0;
     void v.play().catch(() => {});
-  }, [trailerVideo, prefetch, item.id, item.videoUrl, item.trailerUrl, imageUrl]);
+  }, [trailerVideo, prefetch, item.id, item.videoUrl, item.trailerUrl, imageUrl, packedBackdrop]);
 
   const onLeave = useCallback(() => {
     setHovering(false);

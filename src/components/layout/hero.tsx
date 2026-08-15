@@ -3,9 +3,10 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Play, Info } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { getDisplayBackdropUrl } from "@/lib/content-media-urls";
+import { useWarmHeroBackdrops } from "@/components/prefetch/platform-media-prefetch";
 
 type Content = {
   id: string;
@@ -28,6 +29,21 @@ export function Hero({ content }: { content: Content[] }) {
     }, 7000);
     return () => clearInterval(t);
   }, [content.length]);
+
+  const heroBackdropUrls = useMemo(
+    () =>
+      content.slice(0, 5).map((item) => {
+        const packed = item.backdropUrl?.trim();
+        if (packed && /^https?:\/\//i.test(packed)) return packed;
+        return getDisplayBackdropUrl({
+          posterUrl: item.posterUrl,
+          backdropUrl: item.backdropUrl,
+          videoUrl: item.videoUrl,
+        });
+      }),
+    [content],
+  );
+  useWarmHeroBackdrops(heroBackdropUrls, activeIndex);
 
   const current = content[activeIndex];
 
