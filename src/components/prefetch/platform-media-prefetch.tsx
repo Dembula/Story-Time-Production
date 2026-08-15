@@ -7,7 +7,6 @@ import {
   warmContentMetadata,
   warmMediaUrls,
   warmPlatformEntryAssets,
-  warmThumbnail,
 } from "@/lib/prefetch";
 
 type CatalogItem = {
@@ -18,20 +17,27 @@ type CatalogItem = {
 };
 
 /**
- * Idle-time warm-up for posters, backdrops, film metadata, and key routes
- * so moving between landing / browse / detail feels seamless.
+ * Idle-time warm-up for posters, backdrops, film metadata, and key routes.
+ * Defers heavy catalogue warming so the browse hero can claim bandwidth first.
  */
 export function PlatformMediaPrefetch({
   items = [],
   entry = false,
   limit = 48,
+  /** Delay before warming the full catalogue (ms). Hero-first on browse. */
+  deferMs = 0,
 }: {
   items?: CatalogItem[];
   /** Also warm landing spotlight + auth/browse entry routes. */
   entry?: boolean;
   limit?: number;
+  deferMs?: number;
 }) {
   const router = useRouter();
+  const itemKey = items
+    .slice(0, limit)
+    .map((item) => `${item.id ?? ""}:${item.posterUrl ?? ""}:${item.backdropUrl ?? ""}`)
+    .join("|");
 
   useEffect(() => {
     if (entry) {
@@ -40,37 +46,38 @@ export function PlatformMediaPrefetch({
 
     if (!items.length) return;
 
+    // Warm the first few hero/featured backdrops immediately for smooth rotator.
+    const priority = items.slice(0, 5);
     warmMediaUrls(
-      items.flatMap((item) => [item.posterUrl, item.backdropUrl]),
-      limit,
+      priority.flatMap((item) => [item.backdropUrl, item.posterUrl]),
+      10,
     );
-
-    const top = items.slice(0, 10);
-    for (const item of top) {
+    for (const item of priority) {
       if (!item.id) continue;
       prefetchBrowseRoute(`/browse/content/${item.id}`, router);
-      if (item.videoUrl) {
-        prefetchBrowseRoute(`/browse/content/${item.id}/watch`, router);
-      }
-      void warmContentMetadata(item.id);
     }
-  }, [entry, items, limit, router]);
+
+    const timer = window.setTimeout(() => {
+      warmMediaUrls(
+        items.flatMap((item) => [item.posterUrl, item.backdropUrl]),
+        limit,
+      );
+
+      const top = items.slice(0, 10);
+      for (const item of top) {
+        if (!item.id) continue;
+        prefetchBrowseRoute(`/browse/content/${item.id}`, router);
+        if (item.videoUrl) {
+          prefetchBrowseRoute(`/browse/content/${item.id}/watch`, router);
+        }
+        void warmContentMetadata(item.id);
+      }
+    }, Math.max(0, deferMs));
+
+    return () => window.clearTimeout(timer);
+    // itemKey captures media identity without depending on array identity
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional stable warm-up key
+  }, [entry, itemKey, limit, deferMs, router]);
 
   return null;
-}
-
-/** Warm upcoming browse hero backdrops so rotator transitions stay seamless. */
-export function useWarmHeroBackdrops(
-  urls: Array<string | null | undefined>,
-  activeIndex: number,
-) {
-  useEffect(() => {
-    if (!urls.length) return;
-    const next = [
-      urls[activeIndex],
-      urls[(activeIndex + 1) % urls.length],
-      urls[(activeIndex + 2) % urls.length],
-    ];
-    for (const url of next) warmThumbnail(url);
-  }, [urls, activeIndex]);
 }

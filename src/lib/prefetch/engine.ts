@@ -123,14 +123,17 @@ export function warmMediaUrls(urls: Array<string | null | undefined>, limit = 36
     new Set(
       urls
         .map((u) => u?.trim())
-        .filter((u): u is string => Boolean(u) && /^https?:\/\//i.test(u as string)),
+        .filter((u): u is string => Boolean(u) && (/^https?:\/\//i.test(u) || u.startsWith("/"))),
     ),
   ).slice(0, limit);
 
   if (!unique.length) return;
 
   scheduleIdle(() => {
-    for (const url of unique) warmThumbnail(url);
+    // Stagger slightly so one large hero decode isn't starved by a burst of row posters.
+    unique.forEach((url, index) => {
+      window.setTimeout(() => warmThumbnail(url), index * 40);
+    });
   });
 }
 

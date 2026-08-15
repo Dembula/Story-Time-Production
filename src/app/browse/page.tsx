@@ -272,7 +272,7 @@ export default async function BrowsePage({
 
   return (
     <div className="pb-16">
-      <PlatformMediaPrefetch items={prefetchCatalog} entry limit={60} />
+      <PlatformMediaPrefetch items={prefetchCatalog} limit={60} deferMs={2200} />
       {loadError && (
         <div className="max-w-[1800px] mx-auto px-6 md:px-12 pt-4">
           <div className="rounded-2xl border border-amber-400/22 bg-amber-500/10 p-4 text-sm text-amber-100 shadow-panel">
