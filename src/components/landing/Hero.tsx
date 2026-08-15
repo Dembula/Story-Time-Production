@@ -9,7 +9,7 @@ import { LandingSpotlightSlider } from "@/components/landing/LandingSpotlightSli
 
 export function Hero() {
   return (
-    <section className="relative overflow-x-clip px-4 pb-10 pt-[4.75rem] sm:px-6 sm:pb-14 sm:pt-24 lg:pb-16 lg:pt-28">
+    <section className="relative overflow-x-clip px-3 pb-10 pt-[4.75rem] sm:px-6 sm:pb-14 sm:pt-24 lg:pb-16 lg:pt-28">
       {/* Black + orange atmosphere */}
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,#050505_0%,#0a0704_42%,#000_100%)]" />
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_70%_48%_at_50%_-8%,rgba(255,140,0,0.18),transparent_58%)]" />
@@ -19,7 +19,7 @@ export function Hero() {
       <div className="relative z-10 mx-auto w-full min-w-0 max-w-6xl">
         <LandingReveal className="w-full min-w-0">
           {/* Mobile: transparent mark + Top 10 only — no tacky hero CTAs */}
-          <div className="mx-auto flex max-w-lg flex-col items-center text-center lg:hidden">
+          <div className="mx-auto flex w-full flex-col items-center text-center lg:hidden">
             <motion.div
               initial={{ opacity: 0, scale: 0.94 }}
               animate={{ opacity: 1, scale: 1 }}
