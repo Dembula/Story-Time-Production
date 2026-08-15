@@ -23,7 +23,7 @@ const policyLinks = [
 
 export function LandingFooter() {
   return (
-    <footer className="border-t border-white/8 px-4 py-12 sm:px-6">
+    <footer className="border-t border-white/8 px-3 py-10 sm:px-6 sm:py-12">
       <div className="mx-auto w-full max-w-6xl">
         <div className="mb-8 flex flex-col items-center justify-between gap-6 md:flex-row">
           <Link href="/" className="flex flex-col items-center gap-2 md:items-start" aria-label="Story Time home">

@@ -10,7 +10,7 @@ export function Security() {
   ];
 
   return (
-    <section className="border-t border-white/8 px-3 py-14 sm:px-6 sm:py-20">
+    <section className="border-t border-white/8 px-3 py-10 sm:px-6 sm:py-20">
       <LandingReveal className="mx-auto w-full max-w-6xl text-center">
         <Shield className="mx-auto mb-5 h-11 w-11 text-orange-300 sm:mb-6 sm:h-12 sm:w-12" />
         <p className="text-[10px] font-medium uppercase tracking-[0.28em] text-orange-300/75">
@@ -19,11 +19,11 @@ export function Security() {
         <h2 className="mt-2 font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">
           Secure by default
         </h2>
-        <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-slate-300/80 sm:text-base">
+        <p className="mx-auto mt-3 w-full text-sm leading-relaxed text-slate-300/80 sm:max-w-xl sm:text-base">
           Story Time protects access, audience trust, and publishing integrity with controlled accounts,
           moderation workflows, and age-aware viewing rules.
         </p>
-        <div className="mt-8 grid grid-cols-2 gap-2.5 sm:mt-10 sm:grid-cols-4 sm:gap-4">
+        <div className="mt-8 grid w-full grid-cols-2 gap-2.5 sm:mt-10 sm:grid-cols-4 sm:gap-4">
           {items.map((item) => (
             <div
               key={item}

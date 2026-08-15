@@ -17,13 +17,13 @@ const flowSteps = [
 
 export function Vision() {
   return (
-    <section className="border-t border-white/8 px-4 py-14 sm:px-6 sm:py-20">
-      <div className="mx-auto max-w-6xl">
-        <LandingReveal className="mx-auto max-w-4xl text-center">
+    <section className="border-t border-white/8 px-3 py-10 sm:px-6 sm:py-20">
+      <div className="mx-auto w-full max-w-6xl">
+        <LandingReveal className="mx-auto w-full text-center">
           <h2 className="mb-3 font-display text-2xl sm:text-3xl font-bold tracking-tight text-white md:text-4xl">
             A Network That Expands Creative Possibility.
           </h2>
-          <p className="mb-10 sm:mb-14 text-center text-base sm:text-lg leading-7 sm:leading-8 text-slate-300/80">
+          <p className="mb-8 w-full text-center text-base leading-7 text-slate-300/80 sm:mb-14 sm:text-lg sm:leading-8">
             Story Time connects creators to audiences, collaborators, and shared momentum in one system where visibility, relationships, and contribution reinforce one another over time.
           </p>
         </LandingReveal>

@@ -31,22 +31,22 @@ const items = [
 
 export function Features() {
   return (
-    <section id="features" className="border-t border-white/8 bg-white/[0.02] px-4 py-14 sm:px-6 sm:py-20">
-      <div className="max-w-6xl mx-auto">
-        <LandingReveal className="mx-auto max-w-4xl text-center">
+    <section id="features" className="border-t border-white/8 bg-white/[0.02] px-3 py-10 sm:px-6 sm:py-20">
+      <div className="mx-auto w-full max-w-6xl">
+        <LandingReveal className="mx-auto w-full text-center">
           <h2 className="mb-3 font-display text-2xl sm:text-3xl font-bold tracking-tight text-white md:text-4xl">
             Built for Every Stage of the Creator Journey
           </h2>
-          <p className="mx-auto mb-10 sm:mb-16 max-w-3xl text-center text-base sm:text-lg leading-7 sm:leading-8 text-slate-300/80">
+          <p className="mx-auto mb-8 w-full text-center text-base leading-7 text-slate-300/80 sm:mb-16 sm:max-w-3xl sm:text-lg sm:leading-8">
             Story Time brings the full creative lifecycle into one environment so creators can stay close to the work, close to their audience, and close to their own direction.
           </p>
         </LandingReveal>
-        <div className="grid gap-4 sm:gap-6 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid w-full gap-3 sm:gap-6 md:grid-cols-2 xl:grid-cols-3">
           {items.map((item, i) => (
             <LandingReveal key={item.title} delay={i * 0.04}>
-              <div className="storytime-panel group h-full rounded-[1.6rem] p-5 sm:p-8 hover:-translate-y-1 hover:bg-white/[0.04]">
-                <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl border border-orange-400/16 bg-orange-500/10 group-hover:border-orange-300/28 group-hover:bg-orange-500/18">
-                  <item.icon className="h-6 w-6 text-orange-300" />
+              <div className="storytime-panel group h-full rounded-2xl p-4 sm:rounded-[1.6rem] sm:p-8 hover:-translate-y-1 hover:bg-white/[0.04]">
+                <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl border border-orange-400/16 bg-orange-500/10 group-hover:border-orange-300/28 group-hover:bg-orange-500/18 sm:mb-5 sm:h-12 sm:w-12 sm:rounded-2xl">
+                  <item.icon className="h-5 w-5 text-orange-300 sm:h-6 sm:w-6" />
                 </div>
                 <h3 className="mb-2 text-lg font-semibold text-white">{item.title}</h3>
                 <p className="text-sm leading-7 text-slate-300/78">{item.desc}</p>

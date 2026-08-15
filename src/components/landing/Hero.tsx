@@ -9,7 +9,7 @@ import { LandingSpotlightSlider } from "@/components/landing/LandingSpotlightSli
 
 export function Hero() {
   return (
-    <section className="relative overflow-x-clip px-3 pb-10 pt-[4.75rem] sm:px-6 sm:pb-14 sm:pt-24 lg:pb-16 lg:pt-28">
+    <section className="relative overflow-x-clip px-3 pb-6 pt-[4.75rem] sm:px-6 sm:pb-14 sm:pt-24 lg:pb-16 lg:pt-28">
       {/* Black + orange atmosphere */}
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,#050505_0%,#0a0704_42%,#000_100%)]" />
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_70%_48%_at_50%_-8%,rgba(255,140,0,0.18),transparent_58%)]" />
@@ -18,21 +18,25 @@ export function Hero() {
 
       <div className="relative z-10 mx-auto w-full min-w-0 max-w-6xl">
         <LandingReveal className="w-full min-w-0">
-          {/* Mobile: transparent mark + Top 10 only — no tacky hero CTAs */}
-          <div className="mx-auto flex w-full flex-col items-center text-center lg:hidden">
+          {/* Mobile: ST mark as the centered hero focus */}
+          <div className="mx-auto flex w-full flex-col items-center justify-center text-center lg:hidden">
             <motion.div
-              initial={{ opacity: 0, scale: 0.94 }}
+              initial={{ opacity: 0, scale: 0.92 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-              className="mb-2"
+              className="flex w-full flex-col items-center"
             >
-              <StoryTimeMark size={88} priority className="opacity-95 drop-shadow-[0_16px_48px_rgba(255,140,0,0.32)]" />
+              <StoryTimeMark
+                size={120}
+                priority
+                className="mx-auto opacity-95 drop-shadow-[0_18px_52px_rgba(255,140,0,0.38)]"
+              />
             </motion.div>
             <motion.p
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.45, delay: 0.1 }}
-              className="mb-1 text-[11px] font-medium uppercase tracking-[0.3em] text-orange-300/80"
+              transition={{ duration: 0.45, delay: 0.12 }}
+              className="mt-3 text-center text-[12px] font-medium uppercase tracking-[0.42em] text-orange-200/90"
             >
               Story Time
             </motion.p>
@@ -90,7 +94,7 @@ export function Hero() {
             </motion.div>
           </div>
 
-          <div className="mt-8 w-full min-w-0 sm:mt-10 lg:mt-14">
+          <div className="mt-6 w-full min-w-0 sm:mt-10 lg:mt-14">
             <LandingSpotlightSlider variant="hero" />
           </div>
         </LandingReveal>

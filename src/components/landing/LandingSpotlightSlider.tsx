@@ -54,11 +54,10 @@ export function LandingSpotlightSlider({ variant = "default" }: LandingSpotlight
 
   if (!items?.length) return null;
 
-  // Fixed rem widths (not vw) so the row never widens the page. Mobile hero cards
-  // are sized to fill ~2 posters across a phone — not four skinny “half squares”.
+  // Fixed rem widths (not vw) so the row never widens the page.
   const cardClass = hero
-    ? "group relative block shrink-0 snap-start overflow-hidden w-[10.25rem] min-w-[10.25rem] max-w-[10.25rem] sm:w-[9rem] sm:min-w-[9rem] sm:max-w-[9rem] lg:w-[10rem] lg:min-w-[10rem] lg:max-w-[10rem]"
-    : "group relative block shrink-0 snap-start overflow-hidden w-[8.5rem] min-w-[8.5rem] max-w-[8.5rem] sm:w-[7.25rem] sm:min-w-[7.25rem] sm:max-w-[7.25rem]";
+    ? "group relative block shrink-0 snap-start overflow-hidden w-[6.5rem] min-w-[6.5rem] max-w-[6.5rem] sm:w-[8.25rem] sm:min-w-[8.25rem] sm:max-w-[8.25rem] lg:w-[9.5rem] lg:min-w-[9.5rem] lg:max-w-[9.5rem]"
+    : "group relative block shrink-0 snap-start overflow-hidden w-[5.75rem] min-w-[5.75rem] max-w-[5.75rem] sm:w-[7.25rem] sm:min-w-[7.25rem] sm:max-w-[7.25rem]";
 
   return (
     <section
@@ -111,7 +110,7 @@ export function LandingSpotlightSlider({ variant = "default" }: LandingSpotlight
                     src={item.posterUrl}
                     alt={item.title}
                     fill
-                    sizes={hero ? "(max-width: 640px) 164px, (max-width: 1024px) 144px, 160px" : "(max-width: 640px) 136px, 116px"}
+                    sizes={hero ? "(max-width: 640px) 104px, (max-width: 1024px) 132px, 152px" : "(max-width: 640px) 92px, 116px"}
                     className="object-cover transition duration-300 group-hover:scale-[1.03]"
                     unoptimized={item.posterUrl.includes(".gif")}
                   />
@@ -123,7 +122,7 @@ export function LandingSpotlightSlider({ variant = "default" }: LandingSpotlight
                   </div>
                 )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-transparent" />
-                <span className="absolute bottom-1.5 left-1.5 font-display text-4xl font-bold leading-none text-orange-200 drop-shadow-[0_2px_10px_rgba(0,0,0,0.95)] sm:text-4xl">
+                <span className="absolute bottom-1.5 left-1.5 font-display text-3xl font-bold leading-none text-orange-200 drop-shadow-[0_2px_10px_rgba(0,0,0,0.95)] sm:text-4xl">
                   {index + 1}
                 </span>
               </div>
