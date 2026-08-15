@@ -2,8 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useEffect, useState } from "react";
 
 type SpotlightItem = {
   id: string;
@@ -21,7 +20,6 @@ type LandingSpotlightSliderProps = {
 };
 
 export function LandingSpotlightSlider({ variant = "default" }: LandingSpotlightSliderProps) {
-  const trackRef = useRef<HTMLDivElement>(null);
   const [items, setItems] = useState<SpotlightItem[] | null>(null);
   const hero = variant === "hero";
 
@@ -44,20 +42,12 @@ export function LandingSpotlightSlider({ variant = "default" }: LandingSpotlight
     };
   }, []);
 
-  const scrollBy = (direction: -1 | 1) => {
-    const track = trackRef.current;
-    if (!track) return;
-    const card = track.querySelector<HTMLElement>("[data-spotlight-card]");
-    const step = card ? card.offsetWidth + 12 : Math.max(120, track.clientWidth * 0.7);
-    track.scrollBy({ left: direction * step, behavior: "smooth" });
-  };
-
   if (!items?.length) return null;
 
-  // Fixed rem widths (not vw) so the row never widens the page. Mobile hero cards
-  // are sized to fill ~2 posters across a phone — not four skinny “half squares”.
+  // Fixed rem widths (not vw) so the row never widens the page.
+  // Hero cards are a touch larger for a stronger poster presence; swipe to scroll — no arrow buttons.
   const cardClass = hero
-    ? "group relative block shrink-0 snap-start overflow-hidden w-[10.25rem] min-w-[10.25rem] max-w-[10.25rem] sm:w-[9rem] sm:min-w-[9rem] sm:max-w-[9rem] lg:w-[10rem] lg:min-w-[10rem] lg:max-w-[10rem]"
+    ? "group relative block shrink-0 snap-start overflow-hidden w-[11.25rem] min-w-[11.25rem] max-w-[11.25rem] sm:w-[10rem] sm:min-w-[10rem] sm:max-w-[10rem] lg:w-[11rem] lg:min-w-[11rem] lg:max-w-[11rem]"
     : "group relative block shrink-0 snap-start overflow-hidden w-[8.5rem] min-w-[8.5rem] max-w-[8.5rem] sm:w-[7.25rem] sm:min-w-[7.25rem] sm:max-w-[7.25rem]";
 
   return (
@@ -65,37 +55,14 @@ export function LandingSpotlightSlider({ variant = "default" }: LandingSpotlight
       className={`w-full min-w-0 max-w-full overflow-hidden ${hero ? "mt-0" : "mx-auto mt-10 px-0"}`}
       aria-label="Top on Story Time"
     >
-      <div className="mb-4 flex items-end justify-between gap-3">
-        <div className="min-w-0 flex-1 text-left">
-          <p className="text-[10px] font-medium uppercase tracking-[0.28em] text-orange-300/75">Top 10</p>
-          <h2 className={`mt-1 font-display font-semibold text-white ${hero ? "text-xl sm:text-2xl" : "text-lg"}`}>
-            On Story Time
-          </h2>
-        </div>
-        <div className="flex shrink-0 gap-1.5">
-          <button
-            type="button"
-            onClick={() => scrollBy(-1)}
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-orange-400/20 bg-orange-500/10 text-orange-200 transition hover:border-orange-300/35 hover:bg-orange-500/18 hover:text-white"
-            aria-label="Previous title"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => scrollBy(1)}
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-orange-400/20 bg-orange-500/10 text-orange-200 transition hover:border-orange-300/35 hover:bg-orange-500/18 hover:text-white"
-            aria-label="Next title"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        </div>
+      <div className="mb-4 min-w-0 text-left">
+        <p className="text-[10px] font-medium uppercase tracking-[0.28em] text-orange-300/75">Top 10</p>
+        <h2 className={`mt-1 font-display font-semibold text-white ${hero ? "text-xl sm:text-2xl" : "text-lg"}`}>
+          On Story Time
+        </h2>
       </div>
 
-      <div
-        ref={trackRef}
-        className="flex min-w-0 w-full snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-1 [-webkit-overflow-scrolling:touch] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:gap-3.5 lg:gap-4"
-      >
+      <div className="flex min-w-0 w-full snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-1 [-webkit-overflow-scrolling:touch] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:gap-3.5 lg:gap-4">
         {items.map((item, index) => {
           const callbackUrl = encodeURIComponent(`/browse/content/${item.id}`);
           return (
@@ -111,7 +78,7 @@ export function LandingSpotlightSlider({ variant = "default" }: LandingSpotlight
                     src={item.posterUrl}
                     alt={item.title}
                     fill
-                    sizes={hero ? "(max-width: 640px) 164px, (max-width: 1024px) 144px, 160px" : "(max-width: 640px) 136px, 116px"}
+                    sizes={hero ? "(max-width: 640px) 180px, (max-width: 1024px) 160px, 176px" : "(max-width: 640px) 136px, 116px"}
                     className="object-cover transition duration-300 group-hover:scale-[1.03]"
                     unoptimized={item.posterUrl.includes(".gif")}
                   />
