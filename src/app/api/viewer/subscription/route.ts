@@ -9,7 +9,7 @@ import {
   isInitialSubscriptionPaymentPending,
   subscriptionNeedsReactivation,
 } from "@/lib/viewer-access";
-import { computeDiscountedAmount, promoGrantPeriodEnd, redeemPromoCode, resolvePromoCode } from "@/lib/promo-codes";
+import { computeDiscountedAmount, promoGrantPeriodEnd, redeemPromoCode, resolveUnusedPromoCode } from "@/lib/promo-codes";
 import { initializeCheckout } from "@/lib/payments/billing";
 import { getPaymentGateway } from "@/lib/payments/gateway";
 import { buildPaymentReturnUrl } from "@/lib/payments/return-url";
@@ -175,22 +175,9 @@ export async function POST(req: Request) {
     let finalPrice: number = basePrice;
 
     if (typeof body.promoCode === "string" && body.promoCode.trim()) {
-      const promoResult = await resolvePromoCode(body.promoCode, "VIEWER_SUBSCRIPTION");
+      const promoResult = await resolveUnusedPromoCode(body.promoCode, user.id, "VIEWER_SUBSCRIPTION");
       if ("error" in promoResult) {
         return NextResponse.json({ error: promoResult.error }, { status: 400 });
-      }
-      const alreadyUsed = await prisma.promoCodeRedemption.findUnique({
-        where: {
-          promoCodeId_userId_context: {
-            promoCodeId: promoResult.promo.id,
-            userId: user.id,
-            context: "VIEWER_SUBSCRIPTION",
-          },
-        },
-        select: { id: true },
-      });
-      if (alreadyUsed) {
-        return NextResponse.json({ error: "Promo code already used for this account." }, { status: 400 });
       }
       finalPrice = computeDiscountedAmount(basePrice, promoResult.promo);
       appliedPromo = {
@@ -343,22 +330,9 @@ export async function POST(req: Request) {
     const basePrice: number = planConfig.price;
     let finalPrice: number = basePrice;
     if (typeof body.promoCode === "string" && body.promoCode.trim()) {
-      const promoResult = await resolvePromoCode(body.promoCode, "VIEWER_SUBSCRIPTION");
+      const promoResult = await resolveUnusedPromoCode(body.promoCode, user.id, "VIEWER_SUBSCRIPTION");
       if ("error" in promoResult) {
         return NextResponse.json({ error: promoResult.error }, { status: 400 });
-      }
-      const alreadyUsed = await prisma.promoCodeRedemption.findUnique({
-        where: {
-          promoCodeId_userId_context: {
-            promoCodeId: promoResult.promo.id,
-            userId: user.id,
-            context: "VIEWER_SUBSCRIPTION",
-          },
-        },
-        select: { id: true },
-      });
-      if (alreadyUsed) {
-        return NextResponse.json({ error: "Promo code already used for this account." }, { status: 400 });
       }
       finalPrice = computeDiscountedAmount(basePrice, promoResult.promo);
       appliedPromo = {
@@ -538,22 +512,9 @@ export async function POST(req: Request) {
   const basePrice: number = planConfig.price;
   let finalPrice: number = basePrice;
   if (body && typeof body === "object" && typeof (body as { promoCode?: string }).promoCode === "string" && (body as { promoCode?: string }).promoCode?.trim()) {
-    const promoResult = await resolvePromoCode((body as { promoCode?: string }).promoCode ?? "", "VIEWER_SUBSCRIPTION");
+    const promoResult = await resolveUnusedPromoCode((body as { promoCode?: string }).promoCode ?? "", user.id, "VIEWER_SUBSCRIPTION");
     if ("error" in promoResult) {
       return NextResponse.json({ error: promoResult.error }, { status: 400 });
-    }
-    const alreadyUsed = await prisma.promoCodeRedemption.findUnique({
-      where: {
-        promoCodeId_userId_context: {
-          promoCodeId: promoResult.promo.id,
-          userId: user.id,
-          context: "VIEWER_SUBSCRIPTION",
-        },
-      },
-      select: { id: true },
-    });
-    if (alreadyUsed) {
-      return NextResponse.json({ error: "Promo code already used for this account." }, { status: 400 });
     }
     finalPrice = computeDiscountedAmount(basePrice, promoResult.promo);
     appliedPromo = {

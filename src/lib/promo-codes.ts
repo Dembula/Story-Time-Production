@@ -24,6 +24,32 @@ export async function resolvePromoCode(codeRaw: string, target: "VIEWER_SUBSCRIP
   return { promo };
 }
 
+/** Resolve a code and reject only if THIS account already redeemed THIS code. Other codes stay valid. */
+export async function resolveUnusedPromoCode(
+  codeRaw: string,
+  userId: string,
+  target: "VIEWER_SUBSCRIPTION" | "CREATOR_LICENSE",
+) {
+  const resolved = await resolvePromoCode(codeRaw, target);
+  if ("error" in resolved) return resolved;
+
+  const alreadyUsed = await prisma.promoCodeRedemption.findUnique({
+    where: {
+      promoCodeId_userId_context: {
+        promoCodeId: resolved.promo.id,
+        userId,
+        context: target,
+      },
+    },
+    select: { id: true },
+  });
+  if (alreadyUsed) {
+    return { error: "Promo code already used for this account." as const };
+  }
+
+  return resolved;
+}
+
 export function isPromoRedemptionUniqueError(error: unknown) {
   return (
     error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -81,17 +107,24 @@ export async function redeemPromoCode(input: RedeemPromoInput) {
     });
     if (alreadyUsed) return { ok: false as const, reason: "already_used" as const };
 
-    await tx.promoCodeRedemption.create({
-      data: {
-        promoCodeId: input.promoCodeId,
-        userId: input.userId,
-        context: input.context,
-        referenceId: input.referenceId ?? null,
-        discountAmount: input.discountAmount ?? null,
-        resultingPlan: input.resultingPlan ?? null,
-        ...(input.metadata !== undefined ? { metadata: input.metadata } : {}),
-      },
-    });
+    try {
+      await tx.promoCodeRedemption.create({
+        data: {
+          promoCodeId: input.promoCodeId,
+          userId: input.userId,
+          context: input.context,
+          referenceId: input.referenceId ?? null,
+          discountAmount: input.discountAmount ?? null,
+          resultingPlan: input.resultingPlan ?? null,
+          ...(input.metadata !== undefined ? { metadata: input.metadata } : {}),
+        },
+      });
+    } catch (error) {
+      if (isPromoRedemptionUniqueError(error)) {
+        return { ok: false as const, reason: "already_used" as const };
+      }
+      throw error;
+    }
     await tx.promoCode.update({
       where: { id: input.promoCodeId },
       data: { redemptionsCount: { increment: 1 } },

@@ -12,7 +12,7 @@ import {
   isFullyCompedPromo,
   promoGrantPeriodEnd,
   redeemPromoCode,
-  resolvePromoCode,
+  resolveUnusedPromoCode,
 } from "@/lib/promo-codes";
 import { initializeCheckout } from "@/lib/payments/billing";
 import { buildPaymentReturnUrl } from "@/lib/payments/return-url";
@@ -247,22 +247,9 @@ export async function POST(req: Request) {
   let appliedPromo: { id: string; code: string; kind: string; amount: number | null } | null = null;
   const promoCode = typeof body?.promoCode === "string" ? body.promoCode.trim() : "";
   if (promoCode) {
-    const promoResult = await resolvePromoCode(promoCode, "CREATOR_LICENSE");
+    const promoResult = await resolveUnusedPromoCode(promoCode, user.id, "CREATOR_LICENSE");
     if ("error" in promoResult) {
       return NextResponse.json({ error: promoResult.error }, { status: 400 });
-    }
-    const alreadyUsed = await prisma.promoCodeRedemption.findUnique({
-      where: {
-        promoCodeId_userId_context: {
-          promoCodeId: promoResult.promo.id,
-          userId: user.id,
-          context: "CREATOR_LICENSE",
-        },
-      },
-      select: { id: true },
-    });
-    if (alreadyUsed) {
-      return NextResponse.json({ error: "Promo code already used for this creator account." }, { status: 400 });
     }
     finalPrice = computeDiscountedAmount(basePrice, promoResult.promo);
     appliedPromo = {

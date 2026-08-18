@@ -3,7 +3,13 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { VIEWER_MODELS, VIEWER_PLAN_CONFIG } from "@/lib/viewer-access";
-import { computeDiscountedAmount, redeemPromoCode, resolvePromoCode } from "@/lib/promo-codes";
+import {
+  computeDiscountedAmount,
+  isFullyCompedPromo,
+  promoGrantPeriodEnd,
+  redeemPromoCode,
+  resolveUnusedPromoCode,
+} from "@/lib/promo-codes";
 import { initializeCheckout } from "@/lib/payments/billing";
 import { buildPaymentReturnUrl } from "@/lib/payments/return-url";
 import { addViewerSubscriptionPeriod } from "@/lib/payments/billing-interval";
@@ -93,46 +99,100 @@ export async function POST(req: Request) {
   if (!subscription) return NextResponse.json({ error: "Subscription not found" }, { status: 404 });
 
   const quote = quoteViewerPlanChange(subscription, planType, selectedViewerModel);
-  if (!quote.requiresCheckout && quote.chargeType === "none") {
-    if (quote.currentViewerModel === selectedViewerModel && quote.currentPlan === planType) {
-      return NextResponse.json({ error: "You are already on this plan." }, { status: 400 });
-    }
-  }
+  const samePlanNoCharge =
+    !quote.requiresCheckout &&
+    quote.chargeType === "none" &&
+    quote.currentViewerModel === selectedViewerModel &&
+    quote.currentPlan === planType;
 
-  let appliedPromo: { id: string; code: string } | null = null;
+  let appliedPromo: { id: string; code: string; kind: string; amount: number | null } | null = null;
+  let chargeBase = quote.chargeAmount;
   let finalPrice = quote.chargeAmount;
+  const promoInput = typeof body.promoCode === "string" ? body.promoCode.trim() : "";
 
-  if (
-    selectedViewerModel === VIEWER_MODELS.SUBSCRIPTION &&
-    quote.requiresCheckout &&
-    typeof body.promoCode === "string" &&
-    body.promoCode.trim()
-  ) {
-    const promoResult = await resolvePromoCode(body.promoCode, "VIEWER_SUBSCRIPTION");
+  if (selectedViewerModel === VIEWER_MODELS.SUBSCRIPTION && promoInput) {
+    const promoResult = await resolveUnusedPromoCode(promoInput, user.id, "VIEWER_SUBSCRIPTION");
     if ("error" in promoResult) {
       return NextResponse.json({ error: promoResult.error }, { status: 400 });
     }
-    const alreadyUsed = await prisma.promoCodeRedemption.findUnique({
-      where: {
-        promoCodeId_userId_context: {
-          promoCodeId: promoResult.promo.id,
-          userId: user.id,
-          context: "VIEWER_SUBSCRIPTION",
-        },
-      },
-      select: { id: true },
-    });
-    if (alreadyUsed) {
-      return NextResponse.json({ error: "Promo code already used for this account." }, { status: 400 });
-    }
-    finalPrice = computeDiscountedAmount(quote.chargeAmount, promoResult.promo);
-    appliedPromo = { id: promoResult.promo.id, code: promoResult.promo.code };
+    chargeBase = quote.requiresCheckout ? quote.chargeAmount : planConfig.price;
+    finalPrice = computeDiscountedAmount(chargeBase, promoResult.promo);
+    appliedPromo = {
+      id: promoResult.promo.id,
+      code: promoResult.promo.code,
+      kind: promoResult.promo.kind,
+      amount: promoResult.promo.amount ?? null,
+    };
+  }
+
+  if (samePlanNoCharge && !appliedPromo) {
+    return NextResponse.json({ error: "You are already on this plan." }, { status: 400 });
   }
 
   const now = new Date();
   const returnPath = safeReturnPath(body.returnPath, "/profiles");
 
-  if (!quote.requiresCheckout) {
+  if (appliedPromo && (finalPrice <= 0 || isFullyCompedPromo(appliedPromo))) {
+    const redemption = await redeemPromoCode({
+      promoCodeId: appliedPromo.id,
+      userId: user.id,
+      context: "VIEWER_SUBSCRIPTION",
+      referenceId: subscription.id,
+      discountAmount: Math.max(0, chargeBase - finalPrice),
+      resultingPlan: planType,
+      metadata: {
+        basePrice: chargeBase,
+        finalPrice: 0,
+        planChange: true,
+        chargeType: quote.chargeType,
+        fundingSource: "promo",
+      },
+    });
+    if (!redemption.ok) {
+      return NextResponse.json({ error: promoFailureMessage(redemption.reason) }, { status: 400 });
+    }
+
+    const grantFrom =
+      subscription.currentPeriodEnd && new Date(subscription.currentPeriodEnd) > now
+        ? new Date(subscription.currentPeriodEnd)
+        : now;
+    const grantEnd = promoGrantPeriodEnd(grantFrom, appliedPromo, "year");
+    const updated = await prisma.viewerSubscription.update({
+      where: { id: subscription.id },
+      data: {
+        viewerModel: VIEWER_MODELS.SUBSCRIPTION,
+        plan: planType,
+        deviceCount: planConfig.deviceCount,
+        profileLimit: planConfig.profileLimit,
+        billingEmail: user.email,
+        status: "ACTIVE",
+        trialEndsAt: null,
+        currentPeriodEnd: grantEnd,
+        lastPaymentStatus: "PROMO",
+        lastPaymentAt: now,
+        lastPaymentError: null,
+        cancelAtPeriodEnd: false,
+        renewalAttemptCount: 0,
+        pastDueSince: null,
+      },
+    });
+
+    return NextResponse.json({
+      subscription: updated,
+      quote: { ...quote, chargeAmount: 0 },
+      redirectTo: returnPath,
+      requiresPayment: false,
+      pricing: {
+        basePrice: chargeBase,
+        finalPrice: 0,
+        promoCode: appliedPromo.code,
+        discountAmount: Math.max(0, chargeBase - finalPrice),
+      },
+      message: "Promo applied. Your plan is active for the promo period — no payment was charged.",
+    });
+  }
+
+  if (!quote.requiresCheckout && !appliedPromo) {
     const updated = await prisma.viewerSubscription.update({
       where: { id: subscription.id },
       data:
@@ -211,10 +271,10 @@ export async function POST(req: Request) {
       userId: user.id,
       context: "VIEWER_SUBSCRIPTION",
       referenceId: subscription.id,
-      discountAmount: Math.max(0, quote.chargeAmount - finalPrice),
+      discountAmount: Math.max(0, chargeBase - finalPrice),
       resultingPlan: planType,
       metadata: {
-        basePrice: quote.chargeAmount,
+        basePrice: chargeBase,
         finalPrice,
         planChange: true,
         chargeType: quote.chargeType,
@@ -261,10 +321,10 @@ export async function POST(req: Request) {
       deferCheckout: true,
       checkoutUrl: checkout.checkout.checkoutUrl,
       pricing: {
-        basePrice: quote.chargeAmount,
+        basePrice: chargeBase,
         finalPrice,
         promoCode: appliedPromo?.code ?? null,
-        discountAmount: Math.max(0, quote.chargeAmount - finalPrice),
+        discountAmount: Math.max(0, chargeBase - finalPrice),
       },
       message:
         quote.chargeType === "upgrade_delta"
