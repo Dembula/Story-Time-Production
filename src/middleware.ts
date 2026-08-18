@@ -4,22 +4,9 @@ import type { NextRequest } from "next/server";
 import { signInUrlForDestination } from "@/lib/auth-sign-in-path";
 import { requiredRoleForProtectedPath } from "@/lib/platform-roles-shared";
 import { userHasPlatformRole } from "@/lib/user-roles-shared";
-import { headersWithInjectedSessionCookie, TV_CORS_HEADERS } from "@/lib/tv-auth-edge";
 
 export async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
-  const requestHeaders = headersWithInjectedSessionCookie(req);
-
-  // Samsung TV (and other packaged apps) authenticate with Authorization: Bearer
-  // because Tizen webviews cannot store NextAuth SameSite=Lax cookies on cross-origin fetch.
-  if (path.startsWith("/api/")) {
-    if (req.method === "OPTIONS") {
-      return new NextResponse(null, { status: 204, headers: TV_CORS_HEADERS });
-    }
-    const res = NextResponse.next({ request: { headers: requestHeaders } });
-    Object.entries(TV_CORS_HEADERS).forEach(([key, value]) => res.headers.set(key, value));
-    return res;
-  }
 
   // Title detail pages are browsable without completing viewer onboarding.
   if (/^\/browse\/content\/[^/]+$/.test(path)) {
@@ -129,7 +116,6 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    "/api/:path*",
     "/browse/content/:id",
     "/browse/account",
     "/browse/account/:path*",

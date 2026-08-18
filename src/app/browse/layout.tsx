@@ -39,12 +39,13 @@ export default async function BrowseLayout({
       if (!sub) {
         redirect("/onboarding/package");
       }
-      if (getViewerModel(sub) === "SUBSCRIPTION" && subscriptionNeedsReactivation(sub)) {
+      if (getViewerModel(sub) === "SUBSCRIPTION") {
         const stillProcessing = await hasPendingGatewayPayment("ViewerSubscription", sub.id);
-        if (!stillProcessing && !isAccountManagement) {
+        const needsPay = subscriptionNeedsReactivation(sub) || stillProcessing;
+        if (needsPay && !isAccountManagement) {
           redirect("/profiles?payment=required");
         }
-        subscriptionExpired = !stillProcessing;
+        subscriptionExpired = subscriptionNeedsReactivation(sub) && !stillProcessing;
       }
       const cookieStore = await cookies();
       const onboardingDeferred = cookieStore.get("st_onboarding_deferred")?.value === "1";

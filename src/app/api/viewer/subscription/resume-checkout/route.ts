@@ -8,6 +8,7 @@ import {
   getLatestViewerSubscription,
   getViewerModel,
   subscriptionNeedsReactivation,
+  subscriptionPaymentRequired,
 } from "@/lib/viewer-access";
 import { initializeCheckout } from "@/lib/payments/billing";
 import { buildPaymentReturnUrl } from "@/lib/payments/return-url";
@@ -40,7 +41,7 @@ export async function POST() {
     );
   }
 
-  if (!subscriptionNeedsReactivation(subscription)) {
+  if (!subscriptionNeedsReactivation(subscription) && !subscriptionPaymentRequired(subscription)) {
     return NextResponse.json({ error: "Your subscription does not require payment right now." }, { status: 400 });
   }
 

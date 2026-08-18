@@ -45,18 +45,17 @@ export function getViewerDeviceCount(subscription?: ViewerSubscriptionLike | nul
   return getViewerPlanConfig(subscription?.plan).deviceCount;
 }
 
-/** PayFast adhoc renewal awaiting ITN — keep catalogue access during processing. */
+/** PayFast checkout awaiting ITN — only treat as in-flight for a short window. */
 export function hasViewerRenewalPaymentInFlight(subscription?: ViewerSubscriptionLike | null): boolean {
   if (!subscription || getViewerModel(subscription) !== VIEWER_MODELS.SUBSCRIPTION) return false;
   if (subscription.lastPaymentStatus !== "PENDING") return false;
-  if (!subscription.lastPaymentAt) return true;
+  if (!subscription.lastPaymentAt) return false;
   const ageMs = Date.now() - new Date(subscription.lastPaymentAt).getTime();
-  return ageMs < 72 * 60 * 60 * 1000;
+  return ageMs >= 0 && ageMs < 20 * 60 * 1000;
 }
 
 export function isViewerSubscriptionExpired(subscription?: ViewerSubscriptionLike | null) {
   if (!subscription) return true;
-  if (hasViewerRenewalPaymentInFlight(subscription)) return false;
 
   if (getViewerModel(subscription) === VIEWER_MODELS.PPV) {
     return subscription.status === "PAST_DUE" || subscription.status === "CANCELLED";
@@ -85,7 +84,6 @@ export function isExpiredTrialSubscription(subscription?: ViewerSubscriptionLike
 /** Viewer must pay or pick a new plan (post-trial, failed renewal, cancelled, lapsed period). */
 export function subscriptionNeedsReactivation(subscription?: ViewerSubscriptionLike | null) {
   if (!subscription) return false;
-  if (hasViewerRenewalPaymentInFlight(subscription)) return false;
   if (subscription.status === "PAST_DUE" || subscription.status === "CANCELLED") return true;
   if (isExpiredTrialSubscription(subscription)) return true;
   if (subscription.status === "ACTIVE" && isViewerSubscriptionExpired(subscription)) return true;
@@ -104,11 +102,14 @@ export function hasBlockingActiveSubscription(subscription?: ViewerSubscriptionL
   return false;
 }
 
-/** Initial "Pay now" or failed renewal — payment must succeed before catalogue access. */
+/** Payment must succeed before catalogue access (lapsed, cancelled, expired trial, or past due). */
 export function subscriptionPaymentRequired(subscription?: ViewerSubscriptionLike | null) {
   if (!subscription) return false;
   if (getViewerModel(subscription) === VIEWER_MODELS.PPV) return false;
-  return subscription.status === "PAST_DUE";
+  if (subscription.status === "PAST_DUE" || subscription.status === "CANCELLED") return true;
+  if (isExpiredTrialSubscription(subscription)) return true;
+  if (subscription.status === "ACTIVE" && isViewerSubscriptionExpired(subscription)) return true;
+  return false;
 }
 
 /** First-time checkout abandoned or never completed — user should pick model/trial again, not resume PayFast. */

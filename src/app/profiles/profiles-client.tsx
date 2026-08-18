@@ -63,9 +63,9 @@ export function ProfilesClient({
   const [error, setError] = useState("");
   const [pinModalProfile, setPinModalProfile] = useState<Profile | null>(null);
   const [pinModalError, setPinModalError] = useState("");
-  const paymentPendingCheckout = paymentRequired || subscriptionStatus === "PAST_DUE";
-  const needsPlanReactivation = needsReactivation && !paymentPendingCheckout && !paymentStillProcessing;
-  const paymentBlocked = !paymentStillProcessing && (paymentPendingCheckout || needsPlanReactivation);
+  const paymentPendingCheckout = paymentRequired || needsReactivation || subscriptionStatus === "PAST_DUE" || subscriptionStatus === "CANCELLED";
+  const paymentBlocked = paymentPendingCheckout && !paymentStillProcessing;
+  const accessLocked = paymentPendingCheckout || paymentStillProcessing;
   const canCreateMore = profiles.length < maxProfiles;
   const { years, months } = getBirthDateOptionSets();
   const days = useMemo(() => {
@@ -96,6 +96,7 @@ export function ProfilesClient({
         }
         await new Promise((r) => setTimeout(r, 3000));
       }
+      if (!cancelled) router.refresh();
     };
     void poll();
     return () => {
@@ -154,8 +155,12 @@ export function ProfilesClient({
   }
 
   function requestProfile(profile: Profile) {
-    if (paymentBlocked) {
-      setError("Complete your subscription payment before entering the catalogue.");
+    if (accessLocked) {
+      setError(
+        paymentStillProcessing
+          ? "Please wait for PayFast to confirm your payment before entering the catalogue."
+          : "Complete your subscription payment before entering the catalogue.",
+      );
       return;
     }
     if (profile.pinEnabled) {
@@ -284,8 +289,8 @@ export function ProfilesClient({
         <div className="rounded-xl border border-orange-400/30 bg-orange-500/10 p-4 text-sm text-orange-100 shadow-panel">
           <p className="font-medium text-white">Subscription payment required</p>
           <p className="mt-1 text-orange-100/90">
-            {needsPlanReactivation
-              ? "Your trial or billing period has ended. Pay for your current plan to start watching again."
+            {needsReactivation
+              ? "Your trial or billing period has ended and auto-pay is not set up. Pay for your current plan to start watching again."
               : "Complete payment to activate your subscription and access the catalogue."}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -311,7 +316,7 @@ export function ProfilesClient({
         </div>
       )}
 
-      {accountDetailsIncomplete && !paymentBlocked ? (
+      {accountDetailsIncomplete && !accessLocked ? (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/12 bg-black px-4 py-3 shadow-panel">
           <p className="text-sm text-slate-300">
             Account details (email, phone, billing address) are not complete yet.
@@ -352,7 +357,7 @@ export function ProfilesClient({
             key={p.id}
             type="button"
             onClick={() => requestProfile(p)}
-            disabled={loading !== null || paymentBlocked}
+            disabled={loading !== null || accessLocked}
             className="storytime-section group p-5 text-left hover:-translate-y-1 hover:bg-white/[0.04] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <div className="flex items-start justify-between gap-3">

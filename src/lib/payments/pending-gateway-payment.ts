@@ -21,7 +21,10 @@ function itnMatchesPaymentRecord(fields: Record<string, string>, paymentRecordId
   return custom === paymentRecordId || mPaymentId === paymentRecordId;
 }
 
-/** True while PayFast checkout/renewal ITN is still expected for this entity. */
+/** Fresh checkout window — abandoned PayFast attempts must not look like a live confirmation. */
+export const FRESH_PENDING_PAYMENT_MS = 20 * 60 * 1000;
+
+/** True while a recent PayFast checkout/renewal ITN is still expected for this entity. */
 export async function hasPendingGatewayPayment(
   referenceType: string,
   referenceId: string,
@@ -31,8 +34,10 @@ export async function hasPendingGatewayPayment(
       relatedEntityType: referenceType,
       relatedEntityId: referenceId,
       status: "PENDING",
+      createdAt: { gte: new Date(Date.now() - FRESH_PENDING_PAYMENT_MS) },
     },
     select: { id: true },
+    orderBy: { createdAt: "desc" },
   });
   return Boolean(pending);
 }
