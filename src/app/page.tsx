@@ -4,9 +4,13 @@ import { authOptions } from "@/lib/auth";
 import { defaultHomeForRole } from "@/lib/auth-sign-in-path";
 import { LandingHeader } from "@/components/landing/LandingHeader";
 import { Hero } from "@/components/landing/Hero";
+import { Stats } from "@/components/landing/Stats";
+import { Features } from "@/components/landing/Features";
+import { Vision } from "@/components/landing/Vision";
 import { LandingCta } from "@/components/landing/LandingCta";
 import { Security } from "@/components/landing/Security";
 import { LandingFooter } from "@/components/landing/LandingFooter";
+import { PlatformMediaPrefetch } from "@/components/prefetch/platform-media-prefetch";
 
 export default async function HomePage() {
   const session = await getServerSession(authOptions);
@@ -23,9 +27,15 @@ export default async function HomePage() {
   if (session) redirect(defaultHomeForRole(session.user.role));
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-black text-white">
+    <div className="min-h-screen overflow-x-hidden bg-background text-white">
+      <PlatformMediaPrefetch entry />
+      <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(ellipse_65%_42%_at_50%_-12%,rgba(255,162,44,0.16),transparent_58%)]" />
+      <div className="pointer-events-none fixed inset-x-0 top-0 -z-10 h-80 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),transparent)]" />
       <LandingHeader />
       <Hero />
+      <Stats />
+      <Features />
+      <Vision />
       <LandingCta />
       <Security />
       <LandingFooter />

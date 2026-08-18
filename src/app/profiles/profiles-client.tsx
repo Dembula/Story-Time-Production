@@ -290,13 +290,13 @@ export function ProfilesClient({
           <p className="font-medium text-white">Subscription payment required</p>
           <p className="mt-1 text-orange-100/90">
             {needsReactivation
-              ? "Your trial or billing period has ended and auto-pay is not set up. Pay for your current plan to start watching again."
+              ? "Your trial or billing period has ended and auto-pay is not set up. Pay now to keep this plan, or switch plan to upgrade or downgrade household size."
               : "Complete payment to activate your subscription and access the catalogue."}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <SubscriptionResumeButton label="Pay now" className="inline-flex rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-400 disabled:opacity-60" />
             <Link
-              href="/browse/account/change-plan"
+              href="/onboarding/package"
               onClick={() => {
                 if (typeof window !== "undefined") {
                   sessionStorage.removeItem("st_pending_viewer_checkout");

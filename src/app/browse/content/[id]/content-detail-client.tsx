@@ -707,7 +707,7 @@ export function ContentDetailClient({
               <p className="mx-auto mb-8 max-w-md text-slate-400">
                 Pay Per View only unlocks one title at a time. Switch this viewer account to a subscription plan for full catalogue access.
               </p>
-              <Link href="/browse/account/change-plan" className="inline-flex rounded-lg viewer-btn-primary px-8 py-3.5 font-semibold transition">
+              <Link href="/onboarding/package" className="inline-flex rounded-lg viewer-btn-primary px-8 py-3.5 font-semibold transition">
                 Choose a subscription plan
               </Link>
             </div>

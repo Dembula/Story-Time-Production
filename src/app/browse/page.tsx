@@ -14,6 +14,7 @@ import { getViewerProfileAge } from "@/lib/viewer-profiles";
 import { VIEWER_MODELS } from "@/lib/viewer-access";
 import { packBrowseContentList } from "@/lib/browse-media-pack";
 import { contentTypePluralLabel } from "@/lib/content-types";
+import { PlatformMediaPrefetch } from "@/components/prefetch/platform-media-prefetch";
 
 /** Catalogue must reflect admin publish/unpublish immediately. */
 export const dynamic = "force-dynamic";
@@ -248,8 +249,30 @@ export default async function BrowsePage({
   const heroContent =
     mostPopular.length > 0 ? heroMapped.slice(0, 5) : featured;
 
+  const prefetchCatalog = [
+    ...heroContent,
+    ...featured,
+    ...mostPopular,
+    ...trending,
+    ...movies,
+    ...series,
+    ...animated,
+    ...documentaries,
+    ...shows,
+    ...podcasts,
+  ]
+    .filter((item, index, all) => all.findIndex((x) => x.id === item.id) === index)
+    .slice(0, 60)
+    .map((item) => ({
+      id: item.id,
+      posterUrl: item.posterUrl,
+      backdropUrl: item.backdropUrl ?? null,
+      videoUrl: item.videoUrl ?? null,
+    }));
+
   return (
     <div className="pb-16">
+      <PlatformMediaPrefetch items={prefetchCatalog} limit={60} deferMs={2200} />
       {loadError && (
         <div className="max-w-[1800px] mx-auto px-6 md:px-12 pt-4">
           <div className="rounded-2xl border border-amber-400/22 bg-amber-500/10 p-4 text-sm text-amber-100 shadow-panel">

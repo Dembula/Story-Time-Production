@@ -13,6 +13,7 @@ export function useContentPrefetch() {
       videoUrl?: string | null;
       trailerUrl?: string | null;
       posterUrl?: string | null;
+      backdropUrl?: string | null;
     }) => {
       prefetchOnContentHover(payload, router);
     },

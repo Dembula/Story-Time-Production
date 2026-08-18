@@ -30,6 +30,12 @@ function promoFailureMessage(reason: string) {
   }
 }
 
+function safeReturnPath(value: unknown, fallback = "/profiles") {
+  if (typeof value !== "string") return fallback;
+  if (!value.startsWith("/") || value.startsWith("//") || value.includes("://")) return fallback;
+  return value;
+}
+
 async function loadSubscriptionForUser(email: string) {
   const user = await prisma.user.findUnique({
     where: { email },
@@ -124,7 +130,7 @@ export async function POST(req: Request) {
   }
 
   const now = new Date();
-  const returnPath = "/browse/account?updated=1";
+  const returnPath = safeReturnPath(body.returnPath, "/profiles");
 
   if (!quote.requiresCheckout) {
     const updated = await prisma.viewerSubscription.update({

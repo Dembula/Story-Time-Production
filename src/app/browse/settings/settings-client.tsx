@@ -938,7 +938,7 @@ export function SettingsClient() {
         <p className="mb-4 text-sm text-slate-400">
           Current package: {subscription?.plan ?? "N/A"} · {subscription?.deviceCount ?? 1} devices · {subscription?.profileLimit ?? 1} profiles
         </p>
-        <Link href="/browse/account/change-plan" className="inline-flex rounded-xl viewer-btn-primary px-4 py-2.5 text-sm font-semibold">
+        <Link href="/onboarding/package" className="inline-flex rounded-xl viewer-btn-primary px-4 py-2.5 text-sm font-semibold">
           Change package
         </Link>
       </section>

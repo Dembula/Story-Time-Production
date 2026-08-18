@@ -154,12 +154,12 @@ export function AccountClient({
         <div className="rounded-2xl border border-orange-400/28 bg-orange-500/10 p-6 shadow-panel">
           <h2 className="text-lg font-semibold text-white mb-1">Your subscription has ended</h2>
           <p className="text-slate-300 text-sm mb-4">
-            Pay for your current plan to restore access immediately. To switch packages, use change plan after payment.
+            Pay for your current plan to restore access immediately, or switch household size and pay for a different package.
           </p>
           <div className="flex flex-wrap gap-3">
             <SubscriptionResumeButton />
             <Link
-              href="/browse/account/change-plan"
+              href="/onboarding/package"
               className="inline-flex rounded-xl border border-white/15 bg-white/[0.04] px-5 py-2.5 text-sm font-medium text-slate-200 hover:bg-white/[0.07]"
             >
               Switch plan
@@ -232,7 +232,7 @@ export function AccountClient({
               Trial ends {new Date(subscription.trialEndsAt).toLocaleDateString()}. You can switch to a paid plan early or keep watching until the trial ends.
             </p>
             <Link
-              href="/browse/account/change-plan"
+              href="/onboarding/package"
               className="mt-3 inline-flex rounded-lg bg-cyan-500/20 px-4 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/30"
             >
               View plans &amp; pay now
@@ -258,7 +258,7 @@ export function AccountClient({
           </div>
         ) : null}
         <div className="mt-4 flex flex-wrap gap-3">
-          <Link href="/browse/account/change-plan" className="inline-flex items-center gap-2 rounded-xl bg-orange-500/12 px-4 py-2.5 text-sm font-medium text-orange-300 hover:bg-orange-500/18">
+          <Link href="/onboarding/package" className="inline-flex items-center gap-2 rounded-xl bg-orange-500/12 px-4 py-2.5 text-sm font-medium text-orange-300 hover:bg-orange-500/18">
             <RefreshCw className="w-4 h-4" /> {isPpv ? "Change viewer model" : "Change plan"}
           </Link>
           {!isPpv && (

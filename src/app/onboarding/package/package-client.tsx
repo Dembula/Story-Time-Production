@@ -86,6 +86,7 @@ type ViewerModel = "SUBSCRIPTION" | "PPV";
 
 type PackageClientProps = {
   reactivationMode?: boolean;
+  existingSubscription?: boolean;
   initialViewerModel?: ViewerModel;
   initialPlan?: string;
 };
@@ -101,6 +102,7 @@ function resolveInitialPlan(plan?: string): string {
 
 export function PackageClient({
   reactivationMode = false,
+  existingSubscription = false,
   initialViewerModel,
   initialPlan,
 }: PackageClientProps) {
@@ -110,19 +112,20 @@ export function PackageClient({
   );
   const [selected, setSelected] = useState<string>(resolveInitialPlan(initialPlan));
   const [expanded, setExpanded] = useState<string | null>(resolveInitialPlan(initialPlan));
-  const [startTrial, setStartTrial] = useState(!reactivationMode);
+  const [startTrial, setStartTrial] = useState(!reactivationMode && !existingSubscription);
   const [promoCode, setPromoCode] = useState("");
   const [promoMessage, setPromoMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [checkoutUrl, setCheckoutUrl] = useState("");
   const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [redirectAfterCheckout, setRedirectAfterCheckout] = useState("/onboarding/account");
 
   const selectedPlan = PLANS.find((plan) => plan.id === selected) ?? PLANS[0];
+  const changingExistingPlan = existingSubscription;
+  const fallbackRedirect = changingExistingPlan ? "/profiles" : "/onboarding/account";
 
   const checkoutMandatory =
-    reactivationMode || (viewerModel === "SUBSCRIPTION" && !startTrial);
+    reactivationMode || changingExistingPlan || (viewerModel === "SUBSCRIPTION" && !startTrial);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -130,15 +133,27 @@ export function PackageClient({
     setPromoMessage("");
     setLoading(true);
     try {
-      const res = await fetch("/api/viewer/subscription", {
+      const endpoint = changingExistingPlan
+        ? "/api/viewer/subscription/change-plan"
+        : "/api/viewer/subscription";
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          viewerModel,
-          plan: viewerModel === "SUBSCRIPTION" ? selected : PPV_PLAN.id,
-          startTrial: viewerModel === "SUBSCRIPTION" && !reactivationMode ? startTrial : false,
-          promoCode: viewerModel === "SUBSCRIPTION" ? promoCode : undefined,
-        }),
+        body: JSON.stringify(
+          changingExistingPlan
+            ? {
+                viewerModel,
+                plan: viewerModel === "SUBSCRIPTION" ? selected : PPV_PLAN.id,
+                promoCode: viewerModel === "SUBSCRIPTION" ? promoCode : undefined,
+                returnPath: "/profiles",
+              }
+            : {
+                viewerModel,
+                plan: viewerModel === "SUBSCRIPTION" ? selected : PPV_PLAN.id,
+                startTrial: viewerModel === "SUBSCRIPTION" && !reactivationMode ? startTrial : false,
+                promoCode: viewerModel === "SUBSCRIPTION" ? promoCode : undefined,
+              },
+        ),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Failed");
@@ -149,7 +164,6 @@ export function PackageClient({
       if (data?.deferCheckout && typeof data?.checkoutUrl === "string" && data.checkoutUrl) {
         sessionStorage.setItem("st_pending_viewer_checkout", data.checkoutUrl);
         setCheckoutUrl(data.checkoutUrl);
-        setRedirectAfterCheckout(typeof data?.redirectTo === "string" ? data.redirectTo : "/onboarding/account");
         setCheckoutOpen(true);
         return;
       }
@@ -157,7 +171,6 @@ export function PackageClient({
       if (data?.requiresPayment) {
         if (typeof data?.checkoutUrl === "string" && data.checkoutUrl) {
           setCheckoutUrl(data.checkoutUrl);
-          setRedirectAfterCheckout(typeof data?.redirectTo === "string" ? data.redirectTo : "/onboarding/account");
           setCheckoutOpen(true);
           return;
         }
@@ -176,7 +189,7 @@ export function PackageClient({
         }
       }
 
-      router.push(typeof data?.redirectTo === "string" ? data.redirectTo : "/onboarding/account");
+      router.push(typeof data?.redirectTo === "string" ? data.redirectTo : fallbackRedirect);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -191,11 +204,17 @@ export function PackageClient({
         open={checkoutOpen}
         checkoutUrl={checkoutUrl}
         dismissible={!checkoutMandatory}
-        title={reactivationMode ? "Complete subscription payment" : "Complete viewer subscription payment"}
+        title={
+          reactivationMode || changingExistingPlan
+            ? "Complete subscription payment"
+            : "Complete viewer subscription payment"
+        }
         subtitle={
           reactivationMode
             ? "Finish payment to restart your subscription and resume watching."
-            : "Finish secure payment to activate your package."
+            : changingExistingPlan
+              ? "Finish payment to switch household size or viewer model."
+              : "Finish secure payment to activate your package."
         }
         onClose={() => setCheckoutOpen(false)}
       />
@@ -213,7 +232,7 @@ export function PackageClient({
             <Sparkles className="h-4 w-4" /> Flexible access
           </p>
           <p className="mt-1 text-sm text-slate-300">
-            Choose shared household access or a one-profile PPV account during onboarding.
+            Choose shared household access or a one-profile PPV account. Switch size anytime.
           </p>
         </div>
         <div className="storytime-kpi p-4">
@@ -445,7 +464,9 @@ export function PackageClient({
             {viewerModel === "SUBSCRIPTION"
               ? reactivationMode
                 ? "Full catalogue access resumes as soon as payment is confirmed."
-                : "Access to all films, series, shows, podcasts, and music. Start with a 7-day free trial with no charge until it ends."
+                : changingExistingPlan
+                  ? "Switch household size or viewer model here. Payment is only taken when the new package requires it."
+                  : "Access to all films, series, shows, podcasts, and music. Start with a 7-day free trial with no charge until it ends."
               : "Create one viewer profile first, then browse the catalogue and pay only when you unlock an eligible title."}
           </p>
           <div className="mt-5 space-y-3 text-sm text-slate-300">
@@ -465,7 +486,7 @@ export function PackageClient({
         </div>
       </div>
 
-      {viewerModel === "SUBSCRIPTION" && !reactivationMode ? (
+      {viewerModel === "SUBSCRIPTION" && !reactivationMode && !changingExistingPlan ? (
         <div className="storytime-section p-6">
           <p className="text-sm font-medium text-slate-300">Billing start</p>
           <p className="mt-2 text-sm text-slate-400">
@@ -563,11 +584,13 @@ export function PackageClient({
         {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
         {viewerModel === "SUBSCRIPTION"
           ? reactivationMode
-            ? "Activate subscription"
-            : startTrial
-              ? "Start 7-day free trial"
-              : "Pay now"
-          : reactivationMode
+            ? "Pay and activate this plan"
+            : changingExistingPlan
+              ? "Switch to this plan"
+              : startTrial
+                ? "Start 7-day free trial"
+                : "Pay now"
+          : changingExistingPlan
             ? "Switch to PPV"
             : "Continue with PPV"}
       </button>

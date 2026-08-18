@@ -56,7 +56,7 @@ export default async function BrowseLayout({
       if (!activeProfileId && !isAccountManagement) {
         redirect("/profiles");
       }
-      if (user?.id && activeProfileId) {
+      if (user?.id && activeProfileId && !isAccountManagement) {
         const unlocked = await isViewerProfilePinUnlocked(user.id, activeProfileId, cookieStore);
         if (!unlocked) {
           redirect("/profiles?verify=1");

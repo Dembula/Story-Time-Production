@@ -13,7 +13,24 @@ type PrefetchPayload = {
   videoUrl?: string | null;
   trailerUrl?: string | null;
   posterUrl?: string | null;
+  backdropUrl?: string | null;
 };
+
+const warmedImages = new Set<string>();
+
+function scheduleIdle(task: () => void) {
+  if (typeof window === "undefined") return;
+  const ric = (
+    window as Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+    }
+  ).requestIdleCallback;
+  if (typeof ric === "function") {
+    ric(() => task(), { timeout: 1800 });
+    return;
+  }
+  window.setTimeout(task, 120);
+}
 
 /** Speculative route prefetch (Next.js router). */
 export function prefetchBrowseRoute(href: string, router?: { prefetch: (url: string) => void }) {
@@ -83,12 +100,44 @@ function warmMediaOrigin(url: string) {
   }
 }
 
-/** Preload poster / thumbnail image. */
+/** Preload poster / backdrop / thumbnail image into the browser cache. */
 export function warmThumbnail(url: string | null | undefined) {
   if (!url || typeof window === "undefined") return;
+  const trimmed = url.trim();
+  if (!trimmed || warmedImages.has(trimmed)) return;
+  warmedImages.add(trimmed);
+  try {
+    warmMediaOrigin(trimmed);
+  } catch {
+    // ignore bad URLs
+  }
   const img = new Image();
   img.decoding = "async";
-  img.src = url;
+  img.src = trimmed;
+}
+
+/** Warm a batch of media URLs during idle time (posters, backdrops, etc.). */
+export function warmMediaUrls(urls: Array<string | null | undefined>, limit = 36) {
+  if (typeof window === "undefined") return;
+  const unique = Array.from(
+    new Set(
+      urls
+        .map((u) => u?.trim())
+        .filter((u): u is string => {
+          if (!u) return false;
+          return /^https?:\/\//i.test(u) || u.startsWith("/");
+        }),
+    ),
+  ).slice(0, limit);
+
+  if (!unique.length) return;
+
+  scheduleIdle(() => {
+    // Stagger slightly so one large hero decode isn't starved by a burst of row posters.
+    unique.forEach((url, index) => {
+      window.setTimeout(() => warmThumbnail(url), index * 40);
+    });
+  });
 }
 
 /** Fetch lightweight metadata for instant detail overlay. */
@@ -114,9 +163,51 @@ export function prefetchOnContentHover(
 
   prefetchBrowseRoute(detailHref, router);
   warmThumbnail(payload.posterUrl);
+  warmThumbnail(payload.backdropUrl);
   void warmContentMetadata(payload.contentId);
 
   if (payload.videoUrl) {
     prefetchBrowseRoute(watchHref, router);
   }
+}
+
+/**
+ * Warm landing + browse entry points while the splash/bar is up or on first paint:
+ * spotlight posters, common auth/browse routes, and brand assets.
+ */
+export function warmPlatformEntryAssets(router?: { prefetch: (url: string) => void }) {
+  if (typeof window === "undefined") return;
+
+  prefetchBrowseRoute("/browse", router);
+  prefetchBrowseRoute("/auth/signin", router);
+  prefetchBrowseRoute("/auth/signup", router);
+  prefetchBrowseRoute("/auth/creator/signup", router);
+  warmThumbnail("/st-mark.png");
+  warmThumbnail("/logo.png");
+  warmPlatformIntroAssets();
+
+  scheduleIdle(() => {
+    void (async () => {
+      try {
+        const res = await fetch("/api/landing/spotlight", { cache: "force-cache" });
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          items?: Array<{ id?: string; posterUrl?: string | null }>;
+        };
+        const items = Array.isArray(data.items) ? data.items : [];
+        warmMediaUrls(
+          items.map((item) => item.posterUrl),
+          24,
+        );
+        for (const item of items.slice(0, 6)) {
+          if (item.id) {
+            prefetchBrowseRoute(`/browse/content/${item.id}`, router);
+            void warmContentMetadata(item.id);
+          }
+        }
+      } catch {
+        // Non-blocking
+      }
+    })();
+  });
 }
