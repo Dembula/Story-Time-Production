@@ -54,11 +54,10 @@ export function LandingSpotlightSlider({ variant = "default" }: LandingSpotlight
 
   if (!items?.length) return null;
 
-  // Fixed rem widths (not vw) so the row never widens the page. Mobile hero cards
-  // are sized to fill ~2 posters across a phone — not four skinny “half squares”.
+  // Fixed rem widths so the row never widens the page. Mobile shows ~2.5 posters.
   const cardClass = hero
-    ? "group relative block shrink-0 snap-start overflow-hidden w-[10.25rem] min-w-[10.25rem] max-w-[10.25rem] sm:w-[9rem] sm:min-w-[9rem] sm:max-w-[9rem] lg:w-[10rem] lg:min-w-[10rem] lg:max-w-[10rem]"
-    : "group relative block shrink-0 snap-start overflow-hidden w-[8.5rem] min-w-[8.5rem] max-w-[8.5rem] sm:w-[7.25rem] sm:min-w-[7.25rem] sm:max-w-[7.25rem]";
+    ? "group relative block shrink-0 snap-start overflow-hidden w-[6.5rem] min-w-[6.5rem] max-w-[6.5rem] sm:w-[8.25rem] sm:min-w-[8.25rem] sm:max-w-[8.25rem] lg:w-[9.5rem] lg:min-w-[9.5rem] lg:max-w-[9.5rem]"
+    : "group relative block shrink-0 snap-start overflow-hidden w-[5.75rem] min-w-[5.75rem] max-w-[5.75rem] sm:w-[7.25rem] sm:min-w-[7.25rem] sm:max-w-[7.25rem]";
 
   return (
     <section
@@ -67,7 +66,7 @@ export function LandingSpotlightSlider({ variant = "default" }: LandingSpotlight
     >
       <div className="mb-4 flex items-end justify-between gap-3">
         <div className="min-w-0 flex-1 text-left">
-          <p className="text-[10px] font-medium uppercase tracking-[0.28em] text-orange-300/75">Top 10</p>
+          <p className="text-[10px] font-medium uppercase tracking-[0.28em] text-slate-500">Top 10</p>
           <h2 className={`mt-1 font-display font-semibold text-white ${hero ? "text-xl sm:text-2xl" : "text-lg"}`}>
             On Story Time
           </h2>
@@ -76,7 +75,7 @@ export function LandingSpotlightSlider({ variant = "default" }: LandingSpotlight
           <button
             type="button"
             onClick={() => scrollBy(-1)}
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-orange-400/20 bg-orange-500/10 text-orange-200 transition hover:border-orange-300/35 hover:bg-orange-500/18 hover:text-white"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
             aria-label="Previous title"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -84,7 +83,7 @@ export function LandingSpotlightSlider({ variant = "default" }: LandingSpotlight
           <button
             type="button"
             onClick={() => scrollBy(1)}
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-orange-400/20 bg-orange-500/10 text-orange-200 transition hover:border-orange-300/35 hover:bg-orange-500/18 hover:text-white"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
             aria-label="Next title"
           >
             <ChevronRight className="h-4 w-4" />
@@ -105,13 +104,13 @@ export function LandingSpotlightSlider({ variant = "default" }: LandingSpotlight
               data-spotlight-card
               className={cardClass}
             >
-              <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg border border-orange-400/15 bg-white/[0.03] transition group-hover:border-orange-300/35">
+              <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg border border-white/[0.08] bg-white/[0.03] transition group-hover:border-white/20">
                 {item.posterUrl ? (
                   <Image
                     src={item.posterUrl}
                     alt={item.title}
                     fill
-                    sizes={hero ? "(max-width: 640px) 164px, (max-width: 1024px) 144px, 160px" : "(max-width: 640px) 136px, 116px"}
+                    sizes={hero ? "(max-width: 640px) 104px, (max-width: 1024px) 132px, 152px" : "(max-width: 640px) 92px, 116px"}
                     className="object-cover transition duration-300 group-hover:scale-[1.03]"
                     unoptimized={item.posterUrl.includes(".gif")}
                   />
@@ -123,7 +122,7 @@ export function LandingSpotlightSlider({ variant = "default" }: LandingSpotlight
                   </div>
                 )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-transparent" />
-                <span className="absolute bottom-1.5 left-1.5 font-display text-4xl font-bold leading-none text-orange-200 drop-shadow-[0_2px_10px_rgba(0,0,0,0.95)] sm:text-4xl">
+                <span className="absolute bottom-1.5 left-1.5 font-display text-3xl font-bold leading-none text-white/90 drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)] sm:text-4xl">
                   {index + 1}
                 </span>
               </div>
