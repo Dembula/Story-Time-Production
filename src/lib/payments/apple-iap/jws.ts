@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createPublicKey, createVerify, X509Certificate } from "node:crypto";
+import { createVerify, X509Certificate, type KeyObject } from "node:crypto";
 import { allowedAppleBundleIds } from "@/lib/payments/apple-iap/products";
 
 export type AppleTransactionPayload = {
@@ -91,18 +91,27 @@ export function verifyAppleTransactionJws(jws: string): VerifiedAppleTransaction
   }
 
   const cert = new X509Certificate(Buffer.from(leafDer, "base64"));
-  const keyObject = createPublicKey(cert.publicKey);
+  // Node 22+: cert.publicKey is already a PublicKeyObject. Passing it to
+  // createPublicKey() throws "Invalid key object type public, expected private"
+  // and was breaking iOS subscribe / restore after Apple charged the user.
+  const keyObject = cert.publicKey as KeyObject;
   const verifier = createVerify("SHA256");
   verifier.update(`${headerB64}.${payloadB64}`);
   verifier.end();
   const signature = Buffer.from(sigB64, "base64url");
-  const ok = verifier.verify(
-    {
-      key: keyObject,
-      dsaEncoding: "ieee-p1363",
-    },
-    signature,
-  );
+  let ok = false;
+  try {
+    ok = verifier.verify(
+      {
+        key: keyObject,
+        dsaEncoding: "ieee-p1363",
+      },
+      signature,
+    );
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : "unknown crypto error";
+    throw new Error(`Apple JWS signature verification failed (${detail})`);
+  }
   if (!ok) {
     throw new Error("Apple JWS signature verification failed");
   }

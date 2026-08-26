@@ -89,6 +89,9 @@ export function AdminOverviewClient() {
   const ipEntries = stats?.ipAddresses ? Object.entries(stats.ipAddresses) as [string, { count: number; lastSeen: string; users: string[] }][] : [];
   const deviceEntries = stats?.deviceBreakdown ? Object.entries(stats.deviceBreakdown) as [string, number][] : [];
   const signInEntries = stats?.signInsByRole ? Object.entries(stats.signInsByRole) as [string, number][] : [];
+  const signInDeviceEntries = stats?.signInsByDevice
+    ? (Object.entries(stats.signInsByDevice) as [string, number][])
+    : [];
 
   async function sendMonthlyUpdateNow() {
     setMonthlySendState({ loading: true });
@@ -339,25 +342,47 @@ export function AdminOverviewClient() {
         )}
       </div>
 
-      {/* Sign-ins by Role */}
-      {signInEntries.length > 0 && (
+      {/* Sign-ins by Role + Device */}
+      {(signInEntries.length > 0 || signInDeviceEntries.length > 0) && (
         <Card className="storytime-section mb-10">
           <CardHeader>
             <CardTitle className="text-white flex items-center justify-between gap-2">
-              <span className="flex items-center gap-2"><Activity className="w-5 h-5 text-violet-400" /> Sign-ins by Role</span>
+              <span className="flex items-center gap-2"><Activity className="w-5 h-5 text-violet-400" /> Sign-ins</span>
               <Link href="/admin/activity" className="text-xs font-medium text-orange-300 hover:text-orange-200">Full activity log →</Link>
             </CardTitle>
-            <p className="text-sm text-slate-400">Sign-in events in the last 90 days (from database)</p>
+            <p className="text-sm text-slate-400">
+              Sign-in events in the last 90 days — by role and by device (web, iOS, Android, TV).
+            </p>
           </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-4">
-              {signInEntries.map(([role, count]) => (
-                <div key={role} className="storytime-panel min-w-[140px] rounded-xl p-4">
-                  <p className="text-sm text-slate-400 font-medium">{role.replace(/_/g, " ")}</p>
-                  <p className="text-2xl font-bold text-white mt-1">{count}</p>
+          <CardContent className="space-y-6">
+            {signInEntries.length > 0 && (
+              <div>
+                <p className="text-xs uppercase tracking-wider text-slate-500 mb-3">By role</p>
+                <div className="flex flex-wrap gap-4">
+                  {signInEntries.map(([role, count]) => (
+                    <div key={role} className="storytime-panel min-w-[140px] rounded-xl p-4">
+                      <p className="text-sm text-slate-400 font-medium">{role.replace(/_/g, " ")}</p>
+                      <p className="text-2xl font-bold text-white mt-1">{count}</p>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </div>
+            )}
+            {signInDeviceEntries.length > 0 && (
+              <div>
+                <p className="text-xs uppercase tracking-wider text-slate-500 mb-3">By device</p>
+                <div className="flex flex-wrap gap-4">
+                  {signInDeviceEntries
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([device, count]) => (
+                      <div key={device} className="storytime-panel min-w-[140px] rounded-xl p-4">
+                        <p className="text-sm text-slate-400 font-medium capitalize">{device}</p>
+                        <p className="text-2xl font-bold text-white mt-1">{count}</p>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
