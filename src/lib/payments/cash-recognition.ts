@@ -31,6 +31,11 @@ export function isDemoPaymentRecord(payment: PaymentLike): boolean {
   if (meta.gateway === "demo" || meta.provider === "demo") return true;
   const ref = String(meta.gatewayReference ?? "");
   if (ref.startsWith("demo-") || ref.startsWith("pf-demo")) return true;
+  // StoreKit Sandbox / Xcode — not real App Store cash.
+  if (provider === "APPLE") {
+    const env = String(meta.environment ?? "").toLowerCase();
+    if (env === "sandbox" || env === "xcode" || env === "localtesting") return true;
+  }
   return false;
 }
 
@@ -60,9 +65,17 @@ export function isCashRecognizedPayment(payment: PaymentLike): boolean {
 
   const provider = String(payment.provider ?? "").toUpperCase();
   const settlementSource = String(payment.settlementSource ?? "").toLowerCase();
-  // Live PayFast (ITN or estimated settlement) only — STITCH/DEMO/legacy do not count as cash.
+  // Live PayFast (ITN or estimated settlement) and verified Apple IAP.
+  // STITCH/DEMO/legacy do not count as cash.
   if (provider === "PAYFAST") return true;
-  if (settlementSource === "itn" || settlementSource === "estimated") return true;
+  if (provider === "APPLE") return true;
+  if (
+    settlementSource === "itn" ||
+    settlementSource === "estimated" ||
+    settlementSource === "apple_iap"
+  ) {
+    return true;
+  }
   return false;
 }
 

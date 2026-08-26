@@ -10,6 +10,7 @@ const TELEMETRY_LOOKBACK_DAYS = 90;
 type IpAggRow = { ipAddress: string; count: bigint; lastSeen: Date; userSample: string | null };
 type DeviceAggRow = { deviceType: string; count: bigint };
 type SignInRoleRow = { role: string; count: bigint };
+type SignInDeviceRow = { deviceType: string; count: bigint };
 type WatchAggRow = { distinctUsers: bigint; totalSeconds: bigint | null };
 
 export async function GET() {
@@ -43,6 +44,7 @@ export async function GET() {
     ipRows,
     deviceRows,
     signInRoleRows,
+    signInDeviceRows,
     watchAgg,
   ] = await Promise.all([
     prisma.content.groupBy({ by: ["type"], _count: { id: true } }),
@@ -99,6 +101,14 @@ export async function GET() {
         AND a."createdAt" >= ${telemetrySince}
       GROUP BY a."role"
     `),
+    prisma.$queryRaw<SignInDeviceRow[]>(Prisma.sql`
+      SELECT COALESCE(a."deviceType", 'unknown') AS "deviceType", COUNT(*)::bigint AS count
+      FROM "ActivityLog" a
+      WHERE a."eventType" = 'SIGN_IN'
+        AND a."createdAt" >= ${telemetrySince}
+      GROUP BY COALESCE(a."deviceType", 'unknown')
+      ORDER BY count DESC
+    `),
     prisma.$queryRaw<WatchAggRow[]>(Prisma.sql`
       SELECT
         COUNT(DISTINCT "userId")::bigint AS "distinctUsers",
@@ -131,6 +141,11 @@ export async function GET() {
     signInsByRole[row.role] = Number(row.count);
   }
 
+  const signInsByDevice: Record<string, number> = {};
+  for (const row of signInDeviceRows) {
+    if (row.deviceType) signInsByDevice[row.deviceType] = Number(row.count);
+  }
+
   const wa = watchAgg[0];
   const watcherCount = wa ? Number(wa.distinctUsers) : 0;
   const totalSecondsInPeriod = wa ? Number(wa.totalSeconds ?? 0) : 0;
@@ -155,6 +170,7 @@ export async function GET() {
     ipAddresses,
     deviceBreakdown,
     signInsByRole,
+    signInsByDevice,
     avgWatchTimePerUser: avgWatchTime,
     uniqueWatchers: watcherCount,
     telemetrySince: telemetrySince.toISOString(),

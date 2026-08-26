@@ -1,5 +1,8 @@
 import type { NextRequest } from "next/server";
-import { inferDeviceTypeFromUserAgent } from "@/lib/client-device-type";
+import {
+  inferDeviceTypeFromPlatformHeader,
+  inferDeviceTypeFromUserAgent,
+} from "@/lib/client-device-type";
 
 /**
  * Resolves the visitor’s public IP from request headers set by **trusted edges**
@@ -51,6 +54,12 @@ export function getUserAgentFromRequest(req: NextRequest): string | null {
   return req.headers.get("user-agent");
 }
 
+export function getPlatformHeaderFromRequest(req: NextRequest): string | null {
+  return req.headers.get("x-st-platform")?.trim() || null;
+}
+
 export function getDeviceTypeForRequest(req: NextRequest): string {
+  const fromPlatform = inferDeviceTypeFromPlatformHeader(getPlatformHeaderFromRequest(req));
+  if (fromPlatform) return fromPlatform;
   return inferDeviceTypeFromUserAgent(getUserAgentFromRequest(req));
 }
