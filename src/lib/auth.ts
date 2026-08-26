@@ -14,6 +14,7 @@ import { getPortalScopeForRole } from "./platform-roles-shared";
 import { resolveRoleSwitch } from "./platform-roles";
 import { getPayoutKycStatus, requiresPayoutKyc, type KycVerificationStatus } from "./payout-kyc";
 import type { FunderVerificationStatus } from "./funder-verification";
+import { getActivityMetaFromHeaders } from "./activity-request-meta";
 
 type PortalScope = "VIEWER" | "CREATOR" | "ADMIN";
 
@@ -222,6 +223,7 @@ export const authOptions: NextAuthOptions = {
       const role = dbUser?.role ?? "SUBSCRIBER";
       await ensureUserRole(user.id, role);
 
+      const meta = await getActivityMetaFromHeaders();
       await prisma.activityLog.create({
         data: {
           userId: user.id,
@@ -229,6 +231,9 @@ export const authOptions: NextAuthOptions = {
           userName: dbUser?.name ?? user.name ?? undefined,
           role,
           eventType: "REGISTER",
+          ipAddress: meta.ipAddress ?? undefined,
+          userAgent: meta.userAgent ?? undefined,
+          deviceType: meta.deviceType,
         },
       });
 
@@ -286,6 +291,7 @@ export const authOptions: NextAuthOptions = {
       }
 
       const role = (user as { role?: string }).role ?? dbUser?.role ?? "SUBSCRIBER";
+      const meta = await getActivityMetaFromHeaders();
       await prisma.activityLog.create({
         data: {
           userId: user.id,
@@ -293,6 +299,9 @@ export const authOptions: NextAuthOptions = {
           userName: user.name ?? undefined,
           role,
           eventType: "SIGN_IN",
+          ipAddress: meta.ipAddress ?? undefined,
+          userAgent: meta.userAgent ?? undefined,
+          deviceType: meta.deviceType,
         },
       });
     },
