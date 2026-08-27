@@ -161,6 +161,28 @@ export async function POST(req: NextRequest) {
             lastPaymentStatus: "SUCCEEDED",
             lastPaymentAt: new Date(),
             lastPaymentError: null,
+            autoRenew: true,
+          },
+        });
+      } else if (
+        notificationType === "DID_CHANGE_RENEWAL_STATUS" &&
+        notification.subtype === "AUTO_RENEW_DISABLED"
+      ) {
+        await prisma.creatorDistributionLicense.update({
+          where: { id: license.id },
+          data: { autoRenew: false, cancelAtPeriodEnd: true },
+        });
+      } else if (
+        notificationType === "EXPIRED" ||
+        notificationType === "GRACE_PERIOD_EXPIRED" ||
+        (resolveCreatorAppleProduct(productId) && expiresAt && expiresAt.getTime() <= Date.now())
+      ) {
+        await prisma.creatorDistributionLicense.update({
+          where: { id: license.id },
+          data: {
+            status: "PAST_DUE",
+            autoRenew: false,
+            lastPaymentError: `Apple ${notificationType}`,
           },
         });
       } else if (resolveCreatorAppleProduct(productId) && expiresAt) {

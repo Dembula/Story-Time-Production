@@ -57,6 +57,21 @@ describe("Apple IAP cash recognition", () => {
     assert.equal(isViewerPoolPaymentPurpose("viewer_subscription_apple_iap"), true);
     assert.equal(isViewerPoolPaymentPurpose("viewer_ppv_apple_iap"), true);
   });
+
+  it("counts production creator Apple license as cash revenue", () => {
+    const payment = {
+      status: "SUCCEEDED",
+      amount: 599.99,
+      settlementAmount: 599.99,
+      provider: "APPLE",
+      settlementSource: "apple_iap",
+      purpose: "creator_distribution_license_apple_iap",
+      metadata: { environment: "Production", kind: "creator_license" },
+    };
+    assert.equal(isDemoPaymentRecord(payment), false);
+    assert.equal(isCashRecognizedPayment(payment), true);
+    assert.equal(getCashSettlementAmount(payment), 599.99);
+  });
 });
 
 describe("device type inference for native apps", () => {
@@ -70,6 +85,12 @@ describe("device type inference for native apps", () => {
     assert.equal(inferDeviceTypeFromPlatformHeader("ios_iphone"), "mobile");
     assert.equal(inferDeviceTypeFromPlatformHeader("ios_ipad"), "tablet");
     assert.equal(inferDeviceTypeFromPlatformHeader("android_tv"), "tv");
+  });
+
+  it("classifies Creators iOS User-Agent as mobile", () => {
+    const ua =
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) StoryTimeCreatorsiOS/1.0.1 Mobile/iPhone";
+    assert.equal(inferDeviceTypeFromUserAgent(ua), "mobile");
   });
 });
 
