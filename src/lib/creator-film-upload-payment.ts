@@ -6,6 +6,14 @@ import {
 } from "@/lib/pricing";
 
 export const CREATOR_FILM_UPLOAD_PURPOSE = "creator_film_upload";
+/** StoreKit / Creators iOS app — same entitlement as web PayFast upload fee. */
+export const CREATOR_FILM_UPLOAD_APPLE_PURPOSE = "creator_film_upload_apple_iap";
+export const CREATOR_DISTRIBUTION_LICENSE_APPLE_PURPOSE = "creator_distribution_license_apple_iap";
+
+const CREATOR_FILM_UPLOAD_PURPOSES = [
+  CREATOR_FILM_UPLOAD_PURPOSE,
+  CREATOR_FILM_UPLOAD_APPLE_PURPOSE,
+] as const;
 
 const RESUBMIT_STATUSES = new Set(["REJECTED", "CHANGES_REQUESTED", "UNPUBLISHED"]);
 
@@ -33,7 +41,7 @@ export async function contentHasSuccessfulUploadPayment(contentId: string): Prom
       relatedEntityType: "Content",
       relatedEntityId: contentId,
       status: "SUCCEEDED",
-      purpose: CREATOR_FILM_UPLOAD_PURPOSE,
+      purpose: { in: [...CREATOR_FILM_UPLOAD_PURPOSES] },
     },
     select: { id: true },
   });

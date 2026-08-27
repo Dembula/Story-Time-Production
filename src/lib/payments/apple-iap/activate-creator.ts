@@ -8,6 +8,10 @@ import {
   formatCreatorLicenseSummary,
 } from "@/lib/pricing";
 import { ensureCreatorStudioProfilesForUser } from "@/lib/creator-studio";
+import {
+  CREATOR_DISTRIBUTION_LICENSE_APPLE_PURPOSE,
+  CREATOR_FILM_UPLOAD_APPLE_PURPOSE,
+} from "@/lib/creator-film-upload-payment";
 import { resolveCreatorAppleProduct } from "@/lib/payments/apple-iap/products";
 import {
   periodEndFromApplePayload,
@@ -180,7 +184,7 @@ export async function processCreatorApplePurchase(options: {
       userId: options.userId,
       email: options.email,
       amount: CREATOR_PER_FILM_UPLOAD_PRICE,
-      purpose: "creator_film_upload_apple_iap",
+      purpose: CREATOR_FILM_UPLOAD_APPLE_PURPOSE,
       relatedEntityType: "Content",
       relatedEntityId: content.id,
       transactionId,
@@ -252,7 +256,7 @@ export async function processCreatorApplePurchase(options: {
     userId: options.userId,
     email: options.email,
     amount,
-    purpose: "creator_distribution_license_apple_iap",
+    purpose: CREATOR_DISTRIBUTION_LICENSE_APPLE_PURPOSE,
     relatedEntityType: "CreatorDistributionLicense",
     relatedEntityId: license.id,
     transactionId,
