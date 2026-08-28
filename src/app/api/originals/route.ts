@@ -483,7 +483,7 @@ export async function POST(req: NextRequest) {
     const notifyStatuses = ["APPROVED", "DECLINED", "CHANGES_REQUESTED"] as const;
     if ((notifyStatuses as readonly string[]).includes(result.status)) {
       const projectUrl = result.project?.id
-        ? `/creator/projects/${result.project.id}/workspace`
+        ? `/creator/projects/${result.project.id}/overview`
         : "/creator/originals/submit";
       const titles: Record<string, string> = {
         APPROVED: "Your Originals pitch was approved",

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import {
   LINES_PER_PAGE,
   PAGE_GAP_PX,
+  detectLineElement,
   formatLineWhileTyping,
   handleScreenplayEnter,
   handleScreenplayTab,
@@ -12,9 +13,9 @@ import {
   pageCountForContent,
   resolveLineElement,
 } from "@/lib/script-studio/screenplay-keyboard";
-import { SCREENPLAY_LINE_WIDTH } from "@/lib/script-studio/elements";
 import {
   getScreenplaySuggestions,
+  isSceneHeadingPrefixQuery,
   type ScreenplaySuggestion,
 } from "@/lib/script-studio/screenplay-autocomplete";
 import type { ScreenplayElementType } from "@/lib/script-studio/types";
@@ -196,8 +197,28 @@ export function ScreenplayEditor({
   const refreshSuggestions = useCallback(
     (content: string, globalCursor: number, element: ScreenplayElementType) => {
       const lineIdx = lineIndexAt(content, globalCursor);
-      const line = content.split("\n")[lineIdx] ?? "";
-      const next = getScreenplaySuggestions({ content, line, element });
+      const lines = content.split("\n");
+      const line = lines[lineIdx] ?? "";
+      const neighbors = {
+        prev: lineIdx > 0 ? lines[lineIdx - 1] : undefined,
+        next: lineIdx < lines.length - 1 ? lines[lineIdx + 1] : undefined,
+      };
+      const detected = detectLineElement(line, neighbors);
+      let suggestionElement = resolveLineElement(line, neighbors, element);
+      const trimmed = line.trim();
+      const prefixToken = trimmed.replace(/\s+.*$/, "");
+
+      if (
+        element === "scene_heading" &&
+        detected === "action" &&
+        trimmed &&
+        !/^(INT\.|EXT\.|INT\.\/EXT\.|EXT\.\/INT\.|EST\.|I\/E\.)/i.test(trimmed) &&
+        !isSceneHeadingPrefixQuery(prefixToken)
+      ) {
+        suggestionElement = "action";
+      }
+
+      const next = getScreenplaySuggestions({ content, line, element: suggestionElement });
       setSuggestions(next);
       setSuggestionIndex(0);
       if (next.length > 0) bumpSuggestionIdle();
@@ -494,9 +515,83 @@ export function ScreenplayEditor({
 
   const pageSurface = "script-writer-page script-writer-page--light";
   const zoomScale = Math.min(150, Math.max(50, zoomPercent)) / 100;
+  const lineHeightCss = `calc((11in - ${MARGIN_TOP} - ${MARGIN_BOTTOM}) / ${LINES_PER_PAGE})`;
 
   return (
-    <div className="script-writer-editor-root w-full">
+    <div className="script-writer-editor-root w-full" data-studio-theme={theme}>
+      {suggestions.length > 0 ? (
+        <div
+          className="script-writer-suggestion-dock"
+          role="listbox"
+          aria-label="Screenplay suggestions"
+          onMouseEnter={bumpSuggestionIdle}
+          onMouseMove={bumpSuggestionIdle}
+        >
+          {transitionSuggestions.length > 0 ? (
+            <div className="script-writer-suggestion-group">
+              <p className="script-writer-suggestion-label">Transitions</p>
+              <div className="flex flex-wrap gap-1.5">
+                {transitionSuggestions.map((s, i) => {
+                  const globalIdx = suggestions.indexOf(s);
+                  return (
+                    <button
+                      key={`${s.label}-t-${i}`}
+                      type="button"
+                      role="option"
+                      aria-selected={globalIdx === suggestionIndex}
+                      className={`script-writer-suggestion-chip ${
+                        globalIdx === suggestionIndex ? "is-active" : ""
+                      }`}
+                      style={{ fontFamily: fontCss }}
+                      onMouseDown={(ev) => {
+                        ev.preventDefault();
+                        suppressSuggestionBlurRef.current = true;
+                        applySuggestion(s, activePageIdx);
+                        window.setTimeout(() => {
+                          suppressSuggestionBlurRef.current = false;
+                        }, 0);
+                      }}
+                    >
+                      {s.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
+          {generalSuggestions.length > 0 ? (
+            <div className="script-writer-suggestion-list">
+              {generalSuggestions.map((s, i) => {
+                const globalIdx = suggestions.indexOf(s);
+                return (
+                  <button
+                    key={`${s.label}-${i}`}
+                    type="button"
+                    role="option"
+                    aria-selected={globalIdx === suggestionIndex}
+                    className={`script-writer-suggestion-item ${
+                      globalIdx === suggestionIndex ? "is-active" : ""
+                    }`}
+                    style={{ fontFamily: fontCss }}
+                    onMouseDown={(ev) => {
+                      ev.preventDefault();
+                      suppressSuggestionBlurRef.current = true;
+                      applySuggestion(s, activePageIdx);
+                      window.setTimeout(() => {
+                        suppressSuggestionBlurRef.current = false;
+                      }, 0);
+                    }}
+                  >
+                    {s.label}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       <div className="script-writer-editor-scroll" data-screenplay-scroll>
         <div
           className="script-writer-pages-stack"
@@ -550,6 +645,20 @@ export function ScreenplayEditor({
                   window.setTimeout(() => {
                     if (suppressSuggestionBlurRef.current) return;
                     dismissSuggestions();
+                    if (!readOnly && !preserveStructure) {
+                      const el = pageRefs.current[pageIdx];
+                      if (el) {
+                        const globalCursor = pageStartOffset(valueRef.current, pageIdx) + el.selectionStart;
+                        const formatted = formatLineWhileTyping(
+                          valueRef.current,
+                          globalCursor,
+                          editingElement,
+                        );
+                        if (formatted) {
+                          applyEdit(formatted);
+                        }
+                      }
+                    }
                   }, 180);
                 }}
                 readOnly={readOnly}
@@ -560,7 +669,7 @@ export function ScreenplayEditor({
                 style={{
                   fontFamily: fontCss,
                   fontSize: `${Math.min(fontSizePt, 12)}pt`,
-                  lineHeight: 1,
+                  lineHeight: lineHeightCss,
                   caretColor: "#0f172a",
                   color: "#0f172a",
                   width: "100%",
@@ -571,8 +680,7 @@ export function ScreenplayEditor({
                   paddingLeft: MARGIN_LEFT,
                   paddingRight: MARGIN_RIGHT,
                   whiteSpace: "pre-wrap",
-                  overflowWrap: "anywhere",
-                  wordBreak: "break-word",
+                  overflowWrap: "normal",
                   overflowX: "hidden",
                   overflowY: "hidden",
                 }}
@@ -583,97 +691,13 @@ export function ScreenplayEditor({
             </div>
           ))}
 
-          {suggestions.length > 0 ? (
-            <div
-              className="absolute left-[1.5in] top-24 z-20 w-[min(20rem,calc(100%-3rem))] space-y-2"
-              role="listbox"
-              aria-label="Screenplay suggestions"
-              onMouseEnter={bumpSuggestionIdle}
-              onMouseMove={bumpSuggestionIdle}
-            >
-              {transitionSuggestions.length > 0 ? (
-                <div className="rounded-lg border border-violet-500/30 bg-slate-950/95 p-2 shadow-xl backdrop-blur-sm">
-                  <p className="mb-1.5 px-1 text-[9px] font-semibold uppercase tracking-wider text-violet-300/90">
-                    Smart transitions
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {transitionSuggestions.map((s, i) => {
-                      const globalIdx = suggestions.indexOf(s);
-                      return (
-                        <button
-                          key={`${s.label}-t-${i}`}
-                          type="button"
-                          role="option"
-                          aria-selected={globalIdx === suggestionIndex}
-                          className={`rounded-full border px-2.5 py-1 text-[10px] font-medium transition ${
-                            globalIdx === suggestionIndex
-                              ? "border-violet-400/50 bg-violet-500/25 text-violet-100"
-                              : "border-slate-700 bg-slate-900 text-slate-200 hover:border-violet-400/40 hover:bg-violet-500/10"
-                          }`}
-                          style={{ fontFamily: fontCss }}
-                          onMouseDown={(ev) => {
-                            ev.preventDefault();
-                            suppressSuggestionBlurRef.current = true;
-                            applySuggestion(s, activePageIdx);
-                            window.setTimeout(() => {
-                              suppressSuggestionBlurRef.current = false;
-                            }, 0);
-                          }}
-                        >
-                          {s.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : null}
-
-              {generalSuggestions.length > 0 ? (
-                <div className="max-h-48 overflow-y-auto rounded-md border border-slate-700 bg-slate-900/95 shadow-xl backdrop-blur-sm">
-                  {generalSuggestions.map((s, i) => {
-                    const globalIdx = suggestions.indexOf(s);
-                    return (
-                      <button
-                        key={`${s.label}-${i}`}
-                        type="button"
-                        role="option"
-                        aria-selected={globalIdx === suggestionIndex}
-                        className={`block w-full px-3 py-1.5 text-left text-xs ${
-                          globalIdx === suggestionIndex
-                            ? "bg-orange-500/20 text-orange-100"
-                            : "text-slate-200 hover:bg-slate-800"
-                        }`}
-                        style={{ fontFamily: fontCss }}
-                        onMouseDown={(ev) => {
-                          ev.preventDefault();
-                          suppressSuggestionBlurRef.current = true;
-                          applySuggestion(s, activePageIdx);
-                          window.setTimeout(() => {
-                            suppressSuggestionBlurRef.current = false;
-                          }, 0);
-                        }}
-                      >
-                        {s.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : null}
-              <p className="rounded-md border border-slate-800/80 bg-slate-950/80 px-3 py-1.5 text-[10px] text-slate-500 backdrop-blur-sm">
-                Hover to keep open · Enter/Tab to apply · fades after 2s idle
-              </p>
-            </div>
-          ) : null}
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 px-1">
-        <p className="text-[10px] text-slate-500" style={{ fontFamily: fontCss }}>
-          {pageCount} page{pageCount === 1 ? "" : "s"} · US Letter 8.5×11 · {SCREENPLAY_LINE_WIDTH}-char wrap ·{" "}
-          <span className="text-orange-300/90">{editingElement.replace(/_/g, " ")}</span>
-        </p>
-        <p className="text-[10px] text-slate-500" style={{ fontFamily: fontCss }}>
-          Enter / Tab accept suggestions · Esc dismisses · 2s idle timeout
+      <div className="script-writer-editor-meta">
+        <p style={{ fontFamily: fontCss }}>
+          {pageCount} page{pageCount === 1 ? "" : "s"} · US Letter ·{" "}
+          <span className="script-writer-editor-meta-element">{editingElement.replace(/_/g, " ")}</span>
         </p>
       </div>
     </div>

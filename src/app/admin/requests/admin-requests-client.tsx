@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Shield, CheckCircle, XCircle, Loader2, UserPlus, Mail } from "lucide-react";
+import { ADMIN_RIGHT_SUITES } from "@/lib/admin-permissions";
 
 type AdminRequestRow = {
   id: string;
@@ -25,12 +26,7 @@ type AccessApplicationRow = {
   reviewedBy: { id: string; name: string | null; email: string | null } | null;
 };
 
-const RIGHTS_OPTIONS = [
-  { key: "canManageUsers", label: "Manage users" },
-  { key: "canManageContent", label: "Manage content" },
-  { key: "canManageRevenue", label: "Manage revenue" },
-  { key: "canManageCompetition", label: "Manage competition" },
-];
+const RIGHTS_OPTIONS = ADMIN_RIGHT_SUITES.map((s) => ({ key: s.key, label: s.label }));
 
 type Tab = "applications" | "role_upgrades";
 

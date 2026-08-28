@@ -7,6 +7,7 @@ import { ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
 import { resolveNetworkDisplayName } from "@/lib/network-display-name";
 import { SecureFileLink } from "@/components/files/secure-file-link";
 import { SecureImage } from "@/components/files/secure-image";
+import { creatorProjectWorkspaceHref } from "@/lib/creator-project-href";
 
 function Section({
   title,
@@ -214,7 +215,7 @@ export function AdminProjectReviewDigest({
         </div>
         <div className="flex flex-wrap gap-2">
           <Link
-            href={`/creator/projects/${projectId}/workspace`}
+            href={creatorProjectWorkspaceHref(projectId)}
             target="_blank"
             className="inline-flex items-center gap-1 text-[11px] text-orange-300 hover:text-orange-200"
           >

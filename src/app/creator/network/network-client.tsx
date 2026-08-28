@@ -22,8 +22,15 @@ import {
 import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
 import { resolveNetworkDisplayName, networkDisplayInitial } from "@/lib/network-display-name";
 import { NativeSafeVideo } from "@/components/player/native-safe-video";
+import { FilmographyPosterStrip } from "@/components/network/filmography-card";
+import type { NetworkFilmographyItem } from "@/lib/network-filmography";
 
 type Tab = "feed" | "discover" | "chats";
+
+function networkProfileHref(userId: string, fromTab: Tab) {
+  const returnTo = encodeURIComponent(`/creator/network?tab=${fromTab}`);
+  return `/creator/profile/${userId}?returnTo=${returnTo}`;
+}
 
 interface PostAuthor {
   id: string;
@@ -60,6 +67,7 @@ interface CreatorCard {
   following?: boolean;
   connectionStatus?: string;
   followerCount?: number;
+  filmography?: NetworkFilmographyItem[];
 }
 
 interface ProjectOption {
@@ -194,6 +202,10 @@ export function NetworkClient() {
   }, [myRole]);
 
   useEffect(() => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam === "discover" || tabParam === "feed" || tabParam === "chats") {
+      setTab(tabParam);
+    }
     const chatWith = searchParams.get("chatWith");
     if (chatWith) {
       setTab("chats");
@@ -472,7 +484,7 @@ export function NetworkClient() {
                 key={r.id}
                 className="flex items-center justify-between gap-3 py-2 border-b border-slate-800/50 last:border-0"
               >
-                <Link href={`/creator/profile/${r.fromId}`} className="flex items-center gap-2 min-w-0">
+                <Link href={networkProfileHref(r.fromId, "feed")} className="flex items-center gap-2 min-w-0">
                   <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center shrink-0 overflow-hidden">
                     {r.from?.image ? (
                       <Image src={r.from.image} alt="" width={32} height={32} className="object-cover" />
@@ -799,7 +811,7 @@ export function NetworkClient() {
                 >
                   <div className="flex items-start gap-3 mb-3">
                     <Link
-                      href={`/creator/profile/${post.authorId}`}
+                      href={networkProfileHref(post.authorId, "feed")}
                       className="shrink-0 w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center overflow-hidden"
                     >
                       {post.author?.image ? (
@@ -812,7 +824,7 @@ export function NetworkClient() {
                     </Link>
                     <div className="min-w-0 flex-1">
                       <Link
-                        href={`/creator/profile/${post.authorId}`}
+                        href={networkProfileHref(post.authorId, "feed")}
                         className="font-semibold text-white hover:text-orange-400 truncate block"
                       >
                         {post.author?.displayName ??
@@ -874,10 +886,22 @@ export function NetworkClient() {
                   {post.content && (
                     <Link
                       href={`/browse/content/${post.content.id}`}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 text-sm"
+                      className="inline-flex items-center gap-2 rounded-lg border border-slate-700/80 bg-slate-800/80 px-2.5 py-1.5 text-sm text-slate-300 transition hover:border-orange-500/40 hover:bg-slate-800"
                     >
-                      <Film className="w-3.5 h-3.5" />
-                      {post.content.title}
+                      <div className="relative h-9 w-6 shrink-0 overflow-hidden rounded bg-slate-900">
+                        {post.content.posterUrl ? (
+                          <Image
+                            src={post.content.posterUrl}
+                            alt=""
+                            fill
+                            className="object-cover"
+                            sizes="24px"
+                          />
+                        ) : (
+                          <Film className="m-auto h-3.5 w-3.5 text-slate-600" />
+                        )}
+                      </div>
+                      <span className="truncate">{post.content.title}</span>
                     </Link>
                   )}
                 </article>
@@ -971,12 +995,12 @@ export function NetworkClient() {
                 return (
                 <div
                   key={creator.id}
-                  className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 hover:border-orange-500/40 transition flex flex-col"
+                  className="flex flex-col rounded-2xl border border-slate-800 bg-slate-900/60 p-4 transition hover:border-orange-500/40"
                 >
-                  <div className="flex items-center gap-3 mb-3">
+                  <div className="mb-3 flex items-center gap-3">
                     <Link
-                      href={`/creator/profile/${creator.id}`}
-                      className="w-12 h-12 rounded-full bg-slate-700 flex items-center justify-center overflow-hidden shrink-0"
+                      href={networkProfileHref(creator.id, "discover")}
+                      className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-700"
                     >
                       {creator.image ? (
                         <Image src={creator.image} alt="" width={48} height={48} className="object-cover" />
@@ -986,8 +1010,8 @@ export function NetworkClient() {
                     </Link>
                     <div className="min-w-0 flex-1">
                       <Link
-                        href={`/creator/profile/${creator.id}`}
-                        className="font-semibold text-white hover:text-orange-400 block truncate"
+                        href={networkProfileHref(creator.id, "discover")}
+                        className="block truncate font-semibold text-white hover:text-orange-400"
                       >
                         {label}
                       </Link>
@@ -1001,14 +1025,28 @@ export function NetworkClient() {
                       )}
                     </div>
                   </div>
-                  {creator.bio && <p className="text-sm text-slate-400 line-clamp-3 mb-2">{creator.bio}</p>}
-                  {creator.previousWork && (
-                    <p className="text-xs text-slate-500 line-clamp-2 mb-3">Recent: {creator.previousWork}</p>
+                  {creator.bio && <p className="mb-2 line-clamp-3 text-sm text-slate-400">{creator.bio}</p>}
+                  {creator.filmography && creator.filmography.length > 0 && (
+                    <div className="mb-3">
+                      <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-slate-500">
+                        On Story Time
+                      </p>
+                      <FilmographyPosterStrip items={creator.filmography} size="sm" />
+                      {creator.filmography[0] && (
+                        <p className="mt-1.5 truncate text-[11px] text-slate-500">
+                          {creator.filmography[0].title}
+                          <span className="text-slate-600"> · {creator.filmography[0].role}</span>
+                        </p>
+                      )}
+                    </div>
                   )}
-                  <div className="flex flex-wrap items-center gap-2 mt-auto pt-3 border-t border-slate-800">
+                  {creator.previousWork && (
+                    <p className="mb-3 line-clamp-2 text-xs text-slate-500">Recent: {creator.previousWork}</p>
+                  )}
+                  <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-slate-800 pt-3">
                     <Link
-                      href={`/creator/profile/${creator.id}`}
-                      className="flex-1 text-center py-2 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 text-sm font-medium"
+                      href={networkProfileHref(creator.id, "discover")}
+                      className="flex-1 rounded-lg bg-slate-800 py-2 text-center text-sm font-medium text-slate-300 hover:bg-slate-700"
                     >
                       Profile
                     </Link>

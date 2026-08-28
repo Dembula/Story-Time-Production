@@ -2,16 +2,25 @@
 
 import { StoryTimeLoader, StoryTimeLoadingCenter } from "@/components/ui/storytime-loader";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import {
   Users, Shield, Trash2, Edit3, ChevronDown, ChevronUp, Search,
   Film, Music, Eye, MessageSquare, Star, Activity, Package,
-  UserCheck, UserX, GraduationCap, AlertTriangle, CreditCard,
+  UserCheck, UserX, GraduationCap, AlertTriangle, CreditCard, ExternalLink,
 } from "lucide-react";
 import {
   describeAdminViewerSubscription,
   subscriptionStatusBadgeClass,
   type AdminViewerSubscriptionSnapshot,
 } from "@/lib/admin/viewer-subscription-status";
+import {
+  ADMIN_RIGHT_SUITES,
+  adminRightsSummary,
+  isAdminGodAccount,
+  parseAdminRights,
+  type AdminRightsMap,
+} from "@/lib/admin-permissions";
+import { adminProjectDossierHref } from "@/lib/creator-project-href";
 
 interface User {
   id: string;
@@ -22,6 +31,7 @@ interface User {
   creatorAccountStructure?: "INDIVIDUAL" | "COMPANY" | null;
   creatorTeamSeatCap?: number | null;
   bio: string | null;
+  adminRights?: AdminRightsMap | null;
   isAfdaStudent: boolean;
   createdAt: string;
   updatedAt: string;
@@ -79,6 +89,14 @@ export function AdminUsersClient() {
   const [creatorTeamSeatCap, setCreatorTeamSeatCap] = useState("1");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [userActivity, setUserActivity] = useState<Record<string, { eventType: string; referrer: string | null; deviceType: string | null; ipAddress: string | null; createdAt: string }[]>>({});
+  const [userProfiles, setUserProfiles] = useState<Record<string, {
+    originalPitches: { id: string; title: string; status: string; projectId: string | null; scriptProjectId: string | null }[];
+    contents: { id: string; title: string; type: string; status: string }[];
+    originalMembers: { project: { id: string; title: string; pitches: { status: string }[] } }[];
+  }>>({});
+  const [editAdminRights, setEditAdminRights] = useState<AdminRightsMap>({});
+  const [activityLoading, setActivityLoading] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/admin/users").then((r) => r.json()).then(setUsers).finally(() => setLoading(false));
@@ -105,6 +123,41 @@ export function AdminUsersClient() {
     }
     setActionLoading(null);
     setExpanded(null);
+  }
+
+  async function loadUserIntel(userId: string) {
+    setActivityLoading(userId);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/profile`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setUserActivity((prev) => ({ ...prev, [userId]: data.activity ?? [] }));
+      setUserProfiles((prev) => ({
+        ...prev,
+        [userId]: {
+          originalPitches: data.user?.originalPitches ?? [],
+          contents: data.user?.contents ?? [],
+          originalMembers: data.user?.originalMembers ?? [],
+        },
+      }));
+    } finally {
+      setActivityLoading(null);
+    }
+  }
+
+  function openUserPanel(u: User) {
+    const next = expanded === u.id ? null : u.id;
+    setExpanded(next);
+    if (next) {
+      setEditName(u.name || "");
+      setEditRole(u.role);
+      setEditEmail(u.email || "");
+      setSelectedRoles(getRoleList(u));
+      setCreatorAccountStructure(u.creatorAccountStructure === "COMPANY" ? "COMPANY" : "INDIVIDUAL");
+      setCreatorTeamSeatCap(String(u.creatorTeamSeatCap ?? 1));
+      setEditAdminRights(parseAdminRights(u.adminRights));
+      void loadUserIntel(u.id);
+    }
   }
 
   const filtered = users.filter((u) => {
@@ -142,7 +195,17 @@ export function AdminUsersClient() {
       <div className="flex items-center gap-3">
         <div className="flex-1 relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name or email..." className="w-full pl-10 pr-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 text-sm" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name or email..."
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            name="admin-user-directory-search"
+            className="w-full pl-10 pr-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 text-sm"
+          />
         </div>
         <p className="text-sm text-slate-400">{filtered.length} of {users.length} users</p>
       </div>
@@ -150,7 +213,7 @@ export function AdminUsersClient() {
       <div className="space-y-3">
         {filtered.map((u) => (
           <div key={u.id} className="bg-slate-800/50 border border-slate-700/50 rounded-xl overflow-hidden">
-            <div className="p-5 flex items-center gap-4 cursor-pointer hover:bg-slate-800/70 transition" onClick={() => { setExpanded(expanded === u.id ? null : u.id); setEditName(u.name || ""); setEditRole(u.role); setEditEmail(u.email || ""); setSelectedRoles(getRoleList(u)); setCreatorAccountStructure(u.creatorAccountStructure === "COMPANY" ? "COMPANY" : "INDIVIDUAL"); setCreatorTeamSeatCap(String(u.creatorTeamSeatCap ?? 1)); }}>
+            <div className="p-5 flex items-center gap-4 cursor-pointer hover:bg-slate-800/70 transition" onClick={() => openUserPanel(u)}>
               <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-white font-bold text-sm">
                 {(u.name || u.email || "?")[0].toUpperCase()}
               </div>
@@ -198,7 +261,7 @@ export function AdminUsersClient() {
                     { label: "Watch Sessions", value: u._count.watchSessions, icon: Eye },
                     { label: "Comments", value: u._count.comments, icon: MessageSquare },
                     { label: "Ratings Given", value: u._count.ratings, icon: Star },
-                    { label: "Login Events", value: u._count.activityLogs, icon: Activity },
+                    { label: "Platform events", value: u._count.activityLogs, icon: Activity },
                     { label: "Equipment Listings", value: u._count.equipmentListings, icon: Package },
                   ].map((s) => (
                     <div key={s.label} className="p-3 rounded-lg bg-slate-800/50 border border-slate-700/30">
@@ -251,6 +314,125 @@ export function AdminUsersClient() {
                     })() : (
                       <p className="text-sm text-slate-500">No subscription record</p>
                     )}
+                  </div>
+                ) : null}
+
+                <div className="rounded-xl border border-slate-700/50 bg-slate-800/30 p-4 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h4 className="text-sm font-semibold text-white flex items-center gap-2">
+                      <Activity className="w-4 h-4 text-orange-400" /> Activity timeline
+                    </h4>
+                    <Link href={`/admin/activity?userId=${u.id}`} className="text-xs text-orange-300 hover:text-orange-200 inline-flex items-center gap-1">
+                      Open full log <ExternalLink className="w-3 h-3" />
+                    </Link>
+                  </div>
+                  {activityLoading === u.id ? (
+                    <p className="text-xs text-slate-500">Loading events…</p>
+                  ) : (userActivity[u.id] ?? []).length === 0 ? (
+                    <p className="text-xs text-slate-500">No tracked events yet.</p>
+                  ) : (
+                    <ul className="max-h-56 overflow-y-auto space-y-2 text-xs">
+                      {(userActivity[u.id] ?? []).slice(0, 40).map((ev, idx) => (
+                        <li key={`${ev.createdAt}-${ev.eventType}-${idx}`} className="rounded-lg border border-white/8 bg-black/30 px-3 py-2">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="font-medium text-slate-200">{ev.eventType}</span>
+                            <span className="text-slate-500">{new Date(ev.createdAt).toLocaleString()}</span>
+                          </div>
+                          {ev.referrer ? <p className="mt-1 text-slate-400 truncate">Page: {ev.referrer}</p> : null}
+                          <p className="mt-0.5 text-slate-500">
+                            {[ev.deviceType, ev.ipAddress].filter(Boolean).join(" · ") || "No device metadata"}
+                          </p>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                {userProfiles[u.id] ? (
+                  <div className="rounded-xl border border-slate-700/50 bg-slate-800/30 p-4 space-y-3">
+                    <h4 className="text-sm font-semibold text-white">Linked work</h4>
+                    {userProfiles[u.id].originalPitches.length > 0 ? (
+                      <div>
+                        <p className="text-xs text-slate-500 mb-1">Story Time Originals pitches</p>
+                        <ul className="space-y-1">
+                          {userProfiles[u.id].originalPitches.map((pitch) => (
+                            <li key={pitch.id} className="text-xs text-slate-300 flex flex-wrap items-center gap-2">
+                              <span className="text-white">{pitch.title}</span>
+                              <span className="text-slate-500">{pitch.status}</span>
+                              {pitch.scriptProjectId ? (
+                                <Link href={adminProjectDossierHref(pitch.scriptProjectId)} className="text-orange-300 hover:text-orange-200">
+                                  View linked project tools
+                                </Link>
+                              ) : null}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                    {userProfiles[u.id].originalMembers.length > 0 ? (
+                      <div>
+                        <p className="text-xs text-slate-500 mb-1">Production projects</p>
+                        <ul className="space-y-1">
+                          {userProfiles[u.id].originalMembers.map((m) => (
+                            <li key={m.project.id} className="text-xs flex flex-wrap items-center gap-2">
+                              <span className="text-white">{m.project.title}</span>
+                              {m.project.pitches[0]?.status === "APPROVED" ? (
+                                <span className="text-emerald-400">Original</span>
+                              ) : (
+                                <span className="text-slate-500">Creator project</span>
+                              )}
+                              <Link href={adminProjectDossierHref(m.project.id)} className="text-orange-300 hover:text-orange-200">
+                                Admin dossier
+                              </Link>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {getRoleList(u).includes("ADMIN") ? (
+                  <div className="rounded-xl border border-violet-500/20 bg-violet-500/5 p-4 space-y-3">
+                    <div>
+                      <h4 className="text-sm font-semibold text-white">Admin access suites</h4>
+                      <p className="text-xs text-slate-400 mt-1">
+                        {adminRightsSummary(u.adminRights, u.email)}
+                        {isAdminGodAccount(u.email) ? " · Platform owner account" : ""}
+                      </p>
+                    </div>
+                    {!isAdminGodAccount(u.email) ? (
+                      <>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          {ADMIN_RIGHT_SUITES.map((suite) => (
+                            <label key={suite.key} className="flex items-start gap-2 rounded-lg border border-white/10 bg-black/20 p-2 text-xs text-slate-300">
+                              <input
+                                type="checkbox"
+                                className="mt-0.5"
+                                checked={editAdminRights[suite.key] === true}
+                                onChange={(e) =>
+                                  setEditAdminRights((prev) => ({
+                                    ...prev,
+                                    [suite.key]: e.target.checked,
+                                  }))
+                                }
+                              />
+                              <span>
+                                <span className="font-medium text-white">{suite.label}</span>
+                                <span className="block text-slate-500">{suite.description}</span>
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                        <button
+                          onClick={() => handleAction(u.id, "SET_ADMIN_RIGHTS", { adminRights: editAdminRights })}
+                          disabled={actionLoading === u.id}
+                          className="px-3 py-2 bg-violet-500 text-white rounded-lg text-sm hover:bg-violet-600 transition disabled:opacity-50"
+                        >
+                          Save admin suites
+                        </button>
+                      </>
+                    ) : null}
                   </div>
                 ) : null}
 

@@ -2,6 +2,8 @@
 
 import { StoryTimeLoader, StoryTimeLoadingCenter } from "@/components/ui/storytime-loader";
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import {
   Activity, Users, Clock, Globe, Monitor, Shield, Search, Filter,
   LogIn, Eye, MessageSquare, Star, Wifi, TrendingUp,
@@ -9,10 +11,12 @@ import {
 
 interface ActivityEntry {
   id: string;
+  userId?: string;
   userName: string | null;
   userEmail: string | null;
   role: string;
   eventType: string;
+  referrer?: string | null;
   ipAddress: string | null;
   deviceType: string | null;
   createdAt: string;
@@ -32,14 +36,17 @@ interface ActivityData {
 }
 
 export function AdminActivityClient() {
+  const searchParams = useSearchParams();
+  const userIdFilter = searchParams.get("userId");
   const [data, setData] = useState<ActivityData | null>(null);
   const [loading, setLoading] = useState(true);
   const [roleFilter, setRoleFilter] = useState("ALL");
   const [search, setSearch] = useState("");
 
   useEffect(() => {
-    fetch("/api/admin/activity").then((r) => r.json()).then(setData).finally(() => setLoading(false));
-  }, []);
+    const q = userIdFilter ? `?userId=${encodeURIComponent(userIdFilter)}` : "";
+    fetch(`/api/admin/activity${q}`).then((r) => r.json()).then(setData).finally(() => setLoading(false));
+  }, [userIdFilter]);
 
   if (loading) return <StoryTimeLoadingCenter />;
 
@@ -67,7 +74,16 @@ export function AdminActivityClient() {
       <div>
         <h1 className="text-3xl font-semibold text-white mb-2 flex items-center gap-3"><Activity className="w-8 h-8 text-orange-500" /> Platform Activity Intelligence</h1>
         <p className="text-slate-400">
-          Audit trail: sign-ins, session telemetry (IP and device when available), and engagement totals from the database.
+          Audit trail: sign-ins, session telemetry (pages visited, IP, device), and engagement totals.
+          {userIdFilter ? (
+            <>
+              {" "}
+              Filtered to one user.{" "}
+              <Link href="/admin/activity" className="text-orange-300 hover:text-orange-200">
+                Clear filter
+              </Link>
+            </>
+          ) : null}
         </p>
       </div>
 
@@ -168,7 +184,7 @@ export function AdminActivityClient() {
             </select>
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-500" />
-              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search..." className="pl-7 pr-3 py-1.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 text-xs w-48" />
+              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search..." autoComplete="off" autoCorrect="off" spellCheck={false} className="pl-7 pr-3 py-1.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 text-xs w-48" />
             </div>
             <span className="text-xs text-slate-500">{filteredActivity.length} events</span>
           </div>
@@ -180,6 +196,7 @@ export function AdminActivityClient() {
               <th className="text-left py-3 px-4 text-slate-400 font-medium">Email</th>
               <th className="text-left py-3 px-4 text-slate-400 font-medium">Role</th>
               <th className="text-left py-3 px-4 text-slate-400 font-medium">Event</th>
+              <th className="text-left py-3 px-4 text-slate-400 font-medium">Page / referrer</th>
               <th className="text-left py-3 px-4 text-slate-400 font-medium">IP Address</th>
               <th className="text-left py-3 px-4 text-slate-400 font-medium">Device</th>
               <th className="text-left py-3 px-4 text-slate-400 font-medium">Timestamp</th>
@@ -193,6 +210,7 @@ export function AdminActivityClient() {
                     <td className="py-2.5 px-4 text-slate-400 text-xs">{a.userEmail || "—"}</td>
                     <td className="py-2.5 px-4"><span className={`px-2 py-0.5 rounded text-xs font-medium ${roleColor[a.role] || roleColor.SUBSCRIBER}`}>{a.role.replace(/_/g, " ")}</span></td>
                     <td className="py-2.5 px-4"><span className="px-2 py-0.5 rounded bg-orange-500/10 text-orange-400 text-xs">{a.eventType}</span></td>
+                    <td className="py-2.5 px-4 text-slate-400 text-xs max-w-[14rem] truncate" title={a.referrer ?? undefined}>{a.referrer || "—"}</td>
                     <td className="py-2.5 px-4 text-slate-400 font-mono text-xs">{a.ipAddress || "—"}</td>
                     <td className="py-2.5 px-4 text-slate-400 text-xs">{a.deviceType || "—"}</td>
                     <td className="py-2.5 px-4 text-slate-500 text-xs">{new Date(a.createdAt).toLocaleString()}</td>

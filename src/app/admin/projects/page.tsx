@@ -166,11 +166,11 @@ export default async function AdminProjectsPage() {
           Operations
         </p>
         <h1 className="font-display text-2xl font-semibold tracking-tight text-white md:text-3xl">
-          Projects &amp; pipeline
+          Creator projects &amp; pipeline
         </h1>
         <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
-          Expand any project for a full dossier: creators, team, pipeline tools, scripts, casting,
-          budgets, catalogue links, and production activity.
+          All creator-owned production workspaces — separate from Story Time Originals submissions.
+          Expand any project for scripts, casting, budgets, breakdowns, and linked catalogue content.
         </p>
       </header>
 

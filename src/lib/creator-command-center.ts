@@ -1,6 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { getCreatorAnalytics, type CreatorAnalytics } from "@/lib/creator-analytics";
 import { getCreatorRetentionSnapshot, type CreatorRetentionSnapshot } from "@/lib/creator-retention-analytics";
+import {
+  getCreatorAudienceInsights,
+  getCreatorEngagementInsights,
+  type CreatorAudienceInsights,
+  type CreatorEngagementInsights,
+} from "@/lib/creator-audience-insights";
 
 export type CreatorCommandCenterPayload = {
   analytics: CreatorAnalytics;
@@ -30,6 +36,8 @@ export type CreatorCommandCenterPayload = {
     totalWatchSessions7d: number;
   };
   retention: CreatorRetentionSnapshot;
+  audience: CreatorAudienceInsights;
+  engagement: CreatorEngagementInsights;
 };
 
 function projectWhereForCreator(creatorId: string) {
@@ -57,7 +65,7 @@ export async function getCreatorCommandCenter(
   const d7 = new Date(now - 7 * 86400000);
   const d14 = new Date(now - 14 * 86400000);
 
-  const [viewsLast7d, viewsPrev7d, openIncidents, callSheetsSaved, taskGroups, shootDaysTotal, modocConvs, modocUserMsgs, platformSessions7d, retention] =
+  const [viewsLast7d, viewsPrev7d, openIncidents, callSheetsSaved, taskGroups, shootDaysTotal, modocConvs, modocUserMsgs, platformSessions7d, retention, audience, engagement] =
     await Promise.all([
       prisma.watchSession.count({
         where: { content: { creatorId }, startedAt: { gte: d7 } },
@@ -109,6 +117,16 @@ export async function getCreatorCommandCenter(
           { checkpoint: 100, retainedPct: 0 },
         ],
         byTitle: [],
+      })),
+      getCreatorAudienceInsights(creatorId, start, end).catch(() => ({
+        ageDistribution: [],
+        totalViewers: 0,
+        viewersWithKnownAge: 0,
+        byTitle: [],
+      })),
+      getCreatorEngagementInsights(creatorId, start, end, 80).catch(() => ({
+        comments: [],
+        ratings: [],
       })),
     ]);
 
@@ -178,6 +196,8 @@ export async function getCreatorCommandCenter(
       topTasks,
     },
     retention,
+    audience,
+    engagement,
   };
 
   if (role === "ADMIN") {

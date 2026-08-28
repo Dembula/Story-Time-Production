@@ -1,25 +1,43 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     const role = (session?.user as { role?: string })?.role;
     if (role !== "ADMIN") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
+    const userId = req.nextUrl.searchParams.get("userId")?.trim() || undefined;
+    const take = Math.min(500, Math.max(1, Number.parseInt(req.nextUrl.searchParams.get("limit") ?? "500", 10) || 500));
+
+    const where = userId ? { userId } : undefined;
+
     const [activity, byRole, eventTypeCounts, totalWatch, totalComments, totalRatings] = await Promise.all([
       prisma.activityLog.findMany({
+        where,
         orderBy: { createdAt: "desc" },
-        take: 500,
-        select: { id: true, userName: true, userEmail: true, role: true, eventType: true, ipAddress: true, deviceType: true, createdAt: true },
+        take,
+        select: {
+          id: true,
+          userId: true,
+          userName: true,
+          userEmail: true,
+          role: true,
+          eventType: true,
+          referrer: true,
+          ipAddress: true,
+          deviceType: true,
+          userAgent: true,
+          createdAt: true,
+        },
       }),
-      prisma.activityLog.groupBy({ by: ["role"], where: { eventType: "SIGN_IN" }, _count: { id: true } }),
-      prisma.activityLog.groupBy({ by: ["eventType"], _count: { id: true } }),
-      prisma.watchSession.aggregate({ _sum: { durationSeconds: true } }),
-      prisma.comment.count(),
-      prisma.rating.count(),
+      prisma.activityLog.groupBy({ by: ["role"], where: { eventType: "SIGN_IN", ...(userId ? { userId } : {}) }, _count: { id: true } }),
+      prisma.activityLog.groupBy({ by: ["eventType"], where: userId ? { userId } : undefined, _count: { id: true } }),
+      prisma.watchSession.aggregate({ where: userId ? { userId } : undefined, _sum: { durationSeconds: true } }),
+      prisma.comment.count({ where: userId ? { userId } : undefined }),
+      prisma.rating.count({ where: userId ? { userId } : undefined }),
     ]);
 
     const ipBreakdown: Record<string, { count: number; users: string[] }> = {};
@@ -49,6 +67,7 @@ export async function GET() {
       deviceBreakdown,
       ipBreakdown,
       hourlyDistribution,
+      filteredUserId: userId ?? null,
     });
   } catch (error) {
     console.error("Error in /api/admin/activity", error);

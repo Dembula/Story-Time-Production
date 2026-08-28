@@ -34,6 +34,8 @@ import { formatZar } from "@/lib/format-currency-zar";
 import { isLongFormType } from "@/lib/content-types";
 import { OpsMetricCard, OpsQuickActions } from "@/components/ecosystem/ops-shell";
 import { CommandCenterCalendar } from "@/components/creator/command-center-calendar";
+import { AudienceAgeChart } from "@/components/creator/audience-age-chart";
+import { EngagementFeed } from "@/components/creator/engagement-feed";
 
 type RevenueData = {
   revenue: number;
@@ -111,6 +113,7 @@ export function CommandCenterClient() {
     published?: number;
     payoutStatus?: string | null;
   } | null>(null);
+  const [selectedFilmId, setSelectedFilmId] = useState<string | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -141,6 +144,10 @@ export function CommandCenterClient() {
       setTab("overview");
     }
   }, [tab, tabAllowed]);
+
+  useEffect(() => {
+    setSelectedFilmId(null);
+  }, [range]);
 
   const nav = useMemo(() => {
     const all = [
@@ -243,6 +250,10 @@ export function CommandCenterClient() {
     .map((c) => ({ ...c, score: c.views + c.comments * 5 + c.watchlistAdds * 3 }))
     .sort((x, y) => y.score - x.score)
     .slice(0, 5);
+
+  const selectedFilmAudience = selectedFilmId
+    ? cc.audience.byTitle.find((t) => t.contentId === selectedFilmId) ?? null
+    : null;
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8">
@@ -451,6 +462,31 @@ export function CommandCenterClient() {
             </p>
           </div>
         </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <AudienceAgeChart
+            title="Viewer age ranges"
+            rows={cc.audience.ageDistribution}
+            emptyMessage="Age breakdown appears once viewers with profile ages watch your catalogue in this window."
+          />
+          <div className="rounded-xl border border-white/8 bg-slate-950/30 p-4 space-y-2">
+            <p className="text-sm font-medium text-white">Audience insight</p>
+            <p className="text-sm text-slate-400 leading-relaxed">
+              {cc.audience.viewersWithKnownAge > 0 ? (
+                <>
+                  <span className="text-cyan-200 font-medium">{cc.audience.viewersWithKnownAge}</span> of{" "}
+                  <span className="text-white font-medium">{cc.audience.totalViewers}</span> unique viewers have profile
+                  age data in this window.
+                </>
+              ) : (
+                "Viewer profiles include age when subscribers set up household profiles — charts fill in as people watch."
+              )}
+            </p>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              Aggregated age brackets only. Story Time never shares IP addresses, device types, or exact birth dates with
+              creators.
+            </p>
+          </div>
+        </div>
         <div className="storytime-section p-4 space-y-4">
           <div className="flex flex-wrap items-end justify-between gap-2">
             <div>
@@ -514,9 +550,16 @@ export function CommandCenterClient() {
             </>
           )}
         </div>
-        <p className="text-xs text-slate-500">
-          Geo and device segmentation ship in a later pass; retention uses watch progress and session duration vs title length.
-        </p>
+        <div className="storytime-section p-4 space-y-4">
+          <div>
+            <p className="text-sm font-medium text-white">Comments &amp; star ratings</p>
+            <p className="text-xs text-slate-500">
+              See which viewer accounts engaged with your films in {RANGE_LABEL[range].toLowerCase()} — account names
+              only, no private contact details.
+            </p>
+          </div>
+          <EngagementFeed comments={cc.engagement.comments} ratings={cc.engagement.ratings} />
+        </div>
       </Section>
       ) : null}
 
@@ -530,6 +573,8 @@ export function CommandCenterClient() {
                   <th className="px-3 py-2">Title</th>
                   <th className="px-3 py-2">Views</th>
                   <th className="px-3 py-2">Watch time</th>
+                  <th className="px-3 py-2">Avg rating</th>
+                  <th className="px-3 py-2">Comments</th>
                   <th className="px-3 py-2">Engagement score</th>
                   <th className="px-3 py-2">Est. RPV</th>
                   <th className="px-3 py-2">Actions</th>
@@ -541,14 +586,25 @@ export function CommandCenterClient() {
                   const rpv = c.views > 0 ? (win.amount * (c.views / Math.max(1, win.totalViews))) / c.views : 0;
                   const showNewSeason =
                     isLongFormType(c.type) && c.reviewStatus === "APPROVED";
+                  const isSelected = selectedFilmId === c.id;
                   return (
-                    <tr key={c.id} className="border-b border-white/6">
+                    <tr
+                      key={c.id}
+                      className={`border-b border-white/6 cursor-pointer transition ${
+                        isSelected ? "bg-orange-500/10" : "hover:bg-white/[0.03]"
+                      }`}
+                      onClick={() => setSelectedFilmId(isSelected ? null : c.id)}
+                    >
                       <td className="px-3 py-2 text-white font-medium max-w-[200px] truncate">{c.title}</td>
                       <td className="px-3 py-2">{c.views.toLocaleString()}</td>
                       <td className="px-3 py-2">{Math.floor(c.watchTimeSeconds / 60)}m</td>
+                      <td className="px-3 py-2 text-amber-200">
+                        {c.avgRating != null ? `${c.avgRating.toFixed(1)} ★` : "—"}
+                      </td>
+                      <td className="px-3 py-2">{c.comments}</td>
                       <td className="px-3 py-2 text-cyan-200">{score.toLocaleString()}</td>
                       <td className="px-3 py-2">{formatZar(rpv, { maximumFractionDigits: 4 })}</td>
-                      <td className="px-3 py-2">
+                      <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                         {showNewSeason ? (
                           <Link
                             href={`/creator/upload/season?contentId=${c.id}`}
@@ -567,6 +623,25 @@ export function CommandCenterClient() {
             </table>
           </div>
         </div>
+        {selectedFilmId ? (
+          <div className="grid gap-4 lg:grid-cols-2">
+            <AudienceAgeChart
+              title={`${contentList.find((c) => c.id === selectedFilmId)?.title ?? "Film"} — viewer ages`}
+              rows={selectedFilmAudience?.ageDistribution ?? []}
+              emptyMessage="No profile-age watch data for this title in the selected window yet."
+            />
+            <div className="storytime-section p-4">
+              <p className="mb-3 text-sm font-medium text-white">Engagement for this title</p>
+              <EngagementFeed
+                comments={cc.engagement.comments}
+                ratings={cc.engagement.ratings}
+                contentFilter={selectedFilmId}
+              />
+            </div>
+          </div>
+        ) : (
+          <p className="text-xs text-slate-500">Click a film row to open its age chart and viewer comments or ratings.</p>
+        )}
         <div>
           <p className="text-xs text-slate-500 mb-2">Trending velocity (heuristic)</p>
           <ol className="list-decimal list-inside text-sm text-slate-300 space-y-1">

@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import {
   useCallback,
   useEffect,
@@ -24,7 +23,6 @@ import {
   Sun,
   Undo2,
   Users,
-  Wand2,
   X,
 } from "lucide-react";
 import { creatorToolSelect, creatorToolSelectSm } from "@/lib/ui/creator-tool-select";
@@ -86,42 +84,7 @@ function studioToggleButtonClass(active: boolean) {
   );
 }
 
-const VA_QUICK_ACTIONS: Array<{ label: string; prompt: string }> = [
-  {
-    label: "Continue writing",
-    prompt:
-      "Continue the screenplay from where it ends. Match tone and formatting. Output only paste-ready screenplay text.",
-  },
-  {
-    label: "Improve dialogue",
-    prompt:
-      "Improve the dialogue in the current script excerpt. Keep character voices distinct. Suggest paste-ready replacements.",
-  },
-  {
-    label: "Breakdown elements",
-    prompt:
-      "From this script, list production breakdown elements (characters, props, locations, wardrobe). Use CHARACTER:/PROP:/LOCATION: lines for auto-fill.",
-  },
-  {
-    label: "Budget estimate",
-    prompt:
-      "Estimate a department-level budget from this script scope. Then emit MODOC_ACTION generate_smart_budget if a project budget shell exists, or create_budget first.",
-  },
-  {
-    label: "Plot consistency",
-    prompt: "Check plot and timeline consistency in this script. Flag continuity issues with scene references.",
-  },
-  {
-    label: "Rewrite for suspense",
-    prompt: "Rewrite the selected scene beats for suspense. Output paste-ready screenplay formatting.",
-  },
-];
-
-function openCreatorVa(prompt: string) {
-  window.dispatchEvent(
-    new CustomEvent("modoc:open-creator", { detail: { prompt } }),
-  );
-}
+const STUDIO_THEME_KEY = "storytime-script-studio-theme";
 
 export interface ScriptWritingStudioProps {
   projectId?: string;
@@ -132,6 +95,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
   const queryClient = useQueryClient();
   const hasProject = !!projectId;
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const pageViewportRef = useRef<HTMLDivElement | null>(null);
   const modoc = useModocOptional();
 
   const listEndpoint = hasProject
@@ -171,7 +135,11 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
   const [dirty, setDirty] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
 
-  const [studioTheme, setStudioTheme] = useState<StudioTheme>("dark");
+  const [studioTheme, setStudioTheme] = useState<StudioTheme>(() => {
+    if (typeof window === "undefined") return "dark";
+    const stored = window.localStorage.getItem(STUDIO_THEME_KEY);
+    return stored === "light" || stored === "dark" ? stored : "dark";
+  });
   const [fontId, setFontId] = useState("courier-prime");
   const [zoom, setZoom] = useState(100);
   const [focusMode, setFocusMode] = useState(false);
@@ -217,6 +185,25 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
   useEffect(() => {
     if (!selectedId && scripts.length > 0) setSelectedId(scripts[0].id);
   }, [scripts, selectedId]);
+
+  useEffect(() => {
+    window.localStorage.setItem(STUDIO_THEME_KEY, studioTheme);
+  }, [studioTheme]);
+
+  useEffect(() => {
+    const viewport = pageViewportRef.current;
+    if (!viewport) return;
+
+    const onWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey && !event.metaKey) return;
+      event.preventDefault();
+      const delta = event.deltaY > 0 ? -5 : 5;
+      setZoom((current) => Math.min(150, Math.max(50, current + delta)));
+    };
+
+    viewport.addEventListener("wheel", onWheel, { passive: false });
+    return () => viewport.removeEventListener("wheel", onWheel);
+  }, [draft?.id]);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -845,7 +832,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
         fontCss={fontCss}
       />
 
-      <div className="script-writer-shell">
+      <div className={cn("script-writer-shell", `script-writer-shell--${studioTheme}`)}>
       {draft ? (
         <div className="script-writer-chrome">
           <div className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2 lg:hidden">
@@ -888,7 +875,14 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
             </Button>
           </div>
 
-          <div className="script-writer-toolbar-float creator-tool-studio-toolbar rounded-xl border border-slate-800 bg-slate-900/60 px-2 py-2">
+          <div
+            className={cn(
+              "script-writer-toolbar-float creator-tool-studio-toolbar rounded-xl border px-2 py-2",
+              studioTheme === "light"
+                ? "border-slate-200 bg-white/95"
+                : "border-slate-800 bg-slate-900/60",
+            )}
+          >
                 <select
                   value={selectedElement}
                   onChange={(e) => handleElementSelect(e.target.value as ScreenplayElementType)}
@@ -1158,7 +1152,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
         )}
       >
         {!focusMode && leftPanelOpen ? (
-          <aside className="script-writer-side-panel flex-col">
+          <aside className="script-writer-side-panel script-writer-side-panel--left flex-col">
             <div className="flex items-center justify-between border-b border-slate-800 px-2 py-2">
               <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Navigator</span>
               <button type="button" className="rounded p-1 text-slate-500 hover:bg-slate-800 hover:text-white" onClick={() => setLeftPanelOpen(false)} aria-label="Hide navigator">
@@ -1268,7 +1262,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
         ) : null}
 
         {draft ? (
-          <div className="script-writer-page-viewport min-w-0">
+          <div ref={pageViewportRef} className="script-writer-page-viewport min-w-0">
             <div className="script-writer-page-viewport-inner space-y-3">
               <Input
                 value={draft.title}
@@ -1279,7 +1273,12 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                   setDirty(true);
                 }}
                 readOnly={!effectiveCanWrite}
-                className="w-full max-w-[8.5in] bg-slate-900 border-slate-700 text-sm text-white"
+                className={cn(
+                  "w-full max-w-[8.5in] text-sm",
+                  studioTheme === "light"
+                    ? "border-slate-300 bg-white text-slate-900"
+                    : "border-slate-700 bg-slate-900 text-white",
+                )}
                 placeholder="Script title"
               />
 
@@ -1289,6 +1288,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                   value={draft.content}
                   activeElement={selectedElement}
                   zoomPercent={zoom}
+                  theme={studioTheme}
                   preserveStructure={preserveImportLayout}
                   onPreserveStructureEnd={() => setPreserveImportLayout(false)}
                   onChange={(content) => {
@@ -1326,7 +1326,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
         )}
 
         {splitOutline && !focusMode && rightPanelOpen ? (
-          <aside className="script-writer-side-panel flex-col text-[11px]">
+          <aside className="script-writer-side-panel script-writer-side-panel--right flex-col text-[11px]">
             {hasProject && draft?.id ? (
               <div className="border-b border-slate-800 p-2">
                 <CollaborationPresenceBar
@@ -1425,72 +1425,16 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
       </div>
 
       {draft ? (
-        <div className="script-writer-chrome shrink-0 space-y-2 px-1 sm:px-0">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex flex-wrap gap-1">
-              {VA_QUICK_ACTIONS.map((action) => (
-                <button
-                  key={action.label}
-                  type="button"
-                  className="rounded-full border border-slate-700 px-2 py-1 text-[10px] text-slate-300 hover:border-orange-500 hover:text-orange-300"
-                  onClick={() => openCreatorVa(action.prompt)}
-                >
-                  <Wand2 className="inline h-3 w-3 mr-0.5 opacity-70" />
-                  {action.label}
-                </button>
-              ))}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                className="border-slate-600 text-xs text-slate-100"
-                disabled={!dirty}
-                onClick={() => {
-                  if (!selected) return;
-                  clearHistory();
-                  setDraft({
-                    id: selected.id,
-                    title: selected.title,
-                    type: selected.type || "FEATURE",
-                    content: selected.content || "",
-                  });
-                  setDirty(false);
-                }}
-              >
-                Discard
-              </Button>
-              <Button
-                size="sm"
-                className="bg-orange-500 hover:bg-orange-600 text-white text-xs"
-                disabled={!draft.id || saving || !dirty}
-                onClick={persist}
-              >
-                Save now
-              </Button>
-              {hasProject && selected?.id ? (
-                <>
-                  <Link
-                    href={`/creator/projects/${projectId}/pre-production/script-breakdown`}
-                    className="inline-flex h-8 items-center rounded-md border border-slate-600 px-3 text-xs text-slate-100 hover:bg-slate-800"
-                  >
-                    Breakdown
-                  </Link>
-                  <Link
-                    href={`/creator/projects/${projectId}/pre-production/budget-builder`}
-                    className="inline-flex h-8 items-center rounded-md border border-slate-600 px-3 text-xs text-slate-100 hover:bg-slate-800"
-                  >
-                    Budget
-                  </Link>
-                  <Link
-                    href={`/creator/projects/${projectId}/pre-production/production-scheduling`}
-                    className="inline-flex h-8 items-center rounded-md border border-slate-600 px-3 text-xs text-slate-100 hover:bg-slate-800"
-                  >
-                    Schedule
-                  </Link>
-                </>
-              ) : null}
-            </div>
+        <div className="script-writer-statusbar shrink-0 px-1 sm:px-0">
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              size="sm"
+              className="bg-orange-500 hover:bg-orange-600 text-white text-xs"
+              disabled={!draft.id || saving || !dirty}
+              onClick={persist}
+            >
+              {saving ? "Saving…" : "Save"}
+            </Button>
           </div>
         </div>
       ) : null}

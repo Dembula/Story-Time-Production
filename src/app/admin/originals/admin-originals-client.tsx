@@ -3,7 +3,8 @@
 import { StoryTimeLoader, StoryTimeLoadingCenter } from "@/components/ui/storytime-loader";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { formatZar } from "@/lib/format-currency-zar";
+import { creatorProjectWorkspaceHref, adminProjectDossierHref } from "@/lib/creator-project-href";
+import { buildOriginalsChecklist } from "@/lib/originals-submission-checklist";
 import {
   Sparkles,
   Film,
@@ -91,6 +92,7 @@ interface OriginalsProject {
   status: string;
   phase: string;
   members: { id: string; role: string; user: { id: string; name: string | null; email: string | null } }[];
+  pitches?: { id: string; title: string; status: string }[];
 }
 
 const PITCH_STATUS: Record<string, string> = {
@@ -209,7 +211,7 @@ export function AdminOriginalsClient() {
         setIdeas((prev) => prev.filter((i) => i.id !== ideaId));
         const refreshed = await fetch("/api/originals?type=projects").then((r) => r.json());
         setProjects(Array.isArray(refreshed) ? refreshed : projects);
-        window.open(`/creator/projects/${projectId}/workspace`, "_blank");
+        window.open(creatorProjectWorkspaceHref(projectId), "_blank");
       }
     } finally {
       setActionLoading(null);
@@ -386,25 +388,34 @@ export function AdminOriginalsClient() {
                     <div className="rounded-xl border border-slate-700/50 bg-slate-800/40 p-4">
                       <h4 className="text-sm font-semibold text-white mb-3">Submission completeness checklist</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
-                        {([
-                          ["Script", !!(p.scriptUrl || p.scriptId || p.scriptProjectId)],
-                          ["Synopsis", !!p.synopsis],
-                          ["Genre", !!p.genre],
-                          ["Target audience", !!p.targetAudience],
-                          ["References", !!p.references],
-                          ["Director statement", !!p.directorStatement],
-                          ["Production company", !!p.productionCompany],
-                          ["Previous work", !!p.previousWorkSummary],
-                          ["Intended release", !!p.intendedRelease],
-                          ["Key cast/crew", !!p.keyCastCrew],
-                          ["Financing status", !!p.financingStatus],
-                          ["Budget estimate", p.budgetEst != null && Number(p.budgetEst) > 0],
-                        ] as Array<[string, boolean]>).map(([label, ok]) => (
-                          <div key={label} className={`rounded-md px-2 py-1 border ${ok ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-red-500/30 bg-red-500/10 text-red-300"}`}>
-                            {ok ? "Complete" : "Missing"} - {label}
+                        {buildOriginalsChecklist(p).map(({ label, complete }) => (
+                          <div key={label} className={`rounded-md px-2 py-1 border ${complete ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-red-500/30 bg-red-500/10 text-red-300"}`}>
+                            {complete ? "Complete" : "Missing"} - {label}
                           </div>
                         ))}
                       </div>
+                      {(p.scriptProjectId || p.project?.id) && (
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          {p.scriptProjectId ? (
+                            <Link
+                              href={adminProjectDossierHref(p.scriptProjectId)}
+                              className="inline-flex items-center gap-1 rounded-lg border border-orange-500/30 bg-orange-500/10 px-3 py-1.5 text-xs text-orange-300 hover:bg-orange-500/20"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" /> View linked creator project tools
+                            </Link>
+                          ) : null}
+                          {p.project?.id ? (
+                            <Link
+                              href={creatorProjectWorkspaceHref(p.project.id)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-300 hover:bg-emerald-500/20"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" /> Open production workspace
+                            </Link>
+                          ) : null}
+                        </div>
+                      )}
                     </div>
                     {p.synopsis && (
                       <div>
@@ -588,7 +599,7 @@ export function AdminOriginalsClient() {
                       <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-slate-800/60 border border-slate-700/50">
                         <p className="text-xs text-slate-400">This request is linked to an Original. Open the shared workspace to collaborate with the creator.</p>
                         <Link
-                          href={`/creator/projects/${p.project.id}/workspace`}
+                          href={creatorProjectWorkspaceHref(p.project.id)}
                           target="_blank"
                           rel="noreferrer"
                           className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-orange-500/10 text-orange-400 border border-orange-500/30 text-sm font-medium hover:bg-orange-500/20"
@@ -687,16 +698,18 @@ export function AdminOriginalsClient() {
         <div className="space-y-4">
           <p className="text-sm text-slate-500 flex items-center gap-2">
             <Users className="w-4 h-4 text-emerald-400" />
-            Greenlit Originals: each is linked to the creator and has a shared pre-/production/post workspace. Open the workspace to collaborate in depth.
+            Greenlit Story Time Originals only — approved pitches with a shared production workspace. Creator-owned projects without an Originals submission stay in Creator projects.
           </p>
-          {projects.length === 0 ? (
+          {projects.filter((proj) => proj.pitches?.some((pitch) => pitch.status === "APPROVED")).length === 0 ? (
             <div className="rounded-2xl border border-slate-700/50 bg-slate-800/30 p-12 text-center">
               <Film className="w-12 h-12 text-slate-600 mx-auto mb-3" />
               <p className="text-slate-400">No Active Originals yet.</p>
               <p className="text-slate-500 text-sm mt-1">Approve an Originals request or promote a movie idea to create one.</p>
             </div>
           ) : (
-            projects.map((proj) => (
+            projects
+              .filter((proj) => proj.pitches?.some((pitch) => pitch.status === "APPROVED"))
+              .map((proj) => (
               <div key={proj.id} className="rounded-2xl border border-slate-700/50 bg-slate-800/40 p-5 flex flex-wrap items-center justify-between gap-4">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2 mb-1">
@@ -714,14 +727,22 @@ export function AdminOriginalsClient() {
                     {proj.members.length > 5 && <span>+{proj.members.length - 5} more</span>}
                   </div>
                 </div>
-                <Link
-                  href={`/creator/projects/${proj.id}/workspace`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-orange-500/10 text-orange-400 border border-orange-500/30 text-sm font-medium hover:bg-orange-500/20 shrink-0"
-                >
-                  <ExternalLink className="w-4 h-4" /> Open collaboration workspace
-                </Link>
+                <div className="flex flex-wrap gap-2 shrink-0">
+                  <Link
+                    href={adminProjectDossierHref(proj.id)}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-white/15 bg-white/[0.04] text-slate-200 text-sm font-medium hover:bg-white/[0.08]"
+                  >
+                    <FileText className="w-4 h-4" /> Admin dossier
+                  </Link>
+                  <Link
+                    href={creatorProjectWorkspaceHref(proj.id)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-orange-500/10 text-orange-400 border border-orange-500/30 text-sm font-medium hover:bg-orange-500/20"
+                  >
+                    <ExternalLink className="w-4 h-4" /> Open production workspace
+                  </Link>
+                </div>
               </div>
             ))
           )}

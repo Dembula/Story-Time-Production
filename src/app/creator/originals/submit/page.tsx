@@ -353,8 +353,8 @@ export default function OriginalsSubmitPage() {
             <Clapperboard className="w-5 h-5 text-orange-400" /> Platform project (optional)
           </h2>
           <p className="text-sm text-slate-400">
-            If you already have a Story Time production project for this title, you can reference it for reviewers.
-            This does not auto-attach scripts, budgets, or schedules — it only flags which pipeline project relates to this pitch.
+            Your creator projects stay private until you submit here for Story Time Originals consideration.
+            Optionally link an existing production project so reviewers can open scripts, budgets, and schedules you built in the app.
           </p>
           <label className="flex items-start gap-3 cursor-pointer">
             <input
@@ -370,7 +370,7 @@ export default function OriginalsSubmitPage() {
               className="mt-1 rounded border-slate-600 text-orange-500"
             />
             <span className="text-sm text-slate-300">
-              Reference a project I have already created on Story Time
+              Let Story Time reviewers open my linked production project (scripts, breakdown, budget, schedule)
             </span>
           </label>
           {form.linkPlatformProject && (

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { prismaJsonNull } from "@/lib/prisma-json";
 import { ensureUserRole, replaceUserRoles } from "@/lib/user-roles";
 import { hash } from "bcryptjs";
+import { isAdminGodAccount, parseAdminRights } from "@/lib/admin-permissions";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -14,6 +15,7 @@ export async function GET() {
   const users = await prisma.user.findMany({
     select: {
       id: true, name: true, email: true, role: true, bio: true,
+      adminRights: true,
       creatorAccountStructure: true,
       creatorTeamSeatCap: true,
       isAfdaStudent: true, createdAt: true, updatedAt: true,
@@ -73,8 +75,44 @@ export async function PATCH(req: NextRequest) {
 
   if (!userId || !action) return NextResponse.json({ error: "userId and action required" }, { status: 400 });
 
+  const adminUser = await prisma.user.findUnique({
+    where: { id: adminId },
+    select: { email: true },
+  });
+  const actorIsGod = isAdminGodAccount(adminUser?.email);
+
+  if (action === "SET_ADMIN_RIGHTS") {
+    const target = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, role: true, adminRights: true } });
+    if (!target) return NextResponse.json({ error: "User not found" }, { status: 404 });
+    if (target.role !== "ADMIN") {
+      return NextResponse.json({ error: "Admin rights apply only to ADMIN accounts." }, { status: 400 });
+    }
+    if (isAdminGodAccount(target.email) && !actorIsGod) {
+      return NextResponse.json({ error: "Only the platform owner can change rights on the main admin account." }, { status: 403 });
+    }
+    const rights = parseAdminRights(body.adminRights);
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: { adminRights: rights as object },
+    });
+    await prisma.adminAuditLog.create({
+      data: {
+        adminUserId: adminId,
+        action: "ADMIN_RIGHTS_UPDATE",
+        entityType: "User",
+        entityId: userId,
+        oldValue: target.adminRights ?? prismaJsonNull,
+        newValue: rights,
+      },
+    });
+    return NextResponse.json(updated);
+  }
+
   if (action === "CHANGE_ROLE" && newRole) {
     const before = await prisma.user.findUnique({ where: { id: userId } });
+    if (isAdminGodAccount(before?.email) && !actorIsGod) {
+      return NextResponse.json({ error: "Cannot change role on the platform owner account." }, { status: 403 });
+    }
     const updated = await prisma.user.update({ where: { id: userId }, data: { role: newRole } });
     await ensureUserRole(userId, newRole);
     const updatedRoles = await prisma.userRole.findMany({
@@ -217,6 +255,9 @@ export async function PATCH(req: NextRequest) {
 
   if (action === "DELETE") {
     const before = await prisma.user.findUnique({ where: { id: userId } });
+    if (isAdminGodAccount(before?.email)) {
+      return NextResponse.json({ error: "The platform owner account cannot be deleted." }, { status: 403 });
+    }
     await prisma.user.delete({ where: { id: userId } });
     await prisma.adminAuditLog.create({
       data: {

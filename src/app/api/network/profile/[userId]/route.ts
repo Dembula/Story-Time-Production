@@ -11,6 +11,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { enrichNetworkUserRow } from "@/lib/network-display-name";
 import { enrichNetworkPostsForFeed } from "@/lib/network-post-enrich";
+import { getUserFilmography } from "@/lib/network-filmography";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ userId: string }> }) {
   const session = await getServerSession(authOptions);
@@ -57,6 +58,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ userId:
     take: 12,
   });
 
+  const filmography = await getUserFilmography(userId, 12);
+
   const networkPostRows = await getPostsByAuthorId(userId, 30);
   const posts = await enrichNetworkPostsForFeed(networkPostRows, session?.user?.id ?? null);
 
@@ -67,6 +70,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ userId:
     followerCount,
     followingCount,
     contents,
+    filmography,
     posts,
   });
 }

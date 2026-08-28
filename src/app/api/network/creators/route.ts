@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isFollowing, getConnectionStatus, getFollowerCount } from "@/lib/network-db";
 import { enrichNetworkUserRow } from "@/lib/network-display-name";
+import { getFilmographyForUsers } from "@/lib/network-filmography";
 
 const CREATOR_ROLES = [
   "CONTENT_CREATOR",
@@ -74,5 +75,11 @@ export async function GET(req: NextRequest) {
     }),
   );
 
-  return NextResponse.json({ creators: withExtra });
+  const filmographyByUser = await getFilmographyForUsers(users.map((u) => u.id), 3);
+  const creators = withExtra.map((creator) => ({
+    ...creator,
+    filmography: filmographyByUser.get(creator.id) ?? [],
+  }));
+
+  return NextResponse.json({ creators });
 }

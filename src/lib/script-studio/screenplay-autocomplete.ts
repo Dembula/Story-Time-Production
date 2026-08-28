@@ -7,7 +7,7 @@ import {
   isSceneHeadingPrefixQuery,
 } from "./elements";
 import type { ScreenplayElementType } from "./types";
-import { detectLineElement, leadingSpaces, padColumn } from "./screenplay-keyboard";
+import { detectLineElement, padColumn } from "./screenplay-keyboard";
 import { SCREENPLAY_COL } from "./elements";
 
 export type ScreenplaySuggestion = {
@@ -65,6 +65,11 @@ function includesQuery(candidate: string, query: string): boolean {
   return candidate.toLowerCase().includes(query.toLowerCase());
 }
 
+const SCENE_HEADING_LINE = /^(INT\.|EXT\.|INT\.\/EXT\.|EXT\.\/INT\.|EST\.|I\/E\.)/i;
+const TRANSITION_PREFIX = /^(CUT|FADE|DISSOLVE|SMASH|MATCH|WIPE|JUMP|IRIS|CROSS)/i;
+const SHOT_PREFIX =
+  /^(CLOSE UP|EXTREME CLOSE UP|WIDE SHOT|MEDIUM SHOT|INSERT|POV|OVERHEAD|TRACKING SHOT|AERIAL SHOT|HANDHELD|STEADICAM|CRANE SHOT|DRONE SHOT|OVER THE SHOULDER)\b/i;
+
 /**
  * Suggestions for the current line based on element type and typed prefix.
  */
@@ -78,12 +83,13 @@ export function getScreenplaySuggestions(options: {
   const trimmed = line.trim();
   const query = trimmed.replace(/^\(+|\)+$/g, "").trim();
   const out: ScreenplaySuggestion[] = [];
+  const prefixQuery = trimmed.replace(/\s+.*$/, "");
 
-  const wantsSceneHeading = element === "scene_heading" || (!trimmed && element === "action");
+  const wantsSceneHeading =
+    element === "scene_heading" &&
+    (!trimmed || isSceneHeadingPrefixQuery(prefixQuery) || SCENE_HEADING_LINE.test(trimmed));
 
   if (wantsSceneHeading) {
-    const prefixQuery = trimmed.replace(/\s+.*$/, "");
-    // Only offer INT./EXT. while the line is empty or still looks like a prefix — never trap prose.
     if (!trimmed || isSceneHeadingPrefixQuery(prefixQuery)) {
       for (const prefix of SCENE_HEADING_PREFIXES) {
         if (
@@ -95,7 +101,7 @@ export function getScreenplaySuggestions(options: {
         }
       }
     }
-    if (/^(INT\.|EXT\.|INT\.\/EXT\.|EXT\.\/INT\.|EST\.|I\/E\.)/i.test(trimmed)) {
+    if (SCENE_HEADING_LINE.test(trimmed)) {
       const afterPrefix = trimmed.replace(/^(INT\.|EXT\.|INT\.\/EXT\.|EXT\.\/INT\.|EST\.|I\/E\.)\s*/i, "");
       const locPart = afterPrefix.split(/\s*-\s*/)[0] ?? "";
       for (const loc of collectLocations(content)) {
@@ -125,7 +131,7 @@ export function getScreenplaySuggestions(options: {
     }
   }
 
-  if (element === "character" || (element === "action" && !trimmed && leadingSpaces(line) === 0)) {
+  if (element === "character") {
     for (const name of collectCharacterNames(content)) {
       if (startsWithQuery(name, query)) {
         out.push({
@@ -146,15 +152,15 @@ export function getScreenplaySuggestions(options: {
     }
   }
 
-  if (element === "transition" || /^(cut|fade|dissolve|smash|match|wipe|jump|iris|cross)/i.test(trimmed)) {
+  if (element === "transition" && (TRANSITION_PREFIX.test(trimmed) || !trimmed)) {
     for (const t of TRANSITIONS) {
-      if (includesQuery(t, query) || startsWithQuery(t, query)) {
+      if (!trimmed || includesQuery(t, query) || startsWithQuery(t, query)) {
         out.push({ label: t, insert: t, element: "transition" });
       }
     }
   }
 
-  if (element === "shot" || (element === "action" && CAMERA_SHOTS.some((s) => startsWithQuery(s, query) && query.length >= 2))) {
+  if (element === "shot" || (element === "action" && SHOT_PREFIX.test(trimmed))) {
     for (const shot of CAMERA_SHOTS) {
       if (startsWithQuery(shot, query) || includesQuery(shot, query)) {
         out.push({ label: shot, insert: shot, element: "shot" });

@@ -45,9 +45,12 @@ function NavLinks({
   onNavigate: () => void;
 }) {
   return (
-    <nav className="space-y-5 text-sm">
-      {sections.map((section) => (
-        <div key={section.title ?? section.items[0]?.href ?? "section"}>
+    <nav className="space-y-1 text-sm">
+      {sections.map((section, sectionIndex) => (
+        <div
+          key={section.title ?? section.items[0]?.href ?? "section"}
+          className={sectionIndex > 0 ? "border-t border-white/10 pt-4 mt-4" : ""}
+        >
           {section.title ? (
             <p className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
               {section.title}
