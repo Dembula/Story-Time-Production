@@ -15,6 +15,7 @@ import {
 } from "@/lib/playback-content-url";
 import type { PlaybackSource } from "@/lib/playback-sources";
 import { contentHasScriptSource } from "@/lib/ai-metadata/content-script-source";
+import { getPlatformIntroPayload } from "@/lib/platform-intro";
 import { buildPlaybackSubtitleTracks } from "@/lib/subtitles/playback-tracks";
 
 export const runtime = "nodejs";
