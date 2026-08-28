@@ -306,7 +306,7 @@ export function TreatmentCreatorStudio({
 
   return (
     <>
-      <div className="treatment-studio flex min-h-[calc(100vh-8rem)] flex-col overflow-hidden rounded-xl border border-white/10 bg-[#08080a]">
+      <div className="treatment-studio flex min-h-[calc(100vh-8rem)] flex-col overflow-hidden rounded-xl border border-white/10 bg-black">
         {/* Top bar */}
         <div className="flex flex-wrap items-center gap-3 border-b border-white/10 px-3 py-2.5 md:px-4">
           <Link
@@ -355,7 +355,7 @@ export function TreatmentCreatorStudio({
                 Layout
               </Button>
               {layoutMenuOpen ? (
-                <div className="absolute right-0 top-full z-20 mt-1 w-40 rounded-lg border border-white/10 bg-[#141416] py-1 shadow-xl">
+                <div className="absolute right-0 top-full z-20 mt-1 w-40 rounded-lg border border-white/10 bg-black py-1 shadow-xl">
                   {LAYOUT_OPTIONS.map((opt) => (
                     <button
                       key={opt.id}
@@ -437,7 +437,7 @@ export function TreatmentCreatorStudio({
 
         <div className="flex min-h-0 flex-1">
           {/* Slide navigator */}
-          <aside className="flex w-36 shrink-0 flex-col border-r border-white/10 bg-[#0a0a0c] md:w-44">
+          <aside className="flex w-36 shrink-0 flex-col border-r border-white/10 bg-black md:w-44">
             <div className="p-2">
               <Button
                 type="button"

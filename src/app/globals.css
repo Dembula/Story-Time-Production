@@ -633,7 +633,7 @@ select optgroup {
 
 .creator-workspace-rail {
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.92) 0%, rgba(15, 23, 42, 0.78) 100%);
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.98) 0%, rgba(0, 0, 0, 0.92) 100%);
   backdrop-filter: blur(14px);
 }
 
@@ -719,7 +719,7 @@ select optgroup {
 .creator-tool-workspace-header {
   flex-shrink: 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(15, 23, 42, 0.55);
+  background: rgba(0, 0, 0, 0.85);
   padding: 1rem 1.25rem 1.1rem;
 }
 
@@ -824,6 +824,75 @@ select optgroup {
   box-shadow:
     0 0 0 1px rgba(255, 170, 51, 0.12),
     0 0 0 4px rgba(255, 145, 0, 0.1);
+}
+
+/*
+ * Creator workspace — remap Tailwind slate chrome to platform pure black.
+ * Keeps light slate (50–300) on white document/slide surfaces untouched.
+ */
+[data-storytime-creator] .bg-slate-950,
+[data-storytime-creator] .bg-slate-950\/40,
+[data-storytime-creator] .bg-slate-950\/50,
+[data-storytime-creator] .bg-slate-950\/60,
+[data-storytime-creator] .bg-slate-950\/70,
+[data-storytime-creator] .bg-slate-950\/75,
+[data-storytime-creator] .bg-slate-950\/80,
+[data-storytime-creator] .bg-slate-900,
+[data-storytime-creator] .bg-slate-900\/30,
+[data-storytime-creator] .bg-slate-900\/40,
+[data-storytime-creator] .bg-slate-900\/50,
+[data-storytime-creator] .bg-slate-900\/60,
+[data-storytime-creator] .bg-slate-900\/70,
+[data-storytime-creator] .bg-slate-900\/80,
+[data-storytime-creator] .bg-slate-900\/90,
+[data-storytime-creator] .bg-slate-900\/95,
+[data-storytime-creator] .bg-slate-800,
+[data-storytime-creator] .bg-slate-800\/30,
+[data-storytime-creator] .bg-slate-800\/40,
+[data-storytime-creator] .bg-slate-800\/50,
+[data-storytime-creator] .bg-slate-800\/60,
+[data-storytime-creator] .bg-slate-800\/80,
+[data-storytime-creator] .bg-slate-700,
+[data-storytime-creator] .bg-slate-700\/50,
+[data-storytime-creator] .bg-\[\#08080a\],
+[data-storytime-creator] .bg-\[\#08080c\],
+[data-storytime-creator] .bg-\[\#0a0a0c\],
+[data-storytime-creator] .bg-\[\#0a0a0e\],
+[data-storytime-creator] .bg-\[\#0c0c10\],
+[data-storytime-creator] .bg-\[\#0c0c0e\],
+[data-storytime-creator] .bg-\[\#141416\] {
+  background-color: #000000 !important;
+}
+
+[data-storytime-creator] .hover\:bg-slate-950:hover,
+[data-storytime-creator] .hover\:bg-slate-900:hover,
+[data-storytime-creator] .hover\:bg-slate-900\/30:hover,
+[data-storytime-creator] .hover\:bg-slate-900\/80:hover,
+[data-storytime-creator] .hover\:bg-slate-800:hover,
+[data-storytime-creator] .hover\:bg-slate-800\/50:hover {
+  background-color: #000000 !important;
+}
+
+[data-storytime-creator] .border-slate-600,
+[data-storytime-creator] .border-slate-700,
+[data-storytime-creator] .border-slate-700\/50,
+[data-storytime-creator] .border-slate-700\/70,
+[data-storytime-creator] .border-slate-800,
+[data-storytime-creator] .border-slate-800\/80 {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+[data-storytime-creator] .divide-slate-800 > :not([hidden]) ~ :not([hidden]) {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+[data-storytime-creator] .ring-slate-700 {
+  --tw-ring-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+[data-storytime-creator] .edit-review-studio,
+[data-storytime-creator] .treatment-studio {
+  background-color: #000000;
 }
 
 /* Soft panel dividers — inset glow instead of hard 1px rules */

@@ -227,7 +227,7 @@ export function EditReviewStudio({
   }
 
   return (
-    <div className="edit-review-studio flex min-h-[calc(100vh-8rem)] flex-col overflow-hidden rounded-xl border border-white/10 bg-[#08080c]">
+    <div className="edit-review-studio flex min-h-[calc(100vh-8rem)] flex-col overflow-hidden rounded-xl border border-white/10 bg-black">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
         <div>
           <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-orange-300/80">
@@ -268,7 +268,7 @@ export function EditReviewStudio({
 
       <div className="flex min-h-0 flex-1">
         {/* Asset sidebar */}
-        <aside className="flex w-56 shrink-0 flex-col border-r border-white/10 bg-[#0a0a0e] md:w-64">
+        <aside className="flex w-56 shrink-0 flex-col border-r border-white/10 bg-black md:w-64">
           <div className="border-b border-white/10 p-3">
             <p className="text-xs font-medium text-slate-400">Versions</p>
             <div className="mt-2 flex flex-wrap gap-1">
@@ -412,7 +412,7 @@ export function EditReviewStudio({
         </main>
 
         {/* Comments */}
-        <aside className="flex w-72 shrink-0 flex-col bg-[#0c0c10] md:w-80">
+        <aside className="flex w-72 shrink-0 flex-col bg-black md:w-80">
           <div className="flex items-center gap-2 border-b border-white/10 px-4 py-3">
             <MessageSquare className="h-4 w-4 text-slate-500" />
             <p className="text-sm font-medium text-white">Comments</p>

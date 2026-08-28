@@ -89,7 +89,7 @@ export function TreatmentAssetsPanel({
   };
 
   return (
-    <aside className="treatment-assets-panel flex h-full w-72 shrink-0 flex-col border-l border-white/10 bg-[#0c0c0e]">
+    <aside className="treatment-assets-panel flex h-full w-72 shrink-0 flex-col border-l border-white/10 bg-black">
       <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
         <div className="flex items-center gap-2 text-sm font-medium text-white">
           <FolderOpen className="h-4 w-4 text-slate-400" />
