@@ -27,7 +27,6 @@ import {
 } from "lucide-react";
 import { creatorToolSelect, creatorToolSelectSm } from "@/lib/ui/creator-tool-select";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -756,7 +755,12 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
   const readerContent = useMemo(() => draft?.content ?? "", [draft?.content]);
 
   const studioRoot = (
-    <div className="creator-tool-studio creator-tool-workspace space-y-0">
+    <div
+      className={cn(
+        "creator-tool-studio creator-tool-workspace space-y-0 script-writer-root",
+        `script-writer-root--${studioTheme}`,
+      )}
+    >
       {focusMode ? (
         <div className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/80 px-3 py-2 text-xs text-slate-400">
           <span>Focus mode — side panels hidden</span>
@@ -832,7 +836,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
         fontCss={fontCss}
       />
 
-      <div className={cn("script-writer-shell", `script-writer-shell--${studioTheme}`)}>
+      <div className="script-writer-shell">
       {draft ? (
         <div className="script-writer-chrome">
           <div className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2 lg:hidden">
@@ -878,11 +882,24 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
           <div
             className={cn(
               "script-writer-toolbar-float creator-tool-studio-toolbar rounded-xl border px-2 py-2",
-              studioTheme === "light"
-                ? "border-slate-200 bg-white/95"
-                : "border-slate-800 bg-slate-900/60",
+              studioTheme === "light" ? "border-slate-200" : "border-slate-800",
             )}
           >
+                {draft ? (
+                  <input
+                    value={draft.title}
+                    onChange={(e) => {
+                      if (!effectiveCanWrite) return;
+                      pushHistoryBeforeChange();
+                      setDraft({ ...draft, title: e.target.value });
+                      setDirty(true);
+                    }}
+                    readOnly={!effectiveCanWrite}
+                    placeholder="Script title"
+                    aria-label="Script title"
+                    className="script-writer-title-input"
+                  />
+                ) : null}
                 <select
                   value={selectedElement}
                   onChange={(e) => handleElementSelect(e.target.value as ScreenplayElementType)}
@@ -1263,25 +1280,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
 
         {draft ? (
           <div ref={pageViewportRef} className="script-writer-page-viewport min-w-0">
-            <div className="script-writer-page-viewport-inner space-y-3">
-              <Input
-                value={draft.title}
-                onChange={(e) => {
-                  if (!effectiveCanWrite) return;
-                  pushHistoryBeforeChange();
-                  setDraft({ ...draft, title: e.target.value });
-                  setDirty(true);
-                }}
-                readOnly={!effectiveCanWrite}
-                className={cn(
-                  "w-full max-w-[8.5in] text-sm",
-                  studioTheme === "light"
-                    ? "border-slate-300 bg-white text-slate-900"
-                    : "border-slate-700 bg-slate-900 text-white",
-                )}
-                placeholder="Script title"
-              />
-
+            <div className="script-writer-page-viewport-inner">
               <div className="script-writer-document-inner">
                 <ScreenplayEditor
                   textareaRef={textareaRef}
@@ -1336,6 +1335,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                   collaborationMode={collab.collaborationMode}
                   onModeChange={collab.setMode}
                   canWrite={collab.canWrite}
+                  variant={studioTheme === "light" ? "light" : "dark"}
                 />
               </div>
             ) : null}

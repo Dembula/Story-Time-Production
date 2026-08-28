@@ -1,6 +1,7 @@
 "use client";
 
 import { creatorToolSelectSm } from "@/lib/ui/creator-tool-select";
+import { cn } from "@/lib/utils";
 
 import Image from "next/image";
 import type { CollaborationPeer, ProjectCollaborator } from "./use-script-collaboration";
@@ -28,14 +29,20 @@ export function CollaborationPresenceBar({
   const onlineCount = peers.length + 1;
 
   return (
-    <div className="rounded-lg border border-white/10 bg-black px-3 py-2 space-y-2">
+    <div
+      className={cn(
+        "rounded-lg border px-3 py-2 space-y-2",
+        variant === "light"
+          ? "border-slate-200 bg-slate-50"
+          : "border-white/10 bg-black",
+      )}
+    >
       <div className="flex flex-wrap items-center gap-2">
         <span
-          className={
-            variant === "light"
-              ? "text-[10px] uppercase tracking-wider text-slate-500"
-              : "text-[10px] uppercase tracking-wider text-slate-500"
-          }
+          className={cn(
+            "text-[10px] uppercase tracking-wider",
+            variant === "light" ? "text-slate-500" : "text-slate-500",
+          )}
         >
           Live · {onlineCount} in studio
         </span>
