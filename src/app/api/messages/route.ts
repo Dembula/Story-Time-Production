@@ -126,6 +126,7 @@ export async function POST(req: NextRequest) {
       crewTeamRequestId: body.crewTeamRequestId,
       castingInquiryId: body.castingInquiryId,
       cateringBookingId: body.cateringBookingId,
+      requireActiveDeal: true,
     });
     if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
   }

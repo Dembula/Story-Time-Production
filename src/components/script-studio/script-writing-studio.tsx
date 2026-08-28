@@ -175,8 +175,8 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
   const [fontId, setFontId] = useState("courier-prime");
   const [zoom, setZoom] = useState(100);
   const [focusMode, setFocusMode] = useState(false);
-  const [leftPanelOpen, setLeftPanelOpen] = useState(false);
-  const [rightPanelOpen, setRightPanelOpen] = useState(false);
+  const [leftPanelOpen, setLeftPanelOpen] = useState(true);
+  const [rightPanelOpen, setRightPanelOpen] = useState(true);
   const [splitOutline, setSplitOutline] = useState(true);
   const [sidebarTab, setSidebarTab] = useState<"scenes" | "characters" | "outline">("scenes");
   const [highlightCharacter, setHighlightCharacter] = useState<string | null>(null);
@@ -686,7 +686,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
     const scrollTop =
       Math.floor(lineIndex / 55) * pageBlock + (lineIndex % 55) * lineHeightPx - lineHeightPx * 2;
     const scroll =
-      (el.closest(".script-writer-canvas") as HTMLElement | null) ??
+      (el.closest(".script-writer-page-viewport") as HTMLElement | null) ??
       (el.closest("[data-screenplay-scroll]") as HTMLElement | null);
     if (scroll) scroll.scrollTop = Math.max(0, scrollTop);
   };
@@ -845,161 +845,50 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
         fontCss={fontCss}
       />
 
-      <div className="script-writer-stage">
-        {!focusMode && leftPanelOpen ? (
-          <aside className="script-writer-float-panel script-writer-float-left hidden xl:flex flex-col">
-            <div className="flex items-center justify-between border-b border-slate-800 px-2 py-2">
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Navigator</span>
-              <button type="button" className="rounded p-1 text-slate-500 hover:bg-slate-800 hover:text-white" onClick={() => setLeftPanelOpen(false)} aria-label="Hide navigator">
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
-            <div className="flex border-b border-slate-800 text-[10px]">
-              {(["scenes", "characters", "outline"] as const).map((tab) => (
-                <button
-                  key={tab}
-                  type="button"
-                  onClick={() => setSidebarTab(tab)}
-                  className={`flex-1 px-2 py-2 capitalize ${
-                    sidebarTab === tab ? "bg-slate-800 text-orange-300" : "text-slate-400"
-                  }`}
-                >
-                  {tab}
-                </button>
-              ))}
-            </div>
-            <div className="flex items-center justify-between px-2 py-2 border-b border-slate-800">
-              <span className="text-[10px] text-slate-500">Library</span>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 border-slate-700 text-[10px] text-slate-100"
-                onClick={() => createMutation.mutate()}
-              >
-                New
-              </Button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-2 space-y-1">
-              {isLoading ? (
-                <Skeleton className="h-10 bg-slate-800/60" />
-              ) : scripts.length === 0 ? (
-                <p className="p-2 text-[11px] text-slate-500">No scripts yet.</p>
+      <div className="script-writer-shell">
+      {draft ? (
+        <div className="script-writer-chrome">
+          <div className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2 lg:hidden">
+            <label htmlFor="mobile-script-picker" className="sr-only">
+              Select script
+            </label>
+            <select
+              id="mobile-script-picker"
+              value={selectedId ?? ""}
+              onChange={(e) => setSelectedId(e.target.value || null)}
+              className={creatorToolSelect("min-w-0 flex-1 text-xs")}
+              disabled={isLoading || scripts.length === 0}
+            >
+              {scripts.length === 0 ? (
+                <option value="">No scripts yet</option>
               ) : (
                 scripts.map((script) => (
-                  <button
-                    key={script.id}
-                    type="button"
-                    onClick={() => setSelectedId(script.id)}
-                    className={`w-full text-left px-2 py-2 rounded-lg text-[11px] truncate ${
-                      script.id === selected?.id
-                        ? "bg-slate-800 text-white"
-                        : "text-slate-300 hover:bg-slate-900"
-                    }`}
-                  >
-                    {script.title}
-                  </button>
+                  <option key={script.id} value={script.id}>
+                    {script.title || "Untitled script"}
+                  </option>
                 ))
               )}
-            </div>
-            <div className="border-t border-slate-800 p-2 max-h-[45%] overflow-y-auto text-[11px]">
-              {sidebarTab === "scenes" &&
-                scenes.map((scene) => (
-                  <button
-                    key={scene.id}
-                    type="button"
-                    onClick={() => jumpToScene(scene.lineIndex)}
-                    className="w-full text-left py-1.5 px-1 rounded hover:bg-slate-800 text-slate-300"
-                  >
-                    <span className="text-orange-400/80">{scene.number}.</span> {scene.heading}
-                  </button>
-                ))}
-              {sidebarTab === "characters" &&
-                characters.map((ch) => (
-                  <button
-                    key={ch.name}
-                    type="button"
-                    onClick={() => setHighlightCharacter(ch.name === highlightCharacter ? null : ch.name)}
-                    className={`w-full text-left py-1.5 px-1 rounded ${
-                      highlightCharacter === ch.name ? "bg-orange-500/20 text-orange-200" : "hover:bg-slate-800 text-slate-300"
-                    }`}
-                  >
-                    <Users className="inline h-3 w-3 mr-1 opacity-60" />
-                    {ch.name}
-                    <span className="text-slate-500 ml-1">({ch.dialogueLines})</span>
-                  </button>
-                ))}
-              {sidebarTab === "outline" && (
-                <div className="space-y-2 text-slate-400">
-                  <p className="text-[10px] uppercase tracking-wider text-slate-500">Act structure</p>
-                  {["Act One", "Act Two", "Act Three"].map((act, ai) => {
-                    const chunk = Math.ceil(scenes.length / 3) || 1;
-                    const actScenes = scenes.slice(ai * chunk, (ai + 1) * chunk);
-                    return (
-                      <div key={act}>
-                        <p className="font-medium text-slate-300">{act}</p>
-                        {actScenes.map((s) => (
-                          <button
-                            key={s.id}
-                            type="button"
-                            onClick={() => jumpToScene(s.lineIndex)}
-                            className="block w-full text-left pl-2 py-0.5 hover:text-orange-300 truncate"
-                          >
-                            Sc.{s.number} {s.heading}
-                          </button>
-                        ))}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </aside>
-        ) : null}
+            </select>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 shrink-0 border-slate-700 text-[11px] text-slate-100"
+              onClick={() => createMutation.mutate()}
+            >
+              New
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 shrink-0 text-[11px] text-slate-300"
+              onClick={() => setScriptsViewOpen(true)}
+              disabled={scripts.length === 0}
+            >
+              Library
+            </Button>
+          </div>
 
-        <section className="script-writer-canvas min-w-0 space-y-2 px-1 sm:px-2">
-          {draft ? (
-            <>
-              <div className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2 lg:hidden">
-                <label htmlFor="mobile-script-picker" className="sr-only">
-                  Select script
-                </label>
-                <select
-                  id="mobile-script-picker"
-                  value={selectedId ?? ""}
-                  onChange={(e) => setSelectedId(e.target.value || null)}
-                  className={creatorToolSelect("min-w-0 flex-1 text-xs")}
-                  disabled={isLoading || scripts.length === 0}
-                >
-                  {scripts.length === 0 ? (
-                    <option value="">No scripts yet</option>
-                  ) : (
-                    scripts.map((script) => (
-                      <option key={script.id} value={script.id}>
-                        {script.title || "Untitled script"}
-                      </option>
-                    ))
-                  )}
-                </select>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 shrink-0 border-slate-700 text-[11px] text-slate-100"
-                  onClick={() => createMutation.mutate()}
-                >
-                  New
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-8 shrink-0 text-[11px] text-slate-300"
-                  onClick={() => setScriptsViewOpen(true)}
-                  disabled={scripts.length === 0}
-                >
-                  Library
-                </Button>
-              </div>
-
-              <div className="script-writer-toolbar-float creator-tool-studio-toolbar rounded-xl border border-slate-800 bg-slate-900/60 px-2 py-2">
+          <div className="script-writer-toolbar-float creator-tool-studio-toolbar rounded-xl border border-slate-800 bg-slate-900/60 px-2 py-2">
                 <select
                   value={selectedElement}
                   onChange={(e) => handleElementSelect(e.target.value as ScreenplayElementType)}
@@ -1063,11 +952,11 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                   >
                     <Redo2 className="h-3.5 w-3.5" />
                   </Button>
-                  <Button size="sm" variant="ghost" className="h-7 text-slate-300" onClick={() => setZoom((z) => Math.max(80, z - 10))}>
+                  <Button size="sm" variant="ghost" className="h-7 text-slate-300" onClick={() => setZoom((z) => Math.max(50, z - 10))}>
                     −
                   </Button>
                   <span className="text-[10px] text-slate-500 w-8 text-center">{zoom}%</span>
-                  <Button size="sm" variant="ghost" className="h-7 text-slate-300" onClick={() => setZoom((z) => Math.min(140, z + 10))}>
+                  <Button size="sm" variant="ghost" className="h-7 text-slate-300" onClick={() => setZoom((z) => Math.min(150, z + 10))}>
                     +
                   </Button>
                   <Button size="sm" variant="ghost" className="h-7 text-slate-300" onClick={() => setStudioTheme((t) => (t === "dark" ? "light" : "dark"))}>
@@ -1198,78 +1087,189 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                 </div>
               </div>
 
-              <p className="text-[10px] text-slate-500">
-                  Tab cycles elements · Enter advances (double-Enter: Action↔Character / Dialogue→Action) · Character → Parenthetical · Type int / cut / ( for smart format
-              </p>
+          <p className="text-[10px] text-slate-500 px-1">
+            Tab cycles elements · Enter advances (double-Enter: Action↔Character / Dialogue→Action) · Character → Parenthetical · Type int / cut / ( for smart format
+          </p>
 
-              {hasProject && draft.id ? (
-                <CollaborationPresenceBar
-                  peers={collab.peers}
-                  collaborators={collab.collaborators}
-                  myColor={collab.myColor}
-                  collaborationMode={collab.collaborationMode}
-                  onModeChange={collab.setMode}
-                  canWrite={collab.canWrite}
-                />
-              ) : null}
+          {collab.remoteRevision && !dirty ? (
+            <div className="rounded-lg border border-orange-800/50 bg-orange-950/30 px-3 py-2 text-[11px] text-orange-200 flex flex-wrap items-center gap-2">
+              <span>
+                {collab.remoteUpdatedBy ?? "A collaborator"} updated this screenplay.
+              </span>
+              <button
+                type="button"
+                className="underline"
+                onClick={() => collab.applyRemoteRevision()}
+              >
+                Load latest
+              </button>
+              <button type="button" className="text-slate-400" onClick={collab.dismissRemoteRevision}>
+                Dismiss
+              </button>
+            </div>
+          ) : null}
 
-              {collab.remoteRevision && !dirty ? (
-                <div className="rounded-lg border border-orange-800/50 bg-orange-950/30 px-3 py-2 text-[11px] text-orange-200 flex flex-wrap items-center gap-2">
-                  <span>
-                    {collab.remoteUpdatedBy ?? "A collaborator"} updated this screenplay.
-                  </span>
+          {conflictMessage ? (
+            <div className="rounded-lg border border-red-800/50 bg-red-950/30 px-3 py-2 text-[11px] text-red-200 flex flex-wrap gap-2">
+              <span>{conflictMessage}</span>
+              <button
+                type="button"
+                className="underline"
+                onClick={async () => {
+                  if (!draft?.id) return;
+                  const res = await fetch(`/api/creator/scripts/${draft.id}`);
+                  if (!res.ok) return;
+                  const data = await res.json();
+                  setDraft({
+                    id: draft.id,
+                    title: data.script.title,
+                    type: draft.type,
+                    content: data.script.content,
+                  });
+                  savedUpdatedAtRef.current = data.script.updatedAt;
+                  setDirty(false);
+                  setConflictMessage(null);
+                }}
+              >
+                Reload collaborator version
+              </button>
+            </div>
+          ) : null}
+
+          {importError ? (
+            <div className="rounded-lg border border-red-800/50 bg-red-950/30 px-3 py-2 text-[11px] text-red-200">
+              {importError}
+            </div>
+          ) : null}
+
+          {preserveImportLayout ? (
+            <div className="rounded-lg border border-emerald-800/40 bg-emerald-950/20 px-3 py-2 text-[11px] text-emerald-200">
+              Imported layout preserved — press Tab or Enter on a line to apply Story Time formatting.
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div
+        className={cn(
+          "script-writer-stage",
+          !focusMode && leftPanelOpen && "has-left",
+          !focusMode && splitOutline && rightPanelOpen && "has-right",
+        )}
+      >
+        {!focusMode && leftPanelOpen ? (
+          <aside className="script-writer-side-panel flex-col">
+            <div className="flex items-center justify-between border-b border-slate-800 px-2 py-2">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Navigator</span>
+              <button type="button" className="rounded p-1 text-slate-500 hover:bg-slate-800 hover:text-white" onClick={() => setLeftPanelOpen(false)} aria-label="Hide navigator">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <div className="flex border-b border-slate-800 text-[10px]">
+              {(["scenes", "characters", "outline"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setSidebarTab(tab)}
+                  className={`flex-1 px-2 py-2 capitalize ${
+                    sidebarTab === tab ? "bg-slate-800 text-orange-300" : "text-slate-400"
+                  }`}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center justify-between px-2 py-2 border-b border-slate-800">
+              <span className="text-[10px] text-slate-500">Library</span>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 border-slate-700 text-[10px] text-slate-100"
+                onClick={() => createMutation.mutate()}
+              >
+                New
+              </Button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-2 space-y-1">
+              {isLoading ? (
+                <Skeleton className="h-10 bg-slate-800/60" />
+              ) : scripts.length === 0 ? (
+                <p className="p-2 text-[11px] text-slate-500">No scripts yet.</p>
+              ) : (
+                scripts.map((script) => (
                   <button
+                    key={script.id}
                     type="button"
-                    className="underline"
-                    onClick={() => collab.applyRemoteRevision()}
+                    onClick={() => setSelectedId(script.id)}
+                    className={`w-full text-left px-2 py-2 rounded-lg text-[11px] truncate ${
+                      script.id === selected?.id
+                        ? "bg-slate-800 text-white"
+                        : "text-slate-300 hover:bg-slate-900"
+                    }`}
                   >
-                    Load latest
+                    {script.title}
                   </button>
-                  <button type="button" className="text-slate-400" onClick={collab.dismissRemoteRevision}>
-                    Dismiss
-                  </button>
-                </div>
-              ) : null}
-
-              {conflictMessage ? (
-                <div className="rounded-lg border border-red-800/50 bg-red-950/30 px-3 py-2 text-[11px] text-red-200 flex flex-wrap gap-2">
-                  <span>{conflictMessage}</span>
+                ))
+              )}
+            </div>
+            <div className="border-t border-slate-800 p-2 max-h-[45%] overflow-y-auto text-[11px]">
+              {sidebarTab === "scenes" &&
+                scenes.map((scene) => (
                   <button
+                    key={scene.id}
                     type="button"
-                    className="underline"
-                    onClick={async () => {
-                      if (!draft?.id) return;
-                      const res = await fetch(`/api/creator/scripts/${draft.id}`);
-                      if (!res.ok) return;
-                      const data = await res.json();
-                      setDraft({
-                        id: draft.id,
-                        title: data.script.title,
-                        type: draft.type,
-                        content: data.script.content,
-                      });
-                      savedUpdatedAtRef.current = data.script.updatedAt;
-                      setDirty(false);
-                      setConflictMessage(null);
-                    }}
+                    onClick={() => jumpToScene(scene.lineIndex)}
+                    className="w-full text-left py-1.5 px-1 rounded hover:bg-slate-800 text-slate-300"
                   >
-                    Reload collaborator version
+                    <span className="text-orange-400/80">{scene.number}.</span> {scene.heading}
                   </button>
+                ))}
+              {sidebarTab === "characters" &&
+                characters.map((ch) => (
+                  <button
+                    key={ch.name}
+                    type="button"
+                    onClick={() => setHighlightCharacter(ch.name === highlightCharacter ? null : ch.name)}
+                    className={`w-full text-left py-1.5 px-1 rounded ${
+                      highlightCharacter === ch.name ? "bg-orange-500/20 text-orange-200" : "hover:bg-slate-800 text-slate-300"
+                    }`}
+                  >
+                    <Users className="inline h-3 w-3 mr-1 opacity-60" />
+                    {ch.name}
+                    <span className="text-slate-500 ml-1">({ch.dialogueLines})</span>
+                  </button>
+                ))}
+              {sidebarTab === "outline" && (
+                <div className="space-y-2 text-slate-400">
+                  <p className="text-[10px] uppercase tracking-wider text-slate-500">Act structure</p>
+                  {["Act One", "Act Two", "Act Three"].map((act, ai) => {
+                    const chunk = Math.ceil(scenes.length / 3) || 1;
+                    const actScenes = scenes.slice(ai * chunk, (ai + 1) * chunk);
+                    return (
+                      <div key={act}>
+                        <p className="font-medium text-slate-300">{act}</p>
+                        {actScenes.map((s) => (
+                          <button
+                            key={s.id}
+                            type="button"
+                            onClick={() => jumpToScene(s.lineIndex)}
+                            className="block w-full text-left pl-2 py-0.5 hover:text-orange-300 truncate"
+                          >
+                            Sc.{s.number} {s.heading}
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })}
                 </div>
-              ) : null}
+              )}
+            </div>
+          </aside>
+        ) : null}
 
-              {importError ? (
-                <div className="rounded-lg border border-red-800/50 bg-red-950/30 px-3 py-2 text-[11px] text-red-200">
-                  {importError}
-                </div>
-              ) : null}
-
-              {preserveImportLayout ? (
-                <div className="rounded-lg border border-emerald-800/40 bg-emerald-950/20 px-3 py-2 text-[11px] text-emerald-200">
-                  Imported layout preserved — press Tab or Enter on a line to apply Story Time formatting.
-                </div>
-              ) : null}
-
+        {draft ? (
+          <div className="script-writer-page-viewport min-w-0">
+            <div className="script-writer-page-viewport-inner space-y-3">
               <Input
                 value={draft.title}
                 onChange={(e) => {
@@ -1279,27 +1279,11 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                   setDirty(true);
                 }}
                 readOnly={!effectiveCanWrite}
-                className="bg-slate-900 border-slate-700 text-sm text-white"
+                className="w-full max-w-[8.5in] bg-slate-900 border-slate-700 text-sm text-white"
                 placeholder="Script title"
               />
 
-              <div className="script-writer-document-inner relative">
-                {collab.peers.length > 0 ? (
-                  <div className="pointer-events-none absolute right-2 top-2 z-10 space-y-1">
-                    {collab.peers
-                      .filter((p) => p.cursorLine > 0)
-                      .slice(0, 4)
-                      .map((peer) => (
-                        <span
-                          key={peer.userId}
-                          className="block rounded px-1.5 py-0.5 text-[9px] font-medium text-white shadow"
-                          style={{ backgroundColor: peer.color }}
-                        >
-                          {peer.displayName} · L{peer.cursorLine + 1}
-                        </span>
-                      ))}
-                  </div>
-                ) : null}
+              <div className="script-writer-document-inner">
                 <ScreenplayEditor
                   textareaRef={textareaRef}
                   value={draft.content}
@@ -1330,84 +1314,31 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                   placeholder="INT. LOCATION - DAY"
                 />
               </div>
-
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex flex-wrap gap-1">
-                  {VA_QUICK_ACTIONS.map((action) => (
-                    <button
-                      key={action.label}
-                      type="button"
-                      className="rounded-full border border-slate-700 px-2 py-1 text-[10px] text-slate-300 hover:border-orange-500 hover:text-orange-300"
-                      onClick={() => openCreatorVa(action.prompt)}
-                    >
-                      <Wand2 className="inline h-3 w-3 mr-0.5 opacity-70" />
-                      {action.label}
-                    </button>
-                  ))}
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-slate-600 text-xs text-slate-100"
-                    disabled={!dirty}
-                    onClick={() => {
-                      if (!selected) return;
-                      clearHistory();
-                      setDraft({
-                        id: selected.id,
-                        title: selected.title,
-                        type: selected.type || "FEATURE",
-                        content: selected.content || "",
-                      });
-                      setDirty(false);
-                    }}
-                  >
-                    Discard
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="bg-orange-500 hover:bg-orange-600 text-white text-xs"
-                    disabled={!draft.id || saving || !dirty}
-                    onClick={persist}
-                  >
-                    Save now
-                  </Button>
-                  {hasProject && selected?.id ? (
-                    <>
-                      <Link
-                        href={`/creator/projects/${projectId}/pre-production/script-breakdown`}
-                        className="inline-flex h-8 items-center rounded-md border border-slate-600 px-3 text-xs text-slate-100 hover:bg-slate-800"
-                      >
-                        Breakdown
-                      </Link>
-                      <Link
-                        href={`/creator/projects/${projectId}/pre-production/budget-builder`}
-                        className="inline-flex h-8 items-center rounded-md border border-slate-600 px-3 text-xs text-slate-100 hover:bg-slate-800"
-                      >
-                        Budget
-                      </Link>
-                      <Link
-                        href={`/creator/projects/${projectId}/pre-production/production-scheduling`}
-                        className="inline-flex h-8 items-center rounded-md border border-slate-600 px-3 text-xs text-slate-100 hover:bg-slate-800"
-                      >
-                        Schedule
-                      </Link>
-                    </>
-                  ) : null}
-                </div>
-              </div>
-            </>
-          ) : (
+            </div>
+          </div>
+        ) : (
+          <div className="script-writer-page-viewport flex min-w-0 items-center justify-center">
             <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/40 p-8 text-center text-sm text-slate-400">
               <BookOpen className="mx-auto h-8 w-8 text-slate-600 mb-2" />
               Create a new script to open the writing studio.
             </div>
-          )}
-        </section>
+          </div>
+        )}
 
         {splitOutline && !focusMode && rightPanelOpen ? (
-          <aside className="script-writer-float-panel script-writer-float-right hidden xl:flex flex-col text-[11px]">
+          <aside className="script-writer-side-panel flex-col text-[11px]">
+            {hasProject && draft?.id ? (
+              <div className="border-b border-slate-800 p-2">
+                <CollaborationPresenceBar
+                  peers={collab.peers}
+                  collaborators={collab.collaborators}
+                  myColor={collab.myColor}
+                  collaborationMode={collab.collaborationMode}
+                  onModeChange={collab.setMode}
+                  canWrite={collab.canWrite}
+                />
+              </div>
+            ) : null}
             <div className="flex items-center justify-between border-b border-slate-800 px-2 py-2">
               <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Tools</span>
               <button type="button" className="rounded p-1 text-slate-500 hover:bg-slate-800 hover:text-white" onClick={() => setRightPanelOpen(false)} aria-label="Hide tools panel">
@@ -1491,6 +1422,78 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
             </div>
           </aside>
         ) : null}
+      </div>
+
+      {draft ? (
+        <div className="script-writer-chrome shrink-0 space-y-2 px-1 sm:px-0">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap gap-1">
+              {VA_QUICK_ACTIONS.map((action) => (
+                <button
+                  key={action.label}
+                  type="button"
+                  className="rounded-full border border-slate-700 px-2 py-1 text-[10px] text-slate-300 hover:border-orange-500 hover:text-orange-300"
+                  onClick={() => openCreatorVa(action.prompt)}
+                >
+                  <Wand2 className="inline h-3 w-3 mr-0.5 opacity-70" />
+                  {action.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-slate-600 text-xs text-slate-100"
+                disabled={!dirty}
+                onClick={() => {
+                  if (!selected) return;
+                  clearHistory();
+                  setDraft({
+                    id: selected.id,
+                    title: selected.title,
+                    type: selected.type || "FEATURE",
+                    content: selected.content || "",
+                  });
+                  setDirty(false);
+                }}
+              >
+                Discard
+              </Button>
+              <Button
+                size="sm"
+                className="bg-orange-500 hover:bg-orange-600 text-white text-xs"
+                disabled={!draft.id || saving || !dirty}
+                onClick={persist}
+              >
+                Save now
+              </Button>
+              {hasProject && selected?.id ? (
+                <>
+                  <Link
+                    href={`/creator/projects/${projectId}/pre-production/script-breakdown`}
+                    className="inline-flex h-8 items-center rounded-md border border-slate-600 px-3 text-xs text-slate-100 hover:bg-slate-800"
+                  >
+                    Breakdown
+                  </Link>
+                  <Link
+                    href={`/creator/projects/${projectId}/pre-production/budget-builder`}
+                    className="inline-flex h-8 items-center rounded-md border border-slate-600 px-3 text-xs text-slate-100 hover:bg-slate-800"
+                  >
+                    Budget
+                  </Link>
+                  <Link
+                    href={`/creator/projects/${projectId}/pre-production/production-scheduling`}
+                    className="inline-flex h-8 items-center rounded-md border border-slate-600 px-3 text-xs text-slate-100 hover:bg-slate-800"
+                  >
+                    Schedule
+                  </Link>
+                </>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
       </div>
 
       {importPreview ? (

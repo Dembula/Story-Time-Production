@@ -296,31 +296,86 @@ select optgroup {
   }
 }
 
-/* Script Writing Studio — classic header + sticky toolbar; full US Letter pages */
-.script-writer-stage {
-  position: relative;
+/* Script Writing Studio — 3-column grid: side panels in margins, centered page viewport */
+.script-writer-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
   min-height: calc(100vh - 6.5rem);
+  width: 100%;
+  min-width: 0;
+}
+
+.script-writer-chrome {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.script-writer-stage {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+  min-height: 0;
+  min-width: 0;
   width: 100%;
 }
 
-.script-writer-canvas {
-  min-height: calc(100vh - 7rem);
-  max-height: calc(100vh - 5.5rem);
-  width: 100%;
-  max-width: none;
+.script-writer-stage.has-left.has-right {
+  grid-template-columns: minmax(11rem, 15rem) minmax(0, 1fr) minmax(12rem, 16rem);
+}
+
+.script-writer-stage.has-left:not(.has-right) {
+  grid-template-columns: minmax(11rem, 15rem) minmax(0, 1fr);
+}
+
+.script-writer-stage.has-right:not(.has-left) {
+  grid-template-columns: minmax(0, 1fr) minmax(12rem, 16rem);
+}
+
+.script-writer-side-panel {
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+  max-height: calc(100vh - 11rem);
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.94);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 12px 40px -16px rgba(0, 0, 0, 0.55);
+}
+
+@media (min-width: 1280px) {
+  .script-writer-side-panel {
+    display: flex;
+  }
+}
+
+.script-writer-page-viewport {
+  min-height: calc(100vh - 13rem);
+  max-height: calc(100vh - 11rem);
   min-width: 0;
-  margin: 0 auto;
   overflow: auto;
   background: #52565e;
-  padding: 1rem 1.25rem 3rem;
+  padding: 1.5rem 1rem 2.5rem;
   border-radius: 0.75rem;
   border: 1px solid rgba(255, 255, 255, 0.08);
   -webkit-overflow-scrolling: touch;
 }
 
+.script-writer-page-viewport-inner {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: min-content;
+  width: 100%;
+}
+
 .script-writer-document-inner {
   width: fit-content;
-  min-width: 100%;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
@@ -363,33 +418,6 @@ select optgroup {
   opacity: 1;
 }
 
-.script-writer-float-panel {
-  position: fixed;
-  z-index: 40;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  border-radius: 1rem;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(0, 0, 0, 0.94);
-  backdrop-filter: blur(16px);
-  box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.65);
-}
-
-.script-writer-float-left {
-  top: 5.5rem;
-  left: max(0.75rem, calc((100vw - 8.5in) / 2 - 17rem));
-  width: min(15rem, calc(100vw - 1.5rem));
-  max-height: calc(100vh - 7rem);
-}
-
-.script-writer-float-right {
-  top: 5.5rem;
-  right: max(0.75rem, calc((100vw - 8.5in) / 2 - 17rem));
-  width: min(16rem, calc(100vw - 1.5rem));
-  max-height: calc(100vh - 7rem);
-}
-
 .script-writer-editor-root {
   width: 100%;
 }
@@ -405,9 +433,6 @@ select optgroup {
 }
 
 .script-writer-toolbar-float {
-  position: sticky;
-  top: 0;
-  z-index: 30;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -417,23 +442,15 @@ select optgroup {
 }
 
 @media (max-width: 1279px) {
-  .script-writer-float-left,
-  .script-writer-float-right {
-    left: 0.75rem;
-    right: 0.75rem;
-    width: auto;
-    max-width: 18rem;
-  }
-
-  .script-writer-float-right {
-    left: auto;
+  .script-writer-page-viewport {
+    max-height: none;
+    min-height: calc(100vh - 14rem);
   }
 }
 
 @media (max-width: 1023px) {
-  .script-writer-canvas {
-    max-height: none;
-    min-height: calc(100vh - 9rem);
+  .script-writer-page-viewport {
+    min-height: calc(100vh - 16rem);
     padding: 0.75rem 0.5rem 2rem;
   }
 }
@@ -463,8 +480,8 @@ select optgroup {
   min-width: 0;
 }
 
-.creator-pipeline-shell-tool-body .script-writer-canvas {
-  max-height: calc(100vh - 8rem);
+.creator-pipeline-shell-tool-body .script-writer-page-viewport {
+  max-height: calc(100vh - 10rem);
 }
 
 .creator-workspace-rail {

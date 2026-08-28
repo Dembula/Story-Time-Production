@@ -67,12 +67,27 @@ type ListingDetail = {
   photoUrls?: string | null;
   imageUrl?: string | null;
   previewImageUrl?: string | null;
+  galleryUrls?: string[];
+  menuHighlights?: string[];
+  serviceTypes?: string[];
+  specializations?: string | null;
   user?: { id: string; name?: string | null; email?: string | null };
   company?: { id?: string; name?: string | null; email?: string | null };
   talent?: TalentRow[];
   members?: CrewMemberRow[];
   _count?: { talent?: number; members?: number; bookings?: number };
 };
+
+function parsePhotoUrls(raw: string | null | undefined): string[] {
+  if (!raw?.trim()) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (Array.isArray(parsed)) return parsed.filter((u): u is string => typeof u === "string" && u.length > 0);
+  } catch {
+    return raw.split(",").map((s) => s.trim()).filter(Boolean);
+  }
+  return [];
+}
 
 const CATEGORY_QUERY: Record<
   MarketplaceCategoryId,
@@ -133,6 +148,7 @@ function normalizeDetail(categoryId: MarketplaceCategoryId, raw: Record<string, 
     };
   }
   if (categoryId === "locations") {
+    const gallery = parsePhotoUrls(raw.photoUrls as string | undefined);
     return {
       id: String(raw.id),
       title: String(raw.name ?? "Location"),
@@ -144,11 +160,13 @@ function normalizeDetail(categoryId: MarketplaceCategoryId, raw: Record<string, 
       dailyRate: typeof raw.dailyRate === "number" ? raw.dailyRate : null,
       amenities: (raw.amenities as string) ?? null,
       photoUrls: (raw.photoUrls as string) ?? null,
-      previewImageUrl: (raw.previewImageUrl as string) ?? null,
+      previewImageUrl: (raw.previewImageUrl as string) ?? gallery[0] ?? null,
+      galleryUrls: gallery,
       company: raw.company as ListingDetail["company"],
     };
   }
   if (categoryId === "equipment") {
+    const image = (raw.previewImageUrl as string) ?? (raw.imageUrl as string) ?? null;
     return {
       id: String(raw.id),
       title: String(raw.companyName ?? "Equipment"),
@@ -157,18 +175,26 @@ function normalizeDetail(categoryId: MarketplaceCategoryId, raw: Record<string, 
       location: (raw.location as string) ?? null,
       category: (raw.category as string) ?? null,
       dailyRate: typeof raw.dailyRate === "number" ? raw.dailyRate : null,
-      previewImageUrl: (raw.previewImageUrl as string) ?? (raw.imageUrl as string) ?? null,
+      previewImageUrl: image,
+      galleryUrls: image ? [image] : [],
       company: raw.company as ListingDetail["company"],
     };
   }
+  const profile = raw.profile as Record<string, unknown> | undefined;
+  const gallery = (profile?.galleryUrls as string[] | undefined) ?? [];
   return {
     id: String(raw.id),
     title: String(raw.companyName ?? "Catering"),
     subtitle: (raw.tagline as string) ?? null,
-    description: (raw.description as string) ?? null,
+    description:
+      (profile?.plainDescription as string) ?? (raw.description as string) ?? (raw.specializations as string) ?? null,
     city: (raw.city as string) ?? null,
     country: (raw.country as string) ?? null,
-    previewImageUrl: (raw.previewImageUrl as string) ?? null,
+    previewImageUrl: (raw.previewImageUrl as string) ?? (raw.logoUrl as string) ?? gallery[0] ?? null,
+    galleryUrls: gallery,
+    menuHighlights: (profile?.menuHighlights as string[]) ?? [],
+    serviceTypes: (profile?.serviceTypes as string[]) ?? [],
+    specializations: (raw.specializations as string) ?? null,
     user: raw.user as ListingDetail["user"],
     _count: raw._count as ListingDetail["_count"],
   };
@@ -199,6 +225,7 @@ export function MarketplaceListingDetail({
     roleName: "",
     message: "",
     talentId: "",
+    memberId: "",
   });
 
   usePrefillProjectName(projectTitle, (title) => {
@@ -236,7 +263,9 @@ export function MarketplaceListingDetail({
 
   useEffect(() => {
     const talentId = searchParams.get("talentId");
+    const memberId = searchParams.get("memberId");
     if (talentId) setForm((f) => ({ ...f, talentId }));
+    if (memberId) setForm((f) => ({ ...f, memberId }));
   }, [searchParams]);
 
   const locationLabel = useMemo(() => {
@@ -267,16 +296,31 @@ export function MarketplaceListingDetail({
           talentId: form.talentId || undefined,
         });
         if (error) throw new Error(error);
-        setSuccess("Inquiry sent. When you pay and confirm the deal, the actor is added to your cast roster and a draft contract is generated.");
+        setSuccess(
+          form.talentId
+            ? "Free inquiry sent for the selected talent. No payment required — the agency will respond, and you can message once they accept the deal."
+            : "Free inquiry sent. No payment required — select talent above to request a specific actor, or message once the agency accepts your deal.",
+        );
       } else if (categoryId === "crew") {
+        const member = detail.members?.find((m) => m.id === form.memberId);
+        const crewMessage = [
+          form.message,
+          member ? `Interested in working with crew member: ${member.name} (${member.role})` : null,
+        ]
+          .filter(Boolean)
+          .join("\n\n");
         const { error } = await postMarketplaceJson("/api/crew-teams/requests", {
           crewTeamId: detail.id,
           projectId: projectId || undefined,
           projectName: form.projectName || projectTitle || undefined,
-          message: form.message || undefined,
+          message: crewMessage || undefined,
         });
         if (error) throw new Error(error);
-        setSuccess("Crew request sent. After payment, crew members are added to your roster and a draft contract is created.");
+        setSuccess(
+          member
+            ? `Free crew request sent for ${member.name}. No payment required — message opens once the team accepts your deal.`
+            : "Free crew request sent. No payment required — pick a crew member above to name someone specific, or message once the team accepts.",
+        );
       } else {
         window.location.href = `${browseHref}${browseHref.includes("?") ? "&" : "?"}${
           categoryId === "locations"
@@ -401,6 +445,7 @@ export function MarketplaceListingDetail({
             {detail.talent && detail.talent.length > 0 ? (
               <section>
                 <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Talent roster</h2>
+                <p className="mt-1 text-xs text-slate-500">Select an actor to include them in your casting inquiry.</p>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   {detail.talent.map((t) => {
                     const selected = form.talentId === t.id;
@@ -445,29 +490,100 @@ export function MarketplaceListingDetail({
                   })}
                 </div>
               </section>
+            ) : categoryId === "casting" ? (
+              <section className="rounded-xl border border-dashed border-white/10 bg-white/[0.02] p-4 text-sm text-slate-500">
+                This agency has not published talent profiles yet. You can still send a general inquiry.
+              </section>
+            ) : null}
+
+            {detail.galleryUrls && detail.galleryUrls.length > 0 ? (
+              <section>
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">
+                  {categoryId === "locations" ? "Location photos" : categoryId === "catering" ? "Gallery" : "Photos"}
+                </h2>
+                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {detail.galleryUrls.map((url) => (
+                    <div key={url} className="aspect-[4/3] overflow-hidden rounded-lg border border-white/10 bg-slate-900">
+                      <SecureImage fileRef={url} alt="" className="h-full w-full object-cover" />
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            {detail.menuHighlights && detail.menuHighlights.length > 0 ? (
+              <section>
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Menu highlights</h2>
+                <ul className="mt-3 space-y-2">
+                  {detail.menuHighlights.map((item) => (
+                    <li key={item} className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-slate-300">
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
+
+            {detail.serviceTypes && detail.serviceTypes.length > 0 ? (
+              <section>
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Services</h2>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {detail.serviceTypes.map((s) => (
+                    <span key={s} className="rounded-full border border-orange-500/25 bg-orange-500/10 px-2.5 py-0.5 text-xs text-orange-200">
+                      {s}
+                    </span>
+                  ))}
+                </div>
+              </section>
             ) : null}
 
             {detail.members && detail.members.length > 0 ? (
               <section>
                 <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Crew members</h2>
-                <ul className="mt-3 space-y-2">
-                  {detail.members.map((m) => (
-                    <li
-                      key={m.id}
-                      className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5"
-                    >
-                      <div>
-                        <p className="text-sm font-medium text-white">{m.name}</p>
-                        <p className="text-[11px] text-slate-400">
-                          {[m.role, m.department].filter(Boolean).join(" · ")}
-                        </p>
-                      </div>
-                      {m.dailyRate != null ? (
-                        <span className="text-xs text-orange-300">{formatZar(m.dailyRate)}/day</span>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
+                <p className="mt-1 text-xs text-slate-500">Optional — select someone specific for your request.</p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  {detail.members.map((m) => {
+                    const selected = form.memberId === m.id;
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setForm((f) => ({ ...f, memberId: selected ? "" : m.id }))}
+                        className={cn(
+                          "rounded-xl border p-3 text-left transition",
+                          selected
+                            ? "border-emerald-500/40 bg-emerald-500/10"
+                            : "border-white/10 bg-white/[0.03] hover:border-white/20",
+                        )}
+                      >
+                        <div className="flex gap-3">
+                          <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-slate-800">
+                            {m.photoUrl ? (
+                              <SecureImage fileRef={m.photoUrl} alt="" className="h-full w-full object-cover" />
+                            ) : (
+                              <div className="flex h-full items-center justify-center text-slate-500">
+                                <Users className="h-5 w-5" />
+                              </div>
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="truncate font-medium text-white">{m.name}</p>
+                            <p className="text-[11px] text-slate-400">
+                              {[m.role, m.department].filter(Boolean).join(" · ")}
+                            </p>
+                            {m.dailyRate != null ? (
+                              <p className="mt-1 text-[11px] text-orange-300">{formatZar(m.dailyRate)}/day</p>
+                            ) : null}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            ) : categoryId === "crew" ? (
+              <section className="rounded-xl border border-dashed border-white/10 bg-white/[0.02] p-4 text-sm text-slate-500">
+                This crew team has not published member profiles yet. You can still send a general request.
               </section>
             ) : null}
 
@@ -476,12 +592,9 @@ export function MarketplaceListingDetail({
                 <FileText className="h-4 w-4" /> Production flow
               </h2>
               <ol className="mt-3 list-decimal space-y-1.5 pl-4 text-xs leading-relaxed text-slate-400">
-                <li>Send an inquiry or booking request linked to your project.</li>
-                <li>Pay once approved — funds sit in escrow until you confirm delivery.</li>
-                <li>
-                  Story Time drafts a filled contract from production data and adds people/vendors to your
-                  pre-production roster, breakdown, and vendors list.
-                </li>
+                <li>Send a free inquiry or booking request linked to your project — no payment at this step.</li>
+                <li>Once the stakeholder accepts or approves, coordinate in Messages.</li>
+                <li>When you are ready to confirm the deal, pay through escrow — then Story Time syncs roster, vendors, and draft contracts.</li>
                 <li>Review, send for e-sign, and manage everything in Legal Contracts.</li>
               </ol>
               {projectId ? (
@@ -510,8 +623,8 @@ export function MarketplaceListingDetail({
               </h2>
               <p className="mt-1 text-xs text-slate-500">
                 {projectTitle
-                  ? `Linked to ${projectTitle}`
-                  : "Add a project name so payment can update production."}
+                  ? `Linked to ${projectTitle} · inquiries are free`
+                  : "Add a project name — inquiries and requests never require payment upfront."}
               </p>
 
               {(categoryId === "casting" || categoryId === "crew") && (
@@ -540,6 +653,11 @@ export function MarketplaceListingDetail({
                   {form.talentId ? (
                     <p className="text-[11px] text-violet-300">
                       Targeting talent: {detail.talent?.find((t) => t.id === form.talentId)?.name}
+                    </p>
+                  ) : null}
+                  {form.memberId ? (
+                    <p className="text-[11px] text-emerald-300">
+                      Targeting crew: {detail.members?.find((m) => m.id === form.memberId)?.name}
                     </p>
                   ) : null}
                   <button

@@ -5,6 +5,7 @@ import { useEffect, useState, useRef, Suspense, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Send, MessageCircle, ArrowLeft, Wrench, MapPin, UtensilsCrossed, Users, Search } from "lucide-react";
 import Link from "next/link";
+import { marketplaceThreadIsOpen } from "@/lib/messages/marketplace-access";
 
 interface Msg {
   id: string;
@@ -317,7 +318,7 @@ function MessagesContent() {
   const activeCastingInquiry = castingInquiries.find((r) => r.id === activeCastingInquiryId);
 
   const q = listFilter.trim().toLowerCase();
-  const filteredRequests = q
+  const filteredRequests = (q
     ? requests.filter(
         (r) =>
           r.equipment.category.toLowerCase().includes(q) ||
@@ -325,8 +326,9 @@ function MessagesContent() {
           (r.company.name?.toLowerCase().includes(q) ?? false) ||
           (r.note?.toLowerCase().includes(q) ?? false),
       )
-    : requests;
-  const filteredBookings = q
+    : requests
+  ).filter((r) => marketplaceThreadIsOpen(r.status));
+  const filteredBookings = (q
     ? bookings.filter(
         (b) =>
           b.location.name.toLowerCase().includes(q) ||
@@ -334,24 +336,28 @@ function MessagesContent() {
           (b.owner.name?.toLowerCase().includes(q) ?? false) ||
           (b.location.city?.toLowerCase().includes(q) ?? false),
       )
-    : bookings;
-  const filteredCatering = q
+    : bookings
+  ).filter((b) => marketplaceThreadIsOpen(b.status));
+  const filteredCatering = (q
     ? cateringBookings.filter((b) => b.cateringCompany.companyName.toLowerCase().includes(q))
-    : cateringBookings;
-  const filteredCrew = q
+    : cateringBookings
+  ).filter((b) => marketplaceThreadIsOpen(b.status, b.paymentTransactionId));
+  const filteredCrew = (q
     ? crewRequests.filter(
         (r) =>
           r.crewTeam.companyName.toLowerCase().includes(q) ||
           (r.projectName?.toLowerCase().includes(q) ?? false),
       )
-    : crewRequests;
-  const filteredCast = q
+    : crewRequests
+  ).filter((r) => marketplaceThreadIsOpen(r.status, r.paymentTransactionId));
+  const filteredCast = (q
     ? castingInquiries.filter(
         (r) =>
           r.agency.agencyName.toLowerCase().includes(q) ||
           (r.projectName?.toLowerCase().includes(q) ?? false),
       )
-    : castingInquiries;
+    : castingInquiries
+  ).filter((r) => marketplaceThreadIsOpen(r.status, r.paymentTransactionId));
 
   function selectTab(next: InboxTab) {
     setTab(next);
@@ -483,7 +489,7 @@ function MessagesContent() {
         <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">Inbox</p>
         <h1 className="font-display text-2xl font-semibold tracking-tight text-white md:text-3xl">Messages</h1>
         <p className="mt-2 max-w-2xl text-sm text-slate-400 md:text-base">
-          Equipment, locations, crew, cast, catering, and direct messages. Catering threads open when you request a booking; pay once your order is approved.
+          Coordinate with stakeholders after a deal is accepted or approved. Inquiries and booking requests are free — payment happens separately when you confirm a deal.
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
           {tabButtons.map(({ id, label, icon: Icon }) => (
@@ -580,7 +586,7 @@ function MessagesContent() {
             ) : tab === "crew" ? (
               filteredCrew.length === 0 ? (
                 <div className="storytime-empty-state m-4 p-6 text-center text-sm text-slate-500">
-                  No paid crew requests.{" "}
+                  No active crew deals yet.{" "}
                   <Link href="/creator/crew" className="text-orange-400 hover:text-orange-300">
                     Crew marketplace →
                   </Link>
@@ -603,7 +609,7 @@ function MessagesContent() {
             ) : tab === "cast" ? (
               filteredCast.length === 0 ? (
                 <div className="storytime-empty-state m-4 p-6 text-center text-sm text-slate-500">
-                  No paid casting inquiries.{" "}
+                  No active casting deals yet. Send a free inquiry from the marketplace — messaging opens once the agency accepts.{" "}
                   <Link href="/creator/cast" className="text-orange-400 hover:text-orange-300">
                     Cast & auditions →
                   </Link>
@@ -626,7 +632,7 @@ function MessagesContent() {
             ) : tab === "equipment" ? (
               filteredRequests.length === 0 ? (
                 <div className="storytime-empty-state m-4 p-6 text-center text-sm text-slate-500">
-                  Pay for an approved equipment request to unlock messages.{" "}
+                  No active equipment deals yet. Request equipment for free — messaging opens once your request is approved.{" "}
                   <Link href="/creator/equipment" className="text-orange-400 hover:text-orange-300">
                     Equipment →
                   </Link>

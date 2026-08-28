@@ -493,7 +493,7 @@ export function ScreenplayEditor({
   );
 
   const pageSurface = "script-writer-page script-writer-page--light";
-  const zoomScale = Math.min(140, Math.max(80, zoomPercent)) / 100;
+  const zoomScale = Math.min(150, Math.max(50, zoomPercent)) / 100;
 
   return (
     <div className="script-writer-editor-root w-full">

@@ -245,7 +245,7 @@ function CreatorLocationsPageContent() {
             <MapPin className="w-8 h-8 text-orange-500" />
             Location Repository
           </h1>
-          <p className="text-slate-400">Browse locations with photos. Message owners for free, then confirm payment once your booking is approved.</p>
+          <p className="text-slate-400">Browse locations with photos. Send a free booking request — message once approved, pay only when you confirm the deal.</p>
         </div>
         <div className="flex gap-2">
           <button onClick={() => setTab("browse")} className={`px-4 py-2 rounded-lg text-sm font-medium transition ${tab === "browse" ? "bg-orange-500 text-white" : "bg-slate-800/50 text-slate-400 border border-slate-700/50"}`}>
