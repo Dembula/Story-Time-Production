@@ -309,7 +309,7 @@ select optgroup {
   overflow: hidden;
   border-radius: 0.5rem;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  background: #0e1014;
+  background: #000000;
 }
 
 .script-writer-titlebar {
@@ -320,7 +320,7 @@ select optgroup {
   gap: 0.5rem 1rem;
   padding: 0.5rem 0.875rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  background: #12151c;
+  background: #000000;
 }
 
 .script-writer-titlebar-main {
@@ -362,7 +362,7 @@ select optgroup {
   gap: 0.25rem 0.5rem;
   padding: 0.45rem 0.75rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  background: #161a22;
+  background: #000000;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
@@ -410,7 +410,7 @@ select optgroup {
   flex-direction: column;
   overflow: hidden;
   border-right: 1px solid rgba(255, 255, 255, 0.08);
-  background: #111318;
+  background: #000000;
 }
 
 .script-writer-sidebar-right {
@@ -431,7 +431,7 @@ select optgroup {
   min-width: 0;
   min-height: 0;
   overflow: auto;
-  background: #52565e;
+  background: #000000;
   padding: 2rem 1.5rem 4rem;
   -webkit-overflow-scrolling: touch;
 }
@@ -496,7 +496,7 @@ select optgroup {
   gap: 0.5rem 1rem;
   padding: 0.35rem 0.75rem;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
-  background: #12151c;
+  background: #000000;
   font-size: 0.6875rem;
   color: #94a3b8;
 }
@@ -515,74 +515,43 @@ select optgroup {
   gap: 0.35rem;
 }
 
-/* Light studio chrome — Word-style light UI with white pages */
-.script-writer-shell--light {
-  background: #f3f4f6;
-  border-color: #d1d5db;
+/* Light mode still uses platform black chrome; only the paper stays white. */
+.script-writer-shell--light,
+.script-writer-shell--dark {
+  background: #000000;
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
 .script-writer-shell--light .script-writer-titlebar,
-.script-writer-shell--light .script-writer-statusbar {
-  background: #ffffff;
-  border-color: #e5e7eb;
-  color: #4b5563;
+.script-writer-shell--light .script-writer-statusbar,
+.script-writer-shell--light .script-writer-ribbon,
+.script-writer-shell--light .script-writer-sidebar {
+  background: #000000;
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #a3a3a3;
 }
 
 .script-writer-shell--light .script-writer-title-input {
-  color: #111827;
+  color: #fafafa;
 }
 
 .script-writer-shell--light .script-writer-title-input:hover {
-  border-color: #d1d5db;
-  background: #f9fafb;
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .script-writer-shell--light .script-writer-title-input:focus {
   border-color: rgba(249, 115, 22, 0.55);
-  background: #fff;
-}
-
-.script-writer-shell--light .script-writer-ribbon {
-  background: #f9fafb;
-  border-color: #e5e7eb;
-}
-
-.script-writer-shell--light .script-writer-ribbon-group {
-  border-color: #e5e7eb;
+  background: rgba(0, 0, 0, 0.4);
 }
 
 .script-writer-shell--light .script-writer-ribbon-label {
-  color: #6b7280;
+  color: #737373;
 }
 
-.script-writer-shell--light .script-writer-sidebar {
-  background: #ffffff;
-  border-color: #e5e7eb;
-}
-
-.script-writer-shell--light .script-writer-document {
-  background: #c8ccd3;
-}
-
+.script-writer-shell--light .script-writer-document,
 .script-writer-shell--dark .script-writer-document {
-  background: #52565e;
-}
-
-.script-writer-shell--light .script-writer-ribbon button.border-slate-700,
-.script-writer-shell--light .script-writer-ribbon .border-slate-700 {
-  border-color: #cbd5e1 !important;
-  color: #1e293b !important;
-  background: #ffffff;
-}
-
-.script-writer-shell--light .script-writer-ribbon button.text-slate-100,
-.script-writer-shell--light .script-writer-ribbon .text-slate-100 {
-  color: #1e293b !important;
-}
-
-.script-writer-shell--light .script-writer-ribbon button.text-slate-300,
-.script-writer-shell--light .script-writer-ribbon .text-slate-300 {
-  color: #475569 !important;
+  background: #000000;
 }
 
 /* Legacy class names kept for screenplay-editor */

@@ -28,13 +28,7 @@ export function CollaborationPresenceBar({
   const onlineCount = peers.length + 1;
 
   return (
-    <div
-      className={
-        variant === "light"
-          ? "rounded-lg border border-slate-300 bg-white/95 px-3 py-2 space-y-2 shadow-sm"
-          : "rounded-xl border border-slate-800 bg-slate-900/80 px-3 py-2 space-y-2"
-      }
-    >
+    <div className="rounded-lg border border-white/10 bg-black px-3 py-2 space-y-2">
       <div className="flex flex-wrap items-center gap-2">
         <span
           className={
