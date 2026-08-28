@@ -2,7 +2,12 @@
 
 import { useRef } from "react";
 import { FileText, Plus, Trash2 } from "lucide-react";
-import { SA_OFFICIAL_LANGUAGES } from "@/lib/sa-languages/constants";
+import {
+  findSubtitleLanguage,
+  nextSubtitleLanguage,
+  SUBTITLE_SA_LANGUAGES,
+  SUBTITLE_WORLD_LANGUAGES,
+} from "@/lib/subtitles/languages";
 import { prepareSubtitleUploadFile } from "@/lib/subtitles/srt-to-vtt";
 import type { CatalogueUploadAsset } from "@/lib/catalogue-upload/types";
 
@@ -38,14 +43,12 @@ export function SubtitleUploadSection({
   const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
 
   function addRow() {
-    const nextLanguage = SA_OFFICIAL_LANGUAGES.find(
-      (lang) => !subtitles.some((row) => row.language === lang.bcp47),
-    );
+    const nextLanguage = nextSubtitleLanguage(subtitles.map((row) => row.language));
     onChange([
       ...subtitles,
       {
-        language: nextLanguage?.bcp47 ?? "en-ZA",
-        label: nextLanguage?.label ?? "English",
+        language: nextLanguage.bcp47,
+        label: nextLanguage.label,
         vttUrl: "",
         isDefault: subtitles.length === 0,
       },
@@ -106,6 +109,7 @@ export function SubtitleUploadSection({
             const asset = subtitleAssetForIndex(jobAssets, index);
             const uploading = asset?.status === "uploading" || asset?.status === "queued";
             const done = Boolean(row.vttUrl) && !uploading;
+            const currentLanguage = findSubtitleLanguage(row.language);
             return (
               <div
                 key={`${row.language}-${index}`}
@@ -117,7 +121,7 @@ export function SubtitleUploadSection({
                     <select
                       value={row.language}
                       onChange={(e) => {
-                        const lang = SA_OFFICIAL_LANGUAGES.find((item) => item.bcp47 === e.target.value);
+                        const lang = findSubtitleLanguage(e.target.value);
                         updateRow(index, {
                           language: e.target.value,
                           label: lang?.label ?? row.label,
@@ -125,11 +129,23 @@ export function SubtitleUploadSection({
                       }}
                       className="storytime-select creator-tool-select mt-1 w-full text-sm"
                     >
-                      {SA_OFFICIAL_LANGUAGES.map((lang) => (
-                        <option key={lang.bcp47} value={lang.bcp47}>
-                          {lang.label}
-                        </option>
-                      ))}
+                      {!currentLanguage ? (
+                        <option value={row.language}>{row.language}</option>
+                      ) : null}
+                      <optgroup label="South African official">
+                        {SUBTITLE_SA_LANGUAGES.map((lang) => (
+                          <option key={lang.bcp47} value={lang.bcp47}>
+                            {lang.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="All languages">
+                        {SUBTITLE_WORLD_LANGUAGES.map((lang) => (
+                          <option key={lang.bcp47} value={lang.bcp47}>
+                            {lang.label}
+                          </option>
+                        ))}
+                      </optgroup>
                     </select>
                   </label>
 
