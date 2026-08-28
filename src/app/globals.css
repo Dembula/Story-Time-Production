@@ -301,7 +301,7 @@ select optgroup {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  min-height: calc(100vh - 6.5rem);
+  min-height: calc(100vh - 5rem);
   width: 100%;
   min-width: 0;
 }
@@ -328,7 +328,12 @@ select optgroup {
   min-width: 0;
   width: 100%;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: stretch;
+  overflow: visible;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #52565e;
 }
 
 .script-writer-side-panel {
@@ -370,16 +375,16 @@ select optgroup {
 }
 
 .script-writer-page-viewport {
-  min-height: calc(100vh - 13rem);
-  max-height: calc(100vh - 11rem);
+  flex: 1;
+  min-height: 0;
   min-width: 0;
-  width: min(100%, calc(8.5in + 2rem));
-  margin: 0 auto;
+  width: 100%;
+  margin: 0;
   overflow: auto;
-  background: #52565e;
-  padding: 1.5rem 1rem 2.5rem;
-  border-radius: 0.75rem;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: transparent;
+  padding: 1.5rem 0 2.5rem;
+  border: none;
+  border-radius: 0;
   -webkit-overflow-scrolling: touch;
   scroll-behavior: smooth;
   position: relative;
@@ -438,13 +443,13 @@ select optgroup {
   opacity: 1;
 }
 
-/* Studio theme — Word-like canvas chrome */
-.script-writer-root--light .script-writer-page-viewport {
+/* Studio theme — Word-like full-width canvas with centered page */
+.script-writer-root--light .script-writer-stage {
   background: #d4d8de;
   border-color: rgba(15, 23, 42, 0.08);
 }
 
-.script-writer-root--dark .script-writer-page-viewport {
+.script-writer-root--dark .script-writer-stage {
   background: #52565e;
   border-color: rgba(255, 255, 255, 0.08);
 }
@@ -700,16 +705,18 @@ select optgroup {
 }
 
 @media (max-width: 1279px) {
-  .script-writer-page-viewport {
-    max-height: none;
+  .script-writer-stage {
     min-height: calc(100vh - 14rem);
   }
 }
 
 @media (max-width: 1023px) {
-  .script-writer-page-viewport {
+  .script-writer-stage {
     min-height: calc(100vh - 16rem);
-    padding: 0.75rem 0.5rem 2rem;
+  }
+
+  .script-writer-page-viewport {
+    padding: 0.75rem 0 2rem;
   }
 }
 
@@ -733,13 +740,14 @@ select optgroup {
   min-width: 0;
 }
 
+.creator-pipeline-shell-tool-body .script-writer-shell {
+  min-height: calc(100vh - 10rem);
+}
+
 .creator-pipeline-shell-tool-body .script-writer-stage {
   flex: 1;
   min-width: 0;
-}
-
-.creator-pipeline-shell-tool-body .script-writer-page-viewport {
-  max-height: calc(100vh - 10rem);
+  min-height: calc(100vh - 13rem);
 }
 
 .creator-workspace-rail {

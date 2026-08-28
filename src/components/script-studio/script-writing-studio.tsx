@@ -27,8 +27,6 @@ import {
 } from "lucide-react";
 import { creatorToolSelect, creatorToolSelectSm } from "@/lib/ui/creator-tool-select";
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   ToolSavedViewSheet,
   ToolViewButton,
@@ -773,42 +771,6 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
           </button>
         </div>
       ) : null}
-      {!focusMode ? (
-        <header className="storytime-plan-card p-4 md:p-5">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="min-w-0 flex-1">
-              <p className="mb-1 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">
-                Script Writing Studio
-              </p>
-              <h2 className="font-display text-xl font-semibold tracking-tight text-white md:text-2xl">
-                {title}
-              </h2>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <ToolViewButton
-                onClick={() => setReaderOpen(true)}
-                label="View screenplay"
-                disabled={!draft?.content}
-              />
-              <ToolViewButton
-                onClick={() => setScriptsViewOpen(true)}
-                count={scripts.length}
-                disabled={scripts.length === 0}
-              />
-              <span className="text-[11px] text-slate-400">
-                {saving ? "Saving…" : dirty ? "Unsaved" : lastSavedAt ? `Saved ${lastSavedAt.toLocaleTimeString()}` : "Saved"}
-              </span>
-            </div>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-3 text-[11px] text-slate-400">
-            <span>{stats.words} words</span>
-            <span>• {stats.scenes} scenes</span>
-            <span>• ~{stats.pages} pages</span>
-            <span>• ~{stats.estimatedRuntimeMinutes} min runtime</span>
-            <span>• {stats.characters} characters</span>
-          </div>
-        </header>
-      ) : null}
 
       <ToolSavedViewSheet
         open={scriptsViewOpen}
@@ -939,6 +901,19 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                   <option value="OTHER">Other</option>
                 </select>
                 <div className="flex items-center gap-1 ml-auto shrink-0">
+                  <ToolViewButton
+                    onClick={() => setScriptsViewOpen(true)}
+                    count={scripts.length}
+                    disabled={scripts.length === 0}
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 border-slate-700 text-[10px] text-slate-100"
+                    onClick={() => createMutation.mutate()}
+                  >
+                    New
+                  </Button>
                   <Button
                     type="button"
                     size="sm"
@@ -1164,8 +1139,6 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
       <div
         className={cn(
           "script-writer-stage",
-          !focusMode && leftPanelOpen && "has-left",
-          !focusMode && splitOutline && rightPanelOpen && "has-right",
         )}
       >
         {!focusMode && leftPanelOpen ? (
@@ -1190,40 +1163,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                 </button>
               ))}
             </div>
-            <div className="flex items-center justify-between px-2 py-2 border-b border-slate-800">
-              <span className="text-[10px] text-slate-500">Library</span>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 border-slate-700 text-[10px] text-slate-100"
-                onClick={() => createMutation.mutate()}
-              >
-                New
-              </Button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-2 space-y-1">
-              {isLoading ? (
-                <Skeleton className="h-10 bg-slate-800/60" />
-              ) : scripts.length === 0 ? (
-                <p className="p-2 text-[11px] text-slate-500">No scripts yet.</p>
-              ) : (
-                scripts.map((script) => (
-                  <button
-                    key={script.id}
-                    type="button"
-                    onClick={() => setSelectedId(script.id)}
-                    className={`w-full text-left px-2 py-2 rounded-lg text-[11px] truncate ${
-                      script.id === selected?.id
-                        ? "bg-slate-800 text-white"
-                        : "text-slate-300 hover:bg-slate-900"
-                    }`}
-                  >
-                    {script.title}
-                  </button>
-                ))
-              )}
-            </div>
-            <div className="border-t border-slate-800 p-2 max-h-[45%] overflow-y-auto text-[11px]">
+            <div className="flex-1 overflow-y-auto p-2 text-[11px]">
               {sidebarTab === "scenes" &&
                 scenes.map((scene) => (
                   <button
@@ -1426,8 +1366,15 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
 
       {draft ? (
         <div className="script-writer-statusbar shrink-0 px-1 sm:px-0">
-          <div className="flex items-center justify-end gap-2">
-            <Button
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] text-slate-500">
+              {stats.words} words · {stats.scenes} scenes · ~{stats.pages} pages
+            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-slate-400">
+                {saving ? "Saving…" : dirty ? "Unsaved" : lastSavedAt ? `Saved ${lastSavedAt.toLocaleTimeString()}` : "Saved"}
+              </span>
+              <Button
               size="sm"
               className="bg-orange-500 hover:bg-orange-600 text-white text-xs"
               disabled={!draft.id || saving || !dirty}
@@ -1435,6 +1382,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
             >
               {saving ? "Saving…" : "Save"}
             </Button>
+            </div>
           </div>
         </div>
       ) : null}
