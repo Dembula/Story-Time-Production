@@ -495,12 +495,9 @@ export function ScreenplayEditor({
       : "bg-[#141416] border-slate-600 text-slate-100 shadow-[0_12px_40px_rgba(0,0,0,0.45)]";
 
   return (
-    <div className="script-writer-editor-root space-y-2">
-      <div
-        className="script-writer-editor-scroll overflow-y-auto overflow-x-hidden rounded-xl border border-slate-800/80 bg-[#0a0a0c] p-4 sm:p-6"
-        data-screenplay-scroll
-      >
-        <div className="relative mx-auto flex w-full max-w-[8.5in] flex-col items-center">
+    <div className="script-writer-editor-root w-full">
+      <div className="script-writer-editor-scroll" data-screenplay-scroll>
+        <div className="relative mx-auto flex w-full max-w-[8.5in] flex-col items-center pb-2">
           {pageTexts.map((pageText, pageIdx) => (
             <div
               key={`page-${pageIdx}`}
