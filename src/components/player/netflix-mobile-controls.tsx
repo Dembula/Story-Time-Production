@@ -2,6 +2,9 @@
 
 import { Maximize2, Minimize2, Pause, Play, Rewind, FastForward, X } from "lucide-react";
 import { PlaybackComplianceBadge } from "./playback-compliance-badge";
+import { PlaybackSubtitleMenu, PlaybackSubtitleToggle } from "./playback-subtitle-controls";
+import type { PlaybackSubtitleTrack } from "@/lib/subtitles/types";
+import type { SubtitlePreference } from "./use-playback-subtitles";
 
 const SEEK_SECONDS = 10;
 
@@ -26,6 +29,12 @@ type NetflixMobileControlsProps = {
   showSkipIntro?: boolean;
   onSkipIntro?: () => void;
   onFullscreen?: () => void;
+  subtitleTracks?: PlaybackSubtitleTrack[];
+  subtitlesEnabled?: boolean;
+  activeSubtitleTrackId?: SubtitlePreference;
+  subtitleMenuOpen?: boolean;
+  onToggleSubtitleMenu?: () => void;
+  onSelectSubtitleTrack?: (trackId: SubtitlePreference) => void;
 };
 
 function formatRemaining(seconds: number): string {
@@ -61,6 +70,12 @@ export function NetflixMobileControls({
   showSkipIntro,
   onSkipIntro,
   onFullscreen,
+  subtitleTracks = [],
+  subtitlesEnabled = false,
+  activeSubtitleTrackId = "off",
+  subtitleMenuOpen = false,
+  onToggleSubtitleMenu,
+  onSelectSubtitleTrack,
 }: NetflixMobileControlsProps) {
   const remaining = Math.max(0, duration - currentTime);
   const tagLine = [
@@ -201,6 +216,24 @@ export function NetflixMobileControls({
           </div>
         ) : null}
         <div className="flex items-center gap-3">
+          {onToggleSubtitleMenu ? (
+            <div className="relative shrink-0">
+              <PlaybackSubtitleToggle
+                enabled={subtitlesEnabled}
+                hasTracks={subtitleTracks.length > 0}
+                onToggleMenu={onToggleSubtitleMenu}
+              />
+              {subtitleMenuOpen && onSelectSubtitleTrack ? (
+                <PlaybackSubtitleMenu
+                  tracks={subtitleTracks}
+                  activeTrackId={activeSubtitleTrackId}
+                  enabled={subtitlesEnabled}
+                  onSelect={onSelectSubtitleTrack}
+                  className="absolute bottom-11 left-0 min-w-[11rem]"
+                />
+              ) : null}
+            </div>
+          ) : null}
           <input
             type="range"
             min={0}

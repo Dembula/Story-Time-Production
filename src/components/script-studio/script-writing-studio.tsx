@@ -74,10 +74,26 @@ type ScriptHistoryEntry = {
   selectionEnd: number;
 };
 
-function studioToggleButtonClass(active: boolean) {
+function studioToolbarOutlineClass(theme: StudioTheme) {
+  return theme === "light"
+    ? "h-7 border-slate-300 text-[10px] text-slate-700 hover:bg-slate-100"
+    : "h-7 border-slate-700 text-[10px] text-slate-100 hover:bg-slate-800";
+}
+
+function studioToolbarGhostClass(theme: StudioTheme) {
+  return theme === "light" ? "h-7 text-slate-600 hover:bg-slate-100" : "h-7 text-slate-300";
+}
+
+function studioToggleButtonClass(active: boolean, theme: StudioTheme) {
   return cn(
-    "h-7 w-7 shrink-0 p-0 text-slate-300 hover:translate-y-0 active:translate-y-0",
-    active && "bg-orange-500/15 text-orange-200 hover:bg-orange-500/20",
+    "h-7 w-7 shrink-0 p-0 hover:translate-y-0 active:translate-y-0",
+    theme === "light"
+      ? active
+        ? "bg-orange-500/15 text-orange-600 hover:bg-orange-500/20"
+        : "text-slate-600 hover:bg-slate-100"
+      : active
+        ? "bg-orange-500/15 text-orange-200 hover:bg-orange-500/20"
+        : "text-slate-300",
   );
 }
 
@@ -905,11 +921,16 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                     onClick={() => setScriptsViewOpen(true)}
                     count={scripts.length}
                     disabled={scripts.length === 0}
+                    className={
+                      studioTheme === "light"
+                        ? "border-slate-300 text-slate-700 hover:bg-slate-100"
+                        : undefined
+                    }
                   />
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-7 border-slate-700 text-[10px] text-slate-100"
+                    className={studioToolbarOutlineClass(studioTheme)}
                     onClick={() => createMutation.mutate()}
                   >
                     New
@@ -918,7 +939,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                     type="button"
                     size="sm"
                     variant="ghost"
-                    className="h-7 text-slate-300"
+                    className={studioToolbarGhostClass(studioTheme)}
                     disabled={!effectiveCanWrite || !canUndo}
                     title="Undo (Ctrl+Z)"
                     aria-label="Undo last edit"
@@ -930,7 +951,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                     type="button"
                     size="sm"
                     variant="ghost"
-                    className="h-7 text-slate-300"
+                    className={studioToolbarGhostClass(studioTheme)}
                     disabled={!effectiveCanWrite || !canRedo}
                     title="Redo (Ctrl+Y)"
                     aria-label="Redo last undone edit"
@@ -938,21 +959,21 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                   >
                     <Redo2 className="h-3.5 w-3.5" />
                   </Button>
-                  <Button size="sm" variant="ghost" className="h-7 text-slate-300" onClick={() => setZoom((z) => Math.max(50, z - 10))}>
+                  <Button size="sm" variant="ghost" className={studioToolbarGhostClass(studioTheme)} onClick={() => setZoom((z) => Math.max(50, z - 10))}>
                     −
                   </Button>
-                  <span className="text-[10px] text-slate-500 w-8 text-center">{zoom}%</span>
-                  <Button size="sm" variant="ghost" className="h-7 text-slate-300" onClick={() => setZoom((z) => Math.min(150, z + 10))}>
+                  <span className={cn("text-[10px] w-8 text-center", studioTheme === "light" ? "text-slate-600" : "text-slate-500")}>{zoom}%</span>
+                  <Button size="sm" variant="ghost" className={studioToolbarGhostClass(studioTheme)} onClick={() => setZoom((z) => Math.min(150, z + 10))}>
                     +
                   </Button>
-                  <Button size="sm" variant="ghost" className="h-7 text-slate-300" onClick={() => setStudioTheme((t) => (t === "dark" ? "light" : "dark"))}>
+                  <Button size="sm" variant="ghost" className={studioToolbarGhostClass(studioTheme)} onClick={() => setStudioTheme((t) => (t === "dark" ? "light" : "dark"))}>
                     {studioTheme === "dark" ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
                   </Button>
                   <Button
                     type="button"
                     size="sm"
                     variant="ghost"
-                    className={studioToggleButtonClass(focusMode)}
+                    className={studioToggleButtonClass(focusMode, studioTheme)}
                     aria-pressed={focusMode}
                     aria-label={focusMode ? "Exit focus mode" : "Enter focus mode"}
                     title={focusMode ? "Exit focus mode" : "Focus mode"}
@@ -964,7 +985,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                     type="button"
                     size="sm"
                     variant="ghost"
-                    className={studioToggleButtonClass(splitOutline && !focusMode)}
+                    className={studioToggleButtonClass(splitOutline && !focusMode, studioTheme)}
                     aria-pressed={splitOutline && !focusMode}
                     aria-label={splitOutline ? "Hide pipeline panel" : "Show pipeline panel"}
                     title={focusMode ? "Exit focus mode to toggle pipeline panel" : splitOutline ? "Hide pipeline panel" : "Show pipeline panel"}
@@ -977,7 +998,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                     type="button"
                     size="sm"
                     variant="ghost"
-                    className={studioToggleButtonClass(leftPanelOpen && !focusMode)}
+                    className={studioToggleButtonClass(leftPanelOpen && !focusMode, studioTheme)}
                     aria-label="Toggle navigator panel"
                     title="Navigator panel"
                     disabled={focusMode}
@@ -989,7 +1010,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                     type="button"
                     size="sm"
                     variant="ghost"
-                    className={studioToggleButtonClass(rightPanelOpen && splitOutline && !focusMode)}
+                    className={studioToggleButtonClass(rightPanelOpen && splitOutline && !focusMode, studioTheme)}
                     aria-label="Toggle tools panel"
                     title="Tools panel"
                     disabled={focusMode}
@@ -1010,7 +1031,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-7 border-slate-700 text-[10px] text-slate-100"
+                    className={studioToolbarOutlineClass(studioTheme)}
                     disabled={!effectiveCanWrite || importing}
                     onClick={() => fileInputRef.current?.click()}
                   >
@@ -1021,7 +1042,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-7 border-slate-700 text-[10px] text-slate-100"
+                      className={studioToolbarOutlineClass(studioTheme)}
                       onClick={() => {
                         const menu = document.getElementById("tpl-menu");
                         menu?.classList.toggle("hidden");
@@ -1052,7 +1073,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-7 border-slate-700 text-[10px] text-slate-100"
+                    className={studioToolbarOutlineClass(studioTheme)}
                     onClick={() =>
                       downloadTextFile(
                         `${draft.title || "screenplay"}.fountain`,
@@ -1065,7 +1086,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-7 border-slate-700 text-[10px] text-slate-100"
+                    className={studioToolbarOutlineClass(studioTheme)}
                     onClick={() => setReaderOpen(true)}
                   >
                     <Eye className="h-3 w-3" />
@@ -1073,7 +1094,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                 </div>
               </div>
 
-          <p className="text-[10px] text-slate-500 px-1">
+          <p className={cn("text-[10px] px-1", studioTheme === "light" ? "text-slate-400" : "text-slate-500")}>
             Tab cycles elements · Enter advances (double-Enter: Action↔Character / Dialogue→Action) · Character → Parenthetical · Type int / cut / ( for smart format
           </p>
 
@@ -1367,11 +1388,11 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
       {draft ? (
         <div className="script-writer-statusbar shrink-0 px-1 sm:px-0">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[10px] text-slate-500">
+            <span className={cn("text-[10px]", studioTheme === "light" ? "text-slate-400" : "text-slate-500")}>
               {stats.words} words · {stats.scenes} scenes · ~{stats.pages} pages
             </span>
             <div className="flex items-center gap-2">
-              <span className="text-[11px] text-slate-400">
+              <span className={cn("text-[11px]", studioTheme === "light" ? "text-slate-300" : "text-slate-400")}>
                 {saving ? "Saving…" : dirty ? "Unsaved" : lastSavedAt ? `Saved ${lastSavedAt.toLocaleTimeString()}` : "Saved"}
               </span>
               <Button

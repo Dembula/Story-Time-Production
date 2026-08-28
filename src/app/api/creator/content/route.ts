@@ -54,6 +54,10 @@ export async function GET(request: NextRequest) {
           orderBy: { sortOrder: "asc" },
           select: { id: true, title: true, videoUrl: true, thumbnail: true, sortOrder: true },
         },
+        subtitles: {
+          orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
+          select: { language: true, label: true, vttUrl: true, isDefault: true },
+        },
         seasons: {
           orderBy: { seasonNumber: "asc" },
           select: {
@@ -189,6 +193,8 @@ export async function POST(request: NextRequest) {
   const advisoryProvided = Object.prototype.hasOwnProperty.call(body, "advisory");
   const crewProvided = Object.prototype.hasOwnProperty.call(body, "crew") && Array.isArray(body.crew);
   const btsProvided = Object.prototype.hasOwnProperty.call(body, "btsVideos") && Array.isArray(body.btsVideos);
+  const subtitlesProvided =
+    Object.prototype.hasOwnProperty.call(body, "subtitles") && Array.isArray(body.subtitles);
 
   const minAge = minAgeProvided
     ? typeof body.minAge === "number"
@@ -372,6 +378,26 @@ export async function POST(request: NextRequest) {
         ),
       );
     }
+  }
+
+  if (subtitlesProvided) {
+    const { syncContentSubtitles } = await import("@/lib/subtitles/sync-content-subtitles");
+    const subtitleRows = (body.subtitles as Array<{
+      language?: string;
+      label?: string;
+      vttUrl?: string;
+      isDefault?: boolean;
+    }>)
+      .filter((row): row is { language: string; label: string; vttUrl: string; isDefault?: boolean } =>
+        Boolean(row?.vttUrl && row?.language && row?.label),
+      )
+      .map((row) => ({
+        language: row.language,
+        label: row.label,
+        vttUrl: row.vttUrl,
+        isDefault: row.isDefault,
+      }));
+    await syncContentSubtitles(content.id, subtitleRows);
   }
 
   after(async () => {

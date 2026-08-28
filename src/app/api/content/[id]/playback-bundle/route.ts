@@ -15,7 +15,7 @@ import {
 } from "@/lib/playback-content-url";
 import type { PlaybackSource } from "@/lib/playback-sources";
 import { contentHasScriptSource } from "@/lib/ai-metadata/content-script-source";
-import { getPlatformIntroPayload } from "@/lib/platform-intro";
+import { buildPlaybackSubtitleTracks } from "@/lib/subtitles/playback-tracks";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -180,7 +180,18 @@ export async function GET(
               hasScriptSource,
               pending: intelligencePending || enrichmentStatus === "PROCESSING",
             },
-        subtitles: isTrailer ? [] : content.subtitles,
+        subtitles: isTrailer
+          ? []
+          : buildPlaybackSubtitleTracks(
+              content.id,
+              content.subtitles.map((row) => ({
+                id: row.id,
+                language: row.language,
+                label: row.label,
+                vttUrl: row.vttUrl,
+                isDefault: row.isDefault,
+              })),
+            ),
         captureProtection: {
           enabled: captureProtection.enabled,
           mode: captureProtection.mode,

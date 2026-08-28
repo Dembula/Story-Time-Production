@@ -296,7 +296,14 @@ select optgroup {
   }
 }
 
-/* Script Writing Studio — 3-column grid: side panels in margins, centered page viewport */
+/* Script Writing Studio — pure black chrome, grey desk stage, centered page */
+.script-writer-root,
+.script-writer-shell,
+.script-writer-chrome,
+.script-writer-statusbar {
+  background-color: #000000;
+}
+
 .script-writer-shell {
   display: flex;
   flex-direction: column;
@@ -455,14 +462,14 @@ select optgroup {
 }
 
 .script-writer-root--dark .script-writer-toolbar-float {
-  background: rgba(15, 23, 42, 0.92);
-  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.94);
+  border-color: rgba(255, 255, 255, 0.1);
   color: #e2e8f0;
 }
 
 .script-writer-root--light .script-writer-toolbar-float {
-  background: rgba(255, 255, 255, 0.98);
-  border-color: rgba(15, 23, 42, 0.12);
+  background: #ffffff;
+  border-color: rgba(15, 23, 42, 0.14);
   color: #0f172a;
 }
 
@@ -507,10 +514,11 @@ select optgroup {
   background: #ffffff;
 }
 
-.script-writer-root--light .script-writer-toolbar-float .creator-tool-select {
-  background-color: #ffffff;
+.script-writer-root--light .script-writer-toolbar-float select.storytime-select.creator-tool-select {
+  background-color: #f8fafc;
   border-color: #cbd5e1;
   color: #0f172a;
+  box-shadow: none;
 }
 
 .script-writer-root--light .script-writer-toolbar-float button {
@@ -522,8 +530,41 @@ select optgroup {
   background: rgba(15, 23, 42, 0.06);
 }
 
-.script-writer-root--light .script-writer-chrome > p {
+.script-writer-root--light .script-writer-toolbar-float button.border-slate-600,
+.script-writer-root--light .script-writer-toolbar-float button.border-slate-700,
+.script-writer-root--light .script-writer-toolbar-float button.border-slate-300 {
+  border-color: #cbd5e1;
+  color: #334155;
+}
+
+.script-writer-root--light .script-writer-toolbar-float button .bg-slate-700 {
+  background-color: #e2e8f0;
+  color: #475569;
+}
+
+.script-writer-root--light .script-writer-toolbar-float .text-slate-300,
+.script-writer-root--light .script-writer-toolbar-float .text-slate-100 {
+  color: #475569;
+}
+
+.script-writer-root--light .script-writer-toolbar-float .text-slate-500 {
   color: #64748b;
+}
+
+.script-writer-root--light .script-writer-toolbar-float .text-orange-200 {
+  color: #c2410c;
+}
+
+.script-writer-root--light .script-writer-chrome > p {
+  color: #94a3b8;
+}
+
+.script-writer-root--light .script-writer-statusbar .text-slate-500 {
+  color: #94a3b8;
+}
+
+.script-writer-root--light .script-writer-statusbar .text-slate-400 {
+  color: #cbd5e1;
 }
 
 .script-writer-root--light .storytime-plan-card {

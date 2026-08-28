@@ -1,6 +1,8 @@
 import type { QueryClient } from "@tanstack/react-query";
 import type { PlaybackSource } from "@/lib/playback-sources";
 
+import type { PlaybackSubtitleTrack } from "@/lib/subtitles/types";
+
 export const PLAYBACK_BUNDLE_STALE_MS = 3 * 60 * 60 * 1000;
 
 export type PlaybackBundleResponse = {
@@ -31,7 +33,7 @@ export type PlaybackBundleResponse = {
     hasScriptSource?: boolean;
     pending?: boolean;
   } | null;
-  subtitles?: unknown[];
+  subtitles?: PlaybackSubtitleTrack[];
   captureProtection?: {
     enabled?: boolean;
     mode?: string;

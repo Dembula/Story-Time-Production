@@ -1,6 +1,9 @@
 "use client";
 
 import { Maximize2, Minimize2, Pause, Play, Rewind, FastForward } from "lucide-react";
+import { PlaybackSubtitleMenu, PlaybackSubtitleToggle } from "./playback-subtitle-controls";
+import type { PlaybackSubtitleTrack } from "@/lib/subtitles/types";
+import type { SubtitlePreference } from "./use-playback-subtitles";
 
 const SEEK_SECONDS = 10;
 
@@ -15,6 +18,12 @@ type StorytimeDesktopPlaybackBarProps = {
   onSeekForward: () => void;
   onSeek: (seconds: number) => void;
   onFullscreen?: () => void;
+  subtitleTracks?: PlaybackSubtitleTrack[];
+  subtitlesEnabled?: boolean;
+  activeSubtitleTrackId?: SubtitlePreference;
+  subtitleMenuOpen?: boolean;
+  onToggleSubtitleMenu?: () => void;
+  onSelectSubtitleTrack?: (trackId: SubtitlePreference) => void;
 };
 
 function formatRemaining(seconds: number): string {
@@ -36,6 +45,12 @@ export function StorytimeDesktopPlaybackBar({
   onSeekForward,
   onSeek,
   onFullscreen,
+  subtitleTracks = [],
+  subtitlesEnabled = false,
+  activeSubtitleTrackId = "off",
+  subtitleMenuOpen = false,
+  onToggleSubtitleMenu,
+  onSelectSubtitleTrack,
 }: StorytimeDesktopPlaybackBarProps) {
   const remaining = Math.max(0, duration - currentTime);
 
@@ -102,6 +117,25 @@ export function StorytimeDesktopPlaybackBar({
         <span className="w-12 shrink-0 text-right text-xs font-medium tabular-nums text-white/80">
           {formatRemaining(remaining)}
         </span>
+
+        {onToggleSubtitleMenu ? (
+          <div className="relative shrink-0">
+            <PlaybackSubtitleToggle
+              enabled={subtitlesEnabled}
+              hasTracks={subtitleTracks.length > 0}
+              onToggleMenu={onToggleSubtitleMenu}
+            />
+            {subtitleMenuOpen && onSelectSubtitleTrack ? (
+              <PlaybackSubtitleMenu
+                tracks={subtitleTracks}
+                activeTrackId={activeSubtitleTrackId}
+                enabled={subtitlesEnabled}
+                onSelect={onSelectSubtitleTrack}
+                className="absolute bottom-11 right-0 min-w-[11rem]"
+              />
+            ) : null}
+          </div>
+        ) : null}
 
         {onFullscreen ? (
           <button

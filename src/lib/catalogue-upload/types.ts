@@ -4,6 +4,7 @@ export type CatalogueAssetKind =
   | "poster"
   | "backdrop"
   | "script"
+  | "subtitle"
   | "bts"
   | "episode";
 
@@ -32,6 +33,10 @@ export type CatalogueUploadAsset = {
     seasonNumber?: number;
     episodeNumber?: number;
     btsIndex?: number;
+    subtitleIndex?: number;
+    language?: string;
+    label?: string;
+    isDefault?: boolean;
   };
 };
 
@@ -121,6 +126,12 @@ export function catalogueAssetKindLabel(
       return "Backdrop / banner image";
     case "script":
       return "Script (PDF)";
+    case "subtitle":
+      return meta?.label
+        ? `Subtitles · ${meta.label}`
+        : meta?.language
+          ? `Subtitles · ${meta.language}`
+          : "Subtitle file (WebVTT)";
     case "bts":
       return meta?.btsIndex != null
         ? `Behind-the-scenes clip #${meta.btsIndex + 1}`

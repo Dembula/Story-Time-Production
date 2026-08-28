@@ -55,6 +55,10 @@ import { StoryTimeLoader, StoryTimeLoaderOverlay } from "@/components/ui/storyti
 import { PlaybackBufferingOverlay } from "./playback-buffering-overlay";
 import { PLAYBACK_COMMAND_EVENT, type PlaybackCommand } from "@/lib/input/platform-events";
 import { PLATFORM_INTRO } from "@/lib/platform-intro";
+import { PlaybackSubtitleMenu, PlaybackSubtitleToggle } from "./playback-subtitle-controls";
+import { PlaybackSubtitleOverlay } from "./playback-subtitle-overlay";
+import { usePlaybackSubtitles, useSubtitleControls } from "./use-playback-subtitles";
+import type { PlaybackSubtitleTrack } from "@/lib/subtitles/types";
 
 const IDLE_HIDE_MS = 3200;
 
@@ -149,6 +153,7 @@ export function StorytimeMediaPlayer({
   const [hlsInstanceReady, setHlsInstanceReady] = useState(false);
   const [deviceProfile, setDeviceProfile] = useState(computePlaybackDeviceProfileClient);
   const [userStartRequested, setUserStartRequested] = useState(() => consumePlaybackPlayIntent());
+  const [subtitleMenuOpen, setSubtitleMenuOpen] = useState(false);
   const orientationLockedRef = useRef(false);
   const manualPauseRef = useRef(false);
   const watchShellRef = useRef<HTMLDivElement>(null);
@@ -270,6 +275,48 @@ export function StorytimeMediaPlayer({
     if (useDirectDesktopHls) return desktopPlaybackRef.current;
     return createVidstackPlaybackHandle(playerRef.current);
   }, [useDirectDesktopHls]);
+
+  const subtitleTracks = useMemo(
+    () => (bundle?.subtitles ?? []) as PlaybackSubtitleTrack[],
+    [bundle?.subtitles],
+  );
+  const {
+    enabled: subtitlesEnabled,
+    activeTrackId: activeSubtitleTrackId,
+    selectTrack: selectSubtitleTrack,
+  } = useSubtitleControls(subtitleTracks);
+  const { activeCue: activeSubtitleCue } = usePlaybackSubtitles(
+    subtitleTracks,
+    currentTime,
+    subtitlesEnabled,
+    activeSubtitleTrackId,
+  );
+
+  useEffect(() => {
+    if (!subtitlesEnabled || activeSubtitleTrackId === "off") return;
+    const video = getPlayback()?.getVideoElement?.() ?? null;
+    if (!video) return;
+
+    const track = subtitleTracks.find((row) => row.id === activeSubtitleTrackId);
+    if (!track) return;
+
+    const existing = video.querySelector('track[data-storytime-subtitle="1"]');
+    existing?.remove();
+
+    const textTrack = document.createElement("track");
+    textTrack.kind = "subtitles";
+    textTrack.label = track.label;
+    textTrack.srclang = track.language;
+    textTrack.src = track.proxyUrl;
+    textTrack.default = true;
+    textTrack.setAttribute("data-storytime-subtitle", "1");
+    video.appendChild(textTrack);
+    textTrack.track.mode = "hidden";
+
+    return () => {
+      textTrack.remove();
+    };
+  }, [subtitlesEnabled, activeSubtitleTrackId, subtitleTracks, getPlayback, hlsInstanceReady]);
 
 
 
@@ -1085,6 +1132,15 @@ export function StorytimeMediaPlayer({
           showSkipIntro={!isTrailer && showSkipIntro}
           onSkipIntro={skipIntro}
           onFullscreen={toggleFullscreen}
+          subtitleTracks={subtitleTracks}
+          subtitlesEnabled={subtitlesEnabled}
+          activeSubtitleTrackId={activeSubtitleTrackId}
+          subtitleMenuOpen={subtitleMenuOpen}
+          onToggleSubtitleMenu={() => setSubtitleMenuOpen((open) => !open)}
+          onSelectSubtitleTrack={(trackId) => {
+            selectSubtitleTrack(trackId);
+            setSubtitleMenuOpen(false);
+          }}
         />
       ) : !useAppleNativeUi ? (
         <>
@@ -1130,6 +1186,28 @@ export function StorytimeMediaPlayer({
                   >
                     <Sparkles className="h-3.5 w-3.5" /> Scene info
                   </button>
+                ) : null}
+                {!isTrailer && subtitleTracks.length > 0 && !showDesktopHlsBar ? (
+                  <div className="relative">
+                    <PlaybackSubtitleToggle
+                      enabled={subtitlesEnabled}
+                      hasTracks={subtitleTracks.length > 0}
+                      onToggleMenu={() => setSubtitleMenuOpen((open) => !open)}
+                      className="h-9 w-9 rounded-lg border border-white/15 bg-black/50 backdrop-blur-md"
+                    />
+                    {subtitleMenuOpen ? (
+                      <PlaybackSubtitleMenu
+                        tracks={subtitleTracks}
+                        activeTrackId={activeSubtitleTrackId}
+                        enabled={subtitlesEnabled}
+                        onSelect={(trackId) => {
+                          selectSubtitleTrack(trackId);
+                          setSubtitleMenuOpen(false);
+                        }}
+                        className="absolute left-0 top-11 min-w-[11rem]"
+                      />
+                    ) : null}
+                  </div>
                 ) : null}
                 {typeof document !== "undefined" && document.pictureInPictureEnabled ? (
                   <button
@@ -1211,8 +1289,22 @@ export function StorytimeMediaPlayer({
           onSeekForward={seekForward}
           onSeek={seekTo}
           onFullscreen={toggleFullscreen}
+          subtitleTracks={subtitleTracks}
+          subtitlesEnabled={subtitlesEnabled}
+          activeSubtitleTrackId={activeSubtitleTrackId}
+          subtitleMenuOpen={subtitleMenuOpen}
+          onToggleSubtitleMenu={() => setSubtitleMenuOpen((open) => !open)}
+          onSelectSubtitleTrack={(trackId) => {
+            selectSubtitleTrack(trackId);
+            setSubtitleMenuOpen(false);
+          }}
         />
       ) : null}
+
+      <PlaybackSubtitleOverlay
+        text={activeSubtitleCue?.text ?? null}
+        visible={!isTrailer && subtitlesEnabled && Boolean(activeSubtitleCue?.text)}
+      />
 
       {waitingForHlsEngine ? (
         <StoryTimeLoaderOverlay mode="viewport">

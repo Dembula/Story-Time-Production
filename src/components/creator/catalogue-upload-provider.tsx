@@ -109,6 +109,7 @@ function assetMatchesMeta(
   if (meta.seasonNumber != null && asset.meta?.seasonNumber !== meta.seasonNumber) return false;
   if (meta.episodeNumber != null && asset.meta?.episodeNumber !== meta.episodeNumber) return false;
   if (meta.btsIndex != null && asset.meta?.btsIndex !== meta.btsIndex) return false;
+  if (meta.subtitleIndex != null && asset.meta?.subtitleIndex !== meta.subtitleIndex) return false;
   return true;
 }
 
@@ -367,6 +368,26 @@ export function CatalogueUploadProvider({ children }: { children: ReactNode }) {
           .forEach((a) => {
             const idx = a.meta?.btsIndex;
             if (idx != null && bts[idx]) bts[idx].videoUrl = a.storageUrl!;
+          });
+      }
+      if (Array.isArray(payload.subtitles)) {
+        const subtitles = payload.subtitles as Array<{
+          language?: string;
+          label?: string;
+          vttUrl?: string;
+          isDefault?: boolean;
+        }>;
+        job.assets
+          .filter((a) => a.kind === "subtitle" && a.status === "complete" && a.storageUrl)
+          .forEach((a) => {
+            const idx = a.meta?.subtitleIndex;
+            if (idx == null || !subtitles[idx]) return;
+            subtitles[idx]!.vttUrl = a.storageUrl!;
+            if (a.meta?.language) subtitles[idx]!.language = a.meta.language;
+            if (a.meta?.label) subtitles[idx]!.label = a.meta.label;
+            if (typeof a.meta?.isDefault === "boolean") {
+              subtitles[idx]!.isDefault = a.meta.isDefault;
+            }
           });
       }
 

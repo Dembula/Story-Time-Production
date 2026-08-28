@@ -44,6 +44,7 @@ import {
 import { isEditableCatalogueStatus } from "@/lib/catalogue-upload/types";
 import type { CatalogueAssetKind, CatalogueUploadAsset } from "@/lib/catalogue-upload/types";
 import { catalogueAssetKindLabel } from "@/lib/catalogue-upload/types";
+import { SubtitleUploadSection, type SubtitleDraft } from "@/components/creator/subtitle-upload-section";
 
 const TYPE_ICONS: Record<string, LucideIcon> = {
   MOVIE: Film,
@@ -249,6 +250,21 @@ function DistributionUploadInner() {
           : [];
         setBtsVideos(btsRows);
 
+        if (Array.isArray(data.subtitles) && data.subtitles.length > 0) {
+          setSubtitleDrafts(
+            data.subtitles.map(
+              (row: { language?: string; label?: string; vttUrl?: string; isDefault?: boolean }) => ({
+                language: typeof row.language === "string" ? row.language : "en-ZA",
+                label: typeof row.label === "string" ? row.label : "English",
+                vttUrl: typeof row.vttUrl === "string" ? row.vttUrl : "",
+                isDefault: Boolean(row.isDefault),
+              }),
+            ),
+          );
+        } else {
+          setSubtitleDrafts([]);
+        }
+
         if (Array.isArray(data.seasons) && data.seasons.length > 0) {
           const episodes: EpisodeDraft[] = [];
           const perSeason: number[] = [];
@@ -377,6 +393,7 @@ function DistributionUploadInner() {
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [crew, setCrew] = useState<CrewEntry[]>([{ name: "", role: "" }]);
   const [btsVideos, setBtsVideos] = useState<BtsEntry[]>([]);
+  const [subtitleDrafts, setSubtitleDrafts] = useState<SubtitleDraft[]>([]);
   const [logline, setLogline] = useState("");
   const [contentWarnings, setContentWarnings] = useState("");
   const [festivalHistory, setFestivalHistory] = useState("");
@@ -503,6 +520,14 @@ function DistributionUploadInner() {
           );
         }
       }
+      if (prev.startsWith("subtitle:")) {
+        const idx = Number(prev.split(":")[1]);
+        if (Number.isFinite(idx)) {
+          setSubtitleDrafts((list) =>
+            list.map((row, i) => (i === idx && row.vttUrl ? { ...row, vttUrl: "" } : row)),
+          );
+        }
+      }
     }
     prevQueueSlotsRef.current = currentSlots;
 
@@ -567,6 +592,35 @@ function DistributionUploadInner() {
         ) {
           setBtsVideos((prev) =>
             prev.map((b, i) => (i === idx && b.videoUrl ? { ...b, videoUrl: "" } : b)),
+          );
+        }
+      } else if (asset.kind === "subtitle" && asset.meta?.subtitleIndex != null) {
+        const idx = asset.meta.subtitleIndex;
+        if (asset.status === "complete" && asset.storageUrl) {
+          const url = asset.storageUrl;
+          setSubtitleDrafts((prev) =>
+            prev.map((row, i) =>
+              i === idx && row.vttUrl !== url
+                ? {
+                    ...row,
+                    vttUrl: url,
+                    language: asset.meta?.language ?? row.language,
+                    label: asset.meta?.label ?? row.label,
+                    isDefault:
+                      typeof asset.meta?.isDefault === "boolean"
+                        ? asset.meta.isDefault
+                        : row.isDefault,
+                  }
+                : row,
+            ),
+          );
+        } else if (
+          asset.status === "queued" ||
+          asset.status === "uploading" ||
+          asset.status === "failed"
+        ) {
+          setSubtitleDrafts((prev) =>
+            prev.map((row, i) => (i === idx && row.vttUrl ? { ...row, vttUrl: "" } : row)),
           );
         }
       }
@@ -884,7 +938,15 @@ function DistributionUploadInner() {
   function enqueueMedia(
     kind: CatalogueAssetKind,
     file: File,
-    meta?: { seasonNumber?: number; episodeNumber?: number; btsIndex?: number },
+    meta?: {
+      seasonNumber?: number;
+      episodeNumber?: number;
+      btsIndex?: number;
+      subtitleIndex?: number;
+      language?: string;
+      label?: string;
+      isDefault?: boolean;
+    },
   ) {
     const jobId =
       uploadJobId ??
@@ -916,6 +978,12 @@ function DistributionUploadInner() {
         prev.map((b, i) => (i === idx ? { ...b, videoUrl: "" } : b)),
       );
     }
+    if (kind === "subtitle" && meta?.subtitleIndex != null) {
+      const idx = meta.subtitleIndex;
+      setSubtitleDrafts((prev) =>
+        prev.map((row, i) => (i === idx ? { ...row, vttUrl: "" } : row)),
+      );
+    }
     enqueueAsset({
       jobId,
       kind,
@@ -927,7 +995,12 @@ function DistributionUploadInner() {
 
   function clearMediaSlot(
     kind: CatalogueAssetKind,
-    meta?: { seasonNumber?: number; episodeNumber?: number; btsIndex?: number },
+    meta?: {
+      seasonNumber?: number;
+      episodeNumber?: number;
+      btsIndex?: number;
+      subtitleIndex?: number;
+    },
   ) {
     const jobId =
       uploadJobId ??
@@ -1081,6 +1154,7 @@ function DistributionUploadInner() {
         submittedAt: asDraft ? null : new Date().toISOString(),
         crew: crew.filter((c) => c.name && c.role),
         btsVideos: btsVideos.filter((b) => b.title && b.videoUrl),
+        subtitles: subtitleDrafts.filter((row) => row.language && row.label && row.vttUrl),
         minAge,
         advisory: advisoryPayload,
         ...(linkedProject ? { linkedProjectId: linkedProject.id } : {}),
@@ -1848,6 +1922,37 @@ function DistributionUploadInner() {
               </div>
             </div>
             )}
+          </div>
+
+          <div className="mt-6">
+            <SubtitleUploadSection
+              subtitles={subtitleDrafts}
+              onChange={setSubtitleDrafts}
+              jobAssets={matchedJob?.assets}
+              onUploadFile={(file, meta) => {
+                setSubtitleDrafts((prev) =>
+                  prev.map((row, index) =>
+                    index === meta.subtitleIndex ? { ...row, vttUrl: "" } : row,
+                  ),
+                );
+                enqueueMedia("subtitle", file, meta);
+              }}
+              onClearUpload={(subtitleIndex) => {
+                const jobId =
+                  uploadJobId ??
+                  findJob({
+                    contentId: editingContentId ?? contentIdFromUrl,
+                    title: form.title,
+                  })?.id ??
+                  null;
+                if (jobId) removeAsset(jobId, "subtitle", { subtitleIndex });
+                setSubtitleDrafts((prev) =>
+                  prev.map((row, index) =>
+                    index === subtitleIndex ? { ...row, vttUrl: "" } : row,
+                  ),
+                );
+              }}
+            />
           </div>
 
           {/* BTS videos */}
