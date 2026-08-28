@@ -212,8 +212,9 @@ export function MarketplaceListingDetail({
       setError(null);
       try {
         if (categoryId === "locations" || categoryId === "equipment") {
-          const list = await fetchMarketplaceList<Record<string, unknown>>(category.listApi);
-          const row = list.find((r) => String(r.id) === listingId);
+          const { data, error: listError } = await fetchMarketplaceList<Record<string, unknown>>(category.listApi);
+          if (listError) throw new Error(listError);
+          const row = data.find((r) => String(r.id) === listingId);
           if (!row) throw new Error("Listing not found");
           if (!cancelled) setDetail(normalizeDetail(categoryId, row));
         } else {
@@ -245,7 +246,7 @@ export function MarketplaceListingDetail({
   }, [detail]);
 
   const contractsHref = projectId
-    ? getProjectToolHref(projectId, "legal-contracts")
+    ? getProjectToolHref(projectId, { phase: "PRE_PRODUCTION", toolSlug: "legal-contracts" })
     : "/creator/pre/legal-contracts";
 
   const browseHref = projectId
