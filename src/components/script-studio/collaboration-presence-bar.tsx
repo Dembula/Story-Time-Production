@@ -12,6 +12,7 @@ type CollaborationPresenceBarProps = {
   collaborationMode: "writer" | "producer" | "read_only";
   onModeChange?: (mode: "writer" | "producer" | "read_only") => void;
   canWrite: boolean;
+  variant?: "dark" | "light";
 };
 
 export function CollaborationPresenceBar({
@@ -21,14 +22,27 @@ export function CollaborationPresenceBar({
   collaborationMode,
   onModeChange,
   canWrite,
+  variant = "dark",
 }: CollaborationPresenceBarProps) {
   const writingPeers = peers.filter((p) => p.isWriting || p.isTyping);
   const onlineCount = peers.length + 1;
 
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/80 px-3 py-2 space-y-2">
+    <div
+      className={
+        variant === "light"
+          ? "rounded-lg border border-slate-300 bg-white/95 px-3 py-2 space-y-2 shadow-sm"
+          : "rounded-xl border border-slate-800 bg-slate-900/80 px-3 py-2 space-y-2"
+      }
+    >
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[10px] uppercase tracking-wider text-slate-500">
+        <span
+          className={
+            variant === "light"
+              ? "text-[10px] uppercase tracking-wider text-slate-500"
+              : "text-[10px] uppercase tracking-wider text-slate-500"
+          }
+        >
           Live · {onlineCount} in studio
         </span>
         <div className="flex items-center -space-x-2">

@@ -45,6 +45,8 @@ type ScreenplayEditorProps = {
   textareaRef?: React.MutableRefObject<HTMLTextAreaElement | null>;
   onSelect?: () => void;
   theme?: "dark" | "light";
+  /** Visual page scale (80–140). Pages stay US Letter width; zoom shrinks/grows the stack. */
+  zoomPercent?: number;
   /** Skip mount-time hard wrap (use after import). */
   preserveStructure?: boolean;
   onPreserveStructureEnd?: () => void;
@@ -96,7 +98,8 @@ export function ScreenplayEditor({
   placeholder,
   textareaRef: externalRef,
   onSelect,
-  theme = "dark",
+  theme = "light",
+  zoomPercent = 100,
   preserveStructure = false,
   onPreserveStructureEnd,
 }: ScreenplayEditorProps) {
@@ -489,23 +492,24 @@ export function ScreenplayEditor({
     [suggestions],
   );
 
-  const pageSurface =
-    theme === "light"
-      ? "bg-white border-slate-300 text-slate-900 shadow-[0_8px_30px_rgba(15,23,42,0.12)]"
-      : "bg-[#141416] border-slate-600 text-slate-100 shadow-[0_12px_40px_rgba(0,0,0,0.45)]";
+  const pageSurface = "script-writer-page script-writer-page--light";
+  const zoomScale = Math.min(140, Math.max(80, zoomPercent)) / 100;
 
   return (
     <div className="script-writer-editor-root w-full">
       <div className="script-writer-editor-scroll" data-screenplay-scroll>
-        <div className="relative mx-auto flex w-full max-w-[8.5in] flex-col items-center pb-2">
+        <div
+          className="script-writer-pages-stack"
+          style={{ zoom: zoomScale }}
+        >
           {pageTexts.map((pageText, pageIdx) => (
             <div
               key={`page-${pageIdx}`}
               className={`relative overflow-hidden rounded-sm border ${pageSurface}`}
               style={{
                 width: PAGE_WIDTH,
+                minWidth: PAGE_WIDTH,
                 height: PAGE_HEIGHT,
-                maxWidth: "100%",
                 marginBottom: pageIdx < pageCount - 1 ? PAGE_GAP_PX : 0,
                 boxSizing: "border-box",
               }}
@@ -557,8 +561,8 @@ export function ScreenplayEditor({
                   fontFamily: fontCss,
                   fontSize: `${Math.min(fontSizePt, 12)}pt`,
                   lineHeight: 1,
-                  caretColor: theme === "light" ? "#0f172a" : "#f8fafc",
-                  color: "inherit",
+                  caretColor: "#0f172a",
+                  color: "#0f172a",
                   width: "100%",
                   height: "100%",
                   boxSizing: "border-box",

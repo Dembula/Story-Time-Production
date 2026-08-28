@@ -52,6 +52,7 @@ import {
   parseCharacters,
   parseScenes,
 } from "@/lib/script-studio/parse-screenplay";
+import { PAGE_GAP_PX } from "@/lib/script-studio/screenplay-keyboard";
 import { SCRIPT_TEMPLATES } from "@/lib/script-studio/templates";
 import type { ScreenplayElementType, StudioTheme } from "@/lib/script-studio/types";
 import { ScreenplayReader } from "./screenplay-reader";
@@ -177,7 +178,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
   const [fontId, setFontId] = useState("courier-prime");
   const [zoom, setZoom] = useState(100);
   const [focusMode, setFocusMode] = useState(false);
-  const [leftPanelOpen, setLeftPanelOpen] = useState(true);
+  const [leftPanelOpen, setLeftPanelOpen] = useState(false);
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
   const [splitOutline, setSplitOutline] = useState(true);
   const [sidebarTab, setSidebarTab] = useState<"scenes" | "characters" | "outline">("scenes");
@@ -613,9 +614,8 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
     window.localStorage.setItem(STUDIO_THEME_STORAGE_KEY, studioTheme);
   }, [studioTheme]);
 
-  /** White paper in both modes (Word-style); shell chrome toggles light/dark. */
-  const pageTheme = studioTheme === "dark" ? "light" : "light";
 
+  /** White paper pages always use dark ink regardless of shell theme. */
   const ensureScriptDraft = useCallback(async () => {
     if (draft?.id) return draft;
     const res = await fetch("/api/creator/scripts", {
@@ -718,8 +718,9 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
     const pos = jumpToLine(draft.content, lineIndex);
     el.focus();
     el.setSelectionRange(pos, pos);
-    const lineHeightPx = ((12 * zoom) / 100) * 1.2 * (96 / 72);
-    const pageBlock = 55 * lineHeightPx + 36;
+    const zoomFactor = zoom / 100;
+    const lineHeightPx = 12 * 1.2 * (96 / 72) * zoomFactor;
+    const pageBlock = 55 * lineHeightPx + PAGE_GAP_PX * zoomFactor;
     const scrollTop =
       Math.floor(lineIndex / 55) * pageBlock + (lineIndex % 55) * lineHeightPx - lineHeightPx * 2;
     const scroll =
@@ -1266,16 +1267,17 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
 
               <div className="script-writer-document-inner">
                 <div className="script-writer-alerts">
-                  {hasProject && draft.id ? (
-                    <CollaborationPresenceBar
-                      peers={collab.peers}
-                      collaborators={collab.collaborators}
-                      myColor={collab.myColor}
-                      collaborationMode={collab.collaborationMode}
-                      onModeChange={collab.setMode}
-                      canWrite={collab.canWrite}
-                    />
-                  ) : null}
+              {hasProject && draft.id ? (
+                <CollaborationPresenceBar
+                  peers={collab.peers}
+                  collaborators={collab.collaborators}
+                  myColor={collab.myColor}
+                  collaborationMode={collab.collaborationMode}
+                  onModeChange={collab.setMode}
+                  canWrite={collab.canWrite}
+                  variant={studioTheme === "light" ? "light" : "dark"}
+                />
+              ) : null}
 
                   {collab.remoteRevision && !dirty ? (
                     <div className="rounded-lg border border-orange-800/50 bg-orange-950/30 px-3 py-2 text-[11px] text-orange-200 flex flex-wrap items-center gap-2">
@@ -1356,7 +1358,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                   textareaRef={textareaRef}
                   value={draft.content}
                   activeElement={selectedElement}
-                  theme={pageTheme}
+                  zoomPercent={zoom}
                   preserveStructure={preserveImportLayout}
                   onPreserveStructureEnd={() => setPreserveImportLayout(false)}
                   onChange={(content) => {
@@ -1377,7 +1379,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                   }}
                   readOnly={!effectiveCanWrite}
                   fontCss={fontCss}
-                  fontSizePt={(12 * zoom) / 100}
+                  fontSizePt={12}
                   className={!effectiveCanWrite ? "opacity-90" : ""}
                   placeholder="INT. LOCATION - DAY"
                 />
