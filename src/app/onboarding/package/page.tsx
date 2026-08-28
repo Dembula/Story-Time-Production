@@ -63,7 +63,7 @@ export default async function OnboardingPackagePage() {
           </h1>
           <p className="mt-3 text-slate-300/78">
             {reactivationMode
-              ? "Your trial or billing period has ended. Pick a household size, switch to PPV, or keep your current package, then complete payment to start watching again."
+              ? "Your billing period has ended. Pick a household size, switch to PPV, or keep your current package, then complete payment to start watching again."
               : changePlanMode
                 ? "Move between 1, 3, or 5+ profiles, or switch to Pay Per View. Upgrades and downgrades take effect after you confirm the new package."
                 : "Decide between full-catalogue subscription access or a single-profile PPV account before continuing."}

@@ -79,6 +79,9 @@ export function isStudioPathBlockedBySuites(pathname: string, suiteAccess: Creat
   if (pathname.startsWith("/creator/analytics")) {
     return !suiteAccess.analytics;
   }
+  if (pathname.startsWith("/creator/marketplace")) {
+    return !(suiteAccess.pipeline_pre || suiteAccess.pipeline_prod);
+  }
   if (pathname.startsWith("/creator/pre-production") || pathname.startsWith("/creator/pre/")) {
     return !suiteAccess.pipeline_pre;
   }

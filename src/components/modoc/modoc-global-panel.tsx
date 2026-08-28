@@ -7,7 +7,7 @@ import Image from "next/image";
 import { useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Send, X, Loader2, Sparkles, History, MessageSquarePlus, ChevronLeft, Trash2 } from "lucide-react";
+import { Send, X, Loader2, Sparkles, History, MessageSquarePlus, ChevronLeft, Trash2, ImagePlus } from "lucide-react";
 import { useModoc } from "./use-modoc";
 import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
 import { useMotion } from "@/components/motion/motion-provider";
@@ -15,7 +15,7 @@ import { getModocRoleProfile } from "@/lib/modoc/role-config";
 import { parseModocActionFromText, type ModocActionType } from "@/lib/modoc/action-types";
 import {
   parseModocSuggestFromText,
-  stripModocMachineBlocks,
+  stripModocProtocolLines,
 } from "@/lib/modoc/response-protocol";
 import { buildModocGreeting } from "@/lib/modoc/greeting";
 import { formatModocChatError } from "@/lib/modoc/format-chat-error";
@@ -104,6 +104,8 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
     setRequestContext,
   } = useModoc();
   const [input, setInput] = useState("");
+  const [pendingImage, setPendingImage] = useState<{ dataUrl: string; name: string } | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const [mounted, setMounted] = useState(false);
   const [actionRunning, setActionRunning] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
@@ -544,11 +546,38 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const text = input.trim();
-    if (!text || status === "streaming" || status === "submitted" || actionRunning) return;
+    if ((!text && !pendingImage) || status === "streaming" || status === "submitted" || actionRunning) return;
     stickToBottomRef.current = true;
     setActionMessage(null);
-    void append({ role: "user", content: text });
+    const attachments = pendingImage
+      ? [{ type: "image" as const, dataUrl: pendingImage.dataUrl }]
+      : undefined;
+    void append(
+      { role: "user", content: text || "Please review this image." },
+      attachments ? { body: { attachments } } : undefined,
+    );
     setInput("");
+    setPendingImage(null);
+    if (imageInputRef.current) imageInputRef.current.value = "";
+  };
+
+  const handleImagePick = (files: FileList | null) => {
+    const file = files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      alert("Please choose an image file (JPEG, PNG, WebP, etc.).");
+      return;
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      alert("Image must be under 4 MB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = typeof reader.result === "string" ? reader.result : null;
+      if (dataUrl) setPendingImage({ dataUrl, name: file.name });
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleQuickPrompt = (prompt: string) => {
@@ -805,7 +834,7 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
               {messages.map((message) => {
                 const isUser = message.role === "user";
                 const text = getMessageText(message);
-                const displayText = stripModocMachineBlocks(text);
+                const displayText = stripModocProtocolLines(text);
                 if (!isUser && !displayText) return null;
 
                 return (
@@ -930,6 +959,23 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
               )}
               <div className="flex gap-2">
                 <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif"
+                  className="hidden"
+                  onChange={(e) => handleImagePick(e.target.files)}
+                />
+                <button
+                  type="button"
+                  onClick={() => imageInputRef.current?.click()}
+                  disabled={status === "streaming" || status === "submitted"}
+                  className="flex shrink-0 items-center justify-center rounded-xl border border-slate-700/80 bg-slate-900/80 px-3 py-2.5 text-slate-400 hover:border-orange-500/40 hover:text-orange-200 disabled:opacity-40"
+                  aria-label="Attach image"
+                  title="Attach image for the VA to read"
+                >
+                  <ImagePlus className="h-4 w-4" />
+                </button>
+                <input
                   type="text"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
@@ -939,12 +985,28 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
                 />
                 <button
                   type="submit"
-                  disabled={!input.trim() || status === "streaming" || status === "submitted"}
+                  disabled={(!input.trim() && !pendingImage) || status === "streaming" || status === "submitted"}
                   className="flex shrink-0 items-center justify-center rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 px-3.5 py-2.5 text-white disabled:opacity-40"
                 >
                   <Send className="h-4 w-4" />
                 </button>
               </div>
+              {pendingImage ? (
+                <div className="mt-2 flex items-center gap-2 rounded-lg border border-orange-500/20 bg-orange-500/5 px-2 py-1.5 text-[11px] text-orange-100/90">
+                  <span className="truncate flex-1">Attached: {pendingImage.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPendingImage(null);
+                      if (imageInputRef.current) imageInputRef.current.value = "";
+                    }}
+                    className="text-slate-400 hover:text-white"
+                    aria-label="Remove image"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : null}
             </form>
             )}
           </motion.div>

@@ -2,6 +2,7 @@
 
 const PRE_PRODUCTION_TOOL_QUERY_KEYS: Record<string, string[]> = {
   "idea-development": ["project-ideas", "creator-ideas"],
+  "treatment-creator": ["creator-treatments"],
   "script-writing": ["project-script", "creator-scripts", "project-scenes"],
   "script-review": ["script-review", "script-review-v2", "project-script-review-script-v2"],
   "script-breakdown": [

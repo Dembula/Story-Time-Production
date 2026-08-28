@@ -2701,6 +2701,7 @@ exports.Prisma.MusicSelectionScalarFieldEnum = {
 exports.Prisma.PostProductionReviewScalarFieldEnum = {
   id: 'id',
   projectId: 'projectId',
+  title: 'title',
   cutAssetId: 'cutAssetId',
   status: 'status',
   createdAt: 'createdAt',
@@ -2846,6 +2847,16 @@ exports.Prisma.CreatorScriptScalarFieldEnum = {
   type: 'type',
   content: 'content',
   studioMeta: 'studioMeta',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.CreatorTreatmentScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  projectId: 'projectId',
+  title: 'title',
+  document: 'document',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 };
@@ -3299,6 +3310,7 @@ exports.Prisma.ModelName = {
   ModocMessage: 'ModocMessage',
   ScriptReviewNote: 'ScriptReviewNote',
   CreatorScript: 'CreatorScript',
+  CreatorTreatment: 'CreatorTreatment',
   CreatorScriptVersion: 'CreatorScriptVersion',
   CreatorScriptComment: 'CreatorScriptComment',
   CreatorScriptImport: 'CreatorScriptImport',

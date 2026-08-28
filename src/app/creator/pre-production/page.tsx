@@ -1,6 +1,7 @@
 "use client";
 
-import { Film, MapPin } from "lucide-react";
+import { Film, Store } from "lucide-react";
+import Link from "next/link";
 import { CreatorPhaseHub } from "@/components/creator/creator-phase-hub";
 import { PRE_PRODUCTION_TOOLS } from "@/lib/project-tools";
 
@@ -14,17 +15,24 @@ export default function CreatorPreProductionHub() {
       tools={PRE_PRODUCTION_TOOLS}
       sectionProjectsTitle="Choose a project"
       sectionToolsTitle="Jump into a pre-production tool"
-      sectionToolsLead="Pick a tool, then open it for a project. Casting, crew, locations, equipment, and funding live in their dedicated tools below — not a separate marketplace menu."
+      sectionToolsLead="Use workflow tools for breakdowns, roles, and planning. Hire vendors from the unified Marketplace when you are ready to browse companies and book services."
       ProjectsIcon={Film}
       footerSection={
-        <section className="storytime-section space-y-2 p-5 md:p-6">
+        <section className="storytime-section space-y-3 p-5 md:p-6">
           <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-200">
-            <MapPin className="h-4 w-4 text-sky-400" />
-            Casting, crew, locations, equipment &amp; funding
+            <Store className="h-4 w-4 text-orange-400" />
+            Production Marketplace
           </h2>
-          <p className="text-xs text-slate-500">
-            Use the tool cards above: Casting Portal, Crew Marketplace, Location Marketplace, Equipment Planning, and Funding Hub. Each opens the full directory (headshots, rates, photos) inside that workflow.
+          <p className="text-sm text-slate-400">
+            Casting agencies, crew teams, locations, equipment vendors, and catering partners live in one storefront.
+            Search companies, link your active project, then open a category for full quotes, messaging, and checkout.
           </p>
+          <Link
+            href="/creator/marketplace"
+            className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white shadow-glow hover:bg-orange-400"
+          >
+            Open Marketplace
+          </Link>
         </section>
       }
     />

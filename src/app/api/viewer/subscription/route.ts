@@ -91,9 +91,8 @@ export async function POST(req: Request) {
   if (!body) {
     return NextResponse.json({ error: "Invalid request payload." }, { status: 400 });
   }
-  const { plan, startTrial, viewerModel } = body as {
+  const { plan, viewerModel } = body as {
     plan?: string;
-    startTrial?: boolean;
     viewerModel?: string;
     promoCode?: string;
   };
@@ -108,7 +107,7 @@ export async function POST(req: Request) {
           ? "FAMILY_5"
           : "BASE_1";
   const planConfig = VIEWER_PLAN_CONFIG[planType];
-  const useTrial = selectedViewerModel === VIEWER_MODELS.SUBSCRIPTION && !!startTrial;
+  const useTrial = false;
   let appliedPromo:
     | {
         id: string;

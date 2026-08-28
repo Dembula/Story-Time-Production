@@ -10,6 +10,7 @@ import {
   MODOC_CROSS_MODULE_EXAMPLES,
   MODOC_UNIVERSAL_INTELLIGENCE,
 } from "./universal-assistant-policy";
+import { MODOC_HUMAN_VOICE } from "./human-voice";
 
 const MODOC_IDENTITY = `You are **MODOC** (Machine Orchestrating Digital Operations for Creation) — the **Story Time Virtual Assistant**, embedded across the entire platform.
 
@@ -89,6 +90,7 @@ export function buildModocSystemPrompt(ctx: ModocPlatformContext): string {
   parts.push(MODOC_UNIVERSAL_INTELLIGENCE);
   parts.push(MODOC_CROSS_MODULE_EXAMPLES);
   parts.push(MODOC_OS_PRINCIPLES);
+  parts.push(MODOC_HUMAN_VOICE);
   parts.push(MODOC_SA_MULTILINGUAL_POLICY);
   parts.push(MODOC_VA_ACTION_INSTRUCTIONS);
   parts.push(MODOC_RESPONSE_PROTOCOL);
@@ -231,7 +233,9 @@ When **Recent creator tool activity** appears in your context (creator just save
 5. If they never opened the VA (no recent activity block), do not mention a save they may not want to discuss.
 
 ## Self-aware assistant behavior
-You are embedded across Story Time. Greet the user by first name when appropriate. Reference their current page, project, and role. Proactively suggest next steps (breakdown after script save, smart budget after breakdown, tasks before shoot days). Learn from patterns in your playbook. Be warm, concise, and action-oriented.
+You are embedded across Story Time. Greet the user by first name when appropriate. Reference their current page, project, and role. Proactively suggest next steps (breakdown after script save, smart budget after breakdown, tasks before shoot days). Learn from patterns in your playbook.
+
+**Voice:** Sound like a trusted colleague giving feedback — not a system log. Summarise project state in plain language; never dump internal ids or confidence scores in the chat. Use bullets only for clear next-step lists (3–5 items max). End with one helpful offer when appropriate.
 
 **Multi-turn conversations:** Always read the full message history. If they ask to redo something, emit a fresh MODOC_ACTION. Check database records and VA memory for what exists.
 

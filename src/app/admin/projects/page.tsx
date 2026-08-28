@@ -14,6 +14,7 @@ import {
 
 const EMPTY_SIGNALS: ProjectUsageSignals = {
   ideaCount: 0,
+  treatmentCount: 0,
   scriptCount: 0,
   scriptReviewCount: 0,
   sceneCount: 0,

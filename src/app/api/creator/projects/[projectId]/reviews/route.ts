@@ -55,7 +55,12 @@ export async function GET(
     orderBy: { createdAt: "desc" },
     include: {
       cutAsset: true,
-      notes: true,
+      notes: {
+        orderBy: { createdAt: "asc" },
+        include: {
+          user: { select: { id: true, name: true, image: true } },
+        },
+      },
     },
   });
 
@@ -73,13 +78,37 @@ export async function POST(
   const body = (await req.json().catch(() => null)) as
     | {
         cutAssetId?: string;
+        title?: string;
       }
     | null;
+
+  if (body?.cutAssetId) {
+    const asset = await prisma.footageAsset.findFirst({
+      where: { id: body.cutAssetId, projectId },
+    });
+    if (!asset) {
+      return NextResponse.json({ error: "cutAssetId not found on project" }, { status: 400 });
+    }
+
+    const existing = await prisma.postProductionReview.findFirst({
+      where: { projectId, cutAssetId: body.cutAssetId },
+    });
+    if (existing) {
+      return NextResponse.json({ review: existing }, { status: 200 });
+    }
+  }
 
   const review = await prisma.postProductionReview.create({
     data: {
       projectId,
       cutAssetId: body?.cutAssetId ?? null,
+      title: body?.title?.trim() || null,
+    },
+    include: {
+      cutAsset: true,
+      notes: {
+        include: { user: { select: { id: true, name: true, image: true } } },
+      },
     },
   });
 
@@ -98,6 +127,7 @@ export async function PATCH(
     | {
         id: string;
         status?: string;
+        title?: string;
       }
     | null;
 
@@ -105,9 +135,26 @@ export async function PATCH(
     return NextResponse.json({ error: "Missing id" }, { status: 400 });
   }
 
+  const existing = await prisma.postProductionReview.findFirst({
+    where: { id: body.id, projectId },
+  });
+  if (!existing) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
   const review = await prisma.postProductionReview.update({
     where: { id: body.id },
-    data: { ...(body.status ? { status: body.status } : {}) },
+    data: {
+      ...(body.status ? { status: body.status } : {}),
+      ...(body.title !== undefined ? { title: body.title.trim() || null } : {}),
+    },
+    include: {
+      cutAsset: true,
+      notes: {
+        orderBy: { createdAt: "asc" },
+        include: { user: { select: { id: true, name: true, image: true } } },
+      },
+    },
   });
 
   return NextResponse.json({ review });

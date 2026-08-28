@@ -31,6 +31,17 @@ export const VIEWER_PLAN_CONFIG = {
   },
 } as const;
 
+/** How long a purchased PPV title stays unlocked after payment. */
+export const PPV_TITLE_ACCESS_DAYS: number = 7;
+
+export function ppvTitleAccessExpiresAt(from: Date = new Date()): Date {
+  return new Date(from.getTime() + PPV_TITLE_ACCESS_DAYS * 24 * 60 * 60 * 1000);
+}
+
+export function formatPpvAccessWindowLabel(): string {
+  return PPV_TITLE_ACCESS_DAYS === 1 ? "1 day" : `${PPV_TITLE_ACCESS_DAYS} days`;
+}
+
 export function getViewerPlanConfigById(plan?: string | null) {
   return VIEWER_PLAN_CONFIG[(plan ?? "BASE_1") as keyof typeof VIEWER_PLAN_CONFIG] ?? VIEWER_PLAN_CONFIG.BASE_1;
 }

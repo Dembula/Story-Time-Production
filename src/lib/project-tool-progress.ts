@@ -16,6 +16,7 @@ export type StoredToolProgress = {
 
 export type ProjectUsageSignals = {
   ideaCount: number;
+  treatmentCount: number;
   scriptCount: number;
   scriptReviewCount: number;
   sceneCount: number;
@@ -66,6 +67,8 @@ function inferFromSignals(toolId: string, signals: ProjectUsageSignals): Resolve
   switch (toolId) {
     case "idea-development":
       return signals.ideaCount > 0 ? "COMPLETE" : "NOT_STARTED";
+    case "treatment-creator":
+      return signals.treatmentCount > 0 ? "IN_PROGRESS" : "NOT_STARTED";
     case "script-writing":
       return signals.scriptCount > 0 ? "COMPLETE" : "NOT_STARTED";
     case "script-review":

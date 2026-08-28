@@ -8,8 +8,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  // Use a non-pooling direct connection for Prisma CLI migrations/DDL.
-  // Supabase: Project Settings → Database → Connection string → "Direct".
+  // Non-pooled connection for Prisma CLI migrations/DDL (Neon: use the direct host, port 5432 — no "-pooler").
   directUrl = env("DIRECT_URL")
 }
 
@@ -242,6 +241,7 @@ model User {
 
   // Creator-owned script and notes
   creatorScripts        CreatorScript[]
+  creatorTreatments     CreatorTreatment[]
   creatorScriptImports  CreatorScriptImport[]
   creatorScriptVersions CreatorScriptVersion[]
   creatorScriptComments CreatorScriptComment[]
@@ -1119,6 +1119,7 @@ model OriginalProject {
   dailiesClips   DailiesClip[]
   scriptReviewNotes ScriptReviewNote[]
   creatorScripts    CreatorScript[]
+  creatorTreatments CreatorTreatment[]
   creatorScriptImports CreatorScriptImport[]
   linkedCatalogueContent Content[]
   shootDayControlBoards ShootDayControlBoard[]
@@ -4226,6 +4227,7 @@ model PostProductionReview {
   id          String   @id @default(cuid())
   projectId   String
   project     OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title       String?
   cutAssetId  String?
   cutAsset    FootageAsset? @relation(fields: [cutAssetId], references: [id], onDelete: SetNull)
   status      String   @default("IN_REVIEW")
@@ -4461,6 +4463,24 @@ model CreatorScript {
   versions  CreatorScriptVersion[]
   comments  CreatorScriptComment[]
   imports   CreatorScriptImport[]
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([userId, projectId])
+}
+
+/// Creator-owned pitch/treatment decks — standalone or linked to a project.
+model CreatorTreatment {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String?
+  project   OriginalProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  title     String   @default("Untitled Treatment")
+  /// Slides, assets, and studio settings (TreatmentDocument JSON)
+  document  Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId])
   @@index([projectId])

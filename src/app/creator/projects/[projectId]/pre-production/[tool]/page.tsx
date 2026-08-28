@@ -46,6 +46,7 @@ import {
 } from "@/lib/pricing";
 import { mutationErrorMessage, projectToolFetch, projectToolQueryFn } from "@/lib/project-tool-fetch";
 import { ToolActionError } from "@/components/project-tools/tool-action-error";
+import { TreatmentCreatorStudio } from "@/components/treatment-studio/treatment-creator-studio";
 import { ScriptWritingStudio } from "@/components/script-studio/script-writing-studio";
 import { ScriptReviewStudio } from "@/components/script-review/script-review-studio";
 import { LocationMarketplaceCatalog } from "@/components/marketplace/location-marketplace-catalog";
@@ -100,6 +101,7 @@ interface PreProductionToolPageProps {
 
 const LABELS: Record<string, string> = {
   "idea-development": "Idea Development",
+  "treatment-creator": "Treatment Creator",
   "script-writing": "Script Writing",
   "script-review": "Script Review",
   "script-breakdown": "Script Breakdown",
@@ -151,6 +153,15 @@ export default function PreProductionToolPage({ params }: PreProductionToolPageP
       <>
         {!hasProject && <UnlinkedBanner />}
         <IdeaDevelopmentWorkspace projectId={projectId} title={title} />
+      </>
+    );
+  }
+
+  if (tool === "treatment-creator") {
+    return (
+      <>
+        {!hasProject && <UnlinkedBanner />}
+        <TreatmentCreatorStudio projectId={projectId} title={title} />
       </>
     );
   }
@@ -295,7 +306,7 @@ export default function PreProductionToolPage({ params }: PreProductionToolPageP
   }
 
   return (
-    <div className="space-y-4">
+    <div className="creator-tool-workspace">
       <div>
         <h2 className="text-xl font-semibold text-white">{title}</h2>
         <p className="text-sm text-slate-400 mt-1">
@@ -455,15 +466,15 @@ function IdeaDevelopmentWorkspace({ projectId, title }: IdeaDevelopmentWorkspace
   });
 
   return (
-    <div className="space-y-4">
-      <header className="storytime-plan-card p-5 md:p-6">
+    <div className="creator-tool-workspace">
+      <header className="creator-tool-workspace-header">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div className="min-w-0 flex-1">
-            <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">
+            <p className="creator-tool-workspace-eyebrow">
               Pre-production workspace
             </p>
-            <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
+            <h2 className="creator-tool-workspace-title">{title}</h2>
+            <p className="creator-tool-workspace-description">
             Vault for film ideas, loglines, notes, moodboards, and genres. Convert the strongest
             ideas into the project’s core metadata.
           </p>
@@ -1352,15 +1363,15 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
   };
 
   return (
-    <div className="space-y-4">
-      <header className="storytime-plan-card p-5 md:p-6">
+    <div className="creator-tool-workspace">
+      <header className="creator-tool-workspace-header">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div className="min-w-0 flex-1">
-            <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">
+            <p className="creator-tool-workspace-eyebrow">
               Pre-production workspace
             </p>
-            <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
+            <h2 className="creator-tool-workspace-title">{title}</h2>
+            <p className="creator-tool-workspace-description">
               Professional Script Breakdown Studio — AI analyzes your screenplay, tags every production element, and
               powers scheduling, budgeting, casting, call sheets, and department workflows.
               {!hasProject && (
@@ -2661,14 +2672,14 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
   const [budgetViewOpen, setBudgetViewOpen] = useState(false);
 
   return (
-    <div className="space-y-4">
-      <header className="storytime-plan-card p-5 md:p-6 space-y-5">
+    <div className="creator-tool-workspace">
+      <header className="creator-tool-workspace-header space-y-5">
         <div className="min-w-0">
-          <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">
+          <p className="creator-tool-workspace-eyebrow">
             Pre-production workspace
           </p>
-          <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
-          <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
+          <h2 className="creator-tool-workspace-title">{title}</h2>
+          <p className="creator-tool-workspace-description">
             Build and edit production budgets for this project. Create multiple versions (e.g. lean vs full), add your own line items, and ask the Virtual Assistant to generate or optimise a budget from your script.
           </p>
           {hasProject && projectId && (
@@ -2863,6 +2874,7 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
         )}
       </header>
 
+      <div className="creator-tool-workspace-body space-y-4">
       <ToolSavedViewSheet
         open={budgetViewOpen}
         onClose={() => setBudgetViewOpen(false)}
@@ -3103,6 +3115,7 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
           ) : null}
         </div>
       )}
+      </div>
     </div>
   );
 }
@@ -3932,15 +3945,15 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
   }, [scenePickerIds, selectedDayId]);
 
   return (
-    <div className="space-y-4">
-      <header className="storytime-plan-card p-5 md:p-6">
+    <div className="creator-tool-workspace">
+      <header className="creator-tool-workspace-header">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div className="min-w-0 flex-1">
-            <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">
+            <p className="creator-tool-workspace-eyebrow">
               Pre-production workspace
             </p>
-            <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
+            <h2 className="creator-tool-workspace-title">{title}</h2>
+            <p className="creator-tool-workspace-description">
             Plan shoot days with Unit A/B support, scene selection, and a live output pipeline linked to breakdown and budget. Use Call Sheet Generator in Production for call sheets.
           </p>
         </div>
@@ -4990,15 +5003,15 @@ function CastingPortalWorkspace({
     });
   }, [roles]);
   return (
-    <div className="space-y-4">
-      <header className="storytime-plan-card p-5 md:p-6">
+    <div className="creator-tool-workspace">
+      <header className="creator-tool-workspace-header">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div className="min-w-0 flex-1">
-            <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">
+            <p className="creator-tool-workspace-eyebrow">
               Pre-production workspace
             </p>
-            <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
+            <h2 className="creator-tool-workspace-title">{title}</h2>
+            <p className="creator-tool-workspace-description">
             Manage roles for this project and link to the Story Time talent ecosystem.
           </p>
         </div>
@@ -5292,15 +5305,6 @@ function CastingPortalWorkspace({
             ))}
         </div>
       )}
-      <Link
-        href={projectId ? `/creator/cast?projectId=${encodeURIComponent(projectId)}` : "/creator/cast"}
-        className="storytime-plan-card block p-5 transition hover:border-orange-400/40 group"
-      >
-        <h3 className="text-sm font-semibold text-white mb-1 group-hover:text-orange-200">Open Cast &amp; Auditions marketplace</h3>
-        <p className="text-xs text-slate-400 leading-relaxed">
-          Browse agency talent with headshots, rates, and experience — send free inquiries, post paid auditions, and manage your cast roster.
-        </p>
-      </Link>
     </div>
   );
 }
@@ -5583,15 +5587,15 @@ function CrewMarketplaceWorkspace({
   }, [needs, selectedNeedId]);
 
   return (
-    <div className="space-y-4">
-      <header className="storytime-plan-card p-5 md:p-6">
+    <div className="creator-tool-workspace">
+      <header className="creator-tool-workspace-header">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div className="min-w-0 flex-1">
-            <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">
+            <p className="creator-tool-workspace-eyebrow">
               Pre-production workspace
             </p>
-            <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
+            <h2 className="creator-tool-workspace-title">{title}</h2>
+            <p className="creator-tool-workspace-description">
               Build a serious hiring pipeline across marketplace companies, independent professionals,
               and your internal team roster. All selections can be tracked against project roles and rates.
             </p>
@@ -5908,13 +5912,6 @@ function CrewMarketplaceWorkspace({
           </div>
         </div>
       )}
-      <Link
-        href={projectId ? `/creator/crew?projectId=${encodeURIComponent(projectId)}` : "/creator/crew"}
-        className="creator-glass-panel block p-4 transition hover:border-emerald-400/35"
-      >
-        <h3 className="text-sm font-semibold text-white mb-1">Open Crew marketplace</h3>
-        <p className="text-xs text-slate-400">Browse full crew teams directory and conversation threads.</p>
-      </Link>
     </div>
   );
 }
@@ -6152,15 +6149,15 @@ function LocationMarketplaceWorkspace({
   }, [locations, selectedBreakdownLocationId]);
 
   return (
-    <div className="space-y-4">
-      <header className="storytime-plan-card p-5 md:p-6">
+    <div className="creator-tool-workspace">
+      <header className="creator-tool-workspace-header">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div className="min-w-0 flex-1">
-            <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">
+            <p className="creator-tool-workspace-eyebrow">
               Pre-production workspace
             </p>
-            <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
+            <h2 className="creator-tool-workspace-title">{title}</h2>
+            <p className="creator-tool-workspace-description">
               Add your own places, browse marketplace venues with photos, send free booking requests, and link locations to project scenes.
             </p>
           </div>
@@ -6420,13 +6417,6 @@ function LocationMarketplaceWorkspace({
           onRequestSuccess={setPortalMessage}
         />
       </div>
-      <Link
-        href={projectId ? `/creator/locations?projectId=${encodeURIComponent(projectId)}` : "/creator/locations"}
-        className="creator-glass-panel p-4 transition hover:border-orange-400/35 block"
-      >
-        <h3 className="text-sm font-semibold text-white mb-1">Open Locations</h3>
-        <p className="text-xs text-slate-400">Discover, request, and confirm locations with full messaging history.</p>
-      </Link>
     </div>
   );
 }
@@ -6878,15 +6868,15 @@ function FundingHubWorkspace({
   const selectedSource = sources.find((s) => s.id === selectedSourceId) ?? null;
 
   return (
-    <div className="space-y-4">
-      <header className="storytime-plan-card p-5 md:p-6">
+    <div className="creator-tool-workspace">
+      <header className="creator-tool-workspace-header">
         <div className="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-start md:justify-between">
           <div className="min-w-0 flex-1">
-            <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">
+            <p className="creator-tool-workspace-eyebrow">
               Pre-production workspace
             </p>
-            <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
+            <h2 className="creator-tool-workspace-title">{title}</h2>
+            <p className="creator-tool-workspace-description">
               Marketplace-style funding command center for institutional, private, and Story Time funding with
               application tracking, milestone payouts, contract links, and execution gating.
             </p>
@@ -7398,12 +7388,12 @@ function PitchDeckWorkspace({
   if (!hasProject) {
     return (
       <div className="space-y-4">
-        <header className="storytime-plan-card p-5 md:p-6">
-          <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">
+        <header className="creator-tool-workspace-header">
+          <p className="creator-tool-workspace-eyebrow">
             Pre-production workspace
           </p>
-          <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
-          <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">Create a pitch deck for this project.</p>
+          <h2 className="creator-tool-workspace-title">{title}</h2>
+          <p className="creator-tool-workspace-description">Create a pitch deck for this project.</p>
         </header>
         <div className="creator-glass-panel p-4 text-sm text-slate-400">
           Link a project above to create and manage a pitch deck.
@@ -7415,12 +7405,12 @@ function PitchDeckWorkspace({
   if (!deck) {
     return (
       <div className="space-y-4">
-        <header className="storytime-plan-card p-5 md:p-6">
-          <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">
+        <header className="creator-tool-workspace-header">
+          <p className="creator-tool-workspace-eyebrow">
             Pre-production workspace
           </p>
-          <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
-          <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">Create a pitch deck for this project.</p>
+          <h2 className="creator-tool-workspace-title">{title}</h2>
+          <p className="creator-tool-workspace-description">Create a pitch deck for this project.</p>
         </header>
         <div className="flex gap-2 items-center">
           <select
@@ -7465,14 +7455,14 @@ function PitchDeckWorkspace({
   };
 
   return (
-    <div className="space-y-4">
-      <header className="storytime-plan-card p-5 md:p-6">
+    <div className="creator-tool-workspace">
+      <header className="creator-tool-workspace-header">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div className="min-w-0 flex-1">
-            <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">
+            <p className="creator-tool-workspace-eyebrow">
               Pre-production workspace
             </p>
-            <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">
+            <h2 className="creator-tool-workspace-title">
               {deck.title || title}
             </h2>
             <p className="mt-2 text-sm text-slate-400">
@@ -8011,15 +8001,15 @@ function TableReadsWorkspace({
   const [tableReadsViewOpen, setTableReadsViewOpen] = useState(false);
 
   return (
-    <div className="space-y-4">
-      <header className="storytime-plan-card p-5 md:p-6">
+    <div className="creator-tool-workspace">
+      <header className="creator-tool-workspace-header">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div className="min-w-0 flex-1">
-            <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">
+            <p className="creator-tool-workspace-eyebrow">
               Pre-production workspace
             </p>
-            <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
+            <h2 className="creator-tool-workspace-title">{title}</h2>
+            <p className="creator-tool-workspace-description">
               Schedule table reads, list who attended and which characters they read, and keep a full running log of what was said —
               all editable here.
             </p>
@@ -8378,15 +8368,15 @@ function ProductionWorkspace({
   );
 
   return (
-    <div className="space-y-4">
-      <header className="storytime-plan-card p-5 md:p-6">
+    <div className="creator-tool-workspace">
+      <header className="creator-tool-workspace-header">
         <div className="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-start md:justify-between">
           <div className="min-w-0 flex-1">
-            <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">
+            <p className="creator-tool-workspace-eyebrow">
               On-set execution system
             </p>
-            <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
+            <h2 className="creator-tool-workspace-title">{title}</h2>
+            <p className="creator-tool-workspace-description">
               Real-time Kanban for active production day execution. Tasks ingest from scheduling, script breakdown,
               equipment, locations, risk, and contracts, then sync back into control-center alerts.
             </p>
@@ -8981,15 +8971,15 @@ function EquipmentPlanningWorkspace({
   }, [selectedItemId, items]);
 
   return (
-    <div className="space-y-4">
-      <header className="storytime-plan-card p-5 md:p-6">
+    <div className="creator-tool-workspace">
+      <header className="creator-tool-workspace-header">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div className="min-w-0 flex-1">
-            <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">
+            <p className="creator-tool-workspace-eyebrow">
               Pre-production workspace
             </p>
-            <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
+            <h2 className="creator-tool-workspace-title">{title}</h2>
+            <p className="creator-tool-workspace-description">
               Build equipment plans, browse marketplace gear with photos, send free hire requests, and link listings to plan items.
             </p>
           </div>
@@ -9068,13 +9058,6 @@ function EquipmentPlanningWorkspace({
           </div>
         </div>
       )}
-      <Link
-        href={projectId ? `/creator/equipment?projectId=${encodeURIComponent(projectId)}` : "/creator/equipment"}
-        className="creator-glass-panel p-4 transition hover:border-orange-400/35 block"
-      >
-        <h3 className="text-sm font-semibold text-white mb-1">Open Equipment marketplace</h3>
-        <p className="text-xs text-slate-400">Find cameras, lighting, audio, and more.</p>
-      </Link>
     </div>
   );
 }
@@ -9279,12 +9262,12 @@ function RiskInsuranceWorkspace({
   if (!hasProject) {
     return (
       <div className="space-y-4">
-        <header className="storytime-plan-card p-5 md:p-6">
-          <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">
+        <header className="creator-tool-workspace-header">
+          <p className="creator-tool-workspace-eyebrow">
             Pre-production workspace
           </p>
-          <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
-          <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
+          <h2 className="creator-tool-workspace-title">{title}</h2>
+          <p className="creator-tool-workspace-description">
             Risk checklist: safety, stunts, vehicles, legal, etc.
           </p>
         </header>
@@ -9297,14 +9280,14 @@ function RiskInsuranceWorkspace({
   if (isLoading || !plan) return <Skeleton className="h-64 bg-slate-800/60" />;
   return (
     <div className="space-y-5">
-      <header className="storytime-plan-card p-5 md:p-6">
+      <header className="creator-tool-workspace-header">
         <div className="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-start md:justify-between">
           <div className="min-w-0 flex-1">
-            <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">
+            <p className="creator-tool-workspace-eyebrow">
               Pre-production workspace
             </p>
-            <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
+            <h2 className="creator-tool-workspace-title">{title}</h2>
+            <p className="creator-tool-workspace-description">
               Safety and compliance control layer across script, schedule, locations, equipment, contracts, and insurance.
             </p>
           </div>
@@ -9606,17 +9589,17 @@ function ProductionReadinessWorkspace({
       }
     | undefined;
   return (
-    <div className="space-y-4">
-      <header className="storytime-plan-card p-5 md:p-6">
+    <div className="creator-tool-workspace">
+      <header className="creator-tool-workspace-header">
         <div className="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-start md:justify-between">
           <div className="min-w-0 flex-1">
-            <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">
+            <p className="creator-tool-workspace-eyebrow">
               Pre-production workspace
             </p>
-            <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">
+            <h2 className="creator-tool-workspace-title">
               Production Readiness Dashboard
             </h2>
-            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
+            <p className="creator-tool-workspace-description">
               Final checklist before moving to Production.
             </p>
           </div>
@@ -9706,14 +9689,14 @@ function VisualPlanningWorkspace({
   const hasProject = !!projectId;
   return (
     <div className="space-y-6">
-      <header className="storytime-plan-card p-5 md:p-6">
+      <header className="creator-tool-workspace-header">
         <div className="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-start md:justify-between">
           <div className="min-w-0 flex-1">
-            <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">
+            <p className="creator-tool-workspace-eyebrow">
               Pre-production workspace
             </p>
-            <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
+            <h2 className="creator-tool-workspace-title">{title}</h2>
+            <p className="creator-tool-workspace-description">
               Upload reference images into the catalogue below — organized by world, mood, tone, direction, characters, locations, and
               scenes — so the team shares one visual language for the film.
             </p>

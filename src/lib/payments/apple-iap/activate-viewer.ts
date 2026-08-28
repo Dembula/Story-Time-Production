@@ -2,6 +2,7 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import { VIEWER_MODELS, VIEWER_PLAN_CONFIG } from "@/lib/viewer-access";
+import { ppvTitleAccessExpiresAt } from "@/lib/pricing";
 import {
   APPLE_UNIVERSE_PPV_PRODUCT_ID,
   resolveUniverseSubscriptionProduct,
@@ -299,8 +300,7 @@ export async function activateAppleViewerPpv(options: {
 
   const amount = VIEWER_PLAN_CONFIG.PPV_FILM.price;
   const now = new Date();
-  // Apple PPV ownership: long window (1 year); renew via repurchase if needed.
-  const expiresAt = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
+  const expiresAt = ppvTitleAccessExpiresAt(now);
 
   const pending = await db.viewerContentAccess.findFirst({
     where: { userId: options.userId, contentId, status: { in: ["PENDING", "FAILED"] } },

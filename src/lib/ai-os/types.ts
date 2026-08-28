@@ -59,6 +59,7 @@ export type ModocChatOrchestratorInput = {
   executeAction?: { type: string; payload?: Record<string, unknown> };
   focusProjectId?: string | null;
   memoryCacheHit?: boolean;
+  imageDataUrls?: string[];
 };
 
 export type ModocChatOrchestratorResult = {

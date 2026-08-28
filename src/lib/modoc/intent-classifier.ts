@@ -69,7 +69,7 @@ export function classifyVaIntent(
   if (crossModule && (platform || opts?.hasProjectContext)) {
     return {
       category: "platform_cross_module",
-      responseMode: "production_protocol",
+      responseMode: "conversational",
       needsWebSearch: wantsWeb,
       webSearchQuery: wantsWeb ? text : undefined,
       confidence: 0.8,
@@ -80,15 +80,24 @@ export function classifyVaIntent(
     if (creative) {
       return {
         category: "platform_creative",
-        responseMode: "production_protocol",
+        responseMode: "conversational",
         needsWebSearch: wantsWeb,
         webSearchQuery: wantsWeb ? text : undefined,
         confidence: 0.75,
       };
     }
+    if (wantsTool) {
+      return {
+        category: "tool_execution",
+        responseMode: "production_protocol",
+        needsWebSearch: wantsWeb,
+        webSearchQuery: wantsWeb ? text : undefined,
+        confidence: 0.85,
+      };
+    }
     return {
       category: "platform_production",
-      responseMode: "production_protocol",
+      responseMode: "conversational",
       needsWebSearch: wantsWeb,
       webSearchQuery: wantsWeb ? text : undefined,
       confidence: 0.8,

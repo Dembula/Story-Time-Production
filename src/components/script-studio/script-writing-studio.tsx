@@ -13,14 +13,19 @@ import {
   BookOpen,
   Columns2,
   Eye,
+  FileUp,
   Focus,
   LayoutTemplate,
+  Loader2,
   Moon,
+  PanelLeft,
+  PanelRight,
   Redo2,
   Sun,
   Undo2,
   Users,
   Wand2,
+  X,
 } from "lucide-react";
 import { creatorToolSelect, creatorToolSelectSm } from "@/lib/ui/creator-tool-select";
 import { Button } from "@/components/ui/button";
@@ -43,6 +48,7 @@ import {
 import {
   downloadTextFile,
   exportAsFountain,
+  importScreenplayText,
 } from "@/lib/script-studio/import-export";
 import {
   computeStats,
@@ -168,6 +174,8 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
   const [fontId, setFontId] = useState("courier-prime");
   const [zoom, setZoom] = useState(100);
   const [focusMode, setFocusMode] = useState(false);
+  const [leftPanelOpen, setLeftPanelOpen] = useState(true);
+  const [rightPanelOpen, setRightPanelOpen] = useState(true);
   const [splitOutline, setSplitOutline] = useState(true);
   const [sidebarTab, setSidebarTab] = useState<"scenes" | "characters" | "outline">("scenes");
   const [highlightCharacter, setHighlightCharacter] = useState<string | null>(null);
@@ -193,6 +201,17 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
   const [historyTick, setHistoryTick] = useState(0);
   const canUndo = historyTick >= 0 && undoStackRef.current.length > 0;
   const canRedo = historyTick >= 0 && redoStackRef.current.length > 0;
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importPreview, setImportPreview] = useState<{
+    text: string;
+    fixes: string[];
+    filename: string;
+    sourceType?: string;
+    extractionMethod?: string;
+  } | null>(null);
+  const [preserveImportLayout, setPreserveImportLayout] = useState(false);
 
   useEffect(() => {
     if (!selectedId && scripts.length > 0) setSelectedId(scripts[0].id);
@@ -680,25 +699,73 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
       return;
     }
     pushHistoryBeforeChange({ immediate: true });
+    setPreserveImportLayout(false);
     setDraft({ ...draft, type: tpl.type, content: tpl.content });
     setDirty(true);
   };
 
-  const editorSurface =
-    studioTheme === "dark"
-      ? "bg-slate-950 border-slate-800 text-slate-100"
-      : "bg-[#faf8f5] border-slate-300 text-slate-900";
+  const handleImportFile = useCallback(
+    async (file: File) => {
+      if (!draft) return;
+      setImporting(true);
+      setImportError(null);
+      try {
+        const form = new FormData();
+        form.append("file", file);
+        if (draft.id) form.append("scriptId", draft.id);
+        if (projectId) form.append("projectId", projectId);
 
-  const studioGridClass = focusMode
-    ? "grid grid-cols-1 gap-3"
-    : splitOutline
-      ? "grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,220px)_minmax(0,1fr)_minmax(0,240px)]"
-      : "grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,220px)_minmax(0,1fr)]";
+        const res = await fetch("/api/creator/scripts/import-extract", {
+          method: "POST",
+          body: form,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data.error || "Import failed");
+        }
+
+        const repaired = importScreenplayText(data.text ?? "", file.name);
+        if (!repaired.text.trim()) {
+          throw new Error(repaired.fixes[0] || "No readable screenplay text in this file.");
+        }
+
+        setImportPreview({
+          text: repaired.text,
+          fixes: [...new Set([...(data.fixes ?? []), ...repaired.fixes])].slice(0, 16),
+          filename: file.name,
+          sourceType: data.sourceType,
+          extractionMethod: data.extractionMethod,
+        });
+      } catch (err) {
+        setImportError(err instanceof Error ? err.message : "Import failed");
+      } finally {
+        setImporting(false);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      }
+    },
+    [draft, projectId],
+  );
+
+  const applyImportedScript = useCallback(() => {
+    if (!importPreview || !draft) return;
+    if (
+      draft.content.trim() &&
+      !window.confirm("Replace the current screenplay with the imported script?")
+    ) {
+      return;
+    }
+    pushHistoryBeforeChange({ immediate: true });
+    setPreserveImportLayout(true);
+    setDraft({ ...draft, content: importPreview.text });
+    setDirty(true);
+    setImportPreview(null);
+    setImportError(null);
+  }, [importPreview, draft, pushHistoryBeforeChange]);
 
   const readerContent = useMemo(() => draft?.content ?? "", [draft?.content]);
 
   const studioRoot = (
-    <div className="creator-tool-studio space-y-4">
+    <div className="creator-tool-studio creator-tool-workspace space-y-0">
       {focusMode ? (
         <div className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/80 px-3 py-2 text-xs text-slate-400">
           <span>Focus mode — side panels hidden</span>
@@ -712,22 +779,15 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
         </div>
       ) : null}
       {!focusMode ? (
-        <header className="storytime-plan-card p-5 md:p-6">
-          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <header className="storytime-plan-card p-4 md:p-5">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="min-w-0 flex-1">
-              <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">
+              <p className="mb-1 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">
                 Script Writing Studio
               </p>
-              <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">
+              <h2 className="font-display text-xl font-semibold tracking-tight text-white md:text-2xl">
                 {title}
               </h2>
-              <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400">
-                Professional screenplay workspace with industry formatting (Tab / Enter), scene navigation,
-                export, reader view, and Story Time AI.{" "}
-                {hasProject
-                  ? "Save links your draft to breakdown, budget, and schedule in the project pipeline."
-                  : "Link a project to connect production pipeline tools."}
-              </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <ToolViewButton
@@ -745,7 +805,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
               </span>
             </div>
           </div>
-          <div className="mt-4 flex flex-wrap gap-3 text-[11px] text-slate-400">
+          <div className="mt-3 flex flex-wrap gap-3 text-[11px] text-slate-400">
             <span>{stats.words} words</span>
             <span>• {stats.scenes} scenes</span>
             <span>• ~{stats.pages} pages</span>
@@ -781,9 +841,15 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
         fontCss={fontCss}
       />
 
-      <div className={studioGridClass}>
-        {!focusMode ? (
-          <aside className="creator-glass-panel creator-tool-studio-panel hidden lg:flex flex-col overflow-hidden lg:max-h-[calc(100vh-12rem)]">
+      <div className="script-writer-stage">
+        {!focusMode && leftPanelOpen ? (
+          <aside className="script-writer-float-panel script-writer-float-left hidden xl:flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-800 px-2 py-2">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Navigator</span>
+              <button type="button" className="rounded p-1 text-slate-500 hover:bg-slate-800 hover:text-white" onClick={() => setLeftPanelOpen(false)} aria-label="Hide navigator">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
             <div className="flex border-b border-slate-800 text-[10px]">
               {(["scenes", "characters", "outline"] as const).map((tab) => (
                 <button
@@ -886,7 +952,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
           </aside>
         ) : null}
 
-        <section className="creator-tool-studio-panel min-w-0 space-y-2">
+        <section className="script-writer-canvas min-w-0 space-y-2 px-1 sm:px-2">
           {draft ? (
             <>
               <div className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2 lg:hidden">
@@ -929,7 +995,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                 </Button>
               </div>
 
-              <div className="creator-tool-studio-toolbar rounded-xl border border-slate-800 bg-slate-900/60 px-2 py-2">
+              <div className="script-writer-toolbar-float creator-tool-studio-toolbar rounded-xl border border-slate-800 bg-slate-900/60 px-2 py-2">
                 <select
                   value={selectedElement}
                   onChange={(e) => handleElementSelect(e.target.value as ScreenplayElementType)}
@@ -1027,6 +1093,50 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                     onClick={() => setSplitOutline((s) => !s)}
                   >
                     <Columns2 className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className={studioToggleButtonClass(leftPanelOpen && !focusMode)}
+                    aria-label="Toggle navigator panel"
+                    title="Navigator panel"
+                    disabled={focusMode}
+                    onClick={() => setLeftPanelOpen((v) => !v)}
+                  >
+                    <PanelLeft className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className={studioToggleButtonClass(rightPanelOpen && splitOutline && !focusMode)}
+                    aria-label="Toggle tools panel"
+                    title="Tools panel"
+                    disabled={focusMode}
+                    onClick={() => setRightPanelOpen((v) => !v)}
+                  >
+                    <PanelRight className="h-3.5 w-3.5" />
+                  </Button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pdf,.docx,.fdx,.fountain,.rtf,.odt,.txt"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) void handleImportFile(file);
+                    }}
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 border-slate-700 text-[10px] text-slate-100"
+                    disabled={!effectiveCanWrite || importing}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    {importing ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileUp className="h-3 w-3 mr-1" />}
+                    Import
                   </Button>
                   <div className="relative">
                     <Button
@@ -1144,6 +1254,18 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                 </div>
               ) : null}
 
+              {importError ? (
+                <div className="rounded-lg border border-red-800/50 bg-red-950/30 px-3 py-2 text-[11px] text-red-200">
+                  {importError}
+                </div>
+              ) : null}
+
+              {preserveImportLayout ? (
+                <div className="rounded-lg border border-emerald-800/40 bg-emerald-950/20 px-3 py-2 text-[11px] text-emerald-200">
+                  Imported layout preserved — press Tab or Enter on a line to apply Story Time formatting.
+                </div>
+              ) : null}
+
               <Input
                 value={draft.title}
                 onChange={(e) => {
@@ -1157,9 +1279,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                 placeholder="Script title"
               />
 
-              <div
-                className={`relative mx-auto w-full max-w-[8.5in] rounded-2xl border px-3 py-3 sm:px-4 focus-within:border-orange-500 ${editorSurface}`}
-              >
+              <div className="relative mx-auto w-full max-w-[8.5in]">
                 {collab.peers.length > 0 ? (
                   <div className="pointer-events-none absolute right-2 top-2 z-10 space-y-1">
                     {collab.peers
@@ -1180,7 +1300,9 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                   textareaRef={textareaRef}
                   value={draft.content}
                   activeElement={selectedElement}
-                  theme={studioTheme}
+                  theme={studioTheme === "dark" ? "light" : "light"}
+                  preserveStructure={preserveImportLayout}
+                  onPreserveStructureEnd={() => setPreserveImportLayout(false)}
                   onChange={(content) => {
                     if (!effectiveCanWrite) return;
                     pushHistoryBeforeChange();
@@ -1280,8 +1402,14 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
           )}
         </section>
 
-        {splitOutline && !focusMode ? (
-          <aside className="creator-glass-panel creator-tool-studio-panel hidden lg:flex flex-col overflow-hidden text-[11px] lg:max-h-[calc(100vh-12rem)]">
+        {splitOutline && !focusMode && rightPanelOpen ? (
+          <aside className="script-writer-float-panel script-writer-float-right hidden xl:flex flex-col text-[11px]">
+            <div className="flex items-center justify-between border-b border-slate-800 px-2 py-2">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Tools</span>
+              <button type="button" className="rounded p-1 text-slate-500 hover:bg-slate-800 hover:text-white" onClick={() => setRightPanelOpen(false)} aria-label="Hide tools panel">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
             <div className="flex border-b border-slate-800 text-[9px]">
               {(
                 [
@@ -1360,6 +1488,49 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
           </aside>
         ) : null}
       </div>
+
+      {importPreview ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl">
+            <div className="flex items-start justify-between border-b border-slate-800 px-5 py-4">
+              <div>
+                <h3 className="text-lg font-semibold text-white">Import preview</h3>
+                <p className="mt-1 text-sm text-slate-400">
+                  {importPreview.filename}
+                  {importPreview.sourceType ? ` · ${importPreview.sourceType}` : ""}
+                </p>
+              </div>
+              <button type="button" className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white" onClick={() => setImportPreview(null)}>
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            {importPreview.fixes.length > 0 ? (
+              <div className="border-b border-slate-800 px-5 py-3 text-xs text-emerald-200/90">
+                <p className="font-medium text-emerald-300">Repairs applied</p>
+                <ul className="mt-1 list-inside list-disc space-y-0.5 text-slate-400">
+                  {importPreview.fixes.map((fix) => (
+                    <li key={fix}>{fix}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            <div className="flex-1 overflow-y-auto px-5 py-4">
+              <pre className="whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-slate-300">
+                {importPreview.text.slice(0, 12000)}
+                {importPreview.text.length > 12000 ? "\n\n… (preview truncated)" : ""}
+              </pre>
+            </div>
+            <div className="flex flex-wrap justify-end gap-2 border-t border-slate-800 px-5 py-4">
+              <Button variant="outline" className="border-slate-600 text-slate-200" onClick={() => setImportPreview(null)}>
+                Cancel
+              </Button>
+              <Button className="bg-orange-500 hover:bg-orange-600 text-white" onClick={applyImportedScript}>
+                Use this script
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 

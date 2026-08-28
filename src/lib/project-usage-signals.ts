@@ -3,6 +3,7 @@ import type { ProjectUsageSignals } from "@/lib/project-tool-progress";
 
 const EMPTY_SIGNALS: ProjectUsageSignals = {
   ideaCount: 0,
+  treatmentCount: 0,
   scriptCount: 0,
   scriptReviewCount: 0,
   sceneCount: 0,
@@ -26,6 +27,7 @@ function bump(map: Map<string, ProjectUsageSignals>, projectId: string, patch: P
   const cur = map.get(projectId) ?? { ...EMPTY_SIGNALS };
   map.set(projectId, {
     ideaCount: cur.ideaCount + (patch.ideaCount ?? 0),
+    treatmentCount: cur.treatmentCount + (patch.treatmentCount ?? 0),
     scriptCount: cur.scriptCount + (patch.scriptCount ?? 0),
     scriptReviewCount: cur.scriptReviewCount + (patch.scriptReviewCount ?? 0),
     sceneCount: cur.sceneCount + (patch.sceneCount ?? 0),
@@ -61,6 +63,7 @@ export async function loadProjectUsageSignals(
   const whereIn = { projectId: { in: projectIds } };
 
   const [
+    treatments,
     scripts,
     reviews,
     scenes,
@@ -79,6 +82,7 @@ export async function loadProjectUsageSignals(
     dailies,
     linkedContent,
   ] = await Promise.all([
+    prisma.creatorTreatment.groupBy({ by: ["projectId"], where: whereIn, _count: { _all: true } }),
     prisma.projectScript.groupBy({ by: ["projectId"], where: whereIn, _count: { _all: true } }),
     prisma.scriptReviewSession.groupBy({ by: ["projectId"], where: whereIn, _count: { _all: true } }),
     prisma.projectScene.groupBy({ by: ["projectId"], where: whereIn, _count: { _all: true } }),
@@ -104,6 +108,9 @@ export async function loadProjectUsageSignals(
     }),
   ]);
 
+  for (const row of treatments) {
+    if (row.projectId) bump(map, row.projectId, { treatmentCount: row._count._all });
+  }
   for (const row of scripts) bump(map, row.projectId, { scriptCount: row._count._all });
   for (const row of reviews) bump(map, row.projectId, { scriptReviewCount: row._count._all });
   for (const row of scenes) bump(map, row.projectId, { sceneCount: row._count._all });

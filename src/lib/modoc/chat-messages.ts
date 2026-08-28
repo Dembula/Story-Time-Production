@@ -3,6 +3,11 @@ import type { ModelMessage } from "ai";
 import { stripModocActionLines } from "./action-types";
 import { MAX_CHAT_TURNS_FOR_MODEL } from "./learning-limits";
 
+export type ModocMessagePrepareOptions = {
+  /** Base64 data URLs attached to the latest user turn (vision). */
+  imageDataUrls?: string[];
+};
+
 function extractTextFromMessage(msg: Record<string, unknown>): string {
   if (typeof msg.content === "string") return msg.content;
   if (Array.isArray(msg.content)) {
@@ -100,14 +105,52 @@ export function getLastUserTextFromRawMessages(rawMessages: unknown[]): string {
   return "";
 }
 
+function attachImagesToLastUserMessage(
+  messages: ModelMessage[],
+  imageDataUrls: string[],
+): ModelMessage[] {
+  if (!imageDataUrls.length) return messages;
+
+  const out = [...messages];
+  for (let i = out.length - 1; i >= 0; i--) {
+    if (out[i].role !== "user") continue;
+    const existing = out[i].content;
+    const text =
+      typeof existing === "string"
+        ? existing
+        : Array.isArray(existing)
+          ? existing
+              .filter((p): p is { type: "text"; text: string } => p.type === "text")
+              .map((p) => p.text)
+              .join("\n")
+          : "";
+
+    const parts: Array<{ type: "text"; text: string } | { type: "image"; image: string }> = [];
+    if (text.trim()) parts.push({ type: "text", text });
+    for (const url of imageDataUrls) {
+      if (url.startsWith("data:image/")) {
+        parts.push({ type: "image", image: url });
+      }
+    }
+    if (parts.length === 0) return messages;
+    out[i] = { role: "user", content: parts };
+    return out;
+  }
+  return messages;
+}
+
 /** Safe conversion for MODOC chat — never throws on legacy message shapes. */
-export async function prepareModocModelMessages(rawMessages: unknown[]): Promise<ModelMessage[]> {
+export async function prepareModocModelMessages(
+  rawMessages: unknown[],
+  opts?: ModocMessagePrepareOptions,
+): Promise<ModelMessage[]> {
   const ui = trimMessagesForModel(normalizeToUiMessages(rawMessages));
   if (ui.length === 0) return [];
+  let messages: ModelMessage[];
   try {
-    return await convertToModelMessages(ui);
+    messages = await convertToModelMessages(ui);
   } catch {
-    return ui.map((m) => {
+    messages = ui.map((m) => {
       const text = m.parts
         ?.filter((p): p is { type: "text"; text: string } => p.type === "text")
         .map((p) => p.text)
@@ -118,4 +161,10 @@ export async function prepareModocModelMessages(rawMessages: unknown[]): Promise
       };
     });
   }
+
+  if (opts?.imageDataUrls?.length) {
+    messages = attachImagesToLastUserMessage(messages, opts.imageDataUrls);
+  }
+
+  return messages;
 }

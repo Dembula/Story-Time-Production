@@ -72,19 +72,21 @@ function PreToolStandaloneContent({ toolSlug }: PreToolStandaloneProps) {
   const selectedProjectId = projectIdFromUrl || defaultProjectId || "";
 
   return (
-    <div className="space-y-4">
+    <div className="creator-pipeline-shell creator-pipeline-shell--tool">
       <ProjectContextBarStandalone
         projectId={selectedProjectId}
         projects={orderedProjects}
         isLoading={isLoading}
         onChange={handleProjectChange}
       />
-      <PreProductionToolPageImpl
-        params={Promise.resolve({
-          projectId: selectedProjectId || undefined,
-          tool: toolSlug,
-        })}
-      />
+      <div className="creator-pipeline-shell-tool-body">
+        <PreProductionToolPageImpl
+          params={Promise.resolve({
+            projectId: selectedProjectId || undefined,
+            tool: toolSlug,
+          })}
+        />
+      </div>
     </div>
   );
 }

@@ -28,7 +28,7 @@ const MARGIN_LEFT = "1.5in";
 const MARGIN_RIGHT = "1in";
 
 /** Dismiss unused autocomplete after this idle period. */
-const SUGGESTION_IDLE_MS = 3000;
+const SUGGESTION_IDLE_MS = 2000;
 
 type ScreenplayEditorProps = {
   value: string;
@@ -45,6 +45,9 @@ type ScreenplayEditorProps = {
   textareaRef?: React.MutableRefObject<HTMLTextAreaElement | null>;
   onSelect?: () => void;
   theme?: "dark" | "light";
+  /** Skip mount-time hard wrap (use after import). */
+  preserveStructure?: boolean;
+  onPreserveStructureEnd?: () => void;
 };
 
 function splitContentIntoPages(content: string): string[] {
@@ -94,6 +97,8 @@ export function ScreenplayEditor({
   textareaRef: externalRef,
   onSelect,
   theme = "dark",
+  preserveStructure = false,
+  onPreserveStructureEnd,
 }: ScreenplayEditorProps) {
   const pageRefs = useRef<Array<HTMLTextAreaElement | null>>([]);
   const [editingElement, setEditingElement] = useState<ScreenplayElementType>(activeElementProp);
@@ -111,15 +116,15 @@ export function ScreenplayEditor({
     setEditingElement(activeElementProp);
   }, [activeElementProp]);
 
-  // One-time heal for scripts already damaged by peeled 1-char wrap lines.
+  // One-time heal for scripts already damaged by peeled 1-char wrap lines — never on fresh imports.
   const didHealRef = useRef(false);
   useEffect(() => {
-    if (didHealRef.current) return;
+    if (preserveStructure || didHealRef.current) return;
     didHealRef.current = true;
     const healed = hardWrapDocument(value);
     if (healed !== value) onChange(healed);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only heal
-  }, []);
+  }, [preserveStructure]);
 
   const clearSuggestionIdle = useCallback(() => {
     if (suggestionIdleTimerRef.current != null) {
@@ -277,6 +282,11 @@ export function ScreenplayEditor({
     (pageIdx: number, pageText: string, localCursor: number) => {
       const provisional = mergePageIntoContent(valueRef.current, pageIdx, pageText);
       const globalCursor = pageStartOffset(valueRef.current, pageIdx) + localCursor;
+      if (preserveStructure) {
+        onChange(provisional);
+        refreshSuggestions(provisional, globalCursor, editingElement);
+        return;
+      }
       const formatted = formatLineWhileTyping(provisional, globalCursor, editingElement);
 
       if (formatted) {
@@ -298,7 +308,7 @@ export function ScreenplayEditor({
       onChange(provisional);
       refreshSuggestions(provisional, globalCursor, editingElement);
     },
-    [editingElement, onChange, onElementChange, queueCaret, refreshSuggestions],
+    [editingElement, onChange, onElementChange, queueCaret, refreshSuggestions, preserveStructure],
   );
 
   const handlePageChange = useCallback(
@@ -392,6 +402,7 @@ export function ScreenplayEditor({
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         onBeforeChange?.();
+        if (preserveStructure) onPreserveStructureEnd?.();
         applyEdit(handleScreenplayEnter(content, globalStart, editingElement));
         return;
       }
@@ -399,6 +410,7 @@ export function ScreenplayEditor({
       if (e.key === "Tab") {
         e.preventDefault();
         onBeforeChange?.();
+        if (preserveStructure) onPreserveStructureEnd?.();
         if (suggestions.length > 0) {
           applySuggestion(suggestions[suggestionIndex] ?? suggestions[0]!, pageIdx);
           return;
@@ -463,7 +475,18 @@ export function ScreenplayEditor({
       focusAt,
       bumpSuggestionIdle,
       dismissSuggestions,
+      preserveStructure,
+      onPreserveStructureEnd,
     ],
+  );
+
+  const transitionSuggestions = useMemo(
+    () => suggestions.filter((s) => s.element === "transition"),
+    [suggestions],
+  );
+  const generalSuggestions = useMemo(
+    () => suggestions.filter((s) => s.element !== "transition"),
+    [suggestions],
   );
 
   const pageSurface =
@@ -472,11 +495,10 @@ export function ScreenplayEditor({
       : "bg-[#141416] border-slate-600 text-slate-100 shadow-[0_12px_40px_rgba(0,0,0,0.45)]";
 
   return (
-    <div className="space-y-2">
+    <div className="script-writer-editor-root space-y-2">
       <div
-        className="overflow-y-auto overflow-x-hidden rounded-xl border border-slate-800/80 bg-slate-950/80 p-3 sm:p-5"
+        className="script-writer-editor-scroll overflow-y-auto overflow-x-hidden rounded-xl border border-slate-800/80 bg-[#0a0a0c] p-4 sm:p-6"
         data-screenplay-scroll
-        style={{ maxHeight: "min(82vh, 980px)" }}
       >
         <div className="relative mx-auto flex w-full max-w-[8.5in] flex-col items-center">
           {pageTexts.map((pageText, pageIdx) => (
@@ -562,38 +584,82 @@ export function ScreenplayEditor({
 
           {suggestions.length > 0 ? (
             <div
-              className="absolute left-[1.5in] top-24 z-20 max-h-48 w-72 overflow-y-auto rounded-md border border-slate-700 bg-slate-900 shadow-xl"
+              className="absolute left-[1.5in] top-24 z-20 w-[min(20rem,calc(100%-3rem))] space-y-2"
               role="listbox"
               aria-label="Screenplay suggestions"
               onMouseEnter={bumpSuggestionIdle}
               onMouseMove={bumpSuggestionIdle}
             >
-              {suggestions.map((s, i) => (
-                <button
-                  key={`${s.label}-${i}`}
-                  type="button"
-                  role="option"
-                  aria-selected={i === suggestionIndex}
-                  className={`block w-full px-3 py-1.5 text-left text-xs ${
-                    i === suggestionIndex
-                      ? "bg-orange-500/20 text-orange-100"
-                      : "text-slate-200 hover:bg-slate-800"
-                  }`}
-                  style={{ fontFamily: fontCss }}
-                  onMouseDown={(ev) => {
-                    ev.preventDefault();
-                    suppressSuggestionBlurRef.current = true;
-                    applySuggestion(s, activePageIdx);
-                    window.setTimeout(() => {
-                      suppressSuggestionBlurRef.current = false;
-                    }, 0);
-                  }}
-                >
-                  {s.label}
-                </button>
-              ))}
-              <p className="border-t border-slate-800 px-3 py-1.5 text-[10px] text-slate-500">
-                Enter/Tab to use · Esc to close · fades after 3s idle
+              {transitionSuggestions.length > 0 ? (
+                <div className="rounded-lg border border-violet-500/30 bg-slate-950/95 p-2 shadow-xl backdrop-blur-sm">
+                  <p className="mb-1.5 px-1 text-[9px] font-semibold uppercase tracking-wider text-violet-300/90">
+                    Smart transitions
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {transitionSuggestions.map((s, i) => {
+                      const globalIdx = suggestions.indexOf(s);
+                      return (
+                        <button
+                          key={`${s.label}-t-${i}`}
+                          type="button"
+                          role="option"
+                          aria-selected={globalIdx === suggestionIndex}
+                          className={`rounded-full border px-2.5 py-1 text-[10px] font-medium transition ${
+                            globalIdx === suggestionIndex
+                              ? "border-violet-400/50 bg-violet-500/25 text-violet-100"
+                              : "border-slate-700 bg-slate-900 text-slate-200 hover:border-violet-400/40 hover:bg-violet-500/10"
+                          }`}
+                          style={{ fontFamily: fontCss }}
+                          onMouseDown={(ev) => {
+                            ev.preventDefault();
+                            suppressSuggestionBlurRef.current = true;
+                            applySuggestion(s, activePageIdx);
+                            window.setTimeout(() => {
+                              suppressSuggestionBlurRef.current = false;
+                            }, 0);
+                          }}
+                        >
+                          {s.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+
+              {generalSuggestions.length > 0 ? (
+                <div className="max-h-48 overflow-y-auto rounded-md border border-slate-700 bg-slate-900/95 shadow-xl backdrop-blur-sm">
+                  {generalSuggestions.map((s, i) => {
+                    const globalIdx = suggestions.indexOf(s);
+                    return (
+                      <button
+                        key={`${s.label}-${i}`}
+                        type="button"
+                        role="option"
+                        aria-selected={globalIdx === suggestionIndex}
+                        className={`block w-full px-3 py-1.5 text-left text-xs ${
+                          globalIdx === suggestionIndex
+                            ? "bg-orange-500/20 text-orange-100"
+                            : "text-slate-200 hover:bg-slate-800"
+                        }`}
+                        style={{ fontFamily: fontCss }}
+                        onMouseDown={(ev) => {
+                          ev.preventDefault();
+                          suppressSuggestionBlurRef.current = true;
+                          applySuggestion(s, activePageIdx);
+                          window.setTimeout(() => {
+                            suppressSuggestionBlurRef.current = false;
+                          }, 0);
+                        }}
+                      >
+                        {s.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+              <p className="rounded-md border border-slate-800/80 bg-slate-950/80 px-3 py-1.5 text-[10px] text-slate-500 backdrop-blur-sm">
+                Hover to keep open · Enter/Tab to apply · fades after 2s idle
               </p>
             </div>
           ) : null}
@@ -606,7 +672,7 @@ export function ScreenplayEditor({
           <span className="text-orange-300/90">{editingElement.replace(/_/g, " ")}</span>
         </p>
         <p className="text-[10px] text-slate-500" style={{ fontFamily: fontCss }}>
-          Enter / Tab accept suggestions · Esc dismisses
+          Enter / Tab accept suggestions · Esc dismisses · 2s idle timeout
         </p>
       </div>
     </div>

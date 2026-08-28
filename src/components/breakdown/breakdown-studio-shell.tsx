@@ -206,7 +206,7 @@ export function BreakdownStudioShell({
 
   return (
 
-    <div className="creator-tool-studio space-y-4">
+    <div className="creator-tool-studio creator-tool-workspace space-y-0">
 
       <div className="creator-tool-studio-tabs border-b border-slate-800 pb-3">
 

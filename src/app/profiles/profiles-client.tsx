@@ -8,6 +8,7 @@ import { getBirthDateOptionSets } from "@/lib/viewer-profiles";
 import { ProfilePinModal } from "@/components/viewer/profile-pin-modal";
 import { LogOutButton } from "@/components/auth/log-out-button";
 import { SubscriptionResumeButton } from "@/components/viewer/subscription-resume-checkout";
+import { formatPpvAccessWindowLabel } from "@/lib/pricing";
 
 type Profile = {
   id: string;
@@ -242,7 +243,7 @@ export function ProfilesClient({
         <h1 className="font-display text-3xl font-semibold text-white md:text-4xl">Who’s watching?</h1>
         <p className="max-w-2xl text-slate-300/78">
           {viewerModel === "PPV"
-            ? "This PPV account uses one viewer profile. Each purchased film stays unlocked for 30 days on this account."
+            ? `This PPV account uses one viewer profile. Each purchased film stays unlocked for ${formatPpvAccessWindowLabel()} on this account.`
             : "Create a profile for each household member. Each profile gets its own watch history, recommendations, and age-based censorship."}
         </p>
         <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -290,7 +291,7 @@ export function ProfilesClient({
           <p className="font-medium text-white">Subscription payment required</p>
           <p className="mt-1 text-orange-100/90">
             {needsReactivation
-              ? "Your trial or billing period has ended and auto-pay is not set up. Pay now to keep this plan, or switch plan to upgrade or downgrade household size."
+              ? "Your billing period has ended and auto-pay is not set up. Pay now to keep this plan, or switch plan to upgrade or downgrade household size."
               : "Complete payment to activate your subscription and access the catalogue."}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">

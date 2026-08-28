@@ -49,6 +49,10 @@ import { buildPlaybookPromptForUser } from "@/lib/modoc/auto-learn";
 import type { ModocActionPayload } from "@/lib/modoc/action-types";
 import { buildVaAwarenessContext } from "@/lib/modoc/va-awareness-context";
 import { getLastUserTextFromRawMessages } from "@/lib/modoc/chat-messages";
+import {
+  buildFinancialGuardrailPromptBlock,
+  evaluateFinancialGuardrail,
+} from "@/lib/modoc/financial-guardrails";
 import { buildProductionGraph } from "@/lib/modoc/production-graph";
 import { assembleModocMemory } from "@/lib/modoc/modoc-memory";
 import { buildSlicedContext } from "@/lib/modoc/context-slicer";
@@ -73,6 +77,7 @@ export async function POST(req: Request) {
     pageContext?: Record<string, string | number | boolean | null>;
     conversationId?: string;
     executeAction?: { type: string; payload?: ModocActionPayload };
+    attachments?: Array<{ type: string; dataUrl?: string }>;
   } = {};
   try {
     body = await req.json();
@@ -91,6 +96,11 @@ export async function POST(req: Request) {
     conversationId,
     executeAction,
   } = body;
+
+  const imageDataUrls = (body.attachments ?? [])
+    .filter((a) => a.type === "image" && typeof a.dataUrl === "string" && a.dataUrl.startsWith("data:image/"))
+    .map((a) => a.dataUrl!)
+    .slice(0, 3);
 
   if (!session?.user) {
     return new Response(JSON.stringify({ error: "Sign in to use the Virtual Assistant." }), {
@@ -1374,6 +1384,17 @@ Suggest performance summary, lessons learned categories, and a final deliverable
       }
     }
 
+    const guardrail = evaluateFinancialGuardrail(lastUserText);
+    const guardrailBlock = buildFinancialGuardrailPromptBlock(guardrail);
+    if (guardrailBlock) systemPrompt += `\n\n${guardrailBlock}`;
+
+    if (imageDataUrls.length > 0) {
+      systemPrompt += `
+
+## Image attachment(s)
+The user attached ${imageDataUrls.length} image(s) to this message. Describe what you see clearly and relate it to their Story Time project when relevant (moodboards, references, receipts, storyboards, posters, etc.).`;
+    }
+
     const { streamResponse } = await runModocChatOrchestrator({
       userId: userId!,
       sessionRole: sessionRole ?? "SUBSCRIBER",
@@ -1387,6 +1408,7 @@ Suggest performance summary, lessons learned categories, and a final deliverable
       executeAction,
       focusProjectId: (pageContext?.projectId as string | undefined) ?? null,
       memoryCacheHit,
+      imageDataUrls,
     });
 
     return streamResponse;

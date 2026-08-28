@@ -41,12 +41,16 @@ function step(
 
 /** Creator tool → workflow assist / escalate metadata for proactive VA awareness. */
 export const TOOL_WORKFLOW: Record<string, ToolWorkflowStep> = {
-  "idea-development": step("idea-development", "script-writing", [
+  "idea-development": step("idea-development", "treatment-creator", [
     "update_idea_notes",
     "create_project_idea",
   ], {
     action: "create_project_idea",
-    prompt: "refine the idea or start the screenplay",
+    prompt: "refine the idea or start the treatment deck",
+  }),
+  "treatment-creator": step("treatment-creator", "script-writing", [], {
+    action: "update_script_content",
+    prompt: "turn the treatment into a screenplay draft",
   }),
   "script-writing": step("script-writing", "script-breakdown", [
     "update_script_content",

@@ -2,10 +2,7 @@
 
 import { ReactNode, useEffect, useMemo } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
-import {
-  ProjectContextBar,
-} from "@/components/creator/project-context-bar";
+import { PipelineWorkspaceShell } from "@/components/creator/pipeline-workspace-shell";
 import { resolveStandaloneFromProjectPath } from "@/lib/project-tools";
 import { setActiveProjectId, sortProjectsWithActiveFirst } from "@/lib/active-project";
 import { useActiveProjectId } from "@/hooks/use-active-project";
@@ -28,7 +25,6 @@ export function ProjectWorkspaceShell({
   switchableProjects,
   children,
 }: ProjectWorkspaceShellProps) {
-  const { deviceClass } = useAdaptiveUi();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -61,19 +57,15 @@ export function ProjectWorkspaceShell({
   };
 
   return (
-    <div
-      className={`min-h-[calc(100vh-120px)] space-y-4 adaptive-content-density ${deviceClass === "tv" ? "adaptive-tv-surface" : ""}`}
+    <PipelineWorkspaceShell
+      projectId={project.id}
+      switchableProjects={orderedProjects}
+      isOriginal={project.isOriginal}
+      adminNote={project.adminNote}
+      onSwitchProject={handleSwitchProject}
+      onClearProject={handleClearProject}
     >
-      <ProjectContextBar
-        projectId={project.id}
-        switchableProjects={orderedProjects}
-        isOriginal={project.isOriginal}
-        adminNote={project.adminNote}
-        onSwitchProject={handleSwitchProject}
-        onClearProject={handleClearProject}
-      />
-
-      <div className={`storytime-section ${deviceClass === "mobile" ? "p-4" : "p-5 md:p-6"}`}>{children}</div>
-    </div>
+      {children}
+    </PipelineWorkspaceShell>
   );
 }

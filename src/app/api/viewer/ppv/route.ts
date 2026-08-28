@@ -11,6 +11,7 @@ import {
 } from "@/lib/viewer-access";
 import { initializeCheckout } from "@/lib/payments/billing";
 import { buildPaymentReturnUrl } from "@/lib/payments/return-url";
+import { ppvTitleAccessExpiresAt } from "@/lib/pricing";
 
 function isIosAppRequest(req: NextRequest) {
   const platform = req.headers.get("x-st-platform")?.toLowerCase() ?? "";
@@ -158,7 +159,7 @@ export async function POST(req: NextRequest) {
       currency: "ZAR",
       status: "PENDING",
       purchasedAt: new Date(),
-      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      expiresAt: ppvTitleAccessExpiresAt(),
     },
   });
 

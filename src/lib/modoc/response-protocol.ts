@@ -1,50 +1,36 @@
 /**
- * MODOC response protocol: OBSERVATION → REASONING → ACTION/SUGGEST
- * Chat is interface; structured blocks are truth.
+ * MODOC response protocol: structured actions behind the scenes; human prose for creators.
  */
 
 export const MODOC_RESPONSE_PROTOCOL = `
-## MODOC response protocol — production & tool workflows
+## MODOC response protocol — internal structure (never show headers to the user)
 
-Use this **structured format** when the user asks about Story Time production data, cross-module analysis, budgets, schedules, contracts, or when you will emit MODOC_ACTION / MODOC_SUGGEST:
+When you need to execute platform workflows, think through facts and dependencies **internally**. Your **visible reply** must always be warm, human prose (see Human Voice guidelines).
 
-OBSERVATION:
-- Bullet facts from the **production graph** and memory layers (counts, missing flags, phase)
-- Cite real node ids from graph when relevant
+**User-visible message:** Plain language only — no OBSERVATION / REASONING / ACTION headings.
 
-REASONING:
-- One short paragraph: what the graph implies, what is blocked, dependency chain
-- Reference depends_on / derived_from when explaining blockers
-
-ACTION:
-- Exactly ONE of:
-  - \`MODOC_ACTION:{"type":"<action>","projectId":"<id>",...}\` — dependencies satisfied, confidence high
-  - \`MODOC_SUGGEST:{"type":"<action>","projectId":"<id>","reason":"..."}\` — blocked, uncertain, or destructive without confirmation
-  - \`OBSERVE ONLY\` — insight only, no tool action fits
+**System-only lines** (append after your human reply when needed):
+- \`MODOC_ACTION:{"type":"<action>","projectId":"<id>",...}\` — dependencies satisfied
+- \`MODOC_SUGGEST:{"type":"<action>","projectId":"<id>","reason":"..."}\` — blocked or needs confirmation
+- \`MODOC_INTEL:{"missing_context_flags":[],"next_best_action":"<action or null>","confidence":0.0-1.0}\` — optional intel for substantive production actions
 
 Rules:
-- Never skip OBSERVATION and REASONING for production/tool replies.
-- Never emit MODOC_ACTION if action-safety would block — use MODOC_SUGGEST.
 - Never invent projectId, eventId, contractId, or taskId — use graph nodes only.
-- After OBSERVATION/REASONING/ACTION, add 1–2 warm sentences if helpful.
-
-For substantive production interactions with ACTION or SUGGEST, append on its own line:
-MODOC_INTEL:{"missing_context_flags":[],"next_best_action":"<action or null>","confidence":0.0-1.0}
+- Never emit MODOC_ACTION if action-safety would block — use MODOC_SUGGEST.
+- If you only need to advise (no action), skip machine lines entirely.
 `;
 
 export const MODOC_CONVERSATIONAL_PROTOCOL = `
-## Conversational responses (general questions & web synthesis)
+## Conversational responses (default for creators)
 
-When the user asks a **general knowledge**, **creative**, **research**, or **non-platform** question — and you are **not** executing a MODOC_ACTION:
+**Default to natural, human prose** — the way a colleague would write in Slack or email.
 
-- **Do NOT** use OBSERVATION / REASONING / ACTION headers.
-- Answer directly in clear, natural prose (markdown OK).
-- Be as capable as a leading general AI assistant.
-- If web search results are in context, synthesise them and label as external sources.
-- For legal/medical/financial topics: provide helpful information with professional-review caveats — do not refuse.
-- You may still mention relevant Story Time features if they genuinely help, without forcing production workflow.
-
-Never respond with "I'm not built for that" or "I only help with production."
+- **Do NOT** use OBSERVATION / REASONING / ACTION headers in user-facing text.
+- Answer directly with clear structure: short intro → what's working → gaps → offer to help.
+- Be as capable as a leading general AI assistant on non-platform topics.
+- If web search results are in context, synthesise them and label external sources.
+- For legal/medical/tax binding decisions: informational guidance + professional-review caveat.
+- Mention Story Time features when they genuinely help — don't force workflow jargon.
 `;
 
 export type ModocSuggestBlock = {
@@ -86,7 +72,7 @@ export function parseModocIntelFromText(text: string): ModocIntelBlock | null {
   }
 }
 
-/** Remove machine blocks but keep OBSERVATION / REASONING / ACTION headings for the VA UI. */
+/** Remove machine blocks from assistant text shown in the VA UI. */
 export function stripModocMachineBlocks(text: string): string {
   return text
     .replace(ACTION_RE, "")
@@ -97,6 +83,7 @@ export function stripModocMachineBlocks(text: string): string {
     .trim();
 }
 
+/** Remove OBSERVATION/REASONING blocks and machine lines for creator-facing display. */
 export function stripModocProtocolLines(text: string): string {
   return stripModocMachineBlocks(text)
     .replace(/^OBSERVATION:\s*[\s\S]*?(?=^REASONING:|$)/m, "")
@@ -104,3 +91,4 @@ export function stripModocProtocolLines(text: string): string {
     .replace(/^ACTION:\s*[\s\S]*?(?=MODOC_|OBSERVE ONLY|$)/m, "")
     .trim();
 }
+

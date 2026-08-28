@@ -6,8 +6,31 @@
  * - Retries when another deploy holds pg_advisory_lock (P1002)
  */
 import { spawnSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 const MAX_ATTEMPTS = 6;
+
+function loadEnvLocal() {
+  const path = resolve(process.cwd(), ".env.local");
+  if (!existsSync(path)) return;
+  const raw = readFileSync(path, "utf8");
+  for (const line of raw.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq === -1) continue;
+    const key = trimmed.slice(0, eq).trim();
+    let val = trimmed.slice(eq + 1).trim();
+    if (
+      (val.startsWith('"') && val.endsWith('"')) ||
+      (val.startsWith("'") && val.endsWith("'"))
+    ) {
+      val = val.slice(1, -1);
+    }
+    if (!process.env[key]) process.env[key] = val;
+  }
+}
 const RETRY_DELAY_MS = 12_000;
 
 function sleep(ms) {
@@ -59,6 +82,7 @@ function runMigrateDeploy() {
 }
 
 async function main() {
+  loadEnvLocal();
   validateDatabaseUrls();
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {

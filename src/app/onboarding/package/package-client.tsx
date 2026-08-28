@@ -3,11 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  CalendarDays,
   Check,
   ChevronDown,
   ChevronUp,
-  CreditCard,
   Film,
   Loader2,
   Shield,
@@ -17,7 +15,7 @@ import {
   Tv,
   Users,
 } from "lucide-react";
-import { VIEWER_PLAN_CONFIG } from "@/lib/pricing";
+import { VIEWER_PLAN_CONFIG, formatPpvAccessWindowLabel } from "@/lib/pricing";
 import { formatZar } from "@/lib/format-currency-zar";
 import { CheckoutModal } from "@/components/payments/checkout-modal";
 
@@ -71,7 +69,7 @@ const PPV_PLAN = {
   highlight: "One title at a time",
   benefits: [
     "R49.99 per movie, show, or title purchase",
-    "Unlock each purchased title for 30 days",
+    `Unlock each purchased title for ${formatPpvAccessWindowLabel()}`,
     "Single profile only",
     "No household profile sharing",
   ],
@@ -112,7 +110,6 @@ export function PackageClient({
   );
   const [selected, setSelected] = useState<string>(resolveInitialPlan(initialPlan));
   const [expanded, setExpanded] = useState<string | null>(resolveInitialPlan(initialPlan));
-  const [startTrial, setStartTrial] = useState(!reactivationMode && !existingSubscription);
   const [promoCode, setPromoCode] = useState("");
   const [promoMessage, setPromoMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -125,7 +122,7 @@ export function PackageClient({
   const fallbackRedirect = changingExistingPlan ? "/profiles" : "/onboarding/account";
 
   const checkoutMandatory =
-    reactivationMode || changingExistingPlan || (viewerModel === "SUBSCRIPTION" && !startTrial);
+    reactivationMode || changingExistingPlan || viewerModel === "SUBSCRIPTION";
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -150,7 +147,6 @@ export function PackageClient({
             : {
                 viewerModel,
                 plan: viewerModel === "SUBSCRIPTION" ? selected : PPV_PLAN.id,
-                startTrial: viewerModel === "SUBSCRIPTION" && !reactivationMode ? startTrial : false,
                 promoCode: viewerModel === "SUBSCRIPTION" ? promoCode : undefined,
               },
         ),
@@ -452,7 +448,7 @@ export function PackageClient({
               <p className="mt-1 text-sm text-slate-300">
                 {viewerModel === "SUBSCRIPTION"
                   ? "Full access to original films, series, podcasts, shows, and music."
-                  : "Titles stay locked until you pay on the detail page, then remain unlocked for 30 days."}
+                  : `Titles stay locked until you pay on the detail page, then remain unlocked for ${formatPpvAccessWindowLabel()}.`}
               </p>
             </div>
           </div>
@@ -466,7 +462,7 @@ export function PackageClient({
                 ? "Full catalogue access resumes as soon as payment is confirmed."
                 : changingExistingPlan
                   ? "Switch household size or viewer model here. Payment is only taken when the new package requires it."
-                  : "Access to all films, series, shows, podcasts, and music. Start with a 7-day free trial with no charge until it ends."
+                  : "Access to all films, series, shows, podcasts, and music. Payment is required before you can start watching."
               : "Create one viewer profile first, then browse the catalogue and pay only when you unlock an eligible title."}
           </p>
           <div className="mt-5 space-y-3 text-sm text-slate-300">
@@ -480,75 +476,11 @@ export function PackageClient({
             </div>
             <div className="flex items-center gap-2">
               <Check className="h-4 w-4 text-emerald-400" />
-              {viewerModel === "SUBSCRIPTION" ? "HD streaming included" : "30-day access window after each payment"}
+              {viewerModel === "SUBSCRIPTION" ? "HD streaming included" : `${formatPpvAccessWindowLabel()} access window after each payment`}
             </div>
           </div>
         </div>
       </div>
-
-      {viewerModel === "SUBSCRIPTION" && !reactivationMode && !changingExistingPlan ? (
-        <div className="storytime-section p-6">
-          <p className="text-sm font-medium text-slate-300">Billing start</p>
-          <p className="mt-2 text-sm text-slate-400">
-            Choose whether this subscription should begin with a sleek 7-day trial or start as a paid plan immediately.
-          </p>
-          <div className="mt-5 grid gap-4 lg:grid-cols-2">
-            <button
-              type="button"
-              onClick={() => setStartTrial(true)}
-              data-selected={startTrial}
-              className={`storytime-plan-card flex flex-col p-5 text-left transition duration-200 hover:-translate-y-1 hover:scale-[1.02] ${
-                startTrial ? "border-orange-400/50 bg-orange-500/10 shadow-glow" : "hover:border-white/15"
-              }`}
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-orange-400/20 bg-orange-500/10 px-3 py-1 text-xs font-medium text-orange-200">
-                    <CalendarDays className="h-3.5 w-3.5" />
-                    Recommended
-                  </div>
-                  <h3 className="text-xl font-semibold text-white">Start 7-day free trial</h3>
-                  <p className="mt-2 text-sm text-slate-400">
-                    Watch everything now and only move into billing after the 7-day trial window ends.
-                  </p>
-                </div>
-                {startTrial ? (
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-orange-400/30 bg-orange-500/10">
-                    <Check className="h-5 w-5 text-orange-300" />
-                  </div>
-                ) : null}
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setStartTrial(false)}
-              data-selected={!startTrial}
-              className={`storytime-plan-card flex flex-col p-5 text-left transition duration-200 hover:-translate-y-1 hover:scale-[1.02] ${
-                !startTrial ? "border-orange-400/50 bg-orange-500/10 shadow-glow" : "hover:border-white/15"
-              }`}
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs font-medium text-slate-300">
-                    <CreditCard className="h-3.5 w-3.5" />
-                    Immediate billing
-                  </div>
-                  <h3 className="text-xl font-semibold text-white">Pay now</h3>
-                  <p className="mt-2 text-sm text-slate-400">
-                    Start the paid monthly cycle straight away and skip the free-trial period.
-                  </p>
-                </div>
-                {!startTrial ? (
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-orange-400/30 bg-orange-500/10">
-                    <Check className="h-5 w-5 text-orange-300" />
-                  </div>
-                ) : null}
-              </div>
-            </button>
-          </div>
-        </div>
-      ) : null}
 
       {viewerModel === "SUBSCRIPTION" ? (
         <div className="storytime-section p-6">
@@ -587,9 +519,7 @@ export function PackageClient({
             ? "Pay and activate this plan"
             : changingExistingPlan
               ? "Switch to this plan"
-              : startTrial
-                ? "Start 7-day free trial"
-                : "Pay now"
+              : "Pay now"
           : changingExistingPlan
             ? "Switch to PPV"
             : "Continue with PPV"}

@@ -131,6 +131,7 @@ export function ModocProvider({ children }: { children: ReactNode }) {
               scope: requestContextRef.current.scope,
               clientContext: requestContextRef.current.clientContext,
               pageContext: requestContextRef.current.pageContext,
+              attachments: Array.isArray(base.attachments) ? base.attachments : undefined,
             },
           };
         },

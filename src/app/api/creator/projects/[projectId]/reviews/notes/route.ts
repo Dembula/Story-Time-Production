@@ -63,12 +63,22 @@ export async function POST(
     return NextResponse.json({ error: "Missing reviewId or body" }, { status: 400 });
   }
 
+  const review = await prisma.postProductionReview.findFirst({
+    where: { id: body.reviewId, projectId },
+  });
+  if (!review) {
+    return NextResponse.json({ error: "Review not found" }, { status: 404 });
+  }
+
   const note = await prisma.reviewNote.create({
     data: {
       reviewId: body.reviewId,
       userId,
       body: body.body,
       timestampMs: body.timestampMs ?? null,
+    },
+    include: {
+      user: { select: { id: true, name: true, image: true } },
     },
   });
 

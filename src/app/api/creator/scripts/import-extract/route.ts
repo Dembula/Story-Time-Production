@@ -66,8 +66,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const { importScreenplayText } = await import("@/lib/script-studio/import-export");
+    const repaired = importScreenplayText(extraction.text, file.name || "screenplay");
+
     return NextResponse.json({
-      text: extraction.text,
+      text: repaired.text,
+      fixes: repaired.fixes,
       sourceType: extraction.sourceType,
       extractionMethod: extraction.extractionMethod,
       importId: result.importId,

@@ -161,6 +161,7 @@ export async function buildAdminProjectReviewDigest(projectId: string) {
     stored,
     signals: signals ?? {
       ideaCount: project.ideas.length,
+      treatmentCount: 0,
       scriptCount: 0,
       scriptReviewCount: 0,
       sceneCount: 0,

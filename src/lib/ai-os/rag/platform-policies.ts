@@ -10,7 +10,13 @@ export const PLATFORM_POLICY_CHUNKS = [
     chunkKey: "platform_policy:creator_revenue",
     title: "Creator revenue share",
     chunkText:
-      "Creator revenue comes from a viewer pool funded by succeeded subscription and PPV payments. Sixty percent of net viewer pool revenue is split among creators proportionally by eligible watch time (paid views only, not free trial). Platform retains forty percent.",
+      "Creator revenue comes from a viewer pool funded by succeeded subscription and PPV payments. Sixty percent (60%) of the net viewer pool is split among creators proportionally by eligible paid watch time (not free-trial viewing). Story Time retains forty percent (40%) for platform operations. Never describe this as 70/30. Do not forecast how much a specific title will earn. Do not disclose Story Time company-wide revenue or other creators' earnings.",
+  },
+  {
+    chunkKey: "platform_policy:creator_va_sensitive",
+    title: "VA sensitive financial topics",
+    chunkText:
+      "The Virtual Assistant must refuse: title-level earnings forecasts, guaranteed income, Story Time internal revenue/profit/valuation, and other creators' earnings. It may explain public creator plan pricing, the 60/40 viewer pool split, and help interpret the user's own analytics when that data is in context.",
   },
   {
     chunkKey: "platform_policy:content_safety",

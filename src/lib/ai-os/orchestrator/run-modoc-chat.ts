@@ -30,12 +30,13 @@ function buildResponseModePromptBlock(plan: OrchestrationPlan): string {
   if (plan.responseMode === "conversational") {
     return `
 ## Response mode for this turn: conversational
-Answer naturally in clear prose. Do NOT use OBSERVATION / REASONING / ACTION headers unless you are executing a MODOC_ACTION or MODOC_SUGGEST for Story Time.
+Write like a helpful colleague — warm, direct, human. No OBSERVATION / REASONING / ACTION headers in the user-visible text.
+Use short paragraphs and focused bullet lists for next steps only. Emit MODOC_ACTION / MODOC_SUGGEST on separate lines after your reply when executing platform work.
 `;
   }
   return `
-## Response mode for this turn: production protocol
-Use OBSERVATION / REASONING / ACTION when answering about Story Time production data or executing platform workflows.
+## Response mode for this turn: tool execution
+The user asked you to run a platform action. Give a brief human summary first, then emit MODOC_ACTION or MODOC_SUGGEST. Do NOT use OBSERVATION / REASONING headers in the visible message.
 `;
 }
 
@@ -165,7 +166,9 @@ export async function runModocChatOrchestrator(
     systemPrompt: input.systemPrompt,
   });
 
-  const messages = await prepareModocModelMessages(input.rawMessages);
+  const messages = await prepareModocModelMessages(input.rawMessages, {
+    imageDataUrls: input.imageDataUrls,
+  });
   if (messages.length === 0) {
     throw new ModocOrchestratorError("No valid messages to send.", 400);
   }
@@ -181,10 +184,13 @@ export async function runModocChatOrchestrator(
 
   const experimentVariant = resolveAbExperimentVariant(input.userId);
 
+  const hasVision = (input.imageDataUrls?.length ?? 0) > 0;
+  const taskKind = hasVision ? "extraction" : plan.taskKind;
+
   const { result, modelUsed } = await streamModocWithFallback({
     system: systemWithAgent,
     messages,
-    taskKind: plan.taskKind,
+    taskKind,
     userId: input.userId,
     onFinish: async ({ text, modelUsed: used, experimentVariant: variant }) => {
       logAiRequest({

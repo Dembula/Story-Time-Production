@@ -3,6 +3,7 @@ export type ProjectPhase = "PRE_PRODUCTION" | "PRODUCTION" | "POST_PRODUCTION";
 export type ProjectToolId =
   // Pre
   | "idea-development"
+  | "treatment-creator"
   | "script-writing"
   | "script-review"
   | "script-breakdown"
@@ -53,6 +54,7 @@ export interface ProjectToolMeta {
   /** High-level step for progress rollups (SCRIPT, BREAKDOWN, SCHEDULING, SHOOT, EDIT, MIX, DELIVERY, etc.) */
   pipelineStep:
     | "IDEA"
+    | "TREATMENT"
     | "SCRIPT"
     | "BREAKDOWN"
     | "BUDGET"
@@ -87,6 +89,15 @@ export const PRE_PRODUCTION_TOOLS: ProjectToolMeta[] = [
     description: "Shape your concept, theme, and core promise.",
     toolSlug: "idea-development",
     pipelineStep: "IDEA",
+  },
+  {
+    id: "treatment-creator",
+    phase: "PRE_PRODUCTION",
+    label: "Treatment Creator",
+    description:
+      "Build a pitch treatment with slides, references, and presentation mode.",
+    toolSlug: "treatment-creator",
+    pipelineStep: "TREATMENT",
   },
   {
     id: "script-writing",
@@ -322,7 +333,7 @@ export const POST_PRODUCTION_TOOLS: ProjectToolMeta[] = [
     id: "editing-studio",
     phase: "POST_PRODUCTION",
     label: "Editing Studio",
-    description: "Rough cuts and review sessions for the edit.",
+    description: "Upload edit versions and run timed review sessions with your team.",
     toolSlug: "editing-studio",
     pipelineStep: "EDIT",
   },
@@ -423,6 +434,7 @@ export function getProjectToolHref(
 
 const CREATOR_PIPELINE_PHASE_HUBS = new Set([
   "/creator/pre-production",
+  "/creator/marketplace",
   "/creator/production",
   "/creator/post-production",
 ]);
@@ -476,13 +488,7 @@ export function resolveStandaloneFromProjectPath(pathname: string): string {
   const phaseFolder = match[1];
   const slug = match[2];
   if (phaseFolder === "pre-production") {
-    const map: Record<string, string> = {
-      "casting-portal": "/creator/cast",
-      "crew-marketplace": "/creator/crew",
-      "location-marketplace": "/creator/locations",
-      "equipment-planning": "/creator/equipment",
-    };
-    return map[slug] ?? `/creator/pre/${slug}`;
+    return `/creator/pre/${slug}`;
   }
   if (phaseFolder === "production") {
     const map: Record<string, string> = {

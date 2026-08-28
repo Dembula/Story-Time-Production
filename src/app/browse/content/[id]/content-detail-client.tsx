@@ -29,6 +29,8 @@ import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
 import { getDisplayBackdropUrl } from "@/lib/content-media-urls";
 import { markPlaybackPlayIntent } from "@/lib/player/play-intent";
 import { SubscriptionResumeButton } from "@/components/viewer/subscription-resume-checkout";
+import { formatPpvAccessWindowLabel, VIEWER_PLAN_CONFIG } from "@/lib/pricing";
+import { formatZar } from "@/lib/format-currency-zar";
 
 type Content = {
   id: string;
@@ -296,7 +298,7 @@ export function ContentDetailClient({
         open={ppvCheckoutOpen}
         checkoutUrl={ppvCheckoutUrl}
         title="Complete PPV payment"
-        subtitle={`Unlock ${content.title} for 30 days after successful payment.`}
+        subtitle={`Unlock ${content.title} for ${formatPpvAccessWindowLabel()} after successful payment.`}
         onClose={() => setPpvCheckoutOpen(false)}
       />
       {showSubscriptionEndedModal && (
@@ -326,7 +328,7 @@ export function ContentDetailClient({
             </button>
             <h3 className="pr-10 text-xl font-semibold text-white">Unlock this title</h3>
             <p className="mt-2 text-sm text-slate-400">
-              Pay R49.99 now to unlock <span className="font-medium text-white">{content.title}</span> for 30 days
+              Pay {formatZar(VIEWER_PLAN_CONFIG.PPV_FILM.price)} now to unlock <span className="font-medium text-white">{content.title}</span> for {formatPpvAccessWindowLabel()}
               on this PPV account.
             </p>
             <div className="mt-6 rounded-xl border border-orange-400/20 bg-orange-500/10 p-4">
@@ -682,7 +684,7 @@ export function ContentDetailClient({
               </div>
               <h3 className="mb-2 text-xl font-semibold text-white">Pay now to unlock this title</h3>
               <p className="mx-auto mb-8 max-w-md text-slate-400">
-                This PPV account pays per title. Unlock this movie, show, or other title for R49.99 and keep access for 30 days.
+                This PPV account pays per title. Unlock this movie, show, or other title for {formatZar(VIEWER_PLAN_CONFIG.PPV_FILM.price)} and keep access for {formatPpvAccessWindowLabel()}.
               </p>
               <button
                 type="button"

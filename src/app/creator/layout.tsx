@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { signOut, useSession } from "next-auth/react";
-import { LogOut } from "lucide-react";
+import { ChevronDown, ChevronRight, LogOut } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { DashboardSidebarShell } from "@/components/layout/dashboard-sidebar-shell";
 import { NotificationBell } from "@/components/layout/notification-bell";
@@ -44,6 +44,7 @@ export default function CreatorLayout({ children }: { children: React.ReactNode 
   const { data: session } = useSession();
   const { deviceClass } = useAdaptiveUi();
   const role = session?.user?.role;
+  const pipelineToolMode = isCreatorPipelineToolPath(pathname);
 
   const { data: licensePayload } = useQuery({
     queryKey: [...CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY],
@@ -66,6 +67,13 @@ export default function CreatorLayout({ children }: { children: React.ReactNode 
   const showCompanyAdminNav = ownedCompanyCount > 0;
   const showAccountControlNav = ownedCompanyCount > 0;
   const showPipelineNav = licensePayload?.pipelineAccess !== false;
+  const preProductionNavActive =
+    pathname.startsWith("/creator/pre-production") || pathname.startsWith("/creator/marketplace");
+  const [preProductionOpen, setPreProductionOpen] = useState(preProductionNavActive);
+
+  useEffect(() => {
+    if (preProductionNavActive) setPreProductionOpen(true);
+  }, [preProductionNavActive]);
 
   const handleSignOut = async () => {
     await signOut({ redirect: false });
@@ -82,6 +90,7 @@ export default function CreatorLayout({ children }: { children: React.ReactNode 
     <DashboardSidebarShell
       className="text-slate-100 adaptive-tv-surface"
       sidebarAutoCollapse={isCreatorPipelineToolPath}
+      contentClassName={pipelineToolMode ? "max-w-none px-2 py-2 md:px-3 md:py-3" : ""}
       brandHref="/creator/command-center"
       brandLabel="Creator"
       headerEnd={
@@ -169,13 +178,52 @@ export default function CreatorLayout({ children }: { children: React.ReactNode 
             {showPipelineNav && (allowPre || allowProd || allowPost) ? (
               <>
                 {allowPre ? (
-                  <Link
-                    href="/creator/pre-production"
-                    onClick={closeSidebar}
-                    className={navLinkClass(pathname.startsWith("/creator/pre-production"))}
-                  >
-                    Pre-Production
-                  </Link>
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-1">
+                      <Link
+                        href="/creator/pre-production"
+                        onClick={() => {
+                          setPreProductionOpen(true);
+                          closeSidebar();
+                        }}
+                        className={[
+                          "flex flex-1 items-center px-3 py-2 rounded-lg text-sm transition",
+                          preProductionNavActive
+                            ? "bg-white/[0.08] text-white shadow-panel"
+                            : "text-slate-400 hover:bg-white/[0.05] hover:text-white",
+                        ].join(" ")}
+                      >
+                        Pre-Production
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => setPreProductionOpen((open) => !open)}
+                        aria-expanded={preProductionOpen}
+                        aria-label={preProductionOpen ? "Collapse pre-production menu" : "Expand pre-production menu"}
+                        className="rounded-lg p-2 text-slate-500 transition hover:bg-white/[0.05] hover:text-white"
+                      >
+                        {preProductionOpen ? (
+                          <ChevronDown className="h-4 w-4" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
+                    {preProductionOpen ? (
+                      <Link
+                        href="/creator/marketplace"
+                        onClick={closeSidebar}
+                        className={[
+                          "ml-4 flex items-center border-l border-white/10 py-2 pl-4 pr-3 text-sm transition",
+                          pathname.startsWith("/creator/marketplace")
+                            ? "border-orange-400/40 text-orange-200"
+                            : "text-slate-400 hover:text-white",
+                        ].join(" ")}
+                      >
+                        Marketplace
+                      </Link>
+                    ) : null}
+                  </div>
                 ) : null}
                 {allowProd ? (
                   <Link

@@ -64,6 +64,7 @@ export async function GET() {
     const ideasCount = ideaCountByProject.get(p.id) ?? 0;
     const signals = signalsByProject.get(p.id) ?? {
       ideaCount: ideasCount,
+      treatmentCount: 0,
       scriptCount: 0,
       scriptReviewCount: 0,
       sceneCount: 0,

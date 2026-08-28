@@ -15,7 +15,7 @@ import {
   Tv,
   Users,
 } from "lucide-react";
-import { VIEWER_PLAN_CONFIG } from "@/lib/pricing";
+import { VIEWER_PLAN_CONFIG, formatPpvAccessWindowLabel } from "@/lib/pricing";
 import { formatZar } from "@/lib/format-currency-zar";
 import { CheckoutModal } from "@/components/payments/checkout-modal";
 import { SubscriptionResumeButton } from "@/components/viewer/subscription-resume-checkout";
@@ -347,7 +347,7 @@ export function ChangePlanPicker({
                   <div>
                     <p className="font-medium text-white">Pay Per View account</p>
                     <p className="mt-1 text-sm text-slate-400">
-                      {formatZar(VIEWER_PLAN_CONFIG.PPV_FILM.price)} per title · 30-day access window
+                      {formatZar(VIEWER_PLAN_CONFIG.PPV_FILM.price)} per title · {formatPpvAccessWindowLabel()} access window
                     </p>
                   </div>
                   <Film className="h-5 w-5 text-orange-300" />

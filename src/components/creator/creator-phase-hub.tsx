@@ -25,13 +25,13 @@ type Project = {
 
 function standaloneToolHref(phase: ProjectPhase, slug: string): string {
   if (phase === "PRE_PRODUCTION") {
-    const map: Record<string, string> = {
-      "casting-portal": "/creator/cast",
-      "crew-marketplace": "/creator/crew",
-      "location-marketplace": "/creator/locations",
-      "equipment-planning": "/creator/equipment",
+    const marketplaceTools: Record<string, string> = {
+      "casting-portal": "/creator/marketplace?category=casting",
+      "crew-marketplace": "/creator/marketplace?category=crew",
+      "location-marketplace": "/creator/marketplace?category=locations",
+      "equipment-planning": "/creator/marketplace?category=equipment",
     };
-    return map[slug] ?? `/creator/pre/${slug}`;
+    return marketplaceTools[slug] ?? `/creator/pre/${slug}`;
   }
   if (phase === "PRODUCTION") {
     const map: Record<string, string> = {

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { SecureFileLink } from "@/components/files/secure-file-link";
+import { EditReviewStudio } from "@/components/edit-review/edit-review-studio";
 import { FootageIngestion } from "@/components/project-tools/post/PostProductionWidgets";
 import { DistributionToolPanel } from "@/components/project-tools/post/DistributionToolPanel";
 import { projectToolQueryFn } from "@/lib/project-tool-fetch";
@@ -136,7 +136,9 @@ export default function PostProductionToolPage({ params }: PostProductionToolPag
   useModocToolRefresh({ queryKeys: queryKeysForProjectTool(tool) });
 
   if (tool === "footage-ingestion") return <FootageIngestion projectId={projectId} title={title} />;
-  if (tool === "editing-studio") return <EditingStudio projectId={projectId} title={title} />;
+  if (tool === "editing-studio") {
+    return <EditReviewStudio projectId={projectId} title={title} />;
+  }
   if (tool === "sound-design") return <SoundDesign projectId={projectId} title={title} />;
   if (tool === "music-scoring") return <MusicScoring projectId={projectId} title={title} />;
   if (tool === "visual-effects") return <VisualEffects projectId={projectId} title={title} />;
@@ -152,60 +154,6 @@ export default function PostProductionToolPage({ params }: PostProductionToolPag
         <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
         <p className="text-sm text-slate-400 mt-1">Post-production workspace.</p>
       </header>
-    </div>
-  );
-}
-
-function EditingStudio({ projectId, title }: { projectId?: string; title: string }) {
-  const hasProject = !!projectId;
-  const { data: reviewsData } = useQuery({
-    queryKey: ["project-reviews", projectId],
-    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/reviews`),
-    enabled: hasProject,
-  });
-  const { data: footageData } = useQuery({
-    queryKey: ["project-footage", projectId, "EDIT"],
-    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/footage?type=EDIT`),
-    enabled: hasProject,
-  });
-  const reviews = (reviewsData?.reviews ?? []) as { id: string; status: string; cutAssetId: string | null; notes: { body: string }[] }[];
-  const edits = (footageData?.assets ?? []) as { id: string; label: string | null; fileUrl: string }[];
-  if (!hasProject || !projectId) {
-    return (
-      <div className="space-y-4">
-        <header>
-          <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
-          <p className="text-sm text-slate-400 mt-1">Link a project to manage edits and reviews.</p>
-        </header>
-      </div>
-    );
-  }
-  return (
-    <div className="space-y-4">
-      <header>
-        <h2 className="font-display text-2xl font-semibold tracking-tight text-white md:text-[1.65rem]">{title}</h2>
-        <p className="text-sm text-slate-400 mt-1">Rough cuts and review sessions.</p>
-      </header>
-      <div className="creator-glass-panel p-3 space-y-2">
-        <p className="text-xs text-slate-400">Edit assets: {edits.length}</p>
-        {edits.slice(0, 5).map((e) => (
-          <div key={e.id} className="text-sm text-slate-300">{e.label || e.id} · <SecureFileLink fileRef={e.fileUrl} label="Watch" projectId={projectId} /></div>
-        ))}
-      </div>
-      <div className="creator-glass-panel p-3 space-y-2">
-        <p className="text-xs text-slate-400">Reviews: {reviews.length}</p>
-        {reviews.map((r) => (
-          <div key={r.id} className="text-sm text-slate-300">Review {r.id.slice(0, 8)} · {r.status} · {r.notes?.length ?? 0} notes</div>
-        ))}
-      </div>
-      <div className="flex flex-wrap gap-3 text-xs">
-        <Link href={`/creator/projects/${projectId}/post-production/footage-ingestion`} className="text-orange-400 hover:underline">
-          Footage ingestion →
-        </Link>
-        <Link href={`/creator/projects/${projectId}/post-production/final-cut-approval`} className="text-slate-400 hover:text-slate-200">
-          Final cut approval →
-        </Link>
-      </div>
     </div>
   );
 }

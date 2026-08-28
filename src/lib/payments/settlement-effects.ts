@@ -17,7 +17,7 @@ import { nextCompanyPeriodEnd } from "@/lib/payments/company-subscription-billin
 import { buildRecurringBillingSuccessReset } from "@/lib/payments/recurring-billing-shared";
 import { extendCreatorLicensePeriod } from "@/lib/payments/creator-license-billing";
 import { finalizeSyncLicensingGatewayPayment } from "@/lib/payments/sync-licensing-settlement";
-import { VIEWER_PLAN_CONFIG } from "@/lib/pricing";
+import { VIEWER_PLAN_CONFIG, ppvTitleAccessExpiresAt } from "@/lib/pricing";
 
 const db = prisma as any;
 
@@ -111,9 +111,14 @@ export async function applyPaymentRecordSettlementEffects(paymentRecord: {
   }
 
   if (paymentRecord.relatedEntityType === "ViewerContentAccess" && paymentRecord.relatedEntityId) {
+    const purchasedAt = new Date();
     await db.viewerContentAccess.update({
       where: { id: paymentRecord.relatedEntityId },
-      data: { status: "COMPLETED", purchasedAt: new Date() },
+      data: {
+        status: "COMPLETED",
+        purchasedAt,
+        expiresAt: ppvTitleAccessExpiresAt(purchasedAt),
+      },
     });
   }
 

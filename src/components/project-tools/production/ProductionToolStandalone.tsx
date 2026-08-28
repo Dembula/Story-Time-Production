@@ -71,19 +71,21 @@ function ProductionToolStandaloneContent({ toolSlug }: ProductionToolStandaloneP
   const selectedProjectId = projectIdFromUrl || defaultProjectId || "";
 
   return (
-    <div className="space-y-4">
+    <div className="creator-pipeline-shell creator-pipeline-shell--tool">
       <ProjectContextBarStandalone
         projectId={selectedProjectId}
         projects={orderedProjects}
         isLoading={isLoading}
         onChange={handleProjectChange}
       />
-      <ProductionToolPageImpl
-        params={Promise.resolve({
-          projectId: selectedProjectId || undefined,
-          tool: toolSlug,
-        })}
-      />
+      <div className="creator-pipeline-shell-tool-body">
+        <ProductionToolPageImpl
+          params={Promise.resolve({
+            projectId: selectedProjectId || undefined,
+            tool: toolSlug,
+          })}
+        />
+      </div>
     </div>
   );
 }
