@@ -64,7 +64,7 @@ const accentBorder: Record<NonNullable<BannerProps["accent"]>, string> = {
   violet: "border-violet-500/30 bg-violet-500/10",
   emerald: "border-emerald-500/30 bg-emerald-500/10",
   orange: "border-orange-500/30 bg-orange-500/10",
-  cyan: "border-cyan-500/30 bg-cyan-500/10",
+  cyan: "border-orange-500/30 bg-orange-500/10",
   amber: "border-amber-500/30 bg-amber-500/10",
 };
 

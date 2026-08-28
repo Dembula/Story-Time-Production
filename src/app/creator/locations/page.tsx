@@ -235,7 +235,7 @@ function CreatorLocationsPageContent() {
           projectId ? `/creator/pre/location-marketplace?projectId=${encodeURIComponent(projectId)}` : "/creator/dashboard"
         }
       />
-      <CreatorProjectContextBanner phase="PRE_PRODUCTION" toolSlug="location-marketplace" accent="cyan" />
+      <CreatorProjectContextBanner phase="PRE_PRODUCTION" toolSlug="location-marketplace" accent="amber" />
       {submitError && (
         <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{submitError}</div>
       )}

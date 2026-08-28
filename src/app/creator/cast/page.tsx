@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { BackButton } from "@/components/layout/back-button";
 import {
@@ -9,6 +10,7 @@ import {
   usePrefillProjectName,
 } from "@/components/creator/creator-project-context";
 import { fetchMarketplaceList, postMarketplaceJson } from "@/lib/creator-marketplace-fetch";
+import { marketplaceListingHref } from "@/lib/marketplace-hub";
 import {
   Users,
   MapPin,
@@ -156,6 +158,14 @@ function CreatorCastPageContent() {
     load();
   }, []);
 
+  const deepAgencyId = searchParams.get("agencyId");
+  useEffect(() => {
+    if (!deepAgencyId || loading) return;
+    setTab("find-cast");
+    setExpandedAgencyId(deepAgencyId);
+    void loadAgencyDetail(deepAgencyId);
+  }, [deepAgencyId, loading]);
+
   useEffect(() => {
     if (!projectId) {
       setProjectRoles([]);
@@ -215,6 +225,7 @@ function CreatorCastPageContent() {
       paymentTransactionId?: string | null;
     }>("/api/casting-agencies/inquiries", {
       agencyId,
+      projectId: projectId || undefined,
       projectName: inquiryForm.projectName || projectTitle || undefined,
       roleName: inquiryForm.roleName,
       message: inquiryForm.message,
@@ -499,6 +510,13 @@ function CreatorCastPageContent() {
                         )}
                         <span>{agency._count.talent} talent</span>
                       </div>
+                      <Link
+                        href={marketplaceListingHref("casting", agency.id, projectId)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="mt-2 inline-flex text-xs font-medium text-orange-400 hover:text-orange-300"
+                      >
+                        Open listing →
+                      </Link>
                     </div>
                     {expandedAgencyId === agency.id ? <ChevronUp className="w-5 h-5 text-slate-400" /> : <ChevronDown className="w-5 h-5 text-slate-400" />}
                   </button>

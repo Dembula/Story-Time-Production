@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { BackButton } from "@/components/layout/back-button";
 import {
   CreatorProjectContextBanner,
@@ -8,6 +9,7 @@ import {
   usePrefillProjectName,
 } from "@/components/creator/creator-project-context";
 import { fetchMarketplaceList, postMarketplaceJson } from "@/lib/creator-marketplace-fetch";
+import { marketplaceListingHref } from "@/lib/marketplace-hub";
 import {
   Users,
   Briefcase,
@@ -162,6 +164,7 @@ function CreatorCrewPageContent() {
       paymentTransactionId?: string | null;
     }>("/api/crew-teams/requests", {
       crewTeamId,
+      projectId: projectId || undefined,
       projectName: requestForm.projectName || projectTitle || undefined,
       message: requestForm.message,
     });
@@ -355,6 +358,13 @@ function CreatorCrewPageContent() {
                         <span>{team._count.members} members</span>
                         {team.specializations && <span>{team.specializations}</span>}
                       </div>
+                      <Link
+                        href={marketplaceListingHref("crew", team.id, projectId)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="mt-2 inline-flex text-xs font-medium text-orange-400 hover:text-orange-300"
+                      >
+                        Open listing →
+                      </Link>
                     </div>
                     {expandedTeamId === team.id ? <ChevronUp className="w-5 h-5 text-slate-400" /> : <ChevronDown className="w-5 h-5 text-slate-400" />}
                   </button>

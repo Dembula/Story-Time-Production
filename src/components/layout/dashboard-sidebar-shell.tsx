@@ -152,9 +152,12 @@ export function DashboardSidebarShell({
       : sidebar ??
         (navSections ? <NavLinks sections={navSections} pathname={pathname} onNavigate={closeSidebar} /> : null);
 
-  const paddedHeader = deviceClass === "mobile" ? "px-3 py-3" : "px-6 py-4 md:px-12";
-  const paddedContent = deviceClass === "mobile" ? "px-3 py-4" : "px-4 py-6 md:px-8";
+  const paddedHeader = deviceClass === "mobile" ? "px-3 py-3" : "px-4 py-4 md:px-5";
+  const paddedContent = deviceClass === "mobile" ? "px-3 py-4" : "px-4 py-6 md:px-6 lg:px-8";
   const headerHeightClass = deviceClass === "mobile" ? "top-[3.75rem]" : "top-[4.25rem]";
+  const stickySidebarTop = deviceClass === "mobile" ? "top-[3.75rem]" : "top-[4.25rem]";
+  const stickySidebarMaxH =
+    deviceClass === "mobile" ? "max-h-[calc(100vh-3.75rem)]" : "max-h-[calc(100vh-4.25rem)]";
 
   const showDockedSidebar = !overlayMode && sidebarOpen;
 
@@ -163,7 +166,7 @@ export function DashboardSidebarShell({
       <header
         className={`sticky top-0 z-50 border-b border-white/8 bg-background/95 backdrop-blur-xl ${paddedHeader} ${headerClassName}`}
       >
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 sm:gap-3">
+        <div className="flex w-full items-center justify-between gap-2 sm:gap-3">
           <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
             <button
               type="button"
@@ -216,20 +219,31 @@ export function DashboardSidebarShell({
         </>
       ) : null}
 
-      <div className={`relative mx-auto w-full max-w-7xl ${paddedContent} ${contentClassName}`}>
-        <div className="flex w-full gap-4 md:gap-6">
-          {showDockedSidebar ? (
-            <aside className="hidden w-56 shrink-0 md:block xl:w-64">
-              <div className="sticky top-24 flex max-h-[calc(100vh-7rem)] flex-col">
-                <div className="min-h-0 flex-1 overflow-y-auto pr-1">{sidebarBody}</div>
-                {sidebarFooter ? (
-                  <div className="mt-3 shrink-0 border-t border-white/8 pt-3">{sidebarFooter}</div>
-                ) : null}
-              </div>
-            </aside>
-          ) : null}
+      <div className="flex w-full min-h-[calc(100vh-4.25rem)]">
+        {showDockedSidebar ? (
+          <aside className="hidden w-56 shrink-0 flex-col border-r border-white/10 bg-black md:flex xl:w-64">
+            <div
+              className={`sticky ${stickySidebarTop} flex ${stickySidebarMaxH} flex-col`}
+            >
+              <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">{sidebarBody}</div>
+              {sidebarFooter ? (
+                <div className="shrink-0 border-t border-white/8 px-3 py-3">{sidebarFooter}</div>
+              ) : null}
+            </div>
+          </aside>
+        ) : null}
 
-          <main className={`min-w-0 w-full flex-1 ${mainClassName}`}>{children}</main>
+        <div
+          className={[
+            "min-w-0 flex-1",
+            paddedContent,
+            contentClassName,
+            !showDockedSidebar && !contentClassName.includes("max-w-none") ? "mx-auto w-full max-w-7xl" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        >
+          <main className={`min-w-0 w-full ${mainClassName}`}>{children}</main>
         </div>
       </div>
     </div>

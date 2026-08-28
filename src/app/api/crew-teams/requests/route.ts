@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { notifyCrewRequestCreated } from "@/lib/marketplace-notifications";
+import { buildMarketplaceBookingNote } from "@/lib/marketplace-booking-context";
 
 /** Creator: list crew requests this user has sent (for status + pay). */
 export async function GET() {
@@ -30,15 +31,32 @@ export async function POST(req: Request) {
   const body = await req.json();
   const crewTeamId = body.crewTeamId;
   if (!crewTeamId) return NextResponse.json({ error: "crewTeamId required" }, { status: 400 });
-  const team = await prisma.crewTeam.findUnique({ where: { id: crewTeamId }, select: { id: true, companyName: true, userId: true } });
+  const team = await prisma.crewTeam.findUnique({
+    where: { id: crewTeamId },
+    select: { id: true, companyName: true, userId: true },
+  });
   if (!team) return NextResponse.json({ error: "Crew team not found" }, { status: 404 });
   const creator = await prisma.user.findUnique({ where: { id: userId! }, select: { name: true } });
+
+  let projectTitle = typeof body.projectName === "string" ? body.projectName : null;
+  const projectId = typeof body.projectId === "string" ? body.projectId : null;
+  if (projectId) {
+    const project = await prisma.originalProject.findFirst({
+      where: { id: projectId, pitches: { some: { creatorId: userId! } } },
+      select: { id: true, title: true },
+    });
+    if (project) projectTitle = project.title;
+  }
+
   const request = await prisma.crewTeamRequest.create({
     data: {
       creatorId: userId!,
       crewTeamId,
-      projectName: body.projectName ?? null,
-      message: body.message ?? null,
+      projectName: projectTitle,
+      message: buildMarketplaceBookingNote(body.message ?? null, {
+        projectId,
+        projectTitle,
+      }),
       status: "PENDING",
     },
   });

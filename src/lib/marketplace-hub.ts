@@ -112,6 +112,17 @@ export function marketplaceBrowseHref(category: MarketplaceCategory, projectId?:
   return `${category.browsePath}?${params.toString()}`;
 }
 
+/** Professional listing detail storefront (used by hub cards). */
+export function marketplaceListingHref(
+  categoryId: MarketplaceCategoryId,
+  listingId: string,
+  projectId?: string | null,
+): string {
+  const base = `/creator/marketplace/${categoryId}/${encodeURIComponent(listingId)}`;
+  if (!projectId) return base;
+  return `${base}?projectId=${encodeURIComponent(projectId)}`;
+}
+
 export type MarketplaceStoreCard = {
   id: string;
   categoryId: MarketplaceCategoryId;
@@ -152,7 +163,7 @@ export function normalizeCastingAgency(
     description: row.description ?? null,
     imageUrl: null,
     meta: talentCount > 0 ? `${talentCount} talent on roster` : "Casting agency",
-    href: `${marketplaceBrowseHref(category, projectId)}${projectId ? "&" : "?"}agencyId=${encodeURIComponent(row.id)}`,
+    href: marketplaceListingHref("casting", row.id, projectId),
   };
 }
 
@@ -180,7 +191,7 @@ export function normalizeCrewTeam(
     description: row.description ?? null,
     imageUrl: null,
     meta: memberCount > 0 ? `${memberCount} crew members` : "Crew team",
-    href: `${marketplaceBrowseHref(category, projectId)}${projectId ? "&" : "?"}teamId=${encodeURIComponent(row.id)}`,
+    href: marketplaceListingHref("crew", row.id, projectId),
   };
 }
 
@@ -207,7 +218,7 @@ export function normalizeLocation(
     description: row.description ?? null,
     imageUrl: row.previewImageUrl ?? null,
     meta: row.type ? `${row.type} location` : "Location listing",
-    href: `${marketplaceBrowseHref(category, projectId)}${projectId ? "&" : "?"}locationId=${encodeURIComponent(row.id)}`,
+    href: marketplaceListingHref("locations", row.id, projectId),
   };
 }
 
@@ -234,7 +245,7 @@ export function normalizeEquipment(
     description: row.plainDescription ?? row.description ?? null,
     imageUrl: row.previewImageUrl ?? null,
     meta: row.category ? `${row.category} gear` : "Equipment listing",
-    href: `${marketplaceBrowseHref(category, projectId)}${projectId ? "&" : "?"}equipmentId=${encodeURIComponent(row.id)}`,
+    href: marketplaceListingHref("equipment", row.id, projectId),
   };
 }
 
@@ -261,7 +272,7 @@ export function normalizeCateringCompany(
     description: row.description ?? null,
     imageUrl: row.previewImageUrl ?? null,
     meta: "On-set catering",
-    href: `${marketplaceBrowseHref(category, projectId)}${projectId ? "&" : "?"}companyId=${encodeURIComponent(row.id)}`,
+    href: marketplaceListingHref("catering", row.id, projectId),
   };
 }
 

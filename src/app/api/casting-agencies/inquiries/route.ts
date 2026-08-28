@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { notifyCastingInquiryCreated } from "@/lib/marketplace-notifications";
+import { buildMarketplaceBookingNote } from "@/lib/marketplace-booking-context";
 
 /** Creator: casting inquiries sent to agencies (for status + pay). */
 export async function GET() {
@@ -36,14 +37,28 @@ export async function POST(req: Request) {
   });
   if (!agency) return NextResponse.json({ error: "Agency not found" }, { status: 404 });
   const creator = await prisma.user.findUnique({ where: { id: userId! }, select: { name: true } });
+
+  let projectTitle = typeof body.projectName === "string" ? body.projectName : null;
+  const projectId = typeof body.projectId === "string" ? body.projectId : null;
+  if (projectId) {
+    const project = await prisma.originalProject.findFirst({
+      where: { id: projectId, pitches: { some: { creatorId: userId! } } },
+      select: { id: true, title: true },
+    });
+    if (project) projectTitle = project.title;
+  }
+
   const inquiry = await prisma.castingInquiry.create({
     data: {
       creatorId: userId!,
       agencyId,
       talentId: body.talentId ?? null,
-      projectName: body.projectName ?? null,
+      projectName: projectTitle,
       roleName: body.roleName ?? null,
-      message: body.message ?? null,
+      message: buildMarketplaceBookingNote(body.message ?? null, {
+        projectId,
+        projectTitle,
+      }),
       status: "PENDING",
     },
   });

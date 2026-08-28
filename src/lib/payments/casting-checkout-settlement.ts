@@ -83,13 +83,6 @@ export async function finalizeCastingHirePayment(paymentRecord: {
   const marker = `${ROLE_LINK_MARKER_PREFIX}${invitation.roleId}`;
   const salaryAmount = Math.max(0, Number(meta.salaryAmount ?? 0));
   const salaryNotes = typeof meta.salaryNotes === "string" ? meta.salaryNotes : "";
-
-  const existingContract = await prisma.projectContract.findFirst({
-    where: { projectId, type: "ACTOR", castingTalentId: invitation.talent.id },
-    select: { id: true },
-  });
-  if (existingContract) return;
-
   const talent = invitation.talent;
 
   await prisma.$transaction(async (tx) => {
@@ -155,6 +148,7 @@ export async function finalizeCastingHirePayment(paymentRecord: {
           roleType: "Actor",
           notes: `Linked from ${invitation.castingAgency?.agencyName ?? "agency"}.\n[${marker}]`,
           pastWork: talent.pastWork ?? null,
+          contactEmail: talent.contactEmail ?? null,
         },
       });
     } else {
@@ -170,25 +164,120 @@ export async function finalizeCastingHirePayment(paymentRecord: {
       });
     }
 
-    const contract = await tx.projectContract.create({
-      data: {
-        projectId,
-        type: "ACTOR",
-        status: "DRAFT",
-        subject: `Actor contract – ${talent.name}`,
-        castingTalentId: talent.id,
-        createdById: userId,
+    const existingContract = await tx.projectContract.findFirst({
+      where: { projectId, type: "ACTOR", castingTalentId: talent.id },
+      select: { id: true },
+    });
+    if (!existingContract) {
+      const contract = await tx.projectContract.create({
+        data: {
+          projectId,
+          type: "ACTOR",
+          status: "DRAFT",
+          subject: `Actor agreement · ${talent.name}`,
+          castingTalentId: talent.id,
+          counterpartyUserId: invitation.castingAgency?.userId ?? null,
+          recipientType: "ACTOR",
+          recipientLabel: talent.name,
+          recipientEmail: talent.contactEmail ?? null,
+          vendorName: invitation.castingAgency?.agencyName ?? null,
+          createdById: userId,
+        },
+      });
+      const stubTerms = `Role: ${invitation.role.name}\nSalary (planned): R${salaryAmount.toFixed(
+        2,
+      )}\nAgency: ${invitation.castingAgency?.agencyName ?? "N/A"}\n\n[marketplaceDeal:CastingHire:${invitationId}]`;
+      const version = await tx.projectContractVersion.create({
+        data: { contractId: contract.id, version: 1, terms: stubTerms, createdById: userId },
+      });
+      await tx.projectContract.update({
+        where: { id: contract.id },
+        data: { currentVersionId: version.id },
+      });
+    }
+  });
+
+  try {
+    const {
+      buildRenderedContract,
+      emptyFieldValues,
+      mergeFieldValues,
+      projectFieldValues,
+    } = await import("@/lib/contract-prefill");
+    const { getTemplateByType } = await import("@/lib/contract-template-engine");
+    const { toDateOnly, zCurrency } = await import("@/lib/marketplace-deal-contract");
+
+    const project = await prisma.originalProject.findUnique({
+      where: { id: projectId },
+      include: {
+        pitches: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          include: { creator: { select: { name: true } } },
+        },
+        shootDays: { orderBy: { date: "asc" }, select: { date: true } },
       },
     });
-    const terms = `Role: ${invitation.role.name}\nSalary (planned): R${salaryAmount.toFixed(
-      2,
-    )}\nAgency: ${invitation.castingAgency?.agencyName ?? "N/A"}\n\nFinal terms to be signed by all parties.`;
-    const version = await tx.projectContractVersion.create({
-      data: { contractId: contract.id, version: 1, terms, createdById: userId },
+    const shootDays = project?.shootDays ?? [];
+    const fields = mergeFieldValues(
+      emptyFieldValues(),
+      project
+        ? projectFieldValues({
+            id: project.id,
+            title: project.title,
+            productionCompany: project.pitches[0]?.creator?.name?.trim() || "Production company TBD",
+            startDate: toDateOnly(shootDays[0]?.date ?? null),
+            endDate: toDateOnly(shootDays[shootDays.length - 1]?.date ?? null),
+            shootDaysCount: shootDays.length,
+          })
+        : {},
+      {
+        party_name: talent.name,
+        party_type: "INDIVIDUAL",
+        role: invitation.role.name,
+        rate: zCurrency(salaryAmount),
+        payment_terms: salaryNotes || "As agreed in casting acquisition",
+        custom_clauses: `Marketplace deal: CastingHire:${invitationId}`,
+      },
+    );
+    const template = getTemplateByType("ACTOR_AGREEMENT");
+    const terms = `${buildRenderedContract("ACTOR_AGREEMENT", fields, template.body)}\n\n[marketplaceDeal:CastingHire:${invitationId}]`;
+
+    const contract = await prisma.projectContract.findFirst({
+      where: { projectId, type: "ACTOR", castingTalentId: talent.id },
+      select: { id: true, currentVersionId: true },
     });
-    await tx.projectContract.update({
-      where: { id: contract.id },
-      data: { currentVersionId: version.id },
+    if (contract?.currentVersionId) {
+      await prisma.projectContractVersion.update({
+        where: { id: contract.currentVersionId },
+        data: {
+          terms,
+          changeNotes: "Filled from casting hire + production data",
+        },
+      });
+    }
+  } catch {
+    /* template enrichment is best-effort */
+  }
+
+  try {
+    const { createProjectVendor } = await import("@/lib/vendor-service");
+    const agencyName = invitation.castingAgency?.agencyName ?? "Casting agency";
+    const existing = await prisma.projectVendor.findFirst({
+      where: { projectId, displayName: { equals: agencyName, mode: "insensitive" } },
+      select: { id: true },
     });
-  });
+    if (!existing) {
+      await createProjectVendor({
+        projectId,
+        userId,
+        displayName: agencyName,
+        vendorType: "GENERAL",
+        counterpartyUserId: invitation.castingAgency?.userId ?? null,
+        notes: `Casting hire for ${talent.name} / ${invitation.role.name}`,
+      });
+    }
+  } catch {
+    /* vendor link best-effort */
+  }
 }

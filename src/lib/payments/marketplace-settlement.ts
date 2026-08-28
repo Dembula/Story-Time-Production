@@ -312,6 +312,13 @@ export async function finalizeMarketplaceWalletPayment(quote: MarketplaceSettlem
     /* expense sync must not block payment */
   }
 
+  try {
+    const { syncMarketplaceDealToProduction } = await import("@/lib/marketplace-production-sync");
+    await syncMarketplaceDealToProduction(quote);
+  } catch {
+    /* production sync must not block payment */
+  }
+
   return {
     ok: true as const,
     transactionId: tx.id,
@@ -403,6 +410,13 @@ export async function finalizeMarketplaceGatewayPayment(paymentRecordId: string)
     await syncMarketplacePaymentToExpense(quote, tx.id);
   } catch {
     /* expense sync must not block payment */
+  }
+
+  try {
+    const { syncMarketplaceDealToProduction } = await import("@/lib/marketplace-production-sync");
+    await syncMarketplaceDealToProduction(quote);
+  } catch {
+    /* production sync must not block payment */
   }
 
   return {
