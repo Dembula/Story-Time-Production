@@ -21,7 +21,7 @@ interface PostProductionToolPageProps {
 
 const LABELS: Record<string, string> = {
   "footage-ingestion": "Footage Ingestion",
-  "editing-studio": "Editing Studio",
+  "editing-studio": "Edit Review",
   "sound-design": "Sound Design",
   "music-scoring": "Music & Scoring",
   "visual-effects": "Visual Effects",

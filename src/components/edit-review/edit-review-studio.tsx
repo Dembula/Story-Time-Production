@@ -36,7 +36,7 @@ type EditReviewStudioProps = {
 
 export function EditReviewStudio({
   projectId,
-  title = "Editing Studio",
+  title = "Edit Review",
 }: EditReviewStudioProps) {
   const queryClient = useQueryClient();
   const playerRef = useRef<EditReviewPlaybackHandle>(null);

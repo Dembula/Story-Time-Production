@@ -332,8 +332,8 @@ export const POST_PRODUCTION_TOOLS: ProjectToolMeta[] = [
   {
     id: "editing-studio",
     phase: "POST_PRODUCTION",
-    label: "Editing Studio",
-    description: "Upload edit versions and run timed review sessions with your team.",
+    label: "Edit Review",
+    description: "Upload edit versions, preview video, and leave timestamped comments for your team.",
     toolSlug: "editing-studio",
     pipelineStep: "EDIT",
   },
@@ -403,9 +403,9 @@ export const POST_PRODUCTION_TOOLS: ProjectToolMeta[] = [
   },
 ];
 
-/** Post-production tools surfaced on the creator hub and dashboard (product scope: music + distribution only). */
-export const POST_PRODUCTION_HUB_TOOLS: ProjectToolMeta[] = POST_PRODUCTION_TOOLS.filter(
-  (t) => t.toolSlug === "music-scoring" || t.toolSlug === "distribution",
+/** Post-production tools surfaced on the creator hub, dashboard, and project pipeline. */
+export const POST_PRODUCTION_HUB_TOOLS: ProjectToolMeta[] = POST_PRODUCTION_TOOLS.filter((t) =>
+  ["footage-ingestion", "editing-studio", "music-scoring", "distribution"].includes(t.toolSlug),
 );
 
 export const ALL_PROJECT_TOOLS: ProjectToolMeta[] = [
@@ -498,6 +498,7 @@ export function resolveStandaloneFromProjectPath(pathname: string): string {
   }
   if (slug === "distribution") return "/creator/upload";
   if (slug === "footage-ingestion") return "/creator/post/footage-ingestion";
+  if (slug === "editing-studio") return "/creator/post/editing-studio";
   if (slug === "music-scoring") return "/creator/music";
   return "/creator/post-production";
 }

@@ -11,7 +11,7 @@ export default function CreatorPostProductionHub() {
       phase="POST_PRODUCTION"
       eyebrow="Phase 3 — Post-production"
       title="Post-Production"
-      description="Music and distribution are separate entry points — use Music for the catalogue library, or Distribution for the multi-step catalogue upload. Open either inside a project to keep everything linked to the same film, or start standalone and connect later from My Projects."
+      description="Footage ingestion, edit review (Frame.io-style preview and comments), music, and distribution — open inside a project to keep everything linked to the same film, or start standalone and connect later from My Projects."
       tools={POST_PRODUCTION_HUB_TOOLS}
       sectionProjectsTitle="Choose a project"
       sectionToolsTitle="Jump into a post-production tool"

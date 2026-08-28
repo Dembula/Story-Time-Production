@@ -41,6 +41,7 @@ function standaloneToolHref(phase: ProjectPhase, slug: string): string {
   }
   if (slug === "distribution") return "/creator/upload";
   if (slug === "footage-ingestion") return "/creator/post/footage-ingestion";
+  if (slug === "editing-studio") return "/creator/post/editing-studio";
   if (slug === "music-scoring") return "/creator/music";
   return "/creator/dashboard";
 }
