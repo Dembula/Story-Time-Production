@@ -185,6 +185,30 @@ export async function fetchAdminRevenueBundle() {
 
   const reporting = buildAdminRevenueReportingMeta(periodStart, periodEnd);
 
+  const appleIapPayments = await prisma.paymentRecord.findMany({
+    where: {
+      status: "SUCCEEDED",
+      OR: [{ provider: "APPLE" }, { settlementSource: "apple_iap" }],
+      paidAt: { gte: periodStart, lte: periodEnd },
+      amount: { gt: 0 },
+    },
+    select: {
+      amount: true,
+      settlementAmount: true,
+      metadata: true,
+      provider: true,
+      settlementSource: true,
+      status: true,
+      purpose: true,
+    },
+  });
+  const appleIapCash = appleIapPayments.filter((p) => isCashRecognizedPayment(p));
+  const appleIapRevenue = sumCashPayments(appleIapPayments);
+  const appleSubCount = appleIapCash.filter((p) =>
+    String(p.purpose ?? "").includes("subscription"),
+  ).length;
+  const applePpvCount = appleIapCash.filter((p) => String(p.purpose ?? "").includes("ppv")).length;
+
   return {
     periodStart,
     periodEnd,
@@ -199,6 +223,12 @@ export async function fetchAdminRevenueBundle() {
     syncDeals: { totalDeals: syncDealCount, totalSyncRevenue },
     contentRevenue: contentRevenue.sort((a, b) => b.revenue - a.revenue),
     viewerSub: { viewerSubRevenue, creatorPoolFromSubs, storyTimeFromSubs },
+    appleIap: {
+      revenue: appleIapRevenue,
+      count: appleIapCash.length,
+      subscriptionCount: appleSubCount,
+      ppvCount: applePpvCount,
+    },
     treasury: {
       availableBalance: treasuryWallet?.availableBalance ?? 0,
       pendingBalance: treasuryWallet?.pendingBalance ?? 0,

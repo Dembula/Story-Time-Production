@@ -26,6 +26,7 @@ interface RevenueData {
   syncDeals: { totalDeals: number; totalSyncRevenue: number };
   contentRevenue: { id: string; title: string; type: string; creatorName: string; watchTime: number; share: number; revenue: number }[];
   viewerSub?: { viewerSubRevenue: number; creatorPoolFromSubs: number; storyTimeFromSubs: number };
+  appleIap?: { revenue: number; count: number; subscriptionCount: number; ppvCount: number };
   transactionFees?: { totalFees: number; totalVolume: number };
   companySubs?: { count: number; revenue: number };
   distributionLicenses?: { yearlyCount: number; perUploadCount: number; revenue: number };
@@ -304,6 +305,14 @@ export function AdminRevenueClient() {
                 <p className="text-2xl font-bold text-orange-400">{formatZar(data?.viewerSub?.storyTimeFromSubs ?? 0)}</p>
               </div>
             </div>
+          </div>
+          <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
+            <h3 className="text-white font-semibold mb-2">Apple In-App Purchases (Universe / Creators iOS)</h3>
+            <p className="text-2xl font-bold text-white">{formatZar(data?.appleIap?.revenue ?? 0)}</p>
+            <p className="text-xs text-slate-500 mt-1">
+              {data?.appleIap?.count ?? 0} cash settlements · {data?.appleIap?.subscriptionCount ?? 0} subscriptions ·{" "}
+              {data?.appleIap?.ppvCount ?? 0} PPV unlocks (included in viewer pool above)
+            </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">

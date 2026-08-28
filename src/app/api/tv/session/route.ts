@@ -6,6 +6,10 @@ import {
 } from "@/lib/tv-auth";
 import { checkRateLimit, recordRateLimitFailure } from "@/lib/rate-limit";
 import { getClientIpFromRequest, isSignInRateLimitEnabled } from "@/lib/auth-rate-limit";
+import {
+  getDeviceTypeForRequest,
+  getUserAgentFromRequest,
+} from "@/lib/request-client-meta";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -89,6 +93,9 @@ export async function POST(request: NextRequest) {
         userName: result.session.user.name ?? undefined,
         role: result.session.user.role,
         eventType: "SIGN_IN",
+        ipAddress: getClientIpFromRequest(request) ?? undefined,
+        userAgent: getUserAgentFromRequest(request) ?? undefined,
+        deviceType: getDeviceTypeForRequest(request) || "tv",
       },
     });
   } catch (err) {
