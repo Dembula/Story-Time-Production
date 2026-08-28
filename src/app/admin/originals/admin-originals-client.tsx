@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { creatorProjectWorkspaceHref, adminProjectDossierHref } from "@/lib/creator-project-href";
 import { buildOriginalsChecklist } from "@/lib/originals-submission-checklist";
+import { formatZar } from "@/lib/format-currency-zar";
 import {
   Sparkles,
   Film,

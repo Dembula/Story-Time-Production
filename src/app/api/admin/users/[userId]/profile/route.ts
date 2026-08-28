@@ -47,7 +47,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ userId:
       contents: {
         orderBy: { createdAt: "desc" },
         take: 10,
-        select: { id: true, title: true, type: true, status: true, createdAt: true },
+        select: { id: true, title: true, type: true, reviewStatus: true, createdAt: true },
       },
       _count: { select: { activityLogs: true, contents: true, watchSessions: true } },
     },
