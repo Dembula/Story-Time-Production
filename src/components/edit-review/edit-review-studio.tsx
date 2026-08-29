@@ -140,9 +140,12 @@ export function EditReviewStudio({
     retry: 1,
   });
 
+  const playbackStatus = playbackPayload?.status;
   const playbackUrl =
-    playbackPayload?.status === "ready" ? (playbackPayload.playback?.src ?? null) : null;
+    playbackStatus === "ready" ? (playbackPayload?.playback?.src ?? null) : null;
   const playbackMime = playbackPayload?.playback?.type ?? null;
+  const showResolvingPlayback =
+    playbackPending && !playbackUrl && playbackStatus !== "encoding";
   const playbackStatusMessage =
     playbackPayload?.message ||
     (playbackPending
@@ -151,7 +154,7 @@ export function EditReviewStudio({
         ? playbackError instanceof Error
           ? playbackError.message
           : "Could not resolve playback"
-        : playbackPayload?.status === "encoding"
+        : playbackStatus === "encoding"
           ? "Preparing playback…"
           : "Playback not ready");
 
@@ -623,7 +626,7 @@ export function EditReviewStudio({
                 </div>
               </div>
 
-              {playbackPending && !playbackUrl && playbackPayload?.status !== "encoding" ? (
+              {showResolvingPlayback ? (
                 <div className="flex aspect-video flex-col items-center justify-center gap-2 rounded-lg border border-white/10 bg-black/60 px-6 text-center">
                   <Loader2 className="h-8 w-8 animate-spin text-orange-300" />
                   <p className="text-sm text-slate-400">Resolving playback…</p>
@@ -660,7 +663,7 @@ export function EditReviewStudio({
                   }}
                 />
               )}
-              {playbackPayload?.status === "encoding" || playbackPayload?.status === "failed" ? (
+              {playbackStatus === "encoding" || playbackStatus === "failed" ? (
                 <p className="mt-2 text-center text-[11px] text-amber-200/90">
                   This file needs streaming encode (or is a camera master). For instant review,
                   export <span className="font-medium">H.264 MP4</span> from Premiere / Resolve /
