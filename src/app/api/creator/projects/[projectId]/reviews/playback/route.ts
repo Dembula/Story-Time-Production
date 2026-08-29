@@ -30,7 +30,6 @@ async function ensureAccess(projectId: string) {
     };
   }
 
-  // Admins can open any project review session.
   if (role === "ADMIN") {
     return { error: null as NextResponse | null, userId };
   }
@@ -61,8 +60,13 @@ async function ensureAccess(projectId: string) {
   return { error: null as NextResponse | null, userId };
 }
 
+/** Extensions browsers can usually decode progressively (H.264/AAC in MP4, WebM). */
 function isBrowserSafeProgressive(fileUrl: string): boolean {
   return /\.(mp4|webm|m4v)(\?|$)/i.test(fileUrl);
+}
+
+function isLikelyCameraMaster(fileUrl: string): boolean {
+  return /\.(mov|mkv|avi|mxf|prores|r3d|braw)(\?|$)/i.test(fileUrl);
 }
 
 function parseAssetMeta(raw: string | null): {
@@ -123,7 +127,6 @@ async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null
   }
 }
 
-/** Same-origin progressive URL — cookies + Range, no cross-origin CORS issues. */
 function previewPlayback(fileUrl: string, projectId: string) {
   if (!isPlatformStorageReference(fileUrl)) {
     return { src: fileUrl, type: "video/mp4" as const };
@@ -147,7 +150,7 @@ async function signedS3Playback(fileUrl: string) {
 
 /**
  * Resolve browser-playable media for an edit / footage asset.
- * Always returns quickly with either playback or a clear status — never hangs.
+ * Never pretends a ProRes/MOV master is ready — wait for Stream HLS.
  */
 export async function GET(
   req: NextRequest,
@@ -175,53 +178,32 @@ export async function GET(
     const streamStatus = stream?.status ?? meta.streamStatus ?? null;
     const streamReady = isReadyStreamStatus(streamStatus);
     const streamFailed = isFailedStreamStatus(streamStatus);
+    const safeMaster = isBrowserSafeProgressive(asset.fileUrl);
+    const cameraMaster = isLikelyCameraMaster(asset.fileUrl);
 
     let candidateUrl =
-      (streamReady ? stream?.hlsUrl || stream?.playbackUrl : null) ||
-      meta.hlsUrl?.trim() ||
+      (streamReady ? stream?.hlsUrl || stream?.playbackUrl || meta.hlsUrl : null) ||
+      (meta.hlsUrl?.trim() && streamReady ? meta.hlsUrl.trim() : null) ||
       null;
+
+    // If Stream isn't marked ready but metadata already has HLS, still try it.
+    if (!candidateUrl && meta.hlsUrl?.trim()) {
+      candidateUrl = meta.hlsUrl.trim();
+    }
+    if (!candidateUrl && stream?.hlsUrl) {
+      candidateUrl = stream.hlsUrl;
+    }
 
     const uid =
       stream?.uid ||
       meta.streamUid ||
       (candidateUrl ? extractCloudflareStreamUid(candidateUrl) : null);
-    if (!candidateUrl && uid && streamReady) {
+    if (!candidateUrl && uid) {
       const cfg = getCloudflareStreamConfig();
       candidateUrl = buildCloudflarePlaybackUrls(
         uid,
         cfg?.customerSubdomain ?? "https://videodelivery.net",
       ).hlsUrl;
-    }
-
-    const safeMaster = isBrowserSafeProgressive(asset.fileUrl);
-
-    // Same-origin / signed progressive fallback — available immediately.
-    const progressiveFallback = safeMaster
-      ? ((await withTimeout(signedS3Playback(asset.fileUrl), 4_000)) ??
-        previewPlayback(asset.fileUrl, projectId))
-      : isPlatformStorageReference(asset.fileUrl)
-        ? previewPlayback(asset.fileUrl, projectId)
-        : null;
-
-    let playback: { src: string; type: string } | null = null;
-
-    // Try Stream when encode looks ready, or metadata already has an HLS URL.
-    const shouldTryStream = streamReady || Boolean(candidateUrl);
-    if (shouldTryStream) {
-      if (candidateUrl) {
-        playback = await withTimeout(resolveServerPlaybackSource(candidateUrl), 6_000);
-      }
-      if (!playback?.src) {
-        playback = await withTimeout(resolveServerPlaybackSource(asset.fileUrl), 6_000);
-      }
-    }
-
-    if (!playback?.src && progressiveFallback) {
-      playback = progressiveFallback;
-    }
-
-    if (!playback?.src && isPlatformStorageReference(asset.fileUrl)) {
-      playback = previewPlayback(asset.fileUrl, projectId);
     }
 
     // Background Stream recovery (never blocks response)
@@ -241,38 +223,78 @@ export async function GET(
       }
     });
 
-    if (!playback?.src) {
+    let playback: { src: string; type: string } | null = null;
+
+    // 1) Prefer signed Stream / HLS whenever we have a candidate
+    if (candidateUrl) {
+      playback = await withTimeout(resolveServerPlaybackSource(candidateUrl), 8_000);
+    }
+    if (!playback?.src && (streamReady || uid)) {
+      playback = await withTimeout(resolveServerPlaybackSource(asset.fileUrl), 8_000);
+    }
+
+    const isHls =
+      !!playback?.src &&
+      (playback.type.includes("mpegurl") ||
+        /\.m3u8(\?|$)/i.test(playback.src) ||
+        playback.src.includes("videodelivery.net") ||
+        playback.src.includes("cloudflarestream.com"));
+
+    // 2) Browser-safe progressive (H.264 MP4 / WebM) — play immediately
+    if (!playback?.src && safeMaster) {
+      playback =
+        (await withTimeout(signedS3Playback(asset.fileUrl), 5_000)) ??
+        previewPlayback(asset.fileUrl, projectId);
+    }
+
+    // 3) Unknown extension on platform storage — try signed S3 (may still be H.264)
+    if (!playback?.src && !cameraMaster && isPlatformStorageReference(asset.fileUrl)) {
+      playback =
+        (await withTimeout(signedS3Playback(asset.fileUrl), 5_000)) ??
+        previewPlayback(asset.fileUrl, projectId);
+    }
+
+    // Camera masters (.mov etc.): NEVER serve progressive as "ready" — browsers can't decode ProRes.
+    if (cameraMaster && !isHls) {
       return NextResponse.json({
         status: streamFailed ? "failed" : "encoding",
         streamStatus: streamStatus ?? "queued",
+        playable: false,
         message: streamFailed
-          ? "Streaming encode failed. Re-upload as an H.264 MP4."
-          : "Preparing playback… If this takes long, re-upload as H.264 MP4.",
+          ? "Streaming encode failed. Re-upload an H.264 MP4 for browser review."
+          : "Preparing stream playback for this master… Export H.264 MP4 from your NLE for instant review.",
         playback: null,
         asset: { id: asset.id, label: asset.label, fileUrl: asset.fileUrl },
         posterUrl: meta.thumbnailUrl ?? null,
       });
     }
 
-    const isHls = playback.type.includes("mpegurl") || /\.m3u8(\?|$)/i.test(playback.src);
-    const status =
-      isHls || safeMaster || streamReady
-        ? "ready"
-        : streamFailed
-          ? "failed"
-          : "encoding";
+    if (!playback?.src) {
+      return NextResponse.json({
+        status: streamFailed ? "failed" : "encoding",
+        streamStatus: streamStatus ?? "queued",
+        playable: false,
+        message: streamFailed
+          ? "Streaming encode failed. Re-upload as an H.264 MP4."
+          : "Preparing playback… Prefer H.264 MP4 for instant review.",
+        playback: null,
+        asset: { id: asset.id, label: asset.label, fileUrl: asset.fileUrl },
+        posterUrl: meta.thumbnailUrl ?? null,
+      });
+    }
 
-    // Still serve progressive masters so the tool isn't a black hole; tip in UI for encode.
     return NextResponse.json({
-      status: status === "encoding" && playback.src ? "ready" : status,
-      streamStatus: streamStatus ?? (isHls ? "ready" : "s3"),
-      message:
-        !isHls && !safeMaster
-          ? "Playing original file. If the picture is black, wait for encode or upload H.264 MP4."
-          : undefined,
+      status: "ready",
+      streamStatus: streamStatus ?? (isHls ? "ready" : "progressive"),
+      playable: true,
+      message: isHls
+        ? undefined
+        : safeMaster
+          ? undefined
+          : "Playing original file. If picture is black, wait for stream encode or upload H.264 MP4.",
       playback: {
         src: playback.src,
-        type: playback.type,
+        type: isHls ? "application/vnd.apple.mpegurl" : playback.type,
       },
       asset: { id: asset.id, label: asset.label, fileUrl: asset.fileUrl },
       posterUrl: meta.thumbnailUrl ?? null,
@@ -280,7 +302,7 @@ export async function GET(
   } catch (error) {
     console.error("edit-review playback route failed", error);
     return NextResponse.json(
-      { error: "Could not resolve playback", status: "unavailable", playback: null },
+      { error: "Could not resolve playback", status: "unavailable", playback: null, playable: false },
       { status: 500 },
     );
   }

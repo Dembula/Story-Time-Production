@@ -38,6 +38,7 @@ export type EditReviewSession = {
 export type EditReviewPlaybackResponse = {
   status: "ready" | "encoding" | "failed" | "unavailable";
   streamStatus?: string | null;
+  playable?: boolean;
   message?: string;
   playback: { src: string; type: string } | null;
   posterUrl?: string | null;

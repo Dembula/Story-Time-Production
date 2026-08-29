@@ -161,3 +161,42 @@ export async function PATCH(
 
   return NextResponse.json({ asset });
 }
+
+export async function DELETE(
+  req: NextRequest,
+  context: { params: Promise<{ projectId: string }> },
+) {
+  const { projectId } = await context.params;
+  const access = await ensureAccess(projectId);
+  if (access.error) return access.error;
+
+  const assetId =
+    req.nextUrl.searchParams.get("id")?.trim() ||
+    ((await req.json().catch(() => null)) as { id?: string } | null)?.id?.trim();
+
+  if (!assetId) {
+    return NextResponse.json({ error: "id is required" }, { status: 400 });
+  }
+
+  const existing = await prisma.footageAsset.findFirst({
+    where: { id: assetId, projectId },
+  });
+  if (!existing) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  // Remove review sessions that pointed at this cut (notes cascade).
+  await prisma.postProductionReview.deleteMany({
+    where: { projectId, cutAssetId: assetId },
+  });
+
+  // Detach final delivery master link if this asset was the master.
+  await prisma.finalDelivery.updateMany({
+    where: { projectId, masterAssetId: assetId },
+    data: { masterAssetId: null },
+  });
+
+  await prisma.footageAsset.delete({ where: { id: assetId } });
+
+  return NextResponse.json({ ok: true, id: assetId });
+}

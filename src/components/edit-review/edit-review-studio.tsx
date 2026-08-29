@@ -30,8 +30,8 @@ import { cn } from "@/lib/utils";
 
 /** Prefer H.264 MP4 for instant browser review; other formats encode via Stream. */
 const UPLOAD_ACCEPT = "video/mp4,video/webm,video/quicktime,video/x-m4v,.mp4,.m4v,.webm,.mov";
-/** Large masters can take a while; never leave the button spinning forever. */
-const UPLOAD_TIMEOUT_MS = 15 * 60 * 1000;
+/** Abort only if progress is frozen this long (large masters can take 30–90+ min). */
+const UPLOAD_STALL_MS = 5 * 60 * 1000;
 
 type EditReviewStudioProps = {
   projectId?: string;
@@ -46,10 +46,14 @@ export function EditReviewStudio({
   const playerRef = useRef<EditReviewPlaybackHandle>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const uploadAbortRef = useRef<AbortController | null>(null);
+  const lastProgressAtRef = useRef(0);
+  const lastProgressPctRef = useRef(0);
+  const userCancelledRef = useRef(false);
   const hasProject = !!projectId;
 
   const [selectedReviewId, setSelectedReviewId] = useState<string | null>(null);
   const [commentBody, setCommentBody] = useState("");
+  const [commentError, setCommentError] = useState<string | null>(null);
   const [playheadMs, setPlayheadMs] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
@@ -63,7 +67,7 @@ export function EditReviewStudio({
       `/api/creator/projects/${projectId}/reviews`,
     ),
     enabled: hasProject,
-    refetchInterval: 15_000,
+    refetchInterval: 12_000,
   });
 
   const { data: footageData, isLoading: footageLoading } = useQuery({
@@ -121,26 +125,34 @@ export function EditReviewStudio({
     },
     enabled: Boolean(hasProject && cutAssetId && projectId),
     refetchInterval: (query) => {
-      const status = query.state.data?.status;
-      // Keep polling while encoding, but not when we already have a playable src.
-      if (query.state.data?.playback?.src) return false;
-      return status === "encoding" || status === "failed" ? 8_000 : false;
+      const data = query.state.data;
+      if (!data) return 5_000;
+      // Keep polling until we have a truly playable source (Stream HLS or safe progressive).
+      if (data.status === "ready" && data.playback?.src && data.playable !== false) {
+        return false;
+      }
+      if (data.status === "encoding" || data.status === "failed" || !data.playback?.src) {
+        return 6_000;
+      }
+      return false;
     },
-    staleTime: 60_000,
+    staleTime: 4_000,
     retry: 1,
   });
 
-  const playbackUrl = playbackPayload?.playback?.src ?? null;
+  const playbackUrl =
+    playbackPayload?.status === "ready" ? (playbackPayload.playback?.src ?? null) : null;
   const playbackMime = playbackPayload?.playback?.type ?? null;
-  const playbackStatusMessage = playbackUrl
-    ? playbackPayload?.message ?? null
-    : playbackPayload?.message ||
-      (playbackPending
-        ? "Resolving playback…"
-        : playbackIsError
-          ? playbackError instanceof Error
-            ? playbackError.message
-            : "Could not resolve playback"
+  const playbackStatusMessage =
+    playbackPayload?.message ||
+    (playbackPending
+      ? "Resolving playback…"
+      : playbackIsError
+        ? playbackError instanceof Error
+          ? playbackError.message
+          : "Could not resolve playback"
+        : playbackPayload?.status === "encoding"
+          ? "Preparing playback…"
           : "Playback not ready");
 
   const createReviewMutation = useMutation({
@@ -182,6 +194,7 @@ export function EditReviewStudio({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+        credentials: "include",
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error((j as { error?: string }).error || "Could not save comment");
@@ -190,6 +203,10 @@ export function EditReviewStudio({
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["project-reviews", projectId] });
       setCommentBody("");
+      setCommentError(null);
+    },
+    onError: (err) => {
+      setCommentError(err instanceof Error ? err.message : "Could not save comment");
     },
   });
 
@@ -208,6 +225,24 @@ export function EditReviewStudio({
     },
   });
 
+  const deleteVersionMutation = useMutation({
+    mutationFn: async (assetId: string) => {
+      const res = await fetch(
+        `/api/creator/projects/${projectId}/footage?id=${encodeURIComponent(assetId)}`,
+        { method: "DELETE", credentials: "include" },
+      );
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((j as { error?: string }).error || "Could not delete version");
+      return j;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["project-reviews", projectId] });
+      void queryClient.invalidateQueries({ queryKey: ["project-footage", projectId] });
+      void queryClient.invalidateQueries({ queryKey: ["edit-review-playback", projectId] });
+      setSelectedReviewId(null);
+    },
+  });
+
   const handleUpload = useCallback(
     async (files: FileList | null) => {
       if (!files?.length || !projectId) return;
@@ -216,7 +251,17 @@ export function EditReviewStudio({
       uploadAbortRef.current?.abort();
       const abort = new AbortController();
       uploadAbortRef.current = abort;
-      const timeoutId = window.setTimeout(() => abort.abort(), UPLOAD_TIMEOUT_MS);
+      userCancelledRef.current = false;
+      lastProgressAtRef.current = Date.now();
+      lastProgressPctRef.current = 0;
+
+      const stallTimer = window.setInterval(() => {
+        if (userCancelledRef.current || abort.signal.aborted) return;
+        const idle = Date.now() - lastProgressAtRef.current;
+        if (idle >= UPLOAD_STALL_MS && lastProgressPctRef.current < 100) {
+          abort.abort();
+        }
+      }, 15_000);
 
       setUploading(true);
       setUploadProgress(0);
@@ -224,7 +269,13 @@ export function EditReviewStudio({
       try {
         const fileUrl = await uploadContentMediaViaApi(file, {
           signal: abort.signal,
-          onProgress: (pct) => setUploadProgress(pct),
+          onProgress: (pct) => {
+            if (pct > lastProgressPctRef.current) {
+              lastProgressPctRef.current = pct;
+              lastProgressAtRef.current = Date.now();
+            }
+            setUploadProgress(pct);
+          },
         });
         if (abort.signal.aborted) throw new Error("Upload cancelled");
 
@@ -238,7 +289,7 @@ export function EditReviewStudio({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ type: "EDIT", label, fileUrl }),
-          signal: abort.signal,
+          credentials: "include",
         });
         const footageJson = await footageRes.json().catch(() => ({}));
         if (!footageRes.ok) {
@@ -256,17 +307,22 @@ export function EditReviewStudio({
         setUploadLabel("");
       } catch (e) {
         console.error(e);
-        const aborted =
-          (e instanceof DOMException && e.name === "AbortError") ||
-          (e instanceof Error && /abort|cancel/i.test(e.message));
-        const message = aborted
-          ? "Upload timed out or was cancelled. Try a smaller H.264 MP4."
-          : e instanceof Error
-            ? e.message
-            : "Upload failed";
-        setUploadError(message);
+        if (userCancelledRef.current) {
+          setUploadError("Upload cancelled.");
+        } else {
+          const aborted =
+            (e instanceof DOMException && e.name === "AbortError") ||
+            (e instanceof Error && /abort|cancel/i.test(e.message));
+          setUploadError(
+            aborted
+              ? "Upload stalled (no progress for 5 minutes). Check your connection and try again — large masters can take a while; prefer H.264 MP4."
+              : e instanceof Error
+                ? e.message
+                : "Upload failed",
+          );
+        }
       } finally {
-        window.clearTimeout(timeoutId);
+        window.clearInterval(stallTimer);
         if (uploadAbortRef.current === abort) uploadAbortRef.current = null;
         setUploading(false);
         setUploadProgress(null);
@@ -307,7 +363,7 @@ export function EditReviewStudio({
           <p className="creator-tool-workspace-eyebrow">Post-production workspace</p>
           <h2 className="creator-tool-workspace-title">{title}</h2>
           <p className="creator-tool-workspace-description">
-            Link a project to upload edit versions and run Frame.io-style timed review sessions.
+            Link a project to upload edit versions and leave timed comments on the cut.
           </p>
         </header>
       </div>
@@ -326,17 +382,21 @@ export function EditReviewStudio({
   return (
     <div className="edit-review-studio flex min-h-[calc(100vh-8rem)] flex-col overflow-hidden rounded-xl border border-white/10 bg-black">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
-        <div>
+        <div className="min-w-0">
           <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-orange-300/80">
             Edit review
           </p>
           <h2 className="text-lg font-semibold text-white">{title}</h2>
+          <p className="mt-0.5 max-w-xl text-[11px] text-slate-500">
+            Upload an H.264 MP4 for instant playback. Leave comments at the playhead. Delete a
+            version anytime if you uploaded the wrong file.
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Input
             value={uploadLabel}
             onChange={(e) => setUploadLabel(e.target.value)}
-            placeholder="Version label (e.g. Rough Cut v2 · H.264 MP4)"
+            placeholder="Version label (e.g. Rough Cut v2)"
             className="h-8 w-52 border-white/10 bg-black/40 text-xs text-white md:w-64"
           />
           <input
@@ -370,7 +430,10 @@ export function EditReviewStudio({
               size="sm"
               variant="ghost"
               className="h-8 text-xs text-slate-400 hover:text-white"
-              onClick={() => uploadAbortRef.current?.abort()}
+              onClick={() => {
+                userCancelledRef.current = true;
+                uploadAbortRef.current?.abort();
+              }}
             >
               Cancel
             </Button>
@@ -391,7 +454,6 @@ export function EditReviewStudio({
       ) : null}
 
       <div className="flex min-h-0 flex-1">
-        {/* Asset sidebar */}
         <aside className="flex w-56 shrink-0 flex-col border-r border-white/10 bg-black md:w-64">
           <div className="border-b border-white/10 p-3">
             <p className="text-xs font-medium text-slate-400">Versions</p>
@@ -417,7 +479,7 @@ export function EditReviewStudio({
           <div className="flex-1 space-y-1 overflow-y-auto p-2">
             {filteredReviews.length === 0 && edits.length === 0 ? (
               <p className="px-2 py-6 text-center text-xs text-slate-500">
-                Upload your first edit to start review.
+                Upload your first edit (H.264 MP4) to start review.
               </p>
             ) : null}
 
@@ -425,43 +487,88 @@ export function EditReviewStudio({
               const active = review.id === selectedReviewId;
               const status = parseReviewStatus(review.status);
               return (
-                <button
+                <div
                   key={review.id}
-                  type="button"
-                  onClick={() => setSelectedReviewId(review.id)}
                   className={cn(
-                    "w-full rounded-lg border px-3 py-2.5 text-left transition",
+                    "group relative w-full rounded-lg border transition",
                     active
                       ? "border-orange-400/40 bg-orange-500/10"
                       : "border-white/10 bg-white/[0.02] hover:border-white/20",
                   )}
                 >
-                  <div className="flex items-start gap-2">
-                    <Film className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm text-white">
-                        {review.title || review.cutAsset?.label || "Untitled edit"}
-                      </p>
-                      <p className="mt-0.5 text-[10px] text-slate-500">
-                        {status.replace(/_/g, " ").toLowerCase()} · {review.notes.length} comments
-                      </p>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedReviewId(review.id)}
+                    className="w-full px-3 py-2.5 text-left"
+                  >
+                    <div className="flex items-start gap-2 pr-6">
+                      <Film className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm text-white">
+                          {review.title || review.cutAsset?.label || "Untitled edit"}
+                        </p>
+                        <p className="mt-0.5 text-[10px] text-slate-500">
+                          {status.replace(/_/g, " ").toLowerCase()} · {review.notes.length} comments
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                </button>
+                  </button>
+                  {review.cutAsset?.id ? (
+                    <button
+                      type="button"
+                      title="Delete this version"
+                      className="absolute right-1.5 top-1.5 rounded p-1 text-slate-600 opacity-0 transition hover:bg-red-500/15 hover:text-red-300 group-hover:opacity-100"
+                      disabled={deleteVersionMutation.isPending}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (
+                          !window.confirm(
+                            "Delete this edit version and its comments? This cannot be undone.",
+                          )
+                        ) {
+                          return;
+                        }
+                        deleteVersionMutation.mutate(review.cutAsset!.id, {
+                          onError: (err) => {
+                            alert(err instanceof Error ? err.message : "Delete failed");
+                          },
+                        });
+                      }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  ) : null}
+                </div>
               );
             })}
 
             {edits
               .filter((e) => !reviews.some((r) => r.cutAssetId === e.id))
               .map((edit) => (
-                <button
+                <div
                   key={edit.id}
-                  type="button"
-                  onClick={() => void startReviewForEdit(edit)}
-                  className="w-full rounded-lg border border-dashed border-white/15 px-3 py-2.5 text-left text-xs text-slate-400 hover:border-white/25 hover:text-slate-200"
+                  className="group relative rounded-lg border border-dashed border-white/15"
                 >
-                  {edit.label || edit.id.slice(0, 8)} — start review
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => void startReviewForEdit(edit)}
+                    className="w-full px-3 py-2.5 text-left text-xs text-slate-400 hover:text-slate-200"
+                  >
+                    {edit.label || edit.id.slice(0, 8)} — start review
+                  </button>
+                  <button
+                    type="button"
+                    title="Delete asset"
+                    className="absolute right-1.5 top-1.5 rounded p-1 text-slate-600 opacity-0 transition hover:bg-red-500/15 hover:text-red-300 group-hover:opacity-100"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!window.confirm("Delete this uploaded file?")) return;
+                      deleteVersionMutation.mutate(edit.id);
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               ))}
           </div>
 
@@ -470,12 +577,11 @@ export function EditReviewStudio({
               href={`/creator/projects/${projectId}/post-production/footage-ingestion`}
               className="text-orange-400 hover:underline"
             >
-              Footage ingestion →
+              Manage all footage →
             </Link>
           </div>
         </aside>
 
-        {/* Player */}
         <main className="flex min-w-0 flex-1 flex-col border-r border-white/10 p-4">
           {selectedReview ? (
             <>
@@ -517,7 +623,7 @@ export function EditReviewStudio({
                 </div>
               </div>
 
-              {playbackPending && !playbackUrl ? (
+              {playbackPending && !playbackUrl && playbackPayload?.status !== "encoding" ? (
                 <div className="flex aspect-video flex-col items-center justify-center gap-2 rounded-lg border border-white/10 bg-black/60 px-6 text-center">
                   <Loader2 className="h-8 w-8 animate-spin text-orange-300" />
                   <p className="text-sm text-slate-400">Resolving playback…</p>
@@ -556,20 +662,24 @@ export function EditReviewStudio({
               )}
               {playbackPayload?.status === "encoding" || playbackPayload?.status === "failed" ? (
                 <p className="mt-2 text-center text-[11px] text-amber-200/90">
-                  Tip: export a web-friendly <span className="font-medium">H.264 MP4</span> from your
-                  NLE for instant review while Stream finishes encoding masters.
+                  This file needs streaming encode (or is a camera master). For instant review,
+                  export <span className="font-medium">H.264 MP4</span> from Premiere / Resolve /
+                  Avid and upload that version.
                 </p>
               ) : null}
             </>
           ) : (
-            <div className="flex flex-1 flex-col items-center justify-center text-center">
-              <Film className="mb-3 h-10 w-10 text-slate-600" />
-              <p className="text-sm text-slate-400">Select a version or upload a new edit</p>
+            <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
+              <Film className="mb-1 h-10 w-10 text-slate-600" />
+              <p className="text-sm text-slate-300">Select a version or upload a new edit</p>
+              <p className="max-w-sm text-xs text-slate-500">
+                Best results: H.264 + AAC in an .mp4 container. .mov / ProRes will encode in the
+                background before they play in the browser.
+              </p>
             </div>
           )}
         </main>
 
-        {/* Comments */}
         <aside className="flex w-72 shrink-0 flex-col bg-black md:w-80">
           <div className="flex items-center gap-2 border-b border-white/10 px-4 py-3">
             <MessageSquare className="h-4 w-4 text-slate-500" />
@@ -616,11 +726,17 @@ export function EditReviewStudio({
               </div>
               <textarea
                 value={commentBody}
-                onChange={(e) => setCommentBody(e.target.value)}
+                onChange={(e) => {
+                  setCommentBody(e.target.value);
+                  setCommentError(null);
+                }}
                 placeholder="Leave a comment…"
                 rows={3}
                 className="w-full resize-none rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs text-white outline-none focus:border-orange-400/40"
               />
+              {commentError ? (
+                <p className="mt-1 text-[11px] text-red-300">{commentError}</p>
+              ) : null}
               <Button
                 type="button"
                 size="sm"
