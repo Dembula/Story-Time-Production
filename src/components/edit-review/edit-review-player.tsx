@@ -41,6 +41,17 @@ function isHlsSource(src: string, mimeType?: string | null) {
   );
 }
 
+/** Strip signing query noise so equivalent URLs don't remount the player. */
+function mediaIdentity(src: string): string {
+  try {
+    const u = new URL(src, typeof window !== "undefined" ? window.location.origin : "https://local");
+    // Keep path + host; drop signature / token query params that rotate.
+    return `${u.origin}${u.pathname}`;
+  } catch {
+    return src.split("?")[0] ?? src;
+  }
+}
+
 export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewPlayerProps>(
   function EditReviewPlayer(
     {
@@ -58,6 +69,10 @@ export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewP
     const videoRef = useRef<HTMLVideoElement>(null);
     const hlsRef = useRef<Hls | null>(null);
     const pendingSeekMs = useRef<number | null>(null);
+    const onTimeUpdateRef = useRef(onTimeUpdate);
+    const loadedIdentityRef = useRef<string | null>(null);
+    const userPlayingRef = useRef(false);
+
     const [playing, setPlaying] = useState(false);
     const [muted, setMuted] = useState(false);
     const [currentMs, setCurrentMs] = useState(0);
@@ -67,6 +82,10 @@ export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewP
     const [buffering, setBuffering] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
+    useEffect(() => {
+      onTimeUpdateRef.current = onTimeUpdate;
+    }, [onTimeUpdate]);
+
     const publishTime = useCallback(() => {
       const v = videoRef.current;
       if (!v) return;
@@ -74,8 +93,8 @@ export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewP
       const dur = Math.round((Number.isFinite(v.duration) ? v.duration : 0) * 1000);
       setCurrentMs(ms);
       if (dur > 0) setDurationMs(dur);
-      onTimeUpdate?.(ms, dur);
-    }, [onTimeUpdate]);
+      onTimeUpdateRef.current?.(ms, dur);
+    }, []);
 
     const checkDecodedFrame = useCallback(() => {
       const v = videoRef.current;
@@ -102,23 +121,6 @@ export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewP
           publishTime();
           setBuffering(false);
           checkDecodedFrame();
-          if (v.paused && v.videoWidth > 0) {
-            const wasMuted = v.muted;
-            v.muted = true;
-            void v
-              .play()
-              .then(() => {
-                requestAnimationFrame(() => {
-                  v.pause();
-                  v.muted = wasMuted;
-                  setPlaying(false);
-                  publishTime();
-                });
-              })
-              .catch(() => {
-                v.muted = wasMuted;
-              });
-          }
         };
 
         const run = () => {
@@ -138,7 +140,7 @@ export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewP
             setBuffering(false);
             return;
           }
-          window.setTimeout(done, 2000);
+          window.setTimeout(done, 1500);
         };
 
         if (v.readyState >= 1) run();
@@ -164,10 +166,12 @@ export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewP
         play: async () => {
           const v = videoRef.current;
           if (!v) return;
+          userPlayingRef.current = true;
           await v.play();
           setPlaying(true);
         },
         pause: () => {
+          userPlayingRef.current = false;
           videoRef.current?.pause();
           setPlaying(false);
         },
@@ -175,24 +179,48 @@ export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewP
       [applySeek],
     );
 
+    // ONLY remount media when the underlying asset changes — not when callbacks or
+    // rotated signed-URL query strings change (that was restarting playback every tick).
     useEffect(() => {
       const v = videoRef.current;
+      const identity = src ? mediaIdentity(src) : null;
+
+      if (!v || !src || !identity) {
+        hlsRef.current?.destroy();
+        hlsRef.current = null;
+        loadedIdentityRef.current = null;
+        setPlaying(false);
+        setCurrentMs(0);
+        setDurationMs(0);
+        setReady(false);
+        setHasFrame(false);
+        setBuffering(false);
+        setError(null);
+        if (v) {
+          v.removeAttribute("src");
+          v.load();
+        }
+        return;
+      }
+
+      if (loadedIdentityRef.current === identity && (v.src || hlsRef.current)) {
+        // Same media already attached — keep playing.
+        return;
+      }
+
       hlsRef.current?.destroy();
       hlsRef.current = null;
 
       setPlaying(false);
+      userPlayingRef.current = false;
       setCurrentMs(0);
       setDurationMs(0);
       setReady(false);
       setHasFrame(false);
       setError(null);
-      setBuffering(Boolean(src));
+      setBuffering(true);
       pendingSeekMs.current = null;
-
-      if (!v || !src) {
-        setBuffering(false);
-        return;
-      }
+      loadedIdentityRef.current = identity;
 
       let cancelled = false;
       const useHls = isHlsSource(src, mimeType);
@@ -205,21 +233,14 @@ export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewP
           );
           setBuffering(false);
         }
-      }, 20_000);
+      }, 25_000);
 
       const markReady = () => {
         if (cancelled) return;
         setReady(true);
         setBuffering(false);
         publishTime();
-        window.setTimeout(() => {
-          if (cancelled) return;
-          if (!checkDecodedFrame() && v.readyState >= 2 && v.duration > 0) {
-            setError(
-              "File loaded but no picture (unsupported codec). Upload an H.264 MP4 for browser review.",
-            );
-          }
-        }, 1500);
+        checkDecodedFrame();
         if (pendingSeekMs.current != null) {
           const ms = pendingSeekMs.current;
           pendingSeekMs.current = null;
@@ -234,8 +255,6 @@ export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewP
           return () => {
             cancelled = true;
             window.clearTimeout(stallTimer);
-            v.removeAttribute("src");
-            v.load();
           };
         }
         if (Hls.isSupported()) {
@@ -243,7 +262,8 @@ export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewP
             enableWorker: true,
             lowLatencyMode: false,
             startLevel: -1,
-            maxBufferLength: 45,
+            maxBufferLength: 60,
+            maxMaxBufferLength: 120,
             capLevelToPlayerSize: true,
           });
           hlsRef.current = hls;
@@ -266,8 +286,12 @@ export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewP
           return () => {
             cancelled = true;
             window.clearTimeout(stallTimer);
-            hls.destroy();
-            hlsRef.current = null;
+            // Only tear down if this effect instance still owns the media.
+            if (loadedIdentityRef.current === identity) {
+              hls.destroy();
+              hlsRef.current = null;
+              loadedIdentityRef.current = null;
+            }
           };
         }
         setError("HLS is not supported in this browser.");
@@ -281,10 +305,27 @@ export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewP
       return () => {
         cancelled = true;
         window.clearTimeout(stallTimer);
-        v.removeAttribute("src");
-        v.load();
+        if (loadedIdentityRef.current === identity) {
+          // Don't wipe src on Strict Mode double-invoke if we're about to reattach same media —
+          // identity check above will no-op on re-entry. Only clear when unmounting for real.
+        }
       };
-    }, [src, mimeType, applySeek, publishTime, checkDecodedFrame]);
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: only src/mime identity
+    }, [src, mimeType]);
+
+    // Cleanup on unmount only
+    useEffect(() => {
+      return () => {
+        hlsRef.current?.destroy();
+        hlsRef.current = null;
+        loadedIdentityRef.current = null;
+        const v = videoRef.current;
+        if (v) {
+          v.removeAttribute("src");
+          v.load();
+        }
+      };
+    }, []);
 
     const togglePlay = useCallback(async () => {
       const v = videoRef.current;
@@ -292,16 +333,19 @@ export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewP
       setError(null);
       if (v.paused) {
         try {
+          userPlayingRef.current = true;
           await v.play();
           setPlaying(true);
           setBuffering(false);
           checkDecodedFrame();
         } catch (err) {
           console.error(err);
+          userPlayingRef.current = false;
           setError("Playback blocked or failed. Click play again.");
           setBuffering(false);
         }
       } else {
+        userPlayingRef.current = false;
         v.pause();
         setPlaying(false);
       }
@@ -366,10 +410,13 @@ export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewP
               setBuffering(false);
               checkDecodedFrame();
             }}
-            onWaiting={() => setBuffering(true)}
+            onWaiting={() => {
+              if (userPlayingRef.current) setBuffering(true);
+            }}
             onPlaying={() => {
               setBuffering(false);
               setPlaying(true);
+              userPlayingRef.current = true;
               checkDecodedFrame();
               setError(null);
             }}
@@ -383,8 +430,20 @@ export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewP
               setBuffering(false);
               checkDecodedFrame();
             }}
-            onPlay={() => setPlaying(true)}
-            onPause={() => setPlaying(false)}
+            onPlay={() => {
+              setPlaying(true);
+              userPlayingRef.current = true;
+            }}
+            onPause={() => {
+              setPlaying(false);
+              // Don't clear userPlayingRef here — brief pauses during buffer are fine;
+              // only togglePlay/pause() should mark intentional pause.
+            }}
+            onEnded={() => {
+              userPlayingRef.current = false;
+              setPlaying(false);
+              publishTime();
+            }}
             onError={() => {
               console.error("edit review video error", videoRef.current?.error);
               setError(
@@ -411,8 +470,12 @@ export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewP
                 onClick={() => {
                   setError(null);
                   setBuffering(true);
+                  loadedIdentityRef.current = null;
                   const v = videoRef.current;
-                  if (v && src) v.load();
+                  if (v && src) {
+                    v.src = src;
+                    v.load();
+                  }
                 }}
               >
                 Retry

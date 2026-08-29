@@ -67,7 +67,7 @@ export function EditReviewStudio({
       `/api/creator/projects/${projectId}/reviews`,
     ),
     enabled: hasProject,
-    refetchInterval: 12_000,
+    refetchInterval: 45_000,
   });
 
   const { data: footageData, isLoading: footageLoading } = useQuery({
@@ -102,6 +102,11 @@ export function EditReviewStudio({
 
   const cutAssetId = selectedReview?.cutAsset?.id ?? null;
 
+  const playheadMsRef = useRef(0);
+  const stablePlaybackAssetRef = useRef<string | null>(null);
+  const stablePlaybackSrcRef = useRef<string | null>(null);
+  const stablePlaybackMimeRef = useRef<string | null>(null);
+
   const {
     data: playbackPayload,
     isPending: playbackPending,
@@ -127,7 +132,6 @@ export function EditReviewStudio({
     refetchInterval: (query) => {
       const data = query.state.data;
       if (!data) return 5_000;
-      // Keep polling until we have a truly playable source (Stream HLS or safe progressive).
       if (data.status === "ready" && data.playback?.src && data.playable !== false) {
         return false;
       }
@@ -136,14 +140,33 @@ export function EditReviewStudio({
       }
       return false;
     },
-    staleTime: 4_000,
+    staleTime: 30 * 60_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     retry: 1,
   });
 
+  // Pin the first playable URL per asset so rotating signed URLs never remount the player.
+  if (stablePlaybackAssetRef.current !== cutAssetId) {
+    stablePlaybackAssetRef.current = cutAssetId;
+    stablePlaybackSrcRef.current = null;
+    stablePlaybackMimeRef.current = null;
+  }
+  if (
+    playbackPayload?.status === "ready" &&
+    playbackPayload.playback?.src &&
+    !stablePlaybackSrcRef.current
+  ) {
+    stablePlaybackSrcRef.current = playbackPayload.playback.src;
+    stablePlaybackMimeRef.current = playbackPayload.playback.type ?? null;
+  }
+
   const playbackStatus = playbackPayload?.status;
   const playbackUrl =
-    playbackStatus === "ready" ? (playbackPayload?.playback?.src ?? null) : null;
-  const playbackMime = playbackPayload?.playback?.type ?? null;
+    stablePlaybackSrcRef.current ??
+    (playbackStatus === "ready" ? (playbackPayload?.playback?.src ?? null) : null);
+  const playbackMime =
+    stablePlaybackMimeRef.current ?? playbackPayload?.playback?.type ?? null;
   const showResolvingPlayback =
     playbackPending && !playbackUrl && playbackStatus !== "encoding";
   const playbackStatusMessage =
@@ -157,6 +180,11 @@ export function EditReviewStudio({
         : playbackStatus === "encoding"
           ? "Preparing playback…"
           : "Playback not ready");
+
+  const handleTimeUpdate = useCallback((ms: number) => {
+    playheadMsRef.current = ms;
+    setPlayheadMs(ms);
+  }, []);
 
   const createReviewMutation = useMutation({
     mutationFn: async (payload: { cutAssetId: string; title?: string }) => {
@@ -655,7 +683,7 @@ export function EditReviewStudio({
                   posterUrl={playbackPayload?.posterUrl}
                   statusMessage={playbackStatusMessage}
                   notes={sortedNotes}
-                  onTimeUpdate={(ms) => setPlayheadMs(ms)}
+                  onTimeUpdate={handleTimeUpdate}
                   onNoteMarkerClick={(note) => {
                     if (note.timestampMs != null) {
                       setPlayheadMs(note.timestampMs);
