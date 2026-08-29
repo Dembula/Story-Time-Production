@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isReadyStreamStatus } from "@/lib/content-approve-publish";
 
 async function ensureAccess(projectId: string) {
   const session = await getServerSession(authOptions);
@@ -42,6 +43,82 @@ async function ensureAccess(projectId: string) {
   return { error: null as NextResponse | null, userId };
 }
 
+const reviewInclude = {
+  cutAsset: true,
+  notes: {
+    orderBy: { createdAt: "asc" as const },
+    include: {
+      user: { select: { id: true, name: true, image: true } },
+    },
+  },
+};
+
+/** Merge ready StreamAsset URLs into FootageAsset.metadata for edit playback. */
+async function enrichReviewsWithStreamPlayback<
+  T extends {
+    cutAsset: { id: string; metadata: string | null; fileUrl: string } | null;
+  },
+>(reviews: T[]): Promise<T[]> {
+  const assetIds = reviews
+    .map((r) => r.cutAsset?.id)
+    .filter((id): id is string => Boolean(id));
+  if (assetIds.length === 0) return reviews;
+
+  const streams = await prisma.streamAsset.findMany({
+    where: {
+      entityType: "FootageAsset",
+      entityId: { in: assetIds },
+    },
+    select: {
+      entityId: true,
+      hlsUrl: true,
+      playbackUrl: true,
+      status: true,
+      uid: true,
+    },
+  });
+
+  const byAsset = new Map(
+    streams
+      .filter((s) => s.entityId && isReadyStreamStatus(s.status) && (s.hlsUrl || s.playbackUrl))
+      .map((s) => [s.entityId!, s]),
+  );
+
+  return reviews.map((review) => {
+    const asset = review.cutAsset;
+    if (!asset) return review;
+    const stream = byAsset.get(asset.id);
+    if (!stream) return review;
+
+    let meta: Record<string, unknown> = {};
+    if (asset.metadata?.trim()) {
+      try {
+        meta = JSON.parse(asset.metadata) as Record<string, unknown>;
+      } catch {
+        meta = {};
+      }
+    }
+    if (meta.hlsUrl || meta.playbackUrl) return review;
+
+    const enriched = {
+      ...meta,
+      hlsUrl: stream.hlsUrl ?? undefined,
+      playbackUrl: stream.playbackUrl ?? stream.hlsUrl ?? undefined,
+      proxyUrl: stream.playbackUrl ?? stream.hlsUrl ?? undefined,
+      streamUid: stream.uid,
+      streamStatus: stream.status,
+    };
+
+    return {
+      ...review,
+      cutAsset: {
+        ...asset,
+        metadata: JSON.stringify(enriched),
+      },
+    };
+  });
+}
+
 export async function GET(
   _req: NextRequest,
   context: { params: Promise<{ projectId: string }> },
@@ -53,18 +130,11 @@ export async function GET(
   const reviews = await prisma.postProductionReview.findMany({
     where: { projectId },
     orderBy: { createdAt: "desc" },
-    include: {
-      cutAsset: true,
-      notes: {
-        orderBy: { createdAt: "asc" },
-        include: {
-          user: { select: { id: true, name: true, image: true } },
-        },
-      },
-    },
+    include: reviewInclude,
   });
 
-  return NextResponse.json({ reviews });
+  const enriched = await enrichReviewsWithStreamPlayback(reviews);
+  return NextResponse.json({ reviews: enriched });
 }
 
 export async function POST(
@@ -92,9 +162,11 @@ export async function POST(
 
     const existing = await prisma.postProductionReview.findFirst({
       where: { projectId, cutAssetId: body.cutAssetId },
+      include: reviewInclude,
     });
     if (existing) {
-      return NextResponse.json({ review: existing }, { status: 200 });
+      const [enriched] = await enrichReviewsWithStreamPlayback([existing]);
+      return NextResponse.json({ review: enriched }, { status: 200 });
     }
   }
 
@@ -104,12 +176,7 @@ export async function POST(
       cutAssetId: body?.cutAssetId ?? null,
       title: body?.title?.trim() || null,
     },
-    include: {
-      cutAsset: true,
-      notes: {
-        include: { user: { select: { id: true, name: true, image: true } } },
-      },
-    },
+    include: reviewInclude,
   });
 
   return NextResponse.json({ review }, { status: 201 });
@@ -148,14 +215,9 @@ export async function PATCH(
       ...(body.status ? { status: body.status } : {}),
       ...(body.title !== undefined ? { title: body.title.trim() || null } : {}),
     },
-    include: {
-      cutAsset: true,
-      notes: {
-        orderBy: { createdAt: "asc" },
-        include: { user: { select: { id: true, name: true, image: true } } },
-      },
-    },
+    include: reviewInclude,
   });
 
-  return NextResponse.json({ review });
+  const [enriched] = await enrichReviewsWithStreamPlayback([review]);
+  return NextResponse.json({ review: enriched });
 }

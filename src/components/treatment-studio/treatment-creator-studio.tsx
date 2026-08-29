@@ -11,13 +11,19 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ChevronLeft,
+  Circle,
   Copy,
+  Download,
+  FileDown,
   LayoutTemplate,
   Loader2,
   MonitorPlay,
   MoreHorizontal,
+  Palette,
   Plus,
+  Square,
   Trash2,
+  Type,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,10 +34,23 @@ import {
   TreatmentSlideCanvas,
   TreatmentSlideThumbnail,
 } from "./treatment-slide-canvas";
-import { createSlide, newId, parseTreatmentDocument } from "@/lib/treatment-studio/document";
+import {
+  createImageElement,
+  createShapeElement,
+  createSlide,
+  createTextElement,
+  newId,
+  nextElementZIndex,
+  parseTreatmentDocument,
+} from "@/lib/treatment-studio/document";
+import {
+  downloadTreatmentPdf,
+  downloadTreatmentPptx,
+} from "@/lib/treatment-studio/export-treatment";
 import type {
   CreatorTreatmentRecord,
   TreatmentDocument,
+  TreatmentElement,
   TreatmentSlide,
   TreatmentSlideLayout,
 } from "@/lib/treatment-studio/types";
@@ -48,6 +67,21 @@ const LAYOUT_OPTIONS: { id: TreatmentSlideLayout; label: string }[] = [
   { id: "blank", label: "Blank" },
 ];
 
+const SLIDE_COLORS = [
+  "#ffffff",
+  "#f8fafc",
+  "#0f172a",
+  "#111827",
+  "#1e293b",
+  "#7c2d12",
+  "#14532d",
+  "#1e3a5f",
+  "#4c1d95",
+  "#fef3c7",
+  "#fee2e2",
+  "#ecfccb",
+];
+
 type TreatmentCreatorStudioProps = {
   projectId?: string;
   title?: string;
@@ -59,12 +93,17 @@ export function TreatmentCreatorStudio({
 }: TreatmentCreatorStudioProps) {
   const queryClient = useQueryClient();
   const [activeSlideId, setActiveSlideId] = useState<string | null>(null);
+  const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [assetsOpen, setAssetsOpen] = useState(true);
   const [presenting, setPresenting] = useState(false);
   const [layoutMenuOpen, setLayoutMenuOpen] = useState(false);
+  const [colorMenuOpen, setColorMenuOpen] = useState(false);
+  const [downloadMenuOpen, setDownloadMenuOpen] = useState(false);
+  const [exporting, setExporting] = useState<"pdf" | "pptx" | null>(null);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const dirtyRef = useRef(false);
   const localDocRef = useRef<TreatmentDocument | null>(null);
+  const hydratedTreatmentKey = useRef<string | null>(null);
 
   const treatmentsKey = ["creator-treatments", projectId ?? "standalone"];
 
@@ -87,15 +126,21 @@ export function TreatmentCreatorStudio({
 
   useEffect(() => {
     if (!treatment) return;
+    const key = `${treatment.id}:${treatment.updatedAt}`;
+    if (dirtyRef.current) return;
+    if (hydratedTreatmentKey.current === key) return;
+
     const parsed = parseTreatmentDocument(treatment.document);
     setDocTitle(treatment.title);
     setDocument(parsed);
     setUpdatedAt(treatment.updatedAt);
     localDocRef.current = parsed;
-    if (!activeSlideId && parsed.slides[0]) {
-      setActiveSlideId(parsed.slides[0].id);
-    }
-  }, [treatment, activeSlideId]);
+    hydratedTreatmentKey.current = key;
+    setActiveSlideId((prev) => {
+      if (prev && parsed.slides.some((s) => s.id === prev)) return prev;
+      return parsed.slides[0]?.id ?? null;
+    });
+  }, [treatment]);
 
   const activeSlide = useMemo(() => {
     if (!document || !activeSlideId) return document?.slides[0] ?? null;
@@ -103,6 +148,11 @@ export function TreatmentCreatorStudio({
   }, [document, activeSlideId]);
 
   const activeIndex = document?.slides.findIndex((s) => s.id === activeSlide?.id) ?? 0;
+
+  const selectedElement = useMemo(() => {
+    if (!activeSlide || !selectedElementId) return null;
+    return activeSlide.elements.find((el) => el.id === selectedElementId) ?? null;
+  }, [activeSlide, selectedElementId]);
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -142,6 +192,7 @@ export function TreatmentCreatorStudio({
     onSuccess: (result) => {
       dirtyRef.current = false;
       setUpdatedAt(result.treatment.updatedAt);
+      hydratedTreatmentKey.current = `${result.treatment.id}:${result.treatment.updatedAt}`;
       setSaveState("saved");
       void queryClient.invalidateQueries({ queryKey: treatmentsKey });
     },
@@ -166,9 +217,12 @@ export function TreatmentCreatorStudio({
   const markDirty = useCallback((next: TreatmentDocument) => {
     localDocRef.current = next;
     dirtyRef.current = true;
+    if (treatment) {
+      hydratedTreatmentKey.current = `${treatment.id}:`;
+    }
     setDocument(next);
     setSaveState("idle");
-  }, []);
+  }, [treatment]);
 
   const updateSlide = useCallback(
     (slideId: string, patch: Partial<TreatmentSlide>) => {
@@ -187,6 +241,7 @@ export function TreatmentCreatorStudio({
       const slide = createSlide(layout);
       markDirty({ ...document, slides: [...document.slides, slide] });
       setActiveSlideId(slide.id);
+      setSelectedElementId(null);
       setLayoutMenuOpen(false);
     },
     [document, markDirty],
@@ -199,12 +254,14 @@ export function TreatmentCreatorStudio({
       id: newId(),
       title: activeSlide.title ? `${activeSlide.title} (copy)` : activeSlide.title,
       elements: activeSlide.elements.map((el) => ({ ...el, id: newId() })),
+      referenceIds: [...activeSlide.referenceIds],
     };
     const idx = document.slides.findIndex((s) => s.id === activeSlide.id);
     const slides = [...document.slides];
     slides.splice(idx + 1, 0, copy);
     markDirty({ ...document, slides });
     setActiveSlideId(copy.id);
+    setSelectedElementId(null);
   }, [document, activeSlide, markDirty]);
 
   const deleteSlide = useCallback(() => {
@@ -212,26 +269,131 @@ export function TreatmentCreatorStudio({
     const slides = document.slides.filter((s) => s.id !== activeSlide.id);
     markDirty({ ...document, slides });
     setActiveSlideId(slides[Math.max(0, activeIndex - 1)]?.id ?? slides[0]?.id ?? null);
+    setSelectedElementId(null);
   }, [document, activeSlide, activeIndex, markDirty]);
+
+  const placeAssetOnSlide = useCallback(
+    (
+      assetId: string,
+      x = 18,
+      y = 18,
+      options?: { toggle?: boolean },
+    ) => {
+      if (!document || !activeSlide) return;
+
+      if (options?.toggle) {
+        const existingEl = activeSlide.elements.find(
+          (el) => el.type === "image" && el.referenceId === assetId,
+        );
+        if (existingEl) {
+          updateSlide(activeSlide.id, {
+            elements: activeSlide.elements.filter((el) => el.id !== existingEl.id),
+            referenceIds: activeSlide.referenceIds.filter((id) => id !== assetId),
+          });
+          setSelectedElementId(null);
+          return;
+        }
+      }
+
+      const z = nextElementZIndex(activeSlide.elements);
+      const el = createImageElement(assetId, { x, y, zIndex: z });
+      const referenceIds = activeSlide.referenceIds.includes(assetId)
+        ? activeSlide.referenceIds
+        : [...activeSlide.referenceIds, assetId];
+
+      updateSlide(activeSlide.id, {
+        referenceIds,
+        elements: [...activeSlide.elements, el],
+      });
+      setSelectedElementId(el.id);
+      setAssetsOpen(true);
+    },
+    [document, activeSlide, updateSlide],
+  );
 
   const toggleReference = useCallback(
     (assetId: string) => {
-      if (!document || !activeSlide) return;
-      const ids = activeSlide.referenceIds;
-      const next = ids.includes(assetId)
-        ? ids.filter((id) => id !== assetId)
-        : [...ids, assetId];
-      updateSlide(activeSlide.id, { referenceIds: next });
+      placeAssetOnSlide(assetId, 18, 18, { toggle: true });
     },
-    [document, activeSlide, updateSlide],
+    [placeAssetOnSlide],
   );
 
   const updateAssets = useCallback(
     (assets: TreatmentDocument["assets"]) => {
       if (!document) return;
-      markDirty({ ...document, assets });
+      const ids = new Set(assets.map((a) => a.id));
+      const slides = document.slides.map((slide) => ({
+        ...slide,
+        referenceIds: slide.referenceIds.filter((id) => ids.has(id)),
+        elements: slide.elements.filter(
+          (el) => !el.referenceId || ids.has(el.referenceId),
+        ),
+      }));
+      markDirty({ ...document, assets, slides });
     },
     [document, markDirty],
+  );
+
+  const addTextBox = useCallback(() => {
+    if (!activeSlide) return;
+    const el = createTextElement({
+      zIndex: nextElementZIndex(activeSlide.elements),
+    });
+    updateSlide(activeSlide.id, { elements: [...activeSlide.elements, el] });
+    setSelectedElementId(el.id);
+  }, [activeSlide, updateSlide]);
+
+  const addShape = useCallback(
+    (shape: "rect" | "ellipse") => {
+      if (!activeSlide) return;
+      const el = createShapeElement(shape, {
+        zIndex: nextElementZIndex(activeSlide.elements),
+      });
+      updateSlide(activeSlide.id, { elements: [...activeSlide.elements, el] });
+      setSelectedElementId(el.id);
+    },
+    [activeSlide, updateSlide],
+  );
+
+  const updateSelectedElement = useCallback(
+    (patch: Partial<TreatmentElement>) => {
+      if (!activeSlide || !selectedElementId) return;
+      updateSlide(activeSlide.id, {
+        elements: activeSlide.elements.map((el) =>
+          el.id === selectedElementId ? { ...el, ...patch } : el,
+        ),
+      });
+    },
+    [activeSlide, selectedElementId, updateSlide],
+  );
+
+  const runExport = useCallback(
+    async (format: "pdf" | "pptx") => {
+      if (!document) return;
+      setExporting(format);
+      setDownloadMenuOpen(false);
+      try {
+        if (dirtyRef.current) {
+          await persist();
+        }
+        const payload = {
+          title: docTitle.trim() || "Untitled Treatment",
+          document,
+          projectId,
+        };
+        if (format === "pdf") {
+          await downloadTreatmentPdf(payload);
+        } else {
+          await downloadTreatmentPptx(payload);
+        }
+      } catch (e) {
+        console.error(e);
+        alert(e instanceof Error ? e.message : "Export failed. Please try again.");
+      } finally {
+        setExporting(null);
+      }
+    },
+    [document, docTitle, projectId, persist],
   );
 
   useEffect(() => {
@@ -307,7 +469,6 @@ export function TreatmentCreatorStudio({
   return (
     <>
       <div className="treatment-studio flex min-h-[calc(100vh-8rem)] flex-col overflow-hidden rounded-xl border border-white/10 bg-black">
-        {/* Top bar */}
         <div className="flex flex-wrap items-center gap-3 border-b border-white/10 px-3 py-2.5 md:px-4">
           <Link
             href={projectId ? `/creator/pre-production` : "/creator/pre-production"}
@@ -322,6 +483,7 @@ export function TreatmentCreatorStudio({
             onChange={(e) => {
               setDocTitle(e.target.value);
               dirtyRef.current = true;
+              if (treatment) hydratedTreatmentKey.current = `${treatment.id}:`;
               setSaveState("idle");
             }}
             onBlur={() => {
@@ -342,14 +504,101 @@ export function TreatmentCreatorStudio({
                     : null}
           </span>
 
-          <div className="ml-auto flex flex-wrap items-center gap-2">
+          <div className="ml-auto flex flex-wrap items-center gap-1.5 md:gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 text-slate-300 hover:text-white"
+              onClick={addTextBox}
+              title="Add text box"
+            >
+              <Type className="mr-1.5 h-4 w-4" />
+              <span className="hidden sm:inline">Text</span>
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 text-slate-300 hover:text-white"
+              onClick={() => addShape("rect")}
+              title="Add rectangle"
+            >
+              <Square className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 text-slate-300 hover:text-white"
+              onClick={() => addShape("ellipse")}
+              title="Add ellipse"
+            >
+              <Circle className="h-4 w-4" />
+            </Button>
+
             <div className="relative">
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
                 className="h-8 text-slate-300 hover:text-white"
-                onClick={() => setLayoutMenuOpen((o) => !o)}
+                onClick={() => {
+                  setColorMenuOpen((o) => !o);
+                  setLayoutMenuOpen(false);
+                }}
+              >
+                <Palette className="mr-1.5 h-4 w-4" />
+                <span className="hidden sm:inline">Page</span>
+              </Button>
+              {colorMenuOpen ? (
+                <div className="absolute right-0 top-full z-20 mt-1 w-48 rounded-lg border border-white/10 bg-black p-2 shadow-xl">
+                  <p className="mb-2 px-1 text-[10px] uppercase tracking-wide text-slate-500">
+                    Slide background
+                  </p>
+                  <div className="grid grid-cols-6 gap-1.5">
+                    {SLIDE_COLORS.map((color) => (
+                      <button
+                        key={color}
+                        type="button"
+                        title={color}
+                        className={cn(
+                          "h-6 w-6 rounded border border-white/20",
+                          activeSlide.backgroundColor === color && "ring-2 ring-orange-400",
+                        )}
+                        style={{ backgroundColor: color }}
+                        onClick={() => {
+                          updateSlide(activeSlide.id, { backgroundColor: color });
+                          setColorMenuOpen(false);
+                        }}
+                      />
+                    ))}
+                  </div>
+                  <label className="mt-2 flex items-center gap-2 px-1 text-[10px] text-slate-400">
+                    Custom
+                    <input
+                      type="color"
+                      value={activeSlide.backgroundColor || "#ffffff"}
+                      onChange={(e) =>
+                        updateSlide(activeSlide.id, { backgroundColor: e.target.value })
+                      }
+                      className="h-6 w-10 cursor-pointer rounded border-0 bg-transparent"
+                    />
+                  </label>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="relative">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 text-slate-300 hover:text-white"
+                onClick={() => {
+                  setLayoutMenuOpen((o) => !o);
+                  setColorMenuOpen(false);
+                }}
               >
                 <LayoutTemplate className="mr-1.5 h-4 w-4" />
                 Layout
@@ -408,6 +657,62 @@ export function TreatmentCreatorStudio({
               Assets
             </Button>
 
+            <div className="relative">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 border-white/15 text-slate-200"
+                disabled={Boolean(exporting)}
+                onClick={() => {
+                  setDownloadMenuOpen((o) => !o);
+                  setLayoutMenuOpen(false);
+                  setColorMenuOpen(false);
+                }}
+              >
+                {exporting ? (
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="mr-1.5 h-4 w-4" />
+                )}
+                {exporting === "pdf"
+                  ? "PDF…"
+                  : exporting === "pptx"
+                    ? "PPTX…"
+                    : "Download"}
+              </Button>
+              {downloadMenuOpen ? (
+                <div className="absolute right-0 top-full z-20 mt-1 w-56 rounded-lg border border-white/10 bg-black py-1 shadow-xl">
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-xs text-slate-300 hover:bg-white/5 hover:text-white"
+                    onClick={() => void runExport("pdf")}
+                  >
+                    <FileDown className="h-4 w-4 text-orange-300" />
+                    <span>
+                      <span className="block font-medium text-white">PDF</span>
+                      <span className="text-[10px] text-slate-500">
+                        Print-ready landscape slides
+                      </span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-xs text-slate-300 hover:bg-white/5 hover:text-white"
+                    onClick={() => void runExport("pptx")}
+                  >
+                    <FileDown className="h-4 w-4 text-sky-300" />
+                    <span>
+                      <span className="block font-medium text-white">PowerPoint</span>
+                      <span className="text-[10px] text-slate-500">
+                        Editable .pptx with layout &amp; images
+                      </span>
+                    </span>
+                  </button>
+                </div>
+              ) : null}
+            </div>
+
             <Button
               type="button"
               size="sm"
@@ -425,6 +730,7 @@ export function TreatmentCreatorStudio({
               className="h-8 w-8 text-slate-500"
               onClick={() => void persist()}
               disabled={saveMutation.isPending}
+              title="Save now"
             >
               {saveMutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -435,8 +741,72 @@ export function TreatmentCreatorStudio({
           </div>
         </div>
 
+        {selectedElement?.type === "text" ? (
+          <div className="flex flex-wrap items-center gap-3 border-b border-white/10 bg-white/[0.02] px-4 py-2">
+            <span className="text-[10px] uppercase tracking-wide text-slate-500">Text</span>
+            <label className="flex items-center gap-1.5 text-xs text-slate-400">
+              Size
+              <input
+                type="number"
+                min={12}
+                max={96}
+                value={selectedElement.fontSize ?? 28}
+                onChange={(e) =>
+                  updateSelectedElement({ fontSize: Number(e.target.value) || 28 })
+                }
+                className="h-7 w-16 rounded border border-white/10 bg-black/40 px-2 text-white"
+              />
+            </label>
+            <label className="flex items-center gap-1.5 text-xs text-slate-400">
+              Color
+              <input
+                type="color"
+                value={selectedElement.color ?? "#0f172a"}
+                onChange={(e) => updateSelectedElement({ color: e.target.value })}
+                className="h-7 w-10 cursor-pointer rounded border-0 bg-transparent"
+              />
+            </label>
+            <select
+              value={selectedElement.align ?? "left"}
+              onChange={(e) =>
+                updateSelectedElement({
+                  align: e.target.value as "left" | "center" | "right",
+                })
+              }
+              className="h-7 rounded border border-white/10 bg-black/40 px-2 text-xs text-white"
+            >
+              <option value="left">Left</option>
+              <option value="center">Center</option>
+              <option value="right">Right</option>
+            </select>
+            <select
+              value={selectedElement.fontWeight ?? "600"}
+              onChange={(e) => updateSelectedElement({ fontWeight: e.target.value })}
+              className="h-7 rounded border border-white/10 bg-black/40 px-2 text-xs text-white"
+            >
+              <option value="400">Regular</option>
+              <option value="600">Semibold</option>
+              <option value="700">Bold</option>
+            </select>
+          </div>
+        ) : null}
+
+        {selectedElement?.type === "shape" ? (
+          <div className="flex flex-wrap items-center gap-3 border-b border-white/10 bg-white/[0.02] px-4 py-2">
+            <span className="text-[10px] uppercase tracking-wide text-slate-500">Shape</span>
+            <label className="flex items-center gap-1.5 text-xs text-slate-400">
+              Fill
+              <input
+                type="color"
+                value={selectedElement.fill ?? "#fb923c"}
+                onChange={(e) => updateSelectedElement({ fill: e.target.value })}
+                className="h-7 w-10 cursor-pointer rounded border-0 bg-transparent"
+              />
+            </label>
+          </div>
+        ) : null}
+
         <div className="flex min-h-0 flex-1">
-          {/* Slide navigator */}
           <aside className="flex w-36 shrink-0 flex-col border-r border-white/10 bg-black md:w-44">
             <div className="p-2">
               <Button
@@ -458,25 +828,34 @@ export function TreatmentCreatorStudio({
                   assets={document.assets}
                   index={i}
                   active={slide.id === activeSlide.id}
-                  onClick={() => setActiveSlideId(slide.id)}
+                  projectId={projectId}
+                  onClick={() => {
+                    setActiveSlideId(slide.id);
+                    setSelectedElementId(null);
+                  }}
                 />
               ))}
             </div>
           </aside>
 
-          {/* Canvas */}
           <main className="flex min-w-0 flex-1 flex-col items-center justify-center bg-[#050506] p-4 md:p-8">
             <TreatmentSlideCanvas
               slide={activeSlide}
               assets={document.assets}
               aspectRatio={document.settings.aspectRatio}
+              projectId={projectId}
+              selectedElementId={selectedElementId}
               onFieldChange={(patch) => updateSlide(activeSlide.id, patch)}
+              onElementsChange={(elements) => updateSlide(activeSlide.id, { elements })}
+              onSelectElement={setSelectedElementId}
+              onDropAsset={(assetId, x, y) => placeAssetOnSlide(assetId, x, y)}
             />
             <p className="mt-4 text-center text-xs text-slate-500">
               Slide {activeIndex + 1} of {document.slides.length}
               {activeSlide.layout !== "content" && activeSlide.layout !== "title"
                 ? ` · ${LAYOUT_OPTIONS.find((l) => l.id === activeSlide.layout)?.label} layout`
                 : ""}
+              {" · "}Drag to move · corners to resize · Del to remove
             </p>
           </main>
 
@@ -487,6 +866,7 @@ export function TreatmentCreatorStudio({
               onAssetsChange={updateAssets}
               onToggleReference={toggleReference}
               onClose={() => setAssetsOpen(false)}
+              projectId={projectId}
             />
           ) : null}
         </div>
@@ -496,6 +876,7 @@ export function TreatmentCreatorStudio({
         <TreatmentPresenter
           document={document}
           initialIndex={activeIndex}
+          projectId={projectId}
           onClose={() => setPresenting(false)}
         />
       ) : null}

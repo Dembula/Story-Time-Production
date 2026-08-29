@@ -19,12 +19,42 @@ function parseContext(req: NextRequest): SecureFileAccessContext | undefined {
   return { kind: "marketplace" };
 }
 
+function buildPreviewHeaders(stream: Awaited<ReturnType<typeof getStorageObjectStream>>) {
+  const headers = new Headers({
+    "Content-Type": stream.contentType,
+    "Cache-Control": "private, no-store, max-age=0",
+    "X-Content-Type-Options": "nosniff",
+    "Content-Disposition": "inline",
+    "Accept-Ranges": stream.acceptRanges,
+  });
+  if (stream.contentLength != null) {
+    headers.set("Content-Length", String(stream.contentLength));
+  }
+  if (stream.contentRange) {
+    headers.set("Content-Range", stream.contentRange);
+  }
+  return headers;
+}
+
+async function streamPreviewResponse(
+  ref: NonNullable<ReturnType<typeof resolveStorageObjectRef>>,
+  rangeHeader: string | null,
+) {
+  const stream = await getStorageObjectStream(ref, { rangeHeader });
+  return new NextResponse(stream.body as unknown as BodyInit, {
+    status: stream.statusCode,
+    headers: buildPreviewHeaders(stream),
+  });
+}
+
 /** Stream a platform storage object after auth — never expose the raw S3 bucket URL to the client. */
 export async function GET(req: NextRequest) {
   const fileRef = req.nextUrl.searchParams.get("ref");
   if (!fileRef?.trim()) {
     return NextResponse.json({ error: "ref is required" }, { status: 400 });
   }
+
+  const rangeHeader = req.headers.get("range");
 
   const portalToken = req.nextUrl.searchParams.get("portalToken");
   if (portalToken) {
@@ -40,15 +70,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     try {
-      const { body, contentType, contentLength } = await getStorageObjectStream(requested);
-      const headers = new Headers({
-        "Content-Type": contentType,
-        "Cache-Control": "private, no-store, max-age=0",
-        "X-Content-Type-Options": "nosniff",
-        "Content-Disposition": "inline",
-      });
-      if (contentLength != null) headers.set("Content-Length", String(contentLength));
-      return new NextResponse(body as unknown as BodyInit, { status: 200, headers });
+      return await streamPreviewResponse(requested, rangeHeader);
     } catch {
       return NextResponse.json({ error: "Could not load file" }, { status: 404 });
     }
@@ -66,17 +88,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const { body, contentType, contentLength } = await getStorageObjectStream(access.ref);
-    const headers = new Headers({
-      "Content-Type": contentType,
-      "Cache-Control": "private, no-store, max-age=0",
-      "X-Content-Type-Options": "nosniff",
-      "Content-Disposition": "inline",
-    });
-    if (contentLength != null) {
-      headers.set("Content-Length", String(contentLength));
-    }
-    return new NextResponse(body as unknown as BodyInit, { status: 200, headers });
+    return await streamPreviewResponse(access.ref, rangeHeader);
   } catch (error) {
     console.error("secure file preview failed", error);
     return NextResponse.json({ error: "Could not load file" }, { status: 404 });

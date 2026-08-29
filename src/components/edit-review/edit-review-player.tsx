@@ -8,7 +8,8 @@ import {
   useRef,
   useState,
 } from "react";
-import { Pause, Play, Volume2, VolumeX } from "lucide-react";
+import Hls from "hls.js";
+import { Loader2, Pause, Play, Volume2, VolumeX } from "lucide-react";
 import type { EditReviewNote } from "@/lib/edit-review/types";
 import { formatReviewTimecode } from "@/lib/edit-review/types";
 import { cn } from "@/lib/utils";
@@ -28,70 +29,206 @@ type EditReviewPlayerProps = {
   className?: string;
 };
 
+function isHlsUrl(url: string) {
+  return /\.m3u8(\?|$)/i.test(url) || url.includes("videodelivery.net") || url.includes("cloudflarestream.com");
+}
+
 export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewPlayerProps>(
   function EditReviewPlayer(
     { src, notes, onTimeUpdate, onNoteMarkerClick, className },
     ref,
   ) {
     const videoRef = useRef<HTMLVideoElement>(null);
+    const hlsRef = useRef<Hls | null>(null);
+    const pendingSeekMs = useRef<number | null>(null);
     const [playing, setPlaying] = useState(false);
     const [muted, setMuted] = useState(false);
     const [currentMs, setCurrentMs] = useState(0);
     const [durationMs, setDurationMs] = useState(0);
+    const [ready, setReady] = useState(false);
+    const [buffering, setBuffering] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-    useImperativeHandle(ref, () => ({
-      getCurrentTimeMs: () => Math.round((videoRef.current?.currentTime ?? 0) * 1000),
-      seekToMs: (ms: number) => {
-        if (videoRef.current) videoRef.current.currentTime = ms / 1000;
+    const handleTimeUpdate = useCallback(() => {
+      const v = videoRef.current;
+      if (!v) return;
+      const ms = Math.round(v.currentTime * 1000);
+      const dur = Math.round((Number.isFinite(v.duration) ? v.duration : 0) * 1000);
+      setCurrentMs(ms);
+      if (dur > 0) setDurationMs(dur);
+      onTimeUpdate?.(ms, dur);
+    }, [onTimeUpdate]);
+
+    const applySeek = useCallback(
+      (ms: number) => {
+        const v = videoRef.current;
+        if (!v) return;
+        const seconds = Math.max(0, ms / 1000);
+        const apply = () => {
+          try {
+            v.currentTime = seconds;
+          } catch {
+            pendingSeekMs.current = ms;
+            return;
+          }
+          const sync = () => {
+            handleTimeUpdate();
+            setBuffering(false);
+          };
+          if (v.readyState >= 2) {
+            sync();
+          } else {
+            setBuffering(true);
+            const onSeeked = () => {
+              v.removeEventListener("seeked", onSeeked);
+              sync();
+            };
+            v.addEventListener("seeked", onSeeked);
+          }
+        };
+
+        if (v.readyState >= 1) {
+          apply();
+        } else {
+          pendingSeekMs.current = ms;
+          setBuffering(true);
+          const onMeta = () => {
+            v.removeEventListener("loadedmetadata", onMeta);
+            const target = pendingSeekMs.current;
+            pendingSeekMs.current = null;
+            if (target != null) {
+              try {
+                v.currentTime = target / 1000;
+              } catch {
+                /* ignore */
+              }
+            }
+            handleTimeUpdate();
+            setBuffering(false);
+          };
+          v.addEventListener("loadedmetadata", onMeta);
+        }
       },
-      play: async () => {
-        await videoRef.current?.play();
-        setPlaying(true);
-      },
-      pause: () => {
-        videoRef.current?.pause();
-        setPlaying(false);
-      },
-    }));
+      [handleTimeUpdate],
+    );
+
+    useImperativeHandle(
+      ref,
+      () => ({
+        getCurrentTimeMs: () => Math.round((videoRef.current?.currentTime ?? 0) * 1000),
+        seekToMs: (ms: number) => applySeek(ms),
+        play: async () => {
+          await videoRef.current?.play();
+          setPlaying(true);
+        },
+        pause: () => {
+          videoRef.current?.pause();
+          setPlaying(false);
+        },
+      }),
+      [applySeek],
+    );
+
+    useEffect(() => {
+      const v = videoRef.current;
+      hlsRef.current?.destroy();
+      hlsRef.current = null;
+      setPlaying(false);
+      setCurrentMs(0);
+      setDurationMs(0);
+      setReady(false);
+      setError(null);
+      setBuffering(Boolean(src));
+      pendingSeekMs.current = null;
+
+      if (!v || !src) {
+        setBuffering(false);
+        return;
+      }
+
+      const useHls = isHlsUrl(src);
+
+      if (useHls) {
+        if (v.canPlayType("application/vnd.apple.mpegurl")) {
+          v.src = src;
+          return () => {
+            v.removeAttribute("src");
+            v.load();
+          };
+        }
+        if (Hls.isSupported()) {
+          const hls = new Hls({
+            enableWorker: true,
+            lowLatencyMode: false,
+            startLevel: -1,
+          });
+          hlsRef.current = hls;
+          hls.loadSource(src);
+          hls.attachMedia(v);
+          hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            setReady(true);
+            setBuffering(false);
+            if (pendingSeekMs.current != null) {
+              const ms = pendingSeekMs.current;
+              pendingSeekMs.current = null;
+              applySeek(ms);
+            }
+          });
+          hls.on(Hls.Events.ERROR, (_evt, data) => {
+            if (!data.fatal) return;
+            if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+              hls.startLoad();
+              return;
+            }
+            if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+              hls.recoverMediaError();
+              return;
+            }
+            setError("Could not play this edit. Try re-uploading or wait for encoding.");
+            setBuffering(false);
+          });
+          return () => {
+            hls.destroy();
+            hlsRef.current = null;
+          };
+        }
+        setError("HLS playback is not supported in this browser.");
+        setBuffering(false);
+        return;
+      }
+
+      v.src = src;
+      v.load();
+      return () => {
+        v.removeAttribute("src");
+        v.load();
+      };
+    }, [src, applySeek]);
 
     const togglePlay = useCallback(async () => {
       const v = videoRef.current;
       if (!v) return;
       if (v.paused) {
-        await v.play();
-        setPlaying(true);
+        try {
+          await v.play();
+          setPlaying(true);
+        } catch {
+          setError("Playback was blocked. Click play again.");
+        }
       } else {
         v.pause();
         setPlaying(false);
       }
     }, []);
 
-    const handleTimeUpdate = useCallback(() => {
-      const v = videoRef.current;
-      if (!v) return;
-      const ms = Math.round(v.currentTime * 1000);
-      const dur = Math.round((v.duration || 0) * 1000);
-      setCurrentMs(ms);
-      if (dur > 0) setDurationMs(dur);
-      onTimeUpdate?.(ms, dur);
-    }, [onTimeUpdate]);
-
     const seekFromProgress = useCallback(
       (clientX: number, rect: DOMRect) => {
-        const v = videoRef.current;
-        if (!v || !durationMs) return;
+        if (!durationMs) return;
         const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
-        v.currentTime = (durationMs / 1000) * ratio;
-        handleTimeUpdate();
+        applySeek(durationMs * ratio);
       },
-      [durationMs, handleTimeUpdate],
+      [durationMs, applySeek],
     );
-
-    useEffect(() => {
-      setPlaying(false);
-      setCurrentMs(0);
-      setDurationMs(0);
-    }, [src]);
 
     if (!src) {
       return (
@@ -114,15 +251,53 @@ export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewP
         <div className="relative overflow-hidden rounded-lg border border-white/10 bg-black">
           <video
             ref={videoRef}
-            src={src}
             className="aspect-video w-full bg-black"
             playsInline
+            preload="auto"
             onTimeUpdate={handleTimeUpdate}
-            onLoadedMetadata={handleTimeUpdate}
+            onLoadedMetadata={() => {
+              handleTimeUpdate();
+              setReady(true);
+              setBuffering(false);
+              if (pendingSeekMs.current != null) {
+                const ms = pendingSeekMs.current;
+                pendingSeekMs.current = null;
+                applySeek(ms);
+              }
+            }}
+            onWaiting={() => setBuffering(true)}
+            onPlaying={() => {
+              setBuffering(false);
+              setPlaying(true);
+            }}
+            onCanPlay={() => {
+              setReady(true);
+              setBuffering(false);
+            }}
+            onSeeked={() => {
+              handleTimeUpdate();
+              setBuffering(false);
+            }}
             onPlay={() => setPlaying(true)}
             onPause={() => setPlaying(false)}
+            onError={() => {
+              setError("Video failed to load. Check the file or wait for stream encoding.");
+              setBuffering(false);
+            }}
             onClick={() => void togglePlay()}
           />
+
+          {(buffering || !ready) && !error ? (
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/40">
+              <Loader2 className="h-8 w-8 animate-spin text-orange-300" />
+            </div>
+          ) : null}
+
+          {error ? (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/80 px-6 text-center">
+              <p className="text-sm text-slate-300">{error}</p>
+            </div>
+          ) : null}
 
           <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-3 pb-3 pt-10">
             <div
@@ -139,7 +314,7 @@ export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewP
                 style={{ width: `${progress}%` }}
               />
               {timedNotes.map((note) => {
-                if (!note.timestampMs || !durationMs) return null;
+                if (note.timestampMs == null || !durationMs) return null;
                 const left = (note.timestampMs / durationMs) * 100;
                 return (
                   <button
@@ -150,10 +325,7 @@ export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewP
                     style={{ left: `${left}%` }}
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (note.timestampMs != null) {
-                        videoRef.current!.currentTime = note.timestampMs / 1000;
-                        handleTimeUpdate();
-                      }
+                      applySeek(note.timestampMs!);
                       onNoteMarkerClick?.(note);
                     }}
                   />

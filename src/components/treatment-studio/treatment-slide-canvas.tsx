@@ -1,12 +1,17 @@
 "use client";
 
+import { useCallback, useEffect, useRef, useState } from "react";
 import { SecureImage } from "@/components/files/secure-image";
+import { resolveRenderableFileSource } from "@/lib/secure-file-preview-path";
 import { cn } from "@/lib/utils";
 import type {
   TreatmentAsset,
+  TreatmentElement,
   TreatmentSlide,
   TreatmentSlideLayout,
 } from "@/lib/treatment-studio/types";
+
+export const TREATMENT_ASSET_MIME = "application/x-treatment-asset";
 
 type TreatmentSlideCanvasProps = {
   slide: TreatmentSlide;
@@ -14,7 +19,12 @@ type TreatmentSlideCanvasProps = {
   aspectRatio?: "16:9" | "4:3";
   readOnly?: boolean;
   className?: string;
+  selectedElementId?: string | null;
   onFieldChange?: (patch: Partial<TreatmentSlide>) => void;
+  onElementsChange?: (elements: TreatmentElement[]) => void;
+  onSelectElement?: (elementId: string | null) => void;
+  onDropAsset?: (assetId: string, xPercent: number, yPercent: number) => void;
+  projectId?: string;
 };
 
 function assetMap(assets: TreatmentAsset[]) {
@@ -25,10 +35,12 @@ function SlideReferences({
   referenceIds,
   assets,
   compact,
+  projectId,
 }: {
   referenceIds: string[];
   assets: TreatmentAsset[];
   compact?: boolean;
+  projectId?: string;
 }) {
   const map = assetMap(assets);
   const refs = referenceIds.map((id) => map.get(id)).filter(Boolean) as TreatmentAsset[];
@@ -49,11 +61,12 @@ function SlideReferences({
     >
       {refs.map((ref) => (
         <figure key={ref.id} className="overflow-hidden rounded-md bg-slate-100">
-          {ref.type === "image" ? (
+          {ref.type === "image" || ref.type === "video" ? (
             <SecureImage
-              fileRef={ref.url}
+              fileRef={ref.thumbnailUrl || ref.url}
               alt={ref.title || "Reference"}
               className="aspect-video w-full object-cover"
+              projectId={projectId}
             />
           ) : (
             <div className="flex aspect-video items-center justify-center bg-slate-200 px-2 text-center text-xs text-slate-600">
@@ -123,6 +136,7 @@ function layoutContent(
   assets: TreatmentAsset[],
   readOnly: boolean,
   onFieldChange?: (patch: Partial<TreatmentSlide>) => void,
+  projectId?: string,
 ) {
   const change = (patch: Partial<TreatmentSlide>) => {
     if (!readOnly) onFieldChange?.(patch);
@@ -173,17 +187,19 @@ function layoutContent(
             />
           </div>
           <div className="flex items-center justify-center">
-            {heroRef?.type === "image" ? (
+            {heroRef?.type === "image" || heroRef?.type === "video" ? (
               <SecureImage
-                fileRef={heroRef.url}
+                fileRef={heroRef.thumbnailUrl || heroRef.url}
                 alt={heroRef.title || "Reference"}
                 className="max-h-full w-full rounded-lg object-cover shadow-md"
+                projectId={projectId}
               />
             ) : (
               <SlideReferences
                 referenceIds={slide.referenceIds.slice(0, 1)}
                 assets={assets}
                 compact
+                projectId={projectId}
               />
             )}
           </div>
@@ -197,11 +213,12 @@ function layoutContent(
         : undefined;
       return (
         <div className="relative flex h-full flex-col">
-          {heroRef?.type === "image" ? (
+          {heroRef?.type === "image" || heroRef?.type === "video" ? (
             <SecureImage
-              fileRef={heroRef.url}
+              fileRef={heroRef.thumbnailUrl || heroRef.url}
               alt={heroRef.title || "Reference"}
               className="h-full w-full object-cover"
+              projectId={projectId}
             />
           ) : (
             <div className="flex flex-1 items-center justify-center bg-slate-100 text-slate-400">
@@ -232,13 +249,17 @@ function layoutContent(
             onChange={(title) => change({ title })}
             className="mb-4 text-2xl font-semibold text-slate-900"
           />
-          <SlideReferences referenceIds={slide.referenceIds} assets={assets} />
+          <SlideReferences
+            referenceIds={slide.referenceIds}
+            assets={assets}
+            projectId={projectId}
+          />
         </div>
       );
     case "blank":
       return (
-        <div className="flex h-full items-center justify-center p-8 text-sm text-slate-400">
-          {readOnly ? null : "Blank canvas — add references or switch layout"}
+        <div className="pointer-events-none flex h-full items-center justify-center p-8 text-sm text-slate-400">
+          {readOnly ? null : "Blank canvas — drop references or add text"}
         </div>
       );
     case "content":
@@ -265,24 +286,365 @@ function layoutContent(
   }
 }
 
+type DragMode = "move" | "resize-se" | "resize-e" | "resize-s";
+
+function FreeformElement({
+  element,
+  asset,
+  selected,
+  readOnly,
+  projectId,
+  onSelect,
+  onChange,
+  onDelete,
+}: {
+  element: TreatmentElement;
+  asset?: TreatmentAsset;
+  selected: boolean;
+  readOnly: boolean;
+  projectId?: string;
+  onSelect: () => void;
+  onChange: (patch: Partial<TreatmentElement>) => void;
+  onDelete: () => void;
+}) {
+  const [editingText, setEditingText] = useState(false);
+  const dragRef = useRef<{
+    mode: DragMode;
+    startX: number;
+    startY: number;
+    origX: number;
+    origY: number;
+    origW: number;
+    origH: number;
+    parentW: number;
+    parentH: number;
+  } | null>(null);
+
+  const onPointerDown = (e: React.PointerEvent, mode: DragMode) => {
+    if (readOnly) return;
+    e.stopPropagation();
+    e.preventDefault();
+    onSelect();
+    const parent = (e.currentTarget as HTMLElement).closest(
+      "[data-treatment-canvas]",
+    ) as HTMLElement | null;
+    if (!parent) return;
+    const rect = parent.getBoundingClientRect();
+    dragRef.current = {
+      mode,
+      startX: e.clientX,
+      startY: e.clientY,
+      origX: element.x,
+      origY: element.y,
+      origW: element.width,
+      origH: element.height,
+      parentW: rect.width,
+      parentH: rect.height,
+    };
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    const drag = dragRef.current;
+    if (!drag) return;
+    const dx = ((e.clientX - drag.startX) / drag.parentW) * 100;
+    const dy = ((e.clientY - drag.startY) / drag.parentH) * 100;
+
+    if (drag.mode === "move") {
+      onChange({
+        x: Math.min(95, Math.max(-5, drag.origX + dx)),
+        y: Math.min(95, Math.max(-5, drag.origY + dy)),
+      });
+      return;
+    }
+    if (drag.mode === "resize-se") {
+      onChange({
+        width: Math.min(100, Math.max(8, drag.origW + dx)),
+        height: Math.min(100, Math.max(6, drag.origH + dy)),
+      });
+      return;
+    }
+    if (drag.mode === "resize-e") {
+      onChange({ width: Math.min(100, Math.max(8, drag.origW + dx)) });
+      return;
+    }
+    if (drag.mode === "resize-s") {
+      onChange({ height: Math.min(100, Math.max(6, drag.origH + dy)) });
+    }
+  };
+
+  const onPointerUp = () => {
+    dragRef.current = null;
+  };
+
+  useEffect(() => {
+    if (readOnly || !selected) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (editingText) return;
+      if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault();
+        onDelete();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [readOnly, selected, editingText, onDelete]);
+
+  return (
+    <div
+      className={cn(
+        "absolute touch-none",
+        !readOnly && "cursor-move",
+        selected && !readOnly && "ring-2 ring-orange-400 ring-offset-1",
+      )}
+      style={{
+        left: `${element.x}%`,
+        top: `${element.y}%`,
+        width: `${element.width}%`,
+        height: `${element.height}%`,
+        zIndex: element.zIndex,
+        transform: element.rotation ? `rotate(${element.rotation}deg)` : undefined,
+      }}
+      onPointerDown={(e) => onPointerDown(e, "move")}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onClick={(e) => {
+        e.stopPropagation();
+        onSelect();
+      }}
+      onDoubleClick={(e) => {
+        if (element.type === "text" && !readOnly) {
+          e.stopPropagation();
+          setEditingText(true);
+        }
+      }}
+    >
+      {element.type === "text" ? (
+        editingText && !readOnly ? (
+          <textarea
+            autoFocus
+            value={element.text ?? ""}
+            onChange={(e) => onChange({ text: e.target.value })}
+            onBlur={() => setEditingText(false)}
+            className="h-full w-full resize-none border-0 bg-transparent p-1 outline-none"
+            style={{
+              fontSize: element.fontSize ?? 24,
+              fontWeight: element.fontWeight ?? "600",
+              color: element.color ?? "#0f172a",
+              textAlign: element.align ?? "left",
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+          />
+        ) : (
+          <div
+            className="h-full w-full overflow-hidden p-1 whitespace-pre-wrap"
+            style={{
+              fontSize: element.fontSize ?? 24,
+              fontWeight: element.fontWeight ?? "600",
+              color: element.color ?? "#0f172a",
+              textAlign: element.align ?? "left",
+              lineHeight: 1.25,
+            }}
+          >
+            {element.text || "Text"}
+          </div>
+        )
+      ) : null}
+
+      {element.type === "image" ? (
+        asset?.type === "video" ? (
+          <video
+            src={
+              resolveRenderableFileSource(asset.url, { projectId }) ?? undefined
+            }
+            poster={
+              resolveRenderableFileSource(asset.thumbnailUrl, { projectId }) ??
+              undefined
+            }
+            className="h-full w-full rounded-sm object-cover"
+            muted
+            playsInline
+            controls={!readOnly}
+          />
+        ) : asset?.type === "link" ? (
+          <div className="flex h-full w-full flex-col items-center justify-center gap-1 rounded-sm bg-slate-100 p-2 text-center">
+            <span className="text-[10px] font-medium text-slate-500">Link</span>
+            <span className="line-clamp-3 text-xs text-slate-700">
+              {asset.title || asset.url}
+            </span>
+          </div>
+        ) : asset ? (
+          <SecureImage
+            fileRef={asset.thumbnailUrl || asset.url}
+            alt={asset.title || "Reference"}
+            className="h-full w-full rounded-sm object-cover"
+            projectId={projectId}
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center rounded-sm bg-slate-200 text-xs text-slate-500">
+            Missing asset
+          </div>
+        )
+      ) : null}
+
+      {element.type === "shape" ? (
+        <div
+          className="h-full w-full"
+          style={{
+            backgroundColor: element.fill ?? "#fb923c",
+            border:
+              element.stroke && element.stroke !== "transparent"
+                ? `2px solid ${element.stroke}`
+                : undefined,
+            borderRadius: element.shape === "ellipse" ? "50%" : "4px",
+          }}
+        />
+      ) : null}
+
+      {selected && !readOnly ? (
+        <>
+          <button
+            type="button"
+            className="absolute -right-2 -top-2 z-20 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] text-white shadow"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            aria-label="Delete element"
+          >
+            ×
+          </button>
+          <div
+            className="absolute bottom-0 right-0 h-3 w-3 translate-x-1/2 translate-y-1/2 cursor-se-resize rounded-sm bg-orange-400 shadow"
+            onPointerDown={(e) => onPointerDown(e, "resize-se")}
+          />
+          <div
+            className="absolute right-0 top-1/2 h-3 w-2 -translate-y-1/2 translate-x-1/2 cursor-e-resize rounded-sm bg-orange-400 shadow"
+            onPointerDown={(e) => onPointerDown(e, "resize-e")}
+          />
+          <div
+            className="absolute bottom-0 left-1/2 h-2 w-3 -translate-x-1/2 translate-y-1/2 cursor-s-resize rounded-sm bg-orange-400 shadow"
+            onPointerDown={(e) => onPointerDown(e, "resize-s")}
+          />
+        </>
+      ) : null}
+    </div>
+  );
+}
+
 export function TreatmentSlideCanvas({
   slide,
   assets,
   aspectRatio = "16:9",
   readOnly = false,
   className,
+  selectedElementId,
   onFieldChange,
+  onElementsChange,
+  onSelectElement,
+  onDropAsset,
+  projectId,
 }: TreatmentSlideCanvasProps) {
+  const [dragOver, setDragOver] = useState(false);
+  const map = assetMap(assets);
+
+  const updateElement = useCallback(
+    (id: string, patch: Partial<TreatmentElement>) => {
+      const next = slide.elements.map((el) =>
+        el.id === id ? { ...el, ...patch } : el,
+      );
+      onElementsChange?.(next);
+    },
+    [slide.elements, onElementsChange],
+  );
+
+  const deleteElement = useCallback(
+    (id: string) => {
+      onElementsChange?.(slide.elements.filter((el) => el.id !== id));
+      onSelectElement?.(null);
+    },
+    [slide.elements, onElementsChange, onSelectElement],
+  );
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+    if (readOnly || !onDropAsset) return;
+
+    const assetId =
+      e.dataTransfer.getData(TREATMENT_ASSET_MIME) ||
+      e.dataTransfer.getData("text/plain");
+    if (!assetId || !assets.some((a) => a.id === assetId)) return;
+
+    const target = e.currentTarget as HTMLElement;
+    const rect = target.getBoundingClientRect();
+    const xPercent = ((e.clientX - rect.left) / rect.width) * 100 - 15;
+    const yPercent = ((e.clientY - rect.top) / rect.height) * 100 - 15;
+    onDropAsset(
+      assetId,
+      Math.min(70, Math.max(0, xPercent)),
+      Math.min(70, Math.max(0, yPercent)),
+    );
+  };
+
   return (
     <div
+      data-treatment-canvas
       className={cn(
-        "treatment-slide-canvas overflow-hidden rounded-sm bg-white text-slate-900",
+        "treatment-slide-canvas relative overflow-hidden rounded-sm bg-white text-slate-900",
         aspectRatio === "16:9" ? "aspect-video" : "aspect-[4/3]",
+        dragOver && "ring-2 ring-orange-400",
         className,
       )}
       style={{ backgroundColor: slide.backgroundColor ?? "#ffffff" }}
+      onClick={() => onSelectElement?.(null)}
+      onDragOver={(e) => {
+        if (readOnly) return;
+        if (
+          e.dataTransfer.types.includes(TREATMENT_ASSET_MIME) ||
+          e.dataTransfer.types.includes("text/plain")
+        ) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "copy";
+          setDragOver(true);
+        }
+      }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={handleDrop}
     >
-      {layoutContent(slide.layout, slide, assets, readOnly, onFieldChange)}
+      <div className="pointer-events-none absolute inset-0 [&_*]:pointer-events-auto">
+        {layoutContent(
+          slide.layout,
+          slide,
+          assets,
+          readOnly,
+          onFieldChange,
+          projectId,
+        )}
+      </div>
+
+      {slide.elements.map((el) => (
+        <FreeformElement
+          key={el.id}
+          element={el}
+          asset={el.referenceId ? map.get(el.referenceId) : undefined}
+          selected={selectedElementId === el.id}
+          readOnly={readOnly}
+          projectId={projectId}
+          onSelect={() => onSelectElement?.(el.id)}
+          onChange={(patch) => updateElement(el.id, patch)}
+          onDelete={() => deleteElement(el.id)}
+        />
+      ))}
+
+      {dragOver && !readOnly ? (
+        <div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-orange-500/10">
+          <span className="rounded-full bg-black/70 px-3 py-1 text-xs text-white">
+            Drop to place on slide
+          </span>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -294,12 +656,14 @@ export function TreatmentSlideThumbnail({
   index,
   active,
   onClick,
+  projectId,
 }: {
   slide: TreatmentSlide;
   assets: TreatmentAsset[];
   index: number;
   active: boolean;
   onClick: () => void;
+  projectId?: string;
 }) {
   return (
     <button
@@ -313,7 +677,12 @@ export function TreatmentSlideThumbnail({
       )}
     >
       <div className="pointer-events-none scale-[0.22] origin-top-left w-[454%]">
-        <TreatmentSlideCanvas slide={slide} assets={assets} readOnly />
+        <TreatmentSlideCanvas
+          slide={slide}
+          assets={assets}
+          readOnly
+          projectId={projectId}
+        />
       </div>
       <span className="absolute left-1.5 top-1.5 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">
         {index + 1}

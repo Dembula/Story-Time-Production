@@ -10,12 +10,14 @@ type TreatmentPresenterProps = {
   document: TreatmentDocument;
   initialIndex?: number;
   onClose: () => void;
+  projectId?: string;
 };
 
 export function TreatmentPresenter({
   document,
   initialIndex = 0,
   onClose,
+  projectId,
 }: TreatmentPresenterProps) {
   const slides = document.slides;
   const [index, setIndex] = useState(initialIndex);
@@ -69,6 +71,7 @@ export function TreatmentPresenter({
             assets={document.assets}
             aspectRatio={document.settings.aspectRatio}
             readOnly
+            projectId={projectId}
             className="shadow-2xl"
           />
         </div>

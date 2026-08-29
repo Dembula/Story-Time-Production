@@ -158,5 +158,38 @@ export async function syncLinkedEntitiesAfterStreamReady(uid: string, state: str
     if (Object.keys(updates).length > 0) {
       await prisma.contentEpisode.update({ where: { id: episode.id }, data: updates });
     }
+    return;
+  }
+
+  if (link.entityType === "FootageAsset") {
+    const asset = await prisma.footageAsset.findUnique({
+      where: { id: link.entityId },
+      select: { id: true, metadata: true },
+    });
+    if (!asset) return;
+
+    let existing: Record<string, unknown> = {};
+    if (asset.metadata?.trim()) {
+      try {
+        existing = JSON.parse(asset.metadata) as Record<string, unknown>;
+      } catch {
+        existing = {};
+      }
+    }
+
+    const nextMeta = {
+      ...existing,
+      hlsUrl: playbackUrl,
+      playbackUrl: mp4Url ?? playbackUrl,
+      proxyUrl: mp4Url ?? playbackUrl,
+      thumbnailUrl,
+      streamUid: uid,
+      streamStatus: "ready",
+    };
+
+    await prisma.footageAsset.update({
+      where: { id: asset.id },
+      data: { metadata: JSON.stringify(nextMeta) },
+    });
   }
 }

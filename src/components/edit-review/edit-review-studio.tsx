@@ -52,8 +52,27 @@ export function EditReviewStudio({
 
   const { data: reviewsData, isLoading: reviewsLoading } = useQuery({
     queryKey: ["project-reviews", projectId],
-    queryFn: projectToolQueryFn(`/api/creator/projects/${projectId}/reviews`),
+    queryFn: projectToolQueryFn<{ reviews: EditReviewSession[] }>(
+      `/api/creator/projects/${projectId}/reviews`,
+    ),
     enabled: hasProject,
+    refetchInterval: (query) => {
+      const list = query.state.data?.reviews ?? [];
+      const needsStream = list.some((r) => {
+        if (!r.cutAsset?.fileUrl) return false;
+        if (!r.cutAsset.metadata) return true;
+        try {
+          const meta = JSON.parse(r.cutAsset.metadata) as {
+            hlsUrl?: string;
+            playbackUrl?: string;
+          };
+          return !meta.hlsUrl && !meta.playbackUrl;
+        } catch {
+          return true;
+        }
+      });
+      return needsStream ? 12_000 : false;
+    },
   });
 
   const { data: footageData, isLoading: footageLoading } = useQuery({
@@ -399,7 +418,10 @@ export function EditReviewStudio({
                 notes={sortedNotes}
                 onTimeUpdate={(ms) => setPlayheadMs(ms)}
                 onNoteMarkerClick={(note) => {
-                  if (note.timestampMs != null) setPlayheadMs(note.timestampMs);
+                  if (note.timestampMs != null) {
+                    playerRef.current?.seekToMs(note.timestampMs);
+                    setPlayheadMs(note.timestampMs);
+                  }
                 }}
               />
             </>

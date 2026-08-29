@@ -91,6 +91,7 @@
     "nodemailer": "^7.0.13",
     "pdf-parse": "^2.4.5",
     "playwright-core": "^1.61.1",
+    "pptxgenjs": "^4.0.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "recharts": "^2.14.1",

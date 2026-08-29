@@ -7,17 +7,20 @@ import {
   Link2,
   Loader2,
   Trash2,
+  Video,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SecureImage } from "@/components/files/secure-image";
+import { resolveRenderableFileSource } from "@/lib/secure-file-preview-path";
 import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
 import { newId } from "@/lib/treatment-studio/document";
 import type { TreatmentAsset } from "@/lib/treatment-studio/types";
+import { TREATMENT_ASSET_MIME } from "./treatment-slide-canvas";
 
 const UPLOAD_ACCEPT =
-  "image/jpeg,image/jpg,image/png,image/webp,image/avif,image/gif,image/heic,image/heif";
+  "image/jpeg,image/jpg,image/png,image/webp,image/avif,image/gif,image/heic,image/heif,video/mp4,video/quicktime,video/webm,video/x-m4v,.mov,.mp4,.webm";
 
 type TreatmentAssetsPanelProps = {
   assets: TreatmentAsset[];
@@ -25,7 +28,12 @@ type TreatmentAssetsPanelProps = {
   onAssetsChange: (assets: TreatmentAsset[]) => void;
   onToggleReference: (assetId: string) => void;
   onClose: () => void;
+  projectId?: string;
 };
+
+function isVideoFile(file: File) {
+  return file.type.startsWith("video/") || /\.(mp4|mov|webm|m4v)$/i.test(file.name);
+}
 
 export function TreatmentAssetsPanel({
   assets,
@@ -33,16 +41,13 @@ export function TreatmentAssetsPanel({
   onAssetsChange,
   onToggleReference,
   onClose,
+  projectId,
 }: TreatmentAssetsPanelProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [urlInput, setUrlInput] = useState("");
   const [titleInput, setTitleInput] = useState("");
   const [error, setError] = useState("");
-
-  const addAsset = (asset: TreatmentAsset) => {
-    onAssetsChange([...assets, asset]);
-  };
 
   const removeAsset = (id: string) => {
     onAssetsChange(assets.filter((a) => a.id !== id));
@@ -53,17 +58,19 @@ export function TreatmentAssetsPanel({
     setUploading(true);
     setError("");
     try {
+      const uploaded: TreatmentAsset[] = [];
       for (const file of Array.from(files)) {
         const url = await uploadContentMediaViaApi(file);
-        addAsset({
+        uploaded.push({
           id: newId(),
-          type: "image",
+          type: isVideoFile(file) ? "video" : "image",
           url,
           title: file.name.replace(/\.[^.]+$/, ""),
           source: "upload",
           createdAt: new Date().toISOString(),
         });
       }
+      onAssetsChange([...assets, ...uploaded]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload failed");
     } finally {
@@ -76,14 +83,18 @@ export function TreatmentAssetsPanel({
     const url = urlInput.trim();
     if (!url) return;
     const isImage = /\.(jpe?g|png|gif|webp|avif)(\?|$)/i.test(url);
-    addAsset({
-      id: newId(),
-      type: isImage ? "image" : "link",
-      url,
-      title: titleInput.trim() || undefined,
-      source: "url",
-      createdAt: new Date().toISOString(),
-    });
+    const isVideo = /\.(mp4|mov|webm|m4v)(\?|$)/i.test(url);
+    onAssetsChange([
+      ...assets,
+      {
+        id: newId(),
+        type: isVideo ? "video" : isImage ? "image" : "link",
+        url,
+        title: titleInput.trim() || undefined,
+        source: "url",
+        createdAt: new Date().toISOString(),
+      },
+    ]);
     setUrlInput("");
     setTitleInput("");
   };
@@ -127,14 +138,14 @@ export function TreatmentAssetsPanel({
           ) : (
             <ImagePlus className="mr-2 h-4 w-4" />
           )}
-          Upload reference
+          {uploading ? "Uploading…" : "Upload still / clip"}
         </Button>
 
         <div className="space-y-2">
           <Input
             value={urlInput}
             onChange={(e) => setUrlInput(e.target.value)}
-            placeholder="Paste image or link URL"
+            placeholder="Paste image or video URL"
             className="h-8 border-white/10 bg-black/40 text-xs text-white"
           />
           <Input
@@ -157,24 +168,36 @@ export function TreatmentAssetsPanel({
         </div>
         {error ? <p className="text-xs text-red-400">{error}</p> : null}
         <p className="text-[10px] leading-relaxed text-slate-500">
-          Shared reference library coming soon. Upload or link references for this treatment.
+          Click an asset to place it on the active slide, or drag it onto the canvas.
         </p>
       </div>
 
       <div className="flex-1 overflow-y-auto p-3">
         {assets.length === 0 ? (
           <p className="px-1 py-8 text-center text-xs text-slate-500">
-            No assets yet. Upload images or paste reference links.
+            No assets yet. Upload images, clips, or paste reference links.
           </p>
         ) : (
           <ul className="space-y-2">
             {assets.map((asset) => {
               const selected = selectedReferenceIds.includes(asset.id);
+              const previewSrc =
+                asset.type === "video"
+                  ? resolveRenderableFileSource(asset.thumbnailUrl || asset.url, {
+                      projectId,
+                    })
+                  : null;
               return (
                 <li
                   key={asset.id}
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData(TREATMENT_ASSET_MIME, asset.id);
+                    e.dataTransfer.setData("text/plain", asset.id);
+                    e.dataTransfer.effectAllowed = "copy";
+                  }}
                   className={[
-                    "group rounded-lg border p-2 transition",
+                    "group cursor-grab rounded-lg border p-2 transition active:cursor-grabbing",
                     selected
                       ? "border-orange-400/40 bg-orange-500/10"
                       : "border-white/10 bg-white/[0.03] hover:border-white/20",
@@ -190,7 +213,26 @@ export function TreatmentAssetsPanel({
                         fileRef={asset.url}
                         alt={asset.title || "Asset"}
                         className="aspect-video w-full rounded object-cover"
+                        projectId={projectId}
                       />
+                    ) : asset.type === "video" ? (
+                      <div className="relative aspect-video overflow-hidden rounded bg-slate-800">
+                        {previewSrc ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={previewSrc}
+                            alt={asset.title || "Clip"}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-full items-center justify-center text-slate-500">
+                            <Video className="h-6 w-6" />
+                          </div>
+                        )}
+                        <span className="absolute bottom-1 left-1 rounded bg-black/70 px-1.5 py-0.5 text-[9px] text-white">
+                          Clip
+                        </span>
+                      </div>
                     ) : (
                       <div className="flex aspect-video items-center justify-center rounded bg-slate-800 px-2 text-center text-[10px] text-slate-400">
                         <Link2 className="mr-1 h-3 w-3 shrink-0" />
@@ -201,7 +243,7 @@ export function TreatmentAssetsPanel({
                       {asset.title || "Untitled"}
                     </p>
                     <p className="text-[10px] text-slate-500">
-                      {selected ? "On slide — click to remove" : "Click to add to slide"}
+                      {selected ? "On slide — click to remove" : "Click or drag onto slide"}
                     </p>
                   </button>
                   <button
