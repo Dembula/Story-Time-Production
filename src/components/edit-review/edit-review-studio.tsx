@@ -8,6 +8,7 @@ import {
   Film,
   Loader2,
   MessageSquare,
+  Trash2,
   Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,8 @@ import { cn } from "@/lib/utils";
 
 /** Prefer H.264 MP4 for instant browser review; other formats encode via Stream. */
 const UPLOAD_ACCEPT = "video/mp4,video/webm,video/quicktime,video/x-m4v,.mp4,.m4v,.webm,.mov";
+/** Large masters can take a while; never leave the button spinning forever. */
+const UPLOAD_TIMEOUT_MS = 15 * 60 * 1000;
 
 type EditReviewStudioProps = {
   projectId?: string;
@@ -42,12 +45,15 @@ export function EditReviewStudio({
   const queryClient = useQueryClient();
   const playerRef = useRef<EditReviewPlaybackHandle>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const uploadAbortRef = useRef<AbortController | null>(null);
   const hasProject = !!projectId;
 
   const [selectedReviewId, setSelectedReviewId] = useState<string | null>(null);
   const [commentBody, setCommentBody] = useState("");
   const [playheadMs, setPlayheadMs] = useState(0);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadLabel, setUploadLabel] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | EditReviewStatus>("all");
 
@@ -92,12 +98,18 @@ export function EditReviewStudio({
 
   const cutAssetId = selectedReview?.cutAsset?.id ?? null;
 
-  const { data: playbackPayload, isFetching: playbackLoading } = useQuery({
+  const {
+    data: playbackPayload,
+    isPending: playbackPending,
+    isError: playbackIsError,
+    error: playbackError,
+    refetch: refetchPlayback,
+  } = useQuery({
     queryKey: ["edit-review-playback", projectId, cutAssetId],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const res = await fetch(
         `/api/creator/projects/${projectId}/reviews/playback?assetId=${encodeURIComponent(cutAssetId!)}`,
-        { credentials: "include" },
+        { credentials: "include", signal },
       );
       const json = (await res.json().catch(() => ({}))) as EditReviewPlaybackResponse & {
         error?: string;
@@ -110,19 +122,26 @@ export function EditReviewStudio({
     enabled: Boolean(hasProject && cutAssetId && projectId),
     refetchInterval: (query) => {
       const status = query.state.data?.status;
+      // Keep polling while encoding, but not when we already have a playable src.
+      if (query.state.data?.playback?.src) return false;
       return status === "encoding" || status === "failed" ? 8_000 : false;
     },
     staleTime: 60_000,
-    retry: 2,
+    retry: 1,
   });
 
   const playbackUrl = playbackPayload?.playback?.src ?? null;
   const playbackMime = playbackPayload?.playback?.type ?? null;
-  const playbackStatusMessage =
-    playbackPayload?.status === "ready"
-      ? null
-      : playbackPayload?.message ||
-        (playbackLoading ? "Resolving playback…" : "Playback not ready");
+  const playbackStatusMessage = playbackUrl
+    ? playbackPayload?.message ?? null
+    : playbackPayload?.message ||
+      (playbackPending
+        ? "Resolving playback…"
+        : playbackIsError
+          ? playbackError instanceof Error
+            ? playbackError.message
+            : "Could not resolve playback"
+          : "Playback not ready");
 
   const createReviewMutation = useMutation({
     mutationFn: async (payload: { cutAssetId: string; title?: string }) => {
@@ -174,13 +193,42 @@ export function EditReviewStudio({
     },
   });
 
+  const deleteNoteMutation = useMutation({
+    mutationFn: async (noteId: string) => {
+      const res = await fetch(
+        `/api/creator/projects/${projectId}/reviews/notes?noteId=${encodeURIComponent(noteId)}`,
+        { method: "DELETE", credentials: "include" },
+      );
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((j as { error?: string }).error || "Could not delete comment");
+      return j;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["project-reviews", projectId] });
+    },
+  });
+
   const handleUpload = useCallback(
     async (files: FileList | null) => {
       if (!files?.length || !projectId) return;
       const file = files[0]!;
+
+      uploadAbortRef.current?.abort();
+      const abort = new AbortController();
+      uploadAbortRef.current = abort;
+      const timeoutId = window.setTimeout(() => abort.abort(), UPLOAD_TIMEOUT_MS);
+
       setUploading(true);
+      setUploadProgress(0);
+      setUploadError(null);
       try {
-        const fileUrl = await uploadContentMediaViaApi(file);
+        const fileUrl = await uploadContentMediaViaApi(file, {
+          signal: abort.signal,
+          onProgress: (pct) => setUploadProgress(pct),
+        });
+        if (abort.signal.aborted) throw new Error("Upload cancelled");
+
+        setUploadProgress(100);
         const label =
           uploadLabel.trim() ||
           file.name.replace(/\.[^.]+$/, "") ||
@@ -190,10 +238,11 @@ export function EditReviewStudio({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ type: "EDIT", label, fileUrl }),
+          signal: abort.signal,
         });
         const footageJson = await footageRes.json().catch(() => ({}));
         if (!footageRes.ok) {
-          throw new Error((footageJson as { error?: string }).error || "Upload failed");
+          throw new Error((footageJson as { error?: string }).error || "Could not register edit");
         }
         const asset = (footageJson as { asset: EditFootageAsset }).asset;
 
@@ -207,9 +256,20 @@ export function EditReviewStudio({
         setUploadLabel("");
       } catch (e) {
         console.error(e);
-        alert(e instanceof Error ? e.message : "Upload failed");
+        const aborted =
+          (e instanceof DOMException && e.name === "AbortError") ||
+          (e instanceof Error && /abort|cancel/i.test(e.message));
+        const message = aborted
+          ? "Upload timed out or was cancelled. Try a smaller H.264 MP4."
+          : e instanceof Error
+            ? e.message
+            : "Upload failed";
+        setUploadError(message);
       } finally {
+        window.clearTimeout(timeoutId);
+        if (uploadAbortRef.current === abort) uploadAbortRef.current = null;
         setUploading(false);
+        setUploadProgress(null);
         if (fileRef.current) fileRef.current.value = "";
       }
     },
@@ -298,10 +358,37 @@ export function EditReviewStudio({
             ) : (
               <Upload className="mr-1.5 h-4 w-4" />
             )}
-            Upload edit
+            {uploading
+              ? uploadProgress != null
+                ? `Uploading ${Math.round(uploadProgress)}%`
+                : "Uploading…"
+              : "Upload edit"}
           </Button>
+          {uploading ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-8 text-xs text-slate-400 hover:text-white"
+              onClick={() => uploadAbortRef.current?.abort()}
+            >
+              Cancel
+            </Button>
+          ) : null}
         </div>
       </div>
+      {uploadError ? (
+        <div className="flex items-center justify-between gap-3 border-b border-red-500/30 bg-red-950/40 px-4 py-2 text-xs text-red-200">
+          <span>{uploadError}</span>
+          <button
+            type="button"
+            className="shrink-0 text-red-300 underline hover:text-white"
+            onClick={() => setUploadError(null)}
+          >
+            Dismiss
+          </button>
+        </div>
+      ) : null}
 
       <div className="flex min-h-0 flex-1">
         {/* Asset sidebar */}
@@ -430,9 +517,26 @@ export function EditReviewStudio({
                 </div>
               </div>
 
-              {playbackLoading && !playbackUrl && playbackPayload?.status !== "encoding" ? (
-                <div className="flex aspect-video items-center justify-center rounded-lg border border-white/10 bg-black/60">
+              {playbackPending && !playbackUrl ? (
+                <div className="flex aspect-video flex-col items-center justify-center gap-2 rounded-lg border border-white/10 bg-black/60 px-6 text-center">
                   <Loader2 className="h-8 w-8 animate-spin text-orange-300" />
+                  <p className="text-sm text-slate-400">Resolving playback…</p>
+                </div>
+              ) : playbackIsError && !playbackUrl ? (
+                <div className="flex aspect-video flex-col items-center justify-center gap-3 rounded-lg border border-white/10 bg-black/60 px-6 text-center">
+                  <p className="max-w-md text-sm text-slate-300">
+                    {playbackError instanceof Error
+                      ? playbackError.message
+                      : "Could not resolve playback"}
+                  </p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="bg-orange-500 text-white hover:bg-orange-600"
+                    onClick={() => void refetchPlayback()}
+                  >
+                    Retry
+                  </Button>
                 </div>
               ) : (
                 <EditReviewPlayer
@@ -482,11 +586,20 @@ export function EditReviewStudio({
                 <CommentCard
                   key={note.id}
                   note={note}
+                  deleting={deleteNoteMutation.isPending && deleteNoteMutation.variables === note.id}
                   onSeek={() => {
                     if (note.timestampMs != null) {
                       playerRef.current?.seekToMs(note.timestampMs);
                       setPlayheadMs(note.timestampMs);
                     }
+                  }}
+                  onDelete={() => {
+                    if (!window.confirm("Delete this comment?")) return;
+                    deleteNoteMutation.mutate(note.id, {
+                      onError: (err) => {
+                        alert(err instanceof Error ? err.message : "Could not delete comment");
+                      },
+                    });
                   }}
                 />
               ))
@@ -537,22 +650,27 @@ export function EditReviewStudio({
 function CommentCard({
   note,
   onSeek,
+  onDelete,
+  deleting,
 }: {
   note: EditReviewNote;
   onSeek: () => void;
+  onDelete: () => void;
+  deleting?: boolean;
 }) {
   const initial = (note.user?.name?.[0] ?? "?").toUpperCase();
   return (
-    <button
-      type="button"
-      onClick={onSeek}
-      className="w-full rounded-lg border border-white/10 bg-white/[0.03] p-3 text-left transition hover:border-white/20"
-    >
+    <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3 transition hover:border-white/20">
       <div className="flex items-start gap-2">
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-orange-500/20 text-[10px] font-medium text-orange-200">
+        <button
+          type="button"
+          onClick={onSeek}
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-orange-500/20 text-[10px] font-medium text-orange-200"
+          title="Seek to comment"
+        >
           {initial}
-        </div>
-        <div className="min-w-0 flex-1">
+        </button>
+        <button type="button" onClick={onSeek} className="min-w-0 flex-1 text-left">
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium text-slate-200">
               {note.user?.name || "Collaborator"}
@@ -564,8 +682,24 @@ function CommentCard({
             ) : null}
           </div>
           <p className="mt-1 text-xs leading-relaxed text-slate-400">{note.body}</p>
-        </div>
+        </button>
+        <button
+          type="button"
+          title="Delete comment"
+          disabled={deleting}
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          className="shrink-0 rounded p-1.5 text-slate-500 transition hover:bg-red-500/15 hover:text-red-300 disabled:opacity-50"
+        >
+          {deleting ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Trash2 className="h-3.5 w-3.5" />
+          )}
+        </button>
       </div>
-    </button>
+    </div>
   );
 }
