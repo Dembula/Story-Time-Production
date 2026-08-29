@@ -394,7 +394,7 @@ function pctToInches(pct: number, totalInches: number) {
 
 /** Download an editable PowerPoint (.pptx) matching the treatment layout. */
 export async function downloadTreatmentPptx(options: TreatmentExportOptions): Promise<void> {
-  const PptxGenJS = (await import("pptxgenjs")).default;
+  const { default: PptxGenJS } = await import("pptxgenjs");
   const images = await resolveAllImages(options.document, options.projectId);
   const assets = assetMap(options.document.assets);
 

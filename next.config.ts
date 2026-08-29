@@ -33,13 +33,40 @@ const cloudflareCustomerPattern = parseRemotePattern(process.env.CLOUDFLARE_STRE
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  serverExternalPackages: ["pdf-parse", "pdfjs-dist", "jszip", "mammoth", "playwright-core", "@sparticuz/chromium"],
-  webpack: (config, { dev, isServer }) => {
+  serverExternalPackages: [
+    "pdf-parse",
+    "pdfjs-dist",
+    "jszip",
+    "mammoth",
+    "playwright-core",
+    "@sparticuz/chromium",
+    "pptxgenjs",
+  ],
+  webpack: (config, { dev, isServer, webpack }) => {
     if (isServer) {
       config.externals = [
         ...(Array.isArray(config.externals) ? config.externals : []),
         "pdfjs-dist/legacy/build/pdf.worker.mjs",
       ];
+    } else {
+      // pptxgenjs (and similar) reference `node:fs` / `node:https`; strip the scheme
+      // and disable those modules for the browser bundle.
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        https: false,
+        http: false,
+        path: false,
+        os: false,
+        stream: false,
+        crypto: false,
+        "image-size": false,
+      };
+      config.plugins.push(
+        new webpack.NormalModuleReplacementPlugin(/^node:/, (resource: { request: string }) => {
+          resource.request = resource.request.replace(/^node:/, "");
+        }),
+      );
     }
     if (dev) {
       config.output = config.output ?? {};
