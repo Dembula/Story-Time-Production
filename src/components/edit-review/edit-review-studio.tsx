@@ -16,7 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EditReviewPlayer, type EditReviewPlaybackHandle } from "./edit-review-player";
 import { projectToolQueryFn } from "@/lib/project-tool-fetch";
 import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
-import { resolveEditPlaybackUrl } from "@/lib/edit-review/playback";
+import { resolveEditPlaybackSrc } from "@/lib/edit-review/playback";
 import {
   formatReviewTimecode,
   parseReviewStatus,
@@ -81,7 +81,10 @@ export function EditReviewStudio({
     enabled: hasProject,
   });
 
-  const reviews = (reviewsData?.reviews ?? []) as EditReviewSession[];
+  const reviews = useMemo(
+    () => (reviewsData?.reviews ?? []) as EditReviewSession[],
+    [reviewsData?.reviews],
+  );
   const edits = (footageData?.assets ?? []) as EditFootageAsset[];
 
   const filteredReviews = useMemo(() => {
@@ -102,10 +105,26 @@ export function EditReviewStudio({
     });
   }, [reviews]);
 
-  const playbackUrl = useMemo(() => {
-    if (!selectedReview?.cutAsset || !projectId) return null;
-    return resolveEditPlaybackUrl(selectedReview.cutAsset, projectId);
-  }, [selectedReview, projectId]);
+  const cutAssetId = selectedReview?.cutAsset?.id ?? null;
+  const cutAsset = selectedReview?.cutAsset ?? null;
+
+  const { data: playbackResolved, isFetching: playbackLoading } = useQuery({
+    queryKey: [
+      "edit-review-playback",
+      projectId,
+      cutAssetId,
+      cutAsset?.fileUrl,
+      cutAsset?.metadata,
+    ],
+    queryFn: async () => {
+      if (!cutAsset || !projectId) return null;
+      return resolveEditPlaybackSrc(cutAsset, projectId);
+    },
+    enabled: Boolean(hasProject && cutAsset && projectId),
+    staleTime: 30 * 60 * 1000,
+  });
+
+  const playbackUrl = playbackResolved?.src ?? null;
 
   const createReviewMutation = useMutation({
     mutationFn: async (payload: { cutAssetId: string; title?: string }) => {
@@ -412,18 +431,24 @@ export function EditReviewStudio({
                 </div>
               </div>
 
-              <EditReviewPlayer
-                ref={playerRef}
-                src={playbackUrl}
-                notes={sortedNotes}
-                onTimeUpdate={(ms) => setPlayheadMs(ms)}
-                onNoteMarkerClick={(note) => {
-                  if (note.timestampMs != null) {
-                    playerRef.current?.seekToMs(note.timestampMs);
-                    setPlayheadMs(note.timestampMs);
-                  }
-                }}
-              />
+              {playbackLoading && !playbackUrl ? (
+                <div className="flex aspect-video items-center justify-center rounded-lg border border-white/10 bg-black/60">
+                  <Loader2 className="h-8 w-8 animate-spin text-orange-300" />
+                </div>
+              ) : (
+                <EditReviewPlayer
+                  ref={playerRef}
+                  src={playbackUrl}
+                  notes={sortedNotes}
+                  onTimeUpdate={(ms) => setPlayheadMs(ms)}
+                  onNoteMarkerClick={(note) => {
+                    if (note.timestampMs != null) {
+                      playerRef.current?.seekToMs(note.timestampMs);
+                      setPlayheadMs(note.timestampMs);
+                    }
+                  }}
+                />
+              )}
             </>
           ) : (
             <div className="flex flex-1 flex-col items-center justify-center text-center">

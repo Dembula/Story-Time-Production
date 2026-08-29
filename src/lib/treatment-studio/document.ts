@@ -74,6 +74,186 @@ export function createSlide(layout: TreatmentSlideLayout = "content"): Treatment
   };
 }
 
+/** Curated treatment page templates for the New Slide menu. */
+export type TreatmentSlideTemplateId =
+  | "title"
+  | "logline"
+  | "characters"
+  | "world"
+  | "tone"
+  | "story"
+  | "sequences"
+  | "themes"
+  | "references"
+  | "closing"
+  | "blank"
+  | "content"
+  | "split"
+  | "image";
+
+export type TreatmentSlideTemplate = {
+  id: TreatmentSlideTemplateId;
+  label: string;
+  description: string;
+  layout: TreatmentSlideLayout;
+  backgroundColor?: string;
+  title: string;
+  subtitle?: string;
+  body?: string;
+  elements?: Omit<TreatmentElement, "id">[];
+};
+
+export const TREATMENT_SLIDE_TEMPLATES: TreatmentSlideTemplate[] = [
+  {
+    id: "title",
+    label: "Project title",
+    description: "Opening title card with byline",
+    layout: "title",
+    backgroundColor: "#0f172a",
+    title: "Project Title",
+    subtitle: "A treatment by [Director Name]",
+    elements: [],
+  },
+  {
+    id: "logline",
+    label: "Logline",
+    description: "One-sentence pitch",
+    layout: "content",
+    title: "Logline",
+    body: "In one or two sentences, what is this film about — and why now?",
+  },
+  {
+    id: "characters",
+    label: "Characters",
+    description: "Protagonist & key cast",
+    layout: "content",
+    title: "Characters",
+    body: "PROTAGONIST\nWho they are, what they want, what stands in their way.\n\nSUPPORTING\nKey relationships that drive the story.",
+    elements: [
+      {
+        type: "shape",
+        x: 72,
+        y: 18,
+        width: 22,
+        height: 28,
+        zIndex: 2,
+        shape: "ellipse",
+        fill: "#fed7aa",
+      },
+      {
+        type: "text",
+        x: 72,
+        y: 48,
+        width: 22,
+        height: 10,
+        zIndex: 3,
+        text: "Portrait\nref",
+        fontSize: 14,
+        fontWeight: "500",
+        color: "#78716c",
+        align: "center",
+      },
+    ],
+  },
+  {
+    id: "world",
+    label: "World & setting",
+    description: "Time, place, atmosphere",
+    layout: "split",
+    title: "World & Setting",
+    body: "Where and when does the story live?\nDescribe the physical and emotional landscape.",
+  },
+  {
+    id: "tone",
+    label: "Tone & visuals",
+    description: "Look, palette, references",
+    layout: "split",
+    title: "Tone & Visual Direction",
+    body: "Tone, colour palette, camera language, and reference films or stills.",
+  },
+  {
+    id: "story",
+    label: "Story overview",
+    description: "Act structure summary",
+    layout: "content",
+    title: "Story",
+    body: "ACT I — Setup\n\nACT II — Confrontation\n\nACT III — Resolution",
+  },
+  {
+    id: "sequences",
+    label: "Key sequences",
+    description: "Set pieces & turning points",
+    layout: "content",
+    title: "Key Sequences",
+    body: "1. Opening image\n2. Inciting incident\n3. Midpoint turn\n4. Climax",
+  },
+  {
+    id: "themes",
+    label: "Themes",
+    description: "Ideas under the story",
+    layout: "content",
+    backgroundColor: "#f8fafc",
+    title: "Themes",
+    body: "What is this film really about beneath the plot?",
+  },
+  {
+    id: "references",
+    label: "Reference board",
+    description: "Grid of visual refs",
+    layout: "references",
+    title: "References",
+  },
+  {
+    id: "image",
+    label: "Full-bleed image",
+    description: "Hero still with caption",
+    layout: "image",
+    title: "Caption",
+  },
+  {
+    id: "closing",
+    label: "Closing / thank you",
+    description: "Contact & next steps",
+    layout: "title",
+    backgroundColor: "#111827",
+    title: "Thank you",
+    subtitle: "Contact · Next steps · Availability",
+  },
+  {
+    id: "blank",
+    label: "Blank canvas",
+    description: "Empty page for freeform",
+    layout: "blank",
+    title: "",
+  },
+  {
+    id: "content",
+    label: "Content page",
+    description: "Title + body copy",
+    layout: "content",
+    title: "Section title",
+    body: "Write your treatment copy…",
+  },
+];
+
+export function createSlideFromTemplate(
+  templateId: TreatmentSlideTemplateId = "content",
+): TreatmentSlide {
+  const template =
+    TREATMENT_SLIDE_TEMPLATES.find((t) => t.id === templateId) ??
+    TREATMENT_SLIDE_TEMPLATES.find((t) => t.id === "content")!;
+  const slide = createSlide(template.layout);
+  slide.title = template.title;
+  slide.subtitle = template.subtitle ?? "";
+  slide.body = template.body ?? "";
+  if (template.backgroundColor) slide.backgroundColor = template.backgroundColor;
+  slide.elements = (template.elements ?? []).map((el) => ({
+    ...el,
+    id: newId(),
+  }));
+  return slide;
+}
+
 export function createTextElement(
   partial?: Partial<TreatmentElement>,
 ): TreatmentElement {

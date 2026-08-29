@@ -37,11 +37,13 @@ import {
 import {
   createImageElement,
   createShapeElement,
-  createSlide,
+  createSlideFromTemplate,
   createTextElement,
   newId,
   nextElementZIndex,
   parseTreatmentDocument,
+  TREATMENT_SLIDE_TEMPLATES,
+  type TreatmentSlideTemplateId,
 } from "@/lib/treatment-studio/document";
 import {
   downloadTreatmentPdf,
@@ -99,6 +101,7 @@ export function TreatmentCreatorStudio({
   const [layoutMenuOpen, setLayoutMenuOpen] = useState(false);
   const [colorMenuOpen, setColorMenuOpen] = useState(false);
   const [downloadMenuOpen, setDownloadMenuOpen] = useState(false);
+  const [newSlideMenuOpen, setNewSlideMenuOpen] = useState(false);
   const [exporting, setExporting] = useState<"pdf" | "pptx" | null>(null);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const dirtyRef = useRef(false);
@@ -236,13 +239,14 @@ export function TreatmentCreatorStudio({
   );
 
   const addSlide = useCallback(
-    (layout: TreatmentSlideLayout = "content") => {
+    (templateId: TreatmentSlideTemplateId = "content") => {
       if (!document) return;
-      const slide = createSlide(layout);
+      const slide = createSlideFromTemplate(templateId);
       markDirty({ ...document, slides: [...document.slides, slide] });
       setActiveSlideId(slide.id);
       setSelectedElementId(null);
       setLayoutMenuOpen(false);
+      setNewSlideMenuOpen(false);
     },
     [document, markDirty],
   );
@@ -808,17 +812,35 @@ export function TreatmentCreatorStudio({
 
         <div className="flex min-h-0 flex-1">
           <aside className="flex w-36 shrink-0 flex-col border-r border-white/10 bg-black md:w-44">
-            <div className="p-2">
+            <div className="relative p-2">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 className="w-full border-white/15 bg-white/5 text-xs text-white hover:bg-white/10"
-                onClick={() => addSlide("content")}
+                onClick={() => setNewSlideMenuOpen((o) => !o)}
               >
                 <Plus className="mr-1 h-3.5 w-3.5" />
                 New Slide
               </Button>
+              {newSlideMenuOpen ? (
+                <div className="absolute left-2 right-2 top-full z-30 mt-1 max-h-[min(70vh,420px)] overflow-y-auto rounded-lg border border-white/10 bg-black py-1 shadow-xl md:left-0 md:right-auto md:w-64">
+                  <p className="px-3 py-1.5 text-[10px] uppercase tracking-wide text-slate-500">
+                    Templates
+                  </p>
+                  {TREATMENT_SLIDE_TEMPLATES.map((tpl) => (
+                    <button
+                      key={tpl.id}
+                      type="button"
+                      className="block w-full px-3 py-2 text-left hover:bg-white/5"
+                      onClick={() => addSlide(tpl.id)}
+                    >
+                      <span className="block text-xs font-medium text-white">{tpl.label}</span>
+                      <span className="block text-[10px] text-slate-500">{tpl.description}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </div>
             <div className="flex-1 space-y-2 overflow-y-auto px-2 pb-4">
               {document.slides.map((slide, i) => (
@@ -832,6 +854,7 @@ export function TreatmentCreatorStudio({
                   onClick={() => {
                     setActiveSlideId(slide.id);
                     setSelectedElementId(null);
+                    setNewSlideMenuOpen(false);
                   }}
                 />
               ))}

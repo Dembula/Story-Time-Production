@@ -142,6 +142,24 @@ function layoutContent(
     if (!readOnly) onFieldChange?.(patch);
   };
 
+  const bg = (slide.backgroundColor || "#ffffff").replace("#", "");
+  const r = parseInt(bg.slice(0, 2) || "ff", 16);
+  const g = parseInt(bg.slice(2, 4) || "ff", 16);
+  const b = parseInt(bg.slice(4, 6) || "ff", 16);
+  const darkBg = (0.299 * r + 0.587 * g + 0.114 * b) / 255 < 0.55;
+  const titleClass = darkBg
+    ? "text-3xl font-semibold tracking-tight text-white md:text-5xl"
+    : "text-3xl font-semibold tracking-tight text-slate-900 md:text-5xl";
+  const subClass = darkBg
+    ? "mt-4 text-lg text-slate-300 md:text-xl"
+    : "mt-4 text-lg text-slate-600 md:text-xl";
+  const h2Class = darkBg
+    ? "text-2xl font-semibold text-white md:text-3xl"
+    : "text-2xl font-semibold text-slate-900 md:text-3xl";
+  const bodyClass = darkBg
+    ? "mt-6 flex-1 text-sm leading-relaxed text-slate-200 md:text-base"
+    : "mt-6 flex-1 text-sm leading-relaxed text-slate-700 md:text-base";
+
   switch (layout) {
     case "title":
       return (
@@ -151,14 +169,14 @@ function layoutContent(
             placeholder="Project Title"
             readOnly={readOnly}
             onChange={(title) => change({ title })}
-            className="text-3xl font-semibold tracking-tight text-slate-900 md:text-5xl"
+            className={titleClass}
           />
           <EditableText
             value={slide.subtitle ?? ""}
             placeholder="Subtitle or byline"
             readOnly={readOnly}
             onChange={(subtitle) => change({ subtitle })}
-            className="mt-4 text-lg text-slate-600 md:text-xl"
+            className={subClass}
           />
         </div>
       );
@@ -271,7 +289,7 @@ function layoutContent(
             placeholder="Slide title"
             readOnly={readOnly}
             onChange={(title) => change({ title })}
-            className="text-2xl font-semibold text-slate-900 md:text-3xl"
+            className={h2Class}
           />
           <EditableText
             value={slide.body ?? ""}
@@ -279,7 +297,7 @@ function layoutContent(
             multiline
             readOnly={readOnly}
             onChange={(body) => change({ body })}
-            className="mt-6 flex-1 text-sm leading-relaxed text-slate-700 md:text-base"
+            className={bodyClass}
           />
         </div>
       );
@@ -308,6 +326,12 @@ function FreeformElement({
   onDelete: () => void;
 }) {
   const [editingText, setEditingText] = useState(false);
+  const [livePos, setLivePos] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
   const dragRef = useRef<{
     mode: DragMode;
     startX: number;
@@ -318,9 +342,19 @@ function FreeformElement({
     origH: number;
     parentW: number;
     parentH: number;
+    pointerId: number;
   } | null>(null);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
 
-  const onPointerDown = (e: React.PointerEvent, mode: DragMode) => {
+  const display = livePos ?? {
+    x: element.x,
+    y: element.y,
+    width: element.width,
+    height: element.height,
+  };
+
+  const beginDrag = (e: React.PointerEvent, mode: DragMode) => {
     if (readOnly) return;
     e.stopPropagation();
     e.preventDefault();
@@ -340,47 +374,74 @@ function FreeformElement({
       origH: element.height,
       parentW: rect.width,
       parentH: rect.height,
+      pointerId: e.pointerId,
     };
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    setLivePos({
+      x: element.x,
+      y: element.y,
+      width: element.width,
+      height: element.height,
+    });
   };
 
-  const onPointerMove = (e: React.PointerEvent) => {
-    const drag = dragRef.current;
-    if (!drag) return;
-    const dx = ((e.clientX - drag.startX) / drag.parentW) * 100;
-    const dy = ((e.clientY - drag.startY) / drag.parentH) * 100;
+  useEffect(() => {
+    const onMove = (e: PointerEvent) => {
+      const drag = dragRef.current;
+      if (!drag || e.pointerId !== drag.pointerId) return;
+      const dx = ((e.clientX - drag.startX) / drag.parentW) * 100;
+      const dy = ((e.clientY - drag.startY) / drag.parentH) * 100;
+      let next = {
+        x: drag.origX,
+        y: drag.origY,
+        width: drag.origW,
+        height: drag.origH,
+      };
+      if (drag.mode === "move") {
+        next = {
+          ...next,
+          x: Math.min(95, Math.max(-5, drag.origX + dx)),
+          y: Math.min(95, Math.max(-5, drag.origY + dy)),
+        };
+      } else if (drag.mode === "resize-se") {
+        next = {
+          ...next,
+          width: Math.min(100, Math.max(8, drag.origW + dx)),
+          height: Math.min(100, Math.max(6, drag.origH + dy)),
+        };
+      } else if (drag.mode === "resize-e") {
+        next = { ...next, width: Math.min(100, Math.max(8, drag.origW + dx)) };
+      } else if (drag.mode === "resize-s") {
+        next = { ...next, height: Math.min(100, Math.max(6, drag.origH + dy)) };
+      }
+      setLivePos(next);
+    };
 
-    if (drag.mode === "move") {
-      onChange({
-        x: Math.min(95, Math.max(-5, drag.origX + dx)),
-        y: Math.min(95, Math.max(-5, drag.origY + dy)),
+    const onUp = (e: PointerEvent) => {
+      const drag = dragRef.current;
+      if (!drag || e.pointerId !== drag.pointerId) return;
+      dragRef.current = null;
+      setLivePos((pos) => {
+        if (pos) onChangeRef.current(pos);
+        return null;
       });
-      return;
-    }
-    if (drag.mode === "resize-se") {
-      onChange({
-        width: Math.min(100, Math.max(8, drag.origW + dx)),
-        height: Math.min(100, Math.max(6, drag.origH + dy)),
-      });
-      return;
-    }
-    if (drag.mode === "resize-e") {
-      onChange({ width: Math.min(100, Math.max(8, drag.origW + dx)) });
-      return;
-    }
-    if (drag.mode === "resize-s") {
-      onChange({ height: Math.min(100, Math.max(6, drag.origH + dy)) });
-    }
-  };
+    };
 
-  const onPointerUp = () => {
-    dragRef.current = null;
-  };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+  }, []);
 
   useEffect(() => {
     if (readOnly || !selected) return;
     const onKey = (e: KeyboardEvent) => {
       if (editingText) return;
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
       if (e.key === "Delete" || e.key === "Backspace") {
         e.preventDefault();
         onDelete();
@@ -398,16 +459,14 @@ function FreeformElement({
         selected && !readOnly && "ring-2 ring-orange-400 ring-offset-1",
       )}
       style={{
-        left: `${element.x}%`,
-        top: `${element.y}%`,
-        width: `${element.width}%`,
-        height: `${element.height}%`,
-        zIndex: element.zIndex,
+        left: `${display.x}%`,
+        top: `${display.y}%`,
+        width: `${display.width}%`,
+        height: `${display.height}%`,
+        zIndex: (element.zIndex || 1) + (selected ? 1000 : 0),
         transform: element.rotation ? `rotate(${element.rotation}deg)` : undefined,
       }}
-      onPointerDown={(e) => onPointerDown(e, "move")}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
+      onPointerDown={(e) => beginDrag(e, "move")}
       onClick={(e) => {
         e.stopPropagation();
         onSelect();
@@ -461,10 +520,9 @@ function FreeformElement({
               resolveRenderableFileSource(asset.thumbnailUrl, { projectId }) ??
               undefined
             }
-            className="h-full w-full rounded-sm object-cover"
+            className="pointer-events-none h-full w-full rounded-sm object-cover"
             muted
             playsInline
-            controls={!readOnly}
           />
         ) : asset?.type === "link" ? (
           <div className="flex h-full w-full flex-col items-center justify-center gap-1 rounded-sm bg-slate-100 p-2 text-center">
@@ -477,7 +535,7 @@ function FreeformElement({
           <SecureImage
             fileRef={asset.thumbnailUrl || asset.url}
             alt={asset.title || "Reference"}
-            className="h-full w-full rounded-sm object-cover"
+            className="pointer-events-none h-full w-full rounded-sm object-cover"
             projectId={projectId}
           />
         ) : (
@@ -505,9 +563,14 @@ function FreeformElement({
         <>
           <button
             type="button"
-            className="absolute -right-2 -top-2 z-20 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] text-white shadow"
+            className="absolute -right-2 -top-2 z-30 flex h-6 w-6 items-center justify-center rounded-full bg-red-500 text-sm leading-none text-white shadow-md hover:bg-red-600"
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+            }}
             onClick={(e) => {
               e.stopPropagation();
+              e.preventDefault();
               onDelete();
             }}
             aria-label="Delete element"
@@ -515,16 +578,16 @@ function FreeformElement({
             ×
           </button>
           <div
-            className="absolute bottom-0 right-0 h-3 w-3 translate-x-1/2 translate-y-1/2 cursor-se-resize rounded-sm bg-orange-400 shadow"
-            onPointerDown={(e) => onPointerDown(e, "resize-se")}
+            className="absolute bottom-0 right-0 z-20 h-3.5 w-3.5 translate-x-1/2 translate-y-1/2 cursor-se-resize rounded-sm bg-orange-400 shadow"
+            onPointerDown={(e) => beginDrag(e, "resize-se")}
           />
           <div
-            className="absolute right-0 top-1/2 h-3 w-2 -translate-y-1/2 translate-x-1/2 cursor-e-resize rounded-sm bg-orange-400 shadow"
-            onPointerDown={(e) => onPointerDown(e, "resize-e")}
+            className="absolute right-0 top-1/2 z-20 h-3.5 w-2.5 -translate-y-1/2 translate-x-1/2 cursor-e-resize rounded-sm bg-orange-400 shadow"
+            onPointerDown={(e) => beginDrag(e, "resize-e")}
           />
           <div
-            className="absolute bottom-0 left-1/2 h-2 w-3 -translate-x-1/2 translate-y-1/2 cursor-s-resize rounded-sm bg-orange-400 shadow"
-            onPointerDown={(e) => onPointerDown(e, "resize-s")}
+            className="absolute bottom-0 left-1/2 z-20 h-2.5 w-3.5 -translate-x-1/2 translate-y-1/2 cursor-s-resize rounded-sm bg-orange-400 shadow"
+            onPointerDown={(e) => beginDrag(e, "resize-s")}
           />
         </>
       ) : null}
