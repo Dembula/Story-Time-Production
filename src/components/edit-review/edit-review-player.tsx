@@ -23,23 +23,36 @@ export type EditReviewPlaybackHandle = {
 
 type EditReviewPlayerProps = {
   src: string | null;
+  mimeType?: string | null;
+  posterUrl?: string | null;
+  statusMessage?: string | null;
   notes: EditReviewNote[];
   onTimeUpdate?: (ms: number, durationMs: number) => void;
   onNoteMarkerClick?: (note: EditReviewNote) => void;
   className?: string;
 };
 
-function isHlsUrl(url: string) {
+function isHlsSource(src: string, mimeType?: string | null) {
+  if (mimeType?.includes("mpegurl")) return true;
   return (
-    /\.m3u8(\?|$)/i.test(url) ||
-    url.includes("videodelivery.net") ||
-    url.includes("cloudflarestream.com")
+    /\.m3u8(\?|$)/i.test(src) ||
+    src.includes("videodelivery.net") ||
+    src.includes("cloudflarestream.com")
   );
 }
 
 export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewPlayerProps>(
   function EditReviewPlayer(
-    { src, notes, onTimeUpdate, onNoteMarkerClick, className },
+    {
+      src,
+      mimeType,
+      posterUrl,
+      statusMessage,
+      notes,
+      onTimeUpdate,
+      onNoteMarkerClick,
+      className,
+    },
     ref,
   ) {
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -50,11 +63,11 @@ export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewP
     const [currentMs, setCurrentMs] = useState(0);
     const [durationMs, setDurationMs] = useState(0);
     const [ready, setReady] = useState(false);
+    const [hasFrame, setHasFrame] = useState(false);
     const [buffering, setBuffering] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [mediaKey, setMediaKey] = useState(0);
 
-    const handleTimeUpdate = useCallback(() => {
+    const publishTime = useCallback(() => {
       const v = videoRef.current;
       if (!v) return;
       const ms = Math.round(v.currentTime * 1000);
@@ -64,7 +77,16 @@ export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewP
       onTimeUpdate?.(ms, dur);
     }, [onTimeUpdate]);
 
-    /** Seek and force a decoded frame so the viewer isn't left on a black frame. */
+    const checkDecodedFrame = useCallback(() => {
+      const v = videoRef.current;
+      if (!v) return false;
+      if (v.videoWidth > 0 && v.videoHeight > 0) {
+        setHasFrame(true);
+        return true;
+      }
+      return false;
+    }, []);
+
     const applySeek = useCallback(
       (ms: number) => {
         const v = videoRef.current;
@@ -77,60 +99,62 @@ export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewP
         setBuffering(true);
 
         const finish = () => {
-          handleTimeUpdate();
+          publishTime();
           setBuffering(false);
-          // Nudge decode while paused so the frame paints
-          if (v.paused) {
+          checkDecodedFrame();
+          // Force a decode tick while paused so the frame paints
+          if (v.paused && v.videoWidth > 0) {
+            const wasMuted = v.muted;
+            v.muted = true;
             void v
               .play()
               .then(() => {
-                v.pause();
-                setPlaying(false);
-                handleTimeUpdate();
+                requestAnimationFrame(() => {
+                  v.pause();
+                  v.muted = wasMuted;
+                  setPlaying(false);
+                  publishTime();
+                });
               })
               .catch(() => {
-                handleTimeUpdate();
+                v.muted = wasMuted;
               });
           }
         };
 
-        const doSeek = () => {
-          const onSeeked = () => {
-            v.removeEventListener("seeked", onSeeked);
+        const run = () => {
+          let settled = false;
+          const done = () => {
+            if (settled) return;
+            settled = true;
+            v.removeEventListener("seeked", done);
             finish();
           };
-          v.addEventListener("seeked", onSeeked);
+          v.addEventListener("seeked", done);
           try {
             v.currentTime = seconds;
           } catch {
             pendingSeekMs.current = ms;
-            v.removeEventListener("seeked", onSeeked);
+            v.removeEventListener("seeked", done);
             setBuffering(false);
+            return;
           }
-          // Fallback if seeked never fires
-          window.setTimeout(() => {
-            v.removeEventListener("seeked", onSeeked);
-            if (Math.abs(v.currentTime - seconds) < 0.35) finish();
-            else setBuffering(false);
-          }, 2500);
+          window.setTimeout(done, 2000);
         };
 
-        if (v.readyState >= 1) {
-          doSeek();
-        } else {
+        if (v.readyState >= 1) run();
+        else {
           pendingSeekMs.current = ms;
           const onMeta = () => {
             v.removeEventListener("loadedmetadata", onMeta);
             const target = pendingSeekMs.current;
-            if (target != null) {
-              pendingSeekMs.current = null;
-              applySeek(target);
-            }
+            pendingSeekMs.current = null;
+            if (target != null) applySeek(target);
           };
           v.addEventListener("loadedmetadata", onMeta);
         }
       },
-      [handleTimeUpdate],
+      [publishTime, checkDecodedFrame],
     );
 
     useImperativeHandle(
@@ -143,7 +167,6 @@ export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewP
           if (!v) return;
           await v.play();
           setPlaying(true);
-          setError(null);
         },
         pause: () => {
           videoRef.current?.pause();
@@ -154,17 +177,15 @@ export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewP
     );
 
     useEffect(() => {
-      setMediaKey((k) => k + 1);
-    }, [src]);
-
-    useEffect(() => {
       const v = videoRef.current;
       hlsRef.current?.destroy();
       hlsRef.current = null;
+
       setPlaying(false);
       setCurrentMs(0);
       setDurationMs(0);
       setReady(false);
+      setHasFrame(false);
       setError(null);
       setBuffering(Boolean(src));
       pendingSeekMs.current = null;
@@ -175,7 +196,28 @@ export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewP
       }
 
       let cancelled = false;
-      const useHls = isHlsUrl(src);
+      const useHls = isHlsSource(src, mimeType);
+
+      const markReady = () => {
+        if (cancelled) return;
+        setReady(true);
+        setBuffering(false);
+        publishTime();
+        // Give the decoder a moment; flag black masters
+        window.setTimeout(() => {
+          if (cancelled) return;
+          if (!checkDecodedFrame() && v.readyState >= 2) {
+            setError(
+              "Video loaded but no picture is available (unsupported codec). Upload an H.264 MP4, or wait for streaming encode.",
+            );
+          }
+        }, 1200);
+        if (pendingSeekMs.current != null) {
+          const ms = pendingSeekMs.current;
+          pendingSeekMs.current = null;
+          applySeek(ms);
+        }
+      };
 
       if (useHls) {
         if (v.canPlayType("application/vnd.apple.mpegurl")) {
@@ -192,21 +234,13 @@ export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewP
             enableWorker: true,
             lowLatencyMode: false,
             startLevel: -1,
-            maxBufferLength: 30,
+            maxBufferLength: 45,
+            capLevelToPlayerSize: true,
           });
           hlsRef.current = hls;
           hls.loadSource(src);
           hls.attachMedia(v);
-          hls.on(Hls.Events.MANIFEST_PARSED, () => {
-            if (cancelled) return;
-            setReady(true);
-            setBuffering(false);
-            if (pendingSeekMs.current != null) {
-              const ms = pendingSeekMs.current;
-              pendingSeekMs.current = null;
-              applySeek(ms);
-            }
-          });
+          hls.on(Hls.Events.MANIFEST_PARSED, markReady);
           hls.on(Hls.Events.ERROR, (_evt, data) => {
             if (cancelled || !data.fatal) return;
             if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
@@ -217,7 +251,7 @@ export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewP
               hls.recoverMediaError();
               return;
             }
-            setError("Could not play this edit. Try re-uploading or wait for encoding.");
+            setError("Could not play this stream. Try re-uploading as H.264 MP4.");
             setBuffering(false);
           });
           return () => {
@@ -226,7 +260,7 @@ export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewP
             hlsRef.current = null;
           };
         }
-        setError("HLS playback is not supported in this browser.");
+        setError("HLS is not supported in this browser.");
         setBuffering(false);
         return;
       }
@@ -238,15 +272,14 @@ export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewP
         v.removeAttribute("src");
         v.load();
       };
-    }, [src, mediaKey, applySeek]);
+    }, [src, mimeType, applySeek, publishTime, checkDecodedFrame]);
 
     const togglePlay = useCallback(async () => {
       const v = videoRef.current;
-      if (!v) return;
+      if (!v || !src) return;
       setError(null);
       if (v.paused) {
         try {
-          // Some browsers need a user gesture + ready data
           if (v.readyState < 2) {
             setBuffering(true);
             await new Promise<void>((resolve) => {
@@ -255,22 +288,23 @@ export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewP
                 resolve();
               };
               v.addEventListener("canplay", done);
-              window.setTimeout(resolve, 4000);
+              window.setTimeout(resolve, 5000);
             });
           }
           await v.play();
           setPlaying(true);
           setBuffering(false);
+          checkDecodedFrame();
         } catch (err) {
           console.error(err);
-          setError("Could not start playback. Click play again or re-upload the edit.");
+          setError("Playback blocked or failed. Click play again.");
           setBuffering(false);
         }
       } else {
         v.pause();
         setPlaying(false);
       }
-    }, []);
+    }, [src, checkDecodedFrame]);
 
     const seekFromProgress = useCallback(
       (clientX: number, rect: DOMRect) => {
@@ -285,11 +319,18 @@ export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewP
       return (
         <div
           className={cn(
-            "flex aspect-video items-center justify-center rounded-lg border border-dashed border-white/15 bg-black/60",
+            "flex aspect-video flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-white/15 bg-black/60 px-6 text-center",
             className,
           )}
         >
-          <p className="text-sm text-slate-500">Upload an edit to start review</p>
+          {statusMessage ? (
+            <>
+              <Loader2 className="h-7 w-7 animate-spin text-orange-300" />
+              <p className="text-sm text-slate-300">{statusMessage}</p>
+            </>
+          ) : (
+            <p className="text-sm text-slate-500">Upload an edit to start review</p>
+          )}
         </div>
       );
     }
@@ -301,17 +342,18 @@ export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewP
       <div className={cn("edit-review-player space-y-3", className)}>
         <div className="relative overflow-hidden rounded-lg border border-white/10 bg-black">
           <video
-            key={mediaKey}
             ref={videoRef}
-            className="aspect-video w-full bg-black"
+            className="aspect-video w-full bg-black object-contain"
             playsInline
             preload="auto"
+            poster={posterUrl ?? undefined}
             controls={false}
-            onTimeUpdate={handleTimeUpdate}
+            onTimeUpdate={publishTime}
             onLoadedMetadata={() => {
-              handleTimeUpdate();
+              publishTime();
               setReady(true);
               setBuffering(false);
+              checkDecodedFrame();
               if (pendingSeekMs.current != null) {
                 const ms = pendingSeekMs.current;
                 pendingSeekMs.current = null;
@@ -321,28 +363,31 @@ export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewP
             onLoadedData={() => {
               setReady(true);
               setBuffering(false);
+              checkDecodedFrame();
             }}
             onWaiting={() => setBuffering(true)}
             onPlaying={() => {
               setBuffering(false);
               setPlaying(true);
+              checkDecodedFrame();
               setError(null);
             }}
             onCanPlay={() => {
               setReady(true);
               setBuffering(false);
+              checkDecodedFrame();
             }}
             onSeeked={() => {
-              handleTimeUpdate();
+              publishTime();
               setBuffering(false);
+              checkDecodedFrame();
             }}
             onPlay={() => setPlaying(true)}
             onPause={() => setPlaying(false)}
             onError={() => {
-              const mediaError = videoRef.current?.error;
-              console.error("edit review video error", mediaError);
+              console.error("edit review video error", videoRef.current?.error);
               setError(
-                "Video failed to load. Re-upload the edit, or wait if stream encoding is still running.",
+                "Video failed to load. Prefer an H.264 MP4 upload, or wait for streaming encode.",
               );
               setBuffering(false);
               setReady(false);
@@ -356,21 +401,27 @@ export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewP
             </div>
           ) : null}
 
-          {!ready && !buffering && !error ? (
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/50">
-              <p className="text-sm text-slate-400">Loading edit…</p>
+          {ready && !hasFrame && !error && !buffering ? (
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/55 px-6 text-center">
+              <p className="text-sm text-slate-300">
+                Waiting for picture… if this stays black, the file codec is not browser-playable.
+              </p>
             </div>
           ) : null}
 
           {error ? (
-            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-black/85 px-6 text-center">
-              <p className="text-sm text-slate-300">{error}</p>
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-black/90 px-6 text-center">
+              <p className="max-w-md text-sm text-slate-300">{error}</p>
               <button
                 type="button"
                 className="rounded bg-orange-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-orange-600"
                 onClick={() => {
                   setError(null);
-                  setMediaKey((k) => k + 1);
+                  const v = videoRef.current;
+                  if (v && src) {
+                    v.load();
+                    setBuffering(true);
+                  }
                 }}
               >
                 Retry
@@ -378,7 +429,7 @@ export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewP
             </div>
           ) : null}
 
-          <div className="absolute bottom-0 inset-x-0 z-10 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-3 pb-3 pt-10">
+          <div className="absolute bottom-0 inset-x-0 z-10 bg-gradient-to-t from-black/95 via-black/55 to-transparent px-3 pb-3 pt-12">
             <div
               className="relative mb-2 h-2 cursor-pointer rounded-full bg-white/20"
               role="slider"
@@ -442,6 +493,9 @@ export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewP
               <span className="font-mono text-xs text-slate-300">
                 {formatReviewTimecode(currentMs)} / {formatReviewTimecode(durationMs || 0)}
               </span>
+              {hasFrame ? null : ready ? (
+                <span className="text-[10px] text-amber-300/90">No video frame</span>
+              ) : null}
             </div>
           </div>
         </div>

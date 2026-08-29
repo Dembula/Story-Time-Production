@@ -16,18 +16,19 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EditReviewPlayer, type EditReviewPlaybackHandle } from "./edit-review-player";
 import { projectToolQueryFn } from "@/lib/project-tool-fetch";
 import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
-import { resolveEditPlaybackSrc } from "@/lib/edit-review/playback";
 import {
   formatReviewTimecode,
   parseReviewStatus,
   type EditFootageAsset,
   type EditReviewNote,
+  type EditReviewPlaybackResponse,
   type EditReviewSession,
   type EditReviewStatus,
 } from "@/lib/edit-review/types";
 import { cn } from "@/lib/utils";
 
-const UPLOAD_ACCEPT = "video/mp4,video/quicktime,video/webm,video/x-m4v,.mov,.mp4,.mxf";
+/** Prefer H.264 MP4 for instant browser review; other formats encode via Stream. */
+const UPLOAD_ACCEPT = "video/mp4,video/webm,video/quicktime,video/x-m4v,.mp4,.m4v,.webm,.mov";
 
 type EditReviewStudioProps = {
   projectId?: string;
@@ -56,23 +57,7 @@ export function EditReviewStudio({
       `/api/creator/projects/${projectId}/reviews`,
     ),
     enabled: hasProject,
-    refetchInterval: (query) => {
-      const list = query.state.data?.reviews ?? [];
-      const needsStream = list.some((r) => {
-        if (!r.cutAsset?.fileUrl) return false;
-        if (!r.cutAsset.metadata) return true;
-        try {
-          const meta = JSON.parse(r.cutAsset.metadata) as {
-            hlsUrl?: string;
-            playbackUrl?: string;
-          };
-          return !meta.hlsUrl && !meta.playbackUrl;
-        } catch {
-          return true;
-        }
-      });
-      return needsStream ? 12_000 : false;
-    },
+    refetchInterval: 15_000,
   });
 
   const { data: footageData, isLoading: footageLoading } = useQuery({
@@ -106,25 +91,38 @@ export function EditReviewStudio({
   }, [reviews]);
 
   const cutAssetId = selectedReview?.cutAsset?.id ?? null;
-  const cutAsset = selectedReview?.cutAsset ?? null;
 
-  const { data: playbackResolved, isFetching: playbackLoading } = useQuery({
-    queryKey: [
-      "edit-review-playback",
-      projectId,
-      cutAssetId,
-      cutAsset?.fileUrl,
-      cutAsset?.metadata,
-    ],
+  const { data: playbackPayload, isFetching: playbackLoading } = useQuery({
+    queryKey: ["edit-review-playback", projectId, cutAssetId],
     queryFn: async () => {
-      if (!cutAsset || !projectId) return null;
-      return resolveEditPlaybackSrc(cutAsset, projectId);
+      const res = await fetch(
+        `/api/creator/projects/${projectId}/reviews/playback?assetId=${encodeURIComponent(cutAssetId!)}`,
+        { credentials: "include" },
+      );
+      const json = (await res.json().catch(() => ({}))) as EditReviewPlaybackResponse & {
+        error?: string;
+      };
+      if (!res.ok) {
+        throw new Error(json.error || "Could not resolve playback");
+      }
+      return json;
     },
-    enabled: Boolean(hasProject && cutAsset && projectId),
-    staleTime: 30 * 60 * 1000,
+    enabled: Boolean(hasProject && cutAssetId && projectId),
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === "encoding" || status === "failed" ? 8_000 : false;
+    },
+    staleTime: 60_000,
+    retry: 2,
   });
 
-  const playbackUrl = playbackResolved?.src ?? null;
+  const playbackUrl = playbackPayload?.playback?.src ?? null;
+  const playbackMime = playbackPayload?.playback?.type ?? null;
+  const playbackStatusMessage =
+    playbackPayload?.status === "ready"
+      ? null
+      : playbackPayload?.message ||
+        (playbackLoading ? "Resolving playback…" : "Playback not ready");
 
   const createReviewMutation = useMutation({
     mutationFn: async (payload: { cutAssetId: string; title?: string }) => {
@@ -205,6 +203,7 @@ export function EditReviewStudio({
         });
 
         void queryClient.invalidateQueries({ queryKey: ["project-footage", projectId] });
+        void queryClient.invalidateQueries({ queryKey: ["edit-review-playback", projectId] });
         setUploadLabel("");
       } catch (e) {
         console.error(e);
@@ -277,8 +276,8 @@ export function EditReviewStudio({
           <Input
             value={uploadLabel}
             onChange={(e) => setUploadLabel(e.target.value)}
-            placeholder="Version label (e.g. Rough Cut v2)"
-            className="h-8 w-44 border-white/10 bg-black/40 text-xs text-white md:w-56"
+            placeholder="Version label (e.g. Rough Cut v2 · H.264 MP4)"
+            className="h-8 w-52 border-white/10 bg-black/40 text-xs text-white md:w-64"
           />
           <input
             ref={fileRef}
@@ -431,7 +430,7 @@ export function EditReviewStudio({
                 </div>
               </div>
 
-              {playbackLoading && !playbackUrl ? (
+              {playbackLoading && !playbackUrl && playbackPayload?.status !== "encoding" ? (
                 <div className="flex aspect-video items-center justify-center rounded-lg border border-white/10 bg-black/60">
                   <Loader2 className="h-8 w-8 animate-spin text-orange-300" />
                 </div>
@@ -439,16 +438,24 @@ export function EditReviewStudio({
                 <EditReviewPlayer
                   ref={playerRef}
                   src={playbackUrl}
+                  mimeType={playbackMime}
+                  posterUrl={playbackPayload?.posterUrl}
+                  statusMessage={playbackStatusMessage}
                   notes={sortedNotes}
                   onTimeUpdate={(ms) => setPlayheadMs(ms)}
                   onNoteMarkerClick={(note) => {
                     if (note.timestampMs != null) {
-                      playerRef.current?.seekToMs(note.timestampMs);
                       setPlayheadMs(note.timestampMs);
                     }
                   }}
                 />
               )}
+              {playbackPayload?.status === "encoding" || playbackPayload?.status === "failed" ? (
+                <p className="mt-2 text-center text-[11px] text-amber-200/90">
+                  Tip: export a web-friendly <span className="font-medium">H.264 MP4</span> from your
+                  NLE for instant review while Stream finishes encoding masters.
+                </p>
+              ) : null}
             </>
           ) : (
             <div className="flex flex-1 flex-col items-center justify-center text-center">

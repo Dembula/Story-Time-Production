@@ -35,16 +35,22 @@ export type EditReviewSession = {
   notes: EditReviewNote[];
 };
 
+export type EditReviewPlaybackResponse = {
+  status: "ready" | "encoding" | "failed" | "unavailable";
+  streamStatus?: string | null;
+  message?: string;
+  playback: { src: string; type: string } | null;
+  posterUrl?: string | null;
+  asset?: { id: string; label: string | null; fileUrl: string };
+};
+
+/** Frame.io-style timecode: HH:MM:SS */
 export function formatReviewTimecode(ms: number): string {
-  const totalSec = Math.floor(ms / 1000);
-  const frames = Math.floor((ms % 1000) / (1000 / 24));
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
   const sec = totalSec % 60;
   const min = Math.floor(totalSec / 60) % 60;
   const hr = Math.floor(totalSec / 3600);
-  if (hr > 0) {
-    return `${String(hr).padStart(2, "0")}:${String(min).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
-  }
-  return `${String(min).padStart(2, "0")}:${String(sec).padStart(2, "0")}:${String(frames).padStart(2, "0")}`;
+  return `${String(hr).padStart(2, "0")}:${String(min).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
 }
 
 export function parseReviewStatus(raw: string | null | undefined): EditReviewStatus {
