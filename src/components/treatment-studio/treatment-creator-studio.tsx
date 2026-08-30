@@ -111,6 +111,7 @@ export function TreatmentCreatorStudio({
   const [draggingSlideId, setDraggingSlideId] = useState<string | null>(null);
   const [dropSlideIndex, setDropSlideIndex] = useState<number | null>(null);
   const slideDragDidMoveRef = useRef(false);
+  const slideListRef = useRef<HTMLDivElement | null>(null);
   const dirtyRef = useRef(false);
   const localDocRef = useRef<TreatmentDocument | null>(null);
   const hydratedTreatmentKey = useRef<string | null>(null);
@@ -546,6 +547,73 @@ export function TreatmentCreatorStudio({
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, []);
+
+  const goToSlideIndex = useCallback(
+    (index: number) => {
+      if (!document?.slides.length) return;
+      const next = document.slides[Math.max(0, Math.min(document.slides.length - 1, index))];
+      if (!next || next.id === activeSlideId) return;
+      setActiveSlideId(next.id);
+      setSelectedElementId(null);
+      setNewSlideMenuOpen(false);
+      setLayoutMenuOpen(false);
+      setColorMenuOpen(false);
+      setDownloadMenuOpen(false);
+    },
+    [document?.slides, activeSlideId],
+  );
+
+  // ↑ / ↓ (and PageUp / PageDown) cycle slides without clicking each thumbnail.
+  useEffect(() => {
+    if (presenting || !document?.slides.length) return;
+
+    const isTypingTarget = (target: EventTarget | null) => {
+      if (!(target instanceof HTMLElement)) return false;
+      const tag = target.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+      if (target.isContentEditable) return true;
+      return Boolean(target.closest("[contenteditable='true']"));
+    };
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (isTypingTarget(e.target)) return;
+
+      if (e.key === "ArrowDown" || e.key === "PageDown") {
+        e.preventDefault();
+        goToSlideIndex(activeIndex + 1);
+        return;
+      }
+      if (e.key === "ArrowUp" || e.key === "PageUp") {
+        e.preventDefault();
+        goToSlideIndex(activeIndex - 1);
+        return;
+      }
+      if (e.key === "Home") {
+        e.preventDefault();
+        goToSlideIndex(0);
+        return;
+      }
+      if (e.key === "End") {
+        e.preventDefault();
+        goToSlideIndex(document.slides.length - 1);
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [presenting, document?.slides.length, activeIndex, goToSlideIndex]);
+
+  // Keep the active thumbnail visible in the left rail while arrowing through.
+  useEffect(() => {
+    if (!activeSlideId || !slideListRef.current) return;
+    const node = slideListRef.current.querySelector(
+      `[data-slide-thumb-id="${activeSlideId}"]`,
+    );
+    if (node instanceof HTMLElement) {
+      node.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+  }, [activeSlideId]);
 
   if (isLoading) {
     return (
@@ -1049,6 +1117,7 @@ export function TreatmentCreatorStudio({
               ) : null}
             </div>
             <div
+              ref={slideListRef}
               className="flex-1 space-y-2 overflow-y-auto px-2 pb-4"
               onDragOver={(e) => {
                 if (!draggingSlideId) return;
@@ -1068,8 +1137,8 @@ export function TreatmentCreatorStudio({
                 setDropSlideIndex(null);
               }}
             >
-              <p className="px-0.5 pb-1 text-[9px] uppercase tracking-wide text-slate-600">
-                Hold & drag to reorder
+              <p className="px-0.5 pb-1 text-[9px] leading-relaxed uppercase tracking-wide text-slate-600">
+                Hold & drag to reorder · ↑↓ to move
               </p>
               {document.slides.map((slide, i) => {
                 const dropBefore =
@@ -1081,76 +1150,74 @@ export function TreatmentCreatorStudio({
                   i === document.slides.length - 1 &&
                   draggingSlideId != null;
                 return (
-                  <TreatmentSlideThumbnail
-                    key={slide.id}
-                    slide={slide}
-                    assets={document.assets}
-                    index={i}
-                    active={slide.id === activeSlide.id}
-                    projectId={projectId}
-                    draggable={document.slides.length > 1}
-                    dragging={draggingSlideId === slide.id}
-                    dropBefore={dropBefore}
-                    dropAfter={dropAfter}
-                    onDragStart={(e) => {
-                      slideDragDidMoveRef.current = false;
-                      setDraggingSlideId(slide.id);
-                      setDropSlideIndex(i);
-                      e.dataTransfer.setData(
-                        "application/x-treatment-slide",
-                        slide.id,
-                      );
-                      // Transparent drag image keeps the list readable while reordering.
-                      if (e.currentTarget instanceof HTMLElement) {
-                        const rect = e.currentTarget.getBoundingClientRect();
-                        e.dataTransfer.setDragImage(
-                          e.currentTarget,
-                          Math.min(24, rect.width / 2),
-                          Math.min(16, rect.height / 2),
-                        );
-                      }
-                    }}
-                    onDragEnd={() => {
-                      setDraggingSlideId(null);
-                      setDropSlideIndex(null);
-                    }}
-                    onDragOver={(e) => {
-                      if (!draggingSlideId || draggingSlideId === slide.id) return;
-                      e.preventDefault();
-                      e.stopPropagation();
-                      e.dataTransfer.dropEffect = "move";
-                      slideDragDidMoveRef.current = true;
-                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                      const before = e.clientY < rect.top + rect.height / 2;
-                      setDropSlideIndex(before ? i : i + 1);
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      if (!document || !draggingSlideId) return;
-                      const fromIndex = document.slides.findIndex(
-                        (s) => s.id === draggingSlideId,
-                      );
-                      const toIndex =
-                        dropSlideIndex ??
-                        (() => {
-                          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                          return e.clientY < rect.top + rect.height / 2 ? i : i + 1;
-                        })();
-                      if (fromIndex >= 0) reorderSlides(fromIndex, toIndex);
-                      setDraggingSlideId(null);
-                      setDropSlideIndex(null);
-                    }}
-                    onClick={() => {
-                      if (slideDragDidMoveRef.current) {
+                  <div key={slide.id} data-slide-thumb-id={slide.id}>
+                    <TreatmentSlideThumbnail
+                      slide={slide}
+                      assets={document.assets}
+                      index={i}
+                      active={slide.id === activeSlide.id}
+                      projectId={projectId}
+                      draggable={document.slides.length > 1}
+                      dragging={draggingSlideId === slide.id}
+                      dropBefore={dropBefore}
+                      dropAfter={dropAfter}
+                      onDragStart={(e) => {
                         slideDragDidMoveRef.current = false;
-                        return;
-                      }
-                      setActiveSlideId(slide.id);
-                      setSelectedElementId(null);
-                      setNewSlideMenuOpen(false);
-                    }}
-                  />
+                        setDraggingSlideId(slide.id);
+                        setDropSlideIndex(i);
+                        e.dataTransfer.setData(
+                          "application/x-treatment-slide",
+                          slide.id,
+                        );
+                        if (e.currentTarget instanceof HTMLElement) {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          e.dataTransfer.setDragImage(
+                            e.currentTarget,
+                            Math.min(24, rect.width / 2),
+                            Math.min(16, rect.height / 2),
+                          );
+                        }
+                      }}
+                      onDragEnd={() => {
+                        setDraggingSlideId(null);
+                        setDropSlideIndex(null);
+                      }}
+                      onDragOver={(e) => {
+                        if (!draggingSlideId || draggingSlideId === slide.id) return;
+                        e.preventDefault();
+                        e.stopPropagation();
+                        e.dataTransfer.dropEffect = "move";
+                        slideDragDidMoveRef.current = true;
+                        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                        const before = e.clientY < rect.top + rect.height / 2;
+                        setDropSlideIndex(before ? i : i + 1);
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (!document || !draggingSlideId) return;
+                        const fromIndex = document.slides.findIndex(
+                          (s) => s.id === draggingSlideId,
+                        );
+                        const toIndex =
+                          dropSlideIndex ??
+                          (() => {
+                            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                            return e.clientY < rect.top + rect.height / 2 ? i : i + 1;
+                          })();
+                        if (fromIndex >= 0) reorderSlides(fromIndex, toIndex);
+                        setDraggingSlideId(null);
+                        setDropSlideIndex(null);
+                      }}
+                      onClick={() => {
+                        if (slideDragDidMoveRef.current) {
+                          slideDragDidMoveRef.current = false;
+                          return;
+                        }
+                        goToSlideIndex(i);
+                      }}
+                    />
+                  </div>
                 );
               })}
             </div>
@@ -1179,6 +1246,7 @@ export function TreatmentCreatorStudio({
               {activeSlide.layout !== "content" && activeSlide.layout !== "title"
                 ? ` · ${LAYOUT_OPTIONS.find((l) => l.id === activeSlide.layout)?.label}`
                 : ""}
+              {" · "}↑↓ slides
               {activeSlide.layout === "image" || activeSlide.layout === "split"
                 ? " · Click a library still for the hero"
                 : activeSlide.layout === "references"
