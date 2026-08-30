@@ -64,8 +64,8 @@ export function TreatmentPresenter({
         </Button>
       </div>
 
-      <div className="flex flex-1 items-center justify-center p-6 md:p-12">
-        <div className="treatment-presenter-stage w-full max-w-6xl">
+      <div className="flex flex-1 items-center justify-center bg-black p-6 md:p-12">
+        <div className="treatment-presenter-stage w-full">
           <TreatmentSlideCanvas
             slide={slide}
             assets={document.assets}

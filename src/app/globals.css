@@ -920,17 +920,74 @@ select optgroup {
 }
 
 .treatment-slide-canvas {
+  container-type: inline-size;
+  container-name: treatment-slide;
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
-  width: min(100%, 960px);
+  width: 100%;
+  max-width: 960px;
+}
+
+.treatment-editor-stage,
+.treatment-presenter-stage {
+  width: 100%;
+  max-width: 960px;
+  margin-inline: auto;
+}
+
+.treatment-editor-stage .treatment-slide-canvas,
+.treatment-presenter-stage .treatment-slide-canvas {
+  width: 100%;
+  max-width: none;
+  border-radius: 0.25rem;
+}
+
+/* Slide-relative type scale — same in editor and presentation (no viewport breakpoints) */
+.treatment-type-title {
+  font-size: clamp(1.75rem, 5.8cqi, 3rem);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.12;
+}
+
+.treatment-type-subtitle {
+  font-size: clamp(0.95rem, 2.2cqi, 1.25rem);
+  font-weight: 400;
+  line-height: 1.35;
+}
+
+.treatment-type-heading {
+  font-size: clamp(1.35rem, 3.6cqi, 1.875rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.treatment-type-body {
+  font-size: clamp(0.8125rem, 1.7cqi, 1rem);
+  font-weight: 400;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.treatment-type-caption {
+  font-size: clamp(0.95rem, 2cqi, 1.125rem);
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.treatment-slide-text {
+  min-height: 1em;
+}
+
+.treatment-slide-text--empty:not(:focus)::before {
+  content: attr(data-placeholder);
+  opacity: 0.4;
+  pointer-events: none;
 }
 
 .treatment-slide-thumb {
   aspect-ratio: 16 / 9;
   background: #111;
-}
-
-.treatment-presenter-stage .treatment-slide-canvas {
-  border-radius: 0.25rem;
 }
 
 .treatment-assets-panel {

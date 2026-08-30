@@ -405,3 +405,166 @@ export function nextElementZIndex(elements: TreatmentElement[]): number {
   if (elements.length === 0) return 1;
   return Math.max(...elements.map((el) => el.zIndex || 0)) + 1;
 }
+
+/** Layouts that show images from `referenceIds` (not freeform boxes). */
+export function layoutUsesReferenceSlots(layout: TreatmentSlideLayout): boolean {
+  return layout === "image" || layout === "split" || layout === "references";
+}
+
+/**
+ * Adapt a slide when switching layouts so images move between freeform boxes
+ * and layout slots (full-bleed / split hero / reference grid) correctly.
+ */
+export function adaptSlideToLayout(
+  slide: TreatmentSlide,
+  layout: TreatmentSlideLayout,
+): Pick<TreatmentSlide, "layout" | "elements" | "referenceIds"> {
+  let elements = [...slide.elements];
+  let referenceIds = [...slide.referenceIds];
+
+  const freeformImageIds = elements
+    .filter((el) => el.type === "image" && el.referenceId)
+    .map((el) => el.referenceId as string);
+
+  if (layout === "image" || layout === "split") {
+    const heroId = referenceIds[0] || freeformImageIds[0];
+    if (heroId) {
+      referenceIds = [heroId, ...referenceIds.filter((id) => id !== heroId)];
+      // Hero is owned by the layout — drop matching freeform to avoid a tiny duplicate box.
+      elements = elements.filter(
+        (el) => !(el.type === "image" && el.referenceId === heroId),
+      );
+    }
+  } else if (layout === "references") {
+    referenceIds = [...new Set([...referenceIds, ...freeformImageIds])];
+    elements = elements.filter((el) => el.type !== "image");
+  } else if (slide.layout !== layout) {
+    // title / content / blank — promote layout heroes into freeform if needed
+    const alreadyPlaced = new Set(
+      elements
+        .filter((el) => el.type === "image" && el.referenceId)
+        .map((el) => el.referenceId as string),
+    );
+    const toPromote = referenceIds.filter((id) => !alreadyPlaced.has(id));
+    let z = nextElementZIndex(elements);
+    for (let i = 0; i < toPromote.length; i++) {
+      elements.push(
+        createImageElement(toPromote[i], {
+          x: Math.min(55, 12 + (i % 3) * 28),
+          y: Math.min(50, 14 + Math.floor(i / 3) * 32),
+          width: 36,
+          height: 42,
+          zIndex: z++,
+        }),
+      );
+    }
+    referenceIds = [];
+  }
+
+  return { layout, elements, referenceIds };
+}
+
+/**
+ * Place or toggle an asset on a slide according to the active layout.
+ * - Full image / Split: sets the layout hero (full-bleed / side panel)
+ * - References: toggles in the reference grid
+ * - Title / Content / Blank: freeform image element
+ */
+export function placeAssetOnSlideDocument(
+  slide: TreatmentSlide,
+  assetId: string,
+  options?: { toggle?: boolean; x?: number; y?: number },
+): {
+  slide: Pick<TreatmentSlide, "elements" | "referenceIds">;
+  selectedElementId: string | null;
+} {
+  const toggle = options?.toggle === true;
+  const layout = slide.layout;
+
+  if (layout === "image" || layout === "split") {
+    const isHero = slide.referenceIds[0] === assetId;
+    if (toggle && isHero) {
+      return {
+        slide: {
+          elements: slide.elements.filter(
+            (el) => !(el.type === "image" && el.referenceId === assetId),
+          ),
+          referenceIds: slide.referenceIds.filter((id) => id !== assetId),
+        },
+        selectedElementId: null,
+      };
+    }
+    return {
+      slide: {
+        // Layout owns the hero — strip freeform clone of the same asset
+        elements: slide.elements.filter(
+          (el) => !(el.type === "image" && el.referenceId === assetId),
+        ),
+        referenceIds: [assetId, ...slide.referenceIds.filter((id) => id !== assetId)],
+      },
+      selectedElementId: null,
+    };
+  }
+
+  if (layout === "references") {
+    const has = slide.referenceIds.includes(assetId);
+    if (toggle && has) {
+      return {
+        slide: {
+          elements: slide.elements,
+          referenceIds: slide.referenceIds.filter((id) => id !== assetId),
+        },
+        selectedElementId: null,
+      };
+    }
+    if (has) {
+      return {
+        slide: { elements: slide.elements, referenceIds: slide.referenceIds },
+        selectedElementId: null,
+      };
+    }
+    return {
+      slide: {
+        elements: slide.elements.filter(
+          (el) => !(el.type === "image" && el.referenceId === assetId),
+        ),
+        referenceIds: [...slide.referenceIds, assetId],
+      },
+      selectedElementId: null,
+    };
+  }
+
+  // Freeform layouts
+  const existingEl = slide.elements.find(
+    (el) => el.type === "image" && el.referenceId === assetId,
+  );
+  if (toggle && existingEl) {
+    return {
+      slide: {
+        elements: slide.elements.filter((el) => el.id !== existingEl.id),
+        referenceIds: slide.referenceIds.filter((id) => id !== assetId),
+      },
+      selectedElementId: null,
+    };
+  }
+  if (existingEl && !toggle) {
+    return {
+      slide: { elements: slide.elements, referenceIds: slide.referenceIds },
+      selectedElementId: existingEl.id,
+    };
+  }
+
+  const el = createImageElement(assetId, {
+    x: options?.x ?? 18,
+    y: options?.y ?? 18,
+    zIndex: nextElementZIndex(slide.elements),
+  });
+  return {
+    slide: {
+      elements: [...slide.elements, el],
+      referenceIds: slide.referenceIds,
+    },
+    selectedElementId: el.id,
+  };
+}
+

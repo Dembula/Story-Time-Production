@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { GripVertical } from "lucide-react";
 import { SecureImage } from "@/components/files/secure-image";
 import { PEXELS_PHOTO_MIME } from "@/components/pexels/pexels-media-browser";
@@ -104,33 +104,59 @@ function EditableText({
   readOnly?: boolean;
   onChange?: (value: string) => void;
 }) {
-  if (readOnly) {
-    return <div className={className}>{value || placeholder}</div>;
-  }
-  if (multiline) {
-    return (
-      <textarea
-        value={value}
-        placeholder={placeholder}
-        onChange={(e) => onChange?.(e.target.value)}
-        className={cn(
-          "w-full resize-none border-0 bg-transparent outline-none placeholder:text-slate-400 focus:ring-0",
-          className,
-        )}
-        rows={6}
-      />
-    );
-  }
+  const ref = useRef<HTMLDivElement>(null);
+  const focusedRef = useRef(false);
+
+  // Keep DOM text in sync with props when not actively editing (matches presentation).
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || focusedRef.current) return;
+    const next = value ?? "";
+    if (el.innerText !== next) {
+      el.innerText = next;
+    }
+  }, [value, readOnly]);
+
+  const empty = !(value ?? "").trim();
+
   return (
-    <input
-      type="text"
-      value={value}
-      placeholder={placeholder}
-      onChange={(e) => onChange?.(e.target.value)}
+    <div
+      ref={ref}
+      role={readOnly ? undefined : "textbox"}
+      tabIndex={readOnly ? undefined : 0}
+      contentEditable={readOnly ? false : true}
+      suppressContentEditableWarning
+      data-placeholder={placeholder}
+      aria-label={placeholder}
       className={cn(
-        "w-full border-0 bg-transparent outline-none placeholder:text-slate-400 focus:ring-0",
+        "treatment-slide-text outline-none",
+        multiline && "whitespace-pre-wrap",
         className,
+        !readOnly &&
+          "cursor-text rounded-sm focus-visible:ring-1 focus-visible:ring-orange-400/50",
+        empty && "treatment-slide-text--empty",
       )}
+      onFocus={() => {
+        focusedRef.current = true;
+      }}
+      onBlur={(e) => {
+        focusedRef.current = false;
+        if (readOnly) return;
+        const raw = e.currentTarget.innerText ?? "";
+        const next = multiline
+          ? raw.replace(/\n$/, "")
+          : raw.replace(/\s*\n\s*/g, " ").trim();
+        if (next !== (value ?? "")) onChange?.(next);
+      }}
+      onKeyDown={(e) => {
+        if (readOnly) return;
+        if (!multiline && e.key === "Enter") {
+          e.preventDefault();
+          (e.currentTarget as HTMLDivElement).blur();
+        }
+        e.stopPropagation();
+      }}
+      onClick={(e) => e.stopPropagation()}
     />
   );
 }
@@ -152,23 +178,35 @@ function layoutContent(
   const g = parseInt(bg.slice(2, 4) || "ff", 16);
   const b = parseInt(bg.slice(4, 6) || "ff", 16);
   const darkBg = (0.299 * r + 0.587 * g + 0.114 * b) / 255 < 0.55;
-  const titleClass = darkBg
-    ? "text-3xl font-semibold tracking-tight text-white md:text-5xl"
-    : "text-3xl font-semibold tracking-tight text-slate-900 md:text-5xl";
-  const subClass = darkBg
-    ? "mt-4 text-lg text-slate-300 md:text-xl"
-    : "mt-4 text-lg text-slate-600 md:text-xl";
-  const h2Class = darkBg
-    ? "text-2xl font-semibold text-white md:text-3xl"
-    : "text-2xl font-semibold text-slate-900 md:text-3xl";
-  const bodyClass = darkBg
-    ? "mt-6 flex-1 text-sm leading-relaxed text-slate-200 md:text-base"
-    : "mt-6 flex-1 text-sm leading-relaxed text-slate-700 md:text-base";
+  const titleClass = cn(
+    "treatment-type-title w-full text-center",
+    darkBg ? "text-white" : "text-slate-900",
+  );
+  const subClass = cn(
+    "treatment-type-subtitle mt-[0.6em] w-full text-center",
+    darkBg ? "text-white/75" : "text-slate-600",
+  );
+  const h2Class = cn(
+    "treatment-type-heading w-full",
+    darkBg ? "text-white" : "text-slate-900",
+  );
+  const bodyClass = cn(
+    "treatment-type-body mt-[1em] w-full flex-1",
+    darkBg ? "text-white/80" : "text-slate-700",
+  );
+  const splitTitleClass = cn(
+    "treatment-type-heading w-full",
+    darkBg ? "text-white" : "text-slate-900",
+  );
+  const splitBodyClass = cn(
+    "treatment-type-body mt-[0.75em] w-full",
+    darkBg ? "text-white/80" : "text-slate-700",
+  );
 
   switch (layout) {
     case "title":
       return (
-        <div className="flex h-full flex-col items-center justify-center px-8 text-center">
+        <div className="flex h-full flex-col items-center justify-center px-[6%] text-center">
           <EditableText
             value={slide.title}
             placeholder="Project Title"
@@ -191,14 +229,14 @@ function layoutContent(
         ? map.get(slide.referenceIds[0])
         : undefined;
       return (
-        <div className="grid h-full grid-cols-1 gap-6 p-8 md:grid-cols-2">
-          <div className="flex flex-col justify-center">
+        <div className="grid h-full grid-cols-2 gap-[4%] p-[5%]">
+          <div className="flex min-w-0 flex-col justify-center">
             <EditableText
               value={slide.title}
               placeholder="Section title"
               readOnly={readOnly}
               onChange={(title) => change({ title })}
-              className="text-2xl font-semibold text-slate-900"
+              className={splitTitleClass}
             />
             <EditableText
               value={slide.body ?? ""}
@@ -206,10 +244,10 @@ function layoutContent(
               multiline
               readOnly={readOnly}
               onChange={(body) => change({ body })}
-              className="mt-4 text-sm leading-relaxed text-slate-700"
+              className={splitBodyClass}
             />
           </div>
-          <div className="flex items-center justify-center">
+          <div className="flex min-h-0 items-center justify-center">
             {heroRef?.type === "image" || heroRef?.type === "video" ? (
               <SecureImage
                 fileRef={heroRef.thumbnailUrl || heroRef.url}
@@ -218,12 +256,21 @@ function layoutContent(
                 projectId={projectId}
               />
             ) : (
-              <SlideReferences
-                referenceIds={slide.referenceIds.slice(0, 1)}
-                assets={assets}
-                compact
-                projectId={projectId}
-              />
+              <div
+                className={cn(
+                  "flex h-full min-h-[140px] w-full flex-col items-center justify-center rounded-lg border border-dashed px-4 text-center",
+                  darkBg ? "border-white/20 bg-black/10" : "border-slate-300/80 bg-slate-50",
+                )}
+              >
+                <p className={cn("text-sm", darkBg ? "text-white/60" : "text-slate-500")}>
+                  No hero image
+                </p>
+                <p className={cn("mt-1 text-[11px]", darkBg ? "text-white/40" : "text-slate-400")}>
+                  {readOnly
+                    ? "Add a reference in the editor."
+                    : "Click a still in Assets to fill this panel."}
+                </p>
+              </div>
             )}
           </div>
         </div>
@@ -244,18 +291,23 @@ function layoutContent(
               projectId={projectId}
             />
           ) : (
-            <div className="flex flex-1 items-center justify-center bg-slate-100 text-slate-400">
-              Select a reference image
+            <div className="flex flex-1 flex-col items-center justify-center gap-2 bg-slate-100 px-6 text-center text-slate-400">
+              <p className="text-sm font-medium text-slate-500">No full-bleed image yet</p>
+              <p className="max-w-xs text-xs leading-relaxed">
+                {readOnly
+                  ? "This slide has no reference image."
+                  : "Open Assets and click a still — it fills this layout."}
+              </p>
             </div>
           )}
           {(slide.title || !readOnly) && (
-            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-6">
+            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-[5%]">
               <EditableText
                 value={slide.title}
                 placeholder="Caption"
                 readOnly={readOnly}
                 onChange={(title) => change({ title })}
-                className="text-lg font-medium text-white"
+                className="treatment-type-caption w-full text-white"
               />
             </div>
           )}
@@ -264,31 +316,33 @@ function layoutContent(
     }
     case "references":
       return (
-        <div className="flex h-full flex-col p-8">
+        <div className="flex h-full flex-col p-[5%]">
           <EditableText
             value={slide.title}
             placeholder="References"
             readOnly={readOnly}
             onChange={(title) => change({ title })}
-            className="mb-4 text-2xl font-semibold text-slate-900"
+            className={cn(h2Class, "mb-[0.75em]")}
           />
-          <SlideReferences
-            referenceIds={slide.referenceIds}
-            assets={assets}
-            projectId={projectId}
-          />
+          <div className="min-h-0 flex-1">
+            <SlideReferences
+              referenceIds={slide.referenceIds}
+              assets={assets}
+              projectId={projectId}
+            />
+          </div>
         </div>
       );
     case "blank":
       return (
-        <div className="pointer-events-none flex h-full items-center justify-center p-8 text-sm text-slate-400">
+        <div className="pointer-events-none flex h-full items-center justify-center p-[5%] text-sm text-slate-400">
           {readOnly ? null : "Blank canvas — drop references or add text"}
         </div>
       );
     case "content":
     default:
       return (
-        <div className="flex h-full flex-col p-8 md:p-12">
+        <div className="flex h-full flex-col p-[6%]">
           <EditableText
             value={slide.title}
             placeholder="Slide title"

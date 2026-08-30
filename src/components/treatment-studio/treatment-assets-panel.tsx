@@ -236,8 +236,9 @@ export function TreatmentAssetsPanel({
             </div>
             {error ? <p className="text-xs text-red-400">{error}</p> : null}
             <p className="text-[10px] leading-relaxed text-slate-500">
-              Click a library still to place it on the slide, or drag it onto the canvas. Use Pexels to
-              search stock — Add to library keeps it here; drag onto the slide to place.
+              Full image / Split / References use library picks as the layout hero or grid. Title,
+              Content, and Blank place freeform boxes you can drag. Drag from Pexels onto the canvas
+              to place for the active layout.
             </p>
           </div>
 
@@ -329,9 +330,9 @@ export function TreatmentAssetsPanel({
                         ) : null}
                         <p className="text-[10px] text-slate-500">
                           {highlight
-                            ? "Added to library — click to place on slide"
+                            ? "Added to library — click to use on this slide"
                             : onSlide
-                              ? "On slide — click to remove"
+                              ? "Used on this slide — click to remove"
                               : "Click or drag onto slide"}
                         </p>
                       </button>

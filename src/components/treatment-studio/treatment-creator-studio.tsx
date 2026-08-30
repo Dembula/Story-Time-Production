@@ -35,6 +35,7 @@ import {
   TreatmentSlideThumbnail,
 } from "./treatment-slide-canvas";
 import {
+  adaptSlideToLayout,
   createImageElement,
   createShapeElement,
   createSlideFromTemplate,
@@ -42,6 +43,7 @@ import {
   newId,
   nextElementZIndex,
   parseTreatmentDocument,
+  placeAssetOnSlideDocument,
   TREATMENT_SLIDE_TEMPLATES,
   type TreatmentSlideTemplateId,
 } from "@/lib/treatment-studio/document";
@@ -285,6 +287,19 @@ export function TreatmentCreatorStudio({
     [document, markDirty],
   );
 
+  // Promote stray freeform boxes into Full image / Split heroes when needed.
+  useEffect(() => {
+    if (!activeSlide) return;
+    if (activeSlide.layout !== "image" && activeSlide.layout !== "split") return;
+    if (activeSlide.referenceIds[0]) return;
+    const hasFreeform = activeSlide.elements.some(
+      (el) => el.type === "image" && el.referenceId,
+    );
+    if (!hasFreeform) return;
+    const adapted = adaptSlideToLayout(activeSlide, activeSlide.layout);
+    updateSlide(activeSlide.id, adapted);
+  }, [activeSlide, updateSlide]);
+
   const addSlide = useCallback(
     (templateId: TreatmentSlideTemplateId = "content") => {
       if (!document) return;
@@ -348,35 +363,13 @@ export function TreatmentCreatorStudio({
       options?: { toggle?: boolean },
     ) => {
       if (!document || !activeSlide) return;
-
-      if (options?.toggle) {
-        const existingEl = activeSlide.elements.find(
-          (el) => el.type === "image" && el.referenceId === assetId,
-        );
-        if (existingEl) {
-          updateSlide(activeSlide.id, {
-            elements: activeSlide.elements.filter((el) => el.id !== existingEl.id),
-            // Keep referenceIds in sync only when removing a placed freeform image
-            // that was the sole use — do not strip layout heroes accidentally.
-            referenceIds: activeSlide.referenceIds.filter((id) => {
-              if (id !== assetId) return true;
-              // Still used as layout hero with no freeform? Keep it.
-              return false;
-            }),
-          });
-          setSelectedElementId(null);
-          return;
-        }
-      }
-
-      const z = nextElementZIndex(activeSlide.elements);
-      const el = createImageElement(assetId, { x, y, zIndex: z });
-      // Freeform placement only — do NOT also push into referenceIds, or layouts
-      // like image/split/references will render the same still twice.
-      updateSlide(activeSlide.id, {
-        elements: [...activeSlide.elements, el],
+      const result = placeAssetOnSlideDocument(activeSlide, assetId, {
+        toggle: options?.toggle,
+        x,
+        y,
       });
-      setSelectedElementId(el.id);
+      updateSlide(activeSlide.id, result.slide);
+      setSelectedElementId(result.selectedElementId);
       setAssetsOpen(true);
     },
     [document, activeSlide, updateSlide],
@@ -387,6 +380,17 @@ export function TreatmentCreatorStudio({
       placeAssetOnSlide(assetId, 18, 18, { toggle: true });
     },
     [placeAssetOnSlide],
+  );
+
+  const changeSlideLayout = useCallback(
+    (layout: TreatmentSlideLayout) => {
+      if (!activeSlide) return;
+      const adapted = adaptSlideToLayout(activeSlide, layout);
+      updateSlide(activeSlide.id, adapted);
+      setSelectedElementId(null);
+      setLayoutMenuOpen(false);
+    },
+    [activeSlide, updateSlide],
   );
 
   const addPexelsAsset = useCallback(
@@ -419,20 +423,18 @@ export function TreatmentCreatorStudio({
         return assetId;
       }
 
-      const x = options.x ?? 18;
-      const y = options.y ?? 18;
-      const z = nextElementZIndex(activeSlide.elements);
-      const el = createImageElement(assetId, { x, y, zIndex: z });
+      const result = placeAssetOnSlideDocument(activeSlide, assetId, {
+        x: options.x,
+        y: options.y,
+      });
       markDirty({
         ...document,
         assets: [...document.assets, asset],
         slides: document.slides.map((s) =>
-          s.id === activeSlide.id
-            ? { ...s, elements: [...s.elements, el] }
-            : s,
+          s.id === activeSlide.id ? { ...s, ...result.slide } : s,
         ),
       });
-      setSelectedElementId(el.id);
+      setSelectedElementId(result.selectedElementId);
       setAssetsOpen(true);
       return assetId;
     },
@@ -776,8 +778,7 @@ export function TreatmentCreatorStudio({
                       type="button"
                       className="block w-full px-3 py-2 text-left text-xs text-slate-300 hover:bg-white/5 hover:text-white"
                       onClick={() => {
-                        updateSlide(activeSlide.id, { layout: opt.id });
-                        setLayoutMenuOpen(false);
+                        changeSlideLayout(opt.id);
                       }}
                     >
                       {opt.label}
@@ -884,34 +885,39 @@ export function TreatmentCreatorStudio({
               className="h-8 bg-white text-black hover:bg-slate-200"
               onClick={() => {
                 setSelectedElementId(null);
-                // Heal accidental double-placements (same asset as two freeform images).
+                // Heal accidental double-placements (same asset as freeform + layout hero).
                 if (document) {
                   let changed = false;
                   const slides = document.slides.map((slide) => {
-                    const seen = new Set<string>();
-                    const elements = [...slide.elements]
+                    const seenFreeform = new Set<string>();
+                    let elements = [...slide.elements]
                       .sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0))
                       .filter((el) => {
                         if (el.type !== "image" || !el.referenceId) return true;
-                        if (seen.has(el.referenceId)) {
+                        if (seenFreeform.has(el.referenceId)) {
                           changed = true;
                           return false;
                         }
-                        seen.add(el.referenceId);
+                        seenFreeform.add(el.referenceId);
                         return true;
                       });
-                    // Freeform images should not also drive layout heroes (double still).
-                    const freeformIds = new Set(
-                      elements
-                        .filter((e) => e.type === "image" && e.referenceId)
-                        .map((e) => e.referenceId as string),
-                    );
-                    const referenceIds = slide.referenceIds.filter((id) => {
-                      if (!freeformIds.has(id)) return true;
-                      changed = true;
-                      return false;
-                    });
-                    return { ...slide, elements, referenceIds };
+                    // Layout heroes win: drop freeform clones of referenceIds
+                    if (
+                      slide.layout === "image" ||
+                      slide.layout === "split" ||
+                      slide.layout === "references"
+                    ) {
+                      const refSet = new Set(slide.referenceIds);
+                      const next = elements.filter((el) => {
+                        if (el.type === "image" && el.referenceId && refSet.has(el.referenceId)) {
+                          changed = true;
+                          return false;
+                        }
+                        return true;
+                      });
+                      if (next.length !== elements.length) elements = next;
+                    }
+                    return { ...slide, elements };
                   });
                   if (changed) markDirty({ ...document, slides });
                 }
@@ -1150,25 +1156,34 @@ export function TreatmentCreatorStudio({
             </div>
           </aside>
 
-          <main className="flex min-w-0 flex-1 flex-col items-center justify-center bg-[#050506] p-4 md:p-8">
-            <TreatmentSlideCanvas
-              slide={activeSlide}
-              assets={document.assets}
-              aspectRatio={document.settings.aspectRatio}
-              projectId={projectId}
-              selectedElementId={selectedElementId}
-              onFieldChange={(patch) => updateSlide(activeSlide.id, patch)}
-              onElementsChange={(elements) => updateSlide(activeSlide.id, { elements })}
-              onSelectElement={setSelectedElementId}
-              onDropAsset={(assetId, x, y) => placeAssetOnSlide(assetId, x, y)}
-              onDropPexels={(photoId, x, y) => dropPexelsOnSlide(photoId, x, y)}
-            />
-            <p className="mt-4 text-center text-xs text-slate-500">
+          <main className="flex min-w-0 flex-1 flex-col items-center justify-center bg-black p-4 md:p-8">
+            <div className="treatment-editor-stage w-full">
+              <TreatmentSlideCanvas
+                slide={activeSlide}
+                assets={document.assets}
+                aspectRatio={document.settings.aspectRatio}
+                projectId={projectId}
+                selectedElementId={selectedElementId}
+                onFieldChange={(patch) => updateSlide(activeSlide.id, patch)}
+                onElementsChange={(elements) => updateSlide(activeSlide.id, { elements })}
+                onSelectElement={setSelectedElementId}
+                onDropAsset={(assetId, x, y) => placeAssetOnSlide(assetId, x, y)}
+                onDropPexels={(photoId, x, y) => dropPexelsOnSlide(photoId, x, y)}
+                className="shadow-2xl"
+              />
+            </div>
+            <p className="mt-4 max-w-xl text-center text-xs text-slate-500">
+              Presentation preview — what you see is what Present shows
+              {" · "}
               Slide {activeIndex + 1} of {document.slides.length}
               {activeSlide.layout !== "content" && activeSlide.layout !== "title"
-                ? ` · ${LAYOUT_OPTIONS.find((l) => l.id === activeSlide.layout)?.label} layout`
+                ? ` · ${LAYOUT_OPTIONS.find((l) => l.id === activeSlide.layout)?.label}`
                 : ""}
-              {" · "}Drag to move · corners to resize · Del to remove
+              {activeSlide.layout === "image" || activeSlide.layout === "split"
+                ? " · Click a library still for the hero"
+                : activeSlide.layout === "references"
+                  ? " · Click stills for the grid"
+                  : " · Click text to edit · drag boxes to move"}
             </p>
           </main>
 
