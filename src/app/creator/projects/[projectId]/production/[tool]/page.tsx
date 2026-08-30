@@ -609,7 +609,7 @@ function Column({
     scene?: { id: string; number: string; heading: string | null } | null;
   }[];
   onStatus?: (id: string) => void;
-  onDelete?: (id: string) => void | Promise<void>;
+  onDelete?: (id: string) => void | Promise<unknown>;
   deletePending?: boolean;
 }) {
   return (
