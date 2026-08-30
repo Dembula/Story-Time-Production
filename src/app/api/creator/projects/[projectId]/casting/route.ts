@@ -457,3 +457,39 @@ export async function PATCH(
   return NextResponse.json({ role });
 }
 
+export async function DELETE(
+  req: NextRequest,
+  context: { params: Promise<{ projectId: string }> },
+) {
+  const { projectId } = await context.params;
+  const access = await ensureCastingAccess(projectId);
+  if (access.error) return access.error;
+
+  const body = (await req.json().catch(() => null)) as { id?: string; confirm?: string } | null;
+  const roleId =
+    req.nextUrl.searchParams.get("id")?.trim() || body?.id?.trim() || "";
+  if (!roleId) {
+    return NextResponse.json({ error: "id is required" }, { status: 400 });
+  }
+
+  const { parseDeleteConfirm, CONFIRM_DELETE_CASTING_ROLE } = await import("@/lib/confirm-delete");
+  const gate = parseDeleteConfirm(body, CONFIRM_DELETE_CASTING_ROLE);
+  if (!gate.ok) {
+    return NextResponse.json({ error: gate.error }, { status: 400 });
+  }
+
+  const existing = await prisma.castingRole.findFirst({
+    where: { id: roleId, projectId },
+  });
+  if (!existing) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.castingInvitation.deleteMany({ where: { roleId } });
+    await tx.castingRole.delete({ where: { id: roleId } });
+  });
+
+  return NextResponse.json({ ok: true, id: roleId });
+}
+

@@ -191,9 +191,17 @@ export async function DELETE(
   const access = await ensureTaskAccess(projectId);
   if (access.error) return access.error;
 
-  const id = new URL(req.url).searchParams.get("id");
+  const body = (await req.json().catch(() => null)) as { id?: string; confirm?: string } | null;
+  const id =
+    new URL(req.url).searchParams.get("id")?.trim() || body?.id?.trim() || "";
   if (!id) {
     return NextResponse.json({ error: "Missing id" }, { status: 400 });
+  }
+
+  const { parseDeleteConfirm, CONFIRM_DELETE_TASK } = await import("@/lib/confirm-delete");
+  const gate = parseDeleteConfirm(body ?? {}, CONFIRM_DELETE_TASK);
+  if (!gate.ok) {
+    return NextResponse.json({ error: gate.error }, { status: 400 });
   }
 
   const result = await prisma.projectTask.deleteMany({
@@ -203,5 +211,5 @@ export async function DELETE(
     return NextResponse.json({ error: "Task not found" }, { status: 404 });
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, id });
 }

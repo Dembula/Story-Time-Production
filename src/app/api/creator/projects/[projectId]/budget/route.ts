@@ -402,3 +402,60 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ proje
 
   return NextResponse.json({ budget: updatedBudget, budgets });
 }
+
+export async function DELETE(
+  req: NextRequest,
+  context: { params: Promise<{ projectId: string }> },
+) {
+  const { projectId } = await context.params;
+  const access = await ensureAccess(projectId);
+  if (access.error) return access.error;
+
+  const body = (await req.json().catch(() => null)) as { id?: string; confirm?: string } | null;
+  const budgetId =
+    req.nextUrl.searchParams.get("id")?.trim() || body?.id?.trim() || "";
+  if (!budgetId) {
+    return NextResponse.json({ error: "id is required" }, { status: 400 });
+  }
+
+  const { parseDeleteConfirm, CONFIRM_DELETE_BUDGET } = await import("@/lib/confirm-delete");
+  const gate = parseDeleteConfirm(body, CONFIRM_DELETE_BUDGET);
+  if (!gate.ok) {
+    return NextResponse.json({ error: gate.error }, { status: 400 });
+  }
+
+  const existing = await prisma.projectBudget.findFirst({
+    where: { id: budgetId, projectId },
+  });
+  if (!existing) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  const remaining = await prisma.projectBudget.count({ where: { projectId } });
+  if (remaining <= 1) {
+    return NextResponse.json(
+      { error: "Keep at least one budget on the project. Create another before deleting this one." },
+      { status: 400 },
+    );
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.projectBudget.delete({ where: { id: budgetId } });
+    if (existing.isDefault) {
+      const next = await tx.projectBudget.findFirst({
+        where: { projectId },
+        orderBy: { createdAt: "asc" },
+      });
+      if (next) {
+        await tx.projectBudget.update({
+          where: { id: next.id },
+          data: { isDefault: true },
+        });
+      }
+    }
+  });
+
+  const budgets = await listProjectBudgets(projectId);
+  const budget = await resolveProjectBudget(projectId);
+  return NextResponse.json({ ok: true, id: budgetId, budgets, budget });
+}

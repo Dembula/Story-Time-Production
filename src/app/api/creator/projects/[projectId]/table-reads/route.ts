@@ -120,3 +120,32 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   return NextResponse.json({ session });
 }
+
+export async function DELETE(req: NextRequest, { params }: Params) {
+  const { projectId } = await params;
+  const access = await ensureProjectAccess(projectId);
+  if (access.error) return access.error;
+
+  const body = (await req.json().catch(() => null)) as { id?: string; confirm?: string } | null;
+  const sessionId =
+    req.nextUrl.searchParams.get("id")?.trim() || body?.id?.trim() || "";
+  if (!sessionId) {
+    return NextResponse.json({ error: "id is required" }, { status: 400 });
+  }
+
+  const { parseDeleteConfirm, CONFIRM_DELETE_TABLE_READ } = await import("@/lib/confirm-delete");
+  const gate = parseDeleteConfirm(body, CONFIRM_DELETE_TABLE_READ);
+  if (!gate.ok) {
+    return NextResponse.json({ error: gate.error }, { status: 400 });
+  }
+
+  const existing = await prisma.tableReadSession.findFirst({
+    where: { id: sessionId, projectId },
+  });
+  if (!existing) {
+    return NextResponse.json({ error: "Session not found" }, { status: 404 });
+  }
+
+  await prisma.tableReadSession.delete({ where: { id: sessionId } });
+  return NextResponse.json({ ok: true, id: sessionId });
+}

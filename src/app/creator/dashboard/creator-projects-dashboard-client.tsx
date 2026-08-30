@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
-import { Plus, Users, Clock, Film, ChevronDown, ChevronRight, CheckCircle, Circle } from "lucide-react";
+import { Plus, Users, Clock, Film, ChevronDown, ChevronRight, CheckCircle, Circle, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -16,10 +16,12 @@ import {
 } from "@/lib/project-tools";
 import { CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY, formatCreatorLicenseSummary } from "@/lib/pricing";
 import { CreatorToolNavCard, type CreatorToolNavStatus } from "@/components/creator/creator-tool-nav-card";
-import { setActiveProjectId, sortProjectsWithActiveFirst } from "@/lib/active-project";
+import { clearActiveProjectId, getActiveProjectId, setActiveProjectId, sortProjectsWithActiveFirst } from "@/lib/active-project";
 import { useActiveProjectId } from "@/hooks/use-active-project";
 import { toDisplayStatus } from "@/lib/project-tool-progress";
 import { resolveNetworkDisplayName, networkDisplayInitial } from "@/lib/network-display-name";
+
+const DELETE_PROJECT_CONFIRM_PHRASE = "delete project";
 
 type ToolProgress = { toolId: string; phase: string; status: string; percent: number };
 
@@ -156,6 +158,8 @@ function ProjectRow({
   meId,
   onInviteCollaborator,
   invitePending,
+  onDeleteProject,
+  deletePending,
 }: {
   project: Project;
   defaultOpen?: boolean;
@@ -165,10 +169,15 @@ function ProjectRow({
   meId?: string;
   onInviteCollaborator: (projectId: string, inviteeUserId: string) => void;
   invitePending: boolean;
+  onDeleteProject: (projectId: string) => void;
+  deletePending: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const [selectedInvitees, setSelectedInvitees] = useState<string[]>([]);
   const [inviteMessage, setInviteMessage] = useState("");
+  const [deleteStep, setDeleteStep] = useState<"idle" | "confirm">("idle");
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const rowRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -210,6 +219,9 @@ function ProjectRow({
     meId &&
     (project.creatorId === meId ||
       project.members.some((m) => m.userId === meId && ACTIVE_MEMBER_STATUSES.has(m.status)));
+  const canDelete = Boolean(meId && project.creatorId === meId);
+  const deleteConfirmMatches =
+    deleteConfirmText.trim().toLowerCase() === DELETE_PROJECT_CONFIRM_PHRASE;
 
   const toggleInvitee = (id: string) => {
     setSelectedInvitees((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -565,6 +577,97 @@ function ProjectRow({
               )
             )}
           </div>
+
+          {canDelete ? (
+            <div className="mt-8 rounded-2xl border border-red-500/25 bg-red-950/20 p-5 md:p-6">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-red-300/80">
+                    Danger zone
+                  </p>
+                  <h3 className="mt-1 font-display text-lg font-semibold text-white">Delete project</h3>
+                  <p className="mt-1 max-w-xl text-xs text-slate-400">
+                    Permanently removes this project and its workspace data (scripts, footage, reviews,
+                    budgets, and more). Catalogue titles stay, but the project link is cleared.
+                  </p>
+                </div>
+                {deleteStep === "idle" ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="border-red-500/40 text-red-200 hover:bg-red-500/15 hover:text-red-100"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeleteStep("confirm");
+                      setDeleteConfirmText("");
+                      setDeleteError(null);
+                    }}
+                  >
+                    <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                    Delete project
+                  </Button>
+                ) : null}
+              </div>
+
+              {deleteStep === "confirm" ? (
+                <div className="mt-4 space-y-3 rounded-xl border border-red-500/30 bg-black/30 p-4">
+                  <p className="text-sm text-slate-200">
+                    This cannot be undone. To confirm, type{" "}
+                    <span className="font-mono text-red-200">{DELETE_PROJECT_CONFIRM_PHRASE}</span> below.
+                  </p>
+                  <input
+                    value={deleteConfirmText}
+                    onChange={(e) => {
+                      setDeleteConfirmText(e.target.value);
+                      setDeleteError(null);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    placeholder={DELETE_PROJECT_CONFIRM_PHRASE}
+                    autoComplete="off"
+                    className="storytime-input w-full rounded-xl px-3 py-2 font-mono text-sm"
+                    aria-label="Type delete project to confirm"
+                  />
+                  {deleteError ? (
+                    <p className="text-xs text-red-300">{deleteError}</p>
+                  ) : null}
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="border-white/10 text-slate-300"
+                      disabled={deletePending}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteStep("idle");
+                        setDeleteConfirmText("");
+                        setDeleteError(null);
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="bg-red-600 text-white hover:bg-red-500"
+                      disabled={!deleteConfirmMatches || deletePending}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!deleteConfirmMatches) {
+                          setDeleteError(`Type "${DELETE_PROJECT_CONFIRM_PHRASE}" exactly to continue.`);
+                          return;
+                        }
+                        onDeleteProject(project.id);
+                      }}
+                    >
+                      {deletePending ? "Deleting…" : "Permanently delete"}
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       )}
     </div>
@@ -655,10 +758,6 @@ export function CreatorProjectsDashboardClient() {
     },
   });
 
-  const handleInviteCollaborator = (projectId: string, inviteeUserId: string) => {
-    inviteCollaboratorMutation.mutate({ projectId, inviteeUserId });
-  };
-
   const createMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch("/api/creator/projects", {
@@ -692,6 +791,40 @@ export function CreatorProjectsDashboardClient() {
       queryClient.invalidateQueries({ queryKey: ["creator-projects"] });
     },
   });
+
+  const deleteProjectMutation = useMutation({
+    mutationFn: async (projectId: string) => {
+      const res = await fetch(`/api/creator/projects/${projectId}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ confirm: DELETE_PROJECT_CONFIRM_PHRASE }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error((json as { error?: string }).error || "Could not delete project");
+      }
+      return { projectId, ...(json as { ok?: boolean }) };
+    },
+    onSuccess: ({ projectId }) => {
+      if (getActiveProjectId() === projectId) {
+        clearActiveProjectId();
+      }
+      void queryClient.invalidateQueries({ queryKey: ["creator-projects"] });
+    },
+  });
+
+  const handleInviteCollaborator = (projectId: string, inviteeUserId: string) => {
+    inviteCollaboratorMutation.mutate({ projectId, inviteeUserId });
+  };
+
+  const handleDeleteProject = (projectId: string) => {
+    deleteProjectMutation.mutate(projectId, {
+      onError: (err) => {
+        alert(err instanceof Error ? err.message : "Could not delete project");
+      },
+    });
+  };
 
   const activeProjectId = useActiveProjectId();
   const projects: Project[] = sortProjectsWithActiveFirst(data?.projects ?? [], activeProjectId);
@@ -1007,6 +1140,11 @@ export function CreatorProjectsDashboardClient() {
               meId={meId}
               onInviteCollaborator={handleInviteCollaborator}
               invitePending={inviteCollaboratorMutation.isPending}
+              onDeleteProject={handleDeleteProject}
+              deletePending={
+                deleteProjectMutation.isPending &&
+                deleteProjectMutation.variables === project.id
+              }
             />
           ))}
         </div>

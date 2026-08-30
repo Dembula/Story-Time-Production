@@ -21,6 +21,8 @@ import { formatZar } from "@/lib/format-currency-zar";
 import { CreatorCateringClient } from "@/app/creator/catering/creator-catering-client";
 import { mutationErrorMessage, projectToolFetch, projectToolQueryFn } from "@/lib/project-tool-fetch";
 import { ToolActionError } from "@/components/project-tools/tool-action-error";
+import { ConfirmDeletePanel } from "@/components/ui/confirm-delete-panel";
+import { CONFIRM_DELETE_TASK } from "@/lib/confirm-delete";
 import { ExpenseTrackerStudio } from "@/components/expense/expense-tracker-studio";
 import { SecureFileLink } from "@/components/files/secure-file-link";
 import { DailiesReviewStudio } from "@/components/dailies";
@@ -326,13 +328,19 @@ function OnSetTasks({ projectId, title }: { projectId?: string; title: string })
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(
+      return projectToolFetch(
         `/api/creator/projects/${projectId}/tasks?id=${encodeURIComponent(id)}`,
-        { method: "DELETE" },
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ confirm: CONFIRM_DELETE_TASK }),
+        },
       );
-      if (!res.ok) throw new Error("Failed to delete");
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project-tasks", projectId] }),
+    onError: (err) => {
+      setActionError(mutationErrorMessage(err, "Could not delete task."));
+    },
   });
 
   const filtered = useMemo(() => {
@@ -525,14 +533,8 @@ function OnSetTasks({ projectId, title }: { projectId?: string; title: string })
               count={todo.length}
               tasks={todo}
               onStatus={hasProject ? (id) => updateMutation.mutate({ id, status: "IN_PROGRESS" }) : undefined}
-              onDelete={
-                hasProject
-                  ? (id) => {
-                      if (typeof window !== "undefined" && !window.confirm("Delete this task?")) return;
-                      deleteMutation.mutate(id);
-                    }
-                  : undefined
-              }
+              onDelete={hasProject ? (id) => deleteMutation.mutateAsync(id) : undefined}
+              deletePending={deleteMutation.isPending}
             />
           ) : null}
           {mobileLane === "IN_PROGRESS" ? (
@@ -541,14 +543,8 @@ function OnSetTasks({ projectId, title }: { projectId?: string; title: string })
               count={inProgress.length}
               tasks={inProgress}
               onStatus={hasProject ? (id) => updateMutation.mutate({ id, status: "DONE" }) : undefined}
-              onDelete={
-                hasProject
-                  ? (id) => {
-                      if (typeof window !== "undefined" && !window.confirm("Delete this task?")) return;
-                      deleteMutation.mutate(id);
-                    }
-                  : undefined
-              }
+              onDelete={hasProject ? (id) => deleteMutation.mutateAsync(id) : undefined}
+              deletePending={deleteMutation.isPending}
             />
           ) : null}
           {mobileLane === "DONE" ? (
@@ -556,14 +552,8 @@ function OnSetTasks({ projectId, title }: { projectId?: string; title: string })
               title="Done"
               count={done.length}
               tasks={done}
-              onDelete={
-                hasProject
-                  ? (id) => {
-                      if (typeof window !== "undefined" && !window.confirm("Delete this task?")) return;
-                      deleteMutation.mutate(id);
-                    }
-                  : undefined
-              }
+              onDelete={hasProject ? (id) => deleteMutation.mutateAsync(id) : undefined}
+              deletePending={deleteMutation.isPending}
             />
           ) : null}
         </div>
@@ -574,41 +564,23 @@ function OnSetTasks({ projectId, title }: { projectId?: string; title: string })
             count={todo.length}
             tasks={todo}
             onStatus={hasProject ? (id) => updateMutation.mutate({ id, status: "IN_PROGRESS" }) : undefined}
-            onDelete={
-              hasProject
-                ? (id) => {
-                    if (typeof window !== "undefined" && !window.confirm("Delete this task?")) return;
-                    deleteMutation.mutate(id);
-                  }
-                : undefined
-            }
+            onDelete={hasProject ? (id) => deleteMutation.mutateAsync(id) : undefined}
+            deletePending={deleteMutation.isPending}
           />
           <Column
             title="In progress"
             count={inProgress.length}
             tasks={inProgress}
             onStatus={hasProject ? (id) => updateMutation.mutate({ id, status: "DONE" }) : undefined}
-            onDelete={
-              hasProject
-                ? (id) => {
-                    if (typeof window !== "undefined" && !window.confirm("Delete this task?")) return;
-                    deleteMutation.mutate(id);
-                  }
-                : undefined
-            }
+            onDelete={hasProject ? (id) => deleteMutation.mutateAsync(id) : undefined}
+            deletePending={deleteMutation.isPending}
           />
           <Column
             title="Done"
             count={done.length}
             tasks={done}
-            onDelete={
-              hasProject
-                ? (id) => {
-                    if (typeof window !== "undefined" && !window.confirm("Delete this task?")) return;
-                    deleteMutation.mutate(id);
-                  }
-                : undefined
-            }
+            onDelete={hasProject ? (id) => deleteMutation.mutateAsync(id) : undefined}
+            deletePending={deleteMutation.isPending}
           />
         </div>
       )}
@@ -622,6 +594,7 @@ function Column({
   tasks,
   onStatus,
   onDelete,
+  deletePending,
 }: {
   title: string;
   count?: number;
@@ -636,7 +609,8 @@ function Column({
     scene?: { id: string; number: string; heading: string | null } | null;
   }[];
   onStatus?: (id: string) => void;
-  onDelete?: (id: string) => void;
+  onDelete?: (id: string) => void | Promise<void>;
+  deletePending?: boolean;
 }) {
   return (
     <div className="creator-glass-panel p-3">
@@ -648,46 +622,43 @@ function Column({
         {tasks.map((t) => (
           <li
             key={t.id}
-            className="flex items-center justify-between gap-2 rounded-lg bg-slate-900/80 border border-slate-800 px-2 py-1.5 text-sm text-white"
+            className="rounded-lg bg-slate-900/80 border border-slate-800 px-2 py-1.5 text-sm text-white space-y-2"
           >
-            <div className="min-w-0 flex-1">
-              <span className="truncate block">{t.title}</span>
-              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                {t.priority === "HIGH" && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-300">High</span>
-                )}
-                {t.department && (
-                  <span className="text-[10px] text-slate-500">{t.department}</span>
-                )}
-                {t.shootDay && (
-                  <span className="text-[10px] text-slate-600">
-                    Day {new Date(t.shootDay.date).toLocaleDateString()}
-                  </span>
-                )}
-                {t.scene && (
-                  <span className="text-[10px] text-slate-600">Sc. {t.scene.number}</span>
-                )}
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <span className="truncate block">{t.title}</span>
+                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                  {t.priority === "HIGH" && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-300">High</span>
+                  )}
+                  {t.department && (
+                    <span className="text-[10px] text-slate-500">{t.department}</span>
+                  )}
+                  {t.shootDay && (
+                    <span className="text-[10px] text-slate-600">
+                      Day {new Date(t.shootDay.date).toLocaleDateString()}
+                    </span>
+                  )}
+                  {t.scene && (
+                    <span className="text-[10px] text-slate-600">Sc. {t.scene.number}</span>
+                  )}
+                </div>
               </div>
-            </div>
-            <div className="flex items-center gap-0.5 shrink-0">
-              {onDelete && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="text-xs text-red-400/90 hover:text-red-300 px-1.5"
-                  type="button"
-                  onClick={() => onDelete(t.id)}
-                  aria-label="Delete task"
-                >
-                  ×
-                </Button>
-              )}
               {onStatus && (
                 <Button size="sm" variant="ghost" className="text-xs text-slate-400 shrink-0" onClick={() => onStatus(t.id)}>
                   →
                 </Button>
               )}
             </div>
+            {onDelete ? (
+              <ConfirmDeletePanel
+                variant="inline"
+                label="Delete task"
+                confirmPhrase={CONFIRM_DELETE_TASK}
+                pending={deletePending}
+                onConfirm={() => onDelete(t.id)}
+              />
+            ) : null}
           </li>
         ))}
       </ul>

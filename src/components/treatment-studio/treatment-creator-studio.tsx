@@ -18,9 +18,9 @@ import {
   LayoutTemplate,
   Loader2,
   MonitorPlay,
-  MoreHorizontal,
   Palette,
   Plus,
+  Save,
   Square,
   Trash2,
   Type,
@@ -57,6 +57,8 @@ import type {
   TreatmentSlideLayout,
 } from "@/lib/treatment-studio/types";
 import { cn } from "@/lib/utils";
+import { ConfirmDeletePanel } from "@/components/ui/confirm-delete-panel";
+import { CONFIRM_DELETE_TREATMENT } from "@/lib/confirm-delete";
 
 const AUTO_SAVE_MS = 25_000;
 
@@ -121,7 +123,21 @@ export function TreatmentCreatorStudio({
     },
   });
 
-  const treatment = data?.treatments?.[0] ?? null;
+  const treatments = data?.treatments ?? [];
+  const [selectedTreatmentId, setSelectedTreatmentId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (treatments.length === 0) {
+      setSelectedTreatmentId(null);
+      return;
+    }
+    if (!selectedTreatmentId || !treatments.some((t) => t.id === selectedTreatmentId)) {
+      setSelectedTreatmentId(treatments[0].id);
+    }
+  }, [treatments, selectedTreatmentId]);
+
+  const treatment =
+    treatments.find((t) => t.id === selectedTreatmentId) ?? treatments[0] ?? null;
 
   const [docTitle, setDocTitle] = useState("");
   const [document, setDocument] = useState<TreatmentDocument | null>(null);
@@ -171,7 +187,35 @@ export function TreatmentCreatorStudio({
       if (!res.ok) throw new Error((j as { error?: string }).error || "Failed to create treatment");
       return j as { treatment: CreatorTreatmentRecord };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
+      if (result.treatment?.id) {
+        dirtyRef.current = false;
+        hydratedTreatmentKey.current = null;
+        setSelectedTreatmentId(result.treatment.id);
+      }
+      void queryClient.invalidateQueries({ queryKey: treatmentsKey });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/creator/treatments/${id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: CONFIRM_DELETE_TREATMENT }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((j as { error?: string }).error || "Failed to delete treatment");
+      return id;
+    },
+    onSuccess: (deletedId) => {
+      dirtyRef.current = false;
+      hydratedTreatmentKey.current = null;
+      setDocument(null);
+      setDocTitle("");
+      setUpdatedAt(null);
+      const remaining = treatments.filter((t) => t.id !== deletedId);
+      setSelectedTreatmentId(remaining[0]?.id ?? null);
       void queryClient.invalidateQueries({ queryKey: treatmentsKey });
     },
   });
@@ -496,6 +540,40 @@ export function TreatmentCreatorStudio({
             className="h-8 max-w-[200px] border-0 bg-transparent text-sm font-medium text-white focus-visible:ring-0 md:max-w-xs"
           />
 
+          {treatments.length > 1 ? (
+            <select
+              value={treatment.id}
+              onChange={(e) => {
+                if (dirtyRef.current) {
+                  void persist().finally(() => {
+                    dirtyRef.current = false;
+                    hydratedTreatmentKey.current = null;
+                    setSelectedTreatmentId(e.target.value);
+                  });
+                  return;
+                }
+                hydratedTreatmentKey.current = null;
+                setSelectedTreatmentId(e.target.value);
+              }}
+              className="h-8 max-w-[160px] rounded-lg border border-white/10 bg-black/40 px-2 text-xs text-slate-200"
+              aria-label="Switch treatment"
+            >
+              {treatments.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.title || "Untitled"}
+                </option>
+              ))}
+            </select>
+          ) : null}
+
+          <ConfirmDeletePanel
+            variant="inline"
+            label="Delete"
+            confirmPhrase={CONFIRM_DELETE_TREATMENT}
+            pending={deleteMutation.isPending}
+            onConfirm={() => deleteMutation.mutateAsync(treatment.id)}
+          />
+
           <span className="hidden text-xs text-slate-500 sm:inline">
             {saveState === "saving"
               ? "Saving…"
@@ -729,18 +807,23 @@ export function TreatmentCreatorStudio({
 
             <Button
               type="button"
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-slate-500"
+              size="sm"
+              variant="outline"
+              className="h-8 border-white/15 bg-white/[0.04] text-slate-100 hover:bg-white/10 hover:text-white"
               onClick={() => void persist()}
               disabled={saveMutation.isPending}
-              title="Save now"
+              title="Save treatment"
             >
               {saveMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
               ) : (
-                <MoreHorizontal className="h-4 w-4" />
+                <Save className="mr-1.5 h-4 w-4" />
               )}
+              {saveMutation.isPending
+                ? "Saving…"
+                : saveState === "saved" && !dirtyRef.current
+                  ? "Saved"
+                  : "Save"}
             </Button>
           </div>
         </div>

@@ -149,3 +149,34 @@ export async function PATCH(
   return NextResponse.json({ idea });
 }
 
+export async function DELETE(
+  req: NextRequest,
+  context: { params: Promise<{ projectId: string }> },
+) {
+  const { projectId } = await context.params;
+  const access = await ensureIdeaAccess(projectId);
+  if (access.error) return access.error;
+
+  const body = (await req.json().catch(() => null)) as { id?: string; confirm?: string } | null;
+  const ideaId =
+    req.nextUrl.searchParams.get("id")?.trim() || body?.id?.trim() || "";
+  if (!ideaId) {
+    return NextResponse.json({ error: "id is required" }, { status: 400 });
+  }
+
+  const { parseDeleteConfirm, CONFIRM_DELETE_IDEA } = await import("@/lib/confirm-delete");
+  const gate = parseDeleteConfirm(body, CONFIRM_DELETE_IDEA);
+  if (!gate.ok) {
+    return NextResponse.json({ error: gate.error }, { status: 400 });
+  }
+
+  const deleted = await prisma.projectIdea.deleteMany({
+    where: { id: ideaId, projectId, userId: access.userId! },
+  });
+  if (deleted.count === 0) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  return NextResponse.json({ ok: true, id: ideaId });
+}
+

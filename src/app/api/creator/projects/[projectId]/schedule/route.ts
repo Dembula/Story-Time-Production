@@ -436,9 +436,17 @@ export async function DELETE(
   const access = await ensureAccess(projectId);
   if (access.error) return access.error;
 
-  const dayId = new URL(req.url).searchParams.get("dayId");
+  const body = (await req.json().catch(() => null)) as { dayId?: string; confirm?: string } | null;
+  const dayId =
+    new URL(req.url).searchParams.get("dayId")?.trim() || body?.dayId?.trim() || "";
   if (!dayId) {
     return NextResponse.json({ error: "Missing dayId" }, { status: 400 });
+  }
+
+  const { parseDeleteConfirm, CONFIRM_DELETE_SHOOT_DAY } = await import("@/lib/confirm-delete");
+  const gate = parseDeleteConfirm(body ?? {}, CONFIRM_DELETE_SHOOT_DAY);
+  if (!gate.ok) {
+    return NextResponse.json({ error: gate.error }, { status: 400 });
   }
 
   const result = await prisma.shootDay.deleteMany({

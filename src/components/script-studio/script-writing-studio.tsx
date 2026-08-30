@@ -62,6 +62,8 @@ import { ScriptVersionsPanel } from "./script-versions-panel";
 import { StoryCardsBoard } from "./story-cards-board";
 import { useScriptCollaboration } from "./use-script-collaboration";
 import { cn } from "@/lib/utils";
+import { ConfirmDeletePanel } from "@/components/ui/confirm-delete-panel";
+import { CONFIRM_DELETE_SCRIPT } from "@/lib/confirm-delete";
 
 const AUTO_SAVE_MS = 30_000;
 const HISTORY_MAX = 100;
@@ -374,6 +376,31 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
     onSuccess: (result: { script?: { id: string } }) => {
       if (result?.script?.id) setSelectedId(result.script.id);
       void queryClient.invalidateQueries({ queryKey: ["creator-scripts", projectId ?? null] });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/creator/scripts/${id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: CONFIRM_DELETE_SCRIPT }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error((json as { error?: string }).error || "Failed to delete script");
+      }
+      return id;
+    },
+    onSuccess: (deletedId) => {
+      const remaining = scripts.filter((s) => s.id !== deletedId);
+      setSelectedId(remaining[0]?.id ?? null);
+      setDraft(null);
+      setDirty(false);
+      void queryClient.invalidateQueries({ queryKey: ["creator-scripts", projectId ?? null] });
+      if (hasProject && projectId) {
+        void queryClient.invalidateQueries({ queryKey: ["project-script", projectId] });
+      }
     },
   });
 
@@ -846,6 +873,16 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
             >
               New
             </Button>
+            {draft?.id && effectiveCanWrite ? (
+              <ConfirmDeletePanel
+                variant="inline"
+                label="Delete"
+                confirmPhrase={CONFIRM_DELETE_SCRIPT}
+                pending={deleteMutation.isPending}
+                onConfirm={() => deleteMutation.mutateAsync(draft.id!)}
+                className="shrink-0"
+              />
+            ) : null}
             <Button
               size="sm"
               variant="ghost"
@@ -935,6 +972,16 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                   >
                     New
                   </Button>
+                  {draft?.id && effectiveCanWrite ? (
+                    <ConfirmDeletePanel
+                      variant="inline"
+                      label="Delete"
+                      confirmPhrase={CONFIRM_DELETE_SCRIPT}
+                      pending={deleteMutation.isPending}
+                      onConfirm={() => deleteMutation.mutateAsync(draft.id!)}
+                      className="shrink-0"
+                    />
+                  ) : null}
                   <Button
                     type="button"
                     size="sm"

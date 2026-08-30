@@ -5,9 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ConfirmDeletePanel } from "@/components/ui/confirm-delete-panel";
 import { ModocFieldPopover } from "@/components/modoc";
 import { useModocOptional } from "@/components/modoc/use-modoc";
 import { useModocToolRefresh } from "@/components/modoc/use-modoc-tool-refresh";
+import { CONFIRM_DELETE_IDEA } from "@/lib/confirm-delete";
 
 export interface IdeaDevelopmentToolProps {
   projectId?: string;
@@ -153,6 +155,26 @@ export function IdeaDevelopmentTool({
     onSettled: () => {
       setSaving(false);
       queryClient.invalidateQueries({ queryKey: listQueryKey });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(listEndpoint, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, confirm: CONFIRM_DELETE_IDEA }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error((json as { error?: string }).error || "Failed to delete idea");
+      }
+      return id;
+    },
+    onSuccess: (deletedId) => {
+      const remaining = ideas.filter((i) => i.id !== deletedId);
+      setSelectedId(remaining[0]?.id ?? null);
+      void queryClient.invalidateQueries({ queryKey: listQueryKey });
     },
   });
 
@@ -383,6 +405,16 @@ export function IdeaDevelopmentTool({
                     </Button>
                   </div>
                 </div>
+                {draft.id ? (
+                  <ConfirmDeletePanel
+                    variant="block"
+                    label="Delete idea"
+                    confirmPhrase={CONFIRM_DELETE_IDEA}
+                    description="Permanently remove this idea from your vault."
+                    pending={deleteMutation.isPending}
+                    onConfirm={() => deleteMutation.mutateAsync(draft.id!)}
+                  />
+                ) : null}
               </CardContent>
             </Card>
           ) : (

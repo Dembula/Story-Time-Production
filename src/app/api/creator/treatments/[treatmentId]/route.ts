@@ -87,7 +87,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   });
 }
 
-export async function DELETE(_req: NextRequest, { params }: RouteParams) {
+export async function DELETE(req: NextRequest, { params }: RouteParams) {
   const { treatmentId } = await params;
   const gate = await ensureTreatmentAccess(treatmentId);
   if (gate.error) return gate.error;
@@ -95,6 +95,13 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: "Read-only access" }, { status: 403 });
   }
 
+  const body = (await req.json().catch(() => null)) as { confirm?: string } | null;
+  const { parseDeleteConfirm, CONFIRM_DELETE_TREATMENT } = await import("@/lib/confirm-delete");
+  const confirmGate = parseDeleteConfirm(body, CONFIRM_DELETE_TREATMENT);
+  if (!confirmGate.ok) {
+    return NextResponse.json({ error: confirmGate.error }, { status: 400 });
+  }
+
   await prisma.creatorTreatment.delete({ where: { id: treatmentId } });
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, id: treatmentId });
 }

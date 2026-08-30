@@ -472,10 +472,17 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   const access = await ensureProjectAccess(projectId);
   if (access.error) return access.error;
 
+  const body = (await req.json().catch(() => null)) as { id?: string; confirm?: string } | null;
   const url = new URL(req.url);
-  const id = url.searchParams.get("id");
+  const id = url.searchParams.get("id")?.trim() || body?.id?.trim() || "";
   if (!id) {
     return NextResponse.json({ error: "Missing id" }, { status: 400 });
+  }
+
+  const { parseDeleteConfirm, CONFIRM_DELETE_EQUIPMENT } = await import("@/lib/confirm-delete");
+  const gate = parseDeleteConfirm(body ?? {}, CONFIRM_DELETE_EQUIPMENT);
+  if (!gate.ok) {
+    return NextResponse.json({ error: gate.error }, { status: 400 });
   }
 
   const existing = await prisma.equipmentPlanItem.findFirst({
@@ -487,5 +494,5 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   }
 
   await prisma.equipmentPlanItem.delete({ where: { id } });
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, id });
 }

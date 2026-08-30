@@ -245,3 +245,43 @@ export async function PATCH(
   return NextResponse.json({ need });
 }
 
+export async function DELETE(
+  req: NextRequest,
+  context: { params: Promise<{ projectId: string }> },
+) {
+  const { projectId } = await context.params;
+  const access = await ensureCrewAccess(projectId);
+  if (access.error) return access.error;
+
+  const body = (await req.json().catch(() => null)) as { id?: string; confirm?: string } | null;
+  const needId =
+    req.nextUrl.searchParams.get("id")?.trim() || body?.id?.trim() || "";
+  if (!needId) {
+    return NextResponse.json({ error: "id is required" }, { status: 400 });
+  }
+
+  const { parseDeleteConfirm, CONFIRM_DELETE_CREW_NEED } = await import("@/lib/confirm-delete");
+  const gate = parseDeleteConfirm(body, CONFIRM_DELETE_CREW_NEED);
+  if (!gate.ok) {
+    return NextResponse.json({ error: gate.error }, { status: 400 });
+  }
+
+  const existing = await prisma.crewRoleNeed.findFirst({
+    where: { id: needId, projectId },
+  });
+  if (!existing) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  const marker = needMarker(needId);
+  await prisma.$transaction(async (tx) => {
+    await tx.crewInvitation.deleteMany({ where: { needId } });
+    await tx.crewRoleNeed.delete({ where: { id: needId } });
+    await tx.creatorCrewRoster.deleteMany({
+      where: { creatorId: access.userId!, notes: { contains: marker } },
+    });
+  });
+
+  return NextResponse.json({ ok: true, id: needId });
+}
+

@@ -158,3 +158,48 @@ export async function POST(
     scenes: rows.map(sceneApiShape),
   });
 }
+
+export async function DELETE(
+  req: NextRequest,
+  context: { params: Promise<{ projectId: string }> },
+) {
+  const { projectId } = await context.params;
+  const access = await ensureProjectAccess(projectId);
+  if (access.error) return access.error;
+
+  const body = (await req.json().catch(() => null)) as { id?: string; confirm?: string } | null;
+  const sceneId =
+    req.nextUrl.searchParams.get("id")?.trim() || body?.id?.trim() || "";
+  if (!sceneId) {
+    return NextResponse.json({ error: "id is required" }, { status: 400 });
+  }
+
+  const { parseDeleteConfirm, CONFIRM_DELETE_SCENE } = await import("@/lib/confirm-delete");
+  const gate = parseDeleteConfirm(body, CONFIRM_DELETE_SCENE);
+  if (!gate.ok) {
+    return NextResponse.json({ error: gate.error }, { status: 400 });
+  }
+
+  const existing = await prisma.projectScene.findFirst({
+    where: { id: sceneId, projectId },
+  });
+  if (!existing) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  try {
+    await prisma.projectScene.delete({ where: { id: sceneId } });
+  } catch (error) {
+    console.error("delete scene failed", error);
+    return NextResponse.json(
+      { error: "Could not delete scene. It may still be linked to schedule or casting." },
+      { status: 500 },
+    );
+  }
+
+  const rows = await prisma.projectScene.findMany({
+    where: { projectId },
+    orderBy: { number: "asc" },
+  });
+  return NextResponse.json({ ok: true, id: sceneId, scenes: rows.map(sceneApiShape) });
+}

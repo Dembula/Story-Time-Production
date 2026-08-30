@@ -10,6 +10,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ConfirmDeletePanel } from "@/components/ui/confirm-delete-panel";
+import {
+  CONFIRM_DELETE_BUDGET,
+  CONFIRM_DELETE_CASTING_ROLE,
+  CONFIRM_DELETE_CREW_NEED,
+  CONFIRM_DELETE_EQUIPMENT,
+  CONFIRM_DELETE_IDEA,
+  CONFIRM_DELETE_SCENE,
+  CONFIRM_DELETE_SHOOT_DAY,
+  CONFIRM_DELETE_TABLE_READ,
+  CONFIRM_DELETE_TASK,
+} from "@/lib/confirm-delete";
 import { ModocFieldPopover } from "@/components/modoc";
 import { ModocBreakdownIncorporateBar } from "@/components/modoc/modoc-breakdown-incorporate-bar";
 import { useModocToolRefresh } from "@/components/modoc/use-modoc-tool-refresh";
@@ -465,6 +477,24 @@ function IdeaDevelopmentWorkspace({ projectId, title }: IdeaDevelopmentWorkspace
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return projectToolFetch(`/api/creator/projects/${projectId}/ideas`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, confirm: CONFIRM_DELETE_IDEA }),
+      });
+    },
+    onSuccess: (_d, deletedId) => {
+      const remaining = ideas.filter((i) => i.id !== deletedId);
+      setSelectedId(remaining[0]?.id ?? null);
+      void queryClient.invalidateQueries({ queryKey: ["project-ideas", projectId] });
+    },
+    onError: (err) => {
+      setCreateError(mutationErrorMessage(err, "Could not delete idea."));
+    },
+  });
+
   return (
     <div className="creator-tool-workspace">
       <header className="creator-tool-workspace-header">
@@ -682,6 +712,16 @@ function IdeaDevelopmentWorkspace({ projectId, title }: IdeaDevelopmentWorkspace
                     Convert to project details
                   </Button>
                 </div>
+                {draft.id ? (
+                  <ConfirmDeletePanel
+                    variant="block"
+                    label="Delete idea"
+                    confirmPhrase={CONFIRM_DELETE_IDEA}
+                    description="Permanently remove this idea from the project vault."
+                    pending={deleteMutation.isPending}
+                    onConfirm={() => deleteMutation.mutateAsync(draft.id!)}
+                  />
+                ) : null}
               </CardContent>
             </Card>
           ) : (
@@ -972,6 +1012,27 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
         delete next[vars.id];
         return next;
       });
+    },
+  });
+
+  const deleteSceneMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return projectToolFetch(`/api/creator/projects/${projectId}/scenes`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, confirm: CONFIRM_DELETE_SCENE }),
+      });
+    },
+    onSuccess: (_d, deletedId) => {
+      setActiveSceneId((prev) => {
+        if (prev !== deletedId) return prev;
+        const remaining = projectScenesForBreakdown.filter((s) => s.id !== deletedId);
+        return remaining[0]?.id ?? "";
+      });
+      invalidateProjectPipeline(queryClient, projectId, ["scenes"]);
+    },
+    onError: (error) => {
+      setSceneSyncMessage((error as Error).message);
     },
   });
 
@@ -1641,27 +1702,37 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
                       <p className="text-[11px] font-semibold text-white">Scene {s.number}</p>
                       <p className="text-slate-400 text-[11px] mt-0.5 break-words">{s.heading || "—"}</p>
                     </div>
-                    {!editingSceneMeta ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="bg-orange-500 hover:bg-orange-600 text-white text-[10px] h-7"
-                        onClick={() => setEditingSceneMeta(true)}
-                      >
-                        Manual edit
-                      </Button>
-                    ) : (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="border-slate-600 text-slate-300 text-[10px] h-7"
-                        onClick={() => setEditingSceneMeta(false)}
-                      >
-                        Done editing
-                      </Button>
-                    )}
+                    <div className="flex flex-wrap items-center gap-2">
+                      {!editingSceneMeta ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="bg-orange-500 hover:bg-orange-600 text-white text-[10px] h-7"
+                          onClick={() => setEditingSceneMeta(true)}
+                        >
+                          Manual edit
+                        </Button>
+                      ) : (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="border-slate-600 text-slate-300 text-[10px] h-7"
+                          onClick={() => setEditingSceneMeta(false)}
+                        >
+                          Done editing
+                        </Button>
+                      )}
+                    </div>
                   </div>
+                  <ConfirmDeletePanel
+                    variant="block"
+                    label="Delete scene"
+                    confirmPhrase={CONFIRM_DELETE_SCENE}
+                    description="Remove this scene from the project breakdown. Linked breakdown rows may become unlinked."
+                    pending={deleteSceneMutation.isPending}
+                    onConfirm={() => deleteSceneMutation.mutateAsync(s.id)}
+                  />
 
                   {!editingSceneMeta ? (
                     <>
@@ -2669,7 +2740,63 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
     },
   });
 
+  const renameBudgetMutation = useMutation({
+    mutationFn: async (payload: { budgetId: string; name: string }) =>
+      projectToolFetch(`/api/creator/projects/${projectId}/budget`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ budgetId: payload.budgetId, name: payload.name }),
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["project-budget", projectId] });
+      setSaveMessage("Budget renamed.");
+    },
+    onError: (err) => {
+      setSaveError(mutationErrorMessage(err, "Could not rename budget."));
+    },
+  });
+
+  const deleteBudgetMutation = useMutation({
+    mutationFn: async (budgetId: string) => {
+      if (projectBudgets.length <= 1) {
+        throw new Error(
+          "Keep at least one budget on the project. Create another before deleting this one.",
+        );
+      }
+      return projectToolFetch<{ budgets?: Array<{ id: string }> }>(
+        `/api/creator/projects/${projectId}/budget`,
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: budgetId, confirm: CONFIRM_DELETE_BUDGET }),
+        },
+      );
+    },
+    onSuccess: (result, deletedId) => {
+      const nextBudgets = (result.budgets ?? projectBudgets.filter((b) => b.id !== deletedId)) as Array<{
+        id: string;
+      }>;
+      const nextId = nextBudgets[0]?.id ?? null;
+      setSelectedBudgetId(nextId);
+      if (nextId && projectId) {
+        setActiveBudgetId(projectId, nextId);
+        setPersistedActiveBudgetId(nextId);
+      }
+      void queryClient.invalidateQueries({ queryKey: ["project-budget", projectId] });
+      setSaveMessage("Budget deleted.");
+      setSaveError("");
+    },
+    onError: (err) => {
+      setSaveError(mutationErrorMessage(err, "Could not delete budget."));
+    },
+  });
+
   const [budgetViewOpen, setBudgetViewOpen] = useState(false);
+  const [budgetRenameDraft, setBudgetRenameDraft] = useState("");
+
+  useEffect(() => {
+    setBudgetRenameDraft(budget?.name ?? "");
+  }, [budget?.id, budget?.name]);
 
   return (
     <div className="creator-tool-workspace">
@@ -2797,6 +2924,55 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
                       {initMutation.isPending ? "Creating…" : "Create budget"}
                     </Button>
                   </div>
+                ) : null}
+                {hasProject && budget && budget.id !== "local" ? (
+                  <div className="flex flex-wrap items-end gap-2 pt-1">
+                    <label className="space-y-1">
+                      <span className="text-[10px] text-slate-500">Rename</span>
+                      <Input
+                        value={budgetRenameDraft}
+                        onChange={(e) => setBudgetRenameDraft(e.target.value)}
+                        placeholder="Budget name"
+                        className="h-9 w-44 bg-slate-900 border-slate-700 text-xs"
+                      />
+                    </label>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="border-slate-600 text-[11px] h-9"
+                      disabled={
+                        renameBudgetMutation.isPending ||
+                        !budgetRenameDraft.trim() ||
+                        budgetRenameDraft.trim() === (budget.name ?? "")
+                      }
+                      onClick={() =>
+                        renameBudgetMutation.mutate({
+                          budgetId: budget.id,
+                          name: budgetRenameDraft.trim(),
+                        })
+                      }
+                    >
+                      {renameBudgetMutation.isPending ? "Renaming…" : "Save name"}
+                    </Button>
+                  </div>
+                ) : null}
+                {hasProject && budget && budget.id !== "local" ? (
+                  projectBudgets.length <= 1 ? (
+                    <p className="text-[11px] text-amber-200/90 pt-1">
+                      Create another budget before deleting this one (at least one budget must remain).
+                    </p>
+                  ) : (
+                    <ConfirmDeletePanel
+                      className="mt-2"
+                      variant="block"
+                      label="Delete budget"
+                      confirmPhrase={CONFIRM_DELETE_BUDGET}
+                      description={`Permanently delete "${budget.name ?? "this budget"}" and its line items.`}
+                      pending={deleteBudgetMutation.isPending}
+                      onConfirm={() => deleteBudgetMutation.mutateAsync(budget.id)}
+                    />
+                  )
                 ) : null}
               </div>
 
@@ -3662,7 +3838,11 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
     mutationFn: async (dayId: string) => {
       return projectToolFetch<ScheduleResponse>(
         `/api/creator/projects/${projectId}/schedule?dayId=${encodeURIComponent(dayId)}`,
-        { method: "DELETE" },
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ confirm: CONFIRM_DELETE_SHOOT_DAY, dayId }),
+        },
       );
     },
     onSuccess: (fresh) => {
@@ -4262,27 +4442,16 @@ function ProductionSchedulingWorkspace({ projectId, title }: ProductionSchedulin
                       <CardTitle className="text-sm">
                         Shoot day – {new Date(selectedDay.date).toLocaleDateString()}
                       </CardTitle>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="border-red-500/40 text-red-300 hover:bg-red-500/10 text-[11px]"
-                        disabled={deleteDayMutation.isPending}
-                        onClick={() => {
-                          if (
-                            typeof window !== "undefined" &&
-                            !window.confirm(
-                              "Delete this shoot day from the schedule? This cannot be undone.",
-                            )
-                          ) {
-                            return;
-                          }
-                          deleteDayMutation.mutate(selectedDay.id);
-                        }}
-                      >
-                        {deleteDayMutation.isPending ? "Deleting…" : "Delete shoot day"}
-                      </Button>
                     </div>
+                    <ConfirmDeletePanel
+                      className="mt-3"
+                      variant="block"
+                      label="Delete shoot day"
+                      confirmPhrase={CONFIRM_DELETE_SHOOT_DAY}
+                      description="Remove this shoot day from the schedule. This cannot be undone."
+                      pending={deleteDayMutation.isPending}
+                      onConfirm={() => deleteDayMutation.mutateAsync(selectedDay.id)}
+                    />
                   </CardHeader>
                   <CardContent className="space-y-3 min-w-0">
                     <div className="grid grid-cols-1 min-[480px]:grid-cols-2 lg:grid-cols-5 gap-2 text-xs">
@@ -4947,6 +5116,22 @@ function CastingPortalWorkspace({
       invalidateProjectPipeline(queryClient, projectId, ["casting"]);
     },
   });
+  const deleteRoleMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return projectToolFetch(`/api/creator/projects/${projectId}/casting`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, confirm: CONFIRM_DELETE_CASTING_ROLE }),
+      });
+    },
+    onSuccess: () => {
+      setPortalMessage("Role deleted.");
+      invalidateProjectPipeline(queryClient, projectId, ["casting"]);
+    },
+    onError: (err) => {
+      setPortalMessage(mutationErrorMessage(err, "Could not delete role."));
+    },
+  });
   const confirmHireMutation = useMutation({
     mutationFn: async (payload: { invitationId: string; salaryAmount: number; salaryNotes?: string }) => {
       const res = await fetch(`/api/creator/projects/${projectId}/casting/confirm-hire`, {
@@ -5185,7 +5370,14 @@ function CastingPortalWorkspace({
                       placeholder="Notes — availability, special requirements, union status…"
                       className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white"
                     />
-                    <div className="flex justify-end">
+                    <div className="flex justify-end gap-2 flex-wrap">
+                      <ConfirmDeletePanel
+                        variant="inline"
+                        label="Delete role"
+                        confirmPhrase={CONFIRM_DELETE_CASTING_ROLE}
+                        pending={deleteRoleMutation.isPending}
+                        onConfirm={() => deleteRoleMutation.mutateAsync(r.id)}
+                      />
                       <Button
                         size="sm"
                         className="bg-orange-500 hover:bg-orange-600 text-xs"
@@ -5499,6 +5691,22 @@ function CrewMarketplaceWorkspace({
       setPortalMessage("Crew need, assignment, and budget rate saved.");
     },
   });
+  const deleteNeedMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return projectToolFetch(`/api/creator/projects/${projectId}/crew`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, confirm: CONFIRM_DELETE_CREW_NEED }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project-crew", projectId] });
+      setPortalMessage("Crew need deleted.");
+    },
+    onError: (err) => {
+      setPortalMessage(mutationErrorMessage(err, "Could not delete crew need."));
+    },
+  });
   const inviteTeamMutation = useMutation({
     mutationFn: async (payload: { crewTeamId: string; message: string }) => {
       const res = await fetch("/api/crew-teams/requests", {
@@ -5726,7 +5934,14 @@ function CrewMarketplaceWorkspace({
                     placeholder="Notes, scene/day assignment scope, requirements..."
                     className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white"
                   />
-                  <div className="flex justify-end">
+                  <div className="flex justify-end gap-2 flex-wrap">
+                    <ConfirmDeletePanel
+                      variant="inline"
+                      label="Delete role"
+                      confirmPhrase={CONFIRM_DELETE_CREW_NEED}
+                      pending={deleteNeedMutation.isPending}
+                      onConfirm={() => deleteNeedMutation.mutateAsync(n.id)}
+                    />
                     <Button
                       size="sm"
                       className="bg-orange-500 hover:bg-orange-600 text-xs"
@@ -7997,6 +8212,21 @@ function TableReadsWorkspace({
     },
   });
 
+  const deleteSessionMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return projectToolFetch(`/api/creator/projects/${projectId}/table-reads`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, confirm: CONFIRM_DELETE_TABLE_READ }),
+      });
+    },
+    onSuccess: (_d, deletedId) => {
+      const remaining = sessions.filter((s) => s.id !== deletedId);
+      setActiveSessionId(remaining[0]?.id ?? null);
+      void queryClient.invalidateQueries({ queryKey: ["project-table-reads", projectId] });
+    },
+  });
+
   const activeSession = sessions.find((s) => s.id === activeSessionId) ?? null;
   const [tableReadsViewOpen, setTableReadsViewOpen] = useState(false);
 
@@ -8090,7 +8320,17 @@ function TableReadsWorkspace({
           </div>
           <div className="min-w-0">
             {activeSession && projectId ? (
-              <TableReadSessionEditor key={activeSession.id} session={activeSession} projectId={projectId} />
+              <div className="space-y-3">
+                <ConfirmDeletePanel
+                  variant="block"
+                  label="Delete session"
+                  confirmPhrase={CONFIRM_DELETE_TABLE_READ}
+                  description="Permanently delete this table read session, attendees, and notes."
+                  pending={deleteSessionMutation.isPending}
+                  onConfirm={() => deleteSessionMutation.mutateAsync(activeSession.id)}
+                />
+                <TableReadSessionEditor key={activeSession.id} session={activeSession} projectId={projectId} />
+              </div>
             ) : null}
           </div>
         </div>
@@ -8273,6 +8513,25 @@ function ProductionWorkspace({
       queryClient.invalidateQueries({ queryKey: ["project-tasks", projectId] });
       queryClient.invalidateQueries({ queryKey: ["production-control-center", projectId] });
       setWorkspaceMessage("Production workspace updated.");
+    },
+    onError: (e) => setWorkspaceMessage((e as Error).message),
+  });
+
+  const deleteTaskMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return projectToolFetch(
+        `/api/creator/projects/${projectId}/tasks?id=${encodeURIComponent(id)}`,
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ confirm: CONFIRM_DELETE_TASK }),
+        },
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project-production-workspace", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["project-tasks", projectId] });
+      setWorkspaceMessage("Task deleted.");
     },
     onError: (e) => setWorkspaceMessage((e as Error).message),
   });
@@ -8655,6 +8914,13 @@ function ProductionWorkspace({
                                   Comment
                                 </Button>
                               </div>
+                              <ConfirmDeletePanel
+                                variant="inline"
+                                label="Delete task"
+                                confirmPhrase={CONFIRM_DELETE_TASK}
+                                pending={deleteTaskMutation.isPending}
+                                onConfirm={() => deleteTaskMutation.mutateAsync(task.id)}
+                              />
                             </div>
                           ))}
                         </div>
@@ -8663,33 +8929,42 @@ function ProductionWorkspace({
                   ) : (
                     <div className="space-y-1">
                       {filteredTasks.map((task) => (
-                        <div key={task.id} className="rounded-lg border border-slate-800 bg-slate-900/70 px-3 py-2 text-xs flex items-center justify-between gap-2">
-                          <div>
-                            <p className="text-slate-100">{task.title}</p>
-                            <p className="text-slate-500">
-                              {task.status.replaceAll("_", " ")} · {(task.department || "Production")}
-                              {task.assignee ? ` · ${task.assignee.name || task.assignee.email}` : ""}
-                              {task.dueDate ? ` · Due ${new Date(task.dueDate).toLocaleDateString()}` : ""}
-                            </p>
+                        <div key={task.id} className="rounded-lg border border-slate-800 bg-slate-900/70 px-3 py-2 text-xs space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <div>
+                              <p className="text-slate-100">{task.title}</p>
+                              <p className="text-slate-500">
+                                {task.status.replaceAll("_", " ")} · {(task.department || "Production")}
+                                {task.assignee ? ` · ${task.assignee.name || task.assignee.email}` : ""}
+                                {task.dueDate ? ` · Due ${new Date(task.dueDate).toLocaleDateString()}` : ""}
+                              </p>
+                            </div>
+                            <select
+                              value={task.status}
+                              onChange={(e) =>
+                                e.target.value === "BLOCKED"
+                                  ? (() => {
+                                      const reason = window.prompt("Blocked reason (required)");
+                                      if (!reason?.trim()) return;
+                                      applyTaskUpdate({ id: task.id, status: "BLOCKED", description: reason.trim() });
+                                    })()
+                                  : applyTaskUpdate({ id: task.id, status: e.target.value })
+                              }
+                              className="h-8 rounded-md border border-slate-700 bg-slate-900 px-2 text-[11px] text-white"
+                            >
+                              <option value="TODO">Not started</option>
+                              <option value="IN_PROGRESS">In progress</option>
+                              <option value="BLOCKED">Blocked</option>
+                              <option value="COMPLETED">Completed</option>
+                            </select>
                           </div>
-                          <select
-                            value={task.status}
-                            onChange={(e) =>
-                              e.target.value === "BLOCKED"
-                                ? (() => {
-                                    const reason = window.prompt("Blocked reason (required)");
-                                    if (!reason?.trim()) return;
-                                    applyTaskUpdate({ id: task.id, status: "BLOCKED", description: reason.trim() });
-                                  })()
-                                : applyTaskUpdate({ id: task.id, status: e.target.value })
-                            }
-                            className="h-8 rounded-md border border-slate-700 bg-slate-900 px-2 text-[11px] text-white"
-                          >
-                            <option value="TODO">Not started</option>
-                            <option value="IN_PROGRESS">In progress</option>
-                            <option value="BLOCKED">Blocked</option>
-                            <option value="COMPLETED">Completed</option>
-                          </select>
+                          <ConfirmDeletePanel
+                            variant="inline"
+                            label="Delete task"
+                            confirmPhrase={CONFIRM_DELETE_TASK}
+                            pending={deleteTaskMutation.isPending}
+                            onConfirm={() => deleteTaskMutation.mutateAsync(task.id)}
+                          />
                         </div>
                       ))}
                     </div>
@@ -8954,6 +9229,31 @@ function EquipmentPlanningWorkspace({
       setPortalMessage("Marketplace listing linked to equipment plan item.");
     },
   });
+  const deleteItemMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return projectToolFetch(
+        `/api/creator/projects/${projectId}/equipment-plan?id=${encodeURIComponent(id)}`,
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ confirm: CONFIRM_DELETE_EQUIPMENT }),
+        },
+      );
+    },
+    onSuccess: (_d, deletedId) => {
+      queryClient.invalidateQueries({ queryKey: ["project-equipment-plan", projectId] });
+      invalidateProjectPipeline(queryClient, projectId, ["equipment"]);
+      setSelectedItemId((prev) => {
+        if (prev !== deletedId) return prev;
+        const remaining = items.filter((i) => i.id !== deletedId);
+        return remaining[0]?.id ?? "";
+      });
+      setPortalMessage("Equipment item deleted.");
+    },
+    onError: (err) => {
+      setPortalMessage(mutationErrorMessage(err, "Could not delete equipment item."));
+    },
+  });
 
   useEffect(() => {
     if (!selectedItemId && items.length > 0) {
@@ -9008,11 +9308,18 @@ function EquipmentPlanningWorkspace({
           ) : (
             <div className="space-y-2">
               {items.map((item) => (
-                <div key={item.id} className="rounded-xl border border-slate-800 bg-slate-900/80 px-3 py-2 text-xs">
+                <div key={item.id} className="rounded-xl border border-slate-800 bg-slate-900/80 px-3 py-2 text-xs space-y-2">
                   <p className="text-slate-200 font-medium">{item.category} · Qty {item.quantity}</p>
                   <p className="text-slate-500">
                     Linked listing: {item.equipmentListing ? item.equipmentListing.companyName : "Not linked"}
                   </p>
+                  <ConfirmDeletePanel
+                    variant="inline"
+                    label="Delete item"
+                    confirmPhrase={CONFIRM_DELETE_EQUIPMENT}
+                    pending={deleteItemMutation.isPending}
+                    onConfirm={() => deleteItemMutation.mutateAsync(item.id)}
+                  />
                 </div>
               ))}
             </div>
