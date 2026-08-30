@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SecureImage } from "@/components/files/secure-image";
+import { PEXELS_PHOTO_MIME } from "@/components/pexels/pexels-media-browser";
 import { resolveRenderableFileSource } from "@/lib/secure-file-preview-path";
 import { cn } from "@/lib/utils";
 import type {
@@ -12,6 +13,7 @@ import type {
 } from "@/lib/treatment-studio/types";
 
 export const TREATMENT_ASSET_MIME = "application/x-treatment-asset";
+export { PEXELS_PHOTO_MIME };
 
 type TreatmentSlideCanvasProps = {
   slide: TreatmentSlide;
@@ -24,6 +26,8 @@ type TreatmentSlideCanvasProps = {
   onElementsChange?: (elements: TreatmentElement[]) => void;
   onSelectElement?: (elementId: string | null) => void;
   onDropAsset?: (assetId: string, xPercent: number, yPercent: number) => void;
+  /** Drop a Pexels search result — parent imports then places on slide */
+  onDropPexels?: (photoId: number, xPercent: number, yPercent: number) => void | Promise<void>;
   projectId?: string;
 };
 
@@ -606,9 +610,11 @@ export function TreatmentSlideCanvas({
   onElementsChange,
   onSelectElement,
   onDropAsset,
+  onDropPexels,
   projectId,
 }: TreatmentSlideCanvasProps) {
   const [dragOver, setDragOver] = useState(false);
+  const [pexelsDropBusy, setPexelsDropBusy] = useState(false);
   const map = assetMap(assets);
 
   const updateElement = useCallback(
@@ -633,22 +639,35 @@ export function TreatmentSlideCanvas({
     e.preventDefault();
     e.stopPropagation();
     setDragOver(false);
-    if (readOnly || !onDropAsset) return;
+    if (readOnly) return;
 
+    const target = e.currentTarget as HTMLElement;
+    const rect = target.getBoundingClientRect();
+    const xPercent = Math.min(70, Math.max(0, ((e.clientX - rect.left) / rect.width) * 100 - 15));
+    const yPercent = Math.min(70, Math.max(0, ((e.clientY - rect.top) / rect.height) * 100 - 15));
+
+    const pexelsRaw = e.dataTransfer.getData(PEXELS_PHOTO_MIME);
+    if (pexelsRaw && onDropPexels) {
+      try {
+        const parsed = JSON.parse(pexelsRaw) as { id?: number };
+        if (parsed.id) {
+          setPexelsDropBusy(true);
+          void Promise.resolve(onDropPexels(parsed.id, xPercent, yPercent)).finally(() =>
+            setPexelsDropBusy(false),
+          );
+          return;
+        }
+      } catch {
+        /* fall through to asset drop */
+      }
+    }
+
+    if (!onDropAsset) return;
     const assetId =
       e.dataTransfer.getData(TREATMENT_ASSET_MIME) ||
       e.dataTransfer.getData("text/plain");
     if (!assetId || !assets.some((a) => a.id === assetId)) return;
-
-    const target = e.currentTarget as HTMLElement;
-    const rect = target.getBoundingClientRect();
-    const xPercent = ((e.clientX - rect.left) / rect.width) * 100 - 15;
-    const yPercent = ((e.clientY - rect.top) / rect.height) * 100 - 15;
-    onDropAsset(
-      assetId,
-      Math.min(70, Math.max(0, xPercent)),
-      Math.min(70, Math.max(0, yPercent)),
-    );
+    onDropAsset(assetId, xPercent, yPercent);
   };
 
   return (
@@ -666,6 +685,7 @@ export function TreatmentSlideCanvas({
         if (readOnly) return;
         if (
           e.dataTransfer.types.includes(TREATMENT_ASSET_MIME) ||
+          e.dataTransfer.types.includes(PEXELS_PHOTO_MIME) ||
           e.dataTransfer.types.includes("text/plain")
         ) {
           e.preventDefault();
@@ -676,6 +696,11 @@ export function TreatmentSlideCanvas({
       onDragLeave={() => setDragOver(false)}
       onDrop={handleDrop}
     >
+      {pexelsDropBusy ? (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/40 text-xs font-medium text-white">
+          Adding from Pexels…
+        </div>
+      ) : null}
       <div className="pointer-events-none absolute inset-0 [&_*]:pointer-events-auto">
         {layoutContent(
           slide.layout,

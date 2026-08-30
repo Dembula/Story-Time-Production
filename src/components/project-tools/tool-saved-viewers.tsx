@@ -101,17 +101,52 @@ export function ScriptsSavedViewer({
   scripts,
   selectedId,
   onSelect,
+  onCreate,
+  creating,
 }: {
   scripts: ScriptViewItem[];
   selectedId?: string | null;
   onSelect?: (id: string) => void;
+  onCreate?: () => void;
+  creating?: boolean;
 }) {
-  if (scripts.length === 0) return <EmptyState message="No saved scripts in your library." />;
+  if (scripts.length === 0) {
+    return (
+      <div className="space-y-4 py-2 text-center">
+        <EmptyState message="No saved scripts in your library." />
+        {onCreate ? (
+          <button
+            type="button"
+            disabled={creating}
+            onClick={onCreate}
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-orange-500 px-3 py-2 text-xs font-medium text-black hover:bg-orange-400 disabled:opacity-60"
+          >
+            {creating ? "Creating…" : "New script"}
+          </button>
+        ) : null}
+      </div>
+    );
+  }
   const active = scripts.find((s) => s.id === selectedId) ?? scripts[0];
   const words = active.content.split(/\s+/).filter(Boolean).length;
   const scenes = active.content.split(/\n/).filter((l) => /^(INT\.|EXT\.)/.test(l.trim())).length;
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[10px] uppercase tracking-wider text-slate-500">
+          {scripts.length} draft{scripts.length === 1 ? "" : "s"}
+        </p>
+        {onCreate ? (
+          <button
+            type="button"
+            disabled={creating}
+            onClick={onCreate}
+            className="rounded-md px-2 py-1 text-[10px] font-medium text-orange-300 hover:bg-slate-800 disabled:opacity-60"
+          >
+            {creating ? "Creating…" : "+ New"}
+          </button>
+        ) : null}
+      </div>
       <ul className="space-y-1 max-h-40 overflow-y-auto">
         {scripts.map((s) => (
           <li key={s.id}>

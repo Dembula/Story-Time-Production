@@ -366,6 +366,41 @@ export function TreatmentCreatorStudio({
     [placeAssetOnSlide],
   );
 
+  const dropPexelsOnSlide = useCallback(
+    async (photoId: number, x: number, y: number) => {
+      if (!document || !activeSlide) return;
+      const { importPexelsPhotoClient } = await import("@/components/pexels/pexels-media-browser");
+      const imported = await importPexelsPhotoClient(photoId);
+      const assetId = newId();
+      const asset = {
+        id: assetId,
+        type: "image" as const,
+        url: imported.storageUrl,
+        title: imported.title,
+        caption: imported.caption,
+        source: "pexels" as const,
+        createdAt: new Date().toISOString(),
+      };
+      const z = nextElementZIndex(activeSlide.elements);
+      const el = createImageElement(assetId, { x, y, zIndex: z });
+      const referenceIds = activeSlide.referenceIds.includes(assetId)
+        ? activeSlide.referenceIds
+        : [...activeSlide.referenceIds, assetId];
+      markDirty({
+        ...document,
+        assets: [...document.assets, asset],
+        slides: document.slides.map((s) =>
+          s.id === activeSlide.id
+            ? { ...s, referenceIds, elements: [...s.elements, el] }
+            : s,
+        ),
+      });
+      setSelectedElementId(el.id);
+      setAssetsOpen(true);
+    },
+    [document, activeSlide, markDirty],
+  );
+
   const updateAssets = useCallback(
     (assets: TreatmentDocument["assets"]) => {
       if (!document) return;
@@ -955,6 +990,7 @@ export function TreatmentCreatorStudio({
               onElementsChange={(elements) => updateSlide(activeSlide.id, { elements })}
               onSelectElement={setSelectedElementId}
               onDropAsset={(assetId, x, y) => placeAssetOnSlide(assetId, x, y)}
+              onDropPexels={(photoId, x, y) => dropPexelsOnSlide(photoId, x, y)}
             />
             <p className="mt-4 text-center text-xs text-slate-500">
               Slide {activeIndex + 1} of {document.slides.length}

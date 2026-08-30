@@ -13,6 +13,8 @@ import {
 import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
 import { SecureImage } from "@/components/files/secure-image";
 import { SecureFileLink } from "@/components/files/secure-file-link";
+import { PexelsMediaBrowser } from "@/components/pexels/pexels-media-browser";
+import { PexelsPhotoCredit } from "@/components/pexels/pexels-attribution";
 
 export type VisualPlanningAsset = {
   id: string;
@@ -41,6 +43,7 @@ export function VisualPlanningCatalogue({ projectId }: { projectId: string }) {
   const [pasteUrl, setPasteUrl] = useState("");
   const [uploadError, setUploadError] = useState("");
   const [brokenAssetIds, setBrokenAssetIds] = useState<Record<string, boolean>>({});
+  const [sourceTab, setSourceTab] = useState<"upload" | "pexels">("upload");
 
   const { data, isLoading } = useQuery({
     queryKey: ["project-visual-assets", projectId],
@@ -82,6 +85,7 @@ export function VisualPlanningCatalogue({ projectId }: { projectId: string }) {
       category: VisualPlanningCategoryId;
       imageUrl: string;
       title?: string;
+      caption?: string;
       sceneId?: string | null;
     }) => {
       const res = await fetch(`/api/creator/projects/${projectId}/visual-assets`, {
@@ -147,7 +151,12 @@ export function VisualPlanningCatalogue({ projectId }: { projectId: string }) {
   const labelFor = (cat: string) =>
     VISUAL_PLANNING_CATEGORIES.find((c) => c.id === cat)?.label ?? cat;
 
-  function uploadPayload(base: { category: VisualPlanningCategoryId; imageUrl: string; title?: string }) {
+  function uploadPayload(base: {
+    category: VisualPlanningCategoryId;
+    imageUrl: string;
+    title?: string;
+    caption?: string;
+  }) {
     return {
       ...base,
       sceneId: uploadCategory === "scene" ? sceneFilterId : null,
@@ -183,35 +192,87 @@ export function VisualPlanningCatalogue({ projectId }: { projectId: string }) {
     createMutation.mutate(uploadPayload({ category: uploadCategory, imageUrl: u }));
   }
 
+  const categorySelect = (
+    <div className="space-y-1 min-w-[160px]">
+      <label className="text-[10px] uppercase tracking-wide text-slate-500">Save into category</label>
+      <select
+        value={uploadCategory}
+        onChange={(e) => setUploadCategory(e.target.value as VisualPlanningCategoryId)}
+        className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-2 text-[11px] text-white outline-none focus:border-orange-500"
+      >
+        {VISUAL_PLANNING_CATEGORIES.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.label}
+          </option>
+        ))}
+      </select>
+      <p className="text-[10px] text-slate-500">
+        {VISUAL_PLANNING_CATEGORIES.find((c) => c.id === uploadCategory)?.blurb}
+      </p>
+    </div>
+  );
+
   return (
     <div className="creator-glass-panel p-4 md:p-5 space-y-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h3 className="text-sm font-semibold text-white">Visual catalogue</h3>
           <p className="text-[11px] text-slate-500 mt-1 max-w-3xl leading-relaxed">
-            Upload references by category — world, mood, tone, direction, characters, locations, and scenes. Add titles and notes
-            so everyone shares the same sense of <span className="text-slate-400">tone, direction, and feel</span>.
+            Upload references or pull stills from Pexels into World of story, Moodboard, Tone & palette, and the other
+            folders — so everyone shares the same sense of{" "}
+            <span className="text-slate-400">tone, direction, and feel</span>.
           </p>
         </div>
         <span className="text-[11px] text-slate-500 shrink-0">{assets.length} image{assets.length === 1 ? "" : "s"}</span>
       </div>
 
+      <div className="flex gap-1 rounded-lg border border-slate-800 bg-slate-950/60 p-1 w-fit">
+        {(
+          [
+            ["upload", "Upload / URL"],
+            ["pexels", "Pexels library"],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setSourceTab(id)}
+            className={`rounded-md px-3 py-1.5 text-[11px] font-medium transition ${
+              sourceTab === id
+                ? "bg-orange-500/20 text-orange-100"
+                : "text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {sourceTab === "pexels" ? (
+        <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3 space-y-3">
+          {categorySelect}
+          <PexelsMediaBrowser
+            variant="catalogue"
+            allowDrag={false}
+            primaryActionLabel={`Add to ${labelFor(uploadCategory)}`}
+            emptyHint="Search Pexels, choose a category above, then add stills into that folder."
+            onImport={async (imported) => {
+              await createMutation.mutateAsync(
+                uploadPayload({
+                  category: uploadCategory,
+                  imageUrl: imported.storageUrl,
+                  title: imported.title,
+                  caption: `${imported.caption} · ${imported.pexelsUrl}`,
+                }),
+              );
+            }}
+          />
+          {uploadError ? <p className="text-[11px] text-amber-200/90">{uploadError}</p> : null}
+        </div>
+      ) : (
       <div className="flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-950/50 p-3">
         <div className="flex flex-wrap items-end gap-2">
-          <div className="space-y-1 min-w-[160px]">
-            <label className="text-[10px] uppercase tracking-wide text-slate-500">Category for new images</label>
-            <select
-              value={uploadCategory}
-              onChange={(e) => setUploadCategory(e.target.value as VisualPlanningCategoryId)}
-              className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-2 text-[11px] text-white outline-none focus:border-orange-500"
-            >
-              {VISUAL_PLANNING_CATEGORIES.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-          </div>
+          {categorySelect}
           <input ref={fileRef} type="file" accept={VISUAL_UPLOAD_ACCEPT} className="hidden" onChange={onPickFile} />
           <Button
             type="button"
@@ -247,11 +308,12 @@ export function VisualPlanningCatalogue({ projectId }: { projectId: string }) {
           </div>
         </div>
         <p className="text-[11px] text-slate-500">
-          Supported image formats: JPG, PNG, WEBP, AVIF, GIF, HEIC/HEIF. If a device cannot decode HEIC/HEIF, open the source
-          file link or upload JPG/PNG for universal display.
+          Supported image formats: JPG, PNG, WEBP, AVIF, GIF, HEIC/HEIF. Switch to Pexels library for stock
+          photography with photographer credit.
         </p>
         {uploadError ? <p className="text-[11px] text-amber-200/90">{uploadError}</p> : null}
       </div>
+      )}
 
       <div className="flex flex-wrap gap-2">
         <button
@@ -287,7 +349,8 @@ export function VisualPlanningCatalogue({ projectId }: { projectId: string }) {
         <p className="text-xs text-slate-500 py-8 text-center">Loading catalogue…</p>
       ) : filtered.length === 0 ? (
         <p className="text-xs text-slate-500 py-8 text-center rounded-xl bg-slate-900/40 border border-slate-800/80">
-          No images in this view yet. Upload stills, lookbook frames, or paste links — build a shared visual library for the team.
+          No images in this view yet. Upload stills, browse Pexels, or paste links — build a shared visual library for
+          the team.
         </p>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
@@ -343,6 +406,19 @@ export function VisualPlanningCatalogue({ projectId }: { projectId: string }) {
                     patchMutation.mutate({ id: a.id, title: v || null });
                   }}
                 />
+                {a.caption?.includes("on Pexels") ? (
+                  <PexelsPhotoCredit
+                    photographer={a.caption
+                      .replace(/^Photo by\s+/i, "")
+                      .replace(/\s+on Pexels.*$/i, "")
+                      .trim()}
+                    pexelsUrl={
+                      a.caption.includes("http")
+                        ? a.caption.split("·").pop()?.trim()
+                        : "https://www.pexels.com"
+                    }
+                  />
+                ) : null}
                 <textarea
                   defaultValue={a.caption ?? ""}
                   key={`${a.id}-cap`}

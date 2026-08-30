@@ -12,6 +12,7 @@ import {
   BookOpen,
   Columns2,
   Eye,
+  FilePlus2,
   FileUp,
   Focus,
   LayoutTemplate,
@@ -19,6 +20,7 @@ import {
   Moon,
   PanelLeft,
   PanelRight,
+  Plus,
   Redo2,
   Sun,
   Undo2,
@@ -161,14 +163,16 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
   const [leftPanelOpen, setLeftPanelOpen] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
   const [splitOutline, setSplitOutline] = useState(true);
-  const [sidebarTab, setSidebarTab] = useState<"scenes" | "characters" | "outline">("scenes");
+  const [sidebarTab, setSidebarTab] = useState<"drafts" | "scenes" | "characters" | "outline">(
+    "scenes",
+  );
   const [highlightCharacter, setHighlightCharacter] = useState<string | null>(null);
   const [readerOpen, setReaderOpen] = useState(false);
   const [scriptsViewOpen, setScriptsViewOpen] = useState(false);
   const [selectedElement, setSelectedElement] = useState<ScreenplayElementType>("action");
   const elementAutoInsertReady = useRef(false);
   const [rightPanelTab, setRightPanelTab] = useState<
-    "pipeline" | "comments" | "versions" | "cards"
+    "drafts" | "pipeline" | "comments" | "versions" | "cards"
   >("pipeline");
   const [isTyping, setIsTyping] = useState(false);
   const [conflictMessage, setConflictMessage] = useState<string | null>(null);
@@ -200,6 +204,17 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
   useEffect(() => {
     if (!selectedId && scripts.length > 0) setSelectedId(scripts[0].id);
   }, [scripts, selectedId]);
+
+  useEffect(() => {
+    if (isLoading) return;
+    if (scripts.length === 0) {
+      setSidebarTab("drafts");
+      setRightPanelTab("drafts");
+      setLeftPanelOpen(true);
+      setRightPanelOpen(true);
+      setSplitOutline(true);
+    }
+  }, [isLoading, scripts.length]);
 
   useEffect(() => {
     window.localStorage.setItem(STUDIO_THEME_KEY, studioTheme);
@@ -795,6 +810,86 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
 
   const readerContent = useMemo(() => draft?.content ?? "", [draft?.content]);
 
+  const formatDraftMeta = useCallback((script: { content: string; updatedAt?: string; type: string }) => {
+    const words = script.content.trim() ? script.content.trim().split(/\s+/).length : 0;
+    const sceneCount = script.content
+      .split(/\n/)
+      .filter((l) => /^(INT\.|EXT\.|I\/E\.|E\/I\.)/i.test(l.trim())).length;
+    const updated = script.updatedAt
+      ? new Date(script.updatedAt).toLocaleString(undefined, {
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : null;
+    return { words, sceneCount, updated, typeLabel: script.type.replace(/_/g, " ") };
+  }, []);
+
+  const draftsList = (
+    <div className="space-y-3">
+      <div className="flex flex-col gap-2">
+        <Button
+          type="button"
+          size="sm"
+          className="h-8 w-full justify-center gap-1.5 bg-orange-500 text-[11px] font-medium text-black hover:bg-orange-400"
+          disabled={createMutation.isPending}
+          onClick={() => createMutation.mutate()}
+        >
+          {createMutation.isPending ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Plus className="h-3.5 w-3.5" />
+          )}
+          New script
+        </Button>
+        <p className="text-[10px] leading-relaxed text-slate-500">
+          Drafts for this project. Open one to write, or create a blank screenplay.
+        </p>
+      </div>
+      {isLoading ? (
+        <p className="py-6 text-center text-[11px] text-slate-500">Loading drafts…</p>
+      ) : scripts.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-slate-700 bg-slate-950/40 px-3 py-6 text-center">
+          <FilePlus2 className="mx-auto mb-2 h-5 w-5 text-slate-600" />
+          <p className="text-[11px] font-medium text-slate-300">No drafts yet</p>
+          <p className="mt-1 text-[10px] text-slate-500">Create your first script to open the studio.</p>
+        </div>
+      ) : (
+        <ul className="space-y-1">
+          {scripts.map((script) => {
+            const meta = formatDraftMeta(script);
+            const active = (selectedId ?? selected?.id) === script.id;
+            return (
+              <li key={script.id}>
+                <button
+                  type="button"
+                  onClick={() => setSelectedId(script.id)}
+                  className={cn(
+                    "w-full rounded-lg px-2.5 py-2 text-left transition",
+                    active
+                      ? "bg-orange-500/15 ring-1 ring-orange-500/30 text-white"
+                      : "text-slate-300 hover:bg-slate-800/70",
+                  )}
+                >
+                  <span className="block truncate text-[11px] font-medium">
+                    {script.title || "Untitled script"}
+                  </span>
+                  <span className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5 text-[9px] text-slate-500">
+                    <span className="uppercase tracking-wide">{meta.typeLabel}</span>
+                    <span>{meta.words} words</span>
+                    <span>{meta.sceneCount} scenes</span>
+                    {meta.updated ? <span>Updated {meta.updated}</span> : null}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+
   const studioRoot = (
     <div
       className={cn(
@@ -827,9 +922,12 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
             title: s.title,
             type: s.type,
             content: s.content,
+            updatedAt: s.updatedAt,
           }))}
           selectedId={selectedId}
           onSelect={setSelectedId}
+          onCreate={() => createMutation.mutate()}
+          creating={createMutation.isPending}
         />
       </ToolSavedViewSheet>
 
@@ -842,8 +940,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
       />
 
       <div className="script-writer-shell">
-      {draft ? (
-        <div className="script-writer-chrome">
+      <div className="script-writer-chrome">
           <div className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2 lg:hidden">
             <label htmlFor="mobile-script-picker" className="sr-only">
               Select script
@@ -869,6 +966,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
               size="sm"
               variant="outline"
               className="h-8 shrink-0 border-slate-700 text-[11px] text-slate-100"
+              disabled={createMutation.isPending}
               onClick={() => createMutation.mutate()}
             >
               New
@@ -888,7 +986,6 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
               variant="ghost"
               className="h-8 shrink-0 text-[11px] text-slate-300"
               onClick={() => setScriptsViewOpen(true)}
-              disabled={scripts.length === 0}
             >
               Library
             </Button>
@@ -914,13 +1011,17 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                     aria-label="Script title"
                     className="script-writer-title-input"
                   />
-                ) : null}
+                ) : (
+                  <span className="script-writer-title-input flex items-center text-slate-500">
+                    No script open
+                  </span>
+                )}
                 <select
                   value={selectedElement}
                   onChange={(e) => handleElementSelect(e.target.value as ScreenplayElementType)}
                   title="Select a format to insert at the cursor"
                   className={creatorToolSelectSm("text-[10px]")}
-                  disabled={!effectiveCanWrite}
+                  disabled={!effectiveCanWrite || !draft}
                 >
                   {(Object.keys(SCREENPLAY_ELEMENT_LABELS) as ScreenplayElementType[]).map((k) => (
                     <option key={k} value={k}>
@@ -939,6 +1040,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                     </option>
                   ))}
                 </select>
+                {draft ? (
                 <select
                   value={draft.type}
                   onChange={(e) => {
@@ -953,11 +1055,11 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                   <option value="EPISODE">Episode</option>
                   <option value="OTHER">Other</option>
                 </select>
+                ) : null}
                 <div className="flex items-center gap-1 ml-auto shrink-0">
                   <ToolViewButton
                     onClick={() => setScriptsViewOpen(true)}
                     count={scripts.length}
-                    disabled={scripts.length === 0}
                     className={
                       studioTheme === "light"
                         ? "border-slate-300 text-slate-700 hover:bg-slate-100"
@@ -968,8 +1070,14 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                     size="sm"
                     variant="outline"
                     className={studioToolbarOutlineClass(studioTheme)}
+                    disabled={createMutation.isPending}
                     onClick={() => createMutation.mutate()}
                   >
+                    {createMutation.isPending ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Plus className="h-3 w-3 mr-1" />
+                    )}
                     New
                   </Button>
                   {draft?.id && effectiveCanWrite ? (
@@ -1079,7 +1187,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                     size="sm"
                     variant="outline"
                     className={studioToolbarOutlineClass(studioTheme)}
-                    disabled={!effectiveCanWrite || importing}
+                    disabled={!effectiveCanWrite || !draft || importing}
                     onClick={() => fileInputRef.current?.click()}
                   >
                     {importing ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileUp className="h-3 w-3 mr-1" />}
@@ -1090,6 +1198,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                       size="sm"
                       variant="outline"
                       className={studioToolbarOutlineClass(studioTheme)}
+                      disabled={!draft}
                       onClick={() => {
                         const menu = document.getElementById("tpl-menu");
                         menu?.classList.toggle("hidden");
@@ -1121,12 +1230,14 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                     size="sm"
                     variant="outline"
                     className={studioToolbarOutlineClass(studioTheme)}
-                    onClick={() =>
+                    disabled={!draft}
+                    onClick={() => {
+                      if (!draft) return;
                       downloadTextFile(
                         `${draft.title || "screenplay"}.fountain`,
                         exportAsFountain(draft.title, draft.content),
-                      )
-                    }
+                      );
+                    }}
                   >
                     Export
                   </Button>
@@ -1134,6 +1245,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                     size="sm"
                     variant="outline"
                     className={studioToolbarOutlineClass(studioTheme)}
+                    disabled={!draft}
                     onClick={() => setReaderOpen(true)}
                   >
                     <Eye className="h-3 w-3" />
@@ -1202,7 +1314,6 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
             </div>
           ) : null}
         </div>
-      ) : null}
 
       <div
         className={cn(
@@ -1218,12 +1329,12 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
               </button>
             </div>
             <div className="flex border-b border-slate-800 text-[10px]">
-              {(["scenes", "characters", "outline"] as const).map((tab) => (
+              {(["drafts", "scenes", "characters", "outline"] as const).map((tab) => (
                 <button
                   key={tab}
                   type="button"
                   onClick={() => setSidebarTab(tab)}
-                  className={`flex-1 px-2 py-2 capitalize ${
+                  className={`flex-1 px-1.5 py-2 capitalize ${
                     sidebarTab === tab ? "bg-slate-800 text-orange-300" : "text-slate-400"
                   }`}
                 >
@@ -1232,8 +1343,14 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
               ))}
             </div>
             <div className="flex-1 overflow-y-auto p-2 text-[11px]">
+              {sidebarTab === "drafts" && draftsList}
               {sidebarTab === "scenes" &&
-                scenes.map((scene) => (
+                (scenes.length === 0 ? (
+                  <p className="px-1 py-4 text-center text-[10px] text-slate-500">
+                    {draft ? "No scene headings yet. Start with INT. or EXT." : "Open or create a script to see scenes."}
+                  </p>
+                ) : (
+                  scenes.map((scene) => (
                   <button
                     key={scene.id}
                     type="button"
@@ -1242,9 +1359,15 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                   >
                     <span className="text-orange-400/80">{scene.number}.</span> {scene.heading}
                   </button>
+                  ))
                 ))}
               {sidebarTab === "characters" &&
-                characters.map((ch) => (
+                (characters.length === 0 ? (
+                  <p className="px-1 py-4 text-center text-[10px] text-slate-500">
+                    {draft ? "Characters appear as you write dialogue." : "Open or create a script to see characters."}
+                  </p>
+                ) : (
+                  characters.map((ch) => (
                   <button
                     key={ch.name}
                     type="button"
@@ -1257,9 +1380,16 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                     {ch.name}
                     <span className="text-slate-500 ml-1">({ch.dialogueLines})</span>
                   </button>
+                  ))
                 ))}
               {sidebarTab === "outline" && (
                 <div className="space-y-2 text-slate-400">
+                  {!draft || scenes.length === 0 ? (
+                    <p className="px-1 py-4 text-center text-[10px] text-slate-500">
+                      Act outline builds from scene headings once you start writing.
+                    </p>
+                  ) : (
+                    <>
                   <p className="text-[10px] uppercase tracking-wider text-slate-500">Act structure</p>
                   {["Act One", "Act Two", "Act Three"].map((act, ai) => {
                     const chunk = Math.ceil(scenes.length / 3) || 1;
@@ -1280,6 +1410,8 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                       </div>
                     );
                   })}
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -1324,10 +1456,41 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
             </div>
           </div>
         ) : (
-          <div className="script-writer-page-viewport flex min-w-0 items-center justify-center">
-            <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/40 p-8 text-center text-sm text-slate-400">
-              <BookOpen className="mx-auto h-8 w-8 text-slate-600 mb-2" />
-              Create a new script to open the writing studio.
+          <div className="script-writer-page-viewport flex min-w-0 items-center justify-center p-6">
+            <div className="w-full max-w-md rounded-2xl border border-slate-700/80 bg-slate-900/70 px-8 py-10 text-center shadow-xl shadow-black/20">
+              <BookOpen className="mx-auto h-9 w-9 text-orange-400/80" />
+              <h2 className="mt-4 text-base font-semibold tracking-tight text-white">
+                Start your screenplay
+              </h2>
+              <p className="mt-2 text-sm leading-relaxed text-slate-400">
+                This project has no scripts yet. Create a draft to open the writing studio, or manage drafts from Navigator and Tools.
+              </p>
+              <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
+                <Button
+                  type="button"
+                  className="gap-1.5 bg-orange-500 font-medium text-black hover:bg-orange-400"
+                  disabled={createMutation.isPending}
+                  onClick={() => createMutation.mutate()}
+                >
+                  {createMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Plus className="h-4 w-4" />
+                  )}
+                  New script
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-slate-600 text-slate-200 hover:bg-slate-800"
+                  onClick={() => {
+                    setLeftPanelOpen(true);
+                    setSidebarTab("drafts");
+                  }}
+                >
+                  View drafts
+                </Button>
+              </div>
             </div>
           </div>
         )}
@@ -1356,6 +1519,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
             <div className="flex border-b border-slate-800 text-[9px]">
               {(
                 [
+                  ["drafts", "Drafts"],
                   ["pipeline", "Pipeline"],
                   ["comments", "Comments"],
                   ["versions", "Versions"],
@@ -1375,6 +1539,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
               ))}
             </div>
             <div className="flex-1 overflow-y-auto p-3 space-y-3">
+              {rightPanelTab === "drafts" && draftsList}
               {rightPanelTab === "pipeline" && (
                 <>
                   <p className="font-medium text-slate-200">Production pipeline</p>

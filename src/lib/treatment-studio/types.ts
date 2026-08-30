@@ -7,7 +7,7 @@ export type TreatmentAsset = {
   title?: string;
   caption?: string;
   thumbnailUrl?: string;
-  source: "upload" | "url" | "library";
+  source: "upload" | "url" | "library" | "pexels";
   createdAt: string;
 };
 

@@ -10004,8 +10004,8 @@ function VisualPlanningWorkspace({
             </p>
             <h2 className="creator-tool-workspace-title">{title}</h2>
             <p className="creator-tool-workspace-description">
-              Upload reference images into the catalogue below — organized by world, mood, tone, direction, characters, locations, and
-              scenes — so the team shares one visual language for the film.
+              Build a shared visual language — upload references or browse Pexels into World of story, Moodboard,
+              Tone & palette, Direction, Characters, Locations, and Scenes.
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
