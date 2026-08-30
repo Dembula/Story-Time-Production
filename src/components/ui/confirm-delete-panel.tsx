@@ -17,7 +17,7 @@ type ConfirmDeletePanelProps = {
   disabled?: boolean;
   pending?: boolean;
   className?: string;
-  onConfirm: () => void | Promise<void>;
+  onConfirm: () => void | Promise<unknown>;
 };
 
 /**
