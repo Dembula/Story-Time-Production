@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Loader2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,11 +39,9 @@ export type PexelsImportedAsset = {
 };
 
 type PexelsMediaBrowserProps = {
-  /** Visual planning: choose category before import. Treatment: omit. */
   categorySlot?: React.ReactNode;
   primaryActionLabel?: string;
   onImport: (asset: PexelsImportedAsset, photo: PexelsBrowserPhoto) => void | Promise<void>;
-  /** Compact styling for treatment side panel */
   variant?: "panel" | "catalogue";
   emptyHint?: string;
   allowDrag?: boolean;
@@ -59,7 +57,6 @@ export function PexelsMediaBrowser({
 }: PexelsMediaBrowserProps) {
   const [query, setQuery] = useState("");
   const [submitted, setSubmitted] = useState("");
-  const [page, setPage] = useState(1);
   const [photos, setPhotos] = useState<PexelsBrowserPhoto[]>([]);
   const [totalResults, setTotalResults] = useState(0);
   const [nextPage, setNextPage] = useState<number | null>(null);
@@ -67,41 +64,46 @@ export function PexelsMediaBrowser({
   const [importingId, setImportingId] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const dragActiveRef = useRef(false);
 
-  const runSearch = useCallback(async (q: string, pageNum: number, append: boolean) => {
-    const trimmed = q.trim();
-    if (!trimmed) {
-      setError("Enter a search term.");
-      return;
-    }
-    setLoading(true);
-    setError("");
-    try {
-      const params = new URLSearchParams({
-        query: trimmed,
-        page: String(pageNum),
-        perPage: variant === "panel" ? "15" : "24",
-      });
-      const res = await fetch(`/api/pexels/search?${params}`);
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error((data as { error?: string }).error || "Search failed");
+  const runSearch = useCallback(
+    async (q: string, pageNum: number, append: boolean) => {
+      const trimmed = q.trim();
+      if (!trimmed) {
+        setError("Enter a search term.");
+        return;
       }
-      const list = ((data as { photos?: PexelsBrowserPhoto[] }).photos ?? []) as PexelsBrowserPhoto[];
-      setPhotos((prev) => (append ? [...prev, ...list] : list));
-      setTotalResults((data as { totalResults?: number }).totalResults ?? 0);
-      setNextPage((data as { nextPage?: number | null }).nextPage ?? null);
-      setPage(pageNum);
-      setSubmitted(trimmed);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Search failed");
-      if (!append) setPhotos([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [variant]);
+      setLoading(true);
+      setError("");
+      try {
+        const params = new URLSearchParams({
+          query: trimmed,
+          page: String(pageNum),
+          perPage: variant === "panel" ? "15" : "24",
+        });
+        const res = await fetch(`/api/pexels/search?${params}`);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error((data as { error?: string }).error || "Search failed");
+        }
+        const list = ((data as { photos?: PexelsBrowserPhoto[] }).photos ??
+          []) as PexelsBrowserPhoto[];
+        setPhotos((prev) => (append ? [...prev, ...list] : list));
+        setTotalResults((data as { totalResults?: number }).totalResults ?? 0);
+        setNextPage((data as { nextPage?: number | null }).nextPage ?? null);
+        setSubmitted(trimmed);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Search failed");
+        if (!append) setPhotos([]);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [variant],
+  );
 
   const importPhoto = async (photo: PexelsBrowserPhoto) => {
+    if (dragActiveRef.current) return;
     setImportingId(photo.id);
     setError("");
     try {
@@ -128,10 +130,16 @@ export function PexelsMediaBrowser({
 
   return (
     <div className={isPanel ? "space-y-3" : "space-y-4"}>
-      <div className={`flex flex-wrap items-center justify-between gap-2 ${isPanel ? "" : "rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2"}`}>
+      <div
+        className={`flex flex-wrap items-center justify-between gap-2 ${
+          isPanel ? "" : "rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2"
+        }`}
+      >
         <PexelsPoweredBy />
         {totalResults > 0 ? (
-          <span className="text-[10px] text-slate-500">{totalResults.toLocaleString()} results</span>
+          <span className="text-[10px] text-slate-500">
+            {totalResults.toLocaleString()} results
+          </span>
         ) : null}
       </div>
 
@@ -173,13 +181,13 @@ export function PexelsMediaBrowser({
       </form>
 
       {error ? (
-        <p className={`text-[11px] ${isPanel ? "text-red-400" : "text-amber-200/90"}`}>{error}</p>
+        <p className={`text-[11px] ${isPanel ? "text-red-400" : "text-amber-200/90"}`}>
+          {error}
+        </p>
       ) : null}
 
       {!submitted && !loading ? (
-        <p className={`text-[11px] leading-relaxed ${isPanel ? "text-slate-500" : "text-slate-500"}`}>
-          {emptyHint}
-        </p>
+        <p className="text-[11px] leading-relaxed text-slate-500">{emptyHint}</p>
       ) : null}
 
       {photos.length > 0 ? (
@@ -199,6 +207,7 @@ export function PexelsMediaBrowser({
                 draggable={allowDrag && !busy}
                 onDragStart={(e) => {
                   if (!allowDrag) return;
+                  dragActiveRef.current = true;
                   e.dataTransfer.setData(
                     PEXELS_PHOTO_MIME,
                     JSON.stringify({
@@ -210,8 +219,13 @@ export function PexelsMediaBrowser({
                       preview: photo.src.medium,
                     }),
                   );
-                  e.dataTransfer.setData("text/plain", String(photo.id));
+                  e.dataTransfer.setData("text/plain", `pexels:${photo.id}`);
                   e.dataTransfer.effectAllowed = "copy";
+                }}
+                onDragEnd={() => {
+                  window.setTimeout(() => {
+                    dragActiveRef.current = false;
+                  }, 150);
                 }}
                 className={[
                   "group overflow-hidden rounded-lg border transition",
@@ -235,8 +249,11 @@ export function PexelsMediaBrowser({
                   <img
                     src={photo.src.medium || photo.src.small}
                     alt={photo.alt || `Photo by ${photo.photographer}`}
-                    className={isPanel ? "aspect-video w-full object-cover" : "aspect-[4/3] w-full object-cover"}
+                    className={
+                      isPanel ? "aspect-video w-full object-cover" : "aspect-[4/3] w-full object-cover"
+                    }
                     loading="lazy"
+                    draggable={false}
                     style={{ backgroundColor: photo.avgColor || undefined }}
                   />
                   {busy ? (

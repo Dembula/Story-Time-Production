@@ -13,7 +13,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SecureImage } from "@/components/files/secure-image";
-import { PexelsMediaBrowser } from "@/components/pexels/pexels-media-browser";
+import {
+  PexelsMediaBrowser,
+  type PexelsImportedAsset,
+} from "@/components/pexels/pexels-media-browser";
 import { PexelsPhotoCredit } from "@/components/pexels/pexels-attribution";
 import { resolveRenderableFileSource } from "@/lib/secure-file-preview-path";
 import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
@@ -27,8 +30,12 @@ const UPLOAD_ACCEPT =
 type TreatmentAssetsPanelProps = {
   assets: TreatmentAsset[];
   selectedReferenceIds: string[];
+  /** Asset ids currently placed as freeform image elements on the active slide */
+  placedAssetIds?: string[];
   onAssetsChange: (assets: TreatmentAsset[]) => void;
   onToggleReference: (assetId: string) => void;
+  /** Add imported Pexels still to the library only (do not place on slide). Returns new asset id. */
+  onAddPexels?: (imported: PexelsImportedAsset) => string | null | void;
   onClose: () => void;
   projectId?: string;
 };
@@ -40,8 +47,10 @@ function isVideoFile(file: File) {
 export function TreatmentAssetsPanel({
   assets,
   selectedReferenceIds,
+  placedAssetIds = [],
   onAssetsChange,
   onToggleReference,
+  onAddPexels,
   onClose,
   projectId,
 }: TreatmentAssetsPanelProps) {
@@ -51,6 +60,7 @@ export function TreatmentAssetsPanel({
   const [titleInput, setTitleInput] = useState("");
   const [error, setError] = useState("");
   const [tab, setTab] = useState<"library" | "pexels">("library");
+  const [justAddedId, setJustAddedId] = useState<string | null>(null);
 
   const removeAsset = (id: string) => {
     onAssetsChange(assets.filter((a) => a.id !== id));
@@ -74,6 +84,7 @@ export function TreatmentAssetsPanel({
         });
       }
       onAssetsChange([...assets, ...uploaded]);
+      setTab("library");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload failed");
     } finally {
@@ -100,6 +111,7 @@ export function TreatmentAssetsPanel({
     ]);
     setUrlInput("");
     setTitleInput("");
+    setTab("library");
   };
 
   return (
@@ -135,6 +147,9 @@ export function TreatmentAssetsPanel({
             }`}
           >
             {label}
+            {id === "library" && assets.length > 0 ? (
+              <span className="ml-1 text-slate-500">({assets.length})</span>
+            ) : null}
           </button>
         ))}
       </div>
@@ -145,19 +160,25 @@ export function TreatmentAssetsPanel({
             variant="panel"
             allowDrag
             primaryActionLabel="Add to library"
-            emptyHint="Search Pexels, then click to add — or drag a still onto the slide."
+            emptyHint="Search Pexels, then Add to library — or drag a still onto the slide to place it."
             onImport={(imported) => {
-              const asset: TreatmentAsset = {
-                id: newId(),
-                type: "image",
-                url: imported.storageUrl,
-                title: imported.title,
-                caption: imported.caption,
-                source: "pexels",
-                createdAt: new Date().toISOString(),
-              };
-              onAssetsChange([...assets, asset]);
-              onToggleReference(asset.id);
+              if (onAddPexels) {
+                const id = onAddPexels(imported);
+                if (typeof id === "string") setJustAddedId(id);
+              } else {
+                const asset: TreatmentAsset = {
+                  id: newId(),
+                  type: "image",
+                  url: imported.storageRef || imported.storageUrl,
+                  title: imported.title,
+                  caption: imported.caption,
+                  source: "pexels",
+                  createdAt: new Date().toISOString(),
+                };
+                onAssetsChange([...assets, asset]);
+                setJustAddedId(asset.id);
+              }
+              setTab("library");
             }}
           />
         </div>
@@ -215,8 +236,8 @@ export function TreatmentAssetsPanel({
             </div>
             {error ? <p className="text-xs text-red-400">{error}</p> : null}
             <p className="text-[10px] leading-relaxed text-slate-500">
-              Click an asset to place it on the active slide, or drag it onto the canvas. Use the
-              Pexels tab for stock stills.
+              Click a library still to place it on the slide, or drag it onto the canvas. Use Pexels to
+              search stock — Add to library keeps it here; drag onto the slide to place.
             </p>
           </div>
 
@@ -228,13 +249,16 @@ export function TreatmentAssetsPanel({
             ) : (
               <ul className="space-y-2">
                 {assets.map((asset) => {
-                  const selected = selectedReferenceIds.includes(asset.id);
+                  const onSlide =
+                    placedAssetIds.includes(asset.id) ||
+                    selectedReferenceIds.includes(asset.id);
                   const previewSrc =
                     asset.type === "video"
                       ? resolveRenderableFileSource(asset.thumbnailUrl || asset.url, {
                           projectId,
                         })
                       : null;
+                  const highlight = justAddedId === asset.id;
                   return (
                     <li
                       key={asset.id}
@@ -246,15 +270,20 @@ export function TreatmentAssetsPanel({
                       }}
                       className={[
                         "group cursor-grab rounded-lg border p-2 transition active:cursor-grabbing",
-                        selected
-                          ? "border-orange-400/40 bg-orange-500/10"
-                          : "border-white/10 bg-white/[0.03] hover:border-white/20",
+                        highlight
+                          ? "border-orange-400/50 bg-orange-500/15"
+                          : onSlide
+                            ? "border-orange-400/40 bg-orange-500/10"
+                            : "border-white/10 bg-white/[0.03] hover:border-white/20",
                       ].join(" ")}
                     >
                       <button
                         type="button"
                         className="w-full text-left"
-                        onClick={() => onToggleReference(asset.id)}
+                        onClick={() => {
+                          setJustAddedId(null);
+                          onToggleReference(asset.id);
+                        }}
                       >
                         {asset.type === "image" ? (
                           <SecureImage
@@ -297,11 +326,14 @@ export function TreatmentAssetsPanel({
                               .replace(/\s+on Pexels$/i, "")}
                             className="mt-0.5"
                           />
-                        ) : (
-                          <p className="text-[10px] text-slate-500">
-                            {selected ? "On slide — click to remove" : "Click or drag onto slide"}
-                          </p>
-                        )}
+                        ) : null}
+                        <p className="text-[10px] text-slate-500">
+                          {highlight
+                            ? "Added to library — click to place on slide"
+                            : onSlide
+                              ? "On slide — click to remove"
+                              : "Click or drag onto slide"}
+                        </p>
                       </button>
                       <button
                         type="button"

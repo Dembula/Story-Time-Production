@@ -260,7 +260,7 @@ export function VisualPlanningCatalogue({ projectId }: { projectId: string }) {
               await createMutation.mutateAsync(
                 uploadPayload({
                   category: uploadCategory,
-                  imageUrl: imported.storageUrl,
+                  imageUrl: imported.storageRef || imported.storageUrl,
                   title: imported.title,
                   caption: `${imported.caption} · ${imported.pexelsUrl}`,
                 }),

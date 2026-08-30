@@ -106,6 +106,9 @@ export function TreatmentCreatorStudio({
   const [newSlideMenuOpen, setNewSlideMenuOpen] = useState(false);
   const [exporting, setExporting] = useState<"pdf" | "pptx" | null>(null);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [draggingSlideId, setDraggingSlideId] = useState<string | null>(null);
+  const [dropSlideIndex, setDropSlideIndex] = useState<number | null>(null);
+  const slideDragDidMoveRef = useRef(false);
   const dirtyRef = useRef(false);
   const localDocRef = useRef<TreatmentDocument | null>(null);
   const hydratedTreatmentKey = useRef<string | null>(null);
@@ -320,6 +323,23 @@ export function TreatmentCreatorStudio({
     setSelectedElementId(null);
   }, [document, activeSlide, activeIndex, markDirty]);
 
+  const reorderSlides = useCallback(
+    (fromIndex: number, toIndex: number) => {
+      if (!document) return;
+      if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return;
+      if (fromIndex >= document.slides.length || toIndex > document.slides.length) return;
+      const slides = [...document.slides];
+      const [moved] = slides.splice(fromIndex, 1);
+      if (!moved) return;
+      const insertAt = fromIndex < toIndex ? toIndex - 1 : toIndex;
+      slides.splice(insertAt, 0, moved);
+      markDirty({ ...document, slides });
+      setActiveSlideId(moved.id);
+      setSelectedElementId(null);
+    },
+    [document, markDirty],
+  );
+
   const placeAssetOnSlide = useCallback(
     (
       assetId: string,
@@ -336,7 +356,13 @@ export function TreatmentCreatorStudio({
         if (existingEl) {
           updateSlide(activeSlide.id, {
             elements: activeSlide.elements.filter((el) => el.id !== existingEl.id),
-            referenceIds: activeSlide.referenceIds.filter((id) => id !== assetId),
+            // Keep referenceIds in sync only when removing a placed freeform image
+            // that was the sole use — do not strip layout heroes accidentally.
+            referenceIds: activeSlide.referenceIds.filter((id) => {
+              if (id !== assetId) return true;
+              // Still used as layout hero with no freeform? Keep it.
+              return false;
+            }),
           });
           setSelectedElementId(null);
           return;
@@ -345,12 +371,9 @@ export function TreatmentCreatorStudio({
 
       const z = nextElementZIndex(activeSlide.elements);
       const el = createImageElement(assetId, { x, y, zIndex: z });
-      const referenceIds = activeSlide.referenceIds.includes(assetId)
-        ? activeSlide.referenceIds
-        : [...activeSlide.referenceIds, assetId];
-
+      // Freeform placement only — do NOT also push into referenceIds, or layouts
+      // like image/split/references will render the same still twice.
       updateSlide(activeSlide.id, {
-        referenceIds,
         elements: [...activeSlide.elements, el],
       });
       setSelectedElementId(el.id);
@@ -366,39 +389,64 @@ export function TreatmentCreatorStudio({
     [placeAssetOnSlide],
   );
 
-  const dropPexelsOnSlide = useCallback(
-    async (photoId: number, x: number, y: number) => {
-      if (!document || !activeSlide) return;
-      const { importPexelsPhotoClient } = await import("@/components/pexels/pexels-media-browser");
-      const imported = await importPexelsPhotoClient(photoId);
+  const addPexelsAsset = useCallback(
+    (
+      imported: {
+        storageUrl: string;
+        storageRef: string;
+        title: string;
+        caption: string;
+      },
+      options?: { place?: boolean; x?: number; y?: number },
+    ) => {
+      if (!document || !activeSlide) return null;
       const assetId = newId();
       const asset = {
         id: assetId,
         type: "image" as const,
-        url: imported.storageUrl,
+        url: imported.storageRef || imported.storageUrl,
         title: imported.title,
         caption: imported.caption,
         source: "pexels" as const,
         createdAt: new Date().toISOString(),
       };
+
+      if (!options?.place) {
+        markDirty({
+          ...document,
+          assets: [...document.assets, asset],
+        });
+        return assetId;
+      }
+
+      const x = options.x ?? 18;
+      const y = options.y ?? 18;
       const z = nextElementZIndex(activeSlide.elements);
       const el = createImageElement(assetId, { x, y, zIndex: z });
-      const referenceIds = activeSlide.referenceIds.includes(assetId)
-        ? activeSlide.referenceIds
-        : [...activeSlide.referenceIds, assetId];
       markDirty({
         ...document,
         assets: [...document.assets, asset],
         slides: document.slides.map((s) =>
           s.id === activeSlide.id
-            ? { ...s, referenceIds, elements: [...s.elements, el] }
+            ? { ...s, elements: [...s.elements, el] }
             : s,
         ),
       });
       setSelectedElementId(el.id);
       setAssetsOpen(true);
+      return assetId;
     },
     [document, activeSlide, markDirty],
+  );
+
+  const dropPexelsOnSlide = useCallback(
+    async (photoId: number, x: number, y: number) => {
+      if (!document || !activeSlide) return;
+      const { importPexelsPhotoClient } = await import("@/components/pexels/pexels-media-browser");
+      const imported = await importPexelsPhotoClient(photoId);
+      addPexelsAsset(imported, { place: true, x, y });
+    },
+    [document, activeSlide, addPexelsAsset],
   );
 
   const updateAssets = useCallback(
@@ -834,7 +882,41 @@ export function TreatmentCreatorStudio({
               type="button"
               size="sm"
               className="h-8 bg-white text-black hover:bg-slate-200"
-              onClick={() => setPresenting(true)}
+              onClick={() => {
+                setSelectedElementId(null);
+                // Heal accidental double-placements (same asset as two freeform images).
+                if (document) {
+                  let changed = false;
+                  const slides = document.slides.map((slide) => {
+                    const seen = new Set<string>();
+                    const elements = [...slide.elements]
+                      .sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0))
+                      .filter((el) => {
+                        if (el.type !== "image" || !el.referenceId) return true;
+                        if (seen.has(el.referenceId)) {
+                          changed = true;
+                          return false;
+                        }
+                        seen.add(el.referenceId);
+                        return true;
+                      });
+                    // Freeform images should not also drive layout heroes (double still).
+                    const freeformIds = new Set(
+                      elements
+                        .filter((e) => e.type === "image" && e.referenceId)
+                        .map((e) => e.referenceId as string),
+                    );
+                    const referenceIds = slide.referenceIds.filter((id) => {
+                      if (!freeformIds.has(id)) return true;
+                      changed = true;
+                      return false;
+                    });
+                    return { ...slide, elements, referenceIds };
+                  });
+                  if (changed) markDirty({ ...document, slides });
+                }
+                setPresenting(true);
+              }}
             >
               <MonitorPlay className="mr-1.5 h-4 w-4" />
               Present
@@ -960,22 +1042,111 @@ export function TreatmentCreatorStudio({
                 </div>
               ) : null}
             </div>
-            <div className="flex-1 space-y-2 overflow-y-auto px-2 pb-4">
-              {document.slides.map((slide, i) => (
-                <TreatmentSlideThumbnail
-                  key={slide.id}
-                  slide={slide}
-                  assets={document.assets}
-                  index={i}
-                  active={slide.id === activeSlide.id}
-                  projectId={projectId}
-                  onClick={() => {
-                    setActiveSlideId(slide.id);
-                    setSelectedElementId(null);
-                    setNewSlideMenuOpen(false);
-                  }}
-                />
-              ))}
+            <div
+              className="flex-1 space-y-2 overflow-y-auto px-2 pb-4"
+              onDragOver={(e) => {
+                if (!draggingSlideId) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "move";
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (!document || draggingSlideId == null || dropSlideIndex == null) {
+                  setDraggingSlideId(null);
+                  setDropSlideIndex(null);
+                  return;
+                }
+                const fromIndex = document.slides.findIndex((s) => s.id === draggingSlideId);
+                if (fromIndex >= 0) reorderSlides(fromIndex, dropSlideIndex);
+                setDraggingSlideId(null);
+                setDropSlideIndex(null);
+              }}
+            >
+              <p className="px-0.5 pb-1 text-[9px] uppercase tracking-wide text-slate-600">
+                Hold & drag to reorder
+              </p>
+              {document.slides.map((slide, i) => {
+                const dropBefore =
+                  dropSlideIndex === i &&
+                  draggingSlideId != null &&
+                  draggingSlideId !== slide.id;
+                const dropAfter =
+                  dropSlideIndex === document.slides.length &&
+                  i === document.slides.length - 1 &&
+                  draggingSlideId != null;
+                return (
+                  <TreatmentSlideThumbnail
+                    key={slide.id}
+                    slide={slide}
+                    assets={document.assets}
+                    index={i}
+                    active={slide.id === activeSlide.id}
+                    projectId={projectId}
+                    draggable={document.slides.length > 1}
+                    dragging={draggingSlideId === slide.id}
+                    dropBefore={dropBefore}
+                    dropAfter={dropAfter}
+                    onDragStart={(e) => {
+                      slideDragDidMoveRef.current = false;
+                      setDraggingSlideId(slide.id);
+                      setDropSlideIndex(i);
+                      e.dataTransfer.setData(
+                        "application/x-treatment-slide",
+                        slide.id,
+                      );
+                      // Transparent drag image keeps the list readable while reordering.
+                      if (e.currentTarget instanceof HTMLElement) {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        e.dataTransfer.setDragImage(
+                          e.currentTarget,
+                          Math.min(24, rect.width / 2),
+                          Math.min(16, rect.height / 2),
+                        );
+                      }
+                    }}
+                    onDragEnd={() => {
+                      setDraggingSlideId(null);
+                      setDropSlideIndex(null);
+                    }}
+                    onDragOver={(e) => {
+                      if (!draggingSlideId || draggingSlideId === slide.id) return;
+                      e.preventDefault();
+                      e.stopPropagation();
+                      e.dataTransfer.dropEffect = "move";
+                      slideDragDidMoveRef.current = true;
+                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                      const before = e.clientY < rect.top + rect.height / 2;
+                      setDropSlideIndex(before ? i : i + 1);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (!document || !draggingSlideId) return;
+                      const fromIndex = document.slides.findIndex(
+                        (s) => s.id === draggingSlideId,
+                      );
+                      const toIndex =
+                        dropSlideIndex ??
+                        (() => {
+                          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                          return e.clientY < rect.top + rect.height / 2 ? i : i + 1;
+                        })();
+                      if (fromIndex >= 0) reorderSlides(fromIndex, toIndex);
+                      setDraggingSlideId(null);
+                      setDropSlideIndex(null);
+                    }}
+                    onClick={() => {
+                      if (slideDragDidMoveRef.current) {
+                        slideDragDidMoveRef.current = false;
+                        return;
+                      }
+                      setActiveSlideId(slide.id);
+                      setSelectedElementId(null);
+                      setNewSlideMenuOpen(false);
+                    }}
+                  />
+                );
+              })}
             </div>
           </aside>
 
@@ -1005,8 +1176,12 @@ export function TreatmentCreatorStudio({
             <TreatmentAssetsPanel
               assets={document.assets}
               selectedReferenceIds={activeSlide.referenceIds}
+              placedAssetIds={activeSlide.elements
+                .map((el) => el.referenceId)
+                .filter((id): id is string => Boolean(id))}
               onAssetsChange={updateAssets}
               onToggleReference={toggleReference}
+              onAddPexels={(imported) => addPexelsAsset(imported, { place: false })}
               onClose={() => setAssetsOpen(false)}
               projectId={projectId}
             />
@@ -1019,7 +1194,10 @@ export function TreatmentCreatorStudio({
           document={document}
           initialIndex={activeIndex}
           projectId={projectId}
-          onClose={() => setPresenting(false)}
+          onClose={() => {
+            setPresenting(false);
+            setSelectedElementId(null);
+          }}
         />
       ) : null}
     </>

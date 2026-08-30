@@ -71,8 +71,9 @@ export function TreatmentPresenter({
             assets={document.assets}
             aspectRatio={document.settings.aspectRatio}
             readOnly
+            selectedElementId={null}
             projectId={projectId}
-            className="shadow-2xl"
+            className="shadow-2xl pointer-events-none"
           />
         </div>
       </div>

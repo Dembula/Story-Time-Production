@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { GripVertical } from "lucide-react";
 import { SecureImage } from "@/components/files/secure-image";
 import { PEXELS_PHOTO_MIME } from "@/components/pexels/pexels-media-browser";
 import { resolveRenderableFileSource } from "@/lib/secure-file-preview-path";
@@ -459,7 +460,7 @@ function FreeformElement({
     <div
       className={cn(
         "absolute touch-none",
-        !readOnly && "cursor-move",
+        readOnly ? "pointer-events-none" : "cursor-move",
         selected && !readOnly && "ring-2 ring-orange-400 ring-offset-1",
       )}
       style={{
@@ -467,11 +468,17 @@ function FreeformElement({
         top: `${display.y}%`,
         width: `${display.width}%`,
         height: `${display.height}%`,
-        zIndex: (element.zIndex || 1) + (selected ? 1000 : 0),
+        zIndex: readOnly
+          ? element.zIndex || 1
+          : (element.zIndex || 1) + (selected ? 1000 : 0),
         transform: element.rotation ? `rotate(${element.rotation}deg)` : undefined,
       }}
-      onPointerDown={(e) => beginDrag(e, "move")}
+      onPointerDown={(e) => {
+        if (readOnly) return;
+        beginDrag(e, "move");
+      }}
       onClick={(e) => {
+        if (readOnly) return;
         e.stopPropagation();
         onSelect();
       }}
@@ -737,7 +744,7 @@ export function TreatmentSlideCanvas({
   );
 }
 
-/** Mini thumbnail for slide navigator */
+/** Mini thumbnail for slide navigator — supports hold/drag reorder via parent DnD props */
 export function TreatmentSlideThumbnail({
   slide,
   assets,
@@ -745,6 +752,14 @@ export function TreatmentSlideThumbnail({
   active,
   onClick,
   projectId,
+  draggable = false,
+  dragging = false,
+  dropBefore = false,
+  dropAfter = false,
+  onDragStart,
+  onDragEnd,
+  onDragOver,
+  onDrop,
 }: {
   slide: TreatmentSlide;
   assets: TreatmentAsset[];
@@ -752,29 +767,69 @@ export function TreatmentSlideThumbnail({
   active: boolean;
   onClick: () => void;
   projectId?: string;
+  draggable?: boolean;
+  dragging?: boolean;
+  dropBefore?: boolean;
+  dropAfter?: boolean;
+  onDragStart?: (e: React.DragEvent) => void;
+  onDragEnd?: (e: React.DragEvent) => void;
+  onDragOver?: (e: React.DragEvent) => void;
+  onDrop?: (e: React.DragEvent) => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "treatment-slide-thumb group relative w-full overflow-hidden rounded-md border transition",
-        active
-          ? "border-orange-400/60 ring-1 ring-orange-400/30"
-          : "border-white/10 hover:border-white/25",
-      )}
+    <div
+      className={cn("relative", dragging && "opacity-40")}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
     >
-      <div className="pointer-events-none scale-[0.22] origin-top-left w-[454%]">
-        <TreatmentSlideCanvas
-          slide={slide}
-          assets={assets}
-          readOnly
-          projectId={projectId}
+      {dropBefore ? (
+        <div
+          className="pointer-events-none absolute inset-x-1 -top-1 z-20 h-0.5 rounded-full bg-orange-400 shadow-[0_0_8px_rgba(251,146,60,0.8)]"
+          aria-hidden
         />
-      </div>
-      <span className="absolute left-1.5 top-1.5 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">
-        {index + 1}
-      </span>
-    </button>
+      ) : null}
+      <button
+        type="button"
+        draggable={draggable}
+        onDragStart={(e) => {
+          // Keep click from firing after a successful drag reorder.
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/plain", slide.id);
+          onDragStart?.(e);
+        }}
+        onDragEnd={onDragEnd}
+        onClick={onClick}
+        aria-grabbed={dragging || undefined}
+        title="Hold and drag to reorder"
+        className={cn(
+          "treatment-slide-thumb group relative w-full cursor-grab overflow-hidden rounded-md border transition active:cursor-grabbing",
+          active
+            ? "border-orange-400/60 ring-1 ring-orange-400/30"
+            : "border-white/10 hover:border-white/25",
+          dragging && "cursor-grabbing ring-1 ring-orange-400/50",
+        )}
+      >
+        <div className="pointer-events-none scale-[0.22] origin-top-left w-[454%]">
+          <TreatmentSlideCanvas
+            slide={slide}
+            assets={assets}
+            readOnly
+            projectId={projectId}
+          />
+        </div>
+        <span className="absolute left-1.5 top-1.5 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">
+          {index + 1}
+        </span>
+        <span className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded bg-black/50 text-slate-300 opacity-70 transition group-hover:opacity-100">
+          <GripVertical className="h-3 w-3" aria-hidden />
+        </span>
+      </button>
+      {dropAfter ? (
+        <div
+          className="pointer-events-none absolute inset-x-1 -bottom-1 z-20 h-0.5 rounded-full bg-orange-400 shadow-[0_0_8px_rgba(251,146,60,0.8)]"
+          aria-hidden
+        />
+      ) : null}
+    </div>
   );
 }
