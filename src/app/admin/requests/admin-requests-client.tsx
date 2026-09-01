@@ -1,8 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Shield, CheckCircle, XCircle, Loader2, UserPlus, Mail } from "lucide-react";
-import { ADMIN_RIGHT_SUITES } from "@/lib/admin-permissions";
+import { useCallback, useEffect, useState } from "react";
+import { Shield, CheckCircle, XCircle, Loader2, UserPlus, Mail, Users, Crown, Save } from "lucide-react";
+import {
+  ADMIN_RIGHT_SUITES,
+  adminRightsSummary,
+  type AdminRightsMap,
+} from "@/lib/admin-permissions";
 
 type AdminRequestRow = {
   id: string;
@@ -26,50 +30,103 @@ type AccessApplicationRow = {
   reviewedBy: { id: string; name: string | null; email: string | null } | null;
 };
 
+type ActiveAdminRow = {
+  id: string;
+  name: string | null;
+  email: string | null;
+  adminRights: AdminRightsMap;
+  rightsSummary: string;
+  isGod: boolean;
+  createdAt: string;
+};
+
 const RIGHTS_OPTIONS = ADMIN_RIGHT_SUITES.map((s) => ({ key: s.key, label: s.label }));
 
-type Tab = "applications" | "role_upgrades";
+type Tab = "applications" | "role_upgrades" | "active_admins";
 
 export function AdminRequestsClient() {
   const [tab, setTab] = useState<Tab>("applications");
   const [requests, setRequests] = useState<AdminRequestRow[]>([]);
   const [applications, setApplications] = useState<AccessApplicationRow[]>([]);
+  const [activeAdmins, setActiveAdmins] = useState<ActiveAdminRow[]>([]);
+  const [canManageTeam, setCanManageTeam] = useState(false);
   const [reqLoading, setReqLoading] = useState(true);
   const [appsLoading, setAppsLoading] = useState(true);
+  const [adminsLoading, setAdminsLoading] = useState(true);
   const [filter, setFilter] = useState<"PENDING" | "all">("PENDING");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [denyNote, setDenyNote] = useState<Record<string, string>>({});
-  const [selectedRights, setSelectedRights] = useState<Record<string, Record<string, boolean>>>({});
+  const [selectedRights, setSelectedRights] = useState<Record<string, AdminRightsMap>>({});
+  const [editingAdminRights, setEditingAdminRights] = useState<Record<string, AdminRightsMap>>({});
+  const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
-  function loadRoleUpgrades() {
+  const loadRoleUpgrades = useCallback(() => {
     return fetch(`/api/admin/requests?status=${filter}`)
       .then((r) => r.json())
       .then(setRequests);
-  }
+  }, [filter]);
 
-  function loadApplications() {
+  const loadApplications = useCallback(() => {
     return fetch("/api/admin/access-applications")
       .then((r) => r.json())
       .then(setApplications);
-  }
+  }, []);
+
+  const loadActiveAdmins = useCallback(() => {
+    return fetch("/api/admin/team")
+      .then(async (r) => {
+        if (!r.ok) throw new Error("Failed to load admin team");
+        return r.json();
+      })
+      .then((data: { admins: ActiveAdminRow[]; canManageTeam?: boolean }) => {
+        setActiveAdmins(data.admins ?? []);
+        setCanManageTeam(Boolean(data.canManageTeam));
+        const rightsSeed: Record<string, AdminRightsMap> = {};
+        for (const admin of data.admins ?? []) {
+          rightsSeed[admin.id] = { ...admin.adminRights };
+        }
+        setEditingAdminRights(rightsSeed);
+      });
+  }, []);
 
   useEffect(() => {
     setReqLoading(true);
     void loadRoleUpgrades().finally(() => setReqLoading(false));
-  }, [filter]);
+  }, [loadRoleUpgrades]);
 
   useEffect(() => {
     setAppsLoading(true);
     void loadApplications().finally(() => setAppsLoading(false));
-  }, [tab]);
+  }, [loadApplications]);
+
+  useEffect(() => {
+    void loadActiveAdmins().catch(() => {});
+  }, [loadActiveAdmins]);
+
+  useEffect(() => {
+    if (tab !== "active_admins") return;
+    setAdminsLoading(true);
+    void loadActiveAdmins()
+      .catch(() => setMessage({ type: "err", text: "Could not load active administrators." }))
+      .finally(() => setAdminsLoading(false));
+  }, [tab, loadActiveAdmins]);
+
+  function toggleRight(entityId: string, key: string, map: "selected" | "editing") {
+    const setter = map === "selected" ? setSelectedRights : setEditingAdminRights;
+    setter((prev) => ({
+      ...prev,
+      [entityId]: {
+        ...(prev[entityId] ?? {}),
+        [key]: !prev[entityId]?.[key as keyof AdminRightsMap],
+      },
+    }));
+  }
 
   async function handleRequestAction(id: string, action: "APPROVE" | "DENY") {
     setActionLoading(id);
-    const body: { id: string; action: string; assignedRights?: Record<string, boolean>; note?: string } = {
-      id,
-      action,
-    };
-    if (action === "APPROVE") body.assignedRights = selectedRights[id] ?? undefined;
+    setMessage(null);
+    const body: { id: string; action: string; assignedRights?: AdminRightsMap; note?: string } = { id, action };
+    if (action === "APPROVE") body.assignedRights = selectedRights[id] ?? {};
     if (action === "DENY") body.note = denyNote[id] ?? undefined;
     try {
       const res = await fetch("/api/admin/requests", {
@@ -77,9 +134,13 @@ export function AdminRequestsClient() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        const updated = (await res.json()) as AdminRequestRow;
-        setRequests((prev) => prev.map((r) => (r.id === id ? updated : r)));
+        setRequests((prev) => prev.map((r) => (r.id === id ? (data as AdminRequestRow) : r)));
+        setMessage({ type: "ok", text: action === "APPROVE" ? "Role upgrade approved." : "Request denied." });
+        void loadActiveAdmins();
+      } else {
+        setMessage({ type: "err", text: data.error ?? "Request action failed." });
       }
     } finally {
       setActionLoading(null);
@@ -88,11 +149,9 @@ export function AdminRequestsClient() {
 
   async function handleApplicationAction(id: string, action: "APPROVE" | "DENY") {
     setActionLoading(id);
-    const body: { id: string; action: string; assignedRights?: Record<string, boolean>; note?: string } = {
-      id,
-      action,
-    };
-    if (action === "APPROVE") body.assignedRights = selectedRights[id] ?? undefined;
+    setMessage(null);
+    const body: { id: string; action: string; assignedRights?: AdminRightsMap; note?: string } = { id, action };
+    if (action === "APPROVE") body.assignedRights = selectedRights[id] ?? {};
     if (action === "DENY") body.note = denyNote[id] ?? undefined;
     try {
       const res = await fetch("/api/admin/access-applications", {
@@ -100,27 +159,89 @@ export function AdminRequestsClient() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        const updated = (await res.json()) as AccessApplicationRow;
-        setApplications((prev) => prev.map((r) => (r.id === id ? updated : r)));
+        setApplications((prev) => prev.map((r) => (r.id === id ? (data as AccessApplicationRow) : r)));
+        setMessage({ type: "ok", text: action === "APPROVE" ? "Admin account created." : "Application denied." });
+        void loadActiveAdmins();
+      } else {
+        setMessage({ type: "err", text: data.error ?? "Application action failed." });
       }
     } finally {
       setActionLoading(null);
     }
   }
 
-  function toggleRight(reqId: string, key: string) {
-    setSelectedRights((prev) => ({
-      ...prev,
-      [reqId]: {
-        ...(prev[reqId] ?? {}),
-        [key]: !prev[reqId]?.[key],
-      },
-    }));
+  async function saveAdminRights(userId: string) {
+    setActionLoading(userId);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId,
+          action: "SET_ADMIN_RIGHTS",
+          adminRights: editingAdminRights[userId] ?? {},
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setMessage({ type: "ok", text: "Admin sections updated." });
+        void loadActiveAdmins();
+      } else {
+        setMessage({ type: "err", text: data.error ?? "Could not save admin sections." });
+      }
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function revokeAdminAccess(userId: string, label: string) {
+    if (!window.confirm(`Revoke admin access for ${label}? They will lose access to the admin portal immediately.`)) {
+      return;
+    }
+    setActionLoading(userId);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, action: "REVOKE_ADMIN_ACCESS" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setMessage({ type: "ok", text: `Admin access revoked for ${label}.` });
+        void loadActiveAdmins();
+      } else {
+        setMessage({ type: "err", text: data.error ?? "Could not revoke admin access." });
+      }
+    } finally {
+      setActionLoading(null);
+    }
   }
 
   const pendingRequests = requests.filter((r) => r.status === "PENDING");
   const pendingApps = applications.filter((r) => r.status === "PENDING");
+
+  function RightsPicker({ entityId, map }: { entityId: string; map: "selected" | "editing" }) {
+    const current = map === "selected" ? selectedRights[entityId] : editingAdminRights[entityId];
+    return (
+      <div className="flex flex-wrap gap-3">
+        {RIGHTS_OPTIONS.map((r) => (
+          <label key={r.key} className="flex cursor-pointer items-center gap-2">
+            <input
+              type="checkbox"
+              checked={current?.[r.key as keyof AdminRightsMap] === true}
+              onChange={() => toggleRight(entityId, r.key, map)}
+              className="rounded border-slate-600 bg-slate-800 text-orange-500 focus:ring-orange-500"
+            />
+            <span className="text-sm text-slate-300">{r.label}</span>
+          </label>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-5xl p-8">
@@ -129,9 +250,21 @@ export function AdminRequestsClient() {
           <Shield className="h-8 w-8 text-orange-500" /> Admin access
         </h1>
         <p className="text-slate-400">
-          Approve new administrator accounts or promote existing users to the admin team.
+          Approve administrators, assign which sections they can access, and revoke access when needed.
         </p>
       </div>
+
+      {message ? (
+        <div
+          className={`mb-6 rounded-lg border px-4 py-3 text-sm ${
+            message.type === "ok"
+              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+              : "border-red-500/30 bg-red-500/10 text-red-300"
+          }`}
+        >
+          {message.text}
+        </div>
+      ) : null}
 
       <div className="mb-6 flex flex-wrap gap-2">
         <button
@@ -160,42 +293,96 @@ export function AdminRequestsClient() {
           }`}
         >
           <span className="inline-flex items-center gap-2">
-            <UserPlus className="h-4 w-4" /> Role upgrades (signed-in users)
+            <UserPlus className="h-4 w-4" /> Role upgrades
             {pendingRequests.length > 0 && (
               <span className="rounded-full bg-orange-500/30 px-2 py-0.5 text-xs">{pendingRequests.length}</span>
             )}
           </span>
         </button>
+        <button
+          type="button"
+          onClick={() => setTab("active_admins")}
+          className={`rounded-lg border px-4 py-2 text-sm font-medium transition ${
+            tab === "active_admins"
+              ? "border-orange-500/30 bg-orange-500/20 text-orange-400"
+              : "border-slate-700 bg-slate-800/50 text-slate-400 hover:text-white"
+          }`}
+        >
+          <span className="inline-flex items-center gap-2">
+            <Users className="h-4 w-4" /> Active administrators ({activeAdmins.length || "…"})
+          </span>
+        </button>
       </div>
 
-      {tab === "role_upgrades" && (
-        <div className="mb-6 flex gap-2">
-          <button
-            type="button"
-            onClick={() => setFilter("PENDING")}
-            className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
-              filter === "PENDING"
-                ? "border border-orange-500/30 bg-orange-500/20 text-orange-400"
-                : "border border-slate-700 bg-slate-800/50 text-slate-400 hover:text-white"
-            }`}
-          >
-            Pending ({pendingRequests.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setFilter("all")}
-            className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
-              filter === "all"
-                ? "border border-orange-500/30 bg-orange-500/20 text-orange-400"
-                : "border border-slate-700 bg-slate-800/50 text-slate-400 hover:text-white"
-            }`}
-          >
-            All
-          </button>
-        </div>
-      )}
+      {tab === "active_admins" ? (
+        adminsLoading ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+          </div>
+        ) : activeAdmins.length === 0 ? (
+          <div className="rounded-2xl border border-slate-700/50 bg-slate-800/30 p-12 text-center">
+            <Users className="mx-auto mb-3 h-12 w-12 text-slate-600" />
+            <p className="text-slate-400">No active administrators.</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {activeAdmins.map((admin) => (
+              <div key={admin.id} className="rounded-xl border border-slate-700/50 bg-slate-800/30 p-5">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <p className="flex items-center gap-2 font-medium text-white">
+                      {admin.name?.trim() || admin.email}
+                      {admin.isGod ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-xs text-amber-300">
+                          <Crown className="h-3 w-3" /> Platform owner
+                        </span>
+                      ) : null}
+                    </p>
+                    <p className="text-sm text-slate-400">{admin.email}</p>
+                    <p className="mt-1 text-xs text-slate-500">{admin.rightsSummary}</p>
+                  </div>
+                </div>
 
-      {tab === "applications" ? (
+                {!admin.isGod && canManageTeam ? (
+                  <div className="mt-4 space-y-4 border-t border-slate-700/50 pt-4">
+                    <div>
+                      <p className="mb-2 text-xs font-medium text-slate-400">Admin sections</p>
+                      <RightsPicker entityId={admin.id} map="editing" />
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void saveAdminRights(admin.id)}
+                        disabled={actionLoading === admin.id}
+                        className="inline-flex items-center gap-2 rounded-lg bg-violet-500/20 px-4 py-2 text-sm font-medium text-violet-300 hover:bg-violet-500/30 disabled:opacity-50"
+                      >
+                        {actionLoading === admin.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Save className="h-4 w-4" />
+                        )}
+                        Save sections
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void revokeAdminAccess(admin.id, admin.email ?? admin.name ?? "this user")}
+                        disabled={actionLoading === admin.id}
+                        className="inline-flex items-center gap-2 rounded-lg bg-red-500/20 px-4 py-2 text-sm font-medium text-red-400 hover:bg-red-500/30 disabled:opacity-50"
+                      >
+                        <XCircle className="h-4 w-4" /> Revoke admin access
+                      </button>
+                    </div>
+                  </div>
+                ) : admin.isGod ? (
+                  <p className="mt-3 text-xs text-amber-400/80">
+                    Permanent platform owner — cannot be modified or revoked.
+                  </p>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        )
+      ) : tab === "applications" ? (
         appsLoading ? (
           <div className="flex justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
@@ -239,20 +426,10 @@ export function AdminRequestsClient() {
                 {app.status === "PENDING" && (
                   <div className="mt-4 space-y-4 border-t border-slate-700/50 pt-4">
                     <div>
-                      <p className="mb-2 text-xs font-medium text-slate-400">Assign rights (optional)</p>
-                      <div className="flex flex-wrap gap-3">
-                        {RIGHTS_OPTIONS.map((r) => (
-                          <label key={r.key} className="flex cursor-pointer items-center gap-2">
-                            <input
-                              type="checkbox"
-                              checked={selectedRights[app.id]?.[r.key] ?? false}
-                              onChange={() => toggleRight(app.id, r.key)}
-                              className="rounded border-slate-600 bg-slate-800 text-orange-500 focus:ring-orange-500"
-                            />
-                            <span className="text-sm text-slate-300">{r.label}</span>
-                          </label>
-                        ))}
-                      </div>
+                      <p className="mb-2 text-xs font-medium text-slate-400">
+                        Assign admin sections (only checked sections will be accessible)
+                      </p>
+                      <RightsPicker entityId={app.id} map="selected" />
                     </div>
                     <div>
                       <label className="mb-1 block text-xs font-medium text-slate-400">Denial note (if denying)</label>
@@ -284,12 +461,7 @@ export function AdminRequestsClient() {
                         disabled={actionLoading === app.id}
                         className="inline-flex items-center gap-2 rounded-lg bg-red-500/20 px-4 py-2 text-sm font-medium text-red-400 hover:bg-red-500/30 disabled:opacity-50"
                       >
-                        {actionLoading === app.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <XCircle className="h-4 w-4" />
-                        )}
-                        Deny
+                        <XCircle className="h-4 w-4" /> Deny
                       </button>
                     </div>
                   </div>
@@ -312,24 +484,47 @@ export function AdminRequestsClient() {
           <p className="text-slate-400">No role-upgrade requests found.</p>
         </div>
       ) : (
-        <div className="space-y-4">
-          {requests.map((req) => (
-            <div key={req.id} className="rounded-xl border border-slate-700/50 bg-slate-800/30 p-5">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                  <p className="font-medium text-white">{req.requestedBy.name || req.requestedBy.email}</p>
-                  <p className="text-sm text-slate-400">{req.requestedBy.email}</p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    Requested {new Date(req.requestedAt).toLocaleString()} · Current role: {req.requestedBy.role}
-                  </p>
-                  {req.status !== "PENDING" && req.reviewedBy && (
+        <>
+          <div className="mb-6 flex gap-2">
+            <button
+              type="button"
+              onClick={() => setFilter("PENDING")}
+              className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
+                filter === "PENDING"
+                  ? "border border-orange-500/30 bg-orange-500/20 text-orange-400"
+                  : "border border-slate-700 bg-slate-800/50 text-slate-400 hover:text-white"
+              }`}
+            >
+              Pending ({pendingRequests.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilter("all")}
+              className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
+                filter === "all"
+                  ? "border border-orange-500/30 bg-orange-500/20 text-orange-400"
+                  : "border border-slate-700 bg-slate-800/50 text-slate-400 hover:text-white"
+              }`}
+            >
+              All
+            </button>
+          </div>
+          <div className="space-y-4">
+            {requests.map((req) => (
+              <div key={req.id} className="rounded-xl border border-slate-700/50 bg-slate-800/30 p-5">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <p className="font-medium text-white">{req.requestedBy.name || req.requestedBy.email}</p>
+                    <p className="text-sm text-slate-400">{req.requestedBy.email}</p>
                     <p className="mt-1 text-xs text-slate-500">
-                      {req.status} by {req.reviewedBy.name || req.reviewedBy.email}
-                      {req.reviewedAt && ` at ${new Date(req.reviewedAt).toLocaleString()}`}
+                      Requested {new Date(req.requestedAt).toLocaleString()} · Current role: {req.requestedBy.role}
                     </p>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
+                    {req.status === "APPROVED" && req.assignedRights && (
+                      <p className="mt-1 text-xs text-slate-500">
+                        Sections: {adminRightsSummary(req.assignedRights, req.requestedBy.email)}
+                      </p>
+                    )}
+                  </div>
                   <span
                     className={`rounded-full px-2 py-1 text-xs font-medium ${
                       req.status === "PENDING"
@@ -342,71 +537,37 @@ export function AdminRequestsClient() {
                     {req.status}
                   </span>
                 </div>
-              </div>
 
-              {req.status === "PENDING" && (
-                <div className="mt-4 space-y-4 border-t border-slate-700/50 pt-4">
-                  <div>
-                    <p className="mb-2 text-xs font-medium text-slate-400">Assign rights (optional)</p>
-                    <div className="flex flex-wrap gap-3">
-                      {RIGHTS_OPTIONS.map((r) => (
-                        <label key={r.key} className="flex cursor-pointer items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={selectedRights[req.id]?.[r.key] ?? false}
-                            onChange={() => toggleRight(req.id, r.key)}
-                            className="rounded border-slate-600 bg-slate-800 text-orange-500 focus:ring-orange-500"
-                          />
-                          <span className="text-sm text-slate-300">{r.label}</span>
-                        </label>
-                      ))}
+                {req.status === "PENDING" && (
+                  <div className="mt-4 space-y-4 border-t border-slate-700/50 pt-4">
+                    <div>
+                      <p className="mb-2 text-xs font-medium text-slate-400">Assign admin sections</p>
+                      <RightsPicker entityId={req.id} map="selected" />
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void handleRequestAction(req.id, "APPROVE")}
+                        disabled={actionLoading === req.id}
+                        className="inline-flex items-center gap-2 rounded-lg bg-emerald-500/20 px-4 py-2 text-sm font-medium text-emerald-400 hover:bg-emerald-500/30 disabled:opacity-50"
+                      >
+                        <CheckCircle className="h-4 w-4" /> Approve
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleRequestAction(req.id, "DENY")}
+                        disabled={actionLoading === req.id}
+                        className="inline-flex items-center gap-2 rounded-lg bg-red-500/20 px-4 py-2 text-sm font-medium text-red-400 hover:bg-red-500/30 disabled:opacity-50"
+                      >
+                        <XCircle className="h-4 w-4" /> Deny
+                      </button>
                     </div>
                   </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-400">Denial note (if denying)</label>
-                    <input
-                      type="text"
-                      value={denyNote[req.id] ?? ""}
-                      onChange={(e) => setDenyNote((prev) => ({ ...prev, [req.id]: e.target.value }))}
-                      placeholder="Optional reason"
-                      className="w-full max-w-md rounded-lg border border-slate-600 bg-slate-900/60 px-3 py-2 text-sm text-white placeholder:text-slate-500"
-                    />
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => void handleRequestAction(req.id, "APPROVE")}
-                      disabled={actionLoading === req.id}
-                      className="inline-flex items-center gap-2 rounded-lg bg-emerald-500/20 px-4 py-2 text-sm font-medium text-emerald-400 hover:bg-emerald-500/30 disabled:opacity-50"
-                    >
-                      {actionLoading === req.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <CheckCircle className="h-4 w-4" />
-                      )}
-                      Approve
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void handleRequestAction(req.id, "DENY")}
-                      disabled={actionLoading === req.id}
-                      className="inline-flex items-center gap-2 rounded-lg bg-red-500/20 px-4 py-2 text-sm font-medium text-red-400 hover:bg-red-500/30 disabled:opacity-50"
-                    >
-                      {actionLoading === req.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <XCircle className="h-4 w-4" />
-                      )}
-                      Deny
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {req.note && req.status === "DENIED" && <p className="mt-2 text-sm text-slate-500">Note: {req.note}</p>}
-            </div>
-          ))}
-        </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );

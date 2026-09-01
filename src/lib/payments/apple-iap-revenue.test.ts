@@ -5,7 +5,16 @@ import {
   inferDeviceTypeFromPlatformHeader,
   inferDeviceTypeFromUserAgent,
 } from "@/lib/client-device-type";
+import { CREATOR_FILM_UPLOAD_PURPOSES } from "@/lib/creator-film-upload-payment";
 import { isViewerPoolPaymentPurpose } from "@/lib/payments/viewer-pool-purposes";
+import {
+  CREATOR_APPLE_IAP_LICENSE_PURPOSE,
+  CREATOR_APPLE_IAP_UPLOAD_PURPOSE,
+} from "@/lib/payments/apple-iap/purposes";
+import {
+  APPLE_CREATOR_PRODUCTS,
+  resolveCreatorAppleProduct,
+} from "@/lib/payments/apple-iap/products";
 import { createPublicKey, generateKeyPairSync } from "node:crypto";
 
 // cash-recognition is marked server-only; stub that marker for unit tests.
@@ -56,6 +65,40 @@ describe("Apple IAP cash recognition", () => {
   it("includes Apple IAP purposes in the viewer pool", () => {
     assert.equal(isViewerPoolPaymentPurpose("viewer_subscription_apple_iap"), true);
     assert.equal(isViewerPoolPaymentPurpose("viewer_ppv_apple_iap"), true);
+  });
+
+  it("counts production Creator Apple IAP as cash revenue", () => {
+    const licensePayment = {
+      status: "SUCCEEDED",
+      amount: 1499,
+      settlementAmount: 1499,
+      provider: "APPLE",
+      settlementSource: "apple_iap",
+      purpose: CREATOR_APPLE_IAP_LICENSE_PURPOSE,
+      metadata: { environment: "Production", source: "ios_app" },
+    };
+    const uploadPayment = {
+      ...licensePayment,
+      amount: 24.99,
+      settlementAmount: 24.99,
+      purpose: CREATOR_APPLE_IAP_UPLOAD_PURPOSE,
+    };
+    assert.equal(isCashRecognizedPayment(licensePayment), true);
+    assert.equal(isCashRecognizedPayment(uploadPayment), true);
+    assert.equal(getCashSettlementAmount(uploadPayment), 24.99);
+  });
+
+  it("maps all Creator iOS product IDs to backend license/upload kinds", () => {
+    assert.equal(Object.keys(APPLE_CREATOR_PRODUCTS).length, 4);
+    assert.equal(resolveCreatorAppleProduct("online.storytime.creators.sub.upload.yearly")?.kind, "creator_license");
+    assert.equal(resolveCreatorAppleProduct("online.storytime.creators.sub.pipeline.monthly")?.package, "PIPELINE_MONTHLY");
+    assert.equal(resolveCreatorAppleProduct("online.storytime.creators.sub.pipeline.yearly")?.package, "PIPELINE_YEARLY");
+    assert.equal(resolveCreatorAppleProduct("online.storytime.creators.upload.perfilm")?.kind, "content_upload");
+  });
+
+  it("treats web and Apple IAP per-film upload purposes as paid uploads", () => {
+    assert.equal(CREATOR_FILM_UPLOAD_PURPOSES.includes("creator_film_upload"), true);
+    assert.equal(CREATOR_FILM_UPLOAD_PURPOSES.includes(CREATOR_APPLE_IAP_UPLOAD_PURPOSE), true);
   });
 });
 

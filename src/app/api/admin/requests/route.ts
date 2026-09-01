@@ -3,11 +3,12 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ensureUserRole } from "@/lib/user-roles";
+import { requireAdminApiPath } from "@/lib/admin-api-auth";
+import { sanitizeAssignedAdminRights } from "@/lib/admin-permissions";
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  const role = (session?.user as { role?: string })?.role;
-  if (role !== "ADMIN") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const actor = await requireAdminApiPath("/api/admin/requests");
+  if ("error" in actor) return NextResponse.json({ error: actor.error }, { status: actor.status });
 
   const { searchParams } = new URL(req.url);
   const status = searchParams.get("status"); // PENDING | APPROVED | DENIED | all
@@ -47,9 +48,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  const role = (session?.user as { role?: string })?.role;
-  if (role !== "ADMIN") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const actor = await requireAdminApiPath("/api/admin/requests");
+  if ("error" in actor) return NextResponse.json({ error: actor.error }, { status: actor.status });
 
   const body = await req.json();
   const { id, action, assignedRights, note } = body as {
@@ -65,7 +65,9 @@ export async function PATCH(req: NextRequest) {
   if (!adminRequest || adminRequest.status !== "PENDING")
     return NextResponse.json({ error: "Request not found or already reviewed" }, { status: 404 });
 
-  const reviewerId = session!.user!.id as string;
+  const reviewerId = actor.id;
+  const parsedRights = sanitizeAssignedAdminRights(assignedRights);
+  const rightsPayload = Object.keys(parsedRights).length > 0 ? parsedRights : undefined;
 
   if (action === "APPROVE") {
     await prisma.$transaction([
@@ -75,14 +77,14 @@ export async function PATCH(req: NextRequest) {
           status: "APPROVED",
           reviewedById: reviewerId,
           reviewedAt: new Date(),
-          assignedRights: assignedRights ?? undefined,
+          assignedRights: rightsPayload,
         },
       }),
       prisma.user.update({
         where: { id: adminRequest.requestedById },
         data: {
           role: "ADMIN",
-          adminRights: assignedRights ?? undefined,
+          adminRights: rightsPayload,
         },
       }),
     ]);

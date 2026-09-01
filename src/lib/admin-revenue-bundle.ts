@@ -10,6 +10,10 @@ import {
   getViewerSubscriptionRevenue,
 } from "@/lib/financial-ledger";
 import { getCashSettlementAmount, isCashRecognizedPayment } from "@/lib/payments/cash-recognition";
+import {
+  CREATOR_APPLE_IAP_LICENSE_PURPOSE,
+  CREATOR_APPLE_IAP_UPLOAD_PURPOSE,
+} from "@/lib/payments/apple-iap/purposes";
 import { VIEWER_CREATOR_SPLIT, VIEWER_PLATFORM_SPLIT } from "@/lib/payments/config";
 import { getPlatformTreasuryUserId } from "@/lib/payments/treasury-inflow";
 import { getWalletSnapshot } from "@/lib/payments/wallet";
@@ -79,6 +83,7 @@ export async function fetchAdminRevenueBundle() {
           "creator_pipeline_yearly",
           "creator_upload_only_yearly",
           "creator_distribution_yearly",
+          CREATOR_APPLE_IAP_LICENSE_PURPOSE,
         ],
       },
       paidAt: { gte: periodStart, lte: periodEnd },
@@ -104,6 +109,7 @@ export async function fetchAdminRevenueBundle() {
           "creator_film_upload",
           "creator_music_upload",
           "music_track_publish",
+          CREATOR_APPLE_IAP_UPLOAD_PURPOSE,
         ],
       },
       paidAt: { gte: periodStart, lte: periodEnd },
@@ -208,6 +214,12 @@ export async function fetchAdminRevenueBundle() {
     String(p.purpose ?? "").includes("subscription"),
   ).length;
   const applePpvCount = appleIapCash.filter((p) => String(p.purpose ?? "").includes("ppv")).length;
+  const appleCreatorLicenseCount = appleIapCash.filter(
+    (p) => p.purpose === CREATOR_APPLE_IAP_LICENSE_PURPOSE,
+  ).length;
+  const appleCreatorUploadCount = appleIapCash.filter(
+    (p) => p.purpose === CREATOR_APPLE_IAP_UPLOAD_PURPOSE,
+  ).length;
 
   return {
     periodStart,
@@ -228,6 +240,8 @@ export async function fetchAdminRevenueBundle() {
       count: appleIapCash.length,
       subscriptionCount: appleSubCount,
       ppvCount: applePpvCount,
+      creatorLicenseCount: appleCreatorLicenseCount,
+      creatorUploadCount: appleCreatorUploadCount,
     },
     treasury: {
       availableBalance: treasuryWallet?.availableBalance ?? 0,

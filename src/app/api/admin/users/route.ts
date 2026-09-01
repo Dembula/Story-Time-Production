@@ -1,16 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { prismaJsonNull } from "@/lib/prisma-json";
 import { ensureUserRole, replaceUserRoles } from "@/lib/user-roles";
 import { hash } from "bcryptjs";
-import { isAdminGodAccount, parseAdminRights } from "@/lib/admin-permissions";
+import {
+  assertAdminTargetMutable,
+  isAdminGodAccount,
+  parseAdminRights,
+  sanitizeAssignedAdminRights,
+} from "@/lib/admin-permissions";
+import { requireAdminApiPath, actorHasAdminRight } from "@/lib/admin-api-auth";
 
 export async function GET() {
-  const session = await getServerSession(authOptions);
-  const role = (session?.user as { role?: string })?.role;
-  if (role !== "ADMIN") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const actor = await requireAdminApiPath("/api/admin/users");
+  if ("error" in actor) return NextResponse.json({ error: actor.error }, { status: actor.status });
 
   const users = await prisma.user.findMany({
     select: {
@@ -65,32 +68,70 @@ export async function GET() {
 }
 
 export async function PATCH(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  const role = (session?.user as { role?: string })?.role;
-  const adminId = (session?.user as { id?: string })?.id;
-  if (role !== "ADMIN" || !adminId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const actor = await requireAdminApiPath("/api/admin/users");
+  if ("error" in actor) return NextResponse.json({ error: actor.error }, { status: actor.status });
 
   const body = await req.json();
   const { userId, action, newRole, newName, newEmail, newPassword } = body;
 
   if (!userId || !action) return NextResponse.json({ error: "userId and action required" }, { status: 400 });
 
-  const adminUser = await prisma.user.findUnique({
-    where: { id: adminId },
-    select: { email: true },
-  });
-  const actorIsGod = isAdminGodAccount(adminUser?.email);
+  const adminId = actor.id;
+  const actorIsGod = actor.isGod;
+
+  if (action === "REVOKE_ADMIN_ACCESS") {
+    const target = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true, role: true, userRoles: { select: { role: true } } },
+    });
+    if (!target) return NextResponse.json({ error: "User not found" }, { status: 404 });
+    try {
+      assertAdminTargetMutable(target.email);
+    } catch (err) {
+      const status = typeof (err as { status?: number })?.status === "number" ? (err as { status: number }).status : 403;
+      return NextResponse.json({ error: err instanceof Error ? err.message : "Forbidden" }, { status });
+    }
+    if (!actorIsGod && !actorHasAdminRight(actor, "canManageUsers")) {
+      return NextResponse.json({ error: "You do not have permission to revoke admin access." }, { status: 403 });
+    }
+    const existingRoles = target.userRoles.map((r) => r.role);
+    const withoutAdmin = existingRoles.filter((r) => r !== "ADMIN");
+    const nextRoles = withoutAdmin.length > 0 ? withoutAdmin : ["SUBSCRIBER"];
+    const primaryRole = nextRoles.includes("SUBSCRIBER") ? "SUBSCRIBER" : nextRoles[0];
+    await replaceUserRoles(userId, nextRoles);
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: { role: primaryRole, adminRights: prismaJsonNull },
+    });
+    await prisma.adminAuditLog.create({
+      data: {
+        adminUserId: adminId,
+        action: "ADMIN_ACCESS_REVOKED",
+        entityType: "User",
+        entityId: userId,
+        oldValue: { role: target.role, roles: existingRoles, email: target.email },
+        newValue: { role: updated.role, roles: nextRoles },
+      },
+    });
+    return NextResponse.json({ ...updated, userRoles: nextRoles.map((role) => ({ role })) });
+  }
 
   if (action === "SET_ADMIN_RIGHTS") {
     const target = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, role: true, adminRights: true } });
     if (!target) return NextResponse.json({ error: "User not found" }, { status: 404 });
+    try {
+      assertAdminTargetMutable(target.email);
+    } catch (err) {
+      const status = typeof (err as { status?: number })?.status === "number" ? (err as { status: number }).status : 403;
+      return NextResponse.json({ error: err instanceof Error ? err.message : "Forbidden" }, { status });
+    }
     if (target.role !== "ADMIN") {
       return NextResponse.json({ error: "Admin rights apply only to ADMIN accounts." }, { status: 400 });
     }
-    if (isAdminGodAccount(target.email) && !actorIsGod) {
-      return NextResponse.json({ error: "Only the platform owner can change rights on the main admin account." }, { status: 403 });
+    if (!actorIsGod && !actorHasAdminRight(actor, "canManageUsers")) {
+      return NextResponse.json({ error: "You do not have permission to change admin suites." }, { status: 403 });
     }
-    const rights = parseAdminRights(body.adminRights);
+    const rights = sanitizeAssignedAdminRights(body.adminRights);
     const updated = await prisma.user.update({
       where: { id: userId },
       data: { adminRights: rights as object },
@@ -110,8 +151,11 @@ export async function PATCH(req: NextRequest) {
 
   if (action === "CHANGE_ROLE" && newRole) {
     const before = await prisma.user.findUnique({ where: { id: userId } });
-    if (isAdminGodAccount(before?.email) && !actorIsGod) {
-      return NextResponse.json({ error: "Cannot change role on the platform owner account." }, { status: 403 });
+    try {
+      assertAdminTargetMutable(before?.email);
+    } catch (err) {
+      const status = typeof (err as { status?: number })?.status === "number" ? (err as { status: number }).status : 403;
+      return NextResponse.json({ error: err instanceof Error ? err.message : "Forbidden" }, { status });
     }
     const updated = await prisma.user.update({ where: { id: userId }, data: { role: newRole } });
     await ensureUserRole(userId, newRole);
@@ -133,10 +177,29 @@ export async function PATCH(req: NextRequest) {
   }
 
   if (action === "SET_ROLES" && Array.isArray(body.roles)) {
-    const before = await prisma.user.findUnique({ where: { id: userId } });
-    const finalRoles = await replaceUserRoles(userId, body.roles as string[]);
+    const before = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, role: true } });
+    try {
+      assertAdminTargetMutable(before?.email);
+    } catch (err) {
+      const status = typeof (err as { status?: number })?.status === "number" ? (err as { status: number }).status : 403;
+      return NextResponse.json({ error: err instanceof Error ? err.message : "Forbidden" }, { status });
+    }
+    const requestedRoles = body.roles as string[];
+    const hadAdmin = before?.role === "ADMIN" || requestedRoles.includes("ADMIN");
+    if (!requestedRoles.includes("ADMIN") && hadAdmin) {
+      if (!actorIsGod && !actorHasAdminRight(actor, "canManageUsers")) {
+        return NextResponse.json({ error: "You do not have permission to remove admin access." }, { status: 403 });
+      }
+    }
+    const finalRoles = await replaceUserRoles(userId, requestedRoles);
     const primaryRole = newRole && finalRoles.includes(newRole) ? newRole : finalRoles[0];
-    const updated = await prisma.user.update({ where: { id: userId }, data: { role: primaryRole } });
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        role: primaryRole,
+        ...(!finalRoles.includes("ADMIN") ? { adminRights: prismaJsonNull } : {}),
+      },
+    });
     const updatedRoles = finalRoles.map((roleName) => ({ role: roleName }));
     await prisma.adminAuditLog.create({
       data: {
@@ -153,6 +216,13 @@ export async function PATCH(req: NextRequest) {
 
   if (action === "UPDATE_EMAIL" && typeof newEmail === "string") {
     const normalizedEmail = newEmail.trim().toLowerCase();
+    const before = await prisma.user.findUnique({ where: { id: userId } });
+    try {
+      assertAdminTargetMutable(before?.email);
+    } catch (err) {
+      const status = typeof (err as { status?: number })?.status === "number" ? (err as { status: number }).status : 403;
+      return NextResponse.json({ error: err instanceof Error ? err.message : "Forbidden" }, { status });
+    }
     if (!normalizedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
       return NextResponse.json({ error: "Valid email is required." }, { status: 400 });
     }
@@ -161,7 +231,6 @@ export async function PATCH(req: NextRequest) {
       select: { id: true },
     });
     if (exists) return NextResponse.json({ error: "Email already used by another account." }, { status: 409 });
-    const before = await prisma.user.findUnique({ where: { id: userId } });
     const updated = await prisma.user.update({ where: { id: userId }, data: { email: normalizedEmail } });
     await prisma.adminAuditLog.create({
       data: {
@@ -177,6 +246,13 @@ export async function PATCH(req: NextRequest) {
   }
 
   if (action === "UPDATE_PASSWORD" && typeof newPassword === "string") {
+    const before = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+    try {
+      assertAdminTargetMutable(before?.email);
+    } catch (err) {
+      const status = typeof (err as { status?: number })?.status === "number" ? (err as { status: number }).status : 403;
+      return NextResponse.json({ error: err instanceof Error ? err.message : "Forbidden" }, { status });
+    }
     if (newPassword.length < 8) {
       return NextResponse.json({ error: "Password must be at least 8 characters." }, { status: 400 });
     }
@@ -238,7 +314,13 @@ export async function PATCH(req: NextRequest) {
   }
 
   if (action === "UPDATE_NAME" && newName !== undefined) {
-    const before = await prisma.user.findUnique({ where: { id: userId } });
+    const before = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, name: true } });
+    try {
+      assertAdminTargetMutable(before?.email);
+    } catch (err) {
+      const status = typeof (err as { status?: number })?.status === "number" ? (err as { status: number }).status : 403;
+      return NextResponse.json({ error: err instanceof Error ? err.message : "Forbidden" }, { status });
+    }
     const updated = await prisma.user.update({ where: { id: userId }, data: { name: newName } });
     await prisma.adminAuditLog.create({
       data: {
@@ -255,8 +337,11 @@ export async function PATCH(req: NextRequest) {
 
   if (action === "DELETE") {
     const before = await prisma.user.findUnique({ where: { id: userId } });
-    if (isAdminGodAccount(before?.email)) {
-      return NextResponse.json({ error: "The platform owner account cannot be deleted." }, { status: 403 });
+    try {
+      assertAdminTargetMutable(before?.email);
+    } catch (err) {
+      const status = typeof (err as { status?: number })?.status === "number" ? (err as { status: number }).status : 403;
+      return NextResponse.json({ error: err instanceof Error ? err.message : "Forbidden" }, { status });
     }
     await prisma.user.delete({ where: { id: userId } });
     await prisma.adminAuditLog.create({

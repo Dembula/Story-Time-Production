@@ -97,6 +97,7 @@ export function AdminUsersClient() {
   }>>({});
   const [editAdminRights, setEditAdminRights] = useState<AdminRightsMap>({});
   const [activityLoading, setActivityLoading] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/admin/users").then((r) => r.json()).then(setUsers).finally(() => setLoading(false));
@@ -104,25 +105,29 @@ export function AdminUsersClient() {
 
   async function handleAction(userId: string, action: string, data?: Record<string, unknown>) {
     setActionLoading(userId);
+    setActionError(null);
     const res = await fetch("/api/admin/users", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId, action, ...data }),
     });
+    const payload = await res.json().catch(() => ({}));
     if (res.ok) {
       if (action === "DELETE") {
         setUsers((prev) => prev.filter((u) => u.id !== userId));
         setConfirmDelete(null);
+        setExpanded(null);
       } else {
-        const updated = await res.json().catch(() => null);
-        if (updated && typeof updated === "object" && "id" in updated) {
-          setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, ...updated } : u)));
+        if (payload && typeof payload === "object" && "id" in payload) {
+          setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, ...payload } : u)));
         }
         if (action === "UPDATE_PASSWORD") setEditPassword("");
+        if (action === "REVOKE_ADMIN_ACCESS") setExpanded(null);
       }
+    } else {
+      setActionError(typeof payload.error === "string" ? payload.error : "Action failed.");
     }
     setActionLoading(null);
-    setExpanded(null);
   }
 
   async function loadUserIntel(userId: string) {
@@ -148,6 +153,7 @@ export function AdminUsersClient() {
   function openUserPanel(u: User) {
     const next = expanded === u.id ? null : u.id;
     setExpanded(next);
+    setActionError(null);
     if (next) {
       setEditName(u.name || "");
       setEditRole(u.role);
@@ -398,7 +404,7 @@ export function AdminUsersClient() {
                       <h4 className="text-sm font-semibold text-white">Admin access suites</h4>
                       <p className="text-xs text-slate-400 mt-1">
                         {adminRightsSummary(u.adminRights, u.email)}
-                        {isAdminGodAccount(u.email) ? " · Platform owner account" : ""}
+                        {isAdminGodAccount(u.email) ? " · Permanent platform owner" : ""}
                       </p>
                     </div>
                     {!isAdminGodAccount(u.email) ? (
@@ -424,21 +430,38 @@ export function AdminUsersClient() {
                             </label>
                           ))}
                         </div>
-                        <button
-                          onClick={() => handleAction(u.id, "SET_ADMIN_RIGHTS", { adminRights: editAdminRights })}
-                          disabled={actionLoading === u.id}
-                          className="px-3 py-2 bg-violet-500 text-white rounded-lg text-sm hover:bg-violet-600 transition disabled:opacity-50"
-                        >
-                          Save admin suites
-                        </button>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            onClick={() => handleAction(u.id, "SET_ADMIN_RIGHTS", { adminRights: editAdminRights })}
+                            disabled={actionLoading === u.id}
+                            className="px-3 py-2 bg-violet-500 text-white rounded-lg text-sm hover:bg-violet-600 transition disabled:opacity-50"
+                          >
+                            Save admin sections
+                          </button>
+                          <button
+                            onClick={() => handleAction(u.id, "REVOKE_ADMIN_ACCESS")}
+                            disabled={actionLoading === u.id}
+                            className="px-3 py-2 bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg text-sm hover:bg-red-500/30 transition disabled:opacity-50"
+                          >
+                            Revoke admin access
+                          </button>
+                        </div>
                       </>
                     ) : null}
                   </div>
                 ) : null}
 
+                {actionError && expanded === u.id ? (
+                  <p className="text-sm text-red-400">{actionError}</p>
+                ) : null}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-3">
                     <h4 className="text-sm font-medium text-white flex items-center gap-2"><Edit3 className="w-4 h-4 text-orange-400" /> Edit User</h4>
+                    {isAdminGodAccount(u.email) ? (
+                      <p className="text-xs text-amber-400/80">Platform owner account — profile and roles are locked.</p>
+                    ) : (
+                    <>
                     <div>
                       <label className="block text-xs text-slate-400 mb-1">Display Name</label>
                       <div className="flex gap-2">
@@ -506,6 +529,8 @@ export function AdminUsersClient() {
                         <button onClick={() => handleAction(u.id, "UPDATE_CREATOR_ACCOUNT_STRUCTURE", { accountStructure: creatorAccountStructure, teamSeatCap: creatorTeamSeatCap })} disabled={actionLoading === u.id} className="px-3 py-2 bg-violet-500 text-white rounded-lg text-sm hover:bg-violet-600 transition disabled:opacity-50">Save creator type</button>
                       </div>
                     )}
+                    </>
+                    )}
                   </div>
 
                   <div className="space-y-3">
@@ -519,9 +544,13 @@ export function AdminUsersClient() {
                         </div>
                       </div>
                     ) : (
-                      <button onClick={() => setConfirmDelete(u.id)} className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/20 transition text-sm font-medium">
-                        <Trash2 className="w-4 h-4" /> Delete User Account
-                      </button>
+                      !isAdminGodAccount(u.email) ? (
+                        <button onClick={() => setConfirmDelete(u.id)} className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/20 transition text-sm font-medium">
+                          <Trash2 className="w-4 h-4" /> Delete User Account
+                        </button>
+                      ) : (
+                        <p className="text-xs text-amber-400/80">Platform owner account cannot be deleted.</p>
+                      )
                     )}
                     <p className="text-xs text-slate-500">Account created {new Date(u.createdAt).toLocaleString()} · Last updated {new Date(u.updatedAt).toLocaleString()}</p>
                   </div>

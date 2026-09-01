@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ensureUserRole } from "@/lib/user-roles";
+import { requireAdminApiPath } from "@/lib/admin-api-auth";
+import { sanitizeAssignedAdminRights } from "@/lib/admin-permissions";
 
 export async function GET() {
-  const session = await getServerSession(authOptions);
-  const role = (session?.user as { role?: string })?.role;
-  if (role !== "ADMIN") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const actor = await requireAdminApiPath("/api/admin/access-applications");
+  if ("error" in actor) return NextResponse.json({ error: actor.error }, { status: actor.status });
 
   const applications = await prisma.adminAccessApplication.findMany({
     orderBy: { requestedAt: "desc" },
@@ -29,11 +26,8 @@ export async function GET() {
 }
 
 export async function PATCH(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  const role = (session?.user as { role?: string })?.role;
-  if (!session?.user?.id || role !== "ADMIN") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const actor = await requireAdminApiPath("/api/admin/access-applications");
+  if ("error" in actor) return NextResponse.json({ error: actor.error }, { status: actor.status });
 
   const body = (await req.json()) as {
     id?: string;
@@ -54,7 +48,9 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Application cannot be approved (missing credentials)." }, { status: 400 });
   }
 
-  const reviewerId = session.user.id;
+  const reviewerId = actor.id;
+  const parsedRights = sanitizeAssignedAdminRights(assignedRights);
+  const rightsPayload = Object.keys(parsedRights).length > 0 ? parsedRights : undefined;
   const normalizedEmail = application.email.trim().toLowerCase();
 
   if (action === "DENY") {
@@ -103,7 +99,7 @@ export async function PATCH(req: NextRequest) {
         data: {
           role: "ADMIN",
           passwordHash: hash,
-          adminRights: assignedRights ?? undefined,
+          adminRights: rightsPayload,
           ...(application.name?.trim() ? { name: application.name.trim() } : {}),
         },
       })
@@ -113,7 +109,7 @@ export async function PATCH(req: NextRequest) {
           name: application.name?.trim() || null,
           passwordHash: hash,
           role: "ADMIN",
-          adminRights: assignedRights ?? undefined,
+          adminRights: rightsPayload,
         },
       });
 

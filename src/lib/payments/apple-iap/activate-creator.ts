@@ -14,6 +14,11 @@ import {
   pickAppleJws,
   verifyAppleTransactionJws,
 } from "@/lib/payments/apple-iap/jws";
+import { bookAppleIapLedgerIfCash } from "@/lib/payments/apple-iap/ledger";
+import {
+  CREATOR_APPLE_IAP_LICENSE_PURPOSE,
+  CREATOR_APPLE_IAP_UPLOAD_PURPOSE,
+} from "@/lib/payments/apple-iap/purposes";
 
 const db = prisma as any;
 
@@ -48,7 +53,10 @@ async function findApplePaymentByTransactionId(transactionId: string) {
 function resolveVerified(body: CreatorApplePurchaseBody) {
   const jws = pickAppleJws(body as Record<string, unknown>);
   if (!jws) {
-    throw Object.assign(new Error("signedTransaction (JWS) is required"), { status: 400 });
+    throw Object.assign(
+      new Error("signedTransactionInfo, signedTransaction, or jwsRepresentation (JWS) is required"),
+      { status: 400 },
+    );
   }
   try {
     return verifyAppleTransactionJws(jws);
@@ -100,21 +108,39 @@ async function writeAppleSucceededPayment(options: {
     },
   };
   if (existing) {
+    const payment = await db.paymentRecord.update({ where: { id: existing.id }, data });
+    await bookAppleIapLedgerIfCash({
+      id: payment.id,
+      amount: options.amount,
+      purpose: options.purpose,
+      relatedEntityType: options.relatedEntityType,
+      relatedEntityId: options.relatedEntityId,
+      environment: options.environment,
+    });
     return {
-      payment: await db.paymentRecord.update({ where: { id: existing.id }, data }),
+      payment,
       already: false as const,
     };
   }
+  const payment = await db.paymentRecord.create({
+    data: {
+      userId: options.userId,
+      email: options.email ?? undefined,
+      provider: "APPLE",
+      currency: "ZAR",
+      ...data,
+    },
+  });
+  await bookAppleIapLedgerIfCash({
+    id: payment.id,
+    amount: options.amount,
+    purpose: options.purpose,
+    relatedEntityType: options.relatedEntityType,
+    relatedEntityId: options.relatedEntityId,
+    environment: options.environment,
+  });
   return {
-    payment: await db.paymentRecord.create({
-      data: {
-        userId: options.userId,
-        email: options.email ?? undefined,
-        provider: "APPLE",
-        currency: "ZAR",
-        ...data,
-      },
-    }),
+    payment,
     already: false as const,
   };
 }
@@ -137,10 +163,23 @@ export async function processCreatorApplePurchase(options: {
   const prior = await findApplePaymentByTransactionId(transactionId);
   if (prior?.status === "SUCCEEDED") {
     if (mapped.kind === "content_upload") {
+      const contentId = options.body.contentId?.trim() ?? prior.relatedEntityId;
+      if (contentId) {
+        const content = await db.content.findFirst({
+          where: { id: contentId, creatorId: options.userId },
+          select: { id: true, reviewStatus: true },
+        });
+        if (content && content.reviewStatus === "AWAITING_PAYMENT") {
+          await db.content.update({
+            where: { id: content.id },
+            data: { reviewStatus: "PENDING", submittedAt: new Date() },
+          });
+        }
+      }
       return {
         ok: true as const,
         alreadyApplied: true as const,
-        contentId: options.body.contentId ?? prior.relatedEntityId,
+        contentId,
         reviewStatus: "PENDING",
       };
     }
@@ -180,7 +219,7 @@ export async function processCreatorApplePurchase(options: {
       userId: options.userId,
       email: options.email,
       amount: CREATOR_PER_FILM_UPLOAD_PRICE,
-      purpose: "creator_film_upload_apple_iap",
+      purpose: CREATOR_APPLE_IAP_UPLOAD_PURPOSE,
       relatedEntityType: "Content",
       relatedEntityId: content.id,
       transactionId,
@@ -252,7 +291,7 @@ export async function processCreatorApplePurchase(options: {
     userId: options.userId,
     email: options.email,
     amount,
-    purpose: "creator_distribution_license_apple_iap",
+    purpose: CREATOR_APPLE_IAP_LICENSE_PURPOSE,
     relatedEntityType: "CreatorDistributionLicense",
     relatedEntityId: license.id,
     transactionId,

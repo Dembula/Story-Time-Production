@@ -11,6 +11,10 @@ import {
 } from "@/lib/payments/marketplace-settlement";
 import { resolveSyncLicensingSettlement } from "@/lib/payments/sync-licensing-settlement";
 import { isViewerPoolPaymentPurpose } from "@/lib/payments/viewer-pool-purposes";
+import {
+  CREATOR_APPLE_IAP_LICENSE_PURPOSE,
+  CREATOR_APPLE_IAP_UPLOAD_PURPOSE,
+} from "@/lib/payments/apple-iap/purposes";
 
 const PLATFORM_REVENUE_PURPOSES = new Set([
   "SCRIPT_REVIEW",
@@ -22,6 +26,7 @@ const PLATFORM_REVENUE_PURPOSES = new Set([
   "CREATOR_CONTENT_UPLOAD",
   "CREATOR_MUSIC_UPLOAD",
   "creator_film_upload",
+  CREATOR_APPLE_IAP_UPLOAD_PURPOSE,
   "creator_pipeline_yearly",
   "creator_pipeline_monthly",
   "creator_pipeline_monthly_renewal",
@@ -30,6 +35,7 @@ const PLATFORM_REVENUE_PURPOSES = new Set([
   "creator_upload_only_yearly",
   "creator_distribution_yearly",
   "creator_distribution_per_upload",
+  CREATOR_APPLE_IAP_LICENSE_PURPOSE,
   "music_track_publish",
 ]);
 

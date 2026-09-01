@@ -15,6 +15,7 @@ import { resolveRoleSwitch } from "./platform-roles";
 import { getPayoutKycStatus, requiresPayoutKyc, type KycVerificationStatus } from "./payout-kyc";
 import type { FunderVerificationStatus } from "./funder-verification";
 import { getActivityMetaFromHeaders } from "./activity-request-meta";
+import { parseAdminRights } from "./admin-permissions";
 
 type PortalScope = "VIEWER" | "CREATOR" | "ADMIN";
 
@@ -385,6 +386,20 @@ export const authOptions: NextAuthOptions = {
         token.payoutKycVerificationStatus =
           (await getPayoutKycStatus(token.id as string)) ?? token.payoutKycVerificationStatus ?? undefined;
       }
+      if (token.id) {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: token.id as string },
+          select: { role: true, adminRights: true, email: true },
+        });
+        if (dbUser?.role === "ADMIN") {
+          token.role = "ADMIN";
+          token.adminRights = parseAdminRights(dbUser.adminRights);
+          if (dbUser.email) token.email = dbUser.email;
+        } else if (token.role === "ADMIN") {
+          token.role = dbUser?.role ?? "SUBSCRIBER";
+          token.adminRights = {};
+        }
+      }
       return token;
     },
     async session({ session, token }) {
@@ -403,6 +418,8 @@ export const authOptions: NextAuthOptions = {
           (token as { payoutKycVerificationStatus?: KycVerificationStatus }).payoutKycVerificationStatus;
         (session.user as { activeCreatorStudioProfileId?: string | null }).activeCreatorStudioProfileId =
           (token as { activeCreatorStudioProfileId?: string | null }).activeCreatorStudioProfileId ?? null;
+        (session.user as { adminRights?: Record<string, boolean> }).adminRights =
+          (token as { adminRights?: Record<string, boolean> }).adminRights ?? {};
       }
       return session;
     },

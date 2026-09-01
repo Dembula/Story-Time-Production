@@ -13,6 +13,11 @@ import {
   verifyAppleTransactionJws,
   type VerifiedAppleTransaction,
 } from "@/lib/payments/apple-iap/jws";
+import { bookAppleIapLedgerIfCash } from "@/lib/payments/apple-iap/ledger";
+import {
+  VIEWER_APPLE_IAP_PPV_PURPOSE,
+  VIEWER_APPLE_IAP_SUBSCRIPTION_PURPOSE,
+} from "@/lib/payments/apple-iap/purposes";
 
 const db = prisma as any;
 
@@ -115,6 +120,15 @@ async function recordApplePayment(options: {
         },
       });
 
+  await bookAppleIapLedgerIfCash({
+    id: payment.id,
+    amount: options.amount,
+    purpose: options.purpose,
+    relatedEntityType: options.relatedEntityType,
+    relatedEntityId: options.relatedEntityId,
+    environment: options.environment,
+  });
+
   return { payment, already: false as const };
 }
 
@@ -209,7 +223,7 @@ export async function activateAppleViewerSubscription(options: {
     userId: options.userId,
     email: options.email,
     amount: planConfig.price,
-    purpose: "viewer_subscription_apple_iap",
+    purpose: VIEWER_APPLE_IAP_SUBSCRIPTION_PURPOSE,
     relatedEntityType: "ViewerSubscription",
     relatedEntityId: subscription.id,
     transactionId,
@@ -229,7 +243,7 @@ export async function activateAppleViewerSubscription(options: {
       amount: planConfig.price,
       currency: "ZAR",
       status: "COMPLETED",
-      purpose: "viewer_subscription_apple_iap",
+      purpose: VIEWER_APPLE_IAP_SUBSCRIPTION_PURPOSE,
       paidAt: now,
       externalPaymentId: transactionId,
       gatewayReference: `apple:${transactionId}`,
@@ -358,7 +372,7 @@ export async function activateAppleViewerPpv(options: {
     userId: options.userId,
     email: options.email,
     amount,
-    purpose: "viewer_ppv_apple_iap",
+    purpose: VIEWER_APPLE_IAP_PPV_PURPOSE,
     relatedEntityType: "ViewerContentAccess",
     relatedEntityId: access.id,
     transactionId,

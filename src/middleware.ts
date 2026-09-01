@@ -2,6 +2,7 @@ import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { signInUrlForDestination } from "@/lib/auth-sign-in-path";
+import { canAccessAdminPath, parseAdminRights } from "@/lib/admin-permissions";
 import { requiredRoleForProtectedPath } from "@/lib/platform-roles-shared";
 import { userHasPlatformRole } from "@/lib/user-roles-shared";
 
@@ -80,6 +81,20 @@ export async function middleware(req: NextRequest) {
     if (path.startsWith("/admin") && role !== "ADMIN") {
       return NextResponse.redirect(new URL("/auth/admin", req.url));
     }
+
+    if ((path.startsWith("/admin") || path.startsWith("/api/admin")) && role === "ADMIN") {
+      const email = typeof token.email === "string" ? token.email : undefined;
+      const rights = parseAdminRights(token.adminRights);
+      if (!canAccessAdminPath(path, rights, { email, isAdminRole: true })) {
+        if (path.startsWith("/api/admin")) {
+          return NextResponse.json(
+            { error: "You do not have access to this admin section." },
+            { status: 403 },
+          );
+        }
+        return NextResponse.redirect(new URL("/admin?denied=1", req.url));
+      }
+    }
     if (path.startsWith("/creator") && role !== "CONTENT_CREATOR") {
       return NextResponse.redirect(new URL(signInUrlForDestination(path), req.url));
     }
@@ -122,6 +137,7 @@ export const config = {
     "/creator/:path*",
     "/music-creator/:path*",
     "/admin/:path*",
+    "/api/admin/:path*",
     "/equipment-company/:path*",
     "/location-owner/:path*",
     "/crew-team/:path*",
