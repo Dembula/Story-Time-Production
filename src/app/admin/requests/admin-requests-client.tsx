@@ -5,6 +5,7 @@ import { Shield, CheckCircle, XCircle, Loader2, UserPlus, Mail, Users, Crown, Sa
 import {
   ADMIN_RIGHT_SUITES,
   adminRightsSummary,
+  allAdminRights,
   type AdminRightsMap,
 } from "@/lib/admin-permissions";
 
@@ -34,7 +35,7 @@ type ActiveAdminRow = {
   id: string;
   name: string | null;
   email: string | null;
-  adminRights: AdminRightsMap;
+  adminRights: AdminRightsMap | null;
   rightsSummary: string;
   isGod: boolean;
   createdAt: string;
@@ -43,6 +44,24 @@ type ActiveAdminRow = {
 const RIGHTS_OPTIONS = ADMIN_RIGHT_SUITES.map((s) => ({ key: s.key, label: s.label }));
 
 type Tab = "applications" | "role_upgrades" | "active_admins";
+
+async function adminFetchJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, init);
+  const contentType = res.headers.get("content-type") ?? "";
+  if (!contentType.includes("application/json")) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      res.ok
+        ? "Unexpected response from server."
+        : `Request failed (${res.status}). ${text.slice(0, 120)}`,
+    );
+  }
+  const data = (await res.json()) as T & { error?: string };
+  if (!res.ok) {
+    throw new Error(data.error ?? `Request failed (${res.status}).`);
+  }
+  return data;
+}
 
 export function AdminRequestsClient() {
   const [tab, setTab] = useState<Tab>("applications");
@@ -61,29 +80,22 @@ export function AdminRequestsClient() {
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
   const loadRoleUpgrades = useCallback(() => {
-    return fetch(`/api/admin/requests?status=${filter}`)
-      .then((r) => r.json())
-      .then(setRequests);
+    return adminFetchJson<AdminRequestRow[]>(`/api/admin/requests?status=${filter}`).then(setRequests);
   }, [filter]);
 
   const loadApplications = useCallback(() => {
-    return fetch("/api/admin/access-applications")
-      .then((r) => r.json())
-      .then(setApplications);
+    return adminFetchJson<AccessApplicationRow[]>("/api/admin/access-applications").then(setApplications);
   }, []);
 
   const loadActiveAdmins = useCallback(() => {
-    return fetch("/api/admin/team")
-      .then(async (r) => {
-        if (!r.ok) throw new Error("Failed to load admin team");
-        return r.json();
-      })
-      .then((data: { admins: ActiveAdminRow[]; canManageTeam?: boolean }) => {
+    return adminFetchJson<{ admins: ActiveAdminRow[]; canManageTeam?: boolean }>("/api/admin/team")
+      .then((data) => {
         setActiveAdmins(data.admins ?? []);
         setCanManageTeam(Boolean(data.canManageTeam));
         const rightsSeed: Record<string, AdminRightsMap> = {};
         for (const admin of data.admins ?? []) {
-          rightsSeed[admin.id] = { ...admin.adminRights };
+          rightsSeed[admin.id] =
+            admin.adminRights === null ? allAdminRights() : { ...admin.adminRights };
         }
         setEditingAdminRights(rightsSeed);
       });
@@ -91,12 +103,16 @@ export function AdminRequestsClient() {
 
   useEffect(() => {
     setReqLoading(true);
-    void loadRoleUpgrades().finally(() => setReqLoading(false));
+    void loadRoleUpgrades()
+      .catch(() => setMessage({ type: "err", text: "Could not load role upgrade requests." }))
+      .finally(() => setReqLoading(false));
   }, [loadRoleUpgrades]);
 
   useEffect(() => {
     setAppsLoading(true);
-    void loadApplications().finally(() => setAppsLoading(false));
+    void loadApplications()
+      .catch(() => setMessage({ type: "err", text: "Could not load access applications." }))
+      .finally(() => setAppsLoading(false));
   }, [loadApplications]);
 
   useEffect(() => {

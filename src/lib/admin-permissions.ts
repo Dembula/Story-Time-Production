@@ -50,27 +50,34 @@ export function parseAdminRights(raw: unknown): AdminRightsMap {
   return out;
 }
 
+/** Null/undefined adminRights = legacy unrestricted admin (pre–suite enforcement). */
+export function hasLegacyFullAdminAccess(rights: unknown): boolean {
+  return rights == null;
+}
+
 export function allAdminRights(): AdminRightsMap {
   return Object.fromEntries(ADMIN_RIGHT_KEYS.map((k) => [k, true])) as AdminRightsMap;
 }
 
 export function hasAnyAdminRight(
-  rights: AdminRightsMap | null | undefined,
+  rights: unknown,
   opts?: { email?: string | null; isAdminRole?: boolean },
 ): boolean {
   if (opts?.email && isAdminGodAccount(opts.email)) return true;
   if (!opts?.isAdminRole) return false;
+  if (hasLegacyFullAdminAccess(rights)) return true;
   const parsed = parseAdminRights(rights);
   return ADMIN_RIGHT_KEYS.some((key) => parsed[key] === true);
 }
 
 export function hasAdminRight(
-  rights: AdminRightsMap | null | undefined,
+  rights: unknown,
   key: AdminRightKey,
   opts?: { email?: string | null; isAdminRole?: boolean },
 ): boolean {
   if (opts?.email && isAdminGodAccount(opts.email)) return true;
   if (!opts?.isAdminRole) return false;
+  if (hasLegacyFullAdminAccess(rights)) return true;
   const parsed = parseAdminRights(rights);
   return parsed[key] === true;
 }
@@ -143,13 +150,16 @@ export function requiredAdminRightForPath(path: string): AdminRightKey | null {
       }
     }
   }
-  if (match === undefined) return "canManageSystem";
+  if (match === undefined) {
+    if (normalized.startsWith("/api/admin/")) return null;
+    return "canManageSystem";
+  }
   return match;
 }
 
 export function canAccessAdminPath(
   path: string,
-  rights: AdminRightsMap | null | undefined,
+  rights: unknown,
   opts?: { email?: string | null; isAdminRole?: boolean },
 ): boolean {
   const required = requiredAdminRightForPath(path);
@@ -188,7 +198,7 @@ const NAV_ITEM_RIGHTS: Record<string, AdminRightKey | null> = {
 
 export function filterAdminNavSections(
   sections: DashboardNavSection[],
-  rights: AdminRightsMap | null | undefined,
+  rights: unknown,
   email?: string | null,
 ): DashboardNavSection[] {
   const opts = { email, isAdminRole: true as const };
@@ -207,8 +217,9 @@ export function filterAdminNavSections(
     .filter((section) => section.items.length > 0);
 }
 
-export function adminRightsSummary(rights: AdminRightsMap | null | undefined, email?: string | null): string {
+export function adminRightsSummary(rights: unknown, email?: string | null): string {
   if (email && isAdminGodAccount(email)) return "Platform owner (permanent full access)";
+  if (hasLegacyFullAdminAccess(rights)) return "Full admin access";
   const parsed = parseAdminRights(rights);
   const active = ADMIN_RIGHT_SUITES.filter((s) => parsed[s.key]).map((s) => s.label);
   if (active.length === 0) return "No sections assigned";

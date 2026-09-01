@@ -15,7 +15,7 @@ import {
 export type AdminApiActor = {
   id: string;
   email: string | null;
-  rights: AdminRightsMap;
+  rights: AdminRightsMap | null;
   isGod: boolean;
 };
 
@@ -33,7 +33,7 @@ export async function getAdminApiActor(): Promise<AdminApiActor | null> {
   return {
     id,
     email,
-    rights: parseAdminRights(user?.adminRights),
+    rights: user?.adminRights === null || user?.adminRights === undefined ? null : parseAdminRights(user.adminRights),
     isGod: isAdminGodAccount(email),
   };
 }

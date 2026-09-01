@@ -5,9 +5,8 @@ import {
   adminRightsSummary,
   isAdminGodAccount,
   parseAdminRights,
-  type AdminRightsMap,
+  hasAdminRight,
 } from "@/lib/admin-permissions";
-import { getUserRoles } from "@/lib/user-roles";
 
 export async function GET() {
   const actor = await requireAdminApiPath("/api/admin/team");
@@ -31,7 +30,10 @@ export async function GET() {
   });
 
   const payload = adminUsers.map((user) => {
-    const rights = parseAdminRights(user.adminRights);
+    const rights =
+      user.adminRights === null || user.adminRights === undefined
+        ? null
+        : parseAdminRights(user.adminRights);
     return {
       id: user.id,
       name: user.name,
@@ -39,7 +41,7 @@ export async function GET() {
       role: user.role,
       roles: user.userRoles.map((r) => r.role),
       adminRights: rights,
-      rightsSummary: adminRightsSummary(rights, user.email),
+      rightsSummary: adminRightsSummary(user.adminRights, user.email),
       isGod: isAdminGodAccount(user.email),
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString(),
@@ -49,6 +51,8 @@ export async function GET() {
   return NextResponse.json({
     admins: payload,
     actorIsGod: actor.isGod,
-    canManageTeam: actor.isGod || actor.rights.canManageUsers === true,
+    canManageTeam:
+      actor.isGod ||
+      hasAdminRight(actor.rights, "canManageUsers", { email: actor.email, isAdminRole: true }),
   });
 }

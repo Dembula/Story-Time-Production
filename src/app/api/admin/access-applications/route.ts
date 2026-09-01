@@ -49,8 +49,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   const reviewerId = actor.id;
-  const parsedRights = sanitizeAssignedAdminRights(assignedRights);
-  const rightsPayload = Object.keys(parsedRights).length > 0 ? parsedRights : undefined;
+  const parsedRights = sanitizeAssignedAdminRights(assignedRights ?? {});
   const normalizedEmail = application.email.trim().toLowerCase();
 
   if (action === "DENY") {
@@ -99,7 +98,7 @@ export async function PATCH(req: NextRequest) {
         data: {
           role: "ADMIN",
           passwordHash: hash,
-          adminRights: rightsPayload,
+          adminRights: parsedRights,
           ...(application.name?.trim() ? { name: application.name.trim() } : {}),
         },
       })
@@ -109,7 +108,7 @@ export async function PATCH(req: NextRequest) {
           name: application.name?.trim() || null,
           passwordHash: hash,
           role: "ADMIN",
-          adminRights: rightsPayload,
+          adminRights: parsedRights,
         },
       });
 

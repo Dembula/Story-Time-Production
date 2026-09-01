@@ -66,8 +66,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Request not found or already reviewed" }, { status: 404 });
 
   const reviewerId = actor.id;
-  const parsedRights = sanitizeAssignedAdminRights(assignedRights);
-  const rightsPayload = Object.keys(parsedRights).length > 0 ? parsedRights : undefined;
+  const parsedRights = sanitizeAssignedAdminRights(assignedRights ?? {});
 
   if (action === "APPROVE") {
     await prisma.$transaction([
@@ -77,14 +76,14 @@ export async function PATCH(req: NextRequest) {
           status: "APPROVED",
           reviewedById: reviewerId,
           reviewedAt: new Date(),
-          assignedRights: rightsPayload,
+          assignedRights: parsedRights,
         },
       }),
       prisma.user.update({
         where: { id: adminRequest.requestedById },
         data: {
           role: "ADMIN",
-          adminRights: rightsPayload,
+          adminRights: parsedRights,
         },
       }),
     ]);

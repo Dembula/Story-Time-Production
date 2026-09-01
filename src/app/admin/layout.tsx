@@ -16,7 +16,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       where: { id: userId },
       select: { email: true, adminRights: true },
     });
-    navSections = filterAdminNavSections(adminNavSections, parseAdminRights(user?.adminRights), user?.email);
+    navSections = filterAdminNavSections(adminNavSections, user?.adminRights ?? null, user?.email);
   }
 
   return <AdminLayoutShell navSections={navSections}>{children}</AdminLayoutShell>;

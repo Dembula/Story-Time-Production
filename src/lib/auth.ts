@@ -393,11 +393,14 @@ export const authOptions: NextAuthOptions = {
         });
         if (dbUser?.role === "ADMIN") {
           token.role = "ADMIN";
-          token.adminRights = parseAdminRights(dbUser.adminRights);
+          token.adminRights =
+            dbUser.adminRights === null || dbUser.adminRights === undefined
+              ? null
+              : parseAdminRights(dbUser.adminRights);
           if (dbUser.email) token.email = dbUser.email;
         } else if (token.role === "ADMIN") {
           token.role = dbUser?.role ?? "SUBSCRIBER";
-          token.adminRights = {};
+          token.adminRights = null;
         }
       }
       return token;
@@ -418,8 +421,8 @@ export const authOptions: NextAuthOptions = {
           (token as { payoutKycVerificationStatus?: KycVerificationStatus }).payoutKycVerificationStatus;
         (session.user as { activeCreatorStudioProfileId?: string | null }).activeCreatorStudioProfileId =
           (token as { activeCreatorStudioProfileId?: string | null }).activeCreatorStudioProfileId ?? null;
-        (session.user as { adminRights?: Record<string, boolean> }).adminRights =
-          (token as { adminRights?: Record<string, boolean> }).adminRights ?? {};
+        (session.user as { adminRights?: Record<string, boolean> | null }).adminRights =
+          (token as { adminRights?: Record<string, boolean> | null }).adminRights ?? null;
       }
       return session;
     },

@@ -2,7 +2,7 @@ import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { signInUrlForDestination } from "@/lib/auth-sign-in-path";
-import { canAccessAdminPath, parseAdminRights } from "@/lib/admin-permissions";
+import { canAccessAdminPath } from "@/lib/admin-permissions";
 import { requiredRoleForProtectedPath } from "@/lib/platform-roles-shared";
 import { userHasPlatformRole } from "@/lib/user-roles-shared";
 
@@ -45,7 +45,7 @@ export async function middleware(req: NextRequest) {
       return NextResponse.next();
     }
 
-    if (portalScope === "ADMIN" && !path.startsWith("/admin")) {
+    if (portalScope === "ADMIN" && !path.startsWith("/admin") && !path.startsWith("/api/admin")) {
       return NextResponse.redirect(new URL("/admin", req.url));
     }
     if (
@@ -84,7 +84,8 @@ export async function middleware(req: NextRequest) {
 
     if ((path.startsWith("/admin") || path.startsWith("/api/admin")) && role === "ADMIN") {
       const email = typeof token.email === "string" ? token.email : undefined;
-      const rights = parseAdminRights(token.adminRights);
+      const rightsRaw = (token as { adminRights?: unknown }).adminRights;
+      const rights = rightsRaw === undefined ? null : rightsRaw;
       if (!canAccessAdminPath(path, rights, { email, isAdminRole: true })) {
         if (path.startsWith("/api/admin")) {
           return NextResponse.json(
