@@ -456,9 +456,9 @@ export function CommandCenterClient() {
           </div>
           <div className="storytime-kpi p-4">
             <Percent className="w-4 h-4 text-amber-400 mb-1" />
-            <p className="text-xs text-slate-400">Ratings / comments</p>
+            <p className="text-xs text-slate-400">Ratings / comments (all time)</p>
             <p className="text-xl font-bold text-white">
-              {eng.totalRatings} / {eng.totalComments}
+              {cc.engagement.ratingCount} / {cc.engagement.commentCount}
             </p>
           </div>
         </div>
@@ -554,8 +554,7 @@ export function CommandCenterClient() {
           <div>
             <p className="text-sm font-medium text-white">Comments &amp; star ratings</p>
             <p className="text-xs text-slate-500">
-              See which viewer accounts engaged with your films in {RANGE_LABEL[range].toLowerCase()} — account names
-              only, no private contact details.
+              All viewer feedback on your catalogue — account names only, no private contact details.
             </p>
           </div>
           <EngagementFeed comments={cc.engagement.comments} ratings={cc.engagement.ratings} />

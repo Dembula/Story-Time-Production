@@ -59,7 +59,7 @@ export function EngagementFeed({
   if (filteredComments.length === 0 && filteredRatings.length === 0) {
     return (
       <p className="rounded-xl border border-dashed border-white/10 bg-slate-950/20 px-4 py-8 text-center text-sm text-slate-500">
-        No comments or star ratings in this period yet.
+        No comments or star ratings yet.
       </p>
     );
   }

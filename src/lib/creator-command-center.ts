@@ -124,10 +124,7 @@ export async function getCreatorCommandCenter(
         viewersWithKnownAge: 0,
         byTitle: [],
       })),
-      getCreatorEngagementInsights(creatorId, start, end, 80).catch(() => ({
-        comments: [],
-        ratings: [],
-      })),
+      getCreatorEngagementInsights(creatorId, new Date(0), end, 100),
     ]);
 
   const tasksByStatus: Record<string, number> = {};

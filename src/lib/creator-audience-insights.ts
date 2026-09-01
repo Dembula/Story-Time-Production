@@ -74,6 +74,8 @@ export type CreatorAudienceInsights = {
 export type CreatorEngagementInsights = {
   comments: CreatorEngagementComment[];
   ratings: CreatorEngagementRating[];
+  commentCount: number;
+  ratingCount: number;
 };
 
 export function ageToBracket(age: number): AgeBracket {
@@ -222,13 +224,19 @@ export async function getCreatorEngagementInsights(
   end: Date,
   limit = 80,
 ): Promise<CreatorEngagementInsights> {
-  const [commentRows, ratingRows] = await Promise.all([
+  const commentWhere = {
+    content: { creatorId },
+    parentId: null,
+    createdAt: { gte: start, lte: end },
+  };
+  const ratingWhere = {
+    content: { creatorId },
+    createdAt: { gte: start, lte: end },
+  };
+
+  const [commentRows, ratingRows, commentCount, ratingCount] = await Promise.all([
     prisma.comment.findMany({
-      where: {
-        content: { creatorId },
-        parentId: null,
-        createdAt: { gte: start, lte: end },
-      },
+      where: commentWhere,
       include: {
         user: { select: { id: true, name: true, image: true, email: true } },
         content: { select: { id: true, title: true } },
@@ -241,10 +249,7 @@ export async function getCreatorEngagementInsights(
       take: limit,
     }),
     prisma.rating.findMany({
-      where: {
-        content: { creatorId },
-        createdAt: { gte: start, lte: end },
-      },
+      where: ratingWhere,
       include: {
         user: { select: { id: true, name: true, image: true, email: true } },
         content: { select: { id: true, title: true } },
@@ -252,6 +257,8 @@ export async function getCreatorEngagementInsights(
       orderBy: { createdAt: "desc" },
       take: limit,
     }),
+    prisma.comment.count({ where: commentWhere }),
+    prisma.rating.count({ where: ratingWhere }),
   ]);
 
   const pairs = [
@@ -301,7 +308,7 @@ export async function getCreatorEngagementInsights(
     },
   }));
 
-  return { comments, ratings };
+  return { comments, ratings, commentCount, ratingCount };
 }
 
 export async function getTitleAudienceInsights(

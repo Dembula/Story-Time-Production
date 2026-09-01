@@ -8,6 +8,7 @@ import { toGatewaySafeReference } from "@/lib/payments/reference";
 import { assertFunderVerificationApproved } from "@/lib/funder-verification";
 import { assertPayoutKycApproved, requiresPayoutKyc } from "@/lib/payout-kyc";
 import { resolvePayoutBankingForUser } from "@/lib/payments/payout-banking";
+import { notifyPayoutRequested } from "@/lib/payments/payout-notifications";
 const db = prisma as any;
 
 export async function POST(req: NextRequest) {
@@ -86,6 +87,19 @@ export async function POST(req: NextRequest) {
       },
     ],
   });
+
+  const requester = await db.user.findUnique({
+    where: { id: user.id },
+    select: { name: true, email: true },
+  });
+
+  await notifyPayoutRequested({
+    payoutId: payoutRequest.id,
+    userId: user.id,
+    userName: requester?.name ?? null,
+    userEmail: requester?.email ?? null,
+    amount,
+  }).catch(() => {});
 
   return NextResponse.json({ ok: true, payoutRequest });
 }

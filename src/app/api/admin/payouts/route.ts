@@ -1,24 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { postBalancedLedgerBatch } from "@/lib/payments/ledger";
 import { getPlatformTreasuryUserId } from "@/lib/payments/treasury-inflow";
+import { requireAdminApiPath } from "@/lib/admin-api-auth";
+import {
+  notifyPayoutApproved,
+  notifyPayoutDeclined,
+  notifyPayoutPaid,
+} from "@/lib/payments/payout-notifications";
 
 const db = prisma as any;
 
-async function requireAdmin() {
-  const session = await getServerSession(authOptions);
-  const user = session?.user as { id?: string; role?: string } | undefined;
-  if (!user?.id || user.role !== "ADMIN") {
-    return { adminId: null as string | null, error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
-  }
-  return { adminId: user.id, error: null as NextResponse | null };
-}
-
 export async function GET(req: NextRequest) {
-  const access = await requireAdmin();
-  if (access.error) return access.error;
+  const actor = await requireAdminApiPath("/api/admin/payouts");
+  if ("error" in actor) return NextResponse.json({ error: actor.error }, { status: actor.status });
 
   const status = req.nextUrl.searchParams.get("status");
   const limit = Math.min(200, Number(req.nextUrl.searchParams.get("limit") ?? "100"));
@@ -49,8 +44,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const access = await requireAdmin();
-  if (access.error) return access.error;
+  const actor = await requireAdminApiPath("/api/admin/payouts");
+  if ("error" in actor) return NextResponse.json({ error: actor.error }, { status: actor.status });
 
   const body = (await req.json().catch(() => null)) as
     | {
@@ -83,11 +78,16 @@ export async function PATCH(req: NextRequest) {
       where: { id: payout.id },
       data: {
         status: "APPROVED",
-        reviewedById: access.adminId,
+        reviewedById: actor.id,
         reviewedAt: now,
         adminNotes: body.adminNotes ?? payout.adminNotes,
       },
     });
+    await notifyPayoutApproved({
+      userId: payout.user.id,
+      amount: payout.amount,
+      payoutId: payout.id,
+    }).catch(() => {});
     return NextResponse.json({ ok: true, payout: updated });
   }
 
@@ -128,10 +128,16 @@ export async function PATCH(req: NextRequest) {
         status: "DECLINED",
         declineReason: body.declineReason.trim(),
         adminNotes: body.adminNotes ?? payout.adminNotes,
-        reviewedById: access.adminId,
+        reviewedById: actor.id,
         reviewedAt: now,
       },
     });
+    await notifyPayoutDeclined({
+      userId: payout.user.id,
+      amount: payout.amount,
+      payoutId: payout.id,
+      reason: body.declineReason.trim(),
+    }).catch(() => {});
     return NextResponse.json({ ok: true, payout: updated });
   }
 
@@ -194,10 +200,17 @@ export async function PATCH(req: NextRequest) {
         proofUrl: body.proofUrl?.trim() || payout.proofUrl,
         proofReference: body.proofReference?.trim() || payout.proofReference,
         adminNotes: body.adminNotes ?? payout.adminNotes,
-        reviewedById: access.adminId,
+        reviewedById: actor.id,
         reviewedAt: now,
       },
     });
+    await notifyPayoutPaid({
+      userId: payout.user.id,
+      amount: payout.amount,
+      payoutId: payout.id,
+      proofReference: updated.proofReference,
+      proofUrl: updated.proofUrl,
+    }).catch(() => {});
     return NextResponse.json({ ok: true, payout: updated });
   }
 

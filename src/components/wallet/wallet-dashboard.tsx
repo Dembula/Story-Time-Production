@@ -264,13 +264,55 @@ export function WalletDashboard({
               </Link>
             </div>
           )}
+          {payoutMutation.isSuccess ? (
+            <p className="mt-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+              Payout requested. Admin will review your withdrawal and notify you when it is approved or paid.
+            </p>
+          ) : null}
           {payoutMutation.error ? <p className="mt-2 text-sm text-red-400">{(payoutMutation.error as Error).message}</p> : null}
           <div className="mt-3 space-y-2">
+            {payouts.length === 0 ? (
+              <p className="text-xs text-slate-500">No payout requests yet.</p>
+            ) : null}
             {payouts.map((p) => (
-              <div key={p.id} className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-xs">
-                <span>{p.status}</span>
-                <span>R{money.format(Number(p.amount ?? 0))}</span>
-                <span>{p.provider}</span>
+              <div key={p.id} className="rounded-xl border border-slate-800 bg-slate-900/50 px-3 py-3 text-xs space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className={`font-semibold ${
+                    p.status === "PAID"
+                      ? "text-emerald-300"
+                      : p.status === "DECLINED"
+                        ? "text-red-300"
+                        : p.status === "APPROVED"
+                          ? "text-cyan-300"
+                          : "text-amber-300"
+                  }`}>
+                    {p.status?.replace(/_/g, " ")}
+                  </span>
+                  <span className="font-medium text-white">R{money.format(Number(p.amount ?? 0))}</span>
+                </div>
+                <p className="text-slate-500">
+                  Requested {p.createdAt ? new Date(p.createdAt).toLocaleString() : "—"}
+                  {p.paidAt ? ` · Paid ${new Date(p.paidAt).toLocaleString()}` : ""}
+                </p>
+                {p.declineReason ? (
+                  <p className="text-red-300">Declined: {p.declineReason}</p>
+                ) : null}
+                {p.status === "PAID" && (p.proofReference || p.proofUrl) ? (
+                  <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-2 py-2 text-emerald-100">
+                    <p className="font-medium text-emerald-200">Proof of payment</p>
+                    {p.proofReference ? <p className="mt-1 font-mono">{p.proofReference}</p> : null}
+                    {p.proofUrl ? (
+                      <a
+                        href={p.proofUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-1 inline-block text-cyan-300 underline"
+                      >
+                        View payment proof
+                      </a>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             ))}
           </div>
