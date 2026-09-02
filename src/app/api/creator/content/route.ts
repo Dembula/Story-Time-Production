@@ -19,6 +19,7 @@ import { linkOrIngestStreamForUrl } from "@/lib/stream-ingest-link";
 import { buildStreamIngestMeta } from "@/lib/stream-ingest-meta";
 import { creatorIsStudentAtUpload } from "@/lib/student-work";
 import { isCatalogueContentType, isLongFormType } from "@/lib/content-types";
+import { assertCatalogueMediaForSubmit } from "@/lib/catalogue-upload/media-requirements";
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -132,6 +133,19 @@ export async function POST(request: NextRequest) {
   }
   const isLongForm = isLongFormType(String(body.type));
   const isDraft = (body.reviewStatus || "DRAFT") === "DRAFT";
+  const mediaCheck = assertCatalogueMediaForSubmit(
+    {
+      type: body.type,
+      videoUrl: body.videoUrl,
+      posterUrl: body.posterUrl,
+      backdropUrl: body.backdropUrl,
+      seasons: Array.isArray(body.seasons) ? body.seasons : null,
+    },
+    { isDraft },
+  );
+  if (!mediaCheck.ok) {
+    return NextResponse.json({ error: mediaCheck.error }, { status: 400 });
+  }
   if (!isDraft && !isLongForm && !body.videoUrl) {
     return NextResponse.json({ error: "videoUrl required for this content type" }, { status: 400 });
   }
@@ -175,6 +189,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Your plan period has ended. Renew to upload." }, { status: 402 });
   }
 
+  let existingEditableForSeasons = !existingContentId;
   if (existingContentId) {
     const existing = await prisma.content.findFirst({
       where: { id: existingContentId, creatorId },
@@ -187,6 +202,7 @@ export async function POST(request: NextRequest) {
     if (!editableStatuses.has(existing.reviewStatus)) {
       return NextResponse.json({ error: "This title cannot be edited in its current review state." }, { status: 409 });
     }
+    existingEditableForSeasons = true;
   }
 
   const minAgeProvided = Object.prototype.hasOwnProperty.call(body, "minAge");
@@ -310,7 +326,16 @@ export async function POST(request: NextRequest) {
 
   const createdEpisodes: Array<{ id: string; videoUrl: string | null; title: string }> = [];
 
-  if (Array.isArray(body.seasons) && body.seasons.length > 0 && !existingContentId) {
+  const canWriteSeasons =
+    Array.isArray(body.seasons) && body.seasons.length > 0 && existingEditableForSeasons;
+
+  if (canWriteSeasons) {
+    if (existingContentId) {
+      await prisma.contentEpisode.deleteMany({
+        where: { season: { contentId: content.id } },
+      });
+      await prisma.contentSeason.deleteMany({ where: { contentId: content.id } });
+    }
     for (const season of body.seasons as Array<{
       seasonNumber: number;
       title?: string;

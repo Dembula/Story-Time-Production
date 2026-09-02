@@ -44,6 +44,10 @@ import {
 import { isEditableCatalogueStatus } from "@/lib/catalogue-upload/types";
 import type { CatalogueAssetKind, CatalogueUploadAsset } from "@/lib/catalogue-upload/types";
 import { catalogueAssetKindLabel } from "@/lib/catalogue-upload/types";
+import {
+  getCatalogueMediaRequirements,
+  getMissingCatalogueMedia,
+} from "@/lib/catalogue-upload/media-requirements";
 import { SubtitleUploadSection, type SubtitleDraft } from "@/components/creator/subtitle-upload-section";
 
 const TYPE_ICONS: Record<string, LucideIcon> = {
@@ -427,9 +431,10 @@ function DistributionUploadInner() {
   const scriptAsset = useJobAssetProgress(effectiveJobId, "script");
 
   const [seasonCount, setSeasonCount] = useState(1);
-  const [episodesPerSeason, setEpisodesPerSeason] = useState<number[]>([6]);
+  const [episodesPerSeason, setEpisodesPerSeason] = useState<number[]>([1]);
   const [episodeDrafts, setEpisodeDrafts] = useState<EpisodeDraft[]>([]);
   const longFormUpload = isLongFormType(form.type);
+  const mediaRequirements = getCatalogueMediaRequirements(form.type);
 
   useEffect(() => {
     if (form.type && (MORE_UPLOAD_TYPE_VALUES as readonly string[]).includes(form.type)) {
@@ -903,7 +908,7 @@ function DistributionUploadInner() {
     if (longFormUpload && episodeDrafts.length === 0) {
       const initial: EpisodeDraft[] = [];
       for (let s = 1; s <= seasonCount; s++) {
-        const count = episodesPerSeason[s - 1] ?? 6;
+        const count = episodesPerSeason[s - 1] ?? 1;
         for (let e = 1; e <= count; e++) {
           initial.push({
             seasonNumber: s,
@@ -916,6 +921,11 @@ function DistributionUploadInner() {
         }
       }
       setEpisodeDrafts(initial);
+    }
+    if (!longFormUpload && episodeDrafts.length > 0) {
+      setEpisodeDrafts([]);
+      setSeasonCount(1);
+      setEpisodesPerSeason([1]);
     }
   }, [longFormUpload, seasonCount, episodesPerSeason, episodeDrafts.length]);
 
@@ -1032,15 +1042,15 @@ function DistributionUploadInner() {
     if (step === 1) return !!form.type;
     if (step === 2) return !!form.title && !!form.description;
     if (step === 3) {
-      if (longFormUpload) {
-        return (
-          !!form.backdropUrl &&
-          !!form.posterUrl &&
-          episodeDrafts.length > 0 &&
-          episodeDrafts.every((e) => e.videoUrl.trim())
-        );
-      }
-      return !!form.videoUrl;
+      return (
+        getMissingCatalogueMedia({
+          type: form.type,
+          videoUrl: form.videoUrl,
+          posterUrl: form.posterUrl,
+          backdropUrl: form.backdropUrl,
+          seasons: longFormUpload ? buildSeasonsPayload(episodeDrafts) : null,
+        }).length === 0
+      );
     }
     return true;
   }
@@ -1054,14 +1064,13 @@ function DistributionUploadInner() {
       return missing;
     }
     if (stepId === 3) {
-      if (longFormUpload) {
-        const missing: string[] = [];
-        if (!form.backdropUrl.trim()) missing.push("Backdrop image (used on the title page)");
-        if (!form.posterUrl.trim()) missing.push("Poster (used in browse catalogue)");
-        if (!episodeDrafts.every((e) => e.videoUrl.trim())) missing.push("All episode videos");
-        return missing;
-      }
-      return form.videoUrl.trim() ? [] : ["Main video upload"];
+      return getMissingCatalogueMedia({
+        type: form.type,
+        videoUrl: form.videoUrl,
+        posterUrl: form.posterUrl,
+        backdropUrl: form.backdropUrl,
+        seasons: longFormUpload ? buildSeasonsPayload(episodeDrafts) : null,
+      });
     }
     if (stepId === 4) {
       const missing: string[] = [];
@@ -1096,6 +1105,18 @@ function DistributionUploadInner() {
     setError("");
     setBackgroundSubmitNotice(false);
     if (!asDraft) {
+      const mediaMissing = getMissingCatalogueMedia({
+        type: form.type,
+        videoUrl: form.videoUrl,
+        posterUrl: form.posterUrl,
+        backdropUrl: form.backdropUrl,
+        seasons: longFormUpload ? buildSeasonsPayload(episodeDrafts) : null,
+      });
+      if (mediaMissing.length > 0) {
+        setError(`Upload required media first: ${mediaMissing.join("; ")}.`);
+        setStep(3);
+        return;
+      }
       const hasCoreRightsChecks =
         complianceChecks.rightsOwnershipConfirmed &&
         complianceChecks.thirdPartyClearancesConfirmed &&
@@ -1242,7 +1263,17 @@ function DistributionUploadInner() {
   function stepComplete(id: number): boolean {
     if (id === 1) return !!form.type;
     if (id === 2) return !!form.title && !!form.description;
-    if (id === 3) return !!form.videoUrl;
+    if (id === 3) {
+      return (
+        getMissingCatalogueMedia({
+          type: form.type,
+          videoUrl: form.videoUrl,
+          posterUrl: form.posterUrl,
+          backdropUrl: form.backdropUrl,
+          seasons: longFormUpload ? buildSeasonsPayload(episodeDrafts) : null,
+        }).length === 0
+      );
+    }
     if (id === 4) return !!form.language && !!form.ageRating;
     if (id === 5) return true;
     return false;
@@ -1626,9 +1657,44 @@ function DistributionUploadInner() {
           <h2 className="text-xl font-semibold text-white">Media & Assets</h2>
           <p className="text-sm text-slate-400">
             {longFormUpload
-              ? "Upload catalogue poster, a cinematic backdrop for the title page, optional trailer, and all season episodes below."
+              ? "Series need a poster, backdrop, and at least one episode master video. Configure seasons/episodes first — uploads encode for streaming after submission."
               : "Upload your master video, BTS clips, poster, backdrop, and script (PDF) using the file pickers below."}
           </p>
+          {longFormUpload && (
+            <SeriesEpisodesUpload
+              seasonCount={seasonCount}
+              episodesPerSeason={episodesPerSeason}
+              episodes={episodeDrafts}
+              onSeasonCountChange={setSeasonCount}
+              onEpisodesPerSeasonChange={setEpisodesPerSeason}
+              onEpisodesChange={setEpisodeDrafts}
+              onError={setError}
+              episodeAccept={mediaRequirements.episodeAccept}
+              episodeHint={mediaRequirements.masterHint}
+              onUploadEpisode={(seasonNumber, episodeNumber, file) => {
+                enqueueMedia("episode", file, {
+                  seasonNumber,
+                  episodeNumber,
+                });
+              }}
+              episodeUploadProgress={(seasonNumber, episodeNumber) => {
+                const asset = effectiveJobId
+                  ? jobs
+                      .find((j) => j.id === effectiveJobId)
+                      ?.assets.find(
+                        (a) =>
+                          a.kind === "episode" &&
+                          a.meta?.seasonNumber === seasonNumber &&
+                          a.meta?.episodeNumber === episodeNumber,
+                      )
+                  : undefined;
+                return {
+                  uploading: asset?.status === "queued" || asset?.status === "uploading",
+                  progress: asset?.progress ?? null,
+                };
+              }}
+            />
+          )}
           {effectiveJobId &&
           (mainVideoAsset.uploading ||
             trailerAsset.uploading ||
@@ -1645,9 +1711,9 @@ function DistributionUploadInner() {
             <div className="space-y-4">
               {!longFormUpload && (
               <MediaDropzone
-                label="Main Video *"
-                hint="Delivery master: MP4 H.264 + AAC, under ~180 Mbps average (not ProRes/uncompressed). Large files up to ~50GB use fast multipart upload; Stream encodes after upload."
-                accept="video/*"
+                label="Main Video / Master *"
+                hint={mediaRequirements.masterHint}
+                accept={mediaRequirements.masterAccept}
                 uploading={mainVideoAsset.uploading}
                 progress={mainVideoAsset.progress}
                 done={(Boolean(form.videoUrl) || mainVideoAsset.done) && !mainVideoAsset.uploading}
@@ -2048,39 +2114,6 @@ function DistributionUploadInner() {
             </div>
           </div>
 
-          {longFormUpload && (
-            <SeriesEpisodesUpload
-              seasonCount={seasonCount}
-              episodesPerSeason={episodesPerSeason}
-              episodes={episodeDrafts}
-              onSeasonCountChange={setSeasonCount}
-              onEpisodesPerSeasonChange={setEpisodesPerSeason}
-              onEpisodesChange={setEpisodeDrafts}
-              onError={setError}
-              onUploadEpisode={(seasonNumber, episodeNumber, file) => {
-                enqueueMedia("episode", file, {
-                  seasonNumber,
-                  episodeNumber,
-                });
-              }}
-              episodeUploadProgress={(seasonNumber, episodeNumber) => {
-                const asset = uploadJobId
-                  ? jobs
-                      .find((j) => j.id === uploadJobId)
-                      ?.assets.find(
-                        (a) =>
-                          a.kind === "episode" &&
-                          a.meta?.seasonNumber === seasonNumber &&
-                          a.meta?.episodeNumber === episodeNumber,
-                      )
-                  : undefined;
-                return {
-                  uploading: asset?.status === "queued" || asset?.status === "uploading",
-                  progress: asset?.progress ?? null,
-                };
-              }}
-            />
-          )}
         </div>
       )}
 

@@ -30,6 +30,9 @@ type Props = {
     uploading: boolean;
     progress: number | null;
   };
+  /** e.g. video/* or video/*,audio/* for podcasts */
+  episodeAccept?: string;
+  episodeHint?: string;
 };
 
 const inputClass =
@@ -47,6 +50,8 @@ export function SeriesEpisodesUpload({
   fixedSeasonNumber,
   onUploadEpisode,
   episodeUploadProgress,
+  episodeAccept = "video/*",
+  episodeHint,
 }: Props) {
   const singleSeason = mode === "singleSeason";
   const slots = useMemo(() => {
@@ -118,6 +123,7 @@ export function SeriesEpisodesUpload({
             {singleSeason
               ? "Upload each episode with a title, blurb, and master file."
               : "Configure your season structure, then upload each episode with a short blurb viewers will see on the title page."}
+            {episodeHint ? ` ${episodeHint}` : ""}
           </p>
         </div>
       </div>
@@ -131,7 +137,7 @@ export function SeriesEpisodesUpload({
             value={seasonCount}
             onChange={(e) => {
               const n = Math.max(1, Math.min(10, Number(e.target.value)));
-              const counts = Array.from({ length: n }, (_, i) => episodesPerSeason[i] ?? 6);
+              const counts = Array.from({ length: n }, (_, i) => episodesPerSeason[i] ?? 1);
               syncEpisodeSlots(n, counts);
             }}
             className={inputClass}
@@ -152,7 +158,7 @@ export function SeriesEpisodesUpload({
             <div key={s} className="rounded-xl border border-white/8 bg-slate-900/40 p-4">
               <label className="mb-2 block text-sm font-medium text-white">Season {s} — episodes</label>
               <select
-                value={episodesPerSeason[si] ?? 6}
+                value={episodesPerSeason[si] ?? 1}
                 onChange={(e) => {
                   const counts = [...episodesPerSeason];
                   counts[si] = Number(e.target.value);
@@ -215,10 +221,12 @@ export function SeriesEpisodesUpload({
                 />
               </div>
               <div className="mt-3">
-                <label className="mb-1 block text-xs text-slate-500">Episode video *</label>
+                <label className="mb-1 block text-xs text-slate-500">
+                  Episode master *{episodeAccept.includes("audio") ? " (video or audio)" : ""}
+                </label>
                 <input
                   type="file"
-                  accept="video/*"
+                  accept={episodeAccept}
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (file) void uploadEpisodeVideo(seasonNumber, episodeNumber, file);
@@ -236,7 +244,7 @@ export function SeriesEpisodesUpload({
                     );
                   }
                   if (ep.videoUrl) {
-                    return <p className="mt-1 text-xs text-green-400">Video uploaded</p>;
+                    return <p className="mt-1 text-xs text-green-400">Master uploaded</p>;
                   }
                   return <p className="mt-1 text-xs text-slate-500">Required before submit</p>;
                 })()}

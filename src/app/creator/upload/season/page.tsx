@@ -20,6 +20,7 @@ import {
   type EpisodeDraft,
 } from "@/components/creator/series-episodes-upload";
 import { contentTypeLabel, isLongFormType } from "@/lib/content-types";
+import { getCatalogueMediaRequirements } from "@/lib/catalogue-upload/media-requirements";
 import { useCatalogueUpload } from "@/components/creator/catalogue-upload-provider";
 import { catalogueAssetKindLabel } from "@/lib/catalogue-upload/types";
 
@@ -282,6 +283,8 @@ function AddSeasonInner() {
             onEpisodesPerSeasonChange={() => {}}
             onEpisodesChange={setEpisodeDrafts}
             onError={setError}
+            episodeAccept={getCatalogueMediaRequirements(series.type).episodeAccept}
+            episodeHint={getCatalogueMediaRequirements(series.type).masterHint}
             onUploadEpisode={(seasonNumber, episodeNumber, file) => {
               const jobId =
                 uploadJobId ??

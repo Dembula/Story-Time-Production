@@ -73,7 +73,7 @@ export default async function BrowseLayout({
       <main className="pb-20 pt-16 md:pb-0" data-spatial-nav-root>{children}</main>
       <BrowseMobileNav />
       <SubscriptionExpiredModal show={subscriptionExpired} />
-      {session?.user && <ViewerSuggestionsTrigger />}
+      {role === "SUBSCRIBER" && !subscriptionExpired ? <ViewerSuggestionsTrigger /> : null}
     </div>
   );
 }

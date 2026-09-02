@@ -32,6 +32,13 @@
     color-scheme: dark;
     scroll-behavior: smooth;
     background-color: #000000;
+    overscroll-behavior-y: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
   }
 }
 
@@ -62,6 +69,8 @@
 
 body {
   min-height: 100vh;
+  min-height: 100dvh;
+  overscroll-behavior-y: none;
   background-color: #000000;
   background-image:
     radial-gradient(circle at 50% -8%, rgba(255, 153, 31, 0.1), transparent 38%),
@@ -74,7 +83,7 @@ body {
 
 body::before {
   content: "";
-  position: fixed;
+  position: absolute;
   inset: 0;
   pointer-events: none;
   background: radial-gradient(circle at bottom center, rgba(255, 140, 0, 0.06), transparent 42%);
@@ -764,6 +773,7 @@ select optgroup {
 /* Creator pipeline workspace — flush project rail + full-width tools */
 .creator-pipeline-shell {
   min-height: calc(100vh - 7rem);
+  min-height: calc(100dvh - 7rem);
   width: 100%;
 }
 
@@ -777,6 +787,7 @@ select optgroup {
   display: flex;
   flex-direction: column;
   min-height: calc(100vh - 9rem);
+  min-height: calc(100dvh - 9rem);
   width: 100%;
   min-width: 0;
 }

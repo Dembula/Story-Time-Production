@@ -28,6 +28,7 @@ import {
   type CatalogueUploadAsset,
   type CatalogueUploadJob,
 } from "@/lib/catalogue-upload/types";
+import { catalogueFinalizePayloadReady } from "@/lib/catalogue-upload/media-requirements";
 
 type AssetFileEntry = {
   file: File;
@@ -342,18 +343,21 @@ export function CatalogueUploadProvider({ children }: { children: ReactNode }) {
         ...urlPatch,
       };
 
-      // Patch episode / BTS URLs into payload when present
+      // Patch episode / BTS URLs into payload when present.
+      // Seasons payload nests episodeNumber under season.seasonNumber (episodes do not carry seasonNumber).
       if (Array.isArray(payload.seasons)) {
         const seasons = payload.seasons as Array<{
-          episodes?: Array<{ seasonNumber?: number; episodeNumber?: number; videoUrl?: string }>;
+          seasonNumber?: number;
+          episodes?: Array<{ episodeNumber?: number; videoUrl?: string }>;
         }>;
         for (const season of seasons) {
+          const seasonNumber = season.seasonNumber;
           for (const ep of season.episodes ?? []) {
             const asset = job.assets.find(
               (a) =>
                 a.kind === "episode" &&
                 a.status === "complete" &&
-                a.meta?.seasonNumber === ep.seasonNumber &&
+                a.meta?.seasonNumber === seasonNumber &&
                 a.meta?.episodeNumber === ep.episodeNumber &&
                 a.storageUrl,
             );
@@ -392,6 +396,25 @@ export function CatalogueUploadProvider({ children }: { children: ReactNode }) {
       }
 
       if (job.contentId) payload.contentId = job.contentId;
+
+      const readiness = catalogueFinalizePayloadReady(payload);
+      if (!readiness.ready) {
+        setJob(jobId, (j) => ({
+          ...j,
+          status: "failed",
+          error: readiness.error,
+          finalizeWhenReady: false,
+          updatedAt: Date.now(),
+        }));
+        await notifyUploadEvent({
+          type: "CONTENT_UPLOAD_FAILED",
+          title: "Catalogue upload incomplete",
+          body: `${job.title}: ${readiness.error}`,
+          contentId: job.contentId,
+          url: job.contentId ? `/creator/upload?contentId=${job.contentId}` : "/creator/upload",
+        });
+        return { ok: false, error: readiness.error };
+      }
 
       setJob(jobId, (j) => ({
         ...j,
@@ -551,14 +574,17 @@ export function CatalogueUploadProvider({ children }: { children: ReactNode }) {
         try {
           let durationSeconds: number | undefined;
           let estimatedBitrateMbps: number | undefined;
-          const isVideo =
-            next.asset.kind === "mainVideo" ||
-            next.asset.kind === "trailer" ||
-            next.asset.kind === "bts" ||
-            next.asset.kind === "episode" ||
-            entry.file.type.startsWith("video/");
+          const mime = (entry.file.type || "").toLowerCase();
+          const isAudioFile = mime.startsWith("audio/");
+          const isVideoFile =
+            !isAudioFile &&
+            (mime.startsWith("video/") ||
+              next.asset.kind === "mainVideo" ||
+              next.asset.kind === "trailer" ||
+              next.asset.kind === "bts" ||
+              next.asset.kind === "episode");
 
-          if (isVideo) {
+          if (isVideoFile) {
             const { probeVideoFile } = await import("@/lib/video-file-probe-client");
             const {
               bitrateTooHighUserMessage,

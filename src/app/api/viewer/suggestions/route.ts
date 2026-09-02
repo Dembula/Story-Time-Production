@@ -2,11 +2,28 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getUserRoles } from "@/lib/user-roles";
+import {
+  getLatestViewerSubscription,
+  hasActiveCatalogueSubscription,
+} from "@/lib/viewer-access";
 
 /** Throttle: max unread AI suggestions to keep; don't create if we already have this many. */
 const MAX_UNREAD_AI_SUGGESTIONS = 5;
 /** Only add new suggestions if the most recent AI_SUGGESTION is older than this (ms). */
 const COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Watch suggestions are for subscribed viewers only — not creator-only (or other
+ * non-viewer) accounts, even if they open /browse.
+ */
+async function userCanReceiveWatchSuggestions(userId: string): Promise<boolean> {
+  const roles = await getUserRoles(userId);
+  if (!roles.has("SUBSCRIBER")) return false;
+
+  const subscription = await getLatestViewerSubscription(userId);
+  return hasActiveCatalogueSubscription(subscription);
+}
 
 /**
  * GET: Ensure the viewer has AI-suggested films as notifications (based on watch history).
@@ -20,6 +37,18 @@ export async function GET() {
   }
 
   try {
+    const eligible = await userCanReceiveWatchSuggestions(userId);
+    if (!eligible) {
+      // Drop leftover watch suggestions so creator-only accounts don't keep seeing them.
+      await prisma.notification.deleteMany({
+        where: { userId, type: "AI_SUGGESTION" },
+      });
+      return NextResponse.json({
+        created: 0,
+        message: "Watch suggestions are only for subscribed viewer accounts",
+      });
+    }
+
     const recentAi = await prisma.notification.findMany({
       where: { userId, type: "AI_SUGGESTION" },
       orderBy: { createdAt: "desc" },
@@ -45,7 +74,11 @@ export async function GET() {
     const categories = [...new Set(watched.map((w) => w.content?.category).filter(Boolean))] as string[];
     const types = [...new Set(watched.map((w) => w.content?.type).filter(Boolean))] as string[];
 
-    const whereClause: { published: boolean; id?: { notIn: string[] }; OR?: Array<{ category?: { in: string[] }; type?: { in: string[] } }> } = {
+    const whereClause: {
+      published: boolean;
+      id?: { notIn: string[] };
+      OR?: Array<{ category?: { in: string[] }; type?: { in: string[] } }>;
+    } = {
       published: true,
     };
     if (watchedIds.length > 0) {

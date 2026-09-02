@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { Providers } from "@/components/providers";
@@ -19,6 +19,13 @@ const outfit = localFont({
 const siteBase = getAppBaseUrl() || "https://story-time.online";
 const siteDescription =
   "Stream movies, series, shows, and podcasts from independent creators";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#000000",
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteBase),
@@ -79,7 +86,7 @@ export default function RootLayout({
     <html lang="en" className="dark" data-scroll-behavior="smooth" suppressHydrationWarning>
       <body
         suppressHydrationWarning
-        className={`${inter.variable} ${outfit.variable} min-h-screen bg-background font-sans text-foreground antialiased`}
+        className={`${inter.variable} ${outfit.variable} min-h-dvh bg-background font-sans text-foreground antialiased`}
       >
         <script
           type="application/ld+json"

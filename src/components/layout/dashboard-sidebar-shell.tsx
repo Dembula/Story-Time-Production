@@ -160,12 +160,12 @@ export function DashboardSidebarShell({
   const headerHeightClass = deviceClass === "mobile" ? "top-[3.75rem]" : "top-[4.25rem]";
   const stickySidebarTop = deviceClass === "mobile" ? "top-[3.75rem]" : "top-[4.25rem]";
   const stickySidebarMaxH =
-    deviceClass === "mobile" ? "max-h-[calc(100vh-3.75rem)]" : "max-h-[calc(100vh-4.25rem)]";
+    deviceClass === "mobile" ? "max-h-[calc(100dvh-3.75rem)]" : "max-h-[calc(100dvh-4.25rem)]";
 
   const showDockedSidebar = !overlayMode && sidebarOpen;
 
   return (
-    <div className={`relative min-h-screen bg-background text-foreground ${className}`.trim()}>
+    <div className={`relative min-h-dvh bg-background text-foreground ${className}`.trim()}>
       <header
         className={`sticky top-0 z-50 border-b border-white/8 bg-background/95 backdrop-blur-xl ${paddedHeader} ${headerClassName}`}
       >
@@ -222,7 +222,7 @@ export function DashboardSidebarShell({
         </>
       ) : null}
 
-      <div className="flex w-full min-h-[calc(100vh-4.25rem)]">
+      <div className="flex w-full min-h-[calc(100dvh-4.25rem)]">
         {showDockedSidebar ? (
           <aside className="hidden w-56 shrink-0 flex-col border-r border-white/10 bg-black md:flex xl:w-64">
             <div

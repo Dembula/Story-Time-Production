@@ -55,9 +55,15 @@ export default function CreatorLayout({ children }: { children: React.ReactNode 
   const allowProd = suite == null || suite.pipeline_prod === true;
   const allowPost = suite == null || suite.pipeline_post === true;
   const allowCatalogue = suite == null || suite.catalogue_upload === true;
+  const showPipelineNav = licensePayload?.pipelineAccess !== false;
   const monetizationNavFiltered = useMemo(() => {
-    return monetizationNavItems.filter((item) => !item.requiresCatalogue || allowCatalogue);
-  }, [allowCatalogue]);
+    return monetizationNavItems.filter((item) => {
+      if (item.requiresCatalogue && !allowCatalogue) return false;
+      // When upload-only, catalogue links live under the Distribution heading instead.
+      if (item.requiresCatalogue && !showPipelineNav) return false;
+      return true;
+    });
+  }, [allowCatalogue, showPipelineNav]);
   const { data: studioPayload } = useQuery({
     queryKey: [...CREATOR_STUDIO_PROFILES_QUERY_KEY],
     queryFn: () => fetch("/api/creator/studio-profiles").then((r) => r.json()),
@@ -66,7 +72,6 @@ export default function CreatorLayout({ children }: { children: React.ReactNode 
   const ownedCompanyCount = studioPayload?.companies?.length ?? 0;
   const showCompanyAdminNav = ownedCompanyCount > 0;
   const showAccountControlNav = ownedCompanyCount > 0;
-  const showPipelineNav = licensePayload?.pipelineAccess !== false;
   const preProductionNavActive =
     pathname.startsWith("/creator/pre-production") || pathname.startsWith("/creator/marketplace");
   const [preProductionOpen, setPreProductionOpen] = useState(preProductionNavActive);
@@ -243,6 +248,45 @@ export default function CreatorLayout({ children }: { children: React.ReactNode 
                     Post-Production
                   </Link>
                 ) : null}
+              </>
+            ) : null}
+            {!showPipelineNav && allowCatalogue ? (
+              <>
+                <Link
+                  href="/creator/catalogue"
+                  onClick={closeSidebar}
+                  className={navLinkClass(pathname.startsWith("/creator/catalogue"))}
+                >
+                  My catalogue
+                </Link>
+                <Link
+                  href="/creator/upload"
+                  onClick={closeSidebar}
+                  className={navLinkClass(pathname.startsWith("/creator/upload"))}
+                >
+                  Catalogue upload
+                </Link>
+                <p className="px-3 pt-1 text-[11px] leading-relaxed text-slate-500">
+                  Upload-only plan — pipeline tools unlock with Creator Pipeline.
+                </p>
+              </>
+            ) : null}
+            {showPipelineNav && !allowPre && !allowProd && !allowPost && allowCatalogue ? (
+              <>
+                <Link
+                  href="/creator/catalogue"
+                  onClick={closeSidebar}
+                  className={navLinkClass(pathname.startsWith("/creator/catalogue"))}
+                >
+                  My catalogue
+                </Link>
+                <Link
+                  href="/creator/upload"
+                  onClick={closeSidebar}
+                  className={navLinkClass(pathname.startsWith("/creator/upload"))}
+                >
+                  Catalogue upload
+                </Link>
               </>
             ) : null}
           </div>
