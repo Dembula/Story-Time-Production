@@ -23,5 +23,7 @@ export async function GET() {
     directUploadMaxMb: 4,
     presignAvailable: configured,
     directToStorage: configured,
+    /** Browser→S3 CORS is auto-healed on upload init when IAM has PutBucketCORS. */
+    corsAutoHeal: configured,
   });
 }

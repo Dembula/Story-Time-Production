@@ -12,6 +12,7 @@ import {
   resolveContentTypeForUpload,
 } from "@/lib/content-media-shared";
 import { createContentMediaS3Client } from "@/lib/content-media-s3";
+import { ensureStorageBucketCors } from "@/lib/storage-cors";
 import { enforceUserRateLimit } from "@/lib/api-rate-limit";
 
 export const runtime = "nodejs";
@@ -87,6 +88,12 @@ export async function POST(request: NextRequest) {
         },
         { status: 400 },
       );
+    }
+
+    // Browser→S3 PUT needs bucket CORS; IAM allows PutBucketCORS — heal before signing.
+    const cors = await ensureStorageBucketCors();
+    if (!cors.ok) {
+      console.warn("[multipart/init] storage CORS ensure failed:", cors.error);
     }
 
     const key = buildUserScopedUploadKey(userId, body.fileName.trim());

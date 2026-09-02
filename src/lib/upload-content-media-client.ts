@@ -61,6 +61,40 @@ function isProxyFallbackEligible(file: File, message: string): boolean {
   return isPresignUnavailableError(message) || isDirectUploadCorsOrNetworkError(message);
 }
 
+/** Ask the server to PutBucketCORS before browser→S3 PUTs (all media kinds). */
+async function ensureStorageCorsForBrowserUpload(force = false): Promise<void> {
+  try {
+    await fetchWithRetry(
+      "/api/upload/content-media/ensure-cors",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ force }),
+      },
+      { attempts: 2, retryDelayMs: 400 },
+    );
+  } catch {
+    // Upload paths also ensure CORS on init/presign; ignore probe failures here.
+  }
+}
+
+function preferredMultipartConcurrency(serverHint: number, fileSize: number): number {
+  const base = Math.min(
+    12,
+    Math.max(
+      2,
+      Number.isFinite(serverHint) && serverHint > 0
+        ? Math.floor(serverHint)
+        : contentMediaMultipartConcurrency(fileSize),
+    ),
+  );
+  // iPad / touch Safari often stalls or CORS-fails with many parallel PUTs.
+  if (typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches) {
+    return Math.min(base, 3);
+  }
+  return base;
+}
+
 async function fetchWithRetry(
   input: RequestInfo | URL,
   init: RequestInit,
@@ -478,14 +512,9 @@ async function uploadContentMediaViaMultipart(
     typeof initJson.partSize === "number" && initJson.partSize > 0
       ? initJson.partSize
       : CONTENT_MEDIA_MULTIPART_PART_SIZE_BYTES;
-  const concurrency = Math.min(
-    12,
-    Math.max(
-      2,
-      typeof initJson.concurrency === "number" && initJson.concurrency > 0
-        ? Math.floor(initJson.concurrency)
-        : contentMediaMultipartConcurrency(file.size),
-    ),
+  const concurrency = preferredMultipartConcurrency(
+    typeof initJson.concurrency === "number" ? initJson.concurrency : 0,
+    file.size,
   );
   const totalParts = Math.max(1, Math.ceil(file.size / partSize));
   const completedParts: { PartNumber: number; ETag: string }[] = [];
@@ -546,17 +575,14 @@ async function uploadContentMediaViaMultipart(
               },
             );
 
-            if (!etag) {
-              throw new Error(
-                `Part ${partNumber} uploaded but S3 did not return an ETag. Check bucket CORS ExposeHeaders includes ETag.`,
-              );
-            }
-
             partLoadedBytes.delete(partNumber);
             committedBytes += blob.size;
             reportProgress();
 
-            completedParts.push({ PartNumber: partNumber, ETag: etag });
+            // Safari / missing ExposeHeaders may hide ETag; complete uses ListParts.
+            if (etag) {
+              completedParts.push({ PartNumber: partNumber, ETag: etag });
+            }
             return;
           } catch (err) {
             lastError = err;
@@ -802,11 +828,26 @@ export async function uploadContentMediaViaApiFull(
     estimatedBitrateMbps: options?.estimatedBitrateMbps,
   };
 
+  await ensureStorageCorsForBrowserUpload(false);
+
   if (shouldUseMultipartUpload(file.size)) {
     try {
       return await uploadContentMediaViaMultipart(file, onProgress, signal, mediaMeta);
     } catch (err) {
       if (isAbortError(err)) throw err;
+      const message = err instanceof Error ? err.message : "";
+      if (isDirectUploadCorsOrNetworkError(message)) {
+        await ensureStorageCorsForBrowserUpload(true);
+        try {
+          return await uploadContentMediaViaMultipart(file, onProgress, signal, mediaMeta);
+        } catch (retryErr) {
+          if (isAbortError(retryErr)) throw retryErr;
+          const retryMessage = retryErr instanceof Error ? retryErr.message : "Multipart upload failed";
+          throw new Error(
+            `${retryMessage} If this keeps failing, hard-refresh the page and retry — storage CORS was just re-applied for this site origin.`,
+          );
+        }
+      }
       throw err instanceof Error ? err : new Error("Multipart upload failed");
     }
   }
@@ -816,6 +857,30 @@ export async function uploadContentMediaViaApiFull(
   } catch (err) {
     if (isAbortError(err)) throw err;
     const message = err instanceof Error ? err.message : "";
+    if (isDirectUploadCorsOrNetworkError(message)) {
+      await ensureStorageCorsForBrowserUpload(true);
+      try {
+        return await uploadContentMediaViaPresignedPut(file, onProgress, signal, mediaMeta);
+      } catch (retryErr) {
+        if (isAbortError(retryErr)) throw retryErr;
+        const retryMessage = retryErr instanceof Error ? retryErr.message : message;
+        if (isProxyFallbackEligible(file, retryMessage)) {
+          try {
+            return await uploadContentMediaViaServerProxy(file, onProgress, signal);
+          } catch (proxyErr) {
+            if (isAbortError(proxyErr)) throw proxyErr;
+            const proxyMessage = proxyErr instanceof Error ? proxyErr.message : "Upload failed";
+            throw new Error(`${retryMessage} Proxy fallback also failed: ${proxyMessage}`);
+          }
+        }
+        if (file.size > CONTENT_MEDIA_DIRECT_UPLOAD_MAX_BYTES) {
+          throw new Error(
+            `${retryMessage} Large files must upload directly to storage. Hard-refresh and retry; if it still fails, an admin should open /api/admin/storage/cors.`,
+          );
+        }
+        throw retryErr instanceof Error ? retryErr : new Error(retryMessage);
+      }
+    }
     if (isProxyFallbackEligible(file, message)) {
       try {
         // Keep high-water so proxy fallback (which starts ~8%) does not yank the bar down.
