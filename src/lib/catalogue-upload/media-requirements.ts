@@ -1,6 +1,7 @@
 import { isLongFormType } from "@/lib/content-types";
 
 export type CatalogueSeasonEpisodeInput = {
+  id?: string;
   episodeNumber?: number;
   title?: string;
   videoUrl?: string | null;

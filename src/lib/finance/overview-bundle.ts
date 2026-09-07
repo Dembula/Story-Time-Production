@@ -1,7 +1,11 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
-import { getCashSettlementAmount, isCashRecognizedPayment } from "@/lib/payments/cash-recognition";
+import {
+  getCashSettlementAmount,
+  isCashRecognizedPayment,
+  paymentFundingSource,
+} from "@/lib/payments/cash-recognition";
 import { getFinanceFeeSettings } from "@/lib/finance/fee-settings";
 import { splitViewerRevenueWithRates } from "@/lib/finance/fee-math";
 import { resolveFinancePeriodRange, type FinancePeriodKey } from "@/lib/finance/period-range";
@@ -12,14 +16,26 @@ import {
   hasCreatorPoolDistribution,
   getPreviousCalendarMonthRange,
 } from "@/lib/payments/creator-pool-distribution";
+import {
+  categorizePaymentPurpose,
+  fetchEscrowAndTreasury,
+  fetchFundingMoney,
+  fetchPromoLiability,
+  paymentPurposeLabel,
+  type FundingMoneyBundle,
+  type PromoLiabilityBundle,
+  type RetentionBreakdownBundle,
+} from "@/lib/finance/finance-insights";
 
 const db = prisma as any;
 
 export type FinanceSheetRow = {
   id: string;
+  kind: "payment" | "marketplace";
   paidAt: string | null;
   provider: string;
   purpose: string;
+  purposeLabel: string;
   gross: number;
   gatewayFee: number;
   net: number;
@@ -27,6 +43,10 @@ export type FinanceSheetRow = {
   creatorShare: number;
   settlementSource: string | null;
   currency: string;
+  fundingSource: "cash" | "promo" | "demo" | "other";
+  status: string;
+  payer: { id: string | null; name: string | null; email: string | null };
+  payee: { id: string | null; name: string | null; email: string | null } | null;
 };
 
 export type FinanceOverviewBundle = {
@@ -49,9 +69,14 @@ export type FinanceOverviewBundle = {
     viewerPoolNet: number;
     creatorPool: number;
     platformRetained: number;
+    platformServiceRevenue: number;
+    platformTotalRetained: number;
     marketplaceFees: number;
     marketplaceVolume: number;
     paymentCount: number;
+    marketplaceTxCount: number;
+    promoLiabilityZar: number;
+    fundingSettledZar: number;
   };
   byProvider: Array<{
     provider: string;
@@ -83,6 +108,10 @@ export type FinanceOverviewBundle = {
   };
   series: Array<{ date: string; gross: number; fees: number; net: number }>;
   sheets: FinanceSheetRow[];
+  marketplaceSheets: FinanceSheetRow[];
+  promo: PromoLiabilityBundle;
+  funding: FundingMoneyBundle;
+  retention: RetentionBreakdownBundle;
 };
 
 function dayKey(d: Date): string {
@@ -103,46 +132,61 @@ export async function fetchFinanceOverviewBundle(options: {
   const feeSettings = await getFinanceFeeSettings();
   const sheetLimit = Math.min(500, Math.max(50, options.sheetLimit ?? 200));
 
-  const [payments, marketplace, webhookEvents, pendingPayouts, paidPayouts] = await Promise.all([
-    prisma.paymentRecord.findMany({
-      where: {
-        status: "SUCCEEDED",
-        paidAt: { gte: range.periodStart, lte: range.periodEnd },
-        amount: { gt: 0 },
-      },
-      select: {
-        id: true,
-        amount: true,
-        providerFeeAmount: true,
-        settlementAmount: true,
-        status: true,
-        purpose: true,
-        provider: true,
-        settlementSource: true,
-        metadata: true,
-        currency: true,
-        paidAt: true,
-      },
-      orderBy: { paidAt: "desc" },
-    }),
-    aggregateCompletedMarketplaceFees(range.periodStart, range.periodEnd),
-    prisma.paymentWebhookEvent.count({
-      where: { createdAt: { gte: range.periodStart, lte: range.periodEnd } },
-    }),
-    db.payoutRequest.aggregate({
-      where: { status: { in: ["PENDING_REVIEW", "APPROVED"] } },
-      _count: { _all: true },
-      _sum: { amount: true },
-    }),
-    db.payoutRequest.aggregate({
-      where: {
-        status: "PAID",
-        updatedAt: { gte: range.periodStart, lte: range.periodEnd },
-      },
-      _count: { _all: true },
-      _sum: { amount: true },
-    }),
-  ]);
+  const [payments, marketplace, webhookEvents, pendingPayouts, paidPayouts, marketplaceTxs] =
+    await Promise.all([
+      prisma.paymentRecord.findMany({
+        where: {
+          status: "SUCCEEDED",
+          paidAt: { gte: range.periodStart, lte: range.periodEnd },
+        },
+        select: {
+          id: true,
+          amount: true,
+          providerFeeAmount: true,
+          settlementAmount: true,
+          status: true,
+          purpose: true,
+          provider: true,
+          settlementSource: true,
+          metadata: true,
+          currency: true,
+          paidAt: true,
+          email: true,
+          userId: true,
+          user: { select: { id: true, name: true, email: true } },
+        },
+        orderBy: { paidAt: "desc" },
+      }),
+      aggregateCompletedMarketplaceFees(range.periodStart, range.periodEnd),
+      prisma.paymentWebhookEvent.count({
+        where: { createdAt: { gte: range.periodStart, lte: range.periodEnd } },
+      }),
+      db.payoutRequest.aggregate({
+        where: { status: { in: ["PENDING_REVIEW", "APPROVED"] } },
+        _count: { _all: true },
+        _sum: { amount: true },
+      }),
+      db.payoutRequest.aggregate({
+        where: {
+          status: "PAID",
+          updatedAt: { gte: range.periodStart, lte: range.periodEnd },
+        },
+        _count: { _all: true },
+        _sum: { amount: true },
+      }),
+      prisma.transaction.findMany({
+        where: {
+          status: "COMPLETED",
+          createdAt: { gte: range.periodStart, lte: range.periodEnd },
+        },
+        include: {
+          payer: { select: { id: true, name: true, email: true } },
+          payee: { select: { id: true, name: true, email: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: sheetLimit,
+      }),
+    ]);
 
   const cashPayments = payments.filter((p) => isCashRecognizedPayment(p));
 
@@ -150,6 +194,7 @@ export async function fetchFinanceOverviewBundle(options: {
   let gatewayFees = 0;
   let net = 0;
   let viewerPoolNet = 0;
+  let serviceRevenueNet = 0;
   let payfastItnFees = 0;
   let payfastEstimatedFees = 0;
   let appleEstimatedFees = 0;
@@ -158,6 +203,20 @@ export async function fetchFinanceOverviewBundle(options: {
   const byProviderMap = new Map<string, { count: number; gross: number; fees: number; net: number }>();
   const bySourceMap = new Map<string, { count: number; fees: number; net: number }>();
   const seriesMap = new Map<string, { gross: number; fees: number; net: number }>();
+  const byPurposeMap = new Map<
+    string,
+    {
+      purpose: string;
+      purposeLabel: string;
+      count: number;
+      gross: number;
+      gatewayFees: number;
+      net: number;
+      platformShare: number;
+      creatorShare: number;
+      category: RetentionBreakdownBundle["byPurpose"][number]["category"];
+    }
+  >();
 
   const sheets: FinanceSheetRow[] = [];
 
@@ -173,8 +232,15 @@ export async function fetchFinanceOverviewBundle(options: {
     gatewayFees = roundMoney(gatewayFees + fee);
     net = roundMoney(net + settlement);
 
-    if (isViewerPoolPaymentPurpose(p.purpose)) {
+    const isViewerPool = isViewerPoolPaymentPurpose(p.purpose);
+    const split = splitViewerRevenueWithRates(settlement, feeSettings);
+    const platformShare = isViewerPool ? split.platform : settlement;
+    const creatorShare = isViewerPool ? split.creator : 0;
+
+    if (isViewerPool) {
       viewerPoolNet = roundMoney(viewerPoolNet + settlement);
+    } else {
+      serviceRevenueNet = roundMoney(serviceRevenueNet + settlement);
     }
 
     const provider = String(p.provider || "UNKNOWN").toUpperCase();
@@ -208,28 +274,112 @@ export async function fetchFinanceOverviewBundle(options: {
       seriesMap.set(key, day);
     }
 
+    const purposeKey = p.purpose || "unknown";
+    const purposeRow = byPurposeMap.get(purposeKey) ?? {
+      purpose: purposeKey,
+      purposeLabel: paymentPurposeLabel(purposeKey),
+      count: 0,
+      gross: 0,
+      gatewayFees: 0,
+      net: 0,
+      platformShare: 0,
+      creatorShare: 0,
+      category: categorizePaymentPurpose(purposeKey),
+    };
+    purposeRow.count += 1;
+    purposeRow.gross = roundMoney(purposeRow.gross + g);
+    purposeRow.gatewayFees = roundMoney(purposeRow.gatewayFees + fee);
+    purposeRow.net = roundMoney(purposeRow.net + settlement);
+    purposeRow.platformShare = roundMoney(purposeRow.platformShare + platformShare);
+    purposeRow.creatorShare = roundMoney(purposeRow.creatorShare + creatorShare);
+    byPurposeMap.set(purposeKey, purposeRow);
+
     if (sheets.length < sheetLimit) {
-      const split = splitViewerRevenueWithRates(settlement, feeSettings);
-      const isViewerPool = isViewerPoolPaymentPurpose(p.purpose);
       sheets.push({
         id: p.id,
+        kind: "payment",
         paidAt: p.paidAt?.toISOString() ?? null,
         provider,
         purpose: p.purpose,
+        purposeLabel: paymentPurposeLabel(p.purpose),
         gross: g,
         gatewayFee: fee,
         net: settlement,
-        platformShare: isViewerPool ? split.platform : settlement,
-        creatorShare: isViewerPool ? split.creator : 0,
+        platformShare,
+        creatorShare,
         settlementSource: p.settlementSource,
         currency: p.currency || "ZAR",
+        fundingSource: paymentFundingSource(p),
+        status: p.status,
+        payer: {
+          id: p.user?.id ?? p.userId ?? null,
+          name: p.user?.name ?? null,
+          email: p.user?.email ?? p.email ?? null,
+        },
+        payee: null,
       });
     }
   }
 
+  const marketplaceFees = roundMoney(Number(marketplace._sum.feeAmount ?? 0));
+  const marketplaceVolume = roundMoney(Number(marketplace._sum.totalAmount ?? 0));
+
+  const marketplaceSheets: FinanceSheetRow[] = marketplaceTxs.map((tx) => {
+    const total = roundMoney(Number(tx.totalAmount ?? tx.amount ?? 0));
+    const fee = roundMoney(Number(tx.feeAmount ?? 0));
+    const payeeAmount = roundMoney(Number(tx.amount ?? total - fee));
+    return {
+      id: tx.id,
+      kind: "marketplace" as const,
+      paidAt: tx.createdAt.toISOString(),
+      provider: "MARKETPLACE",
+      purpose: tx.type || "marketplace",
+      purposeLabel: paymentPurposeLabel(tx.type || "marketplace"),
+      gross: total,
+      gatewayFee: fee,
+      net: payeeAmount,
+      platformShare: fee,
+      creatorShare: payeeAmount,
+      settlementSource: "marketplace_ledger",
+      currency: "ZAR",
+      fundingSource: "cash" as const,
+      status: tx.status,
+      payer: {
+        id: tx.payer?.id ?? null,
+        name: tx.payer?.name ?? null,
+        email: tx.payer?.email ?? null,
+      },
+      payee: {
+        id: tx.payee?.id ?? null,
+        name: tx.payee?.name ?? null,
+        email: tx.payee?.email ?? null,
+      },
+    };
+  });
+
   const viewerSplit = splitViewerRevenueWithRates(viewerPoolNet, feeSettings);
+  const platformTotalRetained = roundMoney(
+    viewerSplit.platform + serviceRevenueNet + marketplaceFees,
+  );
+
   const previousMonth = getPreviousCalendarMonthRange();
   const previousMonthPoolDistributed = await hasCreatorPoolDistribution(previousMonth.periodKey);
+
+  const [promo, funding, escrowTreasury] = await Promise.all([
+    fetchPromoLiability(range.periodStart, range.periodEnd, gross),
+    fetchFundingMoney(range.periodStart, range.periodEnd),
+    fetchEscrowAndTreasury(range.periodStart, range.periodEnd),
+  ]);
+
+  const retention: RetentionBreakdownBundle = {
+    viewerPlatformRetained: viewerSplit.platform,
+    marketplaceFees,
+    serviceRevenueNet,
+    platformTotalRetained,
+    byPurpose: [...byPurposeMap.values()].sort((a, b) => b.net - a.net),
+    escrow: escrowTreasury.escrow,
+    treasury: escrowTreasury.treasury,
+  };
 
   return {
     period: {
@@ -251,9 +401,14 @@ export async function fetchFinanceOverviewBundle(options: {
       viewerPoolNet,
       creatorPool: viewerSplit.creator,
       platformRetained: viewerSplit.platform,
-      marketplaceFees: roundMoney(Number(marketplace._sum.feeAmount ?? 0)),
-      marketplaceVolume: roundMoney(Number(marketplace._sum.totalAmount ?? 0)),
+      platformServiceRevenue: serviceRevenueNet,
+      platformTotalRetained,
+      marketplaceFees,
+      marketplaceVolume,
       paymentCount: cashPayments.length,
+      marketplaceTxCount: marketplaceTxs.length,
+      promoLiabilityZar: promo.totalDiscountZar,
+      fundingSettledZar: funding.dealPayments.settledZar,
     },
     byProvider: [...byProviderMap.entries()].map(([provider, v]) => ({ provider, ...v })),
     bySettlementSource: [...bySourceMap.entries()].map(([source, v]) => ({ source, ...v })),
@@ -276,5 +431,9 @@ export async function fetchFinanceOverviewBundle(options: {
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([date, v]) => ({ date, ...v })),
     sheets,
+    marketplaceSheets,
+    promo,
+    funding,
+    retention,
   };
 }

@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AdminPayoutRequestsPanel } from "@/components/admin/admin-payout-requests-panel";
+import { AdminTransactionDetailModal } from "@/components/admin/admin-transaction-detail-modal";
 import {
   FINANCE_PERIOD_OPTIONS,
   type FinancePeriodKey,
 } from "@/lib/finance/period-range";
-import type { FinanceOverviewBundle } from "@/lib/finance/overview-bundle";
+import type { FinanceOverviewBundle, FinanceSheetRow } from "@/lib/finance/overview-bundle";
 
 const money = new Intl.NumberFormat("en-ZA", {
   style: "currency",
@@ -17,11 +19,23 @@ const money = new Intl.NumberFormat("en-ZA", {
 
 const pct = (rate: number) => `${(rate * 100).toFixed(rate >= 0.1 ? 2 : 4)}%`;
 
-type TabId = "overview" | "sheets" | "gateways" | "payouts" | "settings" | "exports";
+type TabId =
+  | "overview"
+  | "sheets"
+  | "promo"
+  | "funding"
+  | "retention"
+  | "gateways"
+  | "payouts"
+  | "settings"
+  | "exports";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "overview", label: "Overview" },
-  { id: "sheets", label: "Sheets" },
+  { id: "sheets", label: "Transactions" },
+  { id: "promo", label: "Promo liability" },
+  { id: "funding", label: "Funding portal" },
+  { id: "retention", label: "Retention & treasury" },
   { id: "gateways", label: "Gateways & fees" },
   { id: "payouts", label: "Payouts" },
   { id: "settings", label: "Fee settings" },
@@ -31,6 +45,7 @@ const TABS: { id: TabId; label: string }[] = [
 function readInitialTab(): TabId {
   if (typeof window === "undefined") return "overview";
   const q = new URLSearchParams(window.location.search).get("tab");
+  if (q === "sheets") return "sheets";
   if (q && TABS.some((t) => t.id === q)) return q as TabId;
   return "overview";
 }
@@ -51,6 +66,9 @@ export function AdminFinanceHub() {
   const [period, setPeriod] = useState<FinancePeriodKey>("mtd");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
+  const [sheetFilter, setSheetFilter] = useState<"all" | "payment" | "marketplace">("all");
+  const [sheetSearch, setSheetSearch] = useState("");
+  const [detail, setDetail] = useState<{ kind: "payment" | "marketplace"; id: string } | null>(null);
   const [settingsForm, setSettingsForm] = useState({
     appleCommissionRatePct: "",
     viewerCreatorSplitPct: "",
@@ -65,7 +83,7 @@ export function AdminFinanceHub() {
   const overviewQuery = useQuery({
     queryKey: ["admin-finance-overview", queryPeriod, customFrom, customTo],
     queryFn: async () => {
-      const params = new URLSearchParams({ period: queryPeriod, limit: "250" });
+      const params = new URLSearchParams({ period: queryPeriod, limit: "300" });
       if (queryPeriod === "custom") {
         if (customFrom) params.set("from", customFrom);
         if (customTo) params.set("to", customTo);
@@ -190,13 +208,39 @@ export function AdminFinanceHub() {
     return `/api/admin/finance/export?${params}`;
   }, [queryPeriod, customFrom, customTo]);
 
+  const sheetRows = useMemo(() => {
+    if (!bundle) return [] as FinanceSheetRow[];
+    const merged = [
+      ...(sheetFilter !== "marketplace" ? bundle.sheets : []),
+      ...(sheetFilter !== "payment" ? bundle.marketplaceSheets || [] : []),
+    ].sort((a, b) => String(b.paidAt || "").localeCompare(String(a.paidAt || "")));
+    const needle = sheetSearch.trim().toLowerCase();
+    if (!needle) return merged;
+    return merged.filter((r) => {
+      const hay = [
+        r.id,
+        r.purpose,
+        r.purposeLabel,
+        r.provider,
+        r.payer?.name,
+        r.payer?.email,
+        r.payee?.name,
+        r.payee?.email,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(needle);
+    });
+  }, [bundle, sheetFilter, sheetSearch]);
+
   return (
     <div className="space-y-6 text-slate-100">
       <header className="storytime-plan-card p-5 md:p-6">
         <h1 className="text-2xl font-semibold text-white">Finance hub</h1>
         <p className="mt-2 max-w-3xl text-sm text-slate-400">
-          Holistic revenue, gateway fees (PayFast ITN + Apple commission), creator pool splits, payouts, and editable fee
-          schedules — all in one place for the finance team.
+          Period cash, gateway fees, platform retention, promo giveaways, institutional funding, escrow/treasury, and
+          full transaction dossiers — everything finance needs in one place.
         </p>
 
         <div className="mt-4 flex flex-wrap items-end gap-3">
@@ -252,7 +296,9 @@ export function AdminFinanceHub() {
               type="button"
               onClick={() => selectTab(t.id)}
               className={`rounded-full px-3 py-1.5 text-sm ${
-                tab === t.id ? "bg-amber-500/20 text-amber-200 ring-1 ring-amber-400/40" : "bg-white/5 text-slate-300 hover:bg-white/10"
+                tab === t.id
+                  ? "bg-amber-500/20 text-amber-200 ring-1 ring-amber-400/40"
+                  : "bg-white/5 text-slate-300 hover:bg-white/10"
               }`}
             >
               {t.label}
@@ -269,21 +315,57 @@ export function AdminFinanceHub() {
       {tab === "overview" && bundle ? (
         <section className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Kpi label="Gross inflow" value={money.format(bundle.totals.gross)} hint={`${bundle.totals.paymentCount} payments`} />
-            <Kpi label="Gateway fees" value={money.format(bundle.totals.gatewayFees)} hint="PayFast + Apple commission" />
+            <Kpi
+              label="Gross cash inflow"
+              value={money.format(bundle.totals.gross)}
+              hint={`${bundle.totals.paymentCount} gateway payments`}
+            />
+            <Kpi label="Gateway fees" value={money.format(bundle.totals.gatewayFees)} hint="PayFast + Apple" />
             <Kpi label="Net settlement" value={money.format(bundle.totals.net)} hint="Cash after gateway cuts" />
             <Kpi
-              label="Viewer pool net"
-              value={money.format(bundle.totals.viewerPoolNet)}
-              hint={`Creators ${pct(bundle.feeSettings.viewerCreatorSplit)} / Platform ${pct(bundle.feeSettings.viewerPlatformSplit)}`}
+              label="Platform total retained"
+              value={money.format(bundle.totals.platformTotalRetained)}
+              hint="Viewer split + service + marketplace fees"
             />
-            <Kpi label="Creator pool" value={money.format(bundle.totals.creatorPool)} />
-            <Kpi label="Platform retained" value={money.format(bundle.totals.platformRetained)} />
-            <Kpi label="Marketplace fees" value={money.format(bundle.totals.marketplaceFees)} />
             <Kpi
-              label="Payouts pending"
+              label="Viewer pool → creators"
+              value={money.format(bundle.totals.creatorPool)}
+              hint={`${pct(bundle.feeSettings.viewerCreatorSplit)} of viewer net`}
+            />
+            <Kpi
+              label="Viewer pool → platform"
+              value={money.format(bundle.totals.platformRetained)}
+              hint={`${pct(bundle.feeSettings.viewerPlatformSplit)} of viewer net`}
+            />
+            <Kpi
+              label="Platform service revenue"
+              value={money.format(bundle.totals.platformServiceRevenue)}
+              hint="Licences, company subs, uploads, reviews"
+            />
+            <Kpi
+              label="Marketplace fees"
+              value={money.format(bundle.totals.marketplaceFees)}
+              hint={`Volume ${money.format(bundle.totals.marketplaceVolume)}`}
+            />
+            <Kpi
+              label="Promo liability"
+              value={money.format(bundle.totals.promoLiabilityZar)}
+              hint={`${bundle.promo.redemptionCount} redemptions · forgone list price`}
+            />
+            <Kpi
+              label="Funding settled"
+              value={money.format(bundle.totals.fundingSettledZar)}
+              hint={`${bundle.funding.dealPayments.settledCount} deal payments`}
+            />
+            <Kpi
+              label="Payouts paid (period)"
+              value={money.format(bundle.payouts.paidAmount)}
+              hint={`${bundle.payouts.paidCount} paid`}
+            />
+            <Kpi
+              label="Payouts pending (queue)"
               value={money.format(bundle.payouts.pendingAmount)}
-              hint={`${bundle.payouts.pendingCount} requests`}
+              hint={`${bundle.payouts.pendingCount} open · all-time queue`}
             />
           </div>
 
@@ -336,45 +418,338 @@ export function AdminFinanceHub() {
       ) : null}
 
       {tab === "sheets" && bundle ? (
-        <section className="storytime-plan-card overflow-x-auto p-4">
-          <h2 className="text-sm font-semibold text-white">Transaction sheet</h2>
-          <p className="mt-1 text-xs text-slate-500">
-            Gross, gateway fee, net, and viewer-pool splits for the selected period (up to {bundle.sheets.length} rows).
-          </p>
-          <table className="mt-3 w-full min-w-[900px] text-left text-sm">
-            <thead className="text-xs uppercase text-slate-500">
-              <tr>
-                <th className="py-2">Paid</th>
-                <th>Provider</th>
-                <th>Purpose</th>
-                <th>Gross</th>
-                <th>Fee</th>
-                <th>Net</th>
-                <th>Platform</th>
-                <th>Creator</th>
-                <th>Source</th>
-              </tr>
-            </thead>
-            <tbody>
-              {bundle.sheets.map((row) => (
-                <tr key={row.id} className="border-t border-white/5">
-                  <td className="py-2 whitespace-nowrap text-slate-300">
-                    {row.paidAt ? new Date(row.paidAt).toLocaleString() : "—"}
-                  </td>
-                  <td>{row.provider}</td>
-                  <td className="max-w-[180px] truncate" title={row.purpose}>
-                    {row.purpose}
-                  </td>
-                  <td>{money.format(row.gross)}</td>
-                  <td>{money.format(row.gatewayFee)}</td>
-                  <td>{money.format(row.net)}</td>
-                  <td>{money.format(row.platformShare)}</td>
-                  <td>{money.format(row.creatorShare)}</td>
-                  <td className="text-slate-400">{row.settlementSource || "—"}</td>
+        <section className="space-y-4">
+          <div className="storytime-plan-card space-y-3 p-4">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold text-white">Transaction dossier sheet</h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  Click any row for payer, payee, fees, gateway refs, and revenue routing.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {(["all", "payment", "marketplace"] as const).map((f) => (
+                  <button
+                    key={f}
+                    type="button"
+                    onClick={() => setSheetFilter(f)}
+                    className={`rounded-lg px-3 py-1.5 text-xs capitalize ${
+                      sheetFilter === f ? "bg-amber-500/20 text-amber-100" : "bg-white/5 text-slate-400"
+                    }`}
+                  >
+                    {f}
+                  </button>
+                ))}
+                <input
+                  value={sheetSearch}
+                  onChange={(e) => setSheetSearch(e.target.value)}
+                  placeholder="Search payer, purpose, id…"
+                  className="rounded-lg border border-white/10 bg-black/40 px-3 py-1.5 text-xs text-white"
+                />
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1100px] text-left text-sm">
+                <thead className="text-xs uppercase text-slate-500">
+                  <tr>
+                    <th className="py-2">When</th>
+                    <th>Kind</th>
+                    <th>Paid by</th>
+                    <th>Paid to</th>
+                    <th>Purpose</th>
+                    <th>Gross</th>
+                    <th>Fee</th>
+                    <th>Net</th>
+                    <th>Platform</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sheetRows.map((row) => (
+                    <tr
+                      key={`${row.kind}-${row.id}`}
+                      className="cursor-pointer border-t border-white/5 hover:bg-white/5"
+                      onClick={() => setDetail({ kind: row.kind, id: row.id })}
+                    >
+                      <td className="whitespace-nowrap py-2 text-slate-300">
+                        {row.paidAt ? new Date(row.paidAt).toLocaleString() : "—"}
+                      </td>
+                      <td className="capitalize text-slate-400">{row.kind}</td>
+                      <td className="max-w-[160px] truncate" title={row.payer.email || ""}>
+                        {row.payer.name || row.payer.email || "—"}
+                      </td>
+                      <td className="max-w-[160px] truncate">
+                        {row.payee ? row.payee.name || row.payee.email || "—" : "Story Time"}
+                      </td>
+                      <td className="max-w-[200px] truncate" title={row.purpose}>
+                        {row.purposeLabel || row.purpose}
+                      </td>
+                      <td>{money.format(row.gross)}</td>
+                      <td>{money.format(row.gatewayFee)}</td>
+                      <td>{money.format(row.net)}</td>
+                      <td>{money.format(row.platformShare)}</td>
+                      <td className="text-slate-400">{row.status}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {sheetRows.length === 0 ? <p className="py-6 text-center text-sm text-slate-500">No rows match.</p> : null}
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      {tab === "promo" && bundle ? (
+        <section className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Kpi label="Discount liability" value={money.format(bundle.promo.totalDiscountZar)} hint="Forgone list-price ZAR" />
+            <Kpi label="Redemptions" value={String(bundle.promo.redemptionCount)} />
+            <Kpi label="Free-year grants" value={String(bundle.promo.freeYearCount)} />
+            <Kpi
+              label="vs cash gross"
+              value={
+                bundle.promo.insight.discountAsPctOfGross != null
+                  ? `${bundle.promo.insight.discountAsPctOfGross}%`
+                  : "—"
+              }
+              hint={bundle.promo.insight.note}
+            />
+          </div>
+          <p className="text-sm text-slate-400">{bundle.promo.insight.note}</p>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="storytime-plan-card overflow-x-auto p-4">
+              <h2 className="text-sm font-semibold text-white">By promo code</h2>
+              <table className="mt-3 w-full text-left text-sm">
+                <thead className="text-xs uppercase text-slate-500">
+                  <tr>
+                    <th className="py-2">Code</th>
+                    <th>Kind</th>
+                    <th>Uses</th>
+                    <th>Liability</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bundle.promo.byCode.map((c) => (
+                    <tr key={c.code} className="border-t border-white/5">
+                      <td className="py-2 font-medium text-white">{c.code}</td>
+                      <td className="text-slate-400">{c.kind}</td>
+                      <td>
+                        {c.redemptionCount}
+                        {c.maxRedemptions != null ? ` / ${c.maxRedemptions}` : ""}
+                      </td>
+                      <td>{money.format(c.discountZar)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {bundle.promo.byCode.length === 0 ? <p className="mt-3 text-sm text-slate-500">No redemptions in period.</p> : null}
+            </div>
+            <div className="storytime-plan-card overflow-x-auto p-4">
+              <h2 className="text-sm font-semibold text-white">By context</h2>
+              <table className="mt-3 w-full text-left text-sm">
+                <thead className="text-xs uppercase text-slate-500">
+                  <tr>
+                    <th className="py-2">Context</th>
+                    <th>Count</th>
+                    <th>Liability</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bundle.promo.byContext.map((c) => (
+                    <tr key={c.context} className="border-t border-white/5">
+                      <td className="py-2">{c.context}</td>
+                      <td>{c.count}</td>
+                      <td>{money.format(c.discountZar)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div className="storytime-plan-card overflow-x-auto p-4">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-sm font-semibold text-white">Recent redemptions</h2>
+              <Link href="/admin/promo-codes" className="text-xs text-amber-300 hover:underline">
+                Manage codes
+              </Link>
+            </div>
+            <table className="mt-3 w-full min-w-[800px] text-left text-sm">
+              <thead className="text-xs uppercase text-slate-500">
+                <tr>
+                  <th className="py-2">When</th>
+                  <th>Code</th>
+                  <th>User</th>
+                  <th>Context</th>
+                  <th>Plan</th>
+                  <th>Discount</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {bundle.promo.recent.map((r) => (
+                  <tr key={r.id} className="border-t border-white/5">
+                    <td className="whitespace-nowrap py-2 text-slate-400">
+                      {new Date(r.redeemedAt).toLocaleString()}
+                    </td>
+                    <td className="text-white">{r.code}</td>
+                    <td>{r.user.name || r.user.email}</td>
+                    <td className="text-slate-400">{r.context}</td>
+                    <td>{r.resultingPlan || "—"}</td>
+                    <td>{money.format(r.discountAmount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
+
+      {tab === "funding" && bundle ? (
+        <section className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Kpi label="Active programs" value={String(bundle.funding.programsActive)} />
+            <Kpi
+              label="Settled deal cash"
+              value={money.format(bundle.funding.dealPayments.settledZar)}
+              hint={`${bundle.funding.dealPayments.settledCount} settled`}
+            />
+            <Kpi
+              label="Pending deal cash"
+              value={money.format(bundle.funding.dealPayments.pendingZar)}
+              hint="Authorized / locked / pending"
+            />
+            <Kpi
+              label="Agreed term sheets"
+              value={money.format(bundle.funding.deals.termSheetCommittedZar)}
+              hint={`${bundle.funding.deals.funded} funded · ${bundle.funding.deals.negotiating} in pipeline`}
+            />
+            <Kpi
+              label="Program apps requested"
+              value={money.format(bundle.funding.applications.requestedZar)}
+              hint={`${bundle.funding.applications.approved} approved · ${money.format(bundle.funding.applications.approvedRequestedZar)}`}
+            />
+            <Kpi
+              label="Project funding asks"
+              value={money.format(bundle.funding.projectFundingRequests.requestedZar)}
+              hint={`${bundle.funding.projectFundingRequests.pending} pending`}
+            />
+            <Kpi
+              label="Funders approved"
+              value={String(bundle.funding.funders.approved)}
+              hint={`${bundle.funding.funders.pending} pending KYC`}
+            />
+            <Kpi label="Deals in period" value={String(bundle.funding.deals.total)} />
+          </div>
+          <div className="flex flex-wrap gap-3 text-xs">
+            <Link href="/admin/funding-programs" className="text-amber-300 hover:underline">
+              Funding programs
+            </Link>
+            <Link href="/admin/funders" className="text-amber-300 hover:underline">
+              Funder KYC
+            </Link>
+          </div>
+          <div className="storytime-plan-card overflow-x-auto p-4">
+            <h2 className="text-sm font-semibold text-white">Deal payments (period)</h2>
+            <table className="mt-3 w-full min-w-[900px] text-left text-sm">
+              <thead className="text-xs uppercase text-slate-500">
+                <tr>
+                  <th className="py-2">When</th>
+                  <th>Project</th>
+                  <th>Funder</th>
+                  <th>Creator</th>
+                  <th>Amount</th>
+                  <th>Status</th>
+                  <th>Settled</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bundle.funding.dealPayments.recent.map((p) => (
+                  <tr key={p.id} className="border-t border-white/5">
+                    <td className="whitespace-nowrap py-2 text-slate-400">
+                      {new Date(p.createdAt).toLocaleString()}
+                    </td>
+                    <td>{p.projectTitle || "—"}</td>
+                    <td>{p.funder.name || p.funder.email}</td>
+                    <td>{p.creator.name || p.creator.email}</td>
+                    <td>{money.format(p.amount)}</td>
+                    <td>{p.status}</td>
+                    <td className="text-slate-400">
+                      {p.settledAt ? new Date(p.settledAt).toLocaleString() : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {bundle.funding.dealPayments.recent.length === 0 ? (
+              <p className="mt-3 text-sm text-slate-500">No deal payments in this period.</p>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
+
+      {tab === "retention" && bundle ? (
+        <section className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Kpi label="Total platform retained" value={money.format(bundle.retention.platformTotalRetained)} />
+            <Kpi label="From viewer pool" value={money.format(bundle.retention.viewerPlatformRetained)} />
+            <Kpi label="Service revenue (net)" value={money.format(bundle.retention.serviceRevenueNet)} />
+            <Kpi label="Marketplace fee take" value={money.format(bundle.retention.marketplaceFees)} />
+            <Kpi
+              label="Escrow held"
+              value={money.format(bundle.retention.escrow.heldZar)}
+              hint={`${bundle.retention.escrow.heldCount} open`}
+            />
+            <Kpi label="Escrow released (period)" value={money.format(bundle.retention.escrow.releasedInPeriodZar)} />
+            <Kpi
+              label="Treasury PLATFORM_REVENUE"
+              value={money.format(bundle.retention.treasury.platformRevenueBalance)}
+              hint="Live wallet balances"
+            />
+            <Kpi
+              label="Treasury CREATOR_REVENUE"
+              value={money.format(bundle.retention.treasury.creatorRevenueBalance)}
+            />
+          </div>
+          <div className="storytime-plan-card overflow-x-auto p-4">
+            <h2 className="text-sm font-semibold text-white">Retention by purpose</h2>
+            <p className="mt-1 text-xs text-slate-500">
+              How cash in this period maps to platform vs creator shares after gateway fees.
+            </p>
+            <table className="mt-3 w-full min-w-[900px] text-left text-sm">
+              <thead className="text-xs uppercase text-slate-500">
+                <tr>
+                  <th className="py-2">Purpose</th>
+                  <th>Category</th>
+                  <th>Count</th>
+                  <th>Gross</th>
+                  <th>Gateway</th>
+                  <th>Net</th>
+                  <th>Platform</th>
+                  <th>Creator</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bundle.retention.byPurpose.map((r) => (
+                  <tr key={r.purpose} className="border-t border-white/5">
+                    <td className="max-w-[220px] truncate py-2" title={r.purpose}>
+                      {r.purposeLabel}
+                    </td>
+                    <td className="text-slate-400">{r.category}</td>
+                    <td>{r.count}</td>
+                    <td>{money.format(r.gross)}</td>
+                    <td>{money.format(r.gatewayFees)}</td>
+                    <td>{money.format(r.net)}</td>
+                    <td>{money.format(r.platformShare)}</td>
+                    <td>{money.format(r.creatorShare)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Kpi label="Wallets AVAILABLE" value={money.format(bundle.retention.treasury.walletsAvailable)} />
+            <Kpi label="Wallets PENDING" value={money.format(bundle.retention.treasury.walletsPending)} />
+            <Kpi label="Wallets LOCKED" value={money.format(bundle.retention.treasury.walletsLocked)} />
+          </div>
         </section>
       ) : null}
 
@@ -394,10 +769,6 @@ export function AdminFinanceHub() {
               hint={`Rate ${pct(bundle.feeSettings.appleCommissionRate)} (editable)`}
             />
             <Kpi label="Proceeds-based fees" value={money.format(bundle.gateways.appleProceedsFees)} />
-            <p className="text-xs text-slate-500">
-              Example: R29.99 catalogue → fee {money.format(29.99 * bundle.feeSettings.appleCommissionRate)} → net{" "}
-              {money.format(29.99 * (1 - bundle.feeSettings.appleCommissionRate))}.
-            </p>
           </div>
           <div className="storytime-plan-card overflow-x-auto p-4 lg:col-span-2">
             <h2 className="text-sm font-semibold text-white">Settlement sources</h2>
@@ -454,8 +825,8 @@ export function AdminFinanceHub() {
         <section className="storytime-plan-card space-y-4 p-4 md:p-6">
           <h2 className="text-sm font-semibold text-white">Editable fee schedule</h2>
           <p className="text-xs text-slate-500">
-            Apple commission applies when App Store proceeds are not on the payment. Viewer splits apply to net viewer-pool
-            cash after gateway fees. Changes are audited.
+            Apple commission applies when App Store proceeds are not on the payment. Viewer splits apply to net
+            viewer-pool cash after gateway fees. Marketplace fee is the platform take on marketplace volume.
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="text-xs text-slate-400">
@@ -529,7 +900,7 @@ export function AdminFinanceHub() {
                 <tbody>
                   {settingsQuery.data.history.map((h) => (
                     <tr key={h.id} className="border-t border-white/5">
-                      <td className="py-2 whitespace-nowrap">{new Date(h.createdAt).toLocaleString()}</td>
+                      <td className="whitespace-nowrap py-2">{new Date(h.createdAt).toLocaleString()}</td>
                       <td>{pct(h.appleCommissionRate)}</td>
                       <td>{pct(h.viewerCreatorSplit)}</td>
                       <td>{pct(h.viewerPlatformSplit)}</td>
@@ -548,7 +919,7 @@ export function AdminFinanceHub() {
         <section className="storytime-plan-card space-y-3 p-4 md:p-6">
           <h2 className="text-sm font-semibold text-white">Exports</h2>
           <p className="text-xs text-slate-500">
-            Download the selected period as CSV (gross, gateway fees, net, platform/creator shares).
+            CSV includes summary, providers, sheets, promo liability, funding, and retention for the selected period.
           </p>
           <a
             href={exportHref}
@@ -556,14 +927,14 @@ export function AdminFinanceHub() {
           >
             Download finance CSV
           </a>
-          <a
-            href={`/api/admin/revenue/export`}
-            className="ml-2 inline-flex rounded-lg bg-white/5 px-4 py-2 text-sm text-slate-200 ring-1 ring-white/10"
-          >
-            Legacy MTD revenue CSV
-          </a>
         </section>
       ) : null}
+
+      <AdminTransactionDetailModal
+        kind={detail?.kind ?? null}
+        id={detail?.id ?? null}
+        onClose={() => setDetail(null)}
+      />
     </div>
   );
 }

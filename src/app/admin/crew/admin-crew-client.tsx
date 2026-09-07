@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Briefcase, Users, Send, MapPin, Building2, ChevronDown, ChevronUp } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { Briefcase, Users, Send, MapPin, Building2, Search, ExternalLink } from "lucide-react";
 
 type Team = {
   id: string;
@@ -10,8 +11,9 @@ type Team = {
   description: string | null;
   city: string | null;
   country: string | null;
-  user: { name: string | null; email: string | null };
-  _count: { members: number; requests: number };
+  user: { id?: string; name: string | null; email: string | null };
+  _count: { members: number; requests: number; crewInvitations?: number };
+  lastActivityAt?: string;
 };
 
 type Data = {
@@ -26,87 +28,153 @@ export function AdminCrewClient() {
   const [data, setData] = useState<Data | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"overview" | "teams">("overview");
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [teamDetails, setTeamDetails] = useState<Record<string, { members: { name: string; role: string }[] }>>({});
+  const [q, setQ] = useState("");
 
   useEffect(() => {
     fetch("/api/admin/crew").then((r) => r.json()).then(setData).finally(() => setLoading(false));
   }, []);
 
-  async function loadTeamMembers(teamId: string) {
-    const r = await fetch(`/api/crew-teams/${teamId}`);
-    if (r.ok) {
-      const t = await r.json();
-      setTeamDetails((prev) => ({ ...prev, [teamId]: { members: t.members || [] } }));
-    }
+  const filtered = useMemo(() => {
+    if (!data) return [];
+    const needle = q.trim().toLowerCase();
+    if (!needle) return data.teams;
+    return data.teams.filter(
+      (t) =>
+        t.companyName.toLowerCase().includes(needle) ||
+        (t.user?.name || "").toLowerCase().includes(needle) ||
+        (t.user?.email || "").toLowerCase().includes(needle) ||
+        (t.city || "").toLowerCase().includes(needle),
+    );
+  }, [data, q]);
+
+  if (loading || !data) {
+    return (
+      <div className="flex min-h-[60vh] justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
+      </div>
+    );
   }
 
-  if (loading || !data) return (
-    <div className="flex justify-center min-h-[60vh]"><div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" /></div>
-  );
-
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8">
+    <div className="mx-auto max-w-7xl space-y-8 p-8">
       <div>
-        <h1 className="text-3xl font-semibold text-white mb-2 flex items-center gap-3"><Briefcase className="w-8 h-8 text-emerald-500" /> Crew Repository</h1>
-        <p className="text-slate-400">Overview of crew teams, members, and creator requests</p>
+        <h1 className="mb-2 flex items-center gap-3 text-3xl font-semibold text-white">
+          <Briefcase className="h-8 w-8 text-emerald-500" /> Crew Repository
+        </h1>
+        <p className="text-slate-400">Overview of crew teams — open a dossier for full roster, requests, and contracts</p>
       </div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4"><p className="text-xs text-slate-400">Crew Teams</p><p className="text-2xl font-bold text-white">{data.teamCount}</p></div>
-        <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4"><p className="text-xs text-slate-400">Total Members</p><p className="text-2xl font-bold text-white">{data.totalMembers}</p></div>
-        <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4"><p className="text-xs text-slate-400">Total Requests</p><p className="text-2xl font-bold text-white">{data.requestCount}</p></div>
-        <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4"><p className="text-xs text-slate-400">Pending</p><p className="text-2xl font-bold text-white">{data.pendingRequests}</p></div>
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <div className="rounded-xl border border-slate-700/50 bg-slate-800/50 p-4">
+          <p className="text-xs text-slate-400">Crew Teams</p>
+          <p className="text-2xl font-bold text-white">{data.teamCount}</p>
+        </div>
+        <div className="rounded-xl border border-slate-700/50 bg-slate-800/50 p-4">
+          <p className="text-xs text-slate-400">Total Members</p>
+          <p className="text-2xl font-bold text-white">{data.totalMembers}</p>
+        </div>
+        <div className="rounded-xl border border-slate-700/50 bg-slate-800/50 p-4">
+          <p className="text-xs text-slate-400">Total Requests</p>
+          <p className="text-2xl font-bold text-white">{data.requestCount}</p>
+        </div>
+        <div className="rounded-xl border border-slate-700/50 bg-slate-800/50 p-4">
+          <p className="text-xs text-slate-400">Pending</p>
+          <p className="text-2xl font-bold text-white">{data.pendingRequests}</p>
+        </div>
       </div>
-      <div className="flex gap-2">
-        <button onClick={() => setTab("overview")} className={`px-4 py-2 rounded-lg text-sm font-medium ${tab === "overview" ? "bg-orange-500 text-white" : "bg-slate-800/50 text-slate-400 border border-slate-700/50"}`}>Overview</button>
-        <button onClick={() => setTab("teams")} className={`px-4 py-2 rounded-lg text-sm font-medium ${tab === "teams" ? "bg-orange-500 text-white" : "bg-slate-800/50 text-slate-400 border border-slate-700/50"}`}>All Teams</button>
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          onClick={() => setTab("overview")}
+          className={`rounded-lg px-4 py-2 text-sm font-medium ${tab === "overview" ? "bg-orange-500 text-white" : "border border-slate-700/50 bg-slate-800/50 text-slate-400"}`}
+        >
+          Overview
+        </button>
+        <button
+          onClick={() => setTab("teams")}
+          className={`rounded-lg px-4 py-2 text-sm font-medium ${tab === "teams" ? "bg-orange-500 text-white" : "border border-slate-700/50 bg-slate-800/50 text-slate-400"}`}
+        >
+          All Teams
+        </button>
+        <div className="relative ml-auto min-w-[200px] flex-1 max-w-sm">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search teams…"
+            className="w-full rounded-lg border border-slate-700 bg-slate-900/60 py-2 pl-9 pr-3 text-sm text-white placeholder:text-slate-500"
+          />
+        </div>
       </div>
       {tab === "overview" && (
-        <div className="grid md:grid-cols-2 gap-6">
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
-            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2"><Building2 className="w-5 h-5 text-emerald-400" /> Recent Crew Teams</h2>
-            {data.teams.length === 0 ? <p className="text-slate-500 text-sm">No crew teams yet.</p> : (
+        <div className="grid gap-6 md:grid-cols-2">
+          <div className="rounded-xl border border-slate-700/50 bg-slate-800/50 p-5">
+            <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-white">
+              <Building2 className="h-5 w-5 text-emerald-400" /> Recent Crew Teams
+            </h2>
+            {filtered.length === 0 ? (
+              <p className="text-sm text-slate-500">No crew teams yet.</p>
+            ) : (
               <ul className="space-y-2">
-                {data.teams.slice(0, 10).map((t) => (
-                  <li key={t.id} className="flex justify-between text-sm"><span className="text-white">{t.companyName}</span><span className="text-slate-500">{t._count.members} members · {t._count.requests} requests</span></li>
+                {filtered.slice(0, 10).map((t) => (
+                  <li key={t.id}>
+                    <Link href={`/admin/crew/${t.id}`} className="flex justify-between text-sm hover:text-orange-300">
+                      <span className="text-white">{t.companyName}</span>
+                      <span className="text-slate-500">
+                        {t._count.members} members · {t._count.requests} requests
+                      </span>
+                    </Link>
+                  </li>
                 ))}
               </ul>
             )}
           </div>
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
-            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2"><Users className="w-5 h-5 text-emerald-400" /> Summary</h2>
-            <p className="text-slate-400 text-sm">Crew teams are discoverable by creators under Creator → Crew → Find Crew Teams. Creators send requests; teams manage them in their dashboard.</p>
+          <div className="rounded-xl border border-slate-700/50 bg-slate-800/50 p-5">
+            <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-white">
+              <Users className="h-5 w-5 text-emerald-400" /> Summary
+            </h2>
+            <p className="text-sm text-slate-400">
+              Open any team dossier to inspect roster, creator requests, project invitations, and contracts.
+            </p>
           </div>
         </div>
       )}
       {tab === "teams" && (
-        <div className="space-y-4">
-          {data.teams.length === 0 ? <div className="rounded-2xl bg-slate-800/30 border border-slate-700/50 p-8 text-center text-slate-500">No crew teams yet.</div> : data.teams.map((team) => (
-            <div key={team.id} className="rounded-2xl bg-slate-800/30 border border-slate-700/50 overflow-hidden">
-              <button onClick={() => { setExpandedId(expandedId === team.id ? null : team.id); if (expandedId !== team.id) loadTeamMembers(team.id); }} className="w-full p-5 flex items-center justify-between text-left">
-                <div>
-                  <h3 className="text-lg font-semibold text-white">{team.companyName}</h3>
-                  {team.tagline && <p className="text-sm text-slate-400 mt-0.5">{team.tagline}</p>}
-                  <div className="flex gap-3 mt-2 text-xs text-slate-500">
-                    {(team.city || team.country) && <span><MapPin className="w-3 h-3 inline" /> {[team.city, team.country].filter(Boolean).join(", ")}</span>}
-                    <span>{team._count.members} members</span>
-                    <span><Send className="w-3 h-3 inline" /> {team._count.requests} requests</span>
-                  </div>
-                  <p className="text-xs text-slate-500 mt-1">Owner: {team.user?.name || team.user?.email}</p>
-                </div>
-                {expandedId === team.id ? <ChevronUp className="w-5 h-5 text-slate-400" /> : <ChevronDown className="w-5 h-5 text-slate-400" />}
-              </button>
-              {expandedId === team.id && teamDetails[team.id] && (
-                <div className="px-5 pb-5 border-t border-slate-700/50 pt-4">
-                  {team.description && <p className="text-sm text-slate-400 mb-4">{team.description}</p>}
-                  <h4 className="text-sm font-medium text-white mb-2">Team members</h4>
-                  <ul className="space-y-1 text-sm text-slate-400">
-                    {teamDetails[team.id].members.map((m, i) => <li key={i}>{m.name} · {m.role}</li>)}
-                  </ul>
-                </div>
-              )}
+        <div className="space-y-3">
+          {filtered.length === 0 ? (
+            <div className="rounded-2xl border border-slate-700/50 bg-slate-800/30 p-8 text-center text-slate-500">
+              No crew teams match.
             </div>
-          ))}
+          ) : (
+            filtered.map((team) => (
+              <Link
+                key={team.id}
+                href={`/admin/crew/${team.id}`}
+                className="block rounded-2xl border border-slate-700/50 bg-slate-800/30 p-5 transition hover:border-emerald-500/40"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">{team.companyName}</h3>
+                    {team.tagline && <p className="mt-0.5 text-sm text-slate-400">{team.tagline}</p>}
+                    <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
+                      {(team.city || team.country) && (
+                        <span>
+                          <MapPin className="inline h-3 w-3" /> {[team.city, team.country].filter(Boolean).join(", ")}
+                        </span>
+                      )}
+                      <span>{team._count.members} members</span>
+                      <span>
+                        <Send className="inline h-3 w-3" /> {team._count.requests} requests
+                      </span>
+                      {team.lastActivityAt && (
+                        <span>Last activity {new Date(team.lastActivityAt).toLocaleDateString()}</span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-xs text-slate-500">Owner: {team.user?.name || team.user?.email}</p>
+                  </div>
+                  <ExternalLink className="mt-1 h-4 w-4 shrink-0 text-slate-500" />
+                </div>
+              </Link>
+            ))
+          )}
         </div>
       )}
     </div>

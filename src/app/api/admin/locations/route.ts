@@ -10,15 +10,15 @@ export async function GET() {
   if (typeof (prisma as { locationListing?: unknown }).locationListing === "undefined") {
     return NextResponse.json(
       { error: "Location models not loaded. Run: npm run refresh, then restart the dev server." },
-      { status: 503 }
+      { status: 503 },
     );
   }
 
-  const [listings, bookings, ownerCount] = await Promise.all([
+  const [listings, bookings, owners] = await Promise.all([
     prisma.locationListing.findMany({
       orderBy: { createdAt: "desc" },
       include: {
-        company: { select: { id: true, name: true, email: true } },
+        company: { select: { id: true, name: true, email: true, professionalName: true } },
         _count: { select: { bookings: true } },
       },
     }),
@@ -30,8 +30,45 @@ export async function GET() {
         owner: { select: { id: true, name: true, email: true } },
       },
     }),
-    prisma.user.count({ where: { role: "LOCATION_OWNER" } }),
+    prisma.user.findMany({
+      where: { role: "LOCATION_OWNER" },
+      select: { id: true, name: true, email: true, professionalName: true },
+    }),
   ]);
 
-  return NextResponse.json({ listings, bookings, ownerCount });
+  const listingCountByOwner = new Map<string, number>();
+  const bookingCountByOwner = new Map<string, number>();
+  const lastActivityByOwner = new Map<string, string>();
+
+  for (const l of listings) {
+    if (!l.companyId) continue;
+    listingCountByOwner.set(l.companyId, (listingCountByOwner.get(l.companyId) || 0) + 1);
+    const at = l.createdAt.toISOString();
+    if (!lastActivityByOwner.has(l.companyId) || at > (lastActivityByOwner.get(l.companyId) || "")) {
+      lastActivityByOwner.set(l.companyId, at);
+    }
+  }
+  for (const b of bookings) {
+    bookingCountByOwner.set(b.ownerId, (bookingCountByOwner.get(b.ownerId) || 0) + 1);
+    const at = b.createdAt.toISOString();
+    if (!lastActivityByOwner.has(b.ownerId) || at > (lastActivityByOwner.get(b.ownerId) || "")) {
+      lastActivityByOwner.set(b.ownerId, at);
+    }
+  }
+
+  const ownerSummaries = owners.map((o) => ({
+    id: o.id,
+    name: o.professionalName || o.name,
+    email: o.email,
+    listingCount: listingCountByOwner.get(o.id) || 0,
+    bookingCount: bookingCountByOwner.get(o.id) || 0,
+    lastActivityAt: lastActivityByOwner.get(o.id) || null,
+  }));
+
+  return NextResponse.json({
+    listings,
+    bookings,
+    ownerCount: owners.length,
+    owners: ownerSummaries,
+  });
 }

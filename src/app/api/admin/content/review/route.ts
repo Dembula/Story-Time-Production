@@ -144,8 +144,46 @@ export async function PATCH(req: NextRequest) {
     if (action === "APPROVE") {
       const episodeRows = await prisma.contentEpisode.findMany({
         where: { season: { contentId } },
-        select: { id: true, title: true, videoUrl: true },
+        select: { id: true, title: true, videoUrl: true, episodeNumber: true },
       });
+      const seasonRowsForMedia = await prisma.contentSeason.findMany({
+        where: { contentId },
+        select: {
+          seasonNumber: true,
+          episodes: { select: { episodeNumber: true, title: true, videoUrl: true } },
+        },
+      });
+      const contentType = await prisma.content.findUnique({
+        where: { id: contentId },
+        select: {
+          type: true,
+          videoUrl: true,
+          posterUrl: true,
+          backdropUrl: true,
+          trailerUrl: true,
+        },
+      });
+      if (contentType) {
+        const { getMissingCatalogueMedia } = await import("@/lib/catalogue-upload/media-requirements");
+        const missingMedia = getMissingCatalogueMedia({
+          type: contentType.type,
+          videoUrl: contentType.videoUrl,
+          posterUrl: contentType.posterUrl,
+          backdropUrl: contentType.backdropUrl,
+          trailerUrl: contentType.trailerUrl,
+          seasons: seasonRowsForMedia,
+        });
+        if (missingMedia.length > 0) {
+          return NextResponse.json(
+            {
+              error: `Cannot approve — missing required media: ${missingMedia.join("; ")}`,
+              missingMedia,
+            },
+            { status: 400 },
+          );
+        }
+      }
+
       const playbackItems = [
         { label: "main video", url: before.videoUrl },
         { label: "trailer", url: before.trailerUrl },

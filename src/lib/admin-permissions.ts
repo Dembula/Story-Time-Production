@@ -126,6 +126,7 @@ const ADMIN_PATH_RULES: { prefix: string; right: AdminRightKey | null }[] = [
   { prefix: "/api/admin/cast", right: "canManageMarketplace" },
   { prefix: "/api/admin/locations", right: "canManageMarketplace" },
   { prefix: "/api/admin/marketplace-vendors", right: "canManageMarketplace" },
+  { prefix: "/api/admin/marketplace", right: "canManageMarketplace" },
   { prefix: "/api/admin/revenue", right: "canManageRevenue" },
   { prefix: "/api/admin/finance", right: "canManageFinance" },
   { prefix: "/api/admin/payments", right: "canManageFinance" },

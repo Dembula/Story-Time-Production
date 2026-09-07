@@ -9,6 +9,8 @@ type AdminReviewPlayerProps = {
   contentId: string;
   /** When true, preview the trailer instead of the main film. */
   trailer?: boolean;
+  /** Optional episode id for series / long-form review. */
+  episodeId?: string;
   className?: string;
 };
 
@@ -26,6 +28,7 @@ type PreviewPayload = {
 export function AdminReviewPlayer({
   contentId,
   trailer = false,
+  episodeId,
   className = "w-full h-full",
 }: AdminReviewPlayerProps) {
   const [loading, setLoading] = useState(true);
@@ -38,7 +41,10 @@ export function AdminReviewPlayer({
     setError(null);
     setPayload(null);
 
-    const qs = trailer ? "?trailer=1" : "";
+    const params = new URLSearchParams();
+    if (trailer) params.set("trailer", "1");
+    if (episodeId) params.set("episodeId", episodeId);
+    const qs = params.toString() ? `?${params}` : "";
     void fetch(`/api/admin/content/${contentId}/playback-preview${qs}`)
       .then(async (res) => {
         const data = (await res.json().catch(() => ({}))) as PreviewPayload & { error?: string };
@@ -59,7 +65,7 @@ export function AdminReviewPlayer({
     return () => {
       cancelled = true;
     };
-  }, [contentId, trailer]);
+  }, [contentId, trailer, episodeId]);
 
   if (loading) {
     return (

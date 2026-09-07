@@ -33,6 +33,24 @@ export async function GET(req: NextRequest) {
       crewMembers: { select: { name: true, role: true }, take: 20 },
       btsVideos: { select: { id: true, title: true, videoUrl: true, thumbnail: true }, orderBy: { sortOrder: "asc" } },
       subtitles: { select: { id: true, language: true, label: true, vttUrl: true, isDefault: true } },
+      seasons: {
+        orderBy: { seasonNumber: "asc" },
+        select: {
+          id: true,
+          seasonNumber: true,
+          title: true,
+          episodes: {
+            orderBy: { episodeNumber: "asc" },
+            select: {
+              id: true,
+              episodeNumber: true,
+              title: true,
+              videoUrl: true,
+              duration: true,
+            },
+          },
+        },
+      },
     },
     orderBy: { createdAt: "desc" },
   });

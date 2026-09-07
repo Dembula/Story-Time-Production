@@ -19,6 +19,7 @@ import { AdminProjectReviewDigest } from "@/components/admin/admin-project-revie
 import { AdminEncodeProgress } from "@/components/admin/admin-encode-progress";
 import { AdminReviewPlayer } from "@/components/admin/admin-review-player";
 import { parsePlatformScriptVersionId } from "@/lib/content-catalogue-tags";
+import { buildAdminMediaChecklist } from "@/lib/admin/admin-media-checklist";
 
 interface ContentItem {
   id: string;
@@ -67,6 +68,18 @@ interface ContentItem {
   crewMembers: { name: string; role: string }[];
   btsVideos: { id: string; title: string; videoUrl: string | null; thumbnail: string | null }[];
   subtitles: { id: string; language: string; label: string; vttUrl: string; isDefault: boolean }[];
+  seasons?: Array<{
+    id: string;
+    seasonNumber: number;
+    title: string | null;
+    episodes: Array<{
+      id: string;
+      episodeNumber: number;
+      title: string;
+      videoUrl: string | null;
+      duration: number | null;
+    }>;
+  }>;
 }
 
 type FeedbackDraftRow = { kind: ReviewFeedbackKind; message: string; presetPath: string };
@@ -103,12 +116,24 @@ export function AdminContentClient() {
   const [tab, setTab] = useState("ALL");
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [previewing, setPreviewing] = useState<{ id: string; trailer: boolean } | null>(null);
+  const [previewing, setPreviewing] = useState<{
+    id: string;
+    trailer: boolean;
+    episodeId?: string | null;
+  } | null>(null);
   const [noteById, setNoteById] = useState<Record<string, string>>({});
   const [feedbackById, setFeedbackById] = useState<Record<string, FeedbackDraftRow[]>>({});
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const highlight = new URLSearchParams(window.location.search).get("highlight");
+    if (highlight) {
+      window.location.replace(`/admin/content/${highlight}`);
+    }
+  }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -276,8 +301,25 @@ export function AdminContentClient() {
       {previewing && (() => {
         const c = content.find((x) => x.id === previewing.id);
         if (!c) return null;
+        const checklist = buildAdminMediaChecklist({
+          type: c.type,
+          videoUrl: c.videoUrl,
+          posterUrl: c.posterUrl,
+          backdropUrl: c.backdropUrl,
+          trailerUrl: c.trailerUrl,
+          scriptUrl: c.scriptUrl,
+          seasons: c.seasons,
+        });
         const hasMain = Boolean(c.videoUrl);
         const hasTrailer = Boolean(c.trailerUrl);
+        const hasEpisode = Boolean(previewing.episodeId) || checklist.episodeStats.withMaster > 0;
+        const modeLabel = previewing.trailer
+          ? "Trailer review"
+          : previewing.episodeId
+            ? "Episode review"
+            : checklist.requirements.longForm
+              ? "Episode review"
+              : "Main film review";
         return (
           <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setPreviewing(null)}>
             <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-4xl w-full overflow-hidden" onClick={(e) => e.stopPropagation()}>
@@ -285,20 +327,20 @@ export function AdminContentClient() {
                 <div className="min-w-0">
                   <h3 className="text-white font-semibold truncate">{c.title}</h3>
                   <p className="text-xs text-slate-400">
-                    {previewing.trailer ? "Trailer review" : "Main film review"} · {c.type} · by {c.creator.name}
+                    {modeLabel} · {c.type} · by {c.creator.name}
                     {c.duration ? ` · ${c.duration} min` : ""}
                   </p>
                 </div>
                 <button onClick={() => setPreviewing(null)} className="text-slate-400 hover:text-white text-xl shrink-0">✕</button>
               </div>
-              {(hasMain || hasTrailer) && (
-                <div className="flex gap-2 px-4 pt-3">
+              {(hasMain || hasTrailer || hasEpisode) && (
+                <div className="flex flex-wrap gap-2 px-4 pt-3">
                   {hasMain ? (
                     <button
                       type="button"
-                      onClick={() => setPreviewing({ id: c.id, trailer: false })}
+                      onClick={() => setPreviewing({ id: c.id, trailer: false, episodeId: null })}
                       className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
-                        !previewing.trailer
+                        !previewing.trailer && !previewing.episodeId
                           ? "bg-orange-500 text-white"
                           : "bg-slate-800 text-slate-300 hover:bg-slate-700"
                       }`}
@@ -306,10 +348,25 @@ export function AdminContentClient() {
                       Main film
                     </button>
                   ) : null}
+                  {checklist.requirements.longForm && checklist.firstEpisodeId ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPreviewing({ id: c.id, trailer: false, episodeId: checklist.firstEpisodeId })
+                      }
+                      className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                        previewing.episodeId
+                          ? "bg-orange-500 text-white"
+                          : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                      }`}
+                    >
+                      First episode
+                    </button>
+                  ) : null}
                   {hasTrailer ? (
                     <button
                       type="button"
-                      onClick={() => setPreviewing({ id: c.id, trailer: true })}
+                      onClick={() => setPreviewing({ id: c.id, trailer: true, episodeId: null })}
                       className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
                         previewing.trailer
                           ? "bg-orange-500 text-white"
@@ -322,11 +379,12 @@ export function AdminContentClient() {
                 </div>
               )}
               <div className="aspect-video bg-black mt-3">
-                {(previewing.trailer ? hasTrailer : hasMain) ? (
+                {(previewing.trailer ? hasTrailer : hasMain || Boolean(previewing.episodeId) || hasEpisode) ? (
                   <AdminReviewPlayer
-                    key={`${previewing.id}-${previewing.trailer ? "trailer" : "main"}`}
+                    key={`${previewing.id}-${previewing.trailer ? "trailer" : previewing.episodeId || "main"}`}
                     contentId={previewing.id}
                     trailer={previewing.trailer}
+                    episodeId={previewing.episodeId || undefined}
                     className="w-full h-full"
                   />
                 ) : (
@@ -338,6 +396,12 @@ export function AdminContentClient() {
               <div className="p-4 space-y-3">
                 <p className="text-sm text-slate-400">{c.description}</p>
                 <div className="flex gap-3">
+                  <Link
+                    href={`/admin/content/${c.id}`}
+                    className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-slate-200 border border-slate-600 rounded-lg text-sm hover:bg-slate-700 transition"
+                  >
+                    Open full review
+                  </Link>
                   <button onClick={() => { handleReview(c.id, "APPROVE"); setPreviewing(null); }} className="flex items-center gap-2 px-4 py-2 bg-green-500/10 text-green-400 border border-green-500/30 rounded-lg text-sm hover:bg-green-500/20 transition">
                     <CheckCircle className="w-4 h-4" /> Approve & Publish
                   </button>
@@ -399,11 +463,43 @@ export function AdminContentClient() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {c.videoUrl && (
-                      <button onClick={(e) => { e.stopPropagation(); setPreviewing({ id: c.id, trailer: false }); }} className="p-2 rounded-lg bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 transition" title="Preview video">
-                        <Play className="w-4 h-4" />
-                      </button>
-                    )}
+                    <Link
+                      href={`/admin/content/${c.id}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="rounded-lg bg-slate-700/50 px-2.5 py-1.5 text-xs text-slate-200 hover:bg-slate-700"
+                    >
+                      Open review
+                    </Link>
+                    {(() => {
+                      const checklist = buildAdminMediaChecklist({
+                        type: c.type,
+                        videoUrl: c.videoUrl,
+                        posterUrl: c.posterUrl,
+                        backdropUrl: c.backdropUrl,
+                        trailerUrl: c.trailerUrl,
+                        scriptUrl: c.scriptUrl,
+                        seasons: c.seasons,
+                      });
+                      if (!checklist.playable) return null;
+                      return (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPreviewing({
+                              id: c.id,
+                              trailer: false,
+                              episodeId: checklist.requirements.longForm
+                                ? checklist.firstEpisodeId
+                                : null,
+                            });
+                          }}
+                          className="p-2 rounded-lg bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 transition"
+                          title="Preview video"
+                        >
+                          <Play className="w-4 h-4" />
+                        </button>
+                      );
+                    })()}
                     {expanded === c.id ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
                   </div>
                 </div>
@@ -482,29 +578,89 @@ export function AdminContentClient() {
 
                     <div className="space-y-3">
                       <h4 className="text-sm font-medium text-slate-300">Media Assets</h4>
-                      <div className="space-y-2 text-xs">
-                        {[
-                          { label: "Main Video", url: c.videoUrl },
-                          { label: "Trailer", url: c.trailerUrl },
-                          { label: "Poster", url: c.posterUrl },
-                          { label: "Backdrop", url: c.backdropUrl },
-                          { label: "Script PDF", url: c.scriptUrl },
-                        ].map((a) => (
-                          <div key={a.label} className="flex items-center gap-2">
-                            <span className={`w-2 h-2 rounded-full ${a.url ? "bg-green-400" : "bg-red-400"}`} />
-                            <span className="text-slate-400">{a.label}:</span>
-                            {a.url ? <a href={a.url} target="_blank" rel="noopener noreferrer" className="text-orange-400 hover:underline truncate max-w-[200px] flex items-center gap-1"><ExternalLink className="w-3 h-3 flex-shrink-0" />Open</a> : <span className="text-red-400">Missing</span>}
-                          </div>
-                        ))}
-                      </div>
+                      {(() => {
+                        const checklist = buildAdminMediaChecklist({
+                          type: c.type,
+                          videoUrl: c.videoUrl,
+                          posterUrl: c.posterUrl,
+                          backdropUrl: c.backdropUrl,
+                          trailerUrl: c.trailerUrl,
+                          scriptUrl: c.scriptUrl,
+                          seasons: c.seasons,
+                        });
+                        return (
+                          <>
+                            {checklist.missing.length > 0 ? (
+                              <p className="text-xs text-amber-300/90">
+                                Missing for publish: {checklist.missing.join("; ")}
+                              </p>
+                            ) : (
+                              <p className="text-xs text-emerald-400/90">Catalogue media requirements met.</p>
+                            )}
+                            <div className="space-y-2 text-xs">
+                              {checklist.rows.map((a) => (
+                                <div key={a.label} className="flex items-center gap-2">
+                                  <span
+                                    className={`w-2 h-2 rounded-full ${
+                                      a.status === "ok"
+                                        ? "bg-green-400"
+                                        : a.status === "missing"
+                                          ? "bg-red-400"
+                                          : "bg-slate-500"
+                                    }`}
+                                  />
+                                  <span className="text-slate-400">{a.label}:</span>
+                                  {a.status === "ok" && a.url ? (
+                                    <a
+                                      href={a.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-orange-400 hover:underline truncate max-w-[200px] flex items-center gap-1"
+                                    >
+                                      <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                                      Open
+                                    </a>
+                                  ) : a.status === "ok" && a.detail ? (
+                                    <span className="text-emerald-400">{a.detail}</span>
+                                  ) : a.status === "missing" ? (
+                                    <span className="text-red-400">{a.detail || "Missing"}</span>
+                                  ) : (
+                                    <span className="text-slate-500">{a.detail || "N/A"}</span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
 
-                      {(c.videoUrl || c.trailerUrl) && <AdminEncodeProgress contentId={c.id} />}
+                            {(c.videoUrl || c.trailerUrl || checklist.episodeStats.withMaster > 0) && (
+                              <AdminEncodeProgress contentId={c.id} />
+                            )}
 
-                      {c.videoUrl && (
-                        <button onClick={() => setPreviewing({ id: c.id, trailer: false })} className="mt-3 flex items-center gap-2 px-4 py-2 bg-orange-500/10 text-orange-400 border border-orange-500/30 rounded-lg text-sm hover:bg-orange-500/20 transition">
-                          <Play className="w-4 h-4" /> Watch Content
-                        </button>
-                      )}
+                            {checklist.playable && (
+                              <button
+                                onClick={() =>
+                                  setPreviewing({
+                                    id: c.id,
+                                    trailer: false,
+                                    episodeId: checklist.requirements.longForm
+                                      ? checklist.firstEpisodeId
+                                      : null,
+                                  })
+                                }
+                                className="mt-3 flex items-center gap-2 px-4 py-2 bg-orange-500/10 text-orange-400 border border-orange-500/30 rounded-lg text-sm hover:bg-orange-500/20 transition"
+                              >
+                                <Play className="w-4 h-4" /> Watch Content
+                              </button>
+                            )}
+
+                            <Link
+                              href={`/admin/content/${c.id}`}
+                              className="mt-2 inline-flex items-center gap-2 text-xs text-orange-300 hover:text-orange-200"
+                            >
+                              Open full review dossier →
+                            </Link>
+                          </>
+                        );
+                      })()}
 
                       {c.posterUrl && <img src={c.posterUrl} alt="" className="w-20 h-30 rounded-lg object-cover border border-slate-700/50 mt-3" />}
 
