@@ -71,7 +71,7 @@ export function LicenseClient() {
       const res = await fetch("/api/creator/distribution-license", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type, promoCode }),
+        body: JSON.stringify({ action: "change_plan", type, promoCode }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {

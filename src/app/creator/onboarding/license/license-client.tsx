@@ -80,10 +80,10 @@ export function LicenseClient() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
           pkg === "PER_FILM"
-            ? { package: "PER_FILM", promoCode }
+            ? { action: "change_plan", package: "PER_FILM", promoCode }
             : pkg === "UPLOAD_YEARLY"
-              ? { package: "UPLOAD_YEARLY", promoCode }
-              : { package: "PIPELINE", billing: pipelineBilling, promoCode },
+              ? { action: "change_plan", package: "UPLOAD_YEARLY", promoCode }
+              : { action: "change_plan", package: "PIPELINE", billing: pipelineBilling, promoCode },
         ),
       });
       const data = await res.json().catch(() => ({}));

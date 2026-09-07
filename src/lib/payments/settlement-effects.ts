@@ -157,6 +157,36 @@ export async function applyPaymentRecordSettlementEffects(paymentRecord: {
         },
       });
     }
+
+    // Redeem partial creator promo after cash settles (full comps redeem at checkout).
+    const meta =
+      paymentRecord.metadata && typeof paymentRecord.metadata === "object"
+        ? (paymentRecord.metadata as Record<string, unknown>)
+        : null;
+    const promoCodeId = typeof meta?.promoCodeId === "string" ? meta.promoCodeId : null;
+    if (promoCodeId && paymentRecord.userId) {
+      try {
+        const { redeemPromoCode } = await import("@/lib/promo-codes");
+        await redeemPromoCode({
+          promoCodeId,
+          userId: paymentRecord.userId,
+          context: "CREATOR_LICENSE",
+          referenceId: paymentRecord.relatedEntityId,
+          discountAmount:
+            typeof meta?.discountAmount === "number" ? meta.discountAmount : null,
+          resultingPlan: typeof meta?.storedType === "string" ? meta.storedType : null,
+          metadata: {
+            basePrice: meta?.basePrice ?? null,
+            finalPrice: meta?.finalPriceAfterPromo ?? paymentRecord.amount ?? null,
+            fundingSource: "partial_promo",
+            promoFreeGrant: false,
+            paymentRecordId: paymentRecord.id ?? null,
+          },
+        });
+      } catch (err) {
+        console.warn("[settlement] creator promo redeem after payment failed", err);
+      }
+    }
   }
 
   if (paymentRecord.relatedEntityType === "MusicTrack" && paymentRecord.relatedEntityId) {

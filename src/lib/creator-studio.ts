@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { isCreatorLicensePeriodActive, isCreatorPerUploadLicense } from "@/lib/pricing";
+import { isFullyCompedCreatorLicenseRedemption } from "@/lib/promo-codes";
 import { computeStudioSuiteAccess, type CreatorSuiteAccessMap } from "@/lib/creator-suite-access";
 import {
   ensureOwnedStudioCompanyForUser,
@@ -142,7 +143,7 @@ async function hasSettledLicenseEntitlement(license: { id: string; type: string;
 
   if (license.externalPaymentId) return true;
 
-  const [payment, promoRedemption] = await Promise.all([
+  const [payment, promoRedemptions] = await Promise.all([
     prisma.paymentRecord.findFirst({
       where: {
         relatedEntityType: "CreatorDistributionLicense",
@@ -151,16 +152,19 @@ async function hasSettledLicenseEntitlement(license: { id: string; type: string;
       },
       select: { id: true },
     }),
-    prisma.promoCodeRedemption.findFirst({
+    prisma.promoCodeRedemption.findMany({
       where: {
         context: "CREATOR_LICENSE",
         referenceId: license.id,
       },
-      select: { id: true },
+      select: { id: true, discountAmount: true, metadata: true },
     }),
   ]);
 
-  return Boolean(payment || promoRedemption);
+  if (payment) return true;
+  return promoRedemptions.some((r) =>
+    isFullyCompedCreatorLicenseRedemption(r.metadata, r.discountAmount),
+  );
 }
 
 export type StudioPipelineContext = {

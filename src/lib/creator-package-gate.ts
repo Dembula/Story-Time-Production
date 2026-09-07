@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { isCreatorLicensePeriodActive, isCreatorPerFilmLicense } from "@/lib/pricing";
+import { isFullyCompedCreatorLicenseRedemption } from "@/lib/promo-codes";
 
 export type CreatorPackageGateReason = "no_license" | "payment_required" | "expired";
 
@@ -87,16 +88,29 @@ export async function getCreatorPackageStatus(
     select: { id: true },
   });
 
-  const promoRedemption = await prisma.promoCodeRedemption.findFirst({
+  if (paid) {
+    return {
+      complete: true,
+      onboardingPath,
+      licenseId: license.id,
+      licenseType: license.type,
+    };
+  }
+
+  const promoRedemptions = await prisma.promoCodeRedemption.findMany({
     where: {
       userId,
       context: "CREATOR_LICENSE",
       referenceId: license.id,
     },
-    select: { id: true },
+    select: { id: true, discountAmount: true, metadata: true },
   });
 
-  if (!paid && !promoRedemption) {
+  const fullyComped = promoRedemptions.some((r) =>
+    isFullyCompedCreatorLicenseRedemption(r.metadata, r.discountAmount),
+  );
+
+  if (!fullyComped) {
     return {
       complete: false,
       reason: "payment_required",

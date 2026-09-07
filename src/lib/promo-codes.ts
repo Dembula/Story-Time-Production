@@ -153,6 +153,30 @@ export function isFullyCompedPromo(promo: { kind: string; amount: number | null 
 }
 
 /**
+ * True when a stored CREATOR_LICENSE redemption fully comps the package (no cash owed).
+ * Partial discount redemptions must NOT unlock the portal without a SUCCEEDED payment.
+ */
+export function isFullyCompedCreatorLicenseRedemption(metadata: unknown, discountAmount?: number | null): boolean {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    // Legacy rows without metadata: only treat as full comp when discount is present and > 0
+    // is ambiguous — require explicit promoFreeGrant going forward.
+    return false;
+  }
+  const meta = metadata as Record<string, unknown>;
+  if (meta.promoFreeGrant === true) return true;
+  if (meta.fundingSource === "promo" && meta.promoFreeGrant !== false) {
+    const finalPrice = Number(meta.finalPrice ?? meta.finalPriceAfterPromo);
+    if (Number.isFinite(finalPrice) && finalPrice <= 0) return true;
+  }
+  const finalPrice = Number(meta.finalPrice ?? meta.finalPriceAfterPromo);
+  if (Number.isFinite(finalPrice) && finalPrice <= 0) return true;
+  const base = Number(meta.basePrice);
+  const discount = Number(meta.discountAmount ?? discountAmount ?? 0);
+  if (Number.isFinite(base) && base > 0 && Number.isFinite(discount) && discount >= base) return true;
+  return false;
+}
+
+/**
  * Entitlement end for a fully-comped promo.
  * Free-year / 100% codes grant one year; other comps follow the product's normal period.
  */
