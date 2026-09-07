@@ -10,15 +10,19 @@ const openRouter = createOpenAI({
   baseURL: "https://openrouter.ai/api/v1",
 });
 
-const SCREENPLAY_OCR_PROMPT = `You are extracting screenplay text from a scanned or image-based PDF page.
+const SCREENPLAY_OCR_PROMPT = `You are extracting screenplay text from a PDF.
+The PDF may be a scan, OR it may have a corrupt embedded text layer (broken fonts / missing ToUnicode maps) that looks like gibberish when copied. Always read the VISIBLE page content as a human would see it.
+
 Return ONLY the screenplay content as plain text in standard screenplay layout:
 - Scene headings (INT./EXT.) on their own lines
-- Character names centered (ALL CAPS) above dialogue
-- Action lines as paragraphs
-Do not add commentary, markdown, or JSON. Preserve page order if multiple pages are shown.`;
+- Character names in ALL CAPS on their own lines above dialogue
+- Action lines as normal paragraphs
+- Parentheticals on their own lines when present
+Do not invent scenes. Do not add commentary, markdown, or JSON. Preserve reading order across pages.`;
 
 /**
- * Vision OCR fallback when pdf-parse/pdfjs cannot extract text (scanned PDFs).
+ * Vision OCR fallback when pdf-parse/pdfjs cannot extract usable text
+ * (scanned PDFs or corrupt ToUnicode / CID font text layers).
  */
 export async function extractScreenplayPdfWithVision(input: {
   pdfBase64: string;

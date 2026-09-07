@@ -5,6 +5,8 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { extractPdfTextFromContentStreams } from "@/lib/ai-metadata/pdf-stream-text-extract";
 import {
+  isGarbledPdfExtraction,
+  isUnusableScreenplayExtract,
   normalizeImportedScreenplayLayout,
   scoreScreenplayLayout,
 } from "@/lib/script-studio/screenplay-layout-repair";
@@ -19,6 +21,11 @@ function resolvePdfjsWorkerHref(): string | null {
     "pdf.worker.mjs",
   );
   return existsSync(workerPath) ? pathToFileURL(workerPath).href : null;
+}
+
+function resolvePdfjsCMapUrl(): string | null {
+  const cMapDir = path.join(process.cwd(), "node_modules", "pdfjs-dist", "cmaps");
+  return existsSync(cMapDir) ? `${pathToFileURL(cMapDir).href}/` : null;
 }
 
 type PdfTextItem = {
@@ -162,6 +169,9 @@ async function extractWithPdfJs(buffer: Buffer): Promise<string> {
       useSystemFonts: true,
       disableFontFace: false,
       verbosity: 0,
+      ...(resolvePdfjsCMapUrl()
+        ? { cMapUrl: resolvePdfjsCMapUrl()!, cMapPacked: true }
+        : {}),
     })
     .promise;
 
@@ -210,12 +220,13 @@ function extractWithRawByteScrape(buffer: Buffer): string {
 
 /** Extract readable screenplay text from a PDF buffer. */
 export async function extractPdfTextFromBuffer(buffer: Buffer): Promise<PdfExtractionResult> {
-  // Stream first: best for TeX / custom-font screenplay PDFs.
+  // Prefer structured extractors first. Stream/byte scrapes often "win" letter-count
+  // contests on broken ToUnicode fonts while producing CID gibberish.
   const strategies: Array<{ method: string; run: () => Promise<string> | string }> = [
-    { method: "pdf-stream", run: () => extractWithPdfStreams(buffer) },
     { method: "pdfjs", run: () => extractWithPdfJs(buffer) },
     { method: "pdf-parse", run: () => extractWithPdfParse(buffer, false) },
     { method: "pdf-parse-raw", run: () => extractWithPdfParse(buffer, true) },
+    { method: "pdf-stream", run: () => extractWithPdfStreams(buffer) },
     { method: "pdf-bytes", run: () => extractWithRawByteScrape(buffer) },
   ];
 
@@ -232,12 +243,27 @@ export async function extractPdfTextFromBuffer(buffer: Buffer): Promise<PdfExtra
 
       // Keep any letter-bearing extract as a last-resort fallback.
       if (hasMeaningfulText(text, 4) && letterCount(text) > letterCount(fallbackText)) {
-        fallbackText = text;
-        fallbackMethod = strategy.method;
+        // Prefer non-garbled fallbacks when letter counts are similar.
+        if (
+          !fallbackText ||
+          !isGarbledPdfExtraction(text) ||
+          isGarbledPdfExtraction(fallbackText) ||
+          letterCount(text) > letterCount(fallbackText) * 1.25
+        ) {
+          fallbackText = text;
+          fallbackMethod = strategy.method;
+        }
       }
 
       if (!hasMeaningfulText(text)) continue;
-      const score = scoreScreenplayLayout(text);
+      let score = scoreScreenplayLayout(text);
+      // Extra demotion for stream/byte scrapes — they invent readable-looking noise.
+      if (strategy.method === "pdf-stream" || strategy.method === "pdf-bytes") {
+        score -= 40;
+      }
+      if (isUnusableScreenplayExtract(text)) {
+        score -= 100;
+      }
       if (score > bestScore) {
         bestScore = score;
         bestText = text;
@@ -246,6 +272,11 @@ export async function extractPdfTextFromBuffer(buffer: Buffer): Promise<PdfExtra
     } catch (err) {
       console.warn(`PDF extraction (${strategy.method}) failed:`, err);
     }
+  }
+
+  // If the "best" extract is still unusable, prefer a non-garbled fallback when present.
+  if (bestText && isUnusableScreenplayExtract(bestText) && fallbackText && !isUnusableScreenplayExtract(fallbackText)) {
+    return { text: fallbackText, method: fallbackMethod };
   }
 
   if (bestText) {

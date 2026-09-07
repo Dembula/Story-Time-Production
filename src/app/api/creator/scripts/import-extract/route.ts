@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { persistScriptImport } from "@/lib/script-studio/script-import-service";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 async function ensureCreatorSession() {
   const session = await getServerSession(authOptions);

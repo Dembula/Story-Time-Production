@@ -73,7 +73,7 @@ export function isCharacterSpacedGarbage(text: string): boolean {
   const tokens = text.split(/\s+/).filter(Boolean);
   if (tokens.length < 20) return false;
   const singleChar = tokens.filter((t) => t.length === 1).length;
-  return singleChar / tokens.length >= 0.55;
+  return singleChar / tokens.length >= 0.45;
 }
 
 /** Long runs with almost no spaces — words glued together. */
@@ -82,6 +82,92 @@ export function isRunTogetherGarbage(text: string): boolean {
   if (lines.length === 0) return false;
   const glued = lines.filter((l) => l.length >= 28 && (l.match(/ /g)?.length ?? 0) <= 1);
   return glued.length / lines.length >= 0.35;
+}
+
+const COMMON_ENGLISH = new Set([
+  "the", "and", "to", "of", "a", "in", "is", "it", "for", "on", "with", "that", "this",
+  "he", "she", "they", "was", "are", "be", "as", "at", "or", "from", "by", "an", "have",
+  "has", "had", "not", "but", "what", "when", "who", "how", "all", "can", "her", "his",
+  "him", "you", "we", "me", "my", "your", "out", "up", "into", "about", "over", "after",
+  "before", "then", "now", "just", "like", "there", "here", "been", "were", "said",
+  "will", "would", "could", "should", "int", "ext", "day", "night", "fade", "cut",
+  "black", "continued", "more", "cont", "door", "car", "inside", "look", "looks",
+  "through", "window", "back", "down", "away", "comes", "goes", "gone", "sitting",
+  "yard", "bonnet", "closed", "open", "opens", "walks", "stands", "turns",
+]);
+
+/**
+ * Detect broken ToUnicode / CID font extraction: lots of letter tokens that aren't
+ * real English/screenplay words (e.g. "SLhmic1Elt", "hoeohohye").
+ */
+export function isGarbledPdfExtraction(text: string): boolean {
+  const tokens = text
+    .split(/\s+/)
+    .map((t) => t.replace(/^[^A-Za-z0-9']+|[^A-Za-z0-9']+$/g, ""))
+    .filter((t) => t.length >= 2);
+  if (tokens.length < 18) return false;
+
+  let commonHits = 0;
+  let plausible = 0;
+  let suspicious = 0;
+
+  for (const token of tokens) {
+    const lettersOnly = token.replace(/[^A-Za-z']/g, "");
+    const lower = lettersOnly.toLowerCase();
+    if (lower.length < 2) continue;
+
+    if (COMMON_ENGLISH.has(lower)) {
+      commonHits += 1;
+      plausible += 1;
+      continue;
+    }
+
+    const vowels = (lower.match(/[aeiouy]/g) ?? []).length;
+    const vowelRatio = vowels / lower.length;
+    let bad = false;
+
+    if (lower.length >= 5 && vowelRatio < 0.18) bad = true;
+    if (/\d/.test(token) && /[A-Za-z]{3,}/.test(token) && !/^(INT|EXT|I\/E)/i.test(token)) {
+      bad = true;
+    }
+    if (/[a-z][A-Z][a-z]/.test(token) || /[A-Z]{2,}[a-z]{2,}[A-Z]/.test(token)) {
+      bad = true;
+    }
+    if (/^[bcdfghjklmnpqrstvwxz]{4,}$/i.test(lower)) bad = true;
+    // Odd mid-word capitalization / digit soup typical of CID dumps
+    if (/[A-Z].*[a-z].*[A-Z]/.test(token) && token.length >= 5) bad = true;
+    if (/[a-z]{2,}[A-Z]{2,}/.test(token)) bad = true;
+
+    if (bad) {
+      suspicious += 1;
+    } else if (vowelRatio >= 0.2 && lower.length <= 16) {
+      plausible += 1;
+    } else if (lower.length <= 3 && vowelRatio > 0) {
+      plausible += 1;
+    } else {
+      suspicious += 0.5;
+    }
+  }
+
+  const considered = Math.max(commonHits + plausible + suspicious, tokens.length);
+  const commonRatio = commonHits / tokens.length;
+  const plausibleRatio = plausible / tokens.length;
+  const susRatio = suspicious / considered;
+
+  if (plausibleRatio < 0.45 && susRatio >= 0.25) return true;
+  if (commonRatio < 0.08 && susRatio >= 0.22) return true;
+  if (commonRatio < 0.05 && plausibleRatio < 0.55) return true;
+  return false;
+}
+
+/** True when extract is unusable for editing — prefer OCR / another strategy. */
+export function isUnusableScreenplayExtract(text: string): boolean {
+  if (!text.trim()) return true;
+  if (isGarbledPdfExtraction(text)) return true;
+  if (isCharacterSpacedGarbage(text) && isGarbledPdfExtraction(repairCharacterSpacedText(text))) {
+    return true;
+  }
+  return scoreScreenplayLayout(text) < 25;
 }
 
 function countGluedTokens(tokens: string[]): number {
@@ -121,6 +207,7 @@ export function scoreScreenplayLayout(text: string): number {
   if (isCharacterSpacedGarbage(cleaned)) score -= 80;
   if (isRunTogetherGarbage(cleaned)) score -= 40;
   if (isFragmentedScreenplayImport(cleaned)) score -= 30;
+  if (isGarbledPdfExtraction(cleaned)) score -= 220;
   score -= countGluedTokens(tokens) * 15;
 
   return score;
@@ -132,12 +219,17 @@ function repairCharacterSpacedLine(line: string): string {
   if (tokens.length < 4) return line;
 
   const singleCharRatio = tokens.filter((t) => t.length === 1).length / tokens.length;
-  if (singleCharRatio < 0.55) return line;
+  if (singleCharRatio < 0.4) return line;
 
   let out = "";
   let buf = "";
   for (const token of tokens) {
     if (token.length === 1 && /[A-Za-z0-9'.,;:!?]/.test(token)) {
+      if (/[.,;:!?]/.test(token) && buf) {
+        out += (out ? " " : "") + buf + token;
+        buf = "";
+        continue;
+      }
       buf += token;
       continue;
     }
@@ -156,6 +248,38 @@ function repairCharacterSpacedText(text: string): string {
     .split("\n")
     .map((line) => repairCharacterSpacedLine(line))
     .join("\n");
+}
+
+/**
+ * Normalize imported screenplay text.
+ * Always returns extractable text when letters exist — never discards content.
+ */
+export function normalizeImportedScreenplayLayout(text: string): { text: string; fixes: string[] } {
+  const fixes: string[] = [];
+  let normalized = lightCleanScreenplayText(text);
+  if (!normalized) return { text: "", fixes };
+
+  // Always attempt per-line glyph rejoin — mixed pages often fail the global spaced check.
+  const rejoined = repairCharacterSpacedText(normalized);
+  if (rejoined !== normalized) {
+    normalized = rejoined;
+    fixes.push("Rejoined character-spaced PDF glyphs");
+  }
+
+  if (isFragmentedScreenplayImport(normalized)) {
+    normalized = repairFragmentedScreenplayText(normalized);
+    fixes.push("Rebuilt screenplay lines from PDF word fragments");
+  } else if (isRunTogetherGarbage(normalized)) {
+    normalized = unglueScreenplayText(normalized);
+    fixes.push("Inserted missing spaces in glued PDF text");
+  }
+
+  normalized = normalized.replace(/^(INT|EXT|I\/E)(?=\s)/gim, (match) => `${match.toUpperCase()}.`);
+
+  return {
+    text: lightCleanScreenplayText(normalized),
+    fixes: [...new Set(fixes)].slice(0, 12),
+  };
 }
 
 /** Best-effort spaces for glued screenplay tokens. */
@@ -297,34 +421,4 @@ export function repairFragmentedScreenplayText(text: string): string {
 
   if (tokens.length < 8) return text;
   return repairFragmentedTokens(tokens).join("\n\n").replace(/\n{4,}/g, "\n\n\n").trim();
-}
-
-/**
- * Normalize imported screenplay text.
- * Always returns extractable text when letters exist — never discards content.
- */
-export function normalizeImportedScreenplayLayout(text: string): { text: string; fixes: string[] } {
-  const fixes: string[] = [];
-  let normalized = lightCleanScreenplayText(text);
-  if (!normalized) return { text: "", fixes };
-
-  if (isCharacterSpacedGarbage(normalized)) {
-    normalized = repairCharacterSpacedText(normalized);
-    fixes.push("Rejoined character-spaced PDF glyphs");
-  }
-
-  if (isFragmentedScreenplayImport(normalized)) {
-    normalized = repairFragmentedScreenplayText(normalized);
-    fixes.push("Rebuilt screenplay lines from PDF word fragments");
-  } else if (isRunTogetherGarbage(normalized)) {
-    normalized = unglueScreenplayText(normalized);
-    fixes.push("Inserted missing spaces in glued PDF text");
-  }
-
-  normalized = normalized.replace(/^(INT|EXT|I\/E)(?=\s)/gim, (match) => `${match.toUpperCase()}.`);
-
-  return {
-    text: lightCleanScreenplayText(normalized),
-    fixes: [...new Set(fixes)].slice(0, 12),
-  };
 }
