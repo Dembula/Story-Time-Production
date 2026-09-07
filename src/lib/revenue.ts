@@ -2,6 +2,8 @@ import { prisma } from "./prisma";
 import { getCashSettlementAmount, isCashRecognizedPayment } from "@/lib/payments/cash-recognition";
 import { VIEWER_POOL_PAYMENT_PURPOSES } from "@/lib/payments/viewer-pool-purposes";
 import { revenueEligibleWatchSessionWhere } from "@/lib/revenue-eligible-watch";
+import { getFinanceFeeSettings } from "@/lib/finance/fee-settings";
+import { VIEWER_CREATOR_SPLIT } from "@/lib/payments/config";
 
 /**
  * Viewer pool revenue (subscriptions + PPV) in ZAR — net after PayFast fees.
@@ -78,7 +80,9 @@ export async function getCreatorRevenue(
   const creatorShare = totalSeconds > 0 ? creatorSeconds / totalSeconds : 0;
   const poolBase =
     viewerSubRevenue > 0 ? viewerSubRevenue : (platformRevenue?.amount ?? 0);
-  const creatorPool = poolBase * 0.6;
+  const feeSettings = await getFinanceFeeSettings();
+  const creatorSplit = feeSettings.viewerCreatorSplit || VIEWER_CREATOR_SPLIT;
+  const creatorPool = poolBase * creatorSplit;
   const revenue = creatorShare * creatorPool;
 
   return {

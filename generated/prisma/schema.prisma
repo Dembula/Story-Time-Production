@@ -836,6 +836,36 @@ model PlatformRevenue {
   createdAt DateTime @default(now())
 }
 
+/// Singleton-style editable fee schedule for finance admins (latest row wins).
+model FinanceFeeSettings {
+  id                  String   @id @default(cuid())
+  /// Apple / App Store commission when proceeds are unavailable (default ≈26.075% so R29.99 → R22.17).
+  appleCommissionRate Float    @default(0.2607532510836946)
+  viewerCreatorSplit  Float    @default(0.6)
+  viewerPlatformSplit Float    @default(0.4)
+  marketplaceFeeRate  Float    @default(0.03)
+  note                String?
+  updatedByUserId     String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([updatedAt])
+}
+
+model FinanceFeeSettingsHistory {
+  id                  String   @id @default(cuid())
+  settingsId          String?
+  appleCommissionRate Float
+  viewerCreatorSplit  Float
+  viewerPlatformSplit Float
+  marketplaceFeeRate  Float
+  note                String?
+  updatedByUserId     String?
+  createdAt           DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 model PendingCreatorSignup {
   id            String   @id @default(cuid())
   email         String   @unique

@@ -5,6 +5,7 @@ import { ensureWalletForUser } from "@/lib/payments/wallet";
 import { getPlatformTreasuryUserId } from "@/lib/payments/treasury-inflow";
 import { splitViewerRevenue } from "@/lib/payments/fees";
 import { STORYTIME_TRANSACTION_FEE_LABEL } from "@/lib/payments/config";
+import { getFinanceFeeSettings } from "@/lib/finance/fee-settings";
 import {
   resolveMarketplaceSettlement,
   type MarketplaceEntityType,
@@ -228,9 +229,14 @@ export async function allocateGatewayPaymentLedger(payment: {
   }
 
   if (isViewerPoolPaymentPurpose(purpose)) {
-    const split = splitViewerRevenue(settlementAmount);
+    const feeSettings = await getFinanceFeeSettings();
+    const split = splitViewerRevenue(settlementAmount, feeSettings);
+    const creatorPct = Math.round(feeSettings.viewerCreatorSplit * 100);
+    const platformPct = Math.round(feeSettings.viewerPlatformSplit * 100);
     const poolLabel =
-      purpose === "viewer_ppv" ? "Viewer PPV payment received" : "Viewer subscription payment received";
+      purpose === "viewer_ppv" || purpose === "viewer_ppv_apple_iap"
+        ? "Viewer PPV payment received"
+        : "Viewer subscription payment received";
     const credits: LedgerEntry[] = [
       {
         userId: treasuryUserId,
@@ -238,7 +244,7 @@ export async function allocateGatewayPaymentLedger(payment: {
         accountType: "AVAILABLE",
         transactionType: "incoming_payment",
         amount: settlementAmount,
-        description: `${poolLabel} (net after PayFast fees)`,
+        description: `${poolLabel} (net after gateway fees)`,
       },
       {
         userId: treasuryUserId,
@@ -246,7 +252,7 @@ export async function allocateGatewayPaymentLedger(payment: {
         accountType: "CREATOR_REVENUE",
         transactionType: "viewer_creator_pool",
         amount: split.creator,
-        description: "Creator pool (60%) — distributed by watch time",
+        description: `Creator pool (${creatorPct}%) — distributed by watch time`,
       },
       {
         userId: treasuryUserId,
@@ -254,7 +260,7 @@ export async function allocateGatewayPaymentLedger(payment: {
         accountType: "PLATFORM_REVENUE",
         transactionType: "viewer_platform_share",
         amount: split.platform,
-        description: "Story Time platform share (40%)",
+        description: `Story Time platform share (${platformPct}%)`,
       },
     ];
     const creditTotal = credits.reduce((sum, entry) => sum + entry.amount, 0);

@@ -37,13 +37,28 @@ describe("Apple IAP cash recognition", () => {
     const payment = {
       status: "SUCCEEDED",
       amount: 29.99,
+      settlementAmount: 22.17,
+      providerFeeAmount: 7.82,
+      provider: "APPLE",
+      settlementSource: "apple_estimated",
+      purpose: "viewer_subscription_apple_iap",
+      metadata: { environment: "Production", source: "ios_app" },
+    };
+    assert.equal(isDemoPaymentRecord(payment), false);
+    assert.equal(isCashRecognizedPayment(payment), true);
+    assert.equal(getCashSettlementAmount(payment), 22.17);
+  });
+
+  it("still recognizes legacy apple_iap settlement source", () => {
+    const payment = {
+      status: "SUCCEEDED",
+      amount: 29.99,
       settlementAmount: 29.99,
       provider: "APPLE",
       settlementSource: "apple_iap",
       purpose: "viewer_subscription_apple_iap",
       metadata: { environment: "Production", source: "ios_app" },
     };
-    assert.equal(isDemoPaymentRecord(payment), false);
     assert.equal(isCashRecognizedPayment(payment), true);
     assert.equal(getCashSettlementAmount(payment), 29.99);
   });

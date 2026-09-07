@@ -15,6 +15,7 @@ import {
   verifyAppleTransactionJws,
 } from "@/lib/payments/apple-iap/jws";
 import { bookAppleIapLedgerIfCash } from "@/lib/payments/apple-iap/ledger";
+import { resolveAppleSettlement } from "@/lib/payments/apple-iap/settlement";
 import {
   CREATOR_APPLE_IAP_LICENSE_PURPOSE,
   CREATOR_APPLE_IAP_UPLOAD_PURPOSE,
@@ -85,6 +86,13 @@ async function writeAppleSucceededPayment(options: {
   if (existing?.status === "SUCCEEDED") {
     return { payment: existing, already: true as const };
   }
+  const settlement = await resolveAppleSettlement({
+    gross: options.amount,
+    proceedsAmount:
+      typeof options.metadata?.appleProceeds === "number"
+        ? options.metadata.appleProceeds
+        : null,
+  });
   const now = new Date();
   const data = {
     status: "SUCCEEDED",
@@ -94,8 +102,9 @@ async function writeAppleSucceededPayment(options: {
     gatewayTransactionId: options.transactionId,
     providerItnStatus: "COMPLETE",
     providerPaymentMethod: "apple_iap",
-    settlementSource: "apple_iap",
-    settlementAmount: options.amount,
+    settlementSource: settlement.settlementSource,
+    providerFeeAmount: settlement.providerFeeAmount,
+    settlementAmount: settlement.settlementAmount,
     relatedEntityType: options.relatedEntityType,
     relatedEntityId: options.relatedEntityId,
     purpose: options.purpose,
@@ -105,6 +114,7 @@ async function writeAppleSucceededPayment(options: {
       environment: options.environment,
       source: "ios_app",
       ...options.metadata,
+      ...settlement.metadataExtras,
     },
   };
   if (existing) {
@@ -112,6 +122,7 @@ async function writeAppleSucceededPayment(options: {
     await bookAppleIapLedgerIfCash({
       id: payment.id,
       amount: options.amount,
+      settlementAmount: settlement.settlementAmount,
       purpose: options.purpose,
       relatedEntityType: options.relatedEntityType,
       relatedEntityId: options.relatedEntityId,
@@ -134,6 +145,7 @@ async function writeAppleSucceededPayment(options: {
   await bookAppleIapLedgerIfCash({
     id: payment.id,
     amount: options.amount,
+    settlementAmount: settlement.settlementAmount,
     purpose: options.purpose,
     relatedEntityType: options.relatedEntityType,
     relatedEntityId: options.relatedEntityId,

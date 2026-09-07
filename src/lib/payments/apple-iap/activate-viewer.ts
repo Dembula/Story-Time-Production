@@ -14,6 +14,7 @@ import {
   type VerifiedAppleTransaction,
 } from "@/lib/payments/apple-iap/jws";
 import { bookAppleIapLedgerIfCash } from "@/lib/payments/apple-iap/ledger";
+import { resolveAppleSettlement } from "@/lib/payments/apple-iap/settlement";
 import {
   VIEWER_APPLE_IAP_PPV_PURPOSE,
   VIEWER_APPLE_IAP_SUBSCRIPTION_PURPOSE,
@@ -68,6 +69,14 @@ async function recordApplePayment(options: {
     return { payment: existing, already: true as const };
   }
 
+  const settlement = await resolveAppleSettlement({
+    gross: options.amount,
+    proceedsAmount:
+      typeof options.metadata?.appleProceeds === "number"
+        ? options.metadata.appleProceeds
+        : null,
+  });
+
   const now = new Date();
   const payment = existing
     ? await db.paymentRecord.update({
@@ -80,11 +89,13 @@ async function recordApplePayment(options: {
           gatewayTransactionId: options.transactionId,
           providerItnStatus: "COMPLETE",
           providerPaymentMethod: "apple_iap",
-          settlementSource: "apple_iap",
-          settlementAmount: options.amount,
+          settlementSource: settlement.settlementSource,
+          providerFeeAmount: settlement.providerFeeAmount,
+          settlementAmount: settlement.settlementAmount,
           metadata: {
             ...(typeof existing.metadata === "object" && existing.metadata ? existing.metadata : {}),
             ...options.metadata,
+            ...settlement.metadataExtras,
             productId: options.productId,
             originalTransactionId: options.originalTransactionId,
             environment: options.environment,
@@ -107,11 +118,13 @@ async function recordApplePayment(options: {
           gatewayTransactionId: options.transactionId,
           providerItnStatus: "COMPLETE",
           providerPaymentMethod: "apple_iap",
-          settlementSource: "apple_iap",
-          settlementAmount: options.amount,
+          settlementSource: settlement.settlementSource,
+          providerFeeAmount: settlement.providerFeeAmount,
+          settlementAmount: settlement.settlementAmount,
           paidAt: now,
           metadata: {
             ...options.metadata,
+            ...settlement.metadataExtras,
             productId: options.productId,
             originalTransactionId: options.originalTransactionId,
             environment: options.environment,
@@ -123,6 +136,7 @@ async function recordApplePayment(options: {
   await bookAppleIapLedgerIfCash({
     id: payment.id,
     amount: options.amount,
+    settlementAmount: settlement.settlementAmount,
     purpose: options.purpose,
     relatedEntityType: options.relatedEntityType,
     relatedEntityId: options.relatedEntityId,

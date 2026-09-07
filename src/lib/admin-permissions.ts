@@ -127,10 +127,12 @@ const ADMIN_PATH_RULES: { prefix: string; right: AdminRightKey | null }[] = [
   { prefix: "/api/admin/locations", right: "canManageMarketplace" },
   { prefix: "/api/admin/marketplace-vendors", right: "canManageMarketplace" },
   { prefix: "/api/admin/revenue", right: "canManageRevenue" },
+  { prefix: "/api/admin/finance", right: "canManageFinance" },
   { prefix: "/api/admin/payments", right: "canManageFinance" },
   { prefix: "/api/admin/promo-codes", right: "canManageFinance" },
   { prefix: "/api/admin/funders", right: "canManageFinance" },
   { prefix: "/api/admin/funding-programs", right: "canManageFinance" },
+  { prefix: "/api/admin/payouts", right: "canManageFinance" },
   { prefix: "/api/admin/payout", right: "canManageFinance" },
   { prefix: "/api/admin/competition", right: "canManageCompetition" },
   { prefix: "/api/admin/ai", right: "canManageSystem" },
@@ -163,6 +165,19 @@ export function canAccessAdminPath(
   rights: unknown,
   opts?: { email?: string | null; isAdminRole?: boolean },
 ): boolean {
+  const normalized = path.split("?")[0] ?? path;
+  // Finance hub + APIs: finance ops OR revenue analytics.
+  if (
+    normalized === "/admin/financial" ||
+    normalized.startsWith("/admin/financial/") ||
+    normalized === "/api/admin/finance" ||
+    normalized.startsWith("/api/admin/finance/")
+  ) {
+    return (
+      hasAdminRight(rights, "canManageFinance", opts) ||
+      hasAdminRight(rights, "canManageRevenue", opts)
+    );
+  }
   const required = requiredAdminRightForPath(path);
   if (required === null) return hasAnyAdminRight(rights, opts);
   return hasAdminRight(rights, required, opts);
@@ -212,6 +227,12 @@ export function filterAdminNavSections(
         if (required === undefined) return hasAdminRight(rights, "canManageSystem", opts);
         if (required === null) {
           return item.href === "/browse" || hasAnyAdminRight(rights, opts);
+        }
+        if (item.href === "/admin/financial") {
+          return (
+            hasAdminRight(rights, "canManageFinance", opts) ||
+            hasAdminRight(rights, "canManageRevenue", opts)
+          );
         }
         return hasAdminRight(rights, required, opts);
       }),

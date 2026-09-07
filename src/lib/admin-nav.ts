@@ -33,9 +33,7 @@ export const adminNavSections: DashboardNavSection[] = [
   {
     title: "Finance",
     items: [
-      { href: "/admin/revenue", label: "Revenue" },
-      { href: "/admin/financial", label: "Payout requests", highlight: true },
-      { href: "/admin/payments", label: "Payments" },
+      { href: "/admin/financial", label: "Finance hub", highlight: true },
       { href: "/admin/promo-codes", label: "Promo codes" },
       { href: "/admin/funders", label: "Funders" },
       { href: "/admin/funding-programs", label: "Funding programs" },

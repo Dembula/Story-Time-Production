@@ -7,27 +7,33 @@ import { allocateGatewayPaymentLedger } from "@/lib/payments/gateway-allocation"
 export async function bookAppleIapLedgerIfCash(payment: {
   id: string;
   amount: number;
+  settlementAmount?: number;
   purpose: string;
   relatedEntityType: string;
   relatedEntityId: string;
   environment: string;
 }) {
+  const settlementAmount =
+    payment.settlementAmount != null && Number.isFinite(payment.settlementAmount)
+      ? payment.settlementAmount
+      : payment.amount;
+
   const cashRecognized = isCashRecognizedPayment({
     status: "SUCCEEDED",
     amount: payment.amount,
-    settlementAmount: payment.amount,
+    settlementAmount,
     provider: "APPLE",
-    settlementSource: "apple_iap",
+    settlementSource: "apple_estimated",
     purpose: payment.purpose,
     metadata: { environment: payment.environment, source: "ios_app" },
   });
 
-  if (!cashRecognized || !(payment.amount > 0)) return;
+  if (!cashRecognized || !(settlementAmount > 0)) return;
 
   await allocateGatewayPaymentLedger({
     id: payment.id,
     amount: payment.amount,
-    settlementAmount: payment.amount,
+    settlementAmount,
     purpose: payment.purpose,
     relatedEntityType: payment.relatedEntityType,
     relatedEntityId: payment.relatedEntityId,

@@ -4,6 +4,11 @@ export const PLATFORM_TX_FEE_RATE = 0.035;
 export const STORYTIME_TRANSACTION_FEE_LABEL = "Story Time transaction fee";
 export const VIEWER_CREATOR_SPLIT = 0.6;
 export const VIEWER_PLATFORM_SPLIT = 0.4;
+/**
+ * Default Apple / App Store commission when App Store proceeds are unavailable.
+ * Chosen so catalogue R29.99 → net R22.17 (fee R7.82). Finance can edit in-app.
+ */
+export const DEFAULT_APPLE_COMMISSION_RATE = 0.2607532510836946;
 export const PAYMENT_PROVIDER = "PAYFAST";
 export const DEMO_PAYMENT_PROVIDER = "DEMO";
 

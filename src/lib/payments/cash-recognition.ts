@@ -72,7 +72,9 @@ export function isCashRecognizedPayment(payment: PaymentLike): boolean {
   if (
     settlementSource === "itn" ||
     settlementSource === "estimated" ||
-    settlementSource === "apple_iap"
+    settlementSource === "apple_iap" ||
+    settlementSource === "apple_estimated" ||
+    settlementSource === "apple_proceeds"
   ) {
     return true;
   }

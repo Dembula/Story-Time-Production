@@ -1,7 +1,6 @@
-import { requireAdminSession } from "@/lib/admin-auth";
-import { AdminRevenueClient } from "./admin-revenue-client";
+import { redirect } from "next/navigation";
 
-export default async function AdminRevenuePage() {
-  await requireAdminSession();
-  return <AdminRevenueClient />;
+/** Merged into Finance hub. */
+export default function AdminRevenueRedirectPage() {
+  redirect("/admin/financial?tab=overview");
 }

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { VIEWER_CREATOR_SPLIT, roundMoney } from "@/lib/payments/config";
+import { getFinanceFeeSettings } from "@/lib/finance/fee-settings";
 import { postBalancedLedgerBatch } from "@/lib/payments/ledger";
 import { ensureWalletForUser } from "@/lib/payments/wallet";
 import { getCreatorRevenue, getViewerPoolRevenue } from "@/lib/revenue";
@@ -95,7 +96,9 @@ export async function distributeCreatorPoolForPeriod(
   }
 
   const viewerPoolRevenue = await getViewerPoolRevenue(periodStart, periodEnd);
-  const creatorPool = roundMoney(viewerPoolRevenue * VIEWER_CREATOR_SPLIT);
+  const feeSettings = await getFinanceFeeSettings();
+  const creatorSplit = feeSettings.viewerCreatorSplit || VIEWER_CREATOR_SPLIT;
+  const creatorPool = roundMoney(viewerPoolRevenue * creatorSplit);
   const storyTimeRetained = roundMoney(viewerPoolRevenue - creatorPool);
 
   if (viewerPoolRevenue <= 0) {

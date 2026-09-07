@@ -551,6 +551,30 @@ exports.Prisma.PlatformRevenueScalarFieldEnum = {
   createdAt: 'createdAt'
 };
 
+exports.Prisma.FinanceFeeSettingsScalarFieldEnum = {
+  id: 'id',
+  appleCommissionRate: 'appleCommissionRate',
+  viewerCreatorSplit: 'viewerCreatorSplit',
+  viewerPlatformSplit: 'viewerPlatformSplit',
+  marketplaceFeeRate: 'marketplaceFeeRate',
+  note: 'note',
+  updatedByUserId: 'updatedByUserId',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.FinanceFeeSettingsHistoryScalarFieldEnum = {
+  id: 'id',
+  settingsId: 'settingsId',
+  appleCommissionRate: 'appleCommissionRate',
+  viewerCreatorSplit: 'viewerCreatorSplit',
+  viewerPlatformSplit: 'viewerPlatformSplit',
+  marketplaceFeeRate: 'marketplaceFeeRate',
+  note: 'note',
+  updatedByUserId: 'updatedByUserId',
+  createdAt: 'createdAt'
+};
+
 exports.Prisma.PendingCreatorSignupScalarFieldEnum = {
   id: 'id',
   email: 'email',
@@ -3141,6 +3165,8 @@ exports.Prisma.ModelName = {
   MusicTrack: 'MusicTrack',
   SyncDeal: 'SyncDeal',
   PlatformRevenue: 'PlatformRevenue',
+  FinanceFeeSettings: 'FinanceFeeSettings',
+  FinanceFeeSettingsHistory: 'FinanceFeeSettingsHistory',
   PendingCreatorSignup: 'PendingCreatorSignup',
   ActivityLog: 'ActivityLog',
   EquipmentListing: 'EquipmentListing',
