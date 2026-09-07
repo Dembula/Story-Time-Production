@@ -157,9 +157,12 @@ export function isFullyCompedPromo(promo: { kind: string; amount: number | null 
  * Partial discount redemptions must NOT unlock the portal without a SUCCEEDED payment.
  */
 export function isFullyCompedCreatorLicenseRedemption(metadata: unknown, discountAmount?: number | null): boolean {
+  return isFullyCompedPromoRedemption(metadata, discountAmount);
+}
+
+/** Shared: redemption metadata that means “no cash owed” (creator or viewer). */
+export function isFullyCompedPromoRedemption(metadata: unknown, discountAmount?: number | null): boolean {
   if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
-    // Legacy rows without metadata: only treat as full comp when discount is present and > 0
-    // is ambiguous — require explicit promoFreeGrant going forward.
     return false;
   }
   const meta = metadata as Record<string, unknown>;
@@ -174,6 +177,82 @@ export function isFullyCompedCreatorLicenseRedemption(metadata: unknown, discoun
   const discount = Number(meta.discountAmount ?? discountAmount ?? 0);
   if (Number.isFinite(base) && base > 0 && Number.isFinite(discount) && discount >= base) return true;
   return false;
+}
+
+export type ResolvedCheckoutPromo = {
+  id: string;
+  code: string;
+  kind: string;
+  amount: number | null;
+};
+
+/**
+ * Resolve a promo for checkout. If a prior attempt burned a partial code without full entitlement,
+ * allow reuse for discounted PayFast without re-redeeming until payment (or full-comp path).
+ */
+export async function resolvePromoForCheckout(
+  codeRaw: string,
+  userId: string,
+  target: "VIEWER_SUBSCRIPTION" | "CREATOR_LICENSE",
+): Promise<{ promo: ResolvedCheckoutPromo; skipRedeem: boolean } | { error: string }> {
+  const unused = await resolveUnusedPromoCode(codeRaw, userId, target);
+  if (!("error" in unused)) {
+    return {
+      promo: {
+        id: unused.promo.id,
+        code: unused.promo.code,
+        kind: unused.promo.kind,
+        amount: unused.promo.amount ?? null,
+      },
+      skipRedeem: false,
+    };
+  }
+
+  const resolved = await resolvePromoCode(codeRaw, target);
+  if ("error" in resolved) return { error: resolved.error };
+
+  const prior = await prisma.promoCodeRedemption.findUnique({
+    where: {
+      promoCodeId_userId_context: {
+        promoCodeId: resolved.promo.id,
+        userId,
+        context: target,
+      },
+    },
+    select: { discountAmount: true, metadata: true },
+  });
+  if (!prior) return { error: unused.error };
+  if (isFullyCompedPromoRedemption(prior.metadata, prior.discountAmount)) {
+    return { error: "Promo code already used for this account." };
+  }
+
+  return {
+    promo: {
+      id: resolved.promo.id,
+      code: resolved.promo.code,
+      kind: resolved.promo.kind,
+      amount: resolved.promo.amount ?? null,
+    },
+    skipRedeem: true,
+  };
+}
+
+export function partialPromoCheckoutMetadata(
+  promo: ResolvedCheckoutPromo,
+  basePrice: number,
+  finalPrice: number,
+  extra: Record<string, unknown> = {},
+) {
+  return {
+    promoCode: promo.code,
+    promoCodeId: promo.id,
+    fundingSource: "partial_promo" as const,
+    promoFreeGrant: false,
+    basePrice,
+    finalPriceAfterPromo: finalPrice,
+    discountAmount: Math.max(0, basePrice - finalPrice),
+    ...extra,
+  };
 }
 
 /**

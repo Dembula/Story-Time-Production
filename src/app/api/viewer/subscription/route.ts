@@ -9,7 +9,13 @@ import {
   isInitialSubscriptionPaymentPending,
   subscriptionNeedsReactivation,
 } from "@/lib/viewer-access";
-import { computeDiscountedAmount, promoGrantPeriodEnd, redeemPromoCode, resolveUnusedPromoCode } from "@/lib/promo-codes";
+import {
+  computeDiscountedAmount,
+  partialPromoCheckoutMetadata,
+  promoGrantPeriodEnd,
+  redeemPromoCode,
+  resolvePromoForCheckout,
+} from "@/lib/promo-codes";
 import { initializeCheckout } from "@/lib/payments/billing";
 import { getPaymentGateway } from "@/lib/payments/gateway";
 import { buildPaymentReturnUrl } from "@/lib/payments/return-url";
@@ -172,19 +178,16 @@ export async function POST(req: Request) {
     const now = new Date();
     const basePrice: number = planConfig.price;
     let finalPrice: number = basePrice;
+    let skipPromoRedeem = false;
 
     if (typeof body.promoCode === "string" && body.promoCode.trim()) {
-      const promoResult = await resolveUnusedPromoCode(body.promoCode, user.id, "VIEWER_SUBSCRIPTION");
+      const promoResult = await resolvePromoForCheckout(body.promoCode, user.id, "VIEWER_SUBSCRIPTION");
       if ("error" in promoResult) {
         return NextResponse.json({ error: promoResult.error }, { status: 400 });
       }
       finalPrice = computeDiscountedAmount(basePrice, promoResult.promo);
-      appliedPromo = {
-        id: promoResult.promo.id,
-        code: promoResult.promo.code,
-        kind: promoResult.promo.kind,
-        amount: promoResult.promo.amount ?? null,
-      };
+      appliedPromo = promoResult.promo;
+      skipPromoRedeem = promoResult.skipRedeem;
     }
 
     const subscription = await prisma.viewerSubscription.update({
@@ -206,7 +209,7 @@ export async function POST(req: Request) {
       },
     });
 
-    if (appliedPromo) {
+    if (appliedPromo && finalPrice <= 0 && !skipPromoRedeem) {
       const redemption = await redeemPromoCode({
         promoCodeId: appliedPromo.id,
         userId: user.id,
@@ -214,7 +217,13 @@ export async function POST(req: Request) {
         referenceId: subscription.id,
         discountAmount: Math.max(0, basePrice - finalPrice),
         resultingPlan: planType,
-        metadata: { basePrice, finalPrice, reactivation: true, fundingSource: finalPrice <= 0 ? "promo" : "cash" },
+        metadata: {
+          basePrice,
+          finalPrice: 0,
+          reactivation: true,
+          fundingSource: "promo",
+          promoFreeGrant: true,
+        },
       });
       if (!redemption.ok) {
         return NextResponse.json({ error: promoFailureMessage(redemption.reason) }, { status: 400 });
@@ -263,7 +272,12 @@ export async function POST(req: Request) {
         referenceType: "ViewerSubscription",
         referenceId: subscription.id,
         returnUrl: buildPaymentReturnUrl(postTrialReturnPath, "viewer_subscription_reactivate"),
-        metadata: { planType, reactivation: true, tokenize: true },
+        metadata: {
+          planType,
+          reactivation: true,
+          tokenize: true,
+          ...(appliedPromo ? partialPromoCheckoutMetadata(appliedPromo, basePrice, finalPrice) : {}),
+        },
       });
 
       return NextResponse.json({
@@ -284,14 +298,6 @@ export async function POST(req: Request) {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to initialize checkout.";
-      await prisma.viewerSubscription.update({
-        where: { id: subscription.id },
-        data: {
-          status: "PAST_DUE",
-          lastPaymentStatus: "FAILED",
-          lastPaymentError: message,
-        },
-      });
       return NextResponse.json({ error: message }, { status: 502 });
     }
   }
@@ -328,18 +334,15 @@ export async function POST(req: Request) {
     const now = new Date();
     const basePrice: number = planConfig.price;
     let finalPrice: number = basePrice;
+    let skipPromoRedeem = false;
     if (typeof body.promoCode === "string" && body.promoCode.trim()) {
-      const promoResult = await resolveUnusedPromoCode(body.promoCode, user.id, "VIEWER_SUBSCRIPTION");
+      const promoResult = await resolvePromoForCheckout(body.promoCode, user.id, "VIEWER_SUBSCRIPTION");
       if ("error" in promoResult) {
         return NextResponse.json({ error: promoResult.error }, { status: 400 });
       }
       finalPrice = computeDiscountedAmount(basePrice, promoResult.promo);
-      appliedPromo = {
-        id: promoResult.promo.id,
-        code: promoResult.promo.code,
-        kind: promoResult.promo.kind,
-        amount: promoResult.promo.amount ?? null,
-      };
+      appliedPromo = promoResult.promo;
+      skipPromoRedeem = promoResult.skipRedeem;
     }
 
     const trialEndsAt = useTrial ? new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000) : null;
@@ -365,7 +368,7 @@ export async function POST(req: Request) {
       },
     });
 
-    if (appliedPromo) {
+    if (appliedPromo && finalPrice <= 0 && !skipPromoRedeem) {
       const redemption = await redeemPromoCode({
         promoCodeId: appliedPromo.id,
         userId: user.id,
@@ -375,8 +378,10 @@ export async function POST(req: Request) {
         resultingPlan: planType,
         metadata: {
           basePrice,
-          finalPrice,
+          finalPrice: 0,
           trialApplied: useTrial,
+          fundingSource: "promo",
+          promoFreeGrant: true,
         },
       });
       if (!redemption.ok) {
@@ -447,7 +452,11 @@ export async function POST(req: Request) {
           referenceType: "ViewerSubscription",
           referenceId: subscription.id,
           returnUrl: buildPaymentReturnUrl(checkoutReturnPath, "viewer_subscription"),
-          metadata: { planType, tokenize: true },
+          metadata: {
+            planType,
+            tokenize: true,
+            ...(appliedPromo ? partialPromoCheckoutMetadata(appliedPromo, basePrice, finalPrice) : {}),
+          },
         });
         checkoutUrl = checkout.checkout.checkoutUrl;
       } catch (error) {
@@ -510,18 +519,19 @@ export async function POST(req: Request) {
   const now = new Date();
   const basePrice: number = planConfig.price;
   let finalPrice: number = basePrice;
+  let skipPromoRedeem = false;
   if (body && typeof body === "object" && typeof (body as { promoCode?: string }).promoCode === "string" && (body as { promoCode?: string }).promoCode?.trim()) {
-    const promoResult = await resolveUnusedPromoCode((body as { promoCode?: string }).promoCode ?? "", user.id, "VIEWER_SUBSCRIPTION");
+    const promoResult = await resolvePromoForCheckout(
+      (body as { promoCode?: string }).promoCode ?? "",
+      user.id,
+      "VIEWER_SUBSCRIPTION",
+    );
     if ("error" in promoResult) {
       return NextResponse.json({ error: promoResult.error }, { status: 400 });
     }
     finalPrice = computeDiscountedAmount(basePrice, promoResult.promo);
-    appliedPromo = {
-      id: promoResult.promo.id,
-      code: promoResult.promo.code,
-      kind: promoResult.promo.kind,
-      amount: promoResult.promo.amount ?? null,
-    };
+    appliedPromo = promoResult.promo;
+    skipPromoRedeem = promoResult.skipRedeem;
   }
   const trialEndsAt = useTrial ? new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000) : null;
   const currentPeriodEnd =
@@ -542,7 +552,7 @@ export async function POST(req: Request) {
     },
   });
 
-  if (appliedPromo) {
+  if (appliedPromo && finalPrice <= 0 && !skipPromoRedeem) {
     const redemption = await redeemPromoCode({
       promoCodeId: appliedPromo.id,
       userId: user.id,
@@ -552,8 +562,10 @@ export async function POST(req: Request) {
       resultingPlan: planType,
       metadata: {
         basePrice,
-        finalPrice,
+        finalPrice: 0,
         trialApplied: useTrial,
+        fundingSource: "promo",
+        promoFreeGrant: true,
       },
     });
     if (!redemption.ok) {
@@ -628,7 +640,11 @@ export async function POST(req: Request) {
         referenceType: "ViewerSubscription",
         referenceId: subscription.id,
         returnUrl: buildPaymentReturnUrl("/onboarding/account", "viewer_subscription"),
-        metadata: { planType, tokenize: true },
+        metadata: {
+          planType,
+          tokenize: true,
+          ...(appliedPromo ? partialPromoCheckoutMetadata(appliedPromo, basePrice, finalPrice) : {}),
+        },
       });
       checkoutUrl = checkout.checkout.checkoutUrl;
     } catch (error) {

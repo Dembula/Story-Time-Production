@@ -104,17 +104,23 @@ export function CreatorBillingPanel() {
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error || "Unable to update package");
       await queryClient.invalidateQueries({ queryKey: [...CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY] });
-      if (json.checkoutUrl) {
-        setCheckoutUrl(json.checkoutUrl);
-        setCheckoutOpen(true);
-        setMessage("Complete payment to activate the selected package.");
-      } else {
-        setMessage(
-          json.pricing?.promoCode
-            ? `Promo ${json.pricing.promoCode} applied. Package is active — no cash charged.`
-            : "Package updated.",
+      if (json.requiresPayment) {
+        if (typeof json.checkoutUrl === "string" && json.checkoutUrl) {
+          setCheckoutUrl(json.checkoutUrl);
+          setCheckoutOpen(true);
+          setMessage("Complete payment to activate the selected package.");
+          return;
+        }
+        throw new Error(
+          (typeof json.checkoutWarning === "string" && json.checkoutWarning) ||
+            "Unable to start checkout. Please try again.",
         );
       }
+      setMessage(
+        json.pricing?.promoCode
+          ? `Promo ${json.pricing.promoCode} applied. Package is active — no cash charged.`
+          : "Package updated.",
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to update package");
     } finally {

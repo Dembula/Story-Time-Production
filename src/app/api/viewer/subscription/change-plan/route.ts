@@ -6,9 +6,10 @@ import { VIEWER_MODELS, VIEWER_PLAN_CONFIG } from "@/lib/viewer-access";
 import {
   computeDiscountedAmount,
   isFullyCompedPromo,
+  partialPromoCheckoutMetadata,
   promoGrantPeriodEnd,
   redeemPromoCode,
-  resolveUnusedPromoCode,
+  resolvePromoForCheckout,
 } from "@/lib/promo-codes";
 import { initializeCheckout } from "@/lib/payments/billing";
 import { buildPaymentReturnUrl } from "@/lib/payments/return-url";
@@ -108,21 +109,18 @@ export async function POST(req: Request) {
   let appliedPromo: { id: string; code: string; kind: string; amount: number | null } | null = null;
   let chargeBase = quote.chargeAmount;
   let finalPrice = quote.chargeAmount;
+  let skipPromoRedeem = false;
   const promoInput = typeof body.promoCode === "string" ? body.promoCode.trim() : "";
 
   if (selectedViewerModel === VIEWER_MODELS.SUBSCRIPTION && promoInput) {
-    const promoResult = await resolveUnusedPromoCode(promoInput, user.id, "VIEWER_SUBSCRIPTION");
+    const promoResult = await resolvePromoForCheckout(promoInput, user.id, "VIEWER_SUBSCRIPTION");
     if ("error" in promoResult) {
       return NextResponse.json({ error: promoResult.error }, { status: 400 });
     }
     chargeBase = quote.requiresCheckout ? quote.chargeAmount : planConfig.price;
     finalPrice = computeDiscountedAmount(chargeBase, promoResult.promo);
-    appliedPromo = {
-      id: promoResult.promo.id,
-      code: promoResult.promo.code,
-      kind: promoResult.promo.kind,
-      amount: promoResult.promo.amount ?? null,
-    };
+    appliedPromo = promoResult.promo;
+    skipPromoRedeem = promoResult.skipRedeem;
   }
 
   if (samePlanNoCharge && !appliedPromo) {
@@ -133,23 +131,26 @@ export async function POST(req: Request) {
   const returnPath = safeReturnPath(body.returnPath, "/profiles");
 
   if (appliedPromo && (finalPrice <= 0 || isFullyCompedPromo(appliedPromo))) {
-    const redemption = await redeemPromoCode({
-      promoCodeId: appliedPromo.id,
-      userId: user.id,
-      context: "VIEWER_SUBSCRIPTION",
-      referenceId: subscription.id,
-      discountAmount: Math.max(0, chargeBase - finalPrice),
-      resultingPlan: planType,
-      metadata: {
-        basePrice: chargeBase,
-        finalPrice: 0,
-        planChange: true,
-        chargeType: quote.chargeType,
-        fundingSource: "promo",
-      },
-    });
-    if (!redemption.ok) {
-      return NextResponse.json({ error: promoFailureMessage(redemption.reason) }, { status: 400 });
+    if (!skipPromoRedeem) {
+      const redemption = await redeemPromoCode({
+        promoCodeId: appliedPromo.id,
+        userId: user.id,
+        context: "VIEWER_SUBSCRIPTION",
+        referenceId: subscription.id,
+        discountAmount: Math.max(0, chargeBase - finalPrice),
+        resultingPlan: planType,
+        metadata: {
+          basePrice: chargeBase,
+          finalPrice: 0,
+          planChange: true,
+          chargeType: quote.chargeType,
+          fundingSource: "promo",
+          promoFreeGrant: true,
+        },
+      });
+      if (!redemption.ok) {
+        return NextResponse.json({ error: promoFailureMessage(redemption.reason) }, { status: 400 });
+      }
     }
 
     const grantFrom =
@@ -265,26 +266,6 @@ export async function POST(req: Request) {
     data: pendingUpdate,
   });
 
-  if (appliedPromo) {
-    const redemption = await redeemPromoCode({
-      promoCodeId: appliedPromo.id,
-      userId: user.id,
-      context: "VIEWER_SUBSCRIPTION",
-      referenceId: subscription.id,
-      discountAmount: Math.max(0, chargeBase - finalPrice),
-      resultingPlan: planType,
-      metadata: {
-        basePrice: chargeBase,
-        finalPrice,
-        planChange: true,
-        chargeType: quote.chargeType,
-      },
-    });
-    if (!redemption.ok) {
-      return NextResponse.json({ error: promoFailureMessage(redemption.reason) }, { status: 400 });
-    }
-  }
-
   try {
     const purpose =
       quote.chargeType === "upgrade_delta"
@@ -310,6 +291,7 @@ export async function POST(req: Request) {
         chargeType: quote.chargeType,
         planChange: true,
         baseCharge: quote.chargeAmount,
+        ...(appliedPromo ? partialPromoCheckoutMetadata(appliedPromo, chargeBase, finalPrice) : {}),
       },
     });
 

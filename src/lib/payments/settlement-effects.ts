@@ -108,6 +108,31 @@ export async function applyPaymentRecordSettlementEffects(paymentRecord: {
         },
       });
     }
+
+    // Redeem partial viewer promo after cash settles (full comps redeem at checkout).
+    const promoCodeId = typeof meta.promoCodeId === "string" ? meta.promoCodeId : null;
+    if (promoCodeId && paymentRecord.userId) {
+      try {
+        const { redeemPromoCode } = await import("@/lib/promo-codes");
+        await redeemPromoCode({
+          promoCodeId,
+          userId: paymentRecord.userId,
+          context: "VIEWER_SUBSCRIPTION",
+          referenceId: paymentRecord.relatedEntityId,
+          discountAmount: typeof meta.discountAmount === "number" ? meta.discountAmount : null,
+          resultingPlan: typeof meta.planType === "string" ? meta.planType : null,
+          metadata: {
+            basePrice: meta.basePrice ?? null,
+            finalPrice: meta.finalPriceAfterPromo ?? paymentRecord.amount ?? null,
+            fundingSource: "partial_promo",
+            promoFreeGrant: false,
+            paymentRecordId: paymentRecord.id ?? null,
+          },
+        });
+      } catch (err) {
+        console.warn("[settlement] viewer promo redeem after payment failed", err);
+      }
+    }
   }
 
   if (paymentRecord.relatedEntityType === "ViewerContentAccess" && paymentRecord.relatedEntityId) {
