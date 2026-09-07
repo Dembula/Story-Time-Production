@@ -24,7 +24,8 @@ import type { ScreenplayElementType } from "@/lib/script-studio/types";
 const PAGE_WIDTH = "8.5in";
 const PAGE_HEIGHT = "11in";
 const MARGIN_TOP = "1in";
-const MARGIN_BOTTOM = "1in";
+/** Extra bottom room so the page number never collides with the last script line. */
+const MARGIN_BOTTOM = "1.05in";
 const MARGIN_LEFT = "1.5in";
 const MARGIN_RIGHT = "1in";
 
@@ -610,7 +611,7 @@ export function ScreenplayEditor({
               }}
             >
               <span
-                className="pointer-events-none absolute bottom-3 right-4 z-[2] text-[10px] text-slate-500"
+                className="pointer-events-none absolute bottom-4 right-5 z-[2] text-[10px] text-slate-500"
                 style={{ fontFamily: fontCss }}
                 aria-hidden
               >
@@ -664,7 +665,7 @@ export function ScreenplayEditor({
                 readOnly={readOnly}
                 spellCheck
                 rows={LINES_PER_PAGE}
-                wrap="soft"
+                wrap="off"
                 className={`relative z-[1] block resize-none border-0 bg-transparent outline-none focus:ring-0 ${className ?? ""}`}
                 style={{
                   fontFamily: fontCss,
@@ -679,7 +680,9 @@ export function ScreenplayEditor({
                   paddingBottom: MARGIN_BOTTOM,
                   paddingLeft: MARGIN_LEFT,
                   paddingRight: MARGIN_RIGHT,
-                  whiteSpace: "pre-wrap",
+                  // Hard-wrapped imports/edits: one \n = one page row. Soft wrap was
+                  // overflowing the fixed 55-line page box past the bottom margin.
+                  whiteSpace: "pre",
                   overflowWrap: "normal",
                   overflowX: "hidden",
                   overflowY: "hidden",

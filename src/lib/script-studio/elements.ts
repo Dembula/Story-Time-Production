@@ -20,10 +20,10 @@ export const SCREENPLAY_ELEMENT_LABELS: Record<ScreenplayElementType, string> = 
 };
 
 /**
- * Standard script line width in monospace characters (6" @ 10 CPI).
- * Page: US Letter, left margin 1.5", right margin 1" → 6" writing area.
+ * Standard script line width in monospace characters (~6" @ 10 CPI).
+ * Use 58 (not 60) so Courier metrics never clip with wrap=off page textareas.
  */
-export const SCREENPLAY_LINE_WIDTH = 60;
+export const SCREENPLAY_LINE_WIDTH = 58;
 
 /**
  * Column positions from the left edge of the script text area

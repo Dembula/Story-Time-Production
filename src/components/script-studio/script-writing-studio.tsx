@@ -801,7 +801,8 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
       return;
     }
     pushHistoryBeforeChange({ immediate: true });
-    setPreserveImportLayout(true);
+    // Import path already reflows + hard-wraps to page margins; allow editor heal if needed.
+    setPreserveImportLayout(false);
     setDraft({ ...draft, content: importPreview.text });
     setDirty(true);
     setImportPreview(null);

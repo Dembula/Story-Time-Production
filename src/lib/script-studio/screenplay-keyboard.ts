@@ -118,10 +118,28 @@ export function detectLineElement(
     const nextIsDialogue =
       nextTrim.startsWith("(") ||
       (nextTrim.length > 0 && !SCENE_HEADING.test(nextTrim) && !CHARACTER_LINE.test(nextTrim));
-    if (atCharacterCol || (nextIsDialogue && indent >= SCREENPLAY_COL.character - 6)) {
+    // Imports/OCR often strip column spaces — still treat CAPS cue + following prose as character.
+    const importedCue =
+      indent < 4 &&
+      nextIsDialogue &&
+      nameOnly.length >= 2 &&
+      nameOnly.length <= 36 &&
+      !/[a-z]/.test(nameOnly);
+    if (atCharacterCol || (nextIsDialogue && indent >= SCREENPLAY_COL.character - 6) || importedCue) {
       return "character";
     }
   }
+
+  // Dialogue after a character cue (including unindented imports)
+  const prevTrim = neighbors?.prev?.trim() ?? "";
+  const prevNameOnly = prevTrim.replace(/\s*\((V\.O\.|O\.S\.|CONT'D|OFF|PRE-LAP)\)\s*$/i, "").trim();
+  const prevLooksLikeCharacter =
+    CHARACTER_LINE.test(prevNameOnly) &&
+    !SCENE_HEADING.test(prevNameOnly) &&
+    !TRANSITION_START.test(prevNameOnly) &&
+    !SHOT_LINE.test(prevNameOnly) &&
+    prevNameOnly.length <= 36 &&
+    !/[a-z]/.test(prevNameOnly);
 
   if (
     indent >= SCREENPLAY_COL.dialogue - 2 &&
@@ -129,6 +147,16 @@ export function detectLineElement(
     !CHARACTER_LINE.test(trimmed)
   ) {
     return "dialogue";
+  }
+
+  if (
+    indent < 4 &&
+    prevLooksLikeCharacter &&
+    !SCENE_HEADING.test(trimmed) &&
+    !CHARACTER_LINE.test(nameOnly) &&
+    (trimmed.startsWith("(") || /[a-z]/.test(trimmed) || trimmed.length > 12)
+  ) {
+    return trimmed.startsWith("(") ? "parenthetical" : "dialogue";
   }
 
   // Centered titles: roughly middle of the line, short uppercase phrases
@@ -800,20 +828,24 @@ export function hardWrapDocument(content: string): string {
     });
     const maxWidth = maxContentWidthForElement(element);
 
-    // Absorb following short remainder lines (the 1-letter peel bug)
+    // Absorb following wrap remainders (PDF visual breaks + 1-letter peel bug)
     let end = i;
-    if (line.trim().length >= maxWidth) {
-      while (end + 1 < lines.length) {
-        const nextLine = lines[end + 1] ?? "";
-        if (!nextLine.trim()) break;
-        const nextEl = detectLineElement(nextLine, {
-          prev: lines[end],
-          next: end + 2 < lines.length ? lines[end + 2] : undefined,
-        });
-        if (nextEl !== element) break;
-        if (nextLine.trim().length >= maxWidth) break;
-        end += 1;
-      }
+    while (end + 1 < lines.length) {
+      const currLine = lines[end] ?? "";
+      const nextLine = lines[end + 1] ?? "";
+      if (!nextLine.trim()) break;
+      const nextEl = detectLineElement(nextLine, {
+        prev: currLine,
+        next: end + 2 < lines.length ? lines[end + 2] : undefined,
+      });
+      if (nextEl !== element) break;
+
+      const currBody = currLine.trim().length;
+      const nextBody = nextLine.trim().length;
+      const isPeelTail = currBody >= maxWidth && nextBody < maxWidth;
+      const isImportWrap = shouldMergeImportedContinuation(currLine, nextLine);
+      if (!isPeelTail && !isImportWrap) break;
+      end += 1;
     }
 
     const joined =
@@ -827,4 +859,76 @@ export function hardWrapDocument(content: string): string {
     i = end + 1;
   }
   return out.join("\n");
+}
+
+/** True when `next` is a visual wrap continuation of `prev` (PDF/OCR hard breaks). */
+function shouldMergeImportedContinuation(prev: string, next: string): boolean {
+  const prevTrim = prev.trim();
+  const nextTrim = next.trim();
+  if (!prevTrim || !nextTrim) return false;
+
+  const prevEl = detectLineElement(prev, { next });
+  const nextEl = detectLineElement(next, { prev });
+
+  if (
+    nextEl === "scene_heading" ||
+    nextEl === "character" ||
+    nextEl === "transition" ||
+    nextEl === "shot" ||
+    nextEl === "centered"
+  ) {
+    return false;
+  }
+  if (prevEl === "scene_heading" || prevEl === "character" || prevEl === "transition" || prevEl === "shot") {
+    return false;
+  }
+  if (prevEl === "parenthetical" || nextEl === "parenthetical") return false;
+
+  const sameBlock =
+    (prevEl === "action" && nextEl === "action") || (prevEl === "dialogue" && nextEl === "dialogue");
+  if (!sameBlock) return false;
+
+  // Lowercase start ⇒ almost always a wrap continuation
+  if (/^[a-z(]/.test(nextTrim)) return true;
+
+  // Previous line filled most of the wrap width and does not end a sentence
+  const width = maxContentWidthForElement(prevEl);
+  const prevBodyLen = prevTrim.length;
+  if (prevBodyLen >= Math.floor(width * 0.72) && !/[.!?…"”']$/.test(prevTrim)) return true;
+  if (prevBodyLen >= Math.floor(width * 0.85) && !/[.!?]$/.test(prevTrim)) return true;
+
+  return false;
+}
+
+/**
+ * Rejoin PDF/OCR visual line breaks into paragraphs, then hard-wrap and
+ * column-format so each newline fits one studio page row (no soft-wrap spill).
+ */
+export function formatImportedScreenplayForPages(content: string): string {
+  const raw = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const lines = raw.split("\n");
+  const merged: string[] = [];
+
+  for (const line of lines) {
+    if (!line.trim()) {
+      // Collapse runs of blank lines to a single spacer between blocks
+      if (merged.length === 0 || merged[merged.length - 1] === "") continue;
+      merged.push("");
+      continue;
+    }
+
+    if (merged.length > 0) {
+      const prev = merged[merged.length - 1]!;
+      if (prev.trim() && shouldMergeImportedContinuation(prev, line)) {
+        merged[merged.length - 1] = `${prev.trimEnd()} ${line.trim()}`;
+        continue;
+      }
+    }
+    merged.push(line.replace(/[ \t]+$/g, ""));
+  }
+
+  // Drop trailing blank
+  while (merged.length > 0 && !merged[merged.length - 1]!.trim()) merged.pop();
+
+  return hardWrapDocument(merged.join("\n"));
 }

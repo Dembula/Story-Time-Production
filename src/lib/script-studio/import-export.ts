@@ -5,6 +5,7 @@ import {
   lightCleanScreenplayText,
   normalizeImportedScreenplayLayout,
 } from "@/lib/script-studio/screenplay-layout-repair";
+import { formatImportedScreenplayForPages } from "@/lib/script-studio/screenplay-keyboard";
 
 export type ImportResult = {
   text: string;
@@ -13,7 +14,7 @@ export type ImportResult = {
 
 /**
  * Final client-side pass for imported screenplay text.
- * Preserves good text. Repairs broken PDF output. Never discards extractable letters.
+ * Preserves good text. Repairs broken PDF output. Formats to studio page margins.
  */
 export function importScreenplayText(raw: string, filename: string): ImportResult {
   const fixes: string[] = [];
@@ -29,15 +30,17 @@ export function importScreenplayText(raw: string, filename: string): ImportResul
   const lower = filename.toLowerCase();
   const isPdf = lower.endsWith(".pdf");
   const needsRepair =
-    isPdf &&
-    (isFragmentedScreenplayImport(text) ||
-      isRunTogetherGarbage(text) ||
-      isCharacterSpacedGarbage(text));
+    isFragmentedScreenplayImport(text) ||
+    isRunTogetherGarbage(text) ||
+    isCharacterSpacedGarbage(text);
 
   if (needsRepair) {
     const layout = normalizeImportedScreenplayLayout(text);
     text = layout.text;
     fixes.push(...layout.fixes);
+  } else if (isPdf) {
+    // PDF extracts often still carry visual wrap hard-breaks even when not "fragmented"
+    fixes.push("Preparing PDF extract for screenplay page layout");
   }
 
   if (lower.endsWith(".fountain")) {
@@ -60,6 +63,12 @@ export function importScreenplayText(raw: string, filename: string): ImportResul
         : ["Import produced no readable screenplay text. Try PDF, DOCX, FDX, Fountain, RTF, ODT, or plain text."],
     };
   }
+
+  const formatted = formatImportedScreenplayForPages(text);
+  if (formatted !== text) {
+    fixes.push("Reflowed and hard-wrapped to US Letter screenplay margins");
+  }
+  text = formatted;
 
   return { text, fixes: [...new Set(fixes)].slice(0, 12) };
 }
