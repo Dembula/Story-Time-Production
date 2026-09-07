@@ -21,6 +21,21 @@ describe("screenplay-keyboard", () => {
     assert.equal(SCREENPLAY_COL.character, 22);
   });
 
+  it("preserves trailing spaces while typing scene headings and dialogue", () => {
+    assert.equal(formatLineForElement("scene_heading", "INT. "), "INT. ");
+    assert.equal(formatLineForElement("scene_heading", "INT. ROOM "), "INT. ROOM ");
+    assert.equal(
+      formatLineForElement("dialogue", `${" ".repeat(SCREENPLAY_COL.dialogue)}Hello `),
+      `${" ".repeat(SCREENPLAY_COL.dialogue)}Hello `,
+    );
+  });
+
+  it("wraps on early spaces instead of mid-word", () => {
+    const wrapped = wrapPlainText(`hi ${"x".repeat(60)}`, 20);
+    assert.equal(wrapped[0], "hi");
+    assert.ok((wrapped[1] ?? "").startsWith("x"));
+  });
+
   it("formats parenthetical at ~3.1\" and dialogue at ~2.5\"", () => {
     assert.equal(formatLineForElement("parenthetical", "whispering"), padColumn("(whispering)", SCREENPLAY_COL.parenthetical));
     assert.equal(formatLineForElement("dialogue", "Hello."), padColumn("Hello.", SCREENPLAY_COL.dialogue));

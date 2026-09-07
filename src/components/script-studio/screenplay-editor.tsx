@@ -16,6 +16,7 @@ import {
 import {
   getScreenplaySuggestions,
   isSceneHeadingPrefixQuery,
+  shouldAcceptSuggestionOnCommit,
   type ScreenplaySuggestion,
 } from "@/lib/script-studio/screenplay-autocomplete";
 import type { ScreenplayElementType } from "@/lib/script-studio/types";
@@ -112,6 +113,8 @@ export function ScreenplayEditor({
   const [suggestionIndex, setSuggestionIndex] = useState(0);
   const suggestionIdleTimerRef = useRef<number | null>(null);
   const suppressSuggestionBlurRef = useRef(false);
+  /** True after ArrowUp/Down in the suggestion list — allows Enter to accept even on short queries. */
+  const suggestionNavigatedRef = useRef(false);
   /** Apply caret after React commits the controlled value — never in rAF before paint. */
   const pendingCaretRef = useRef<{ start: number; end: number; content: string } | null>(null);
   const valueRef = useRef(value);
@@ -140,6 +143,7 @@ export function ScreenplayEditor({
 
   const dismissSuggestions = useCallback(() => {
     clearSuggestionIdle();
+    suggestionNavigatedRef.current = false;
     setSuggestions([]);
     setSuggestionIndex(0);
   }, [clearSuggestionIdle]);
@@ -219,7 +223,13 @@ export function ScreenplayEditor({
         suggestionElement = "action";
       }
 
-      const next = getScreenplaySuggestions({ content, line, element: suggestionElement });
+      const next = getScreenplaySuggestions({
+        content,
+        line,
+        element: suggestionElement,
+        prevLine: neighbors.prev,
+      });
+      suggestionNavigatedRef.current = false;
       setSuggestions(next);
       setSuggestionIndex(0);
       if (next.length > 0) bumpSuggestionIdle();
@@ -355,12 +365,14 @@ export function ScreenplayEditor({
       if (suggestions.length > 0) {
         if (e.key === "ArrowDown") {
           e.preventDefault();
+          suggestionNavigatedRef.current = true;
           setSuggestionIndex((i) => (i + 1) % suggestions.length);
           bumpSuggestionIdle();
           return;
         }
         if (e.key === "ArrowUp") {
           e.preventDefault();
+          suggestionNavigatedRef.current = true;
           setSuggestionIndex((i) => (i - 1 + suggestions.length) % suggestions.length);
           bumpSuggestionIdle();
           return;
@@ -370,14 +382,26 @@ export function ScreenplayEditor({
           dismissSuggestions();
           return;
         }
-        if (e.key === "Tab" && !e.ctrlKey && !e.metaKey) {
+
+        const lineIdx = lineIndexAt(content, globalStart);
+        const currentLine = content.split("\n")[lineIdx] ?? "";
+        const activeSuggestion = suggestions[suggestionIndex] ?? suggestions[0];
+        const accept = shouldAcceptSuggestionOnCommit({
+          line: currentLine,
+          element: editingElement,
+          suggestionCount: suggestions.length,
+          navigated: suggestionNavigatedRef.current,
+          activeInsert: activeSuggestion?.insert,
+        });
+
+        if (accept && e.key === "Tab" && !e.ctrlKey && !e.metaKey) {
           e.preventDefault();
-          applySuggestion(suggestions[suggestionIndex] ?? suggestions[0]!, pageIdx);
+          applySuggestion(activeSuggestion!, pageIdx);
           return;
         }
-        if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+        if (accept && e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
           e.preventDefault();
-          applySuggestion(suggestions[suggestionIndex] ?? suggestions[0]!, pageIdx);
+          applySuggestion(activeSuggestion!, pageIdx);
           return;
         }
         // Backspace / Delete must never be trapped — let the textarea delete, then refresh via onChange.
@@ -428,6 +452,7 @@ export function ScreenplayEditor({
         e.preventDefault();
         onBeforeChange?.();
         if (preserveStructure) onPreserveStructureEnd?.();
+        dismissSuggestions();
         applyEdit(handleScreenplayEnter(content, globalStart, editingElement));
         return;
       }
@@ -436,10 +461,21 @@ export function ScreenplayEditor({
         e.preventDefault();
         onBeforeChange?.();
         if (preserveStructure) onPreserveStructureEnd?.();
-        if (suggestions.length > 0) {
-          applySuggestion(suggestions[suggestionIndex] ?? suggestions[0]!, pageIdx);
+        const lineIdx = lineIndexAt(content, globalStart);
+        const currentLine = content.split("\n")[lineIdx] ?? "";
+        const activeSuggestion = suggestions[suggestionIndex] ?? suggestions[0];
+        const accept = shouldAcceptSuggestionOnCommit({
+          line: currentLine,
+          element: editingElement,
+          suggestionCount: suggestions.length,
+          navigated: suggestionNavigatedRef.current,
+          activeInsert: activeSuggestion?.insert,
+        });
+        if (accept && activeSuggestion) {
+          applySuggestion(activeSuggestion, pageIdx);
           return;
         }
+        dismissSuggestions();
         applyEdit(handleScreenplayTab(content, globalStart, e.shiftKey ? -1 : 1, editingElement));
         return;
       }

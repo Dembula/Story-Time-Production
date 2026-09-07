@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   getScreenplaySuggestions,
   isSceneHeadingPrefixQuery,
+  shouldAcceptSuggestionOnCommit,
 } from "./screenplay-autocomplete";
 
 describe("screenplay-autocomplete", () => {
@@ -55,5 +56,53 @@ describe("screenplay-autocomplete", () => {
       element: "scene_heading",
     });
     assert.ok(suggestions.some((s) => s.label.includes("KITCHEN")));
+  });
+
+  it("does not dump parentheticals on empty ()", () => {
+    const suggestions = getScreenplaySuggestions({
+      content: "",
+      line: "()",
+      element: "parenthetical",
+    });
+    assert.equal(suggestions.length, 0);
+  });
+
+  it("does not dump transitions on an empty transition line", () => {
+    const suggestions = getScreenplaySuggestions({
+      content: "",
+      line: "",
+      element: "transition",
+    });
+    assert.equal(suggestions.length, 0);
+  });
+
+  it("only accepts Enter for suggestions when the line has a real query", () => {
+    assert.equal(
+      shouldAcceptSuggestionOnCommit({
+        line: "",
+        element: "action",
+        suggestionCount: 6,
+        navigated: false,
+      }),
+      false,
+    );
+    assert.equal(
+      shouldAcceptSuggestionOnCommit({
+        line: "IN",
+        element: "scene_heading",
+        suggestionCount: 1,
+        navigated: false,
+      }),
+      true,
+    );
+    assert.equal(
+      shouldAcceptSuggestionOnCommit({
+        line: "INT. ROOM - DAY",
+        element: "scene_heading",
+        suggestionCount: 3,
+        navigated: false,
+      }),
+      false,
+    );
   });
 });

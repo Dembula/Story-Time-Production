@@ -219,37 +219,43 @@ export function resolveLineElement(
 }
 
 export function formatLineForElement(element: ScreenplayElementType, rawLine: string): string {
+  const trailingSpaces = rawLine.match(/ *$/)?.[0] ?? "";
   const trimmed = rawLine.trim();
   if (!trimmed) {
-    if (element === "dialogue") return padColumn("", SCREENPLAY_COL.dialogue);
-    if (element === "character") return padColumn("", SCREENPLAY_COL.character);
+    if (element === "dialogue") return padColumn("", SCREENPLAY_COL.dialogue) + trailingSpaces;
+    if (element === "character") return padColumn("", SCREENPLAY_COL.character) + trailingSpaces;
     if (element === "parenthetical") return padColumn("()", SCREENPLAY_COL.parenthetical);
-    return "";
+    return trailingSpaces;
   }
 
   switch (element) {
     case "scene_heading":
-      return trimmed.toUpperCase();
+      return trimmed.toUpperCase() + trailingSpaces;
     case "character": {
       const upper = trimmed.toUpperCase();
-      return padColumn(upper, SCREENPLAY_COL.character);
+      return padColumn(upper, SCREENPLAY_COL.character) + trailingSpaces;
     }
     case "parenthetical": {
+      // Keep an open paren while mid-type; close when the line is complete or has no "(".
+      if (/^\(+$/.test(trimmed)) return padColumn("(", SCREENPLAY_COL.parenthetical) + trailingSpaces;
+      const startsWithParen = trimmed.startsWith("(");
+      const hasClose = /\)$/.test(trimmed);
       const inner = trimmed.replace(/^\(+|\)+$/g, "").trim();
-      return padColumn(`(${inner})`, SCREENPLAY_COL.parenthetical);
+      const body = !startsWithParen || hasClose ? `(${inner})` : `(${inner}`;
+      return padColumn(body, SCREENPLAY_COL.parenthetical) + trailingSpaces;
     }
     case "dialogue":
-      return padColumn(trimmed, SCREENPLAY_COL.dialogue);
+      return padColumn(trimmed, SCREENPLAY_COL.dialogue) + trailingSpaces;
     case "transition": {
       let t = trimmed.toUpperCase();
-      if (!/[:.]$/.test(t) && /TO$/i.test(t)) t = `${t}:`;
-      return rightAlign(t);
+      if (!trailingSpaces && !/[:.]$/.test(t) && /TO$/i.test(t)) t = `${t}:`;
+      return rightAlign(t) + trailingSpaces;
     }
     case "shot":
-      return trimmed.toUpperCase();
+      return trimmed.toUpperCase() + trailingSpaces;
     case "centered":
     case "lyrics":
-      return centerText(trimmed);
+      return centerText(trimmed) + trailingSpaces;
     case "action":
     default:
       // Preserve trailing spaces while typing; only strip leading indent noise
@@ -300,8 +306,8 @@ export function wrapPlainText(text: string, maxWidth: number): string[] {
   let rest = normalized;
   while (rest.length > width) {
     let cut = rest.lastIndexOf(" ", width);
-    // Only break on a space if it isn't near the start (avoid 1–2 char leftovers from early spaces)
-    if (cut < Math.floor(width * 0.5)) cut = width;
+    // Break on any space in the line window; only hard-cut when there is no space at all.
+    if (cut <= 0) cut = width;
     const piece = rest.slice(0, cut).trimEnd();
     if (!piece) {
       // Safety: force a hard cut so we cannot infinite-loop
@@ -414,10 +420,19 @@ export function applyHardWrapAtCursor(
   }
 
   const fragmentBodies = lines.slice(lineIdx, endIdx + 1).map((l) => l.trim());
-  const joinedBody =
+  const preserveTrailingSpace = atEnd && /\s$/.test(current);
+  let joinedBody =
     endIdx > lineIdx ? joinWrapFragments(fragmentBodies, maxWidth) : current.trim().length ? current.trim() : current;
+  if (preserveTrailingSpace && joinedBody && !joinedBody.endsWith(" ")) {
+    joinedBody = `${joinedBody} `;
+  }
   const sourceForWrap = joinedBody.length > 0 ? joinedBody : current;
-  const wrapped = hardWrapLineForElement(element, sourceForWrap);
+  const wrapped = hardWrapLineForElement(element, sourceForWrap.trimEnd());
+  // Re-apply trailing space on the last wrapped segment when typing at end
+  if (preserveTrailingSpace && wrapped.length > 0) {
+    const last = wrapped.length - 1;
+    if (!wrapped[last]!.endsWith(" ")) wrapped[last] = `${wrapped[last]} `;
+  }
 
   // If nothing exceeded the width, keep a single formatted line (avoid churn)
   if (wrapped.length === 1 && endIdx === lineIdx && wrapped[0] === current) {
@@ -585,13 +600,26 @@ export function formatLineWhileTyping(
 
   const needsWrap = bodyLen > maxWidth || hasPeeledTail;
   const formattedSingle = formatLineForElement(element, current);
+  // Don't treat intentional trailing spaces as a format mismatch — that made Space appear broken.
   const needsFormat =
-    element !== "action" && (formattedSingle !== current || element !== activeElement);
+    element !== "action" &&
+    (formattedSingle !== current || element !== activeElement) &&
+    !(atEnd && current.endsWith(" ") && formattedSingle === current);
 
   if (!needsWrap && !needsFormat) return null;
 
   if (needsWrap) {
     return applyHardWrapAtCursor(content, cursorPos, activeElement);
+  }
+
+  // If the only change would eat a trailing space the user just typed, skip.
+  if (
+    atEnd &&
+    current.endsWith(" ") &&
+    formattedSingle.replace(/ +$/, "") === current.replace(/ +$/, "") &&
+    formattedSingle.length < current.length
+  ) {
+    return null;
   }
 
   const lineEnd = lineStart + current.length;
@@ -600,11 +628,17 @@ export function formatLineWhileTyping(
   const delta = formattedSingle.length - current.length;
 
   let newCursor = Math.max(lineStart, Math.min(lineStart + cursorInLine + delta, lineStart + formattedSingle.length));
-  if (element === "parenthetical" && formattedSingle.includes("(")) {
+  // Prefer keeping the caret after a trailing space when typing at end of line.
+  if (atEnd && formattedSingle.endsWith(" ")) {
+    newCursor = lineStart + formattedSingle.length;
+  }
+  if (element === "parenthetical" && formattedSingle.includes("(") && !formattedSingle.endsWith(" ")) {
     const open = formattedSingle.indexOf("(");
     const close = formattedSingle.lastIndexOf(")");
     if (close > open) {
       newCursor = Math.min(Math.max(lineStart + open + 1, newCursor), lineStart + close);
+    } else if (open >= 0) {
+      newCursor = Math.max(lineStart + open + 1, newCursor);
     }
   }
 
