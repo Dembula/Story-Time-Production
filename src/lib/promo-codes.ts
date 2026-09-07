@@ -209,7 +209,9 @@ export async function resolvePromoForCheckout(
   }
 
   const resolved = await resolvePromoCode(codeRaw, target);
-  if ("error" in resolved) return { error: resolved.error };
+  if ("error" in resolved) {
+    return { error: resolved.error || "Promo code is invalid or inactive." };
+  }
 
   const prior = await prisma.promoCodeRedemption.findUnique({
     where: {
@@ -221,7 +223,9 @@ export async function resolvePromoForCheckout(
     },
     select: { discountAmount: true, metadata: true },
   });
-  if (!prior) return { error: unused.error };
+  if (!prior) {
+    return { error: unused.error || "Promo code already used for this account." };
+  }
   if (isFullyCompedPromoRedemption(prior.metadata, prior.discountAmount)) {
     return { error: "Promo code already used for this account." };
   }
