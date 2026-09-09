@@ -13,6 +13,7 @@ import {
   maxContentWidthForElement,
   pageCountForContent,
   resolveLineElement,
+  formatLineForElement,
 } from "@/lib/script-studio/screenplay-keyboard";
 import {
   getScreenplaySuggestions,
@@ -23,6 +24,7 @@ import {
 import type { ScreenplayElementType } from "@/lib/script-studio/types";
 import { ScreenplayTitlePage } from "@/components/script-studio/screenplay-title-page";
 import { stripScreenplayPageFooters } from "@/lib/script-studio/screenplay-layout-repair";
+import { TRANSITIONS } from "@/lib/script-studio/elements";
 
 /** US Letter page geometry (screenplay standard). */
 const PAGE_WIDTH = "8.5in";
@@ -66,6 +68,13 @@ type ScreenplayEditorProps = {
   onScriptTypeChange?: (type: string) => void;
   /** Script-only writer credit — must not update the account profile. */
   onAuthorNameChange?: (authorName: string) => void;
+  /** Bridge for undo/redo to use global caret positions across page textareas. */
+  caretBridgeRef?: React.MutableRefObject<ScreenplayCaretBridge | null>;
+};
+
+export type ScreenplayCaretBridge = {
+  getGlobalCaret: () => { start: number; end: number };
+  setGlobalCaret: (start: number, end: number, content?: string) => void;
 };
 
 function splitContentIntoPages(content: string): string[] {
@@ -124,6 +133,7 @@ export function ScreenplayEditor({
   onScriptTitleChange,
   onScriptTypeChange,
   onAuthorNameChange,
+  caretBridgeRef,
 }: ScreenplayEditorProps) {
   const resolvedAuthor = authorName?.trim() || "Creator";
   const pageRefs = useRef<Array<HTMLTextAreaElement | null>>([]);
@@ -139,6 +149,19 @@ export function ScreenplayEditor({
   const pendingCaretRef = useRef<{ start: number; end: number; content: string } | null>(null);
   const valueRef = useRef(value);
   valueRef.current = value;
+  const activePageIdxRef = useRef(0);
+  activePageIdxRef.current = activePageIdx;
+
+  /** Hold Tab + tap Enter to cycle transitions; release Tab to insert. */
+  const tabHeldRef = useRef(false);
+  const tabUsedForTransitionsRef = useRef(false);
+  const [transitionPicker, setTransitionPicker] = useState<{
+    open: boolean;
+    index: number;
+    pageIdx: number;
+  } | null>(null);
+  const transitionPickerRef = useRef(transitionPicker);
+  transitionPickerRef.current = transitionPicker;
 
   useEffect(() => {
     setEditingElement(activeElementProp);
@@ -231,7 +254,7 @@ export function ScreenplayEditor({
     const max = el.value.length;
     const localStart = Math.min(Math.max(0, pending.start - pageBase), max);
     const localEnd = Math.min(Math.max(0, pending.end - pageBase), max);
-    if (document.activeElement !== el) el.focus();
+    if (document.activeElement !== el) el.focus({ preventScroll: true });
     el.setSelectionRange(localStart, localEnd);
     syncExternalRef(el);
   }, [syncExternalRef]);
@@ -243,6 +266,49 @@ export function ScreenplayEditor({
   const queueCaret = useCallback((content: string, start: number, end = start) => {
     pendingCaretRef.current = { content, start, end };
   }, []);
+
+  const focusAt = useCallback(
+    (globalOffset: number, selectionEnd = globalOffset, content = valueRef.current) => {
+      queueCaret(content, globalOffset, selectionEnd);
+      if (content === valueRef.current) {
+        requestAnimationFrame(() => applyPendingCaret());
+      }
+    },
+    [queueCaret, applyPendingCaret],
+  );
+
+  // Expose global caret get/set for undo/redo in the parent studio.
+  useEffect(() => {
+    if (!caretBridgeRef) return;
+    caretBridgeRef.current = {
+      getGlobalCaret: () => {
+        const pageIdx = activePageIdxRef.current;
+        const el = pageRefs.current[pageIdx];
+        const content = valueRef.current;
+        if (!el) {
+          return { start: 0, end: 0 };
+        }
+        const base = pageStartOffset(content, pageIdx);
+        return {
+          start: base + el.selectionStart,
+          end: base + el.selectionEnd,
+        };
+      },
+      setGlobalCaret: (start, end, content) => {
+        focusAt(start, end, content ?? valueRef.current);
+      },
+    };
+    return () => {
+      caretBridgeRef.current = null;
+    };
+  }, [caretBridgeRef, focusAt]);
+
+  // Clamp active page when undo/import shrinks page count.
+  useEffect(() => {
+    if (activePageIdx >= pageCount) {
+      setActivePageIdx(Math.max(0, pageCount - 1));
+    }
+  }, [pageCount, activePageIdx]);
 
   const refreshSuggestions = useCallback(
     (content: string, globalCursor: number, element: ScreenplayElementType) => {
@@ -301,17 +367,6 @@ export function ScreenplayEditor({
       refreshSuggestions(value, globalStart, element);
     },
     [value, editingElement, onElementChange, refreshSuggestions],
-  );
-
-  const focusAt = useCallback(
-    (globalOffset: number, selectionEnd = globalOffset, content = valueRef.current) => {
-      queueCaret(content, globalOffset, selectionEnd);
-      // If value is already committed, apply immediately.
-      if (content === valueRef.current) {
-        requestAnimationFrame(() => applyPendingCaret());
-      }
-    },
-    [queueCaret, applyPendingCaret],
   );
 
   const applyEdit = useCallback(
@@ -414,12 +469,28 @@ export function ScreenplayEditor({
     [editingElement, onChange, onElementChange, queueCaret, refreshSuggestions, preserveStructure],
   );
 
-  const handlePageChange = useCallback(
-    (pageIdx: number, e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      if (readOnly) return;
-      commitPageText(pageIdx, e.target.value, e.target.selectionStart);
+  const insertTransitionAt = useCallback(
+    (pageIdx: number, transition: string) => {
+      const content = valueRef.current;
+      const el = pageRefs.current[pageIdx];
+      const local = el?.selectionStart ?? 0;
+      const globalCursor = pageStartOffset(content, pageIdx) + local;
+      const lineIdx = lineIndexAt(content, globalCursor);
+      const lines = content.split("\n");
+      lines[lineIdx] = formatLineForElement("transition", transition);
+      const newLines = [...lines.slice(0, lineIdx + 1), "", ...lines.slice(lineIdx + 1)];
+      const newContent = newLines.join("\n");
+      let caret = 0;
+      for (let i = 0; i < lineIdx + 1; i++) caret += (newLines[i]?.length ?? 0) + 1;
+      onBeforeChange?.();
+      applyEdit({
+        content: newContent,
+        selectionStart: caret,
+        selectionEnd: caret,
+        element: "action",
+      });
     },
-    [readOnly, commitPageText],
+    [applyEdit, onBeforeChange],
   );
 
   const handlePageKeyDown = useCallback(
@@ -430,27 +501,45 @@ export function ScreenplayEditor({
       const globalStart = pageStartOffset(content, pageIdx) + el.selectionStart;
       const globalEnd = pageStartOffset(content, pageIdx) + el.selectionEnd;
 
-      if (suggestions.length > 0) {
+      // Only steal arrows for suggestions after the user has navigated the list —
+      // otherwise ArrowUp/Down must move the caret between lines normally.
+      if (suggestions.length > 0 && suggestionNavigatedRef.current) {
         if (e.key === "ArrowDown") {
           e.preventDefault();
-          suggestionNavigatedRef.current = true;
           setSuggestionIndex((i) => (i + 1) % suggestions.length);
           bumpSuggestionIdle();
           return;
         }
         if (e.key === "ArrowUp") {
           e.preventDefault();
-          suggestionNavigatedRef.current = true;
           setSuggestionIndex((i) => (i - 1 + suggestions.length) % suggestions.length);
           bumpSuggestionIdle();
           return;
         }
-        if (e.key === "Escape") {
+      }
+      if (suggestions.length > 0 && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+        // First arrow press while chips are visible: start navigating suggestions
+        // only with Alt; plain arrows move the caret.
+        if (e.altKey) {
           e.preventDefault();
-          dismissSuggestions();
+          suggestionNavigatedRef.current = true;
+          setSuggestionIndex((i) =>
+            e.key === "ArrowDown"
+              ? (i + 1) % suggestions.length
+              : (i - 1 + suggestions.length) % suggestions.length,
+          );
+          bumpSuggestionIdle();
           return;
         }
+      }
 
+      if (suggestions.length > 0 && e.key === "Escape") {
+        e.preventDefault();
+        dismissSuggestions();
+        return;
+      }
+
+      if (suggestions.length > 0) {
         const lineIdx = lineIndexAt(content, globalStart);
         const currentLine = content.split("\n")[lineIdx] ?? "";
         const activeSuggestion = suggestions[suggestionIndex] ?? suggestions[0];
@@ -462,21 +551,49 @@ export function ScreenplayEditor({
           activeInsert: activeSuggestion?.insert,
         });
 
-        if (accept && e.key === "Tab" && !e.ctrlKey && !e.metaKey) {
+        if (accept && e.key === "Enter" && !e.shiftKey && !tabHeldRef.current && !e.ctrlKey && !e.metaKey) {
           e.preventDefault();
           applySuggestion(activeSuggestion!, pageIdx);
           return;
         }
-        if (accept && e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
-          e.preventDefault();
-          applySuggestion(activeSuggestion!, pageIdx);
-          return;
-        }
-        // Backspace / Delete must never be trapped — let the textarea delete, then refresh via onChange.
         if (e.key === "Backspace" || e.key === "Delete") {
           bumpSuggestionIdle();
-          // fall through — do not preventDefault
         }
+      }
+
+      // Tab held + Enter = transition picker (cycle). Release Tab to insert.
+      if (e.key === "Tab" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        if (!tabHeldRef.current) {
+          tabHeldRef.current = true;
+          tabUsedForTransitionsRef.current = false;
+        }
+        return;
+      }
+
+      if (e.key === "Enter" && !e.shiftKey && tabHeldRef.current) {
+        e.preventDefault();
+        tabUsedForTransitionsRef.current = true;
+        dismissSuggestions();
+        setTransitionPicker((prev) => {
+          if (!prev?.open) {
+            return { open: true, index: 0, pageIdx };
+          }
+          return {
+            ...prev,
+            pageIdx,
+            index: (prev.index + 1) % TRANSITIONS.length,
+          };
+        });
+        return;
+      }
+
+      if (e.key === "Escape" && transitionPickerRef.current?.open) {
+        e.preventDefault();
+        setTransitionPicker(null);
+        tabUsedForTransitionsRef.current = false;
+        tabHeldRef.current = false;
+        return;
       }
 
       if (
@@ -525,29 +642,6 @@ export function ScreenplayEditor({
         return;
       }
 
-      if (e.key === "Tab") {
-        e.preventDefault();
-        onBeforeChange?.();
-        if (preserveStructure) onPreserveStructureEnd?.();
-        const lineIdx = lineIndexAt(content, globalStart);
-        const currentLine = content.split("\n")[lineIdx] ?? "";
-        const activeSuggestion = suggestions[suggestionIndex] ?? suggestions[0];
-        const accept = shouldAcceptSuggestionOnCommit({
-          line: currentLine,
-          element: editingElement,
-          suggestionCount: suggestions.length,
-          navigated: suggestionNavigatedRef.current,
-          activeInsert: activeSuggestion?.insert,
-        });
-        if (accept && activeSuggestion) {
-          applySuggestion(activeSuggestion, pageIdx);
-          return;
-        }
-        dismissSuggestions();
-        applyEdit(handleScreenplayTab(content, globalStart, e.shiftKey ? -1 : 1, editingElement));
-        return;
-      }
-
       // Soft page boundary: backspace at start of page N must delete the joining newline.
       if (e.key === "Backspace" && el.selectionStart === 0 && el.selectionEnd === 0 && pageIdx > 0) {
         e.preventDefault();
@@ -568,9 +662,9 @@ export function ScreenplayEditor({
         return;
       }
 
+      // Page jumps only at absolute start/end — mid-page arrows stay native.
       if (
         e.key === "ArrowUp" &&
-        suggestions.length === 0 &&
         el.selectionStart === 0 &&
         el.selectionEnd === 0 &&
         pageIdx > 0
@@ -583,7 +677,6 @@ export function ScreenplayEditor({
 
       if (
         e.key === "ArrowDown" &&
-        suggestions.length === 0 &&
         el.selectionStart === el.value.length &&
         el.selectionEnd === el.value.length &&
         pageIdx < pageCount - 1
@@ -609,6 +702,84 @@ export function ScreenplayEditor({
     ],
   );
 
+  // Tab release: insert transition if Enter was used while held; otherwise cycle format
+  // (or accept a suggestion when one is clearly intended).
+  const suggestionsRef = useRef(suggestions);
+  suggestionsRef.current = suggestions;
+  const suggestionIndexRef = useRef(suggestionIndex);
+  suggestionIndexRef.current = suggestionIndex;
+  const editingElementRef = useRef(editingElement);
+  editingElementRef.current = editingElement;
+
+  useEffect(() => {
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.key !== "Tab") return;
+      const wasHeld = tabHeldRef.current;
+      tabHeldRef.current = false;
+      if (!wasHeld || readOnly) return;
+
+      const picker = transitionPickerRef.current;
+      if (tabUsedForTransitionsRef.current && picker?.open) {
+        const transition = TRANSITIONS[picker.index] ?? TRANSITIONS[0]!;
+        setTransitionPicker(null);
+        tabUsedForTransitionsRef.current = false;
+        insertTransitionAt(picker.pageIdx, transition);
+        return;
+      }
+
+      tabUsedForTransitionsRef.current = false;
+      setTransitionPicker(null);
+
+      const pageIdx = activePageIdxRef.current;
+      const el = pageRefs.current[pageIdx];
+      if (!el) return;
+      const content = valueRef.current;
+      const globalStart = pageStartOffset(content, pageIdx) + el.selectionStart;
+      const currentSuggestions = suggestionsRef.current;
+      const activeSuggestion =
+        currentSuggestions[suggestionIndexRef.current] ?? currentSuggestions[0];
+      const lineIdx = lineIndexAt(content, globalStart);
+      const currentLine = content.split("\n")[lineIdx] ?? "";
+      const accept = shouldAcceptSuggestionOnCommit({
+        line: currentLine,
+        element: editingElementRef.current,
+        suggestionCount: currentSuggestions.length,
+        navigated: suggestionNavigatedRef.current,
+        activeInsert: activeSuggestion?.insert,
+      });
+      if (accept && activeSuggestion) {
+        applySuggestion(activeSuggestion, pageIdx);
+        return;
+      }
+
+      onBeforeChange?.();
+      if (preserveStructure) onPreserveStructureEnd?.();
+      dismissSuggestions();
+      applyEdit(
+        handleScreenplayTab(content, globalStart, e.shiftKey ? -1 : 1, editingElementRef.current),
+      );
+    };
+    window.addEventListener("keyup", onKeyUp);
+    return () => window.removeEventListener("keyup", onKeyUp);
+  }, [
+    readOnly,
+    insertTransitionAt,
+    applySuggestion,
+    onBeforeChange,
+    preserveStructure,
+    onPreserveStructureEnd,
+    dismissSuggestions,
+    applyEdit,
+  ]);
+
+  const handlePageChange = useCallback(
+    (pageIdx: number, e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      if (readOnly) return;
+      commitPageText(pageIdx, e.target.value, e.target.selectionStart);
+    },
+    [readOnly, commitPageText],
+  );
+
   const transitionSuggestions = useMemo(
     () => suggestions.filter((s) => s.element === "transition"),
     [suggestions],
@@ -625,7 +796,34 @@ export function ScreenplayEditor({
 
   return (
     <div className="script-writer-editor-root w-full" data-studio-theme={theme}>
-      {suggestions.length > 0 ? (
+      {transitionPicker?.open ? (
+        <div
+          className="script-writer-transition-picker"
+          role="listbox"
+          aria-label="Transition picker — release Tab to insert"
+        >
+          <p className="script-writer-suggestion-label">
+            Hold Tab · tap Enter to cycle · release Tab to insert
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {TRANSITIONS.map((t, i) => (
+              <span
+                key={t}
+                role="option"
+                aria-selected={i === transitionPicker.index}
+                className={`script-writer-suggestion-chip ${
+                  i === transitionPicker.index ? "is-active" : ""
+                }`}
+                style={{ fontFamily: fontCss }}
+              >
+                {t}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {suggestions.length > 0 && !transitionPicker?.open ? (
         <div
           className="script-writer-suggestion-dock"
           role="listbox"
@@ -767,18 +965,26 @@ export function ScreenplayEditor({
                   window.setTimeout(() => {
                     if (suppressSuggestionBlurRef.current) return;
                     dismissSuggestions();
-                    if (!readOnly && !preserveStructure) {
-                      const el = pageRefs.current[pageIdx];
-                      if (el) {
-                        const globalCursor = pageStartOffset(valueRef.current, pageIdx) + el.selectionStart;
-                        const formatted = formatLineWhileTyping(
-                          valueRef.current,
-                          globalCursor,
-                          editingElement,
-                        );
-                        if (formatted) {
-                          applyEdit(formatted);
-                        }
+                    // Don't rewrite action/dialogue on blur — that fights the Format
+                    // dropdown and normal typing when focus moves to the toolbar.
+                    if (
+                      readOnly ||
+                      preserveStructure ||
+                      editingElement === "action" ||
+                      editingElement === "dialogue"
+                    ) {
+                      return;
+                    }
+                    const el = pageRefs.current[pageIdx];
+                    if (el) {
+                      const globalCursor = pageStartOffset(valueRef.current, pageIdx) + el.selectionStart;
+                      const formatted = formatLineWhileTyping(
+                        valueRef.current,
+                        globalCursor,
+                        editingElement,
+                      );
+                      if (formatted) {
+                        applyEdit(formatted);
                       }
                     }
                   }, 180);

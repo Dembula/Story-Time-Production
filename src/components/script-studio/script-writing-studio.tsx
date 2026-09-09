@@ -10,6 +10,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   BookOpen,
+  CircleHelp,
   Columns2,
   Eye,
   FilePlus2,
@@ -53,11 +54,17 @@ import {
   parseCharacters,
   parseScenes,
 } from "@/lib/script-studio/parse-screenplay";
-import { LINES_PER_PAGE, PAGE_GAP_PX } from "@/lib/script-studio/screenplay-keyboard";
+import {
+  formatLineForElement,
+  LINES_PER_PAGE,
+  lineIndexAt,
+  lineStartAt,
+  PAGE_GAP_PX,
+} from "@/lib/script-studio/screenplay-keyboard";
 import { SCRIPT_TEMPLATES } from "@/lib/script-studio/templates";
 import type { ScreenplayElementType, StudioTheme } from "@/lib/script-studio/types";
 import { ScreenplayReader } from "./screenplay-reader";
-import { ScreenplayEditor } from "./screenplay-editor";
+import { ScreenplayEditor, type ScreenplayCaretBridge } from "./screenplay-editor";
 import {
   resolveScriptAuthorName,
   shouldReplaceDraftTitle,
@@ -123,6 +130,8 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
   const hasProject = !!projectId;
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const pageViewportRef = useRef<HTMLDivElement | null>(null);
+  const caretBridgeRef = useRef<ScreenplayCaretBridge | null>(null);
+  const [writerHelpOpen, setWriterHelpOpen] = useState(false);
   const modoc = useModocOptional();
 
   const listEndpoint = hasProject
@@ -293,12 +302,14 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
   const captureHistorySnapshot = useCallback((): ScriptHistoryEntry | null => {
     const current = draftRef.current;
     if (!current) return null;
+    const bridge = caretBridgeRef.current;
+    const caret = bridge?.getGlobalCaret();
     const el = textareaRef.current;
     return {
       content: current.content,
       title: current.title,
-      selectionStart: el?.selectionStart ?? current.content.length,
-      selectionEnd: el?.selectionEnd ?? current.content.length,
+      selectionStart: caret?.start ?? el?.selectionStart ?? current.content.length,
+      selectionEnd: caret?.end ?? el?.selectionEnd ?? current.content.length,
     };
   }, []);
 
@@ -361,21 +372,25 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
       window.clearTimeout(historyCoalesceTimerRef.current);
       historyCoalesceTimerRef.current = null;
     }
+    const viewport = pageViewportRef.current;
+    const savedScrollTop = viewport?.scrollTop ?? 0;
     setDraft((prev) =>
       prev ? { ...prev, content: entry.content, title: entry.title } : prev,
     );
     setDirty(true);
     setHistoryTick((t) => t + 1);
     requestAnimationFrame(() => {
-      const el = textareaRef.current;
-      if (el) {
-        el.focus();
-        const max = entry.content.length;
-        const start = Math.min(entry.selectionStart, max);
-        const end = Math.min(entry.selectionEnd, max);
-        el.setSelectionRange(start, end);
-      }
-      applyingHistoryRef.current = false;
+      const max = entry.content.length;
+      const start = Math.min(Math.max(0, entry.selectionStart), max);
+      const end = Math.min(Math.max(0, entry.selectionEnd), max);
+      caretBridgeRef.current?.setGlobalCaret(start, end, entry.content);
+      if (viewport) viewport.scrollTop = savedScrollTop;
+      // Second frame: React may have remounted page textareas after content change.
+      requestAnimationFrame(() => {
+        caretBridgeRef.current?.setGlobalCaret(start, end, entry.content);
+        if (viewport) viewport.scrollTop = savedScrollTop;
+        applyingHistoryRef.current = false;
+      });
     });
   }, []);
 
@@ -857,21 +872,83 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
     [draft, effectiveCanWrite, pushHistoryBeforeChange],
   );
 
+  const applyElementToCurrentLine = useCallback(
+    (type: ScreenplayElementType) => {
+      if (!draft || !effectiveCanWrite) return;
+      pushHistoryBeforeChange({ immediate: true });
+
+      const content = draft.content ?? "";
+      const caret =
+        caretBridgeRef.current?.getGlobalCaret() ??
+        (() => {
+          const el = textareaRef.current;
+          return {
+            start: el?.selectionStart ?? content.length,
+            end: el?.selectionEnd ?? content.length,
+          };
+        })();
+
+      const lineIdx = lineIndexAt(content, caret.start);
+      const lines = content.split("\n");
+      const current = lines[lineIdx] ?? "";
+      const trimmed = current.trim();
+      const placeholder =
+        type === "scene_heading"
+          ? "INT. LOCATION - DAY"
+          : type === "character"
+            ? "CHARACTER"
+            : type === "parenthetical"
+              ? "beat"
+              : type === "dialogue"
+                ? "Dialogue."
+                : type === "transition"
+                  ? "CUT TO:"
+                  : type === "shot"
+                    ? "CLOSE UP"
+                    : type === "centered"
+                      ? "THE END"
+                      : "";
+      const formatted = formatLineForElement(type, trimmed || placeholder);
+      const lineStart = lineStartAt(content, lineIdx);
+      const lineEnd = lineStart + current.length;
+      const newContent = content.slice(0, lineStart) + formatted + content.slice(lineEnd);
+      const selectionStart = lineStart + formatted.length;
+      const selectionEnd = selectionStart;
+
+      setDraft({ ...draft, content: newContent });
+      setDirty(true);
+      setSelectedElement(type);
+
+      requestAnimationFrame(() => {
+        caretBridgeRef.current?.setGlobalCaret(selectionStart, selectionEnd, newContent);
+        const viewport = pageViewportRef.current;
+        if (viewport) {
+          // Keep scroll stable when reformatting from the Format dropdown.
+          const saved = viewport.scrollTop;
+          requestAnimationFrame(() => {
+            viewport.scrollTop = saved;
+          });
+        }
+      });
+    },
+    [draft, effectiveCanWrite, pushHistoryBeforeChange],
+  );
+
   const handleElementSelect = useCallback(
     (type: ScreenplayElementType) => {
       setSelectedElement(type);
       if (!elementAutoInsertReady.current || !effectiveCanWrite) return;
-      insertElement(type);
+      applyElementToCurrentLine(type);
     },
-    [insertElement, effectiveCanWrite],
+    [applyElementToCurrentLine, effectiveCanWrite],
   );
 
   const jumpToLineIndex = (lineIndex: number) => {
-    const el = textareaRef.current;
-    if (!el || !draft) return;
+    if (!draft) return;
     const pos = jumpToLine(draft.content, lineIndex);
-    el.focus();
-    el.setSelectionRange(pos, pos);
+    const viewport = pageViewportRef.current;
+    const savedScroll = viewport?.scrollTop;
+    caretBridgeRef.current?.setGlobalCaret(pos, pos, draft.content);
     const zoomFactor = zoom / 100;
     const lineHeightPx = 12 * 1.2 * (96 / 72) * zoomFactor;
     const pageBlock = LINES_PER_PAGE * lineHeightPx + PAGE_GAP_PX * zoomFactor;
@@ -879,10 +956,11 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
       Math.floor(lineIndex / LINES_PER_PAGE) * pageBlock +
       (lineIndex % LINES_PER_PAGE) * lineHeightPx -
       lineHeightPx * 2;
-    const scroll =
-      (el.closest(".script-writer-page-viewport") as HTMLElement | null) ??
-      (el.closest("[data-screenplay-scroll]") as HTMLElement | null);
-    if (scroll) scroll.scrollTop = Math.max(0, scrollTop);
+    if (viewport) {
+      viewport.scrollTop = Math.max(0, scrollTop);
+    } else if (savedScroll != null && pageViewportRef.current) {
+      pageViewportRef.current.scrollTop = savedScroll;
+    }
   };
 
   const jumpToScene = (lineIndex: number) => jumpToLineIndex(lineIndex);
@@ -1088,6 +1166,129 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
         />
       </ToolSavedViewSheet>
 
+      {writerHelpOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="writer-help-title"
+          onClick={() => setWriterHelpOpen(false)}
+        >
+          <div
+            className="flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between border-b border-slate-800 px-5 py-4">
+              <div>
+                <h3 id="writer-help-title" className="text-lg font-semibold text-white">
+                  Writing tool guide
+                </h3>
+                <p className="mt-1 text-sm text-slate-400">
+                  How to write screenplay format without fighting the editor.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white"
+                aria-label="Close help"
+                onClick={() => setWriterHelpOpen(false)}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="space-y-4 overflow-y-auto px-5 py-4 text-sm text-slate-300">
+              <section>
+                <h4 className="mb-1 font-semibold text-white">Pages &amp; typing</h4>
+                <p>
+                  You write on real US Letter pages. Type normally — action and dialogue stay as you
+                  wrote them. Scene headings, character cues, and transitions get industry
+                  indent/case when you commit them.
+                </p>
+              </section>
+              <section>
+                <h4 className="mb-1 font-semibold text-white">Format dropdown</h4>
+                <p>
+                  The <span className="text-orange-300">Format</span> menu reformats the line your
+                  cursor is on (Action, Character, Dialogue, etc.). It does not insert a new block.
+                  After changing format, press Enter to continue to the next natural element.
+                </p>
+              </section>
+              <section>
+                <h4 className="mb-1 font-semibold text-white">Tab — cycle element type</h4>
+                <p>
+                  Press and release <kbd className="rounded bg-slate-800 px-1.5 py-0.5 text-[11px]">Tab</kbd>{" "}
+                  to cycle the current line through screenplay types.{" "}
+                  <kbd className="rounded bg-slate-800 px-1.5 py-0.5 text-[11px]">Shift+Tab</kbd> goes
+                  backward.
+                </p>
+              </section>
+              <section>
+                <h4 className="mb-1 font-semibold text-white">Tab + Enter — transitions</h4>
+                <ol className="list-decimal space-y-1 pl-5">
+                  <li>
+                    Hold <kbd className="rounded bg-slate-800 px-1.5 py-0.5 text-[11px]">Tab</kbd>
+                  </li>
+                  <li>
+                    Tap <kbd className="rounded bg-slate-800 px-1.5 py-0.5 text-[11px]">Enter</kbd> to
+                    cycle CUT TO:, FADE OUT., DISSOLVE TO:, etc.
+                  </li>
+                  <li>Release Tab — the highlighted transition is inserted on the page.</li>
+                </ol>
+              </section>
+              <section>
+                <h4 className="mb-1 font-semibold text-white">Suggestions</h4>
+                <p>
+                  Autocomplete chips appear above the page for scene prefixes and names. Use{" "}
+                  <kbd className="rounded bg-slate-800 px-1.5 py-0.5 text-[11px]">Alt</kbd> + arrow
+                  keys to highlight a chip, then Enter to accept. Plain Up/Down always move your
+                  cursor between lines.
+                </p>
+              </section>
+              <section>
+                <h4 className="mb-1 font-semibold text-white">Enter behavior</h4>
+                <ul className="list-disc space-y-1 pl-5">
+                  <li>After a character cue → dialogue</li>
+                  <li>After dialogue → blank action (double Enter from empty dialogue)</li>
+                  <li>Empty action double Enter → character cue</li>
+                  <li>After scene heading / transition → action</li>
+                </ul>
+              </section>
+              <section>
+                <h4 className="mb-1 font-semibold text-white">Undo &amp; redo</h4>
+                <p>
+                  <kbd className="rounded bg-slate-800 px-1.5 py-0.5 text-[11px]">Ctrl+Z</kbd> /{" "}
+                  <kbd className="rounded bg-slate-800 px-1.5 py-0.5 text-[11px]">Ctrl+Y</kbd> (or the
+                  toolbar buttons). Scroll position and caret stay where you were writing.
+                </p>
+              </section>
+              <section>
+                <h4 className="mb-1 font-semibold text-white">Title page</h4>
+                <p>
+                  The first sheet is the title page — edit title, writer credit, and script type
+                  there. Writer credit is saved with the script only (not your account name).
+                </p>
+              </section>
+              <section>
+                <h4 className="mb-1 font-semibold text-white">Focus &amp; save</h4>
+                <p>
+                  Focus mode hides side panels. Autosave runs after ~20s idle (and at least every 2
+                  minutes while dirty). Use Save anytime from the footer.
+                </p>
+              </section>
+            </div>
+            <div className="border-t border-slate-800 px-5 py-3">
+              <Button
+                type="button"
+                className="w-full bg-orange-500 text-black hover:bg-orange-400"
+                onClick={() => setWriterHelpOpen(false)}
+              >
+                Got it
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <ScreenplayReader
         open={readerOpen}
         onClose={() => setReaderOpen(false)}
@@ -1156,6 +1357,17 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
               studioTheme === "light" ? "border-slate-200" : "border-slate-800",
             )}
           >
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className={cn(studioToolbarGhostClass(studioTheme), "shrink-0")}
+                  aria-label="How the writing tool works"
+                  title="Writing tool help"
+                  onClick={() => setWriterHelpOpen(true)}
+                >
+                  <CircleHelp className="h-3.5 w-3.5" />
+                </Button>
                 {draft ? (
                   <input
                     value={draft.title}
@@ -1187,8 +1399,8 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                   <select
                     value={selectedElement}
                     onChange={(e) => handleElementSelect(e.target.value as ScreenplayElementType)}
-                    title="Selected screenplay format"
-                    aria-label="Selected screenplay format"
+                    title="Reformat the current line (does not insert a new block)"
+                    aria-label="Reformat current screenplay line"
                     className={creatorToolSelectSm("text-[10px]")}
                     disabled={!effectiveCanWrite || !draft}
                   >
@@ -1594,6 +1806,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
               <div className="script-writer-document-inner">
                 <ScreenplayEditor
                   textareaRef={textareaRef}
+                  caretBridgeRef={caretBridgeRef}
                   value={draft.content}
                   scriptTitle={draft.title}
                   scriptType={draft.type}

@@ -683,13 +683,28 @@ export function handleScreenplayEnter(
     lines = working.split("\n");
   }
 
-  // Empty line: don't keep placeholder formatting — clear then advance
+  // Empty line: don't keep placeholder formatting — clear then advance.
+  // Soft format on Enter: only force layout for structural cues. Leave action /
+  // dialogue body text alone so Enter doesn't rewrite the previous line mid-edit.
   if (!lineEmpty) {
-    lines[lineIdx] = formatLineForElement(currentElement, lines[lineIdx] ?? current);
+    const raw = lines[lineIdx] ?? current;
+    if (
+      currentElement === "character" ||
+      currentElement === "scene_heading" ||
+      currentElement === "transition" ||
+      currentElement === "shot" ||
+      currentElement === "parenthetical" ||
+      currentElement === "centered"
+    ) {
+      lines[lineIdx] = formatLineForElement(currentElement, raw);
+    } else {
+      // action / dialogue — preserve wording; only trim trailing spaces on the line body
+      lines[lineIdx] = raw.replace(/[ \t]+$/g, "");
+    }
   } else if (currentElement === "action" || currentElement === "dialogue") {
     lines[lineIdx] = "";
   } else {
-    lines[lineIdx] = formatLineForElement(currentElement, lines[lineIdx] ?? current);
+    lines[lineIdx] = "";
   }
 
   const nextElement = nextElementOnEnter(currentElement, lineEmpty);
