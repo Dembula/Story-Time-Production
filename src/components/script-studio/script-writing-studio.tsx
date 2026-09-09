@@ -1214,36 +1214,42 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                 </p>
               </section>
               <section>
-                <h4 className="mb-1 font-semibold text-white">Tab — structure cycle</h4>
-                <p>
-                  Hold <kbd className="rounded bg-slate-800 px-1.5 py-0.5 text-[11px]">Tab</kbd> to
-                  preview formats beside the cursor. Cycle with Tab, press{" "}
-                  <kbd className="rounded bg-slate-800 px-1.5 py-0.5 text-[11px]">Space</kbd> to
-                  confirm, then release Tab — or click a chip. A quick Tab with no confirm does
-                  nothing (you can keep typing periods / ellipses normally).{" "}
-                  <kbd className="rounded bg-slate-800 px-1.5 py-0.5 text-[11px]">Esc</kbd> cancels.
-                </p>
-              </section>
-              <section>
-                <h4 className="mb-1 font-semibold text-white">Tab + Enter — transitions</h4>
-                <ol className="list-decimal space-y-1 pl-5">
+                <h4 className="mb-1 font-semibold text-white">Tab — structure &amp; transitions</h4>
+                <ol className="list-decimal space-y-1.5 pl-5">
                   <li>
-                    Hold <kbd className="rounded bg-slate-800 px-1.5 py-0.5 text-[11px]">Tab</kbd>
+                    Press <kbd className="rounded bg-slate-800 px-1.5 py-0.5 text-[11px]">Tab</kbd> to
+                    open the format popup beside your cursor (structure list).
                   </li>
                   <li>
-                    Tap <kbd className="rounded bg-slate-800 px-1.5 py-0.5 text-[11px]">Enter</kbd> to
-                    open transitions, then Enter again to cycle
+                    Hold <kbd className="rounded bg-slate-800 px-1.5 py-0.5 text-[11px]">Tab</kbd> and
+                    tap <kbd className="rounded bg-slate-800 px-1.5 py-0.5 text-[11px]">Shift</kbd> to
+                    cycle one step at a time (holding a key no longer races through options). You can
+                    also use <kbd className="rounded bg-slate-800 px-1.5 py-0.5 text-[11px]">←</kbd> /{" "}
+                    <kbd className="rounded bg-slate-800 px-1.5 py-0.5 text-[11px]">→</kbd> while the
+                    popup is open.
                   </li>
-                  <li>Release Tab or click a chip to insert — the popup closes</li>
+                  <li>
+                    Tap <kbd className="rounded bg-slate-800 px-1.5 py-0.5 text-[11px]">Enter</kbd> once
+                    to switch the popup to transitions (does not keep cycling).
+                  </li>
+                  <li>
+                    <kbd className="rounded bg-slate-800 px-1.5 py-0.5 text-[11px]">Space</kbd>,{" "}
+                    <kbd className="rounded bg-slate-800 px-1.5 py-0.5 text-[11px]">Enter</kbd> (on
+                    transitions), or click a chip to apply. Use the{" "}
+                    <span className="text-orange-300">×</span> button or{" "}
+                    <kbd className="rounded bg-slate-800 px-1.5 py-0.5 text-[11px]">Esc</kbd> to close
+                    without changing your line.
+                  </li>
                 </ol>
               </section>
               <section>
                 <h4 className="mb-1 font-semibold text-white">Suggestions</h4>
                 <p>
-                  Autocomplete chips appear as hints only. They apply when you{" "}
-                  <strong className="font-medium text-slate-200">click</strong> one, or use{" "}
+                  Autocomplete chips are hints only. They apply when you{" "}
+                  <span className="text-slate-200">click</span> one, or use{" "}
                   <kbd className="rounded bg-slate-800 px-1.5 py-0.5 text-[11px]">Alt</kbd> + arrows
-                  then Enter. Plain Enter / typing never forces a suggestion.
+                  then Enter. Plain Enter / typing never forces a suggestion. Periods and ellipses
+                  type normally.
                 </p>
               </section>
               <section>

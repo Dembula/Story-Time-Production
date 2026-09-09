@@ -663,6 +663,42 @@ select optgroup {
   pointer-events: auto;
 }
 
+.script-writer-cycle-popup-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.script-writer-cycle-popup-header .script-writer-suggestion-label {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+.script-writer-cycle-popup-close {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  margin-top: -0.1rem;
+  border: 0;
+  border-radius: 0.35rem;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.script-writer-cycle-popup-close:hover {
+  background: rgba(148, 163, 184, 0.2);
+  color: #f8fafc;
+}
+
 .script-writer-root--light .script-writer-suggestion-dock {
   background: rgba(255, 255, 255, 0.98);
   border-color: rgba(15, 23, 42, 0.12);
@@ -672,6 +708,15 @@ select optgroup {
   background: rgba(255, 255, 255, 0.98);
   border-color: rgba(234, 88, 12, 0.45);
   box-shadow: 0 14px 36px -14px rgba(15, 23, 42, 0.35);
+}
+
+.script-writer-root--light .script-writer-cycle-popup-close {
+  color: #64748b;
+}
+
+.script-writer-root--light .script-writer-cycle-popup-close:hover {
+  background: rgba(15, 23, 42, 0.08);
+  color: #0f172a;
 }
 
 .script-writer-cycle-popup .script-writer-suggestion-chip {

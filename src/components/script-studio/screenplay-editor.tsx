@@ -628,7 +628,41 @@ export function ScreenplayEditor({
     setCyclePicker(null);
     tabUsedForTransitionsRef.current = false;
     cycleCommittedRef.current = false;
+    tabHeldRef.current = false;
   }, []);
+
+  const applyCycleSelection = useCallback(
+    (picker: CyclePickerState) => {
+      if (picker.mode === "transition") {
+        const transition = TRANSITIONS[picker.index] ?? TRANSITIONS[0]!;
+        closeCyclePicker();
+        insertTransitionAt(picker.pageIdx, transition);
+        return;
+      }
+      const element = TAB_CYCLE[picker.index] ?? "action";
+      closeCyclePicker();
+      applyStructureAt(picker.pageIdx, element);
+    },
+    [closeCyclePicker, insertTransitionAt, applyStructureAt],
+  );
+
+  const cyclePickerStep = useCallback(
+    (direction: 1 | -1, pageIdx: number) => {
+      const anchor = measureAnchorForPage(pageIdx);
+      cycleCommittedRef.current = true;
+      setCyclePicker((prev) => {
+        if (!prev) return prev;
+        const len = prev.mode === "transition" ? TRANSITIONS.length : TAB_CYCLE.length;
+        return {
+          ...prev,
+          pageIdx,
+          anchor,
+          index: (prev.index + direction + len) % len,
+        };
+      });
+    },
+    [measureAnchorForPage],
+  );
 
   const handlePageKeyDown = useCallback(
     (pageIdx: number, e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -640,7 +674,7 @@ export function ScreenplayEditor({
 
       // Only steal arrows for suggestions after the user has navigated the list —
       // otherwise ArrowUp/Down must move the caret between lines normally.
-      if (suggestions.length > 0 && suggestionNavigatedRef.current) {
+      if (suggestions.length > 0 && suggestionNavigatedRef.current && !cyclePickerRef.current) {
         if (e.key === "ArrowDown") {
           e.preventDefault();
           setSuggestionIndex((i) => (i + 1) % suggestions.length);
@@ -654,7 +688,11 @@ export function ScreenplayEditor({
           return;
         }
       }
-      if (suggestions.length > 0 && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+      if (
+        suggestions.length > 0 &&
+        !cyclePickerRef.current &&
+        (e.key === "ArrowDown" || e.key === "ArrowUp")
+      ) {
         if (e.altKey) {
           e.preventDefault();
           suggestionNavigatedRef.current = true;
@@ -668,13 +706,13 @@ export function ScreenplayEditor({
         }
       }
 
-      if (suggestions.length > 0 && e.key === "Escape") {
+      if (suggestions.length > 0 && e.key === "Escape" && !cyclePickerRef.current) {
         e.preventDefault();
         dismissSuggestions();
         return;
       }
 
-      if (suggestions.length > 0) {
+      if (suggestions.length > 0 && !cyclePickerRef.current) {
         const lineIdx = lineIndexAt(content, globalStart);
         const currentLine = content.split("\n")[lineIdx] ?? "";
         const activeSuggestion = suggestions[suggestionIndex] ?? suggestions[0];
@@ -686,7 +724,7 @@ export function ScreenplayEditor({
           activeInsert: activeSuggestion?.insert,
         });
 
-        if (accept && e.key === "Enter" && !e.shiftKey && !tabHeldRef.current && !e.ctrlKey && !e.metaKey) {
+        if (accept && e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.repeat) {
           e.preventDefault();
           applySuggestion(activeSuggestion!, pageIdx);
           return;
@@ -699,81 +737,80 @@ export function ScreenplayEditor({
       if (e.key === "Escape" && cyclePickerRef.current) {
         e.preventDefault();
         closeCyclePicker();
-        tabHeldRef.current = false;
         return;
       }
 
-      // Tab held → optional structure popup near caret (does NOT apply until you cycle/click).
-      // Enter while held → transitions. Quick Tab tap with no cycle = cancel (keep typing).
+      // Tab opens the structure popup once. Key-repeat is ignored (no runaway cycling).
       if (e.key === "Tab" && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault();
+        if (e.repeat) return;
         dismissSuggestions();
-        const anchor = measureAnchorForPage(pageIdx);
-        if (!tabHeldRef.current) {
-          tabHeldRef.current = true;
-          tabUsedForTransitionsRef.current = false;
+        tabHeldRef.current = true;
+        if (!cyclePickerRef.current) {
           cycleCommittedRef.current = false;
+          tabUsedForTransitionsRef.current = false;
           const next = cycleElement(editingElement, e.shiftKey ? -1 : 1);
           const index = Math.max(0, TAB_CYCLE.indexOf(next));
           setCyclePicker({
             mode: "structure",
             index,
             pageIdx,
-            anchor,
+            anchor: measureAnchorForPage(pageIdx),
+          });
+        }
+        return;
+      }
+
+      // Hold Tab + Shift (each press, no key-repeat) cycles the open list.
+      if (e.key === "Shift" && tabHeldRef.current && cyclePickerRef.current && !e.repeat) {
+        e.preventDefault();
+        cyclePickerStep(1, pageIdx);
+        return;
+      }
+
+      // Arrow keys also cycle when the popup is open (works after releasing Tab).
+      if (cyclePickerRef.current && !e.repeat && (e.key === "ArrowRight" || e.key === "ArrowLeft")) {
+        e.preventDefault();
+        cyclePickerStep(e.key === "ArrowRight" ? 1 : -1, pageIdx);
+        return;
+      }
+
+      // Enter with popup open: structure → transitions (once). Never auto-cycle on hold/repeat.
+      if (e.key === "Enter" && !e.shiftKey && cyclePickerRef.current) {
+        e.preventDefault();
+        if (e.repeat) return;
+        const picker = cyclePickerRef.current;
+        if (picker.mode === "structure") {
+          tabUsedForTransitionsRef.current = true;
+          cycleCommittedRef.current = true;
+          setCyclePicker({
+            mode: "transition",
+            index: 0,
+            pageIdx: picker.pageIdx,
+            anchor: measureAnchorForPage(pageIdx),
           });
           return;
         }
-        // Tab still held (key repeat / second tap): intentional cycle
-        cycleCommittedRef.current = true;
-        setCyclePicker((prev) => {
-          if (!prev) return prev;
-          if (prev.mode === "transition") {
-            return {
-              ...prev,
-              pageIdx,
-              anchor,
-              index: (prev.index + (e.shiftKey ? -1 : 1) + TRANSITIONS.length) % TRANSITIONS.length,
-            };
-          }
-          return {
-            ...prev,
-            pageIdx,
-            anchor,
-            index: (prev.index + (e.shiftKey ? -1 : 1) + TAB_CYCLE.length) % TAB_CYCLE.length,
-          };
-        });
+        applyCycleSelection(picker);
         return;
       }
 
-      if (e.key === "Enter" && !e.shiftKey && tabHeldRef.current) {
+      // Space applies the highlighted item when the popup is open.
+      if (e.key === " " && cyclePickerRef.current && !e.repeat) {
         e.preventDefault();
-        tabUsedForTransitionsRef.current = true;
-        cycleCommittedRef.current = true;
-        dismissSuggestions();
-        const anchor = measureAnchorForPage(pageIdx);
-        setCyclePicker((prev) => {
-          if (!prev || prev.mode !== "transition") {
-            return { mode: "transition", index: 0, pageIdx, anchor };
-          }
-          return {
-            ...prev,
-            pageIdx,
-            anchor,
-            index: (prev.index + 1) % TRANSITIONS.length,
-          };
-        });
+        applyCycleSelection(cyclePickerRef.current);
         return;
       }
 
-      // Space while Tab held confirms the highlighted structure/transition (apply on Tab release).
-      if (e.key === " " && tabHeldRef.current && cyclePickerRef.current) {
-        e.preventDefault();
-        cycleCommittedRef.current = true;
-        return;
-      }
-
-      // Typing while a leftover cycle popup is open (Tab not held) — dismiss, don't rewrite.
-      if (cyclePickerRef.current && !tabHeldRef.current && e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+      // Typing while popup is open (and Tab not held) dismisses without applying.
+      if (
+        cyclePickerRef.current &&
+        !tabHeldRef.current &&
+        e.key.length === 1 &&
+        e.key !== " " &&
+        !e.ctrlKey &&
+        !e.metaKey
+      ) {
         closeCyclePicker();
       }
 
@@ -882,45 +919,21 @@ export function ScreenplayEditor({
       onPreserveStructureEnd,
       measureAnchorForPage,
       closeCyclePicker,
+      cyclePickerStep,
+      applyCycleSelection,
     ],
   );
 
-  // Tab release: apply only after an intentional cycle (Tab repeat / Enter / Space) or leave text alone.
+  // Tab release: clear hold state. Popup stays until apply, Esc, close, or typing.
   useEffect(() => {
     const onKeyUp = (e: KeyboardEvent) => {
-      if (e.key !== "Tab") return;
-      const wasHeld = tabHeldRef.current;
-      tabHeldRef.current = false;
-      if (!wasHeld || readOnly) return;
-
-      const picker = cyclePickerRef.current;
-      const committed = cycleCommittedRef.current;
-
-      // Accidental / quick Tab: dismiss popup and keep writing (periods, ellipses, etc.).
-      if (!committed || !picker) {
-        closeCyclePicker();
-        return;
+      if (e.key === "Tab") {
+        tabHeldRef.current = false;
       }
-
-      if (picker.mode === "transition") {
-        const transition = TRANSITIONS[picker.index] ?? TRANSITIONS[0]!;
-        closeCyclePicker();
-        insertTransitionAt(picker.pageIdx, transition);
-        return;
-      }
-
-      if (picker.mode === "structure") {
-        const element = TAB_CYCLE[picker.index] ?? "action";
-        closeCyclePicker();
-        applyStructureAt(picker.pageIdx, element);
-        return;
-      }
-
-      closeCyclePicker();
     };
     window.addEventListener("keyup", onKeyUp);
     return () => window.removeEventListener("keyup", onKeyUp);
-  }, [readOnly, insertTransitionAt, applyStructureAt, closeCyclePicker]);
+  }, []);
 
   const handlePageChange = useCallback(
     (pageIdx: number, e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -953,16 +966,30 @@ export function ScreenplayEditor({
               role="listbox"
               aria-label={
                 cyclePicker.mode === "transition"
-                  ? "Transition cycle — release Tab to insert"
-                  : "Structure cycle — release Tab to apply"
+                  ? "Transition picker"
+                  : "Structure picker"
               }
               style={{ top: cyclePicker.anchor.top, left: cyclePicker.anchor.left }}
             >
-              <p className="script-writer-suggestion-label">
-                {cyclePicker.mode === "transition"
-                  ? "Transitions · Enter cycles · Space confirms · release Tab / click to insert"
-                  : "Structure · Tab cycles · Space confirms · Enter for transitions · Esc cancels"}
-              </p>
+              <div className="script-writer-cycle-popup-header">
+                <p className="script-writer-suggestion-label">
+                  {cyclePicker.mode === "transition"
+                    ? "Transitions · Tab+Shift cycles · ←/→ · Space / Enter applies"
+                    : "Structure · Tab+Shift cycles · ←/→ · Enter → transitions · Space applies"}
+                </p>
+                <button
+                  type="button"
+                  className="script-writer-cycle-popup-close"
+                  aria-label="Close format picker"
+                  title="Close"
+                  onMouseDown={(ev) => {
+                    ev.preventDefault();
+                    closeCyclePicker();
+                  }}
+                >
+                  ×
+                </button>
+              </div>
               <div className="flex flex-wrap gap-1.5">
                 {cyclePicker.mode === "transition"
                   ? TRANSITIONS.map((t, i) => (
@@ -977,10 +1004,7 @@ export function ScreenplayEditor({
                         style={{ fontFamily: fontCss }}
                         onMouseDown={(ev) => {
                           ev.preventDefault();
-                          const pageIdx = cyclePicker.pageIdx;
-                          closeCyclePicker();
-                          tabHeldRef.current = false;
-                          insertTransitionAt(pageIdx, t);
+                          applyCycleSelection({ ...cyclePicker, index: i });
                         }}
                       >
                         {t}
@@ -998,10 +1022,7 @@ export function ScreenplayEditor({
                         style={{ fontFamily: fontCss }}
                         onMouseDown={(ev) => {
                           ev.preventDefault();
-                          const pageIdx = cyclePicker.pageIdx;
-                          closeCyclePicker();
-                          tabHeldRef.current = false;
-                          applyStructureAt(pageIdx, elType);
+                          applyCycleSelection({ ...cyclePicker, index: i });
                         }}
                       >
                         {SCREENPLAY_ELEMENT_LABELS[elType]}
