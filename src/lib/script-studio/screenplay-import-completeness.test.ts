@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { shouldKeepEmbedOverOcr } from "./screenplay-import-completeness";
+import { shouldKeepEmbedOverOcr, extractLooksCompleteForPageCount } from "./screenplay-import-completeness";
 
 describe("screenplay import completeness", () => {
   it("keeps fuller embed when OCR is shorter (3 pages vs 5)", () => {
@@ -39,5 +39,11 @@ describe("screenplay import completeness", () => {
       }),
       true,
     );
+  });
+
+  it("flags incomplete extracts for multi-page PDFs", () => {
+    assert.equal(extractLooksCompleteForPageCount(1800, 5), false);
+    assert.equal(extractLooksCompleteForPageCount(2800, 5), true);
+    assert.equal(extractLooksCompleteForPageCount(100, 1), true);
   });
 });
