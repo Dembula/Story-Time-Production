@@ -55,6 +55,7 @@ import type {
   CreatorTreatmentRecord,
   TreatmentDocument,
   TreatmentElement,
+  TreatmentFieldKey,
   TreatmentSlide,
   TreatmentSlideLayout,
 } from "@/lib/treatment-studio/types";
@@ -100,6 +101,7 @@ export function TreatmentCreatorStudio({
   const queryClient = useQueryClient();
   const [activeSlideId, setActiveSlideId] = useState<string | null>(null);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
+  const [selectedFieldKey, setSelectedFieldKey] = useState<TreatmentFieldKey | null>(null);
   const [assetsOpen, setAssetsOpen] = useState(true);
   const [presenting, setPresenting] = useState(false);
   const [layoutMenuOpen, setLayoutMenuOpen] = useState(false);
@@ -308,6 +310,7 @@ export function TreatmentCreatorStudio({
       markDirty({ ...document, slides: [...document.slides, slide] });
       setActiveSlideId(slide.id);
       setSelectedElementId(null);
+      setSelectedFieldKey(null);
       setLayoutMenuOpen(false);
       setNewSlideMenuOpen(false);
     },
@@ -329,6 +332,7 @@ export function TreatmentCreatorStudio({
     markDirty({ ...document, slides });
     setActiveSlideId(copy.id);
     setSelectedElementId(null);
+    setSelectedFieldKey(null);
   }, [document, activeSlide, markDirty]);
 
   const deleteSlide = useCallback(() => {
@@ -337,6 +341,7 @@ export function TreatmentCreatorStudio({
     markDirty({ ...document, slides });
     setActiveSlideId(slides[Math.max(0, activeIndex - 1)]?.id ?? slides[0]?.id ?? null);
     setSelectedElementId(null);
+    setSelectedFieldKey(null);
   }, [document, activeSlide, activeIndex, markDirty]);
 
   const reorderSlides = useCallback(
@@ -352,6 +357,7 @@ export function TreatmentCreatorStudio({
       markDirty({ ...document, slides });
       setActiveSlideId(moved.id);
       setSelectedElementId(null);
+      setSelectedFieldKey(null);
     },
     [document, markDirty],
   );
@@ -389,6 +395,7 @@ export function TreatmentCreatorStudio({
       const adapted = adaptSlideToLayout(activeSlide, layout);
       updateSlide(activeSlide.id, adapted);
       setSelectedElementId(null);
+      setSelectedFieldKey(null);
       setLayoutMenuOpen(false);
     },
     [activeSlide, updateSlide],
@@ -475,6 +482,7 @@ export function TreatmentCreatorStudio({
     });
     updateSlide(activeSlide.id, { elements: [...activeSlide.elements, el] });
     setSelectedElementId(el.id);
+    setSelectedFieldKey(null);
   }, [activeSlide, updateSlide]);
 
   const addShape = useCallback(
@@ -485,6 +493,7 @@ export function TreatmentCreatorStudio({
       });
       updateSlide(activeSlide.id, { elements: [...activeSlide.elements, el] });
       setSelectedElementId(el.id);
+      setSelectedFieldKey(null);
     },
     [activeSlide, updateSlide],
   );
@@ -555,6 +564,7 @@ export function TreatmentCreatorStudio({
       if (!next || next.id === activeSlideId) return;
       setActiveSlideId(next.id);
       setSelectedElementId(null);
+      setSelectedFieldKey(null);
       setNewSlideMenuOpen(false);
       setLayoutMenuOpen(false);
       setColorMenuOpen(false);
@@ -953,6 +963,7 @@ export function TreatmentCreatorStudio({
               className="h-8 bg-white text-black hover:bg-slate-200"
               onClick={() => {
                 setSelectedElementId(null);
+                setSelectedFieldKey(null);
                 // Heal accidental double-placements (same asset as freeform + layout hero).
                 if (document) {
                   let changed = false;
@@ -1231,16 +1242,24 @@ export function TreatmentCreatorStudio({
                 aspectRatio={document.settings.aspectRatio}
                 projectId={projectId}
                 selectedElementId={selectedElementId}
+                selectedFieldKey={selectedFieldKey}
                 onFieldChange={(patch) => updateSlide(activeSlide.id, patch)}
                 onElementsChange={(elements) => updateSlide(activeSlide.id, { elements })}
-                onSelectElement={setSelectedElementId}
+                onSelectElement={(id) => {
+                  setSelectedElementId(id);
+                  if (id) setSelectedFieldKey(null);
+                }}
+                onSelectField={(key) => {
+                  setSelectedFieldKey(key);
+                  if (key) setSelectedElementId(null);
+                }}
                 onDropAsset={(assetId, x, y) => placeAssetOnSlide(assetId, x, y)}
                 onDropPexels={(photoId, x, y) => dropPexelsOnSlide(photoId, x, y)}
                 className="shadow-2xl"
               />
             </div>
             <p className="mt-4 max-w-xl text-center text-xs text-slate-500">
-              Presentation preview — what you see is what Present shows
+              Drag any text or media to move · resize from the corners · clips show a still until Present
               {" · "}
               Slide {activeIndex + 1} of {document.slides.length}
               {activeSlide.layout !== "content" && activeSlide.layout !== "title"
@@ -1251,7 +1270,7 @@ export function TreatmentCreatorStudio({
                 ? " · Click a library still for the hero"
                 : activeSlide.layout === "references"
                   ? " · Click stills for the grid"
-                  : " · Click text to edit · drag boxes to move"}
+                  : " · Click text to edit"}
             </p>
           </main>
 
@@ -1280,6 +1299,7 @@ export function TreatmentCreatorStudio({
           onClose={() => {
             setPresenting(false);
             setSelectedElementId(null);
+            setSelectedFieldKey(null);
           }}
         />
       ) : null}

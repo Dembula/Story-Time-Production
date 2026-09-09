@@ -362,7 +362,28 @@ function normalizeSlide(raw: unknown): TreatmentSlide {
       ? s.referenceIds.filter((id): id is string => typeof id === "string")
       : [],
     elements,
+    fieldFrames: normalizeFieldFrames(s.fieldFrames),
   };
+}
+
+function normalizeFieldFrames(
+  raw: unknown,
+): TreatmentSlide["fieldFrames"] | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const src = raw as Record<string, unknown>;
+  const out: NonNullable<TreatmentSlide["fieldFrames"]> = {};
+  for (const key of ["title", "subtitle", "body"] as const) {
+    const frame = src[key];
+    if (!frame || typeof frame !== "object") continue;
+    const f = frame as Record<string, unknown>;
+    const x = Number(f.x);
+    const y = Number(f.y);
+    const width = Number(f.width);
+    const height = Number(f.height);
+    if (![x, y, width, height].every(Number.isFinite)) continue;
+    out[key] = { x, y, width, height };
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 export function parseTreatmentDocument(raw: unknown): TreatmentDocument {
@@ -418,9 +439,11 @@ export function layoutUsesReferenceSlots(layout: TreatmentSlideLayout): boolean 
 export function adaptSlideToLayout(
   slide: TreatmentSlide,
   layout: TreatmentSlideLayout,
-): Pick<TreatmentSlide, "layout" | "elements" | "referenceIds"> {
+): Pick<TreatmentSlide, "layout" | "elements" | "referenceIds" | "fieldFrames"> {
   let elements = [...slide.elements];
   let referenceIds = [...slide.referenceIds];
+  // Reset text frames when layout changes so titles/body land in sensible defaults.
+  const fieldFrames = slide.layout === layout ? slide.fieldFrames : undefined;
 
   const freeformImageIds = elements
     .filter((el) => el.type === "image" && el.referenceId)
@@ -461,7 +484,7 @@ export function adaptSlideToLayout(
     referenceIds = [];
   }
 
-  return { layout, elements, referenceIds };
+  return { layout, elements, referenceIds, fieldFrames };
 }
 
 /**

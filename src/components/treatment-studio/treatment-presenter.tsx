@@ -13,6 +13,22 @@ type TreatmentPresenterProps = {
   projectId?: string;
 };
 
+function slideHasPlayableClip(
+  document: TreatmentDocument,
+  slideIndex: number,
+): boolean {
+  const slide = document.slides[slideIndex];
+  if (!slide) return false;
+  const assetById = new Map(document.assets.map((a) => [a.id, a]));
+  const isVideo = (id: string | undefined) =>
+    Boolean(id && assetById.get(id)?.type === "video");
+
+  if (slide.referenceIds.some(isVideo)) return true;
+  return slide.elements.some(
+    (el) => el.type === "image" && isVideo(el.referenceId),
+  );
+}
+
 export function TreatmentPresenter({
   document,
   initialIndex = 0,
@@ -21,36 +37,61 @@ export function TreatmentPresenter({
 }: TreatmentPresenterProps) {
   const slides = document.slides;
   const [index, setIndex] = useState(initialIndex);
+  const [clipPlaying, setClipPlaying] = useState(false);
 
   const goPrev = useCallback(() => {
+    setClipPlaying(false);
     setIndex((i) => Math.max(0, i - 1));
   }, []);
 
   const goNext = useCallback(() => {
+    setClipPlaying(false);
     setIndex((i) => Math.min(slides.length - 1, i + 1));
   }, [slides.length]);
 
   useEffect(() => {
+    setClipPlaying(false);
+  }, [index]);
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
-      if (e.key === "ArrowRight" || e.key === " ") {
+      if (e.key === "ArrowRight") {
         e.preventDefault();
         goNext();
       }
-      if (e.key === "ArrowLeft") goPrev();
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        goPrev();
+      }
+      if (e.key === " ") {
+        e.preventDefault();
+        if (slideHasPlayableClip(document, index)) {
+          setClipPlaying((p) => !p);
+        } else {
+          goNext();
+        }
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, goNext, goPrev]);
+  }, [onClose, goNext, goPrev, document, index]);
 
   const slide = slides[index];
   if (!slide) return null;
+
+  const hasClip = slideHasPlayableClip(document, index);
 
   return (
     <div className="treatment-presenter fixed inset-0 z-[200] flex flex-col bg-black">
       <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
         <p className="text-sm text-slate-400">
           Slide {index + 1} of {slides.length}
+          {hasClip ? (
+            <span className="ml-2 text-slate-500">
+              · Tap slide to {clipPlaying ? "restart" : "play"} clip
+            </span>
+          ) : null}
         </p>
         <Button
           type="button"
@@ -65,17 +106,38 @@ export function TreatmentPresenter({
       </div>
 
       <div className="flex flex-1 items-center justify-center bg-black p-6 md:p-12">
-        <div className="treatment-presenter-stage w-full">
+        <button
+          type="button"
+          className="treatment-presenter-stage w-full cursor-pointer border-0 bg-transparent p-0 text-left"
+          onClick={() => {
+            if (!hasClip) {
+              goNext();
+              return;
+            }
+            // Tap anywhere: play from start (or replay if already playing)
+            setClipPlaying(false);
+            requestAnimationFrame(() => setClipPlaying(true));
+          }}
+          aria-label={
+            hasClip
+              ? clipPlaying
+                ? "Replay clip"
+                : "Play clip"
+              : "Next slide"
+          }
+        >
           <TreatmentSlideCanvas
             slide={slide}
             assets={document.assets}
             aspectRatio={document.settings.aspectRatio}
             readOnly
+            presentMode
+            clipPlaying={clipPlaying}
             selectedElementId={null}
             projectId={projectId}
-            className="shadow-2xl pointer-events-none"
+            className="pointer-events-none shadow-2xl"
           />
-        </div>
+        </button>
       </div>
 
       <div className="flex items-center justify-center gap-4 border-t border-white/10 px-4 py-4">
@@ -94,7 +156,10 @@ export function TreatmentPresenter({
             <button
               key={s.id}
               type="button"
-              onClick={() => setIndex(i)}
+              onClick={() => {
+                setClipPlaying(false);
+                setIndex(i);
+              }}
               className={[
                 "h-2 w-2 rounded-full transition",
                 i === index ? "bg-orange-400" : "bg-white/25 hover:bg-white/40",

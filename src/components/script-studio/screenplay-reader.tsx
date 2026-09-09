@@ -19,8 +19,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { downloadTextFile } from "@/lib/script-studio/import-export";
 import { escapeHtmlForDocument, printHtmlDocument } from "@/lib/pdf/print-html-document";
+import { ScreenplayTitlePage } from "@/components/script-studio/screenplay-title-page";
+import { resolveScriptAuthorName, scriptTypeLabel } from "@/lib/script-studio/title-page";
 
 const LINES_PER_PAGE = 55;
+const PAGE_WIDTH = "8.5in";
+const PAGE_HEIGHT = "11in";
 
 type ScreenplayReaderProps = {
   open: boolean;
@@ -28,6 +32,8 @@ type ScreenplayReaderProps = {
   title: string;
   content: string;
   fontCss?: string;
+  scriptType?: string;
+  authorName?: string;
 };
 
 function paginateScreenplay(content: string): string[][] {
@@ -46,6 +52,8 @@ export function ScreenplayReader({
   title,
   content,
   fontCss = "'Courier Prime', 'Courier New', monospace",
+  scriptType = "FEATURE",
+  authorName,
 }: ScreenplayReaderProps) {
   const [mounted, setMounted] = useState(false);
   const [page, setPage] = useState(0);
@@ -57,30 +65,47 @@ export function ScreenplayReader({
   const [searchHit, setSearchHit] = useState(0);
   const onCloseRef = useRef(onClose);
   const wasOpenRef = useRef(false);
+  const resolvedAuthor = resolveScriptAuthorName({ name: authorName });
 
-  const pages = useMemo(() => paginateScreenplay(content), [content]);
+  const bodyPages = useMemo(() => paginateScreenplay(content), [content]);
+  // Index 0 = title page; 1..n = script body
+  const totalPages = bodyPages.length + 1;
 
   const printScreenplay = useCallback(() => {
-    const pageHtml = pages
-      .map(
-        (lines, pageIndex) =>
-          `<section class="page"><div class="num">${pageIndex + 1}.</div>${lines
-            .map((line) => `<div class="line">${escapeHtmlForDocument(line) || "&nbsp;"}</div>`)
-            .join("")}</section>`,
-      )
-      .join("");
+    const typeLabel = scriptTypeLabel(scriptType);
+    const titleHtml = `<section class="page title-page">
+      <div class="title-block">
+        <h1>${escapeHtmlForDocument(title || "Untitled Screenplay")}</h1>
+        <p class="by">Written by</p>
+        <p class="author">${escapeHtmlForDocument(resolvedAuthor)}</p>
+        <p class="type">${escapeHtmlForDocument(typeLabel)}</p>
+      </div>
+    </section>`;
+    const pageHtml =
+      titleHtml +
+      bodyPages
+        .map(
+          (lines, pageIndex) =>
+            `<section class="page"><div class="num">${pageIndex + 1}.</div>${lines
+              .map((line) => `<div class="line">${escapeHtmlForDocument(line) || "&nbsp;"}</div>`)
+              .join("")}</section>`,
+        )
+        .join("");
     printHtmlDocument({
       title: title || "Screenplay",
       bodyHtml: pageHtml,
       extraCss: `
 .page { position: relative; min-height: 10in; padding: 1in 1.5in; page-break-after: always; box-sizing: border-box; font-family: ${fontCss}; font-size: 12pt; line-height: 1.2; }
+.title-page { display: flex; align-items: center; justify-content: center; text-align: center; }
+.title-block h1 { font-size: 14pt; font-weight: normal; text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 2in; }
+.title-block .by { margin: 0; }
+.title-block .author { margin: 0.25rem 0 1.5in; }
+.title-block .type { margin: 0; color: #334155; }
 .num { text-align: right; font-size: 10px; color: #888; margin-bottom: 1rem; }
 .line { min-height: 1.2em; white-space: pre-wrap; }
 `,
     });
-  }, [pages, title, fontCss]);
-
-  const totalPages = pages.length;
+  }, [bodyPages, title, fontCss, scriptType, resolvedAuthor]);
 
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -116,11 +141,19 @@ export function ScreenplayReader({
   const searchPages = useMemo(() => {
     if (!search.trim()) return [];
     const q = search.toLowerCase();
-    return pages
-      .map((lines, i) => ({ i, hit: lines.some((l) => l.toLowerCase().includes(q)) }))
-      .filter((p) => p.hit)
-      .map((p) => p.i);
-  }, [pages, search]);
+    const hits: number[] = [];
+    if (
+      title.toLowerCase().includes(q) ||
+      resolvedAuthor.toLowerCase().includes(q) ||
+      scriptTypeLabel(scriptType).toLowerCase().includes(q)
+    ) {
+      hits.push(0);
+    }
+    bodyPages.forEach((lines, i) => {
+      if (lines.some((l) => l.toLowerCase().includes(q))) hits.push(i + 1);
+    });
+    return hits;
+  }, [bodyPages, search, title, resolvedAuthor, scriptType]);
 
   useEffect(() => {
     if (!search.trim() || searchPages.length === 0) return;
@@ -129,9 +162,9 @@ export function ScreenplayReader({
 
   if (!mounted) return null;
 
-  const pageShell = (lines: string[], pageNum: number) => (
+  const pageShell = (lines: string[], bodyPageNum: number) => (
     <div
-      key={pageNum}
+      key={`body-${bodyPageNum}`}
       className={`mx-auto w-full shadow-2xl p-4 sm:p-6 md:min-h-[11in] md:max-w-[8.5in] md:p-[1in] md:pl-[1.5in] ${
         darkRead ? "bg-[#1a1a1a] text-slate-100" : "bg-white text-black"
       }`}
@@ -141,7 +174,7 @@ export function ScreenplayReader({
         lineHeight: 1.2,
       }}
     >
-      <div className="text-right text-[10px] opacity-50 mb-4">{pageNum + 1}.</div>
+      <div className="text-right text-[10px] opacity-50 mb-4">{bodyPageNum + 1}.</div>
       {lines.map((line, li) => (
         <div key={li} className="whitespace-pre-wrap min-h-[1.2em]">
           {line || "\u00A0"}
@@ -149,6 +182,39 @@ export function ScreenplayReader({
       ))}
     </div>
   );
+
+  const titleShell = (
+    <div
+      key="title-page"
+      className={`mx-auto w-full overflow-hidden shadow-2xl md:max-w-[8.5in] ${
+        darkRead ? "bg-[#1a1a1a]" : "bg-white"
+      }`}
+      style={{
+        transform: `scale(${zoom / 100})`,
+        transformOrigin: "top center",
+      }}
+    >
+      <ScreenplayTitlePage
+        title={title}
+        authorName={resolvedAuthor}
+        scriptType={scriptType}
+        fontCss={fontCss}
+        pageWidth={PAGE_WIDTH}
+        pageHeight={PAGE_HEIGHT}
+        pageSurfaceClassName={
+          darkRead
+            ? "border-slate-700 bg-[#1a1a1a] text-slate-100"
+            : "border-slate-200 bg-white text-[#0f172a]"
+        }
+        marginBottom={0}
+      />
+    </div>
+  );
+
+  const renderAt = (viewPage: number) => {
+    if (viewPage <= 0) return titleShell;
+    return pageShell(bodyPages[viewPage - 1] ?? [], viewPage - 1);
+  };
 
   return createPortal(
     <AnimatePresence>
@@ -249,7 +315,7 @@ export function ScreenplayReader({
 
           <div className="flex flex-1 min-h-0">
             <aside className="storytime-panel-divider-r hidden lg:block w-28 shrink-0 overflow-y-auto bg-slate-900/80 p-2 space-y-2">
-              {pages.map((_, i) => (
+              {Array.from({ length: totalPages }, (_, i) => (
                 <button
                   key={i}
                   type="button"
@@ -260,7 +326,7 @@ export function ScreenplayReader({
                       : "border-slate-700 text-slate-400 hover:border-slate-500"
                   }`}
                 >
-                  p.{i + 1}
+                  {i === 0 ? "Title" : `p.${i}`}
                 </button>
               ))}
             </aside>
@@ -275,11 +341,11 @@ export function ScreenplayReader({
               >
                 {spread && page + 1 < totalPages ? (
                   <>
-                    {pageShell(pages[page] ?? [], page)}
-                    {pageShell(pages[page + 1] ?? [], page + 1)}
+                    {renderAt(page)}
+                    {renderAt(page + 1)}
                   </>
                 ) : (
-                  pageShell(pages[page] ?? [], page)
+                  renderAt(page)
                 )}
               </div>
             </main>
@@ -297,7 +363,7 @@ export function ScreenplayReader({
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <span className="text-xs text-slate-400">
-              Page {page + 1} of {totalPages}
+              {page === 0 ? "Title page" : `Page ${page}`} of {totalPages}
             </span>
             <Input
               type="number"

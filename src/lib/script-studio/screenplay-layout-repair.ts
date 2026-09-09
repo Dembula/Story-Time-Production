@@ -84,6 +84,92 @@ export function isRunTogetherGarbage(text: string): boolean {
   return glued.length / lines.length >= 0.35;
 }
 
+/** Common compounds that appear when PDF extract drops spaces between short words. */
+const GLUED_WORD_PAIRS: Array<[RegExp, string]> = [
+  [/\bto(?=the\b)/gi, "to "],
+  [/\bof(?=the\b)/gi, "of "],
+  [/\bin(?=the\b)/gi, "in "],
+  [/\bon(?=the\b)/gi, "on "],
+  [/\bat(?=the\b)/gi, "at "],
+  [/\band(?=the\b)/gi, "and "],
+  [/\bfor(?=the\b)/gi, "for "],
+  [/\bfrom(?=the\b)/gi, "from "],
+  [/\binto(?=the\b)/gi, "into "],
+  [/\bto(?=a\b)/gi, "to "],
+  [/\bof(?=a\b)/gi, "of "],
+  [/\bin(?=a\b)/gi, "in "],
+  [/\bis(?=a\b)/gi, "is "],
+  [/\bas(?=a\b)/gi, "as "],
+  [/\bto(?=her\b)/gi, "to "],
+  [/\bto(?=his\b)/gi, "to "],
+  [/\bto(?=him\b)/gi, "to "],
+  [/\bwith(?=the\b)/gi, "with "],
+  [/\bholding(?=[A-Z][a-z])/g, "holding "],
+  [/\bstanding(?=[A-Z][a-z])/g, "standing "],
+  [/\blooking(?=[A-Z][a-z])/g, "looking "],
+  [/\bsitting(?=[A-Z][a-z])/g, "sitting "],
+  [/\bwatching(?=[A-Z][a-z])/g, "watching "],
+  [/\bseeing(?=[A-Z][a-z])/g, "seeing "],
+  [/\bcomes?(?=[A-Z][a-z])/g, "comes "],
+];
+
+/**
+ * Detect partially readable extracts that still miss spaces inside words
+ * (e.g. holdingMichaela, thereDALE:, tothe, DAYCROSS).
+ */
+export function isPartialWordGlueGarbage(text: string): boolean {
+  const tokens = text.split(/\s+/).filter((t) => /[A-Za-z]{4,}/.test(t));
+  if (tokens.length < 8) return false;
+
+  let glued = 0;
+  for (const token of tokens) {
+    if (/[a-z][A-Z]/.test(token)) glued += 1;
+    else if (/[a-z][.\-'][A-Z]/.test(token)) glued += 1;
+    else if (/[a-z]{2,}[A-Z]{2,}/.test(token)) glued += 1;
+    else if (/^(to|of|in|on|at|and|for|from|the|is|as)(the|a|an|her|his|him|them|this|that)/i.test(token)) {
+      glued += 1;
+    } else if (/(?:DAY|NIGHT|MORNING|EVENING|LATER|CONTINUOUS)(CROSS|CUT|FADE|DISSOLVE)/i.test(token)) {
+      glued += 1;
+    } else if (/^[A-Z]{3,}:[A-Za-z]/.test(token)) {
+      glued += 1;
+    }
+  }
+
+  return glued / tokens.length >= 0.04 || glued >= 4;
+}
+
+/** Too few line breaks / structural cues for the amount of prose — wall-of-text PDF extract. */
+export function hasCollapsedScreenplayStructure(text: string): boolean {
+  const letters = text.replace(/[^A-Za-z]/g, "").length;
+  if (letters < 200) return false;
+  const lines = text.split(/\n/).map((l) => l.trim()).filter(Boolean);
+  if (lines.length === 0) return true;
+  const avgLettersPerLine = letters / lines.length;
+  if (avgLettersPerLine >= 90) return true;
+
+  const structural = lines.filter((l) => {
+    if (SCENE_HEADING.test(l)) return true;
+    if (/^(FADE|CUT TO|DISSOLVE|CROSS\s*CUT)/i.test(l)) return true;
+    if (/^[A-Z][A-Z0-9 .'\-]{1,36}(?:\s*\((?:V\.O\.?|O\.S\.?)\))?:?\s*$/.test(l)) return true;
+    return false;
+  }).length;
+
+  if (letters > 600 && structural < 3) return true;
+  if (letters > 1200 && structural < 5) return true;
+  return false;
+}
+
+/** Extract should prefer vision OCR (readable but structurally broken / glued). */
+export function prefersVisionOcrForScreenplay(text: string): boolean {
+  if (!text.trim()) return true;
+  if (isGarbledPdfExtraction(text)) return true;
+  if (isPartialWordGlueGarbage(text)) return true;
+  if (hasCollapsedScreenplayStructure(text)) return true;
+  if (isRunTogetherGarbage(text)) return true;
+  if (isCharacterSpacedGarbage(text)) return true;
+  return scoreScreenplayLayout(text) < 40;
+}
+
 const COMMON_ENGLISH = new Set([
   "the", "and", "to", "of", "a", "in", "is", "it", "for", "on", "with", "that", "this",
   "he", "she", "they", "was", "are", "be", "as", "at", "or", "from", "by", "an", "have",
@@ -167,7 +253,10 @@ export function isUnusableScreenplayExtract(text: string): boolean {
   if (isCharacterSpacedGarbage(text) && isGarbledPdfExtraction(repairCharacterSpacedText(text))) {
     return true;
   }
-  return scoreScreenplayLayout(text) < 25;
+  // Glued / collapsed walls of text need OCR or heavy restructure — treat as unusable
+  // for the "accept as-is" path so vision OCR is attempted first.
+  if (isPartialWordGlueGarbage(text) || hasCollapsedScreenplayStructure(text)) return true;
+  return scoreScreenplayLayout(text) < 15;
 }
 
 function countGluedTokens(tokens: string[]): number {
@@ -206,9 +295,14 @@ export function scoreScreenplayLayout(text: string): number {
 
   if (isCharacterSpacedGarbage(cleaned)) score -= 80;
   if (isRunTogetherGarbage(cleaned)) score -= 40;
+  if (isPartialWordGlueGarbage(cleaned)) score -= 180;
+  if (hasCollapsedScreenplayStructure(cleaned)) score -= 120;
   if (isFragmentedScreenplayImport(cleaned)) score -= 30;
   if (isGarbledPdfExtraction(cleaned)) score -= 220;
   score -= countGluedTokens(tokens) * 15;
+
+  // Reward real screenplay structure
+  score += lines.filter((l) => /^[A-Z][A-Z0-9 .'\-]{1,36}:?\s*$/.test(l)).length * 8;
 
   return score;
 }
@@ -269,9 +363,21 @@ export function normalizeImportedScreenplayLayout(text: string): { text: string;
   if (isFragmentedScreenplayImport(normalized)) {
     normalized = repairFragmentedScreenplayText(normalized);
     fixes.push("Rebuilt screenplay lines from PDF word fragments");
-  } else if (isRunTogetherGarbage(normalized)) {
-    normalized = unglueScreenplayText(normalized);
-    fixes.push("Inserted missing spaces in glued PDF text");
+  }
+
+  const needsUnglue =
+    isRunTogetherGarbage(normalized) ||
+    isPartialWordGlueGarbage(normalized) ||
+    hasCollapsedScreenplayStructure(normalized) ||
+    /[a-z][A-Z]/.test(normalized) ||
+    /\b[A-Z]{2,}:[A-Za-z]/.test(normalized);
+
+  if (needsUnglue) {
+    const restructured = restructureGluedScreenplay(normalized);
+    if (restructured !== normalized) {
+      normalized = restructured;
+      fixes.push("Restored spaces and screenplay structure from glued PDF text");
+    }
   }
 
   normalized = normalized.replace(/^(INT|EXT|I\/E)(?=\s)/gim, (match) => `${match.toUpperCase()}.`);
@@ -282,17 +388,105 @@ export function normalizeImportedScreenplayLayout(text: string): { text: string;
   };
 }
 
-/** Best-effort spaces for glued screenplay tokens. */
-function unglueScreenplayText(text: string): string {
-  return text
-    .replace(/\b(INT\.|EXT\.|INT\/EXT\.|I\/E\.)([A-Z])/g, "$1 $2")
-    .replace(/([A-Z])-([A-Z])/g, "$1 - $2")
-    .replace(/\b(DAY|NIGHT|CONTINUOUS|MORNING|EVENING|LATER|SAME|DUSK|DAWN)(?=[A-Z])/gi, "$1\n\n")
-    .replace(/([a-z])([A-Z][A-Z])/g, "$1\n$2")
-    .replace(/([.!?])([A-Z])/g, "$1 $2")
-    .replace(/\b(FADE TO BLACK|CUT TO|DISSOLVE TO)\b/gi, "\n\n$1\n\n")
+/** Expand "NAME: dialogue" / mid-line cues into standard character + dialogue lines. */
+function expandColonCharacterCues(text: string): string {
+  const out: string[] = [];
+  for (const rawLine of text.split("\n")) {
+    const line = rawLine.trimEnd();
+    if (!line.trim()) {
+      out.push("");
+      continue;
+    }
+
+    // Full-line cue with dialogue: "DALE: hello there"
+    const full = line.match(
+      /^([A-Z][A-Z0-9 .'\-]{1,40}(?:\s*\((?:V\.O\.?|O\.S\.?|CONT'D|V\.O|O\.S)\))?)\s*:\s*(.+)$/,
+    );
+    if (full?.[1] && full[2]?.trim()) {
+      const name = full[1].trim().replace(/:$/, "");
+      const dialogue = full[2].trim();
+      // Duplicate cue noise: "LISAKHANYA:LISAKHANYA: hi" already split once above
+      if (/^[A-Z][A-Z0-9 .'\-]{1,40}:/.test(dialogue)) {
+        out.push(name);
+        out.push(...expandColonCharacterCues(dialogue).split("\n"));
+      } else {
+        out.push(name);
+        out.push(dialogue);
+      }
+      continue;
+    }
+
+    // Cue-only line ending with colon
+    if (/^[A-Z][A-Z0-9 .'\-]{1,40}(?:\s*\((?:V\.O\.?|O\.S\.?|CONT'D)\))?:\s*$/.test(line.trim())) {
+      out.push(line.trim().replace(/:$/, ""));
+      continue;
+    }
+
+    out.push(line);
+  }
+  return out.join("\n");
+}
+
+/**
+ * Repair glued PDF/OCR extracts into readable screenplay lines.
+ * Handles camelCase joins, NAME: cues, DAYCROSS, mid-line FADE TO BLACK, etc.
+ */
+export function restructureGluedScreenplay(text: string): string {
+  let t = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+
+  for (const [re, rep] of GLUED_WORD_PAIRS) {
+    t = t.replace(re, rep);
+  }
+
+  // lowerUpper → space (holdingMichaela, thereDALE, ofDEAN)
+  t = t.replace(/([a-z])([A-Z])/g, "$1 $2");
+
+  // ALLCAPS glued to following ALLCAPS transition/cue after time of day
+  t = t.replace(
+    /\b(DAY|NIGHT|MORNING|EVENING|LATER|CONTINUOUS|DAWN|DUSK|AFTERNOON)(CROSS\s*CUTS?|CROSSCUTS?|CUT\s*TO|FADE|DISSOLVE|SMASH)/gi,
+    "$1\n\n$2",
+  );
+
+  // Mid-prose transitions
+  t = t.replace(
+    /\b(FADE TO BLACK|FADE OUT\.?|FADE IN:?|CUT TO BLACK|DISSOLVE TO:|CUT TO:|SMASH CUT TO:)\b/gi,
+    "\n\n$1\n\n",
+  );
+
+  // Period/punct then glued character cue: seat.LISAKHANYA: / equilibriumDALE:
+  t = t.replace(/([a-z0-9.,!?…"'”])\s*([A-Z]{2,}(?:\s*\([^)]{0,12}\))?\s*:)/g, "$1\n\n$2");
+
+  // Word then glued cue without punct: there DALE: already spaced by camelCase; also NAME:NAME:
+  t = t.replace(/([A-Z]{2,})\s*:\s*([A-Z]{2,})\s*:/g, "$1:\n\n$2:");
+
+  // Scene heading should stand alone before following action/transition caps
+  t = t.replace(
+    /((?:INT\.|EXT\.|INT\.\/EXT\.|EXT\.\/INT\.|I\/E\.|EST\.)[^\n]{3,80}?\b(?:DAY|NIGHT|MORNING|EVENING|LATER|CONTINUOUS|DAWN|DUSK|AFTERNOON))\s+(?=[A-Z])/gi,
+    "$1\n\n",
+  );
+
+  // CROSS CUTS … as its own beat when stuck to prose
+  t = t.replace(/\b(CROSS\s*CUTS?(?:\s+BACK(?:\s+TO)?)?)\b/gi, "\n\n$1\n\n");
+
+  t = expandColonCharacterCues(t);
+
+  // Ensure blank line before character cues that are alone on a line
+  t = t.replace(
+    /([^\n])\n([A-Z][A-Z0-9 .'\-]{1,40}(?:\s*\((?:V\.O\.?|O\.S\.?|CONT'D)\))?)\n/g,
+    "$1\n\n$2\n",
+  );
+
+  t = t
     .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{4,}/g, "\n\n\n")
     .trim();
+
+  return t;
+}
+
+/** Best-effort spaces for glued screenplay tokens (legacy helper). */
+function unglueScreenplayText(text: string): string {
+  return restructureGluedScreenplay(text);
 }
 
 function isSluglineStart(token: string): boolean {

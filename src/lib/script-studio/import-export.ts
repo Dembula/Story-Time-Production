@@ -2,6 +2,8 @@ import {
   isFragmentedScreenplayImport,
   isRunTogetherGarbage,
   isCharacterSpacedGarbage,
+  isPartialWordGlueGarbage,
+  hasCollapsedScreenplayStructure,
   lightCleanScreenplayText,
   normalizeImportedScreenplayLayout,
 } from "@/lib/script-studio/screenplay-layout-repair";
@@ -30,17 +32,22 @@ export function importScreenplayText(raw: string, filename: string): ImportResul
   const lower = filename.toLowerCase();
   const isPdf = lower.endsWith(".pdf");
   const needsRepair =
+    isPdf ||
     isFragmentedScreenplayImport(text) ||
     isRunTogetherGarbage(text) ||
-    isCharacterSpacedGarbage(text);
+    isCharacterSpacedGarbage(text) ||
+    isPartialWordGlueGarbage(text) ||
+    hasCollapsedScreenplayStructure(text) ||
+    /[a-z][A-Z]/.test(text) ||
+    /\b[A-Z]{2,}:/.test(text);
 
   if (needsRepair) {
     const layout = normalizeImportedScreenplayLayout(text);
     text = layout.text;
     fixes.push(...layout.fixes);
-  } else if (isPdf) {
-    // PDF extracts often still carry visual wrap hard-breaks even when not "fragmented"
-    fixes.push("Preparing PDF extract for screenplay page layout");
+    if (isPdf && layout.fixes.length === 0) {
+      fixes.push("Normalized PDF extract for screenplay structure");
+    }
   }
 
   if (lower.endsWith(".fountain")) {

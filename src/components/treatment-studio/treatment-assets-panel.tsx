@@ -7,7 +7,6 @@ import {
   Link2,
   Loader2,
   Trash2,
-  Video,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -18,11 +17,11 @@ import {
   type PexelsImportedAsset,
 } from "@/components/pexels/pexels-media-browser";
 import { PexelsPhotoCredit } from "@/components/pexels/pexels-attribution";
-import { resolveRenderableFileSource } from "@/lib/secure-file-preview-path";
 import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
 import { newId } from "@/lib/treatment-studio/document";
 import type { TreatmentAsset } from "@/lib/treatment-studio/types";
 import { TREATMENT_ASSET_MIME } from "./treatment-slide-canvas";
+import { TreatmentVideoStill } from "./treatment-video-still";
 
 const UPLOAD_ACCEPT =
   "image/jpeg,image/jpg,image/png,image/webp,image/avif,image/gif,image/heic,image/heif,video/mp4,video/quicktime,video/webm,video/x-m4v,.mov,.mp4,.webm";
@@ -253,12 +252,6 @@ export function TreatmentAssetsPanel({
                   const onSlide =
                     placedAssetIds.includes(asset.id) ||
                     selectedReferenceIds.includes(asset.id);
-                  const previewSrc =
-                    asset.type === "video"
-                      ? resolveRenderableFileSource(asset.thumbnailUrl || asset.url, {
-                          projectId,
-                        })
-                      : null;
                   const highlight = justAddedId === asset.id;
                   return (
                     <li
@@ -294,23 +287,14 @@ export function TreatmentAssetsPanel({
                             projectId={projectId}
                           />
                         ) : asset.type === "video" ? (
-                          <div className="relative aspect-video overflow-hidden rounded bg-slate-800">
-                            {previewSrc ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={previewSrc}
-                                alt={asset.title || "Clip"}
-                                className="h-full w-full object-cover"
-                              />
-                            ) : (
-                              <div className="flex h-full items-center justify-center text-slate-500">
-                                <Video className="h-6 w-6" />
-                              </div>
-                            )}
-                            <span className="absolute bottom-1 left-1 rounded bg-black/70 px-1.5 py-0.5 text-[9px] text-white">
-                              Clip
-                            </span>
-                          </div>
+                          <TreatmentVideoStill
+                            url={asset.url}
+                            thumbnailUrl={asset.thumbnailUrl}
+                            projectId={projectId}
+                            alt={asset.title || "Clip"}
+                            className="aspect-video w-full rounded"
+                            allowPlayback={false}
+                          />
                         ) : (
                           <div className="flex aspect-video items-center justify-center rounded bg-slate-800 px-2 text-center text-[10px] text-slate-400">
                             <Link2 className="mr-1 h-3 w-3 shrink-0" />

@@ -41,6 +41,15 @@ export type TreatmentSlideLayout =
   | "references"
   | "blank";
 
+export type TreatmentFieldKey = "title" | "subtitle" | "body";
+
+export type TreatmentFieldFrame = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
 export type TreatmentSlide = {
   id: string;
   layout: TreatmentSlideLayout;
@@ -51,6 +60,8 @@ export type TreatmentSlide = {
   backgroundColor?: string;
   referenceIds: string[];
   elements: TreatmentElement[];
+  /** Absolute % frames for layout title/subtitle/body — enables move/resize. */
+  fieldFrames?: Partial<Record<TreatmentFieldKey, TreatmentFieldFrame>>;
 };
 
 export type TreatmentDocument = {

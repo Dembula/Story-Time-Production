@@ -20,6 +20,8 @@ import {
   type ScreenplaySuggestion,
 } from "@/lib/script-studio/screenplay-autocomplete";
 import type { ScreenplayElementType } from "@/lib/script-studio/types";
+import { ScreenplayTitlePage } from "@/components/script-studio/screenplay-title-page";
+import { resolveScriptAuthorName } from "@/lib/script-studio/title-page";
 
 /** US Letter page geometry (screenplay standard). */
 const PAGE_WIDTH = "8.5in";
@@ -53,6 +55,10 @@ type ScreenplayEditorProps = {
   /** Skip mount-time hard wrap (use after import). */
   preserveStructure?: boolean;
   onPreserveStructureEnd?: () => void;
+  /** Title page (always first sheet). */
+  scriptTitle?: string;
+  scriptType?: string;
+  authorName?: string;
 };
 
 function splitContentIntoPages(content: string): string[] {
@@ -105,7 +111,11 @@ export function ScreenplayEditor({
   zoomPercent = 100,
   preserveStructure = false,
   onPreserveStructureEnd,
+  scriptTitle = "Untitled Screenplay",
+  scriptType = "FEATURE",
+  authorName,
 }: ScreenplayEditorProps) {
+  const resolvedAuthor = resolveScriptAuthorName({ name: authorName });
   const pageRefs = useRef<Array<HTMLTextAreaElement | null>>([]);
   const [editingElement, setEditingElement] = useState<ScreenplayElementType>(activeElementProp);
   const [activePageIdx, setActivePageIdx] = useState(0);
@@ -634,6 +644,17 @@ export function ScreenplayEditor({
           className="script-writer-pages-stack"
           style={{ zoom: zoomScale }}
         >
+          <ScreenplayTitlePage
+            title={scriptTitle}
+            authorName={resolvedAuthor}
+            scriptType={scriptType}
+            fontCss={fontCss}
+            pageWidth={PAGE_WIDTH}
+            pageHeight={PAGE_HEIGHT}
+            pageSurfaceClassName={`${pageSurface} text-[#0f172a]`}
+            marginBottom={PAGE_GAP_PX}
+          />
+
           {pageTexts.map((pageText, pageIdx) => (
             <div
               key={`page-${pageIdx}`}
@@ -735,7 +756,7 @@ export function ScreenplayEditor({
 
       <div className="script-writer-editor-meta">
         <p style={{ fontFamily: fontCss }}>
-          {pageCount} page{pageCount === 1 ? "" : "s"} · US Letter ·{" "}
+          Title + {pageCount} page{pageCount === 1 ? "" : "s"} · US Letter ·{" "}
           <span className="script-writer-editor-meta-element">{editingElement.replace(/_/g, " ")}</span>
         </p>
       </div>

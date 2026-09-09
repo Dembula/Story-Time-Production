@@ -1,17 +1,23 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { GripVertical } from "lucide-react";
+import { GripVertical, X } from "lucide-react";
 import { SecureImage } from "@/components/files/secure-image";
 import { PEXELS_PHOTO_MIME } from "@/components/pexels/pexels-media-browser";
-import { resolveRenderableFileSource } from "@/lib/secure-file-preview-path";
-import { cn } from "@/lib/utils";
+import {
+  fieldsForLayout,
+  resolveFieldFrame,
+} from "@/lib/treatment-studio/field-frames";
 import type {
   TreatmentAsset,
   TreatmentElement,
+  TreatmentFieldFrame,
+  TreatmentFieldKey,
   TreatmentSlide,
   TreatmentSlideLayout,
 } from "@/lib/treatment-studio/types";
+import { cn } from "@/lib/utils";
+import { TreatmentVideoStill } from "./treatment-video-still";
 
 export const TREATMENT_ASSET_MIME = "application/x-treatment-asset";
 export { PEXELS_PHOTO_MIME };
@@ -21,11 +27,17 @@ type TreatmentSlideCanvasProps = {
   assets: TreatmentAsset[];
   aspectRatio?: "16:9" | "4:3";
   readOnly?: boolean;
+  /** Presentation mode — clips can play when clipPlaying is true */
+  presentMode?: boolean;
+  /** When true in presentMode, play video clips on this slide */
+  clipPlaying?: boolean;
   className?: string;
   selectedElementId?: string | null;
+  selectedFieldKey?: TreatmentFieldKey | null;
   onFieldChange?: (patch: Partial<TreatmentSlide>) => void;
   onElementsChange?: (elements: TreatmentElement[]) => void;
   onSelectElement?: (elementId: string | null) => void;
+  onSelectField?: (key: TreatmentFieldKey | null) => void;
   onDropAsset?: (assetId: string, xPercent: number, yPercent: number) => void;
   /** Drop a Pexels search result — parent imports then places on slide */
   onDropPexels?: (photoId: number, xPercent: number, yPercent: number) => void | Promise<void>;
@@ -36,16 +48,198 @@ function assetMap(assets: TreatmentAsset[]) {
   return new Map(assets.map((a) => [a.id, a]));
 }
 
+type ResizeHandle = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
+type DragMode = "move" | `resize-${ResizeHandle}`;
+
+const HANDLE_CURSOR: Record<ResizeHandle, string> = {
+  n: "ns-resize",
+  s: "ns-resize",
+  e: "ew-resize",
+  w: "ew-resize",
+  ne: "nesw-resize",
+  nw: "nwse-resize",
+  se: "nwse-resize",
+  sw: "nesw-resize",
+};
+
+function applyResize(
+  mode: DragMode,
+  orig: TreatmentFieldFrame,
+  dx: number,
+  dy: number,
+): TreatmentFieldFrame {
+  let { x, y, width, height } = orig;
+  const minW = 8;
+  const minH = 6;
+
+  if (mode === "move") {
+    return {
+      x: Math.min(95, Math.max(-5, x + dx)),
+      y: Math.min(95, Math.max(-5, y + dy)),
+      width,
+      height,
+    };
+  }
+
+  const handle = mode.replace("resize-", "") as ResizeHandle;
+  if (handle.includes("e")) width = Math.min(100 - x, Math.max(minW, width + dx));
+  if (handle.includes("s")) height = Math.min(100 - y, Math.max(minH, height + dy));
+  if (handle.includes("w")) {
+    const nextW = Math.min(width + x, Math.max(minW, width - dx));
+    const delta = width - nextW;
+    x = Math.min(95, Math.max(-5, x + delta));
+    width = nextW;
+  }
+  if (handle.includes("n")) {
+    const nextH = Math.min(height + y, Math.max(minH, height - dy));
+    const delta = height - nextH;
+    y = Math.min(95, Math.max(-5, y + delta));
+    height = nextH;
+  }
+  return { x, y, width, height };
+}
+
+function SelectionChrome({
+  onBeginResize,
+  onDelete,
+  showDelete,
+}: {
+  onBeginResize: (e: React.PointerEvent, handle: ResizeHandle) => void;
+  onDelete?: () => void;
+  showDelete?: boolean;
+}) {
+  const handles: ResizeHandle[] = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
+  const pos: Record<ResizeHandle, string> = {
+    nw: "left-0 top-0 -translate-x-1/2 -translate-y-1/2",
+    n: "left-1/2 top-0 -translate-x-1/2 -translate-y-1/2",
+    ne: "right-0 top-0 translate-x-1/2 -translate-y-1/2",
+    e: "right-0 top-1/2 translate-x-1/2 -translate-y-1/2",
+    se: "right-0 bottom-0 translate-x-1/2 translate-y-1/2",
+    s: "left-1/2 bottom-0 -translate-x-1/2 translate-y-1/2",
+    sw: "left-0 bottom-0 -translate-x-1/2 translate-y-1/2",
+    w: "left-0 top-1/2 -translate-x-1/2 -translate-y-1/2",
+  };
+
+  return (
+    <>
+      <div className="treatment-selection-outline pointer-events-none absolute inset-0" />
+      {handles.map((h) => (
+        <div
+          key={h}
+          className={cn("treatment-resize-handle absolute z-20", pos[h])}
+          style={{ cursor: HANDLE_CURSOR[h] }}
+          onPointerDown={(e) => onBeginResize(e, h)}
+        />
+      ))}
+      {showDelete && onDelete ? (
+        <button
+          type="button"
+          className="treatment-element-delete absolute -right-2.5 -top-2.5 z-30"
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            onDelete();
+          }}
+          aria-label="Delete element"
+        >
+          <X className="h-2.5 w-2.5" strokeWidth={2.5} />
+        </button>
+      ) : null}
+    </>
+  );
+}
+
+function useFrameDrag(
+  readOnly: boolean,
+  frame: TreatmentFieldFrame,
+  onCommit: (next: TreatmentFieldFrame) => void,
+  onSelect: () => void,
+) {
+  const [livePos, setLivePos] = useState<TreatmentFieldFrame | null>(null);
+  const dragRef = useRef<{
+    mode: DragMode;
+    startX: number;
+    startY: number;
+    orig: TreatmentFieldFrame;
+    parentW: number;
+    parentH: number;
+    pointerId: number;
+  } | null>(null);
+  const onCommitRef = useRef(onCommit);
+  onCommitRef.current = onCommit;
+
+  const display = livePos ?? frame;
+
+  const beginDrag = (e: React.PointerEvent, mode: DragMode) => {
+    if (readOnly) return;
+    e.stopPropagation();
+    e.preventDefault();
+    onSelect();
+    const parent = (e.currentTarget as HTMLElement).closest(
+      "[data-treatment-canvas]",
+    ) as HTMLElement | null;
+    if (!parent) return;
+    const rect = parent.getBoundingClientRect();
+    dragRef.current = {
+      mode,
+      startX: e.clientX,
+      startY: e.clientY,
+      orig: { ...frame },
+      parentW: rect.width,
+      parentH: rect.height,
+      pointerId: e.pointerId,
+    };
+    setLivePos({ ...frame });
+  };
+
+  useEffect(() => {
+    const onMove = (e: PointerEvent) => {
+      const drag = dragRef.current;
+      if (!drag || e.pointerId !== drag.pointerId) return;
+      const dx = ((e.clientX - drag.startX) / drag.parentW) * 100;
+      const dy = ((e.clientY - drag.startY) / drag.parentH) * 100;
+      setLivePos(applyResize(drag.mode, drag.orig, dx, dy));
+    };
+    const onUp = (e: PointerEvent) => {
+      const drag = dragRef.current;
+      if (!drag || e.pointerId !== drag.pointerId) return;
+      dragRef.current = null;
+      setLivePos((pos) => {
+        if (pos) onCommitRef.current(pos);
+        return null;
+      });
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+  }, []);
+
+  return { display, beginDrag };
+}
+
 function SlideReferences({
   referenceIds,
   assets,
   compact,
   projectId,
+  presentMode,
+  clipPlaying,
 }: {
   referenceIds: string[];
   assets: TreatmentAsset[];
   compact?: boolean;
   projectId?: string;
+  presentMode?: boolean;
+  clipPlaying?: boolean;
 }) {
   const map = assetMap(assets);
   const refs = referenceIds.map((id) => map.get(id)).filter(Boolean) as TreatmentAsset[];
@@ -66,7 +260,17 @@ function SlideReferences({
     >
       {refs.map((ref) => (
         <figure key={ref.id} className="overflow-hidden rounded-md bg-slate-100">
-          {ref.type === "image" || ref.type === "video" ? (
+          {ref.type === "video" ? (
+            <TreatmentVideoStill
+              url={ref.url}
+              thumbnailUrl={ref.thumbnailUrl}
+              projectId={projectId}
+              alt={ref.title || "Clip"}
+              className="aspect-video w-full"
+              allowPlayback={Boolean(presentMode)}
+              playing={Boolean(presentMode && clipPlaying)}
+            />
+          ) : ref.type === "image" ? (
             <SecureImage
               fileRef={ref.thumbnailUrl || ref.url}
               alt={ref.title || "Reference"}
@@ -107,7 +311,6 @@ function EditableText({
   const ref = useRef<HTMLDivElement>(null);
   const focusedRef = useRef(false);
 
-  // Keep DOM text in sync with props when not actively editing (matches presentation).
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el || focusedRef.current) return;
@@ -133,7 +336,7 @@ function EditableText({
         multiline && "whitespace-pre-wrap",
         className,
         !readOnly &&
-          "cursor-text rounded-sm focus-visible:ring-1 focus-visible:ring-orange-400/50",
+          "cursor-text rounded-sm focus-visible:ring-1 focus-visible:ring-orange-400/40",
         empty && "treatment-slide-text--empty",
       )}
       onFocus={() => {
@@ -156,134 +359,171 @@ function EditableText({
         }
         e.stopPropagation();
       }}
+      onPointerDown={(e) => {
+        // Allow parent move/resize when not actively editing the text.
+        if (!readOnly && focusedRef.current) e.stopPropagation();
+      }}
       onClick={(e) => e.stopPropagation()}
     />
   );
 }
 
-function layoutContent(
+function MovableField({
+  fieldKey,
+  frame,
+  value,
+  placeholder,
+  className,
+  multiline,
+  selected,
+  readOnly,
+  onSelect,
+  onTextChange,
+  onFrameChange,
+}: {
+  fieldKey: TreatmentFieldKey;
+  frame: TreatmentFieldFrame;
+  value: string;
+  placeholder: string;
+  className?: string;
+  multiline?: boolean;
+  selected: boolean;
+  readOnly: boolean;
+  onSelect: () => void;
+  onTextChange: (value: string) => void;
+  onFrameChange: (frame: TreatmentFieldFrame) => void;
+}) {
+  const { display, beginDrag } = useFrameDrag(
+    readOnly,
+    frame,
+    onFrameChange,
+    onSelect,
+  );
+
+  return (
+    <div
+      data-field-key={fieldKey}
+      className={cn(
+        "absolute touch-none",
+        readOnly ? "pointer-events-none" : "cursor-move",
+        selected && !readOnly && "z-[1100]",
+      )}
+      style={{
+        left: `${display.x}%`,
+        top: `${display.y}%`,
+        width: `${display.width}%`,
+        height: `${display.height}%`,
+        zIndex: readOnly ? 2 : selected ? 1100 : 5,
+      }}
+      onPointerDown={(e) => {
+        if (readOnly) return;
+        beginDrag(e, "move");
+      }}
+      onClick={(e) => {
+        if (readOnly) return;
+        e.stopPropagation();
+        onSelect();
+      }}
+    >
+      <div className="pointer-events-auto flex h-full w-full flex-col overflow-hidden">
+        <EditableText
+          value={value}
+          placeholder={placeholder}
+          multiline={multiline}
+          readOnly={readOnly}
+          onChange={onTextChange}
+          className={cn(className, "h-full")}
+        />
+      </div>
+      {selected && !readOnly ? (
+        <SelectionChrome
+          onBeginResize={(e, h) => beginDrag(e, `resize-${h}`)}
+          showDelete={false}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function layoutMedia(
   layout: TreatmentSlideLayout,
   slide: TreatmentSlide,
   assets: TreatmentAsset[],
   readOnly: boolean,
-  onFieldChange?: (patch: Partial<TreatmentSlide>) => void,
   projectId?: string,
+  presentMode?: boolean,
+  clipPlaying?: boolean,
 ) {
-  const change = (patch: Partial<TreatmentSlide>) => {
-    if (!readOnly) onFieldChange?.(patch);
-  };
-
+  const map = assetMap(assets);
   const bg = (slide.backgroundColor || "#ffffff").replace("#", "");
   const r = parseInt(bg.slice(0, 2) || "ff", 16);
   const g = parseInt(bg.slice(2, 4) || "ff", 16);
   const b = parseInt(bg.slice(4, 6) || "ff", 16);
   const darkBg = (0.299 * r + 0.587 * g + 0.114 * b) / 255 < 0.55;
-  const titleClass = cn(
-    "treatment-type-title w-full text-center",
-    darkBg ? "text-white" : "text-slate-900",
-  );
-  const subClass = cn(
-    "treatment-type-subtitle mt-[0.6em] w-full text-center",
-    darkBg ? "text-white/75" : "text-slate-600",
-  );
-  const h2Class = cn(
-    "treatment-type-heading w-full",
-    darkBg ? "text-white" : "text-slate-900",
-  );
-  const bodyClass = cn(
-    "treatment-type-body mt-[1em] w-full flex-1",
-    darkBg ? "text-white/80" : "text-slate-700",
-  );
-  const splitTitleClass = cn(
-    "treatment-type-heading w-full",
-    darkBg ? "text-white" : "text-slate-900",
-  );
-  const splitBodyClass = cn(
-    "treatment-type-body mt-[0.75em] w-full",
-    darkBg ? "text-white/80" : "text-slate-700",
-  );
 
   switch (layout) {
-    case "title":
-      return (
-        <div className="flex h-full flex-col items-center justify-center px-[6%] text-center">
-          <EditableText
-            value={slide.title}
-            placeholder="Project Title"
-            readOnly={readOnly}
-            onChange={(title) => change({ title })}
-            className={titleClass}
-          />
-          <EditableText
-            value={slide.subtitle ?? ""}
-            placeholder="Subtitle or byline"
-            readOnly={readOnly}
-            onChange={(subtitle) => change({ subtitle })}
-            className={subClass}
-          />
-        </div>
-      );
     case "split": {
-      const map = assetMap(assets);
       const heroRef = slide.referenceIds[0]
         ? map.get(slide.referenceIds[0])
         : undefined;
       return (
-        <div className="grid h-full grid-cols-2 gap-[4%] p-[5%]">
-          <div className="flex min-w-0 flex-col justify-center">
-            <EditableText
-              value={slide.title}
-              placeholder="Section title"
-              readOnly={readOnly}
-              onChange={(title) => change({ title })}
-              className={splitTitleClass}
+        <div className="pointer-events-none absolute inset-y-[5%] right-[5%] left-[52%]">
+          {heroRef?.type === "video" ? (
+            <TreatmentVideoStill
+              url={heroRef.url}
+              thumbnailUrl={heroRef.thumbnailUrl}
+              projectId={projectId}
+              alt={heroRef.title || "Clip"}
+              className="h-full w-full rounded-lg shadow-md"
+              allowPlayback={Boolean(presentMode)}
+              playing={Boolean(presentMode && clipPlaying)}
+              showPlayHint={Boolean(presentMode && !clipPlaying)}
             />
-            <EditableText
-              value={slide.body ?? ""}
-              placeholder="Describe the visual direction..."
-              multiline
-              readOnly={readOnly}
-              onChange={(body) => change({ body })}
-              className={splitBodyClass}
+          ) : heroRef?.type === "image" ? (
+            <SecureImage
+              fileRef={heroRef.thumbnailUrl || heroRef.url}
+              alt={heroRef.title || "Reference"}
+              className="h-full w-full rounded-lg object-cover shadow-md"
+              projectId={projectId}
             />
-          </div>
-          <div className="flex min-h-0 items-center justify-center">
-            {heroRef?.type === "image" || heroRef?.type === "video" ? (
-              <SecureImage
-                fileRef={heroRef.thumbnailUrl || heroRef.url}
-                alt={heroRef.title || "Reference"}
-                className="max-h-full w-full rounded-lg object-cover shadow-md"
-                projectId={projectId}
-              />
-            ) : (
-              <div
-                className={cn(
-                  "flex h-full min-h-[140px] w-full flex-col items-center justify-center rounded-lg border border-dashed px-4 text-center",
-                  darkBg ? "border-white/20 bg-black/10" : "border-slate-300/80 bg-slate-50",
-                )}
-              >
-                <p className={cn("text-sm", darkBg ? "text-white/60" : "text-slate-500")}>
-                  No hero image
-                </p>
-                <p className={cn("mt-1 text-[11px]", darkBg ? "text-white/40" : "text-slate-400")}>
-                  {readOnly
-                    ? "Add a reference in the editor."
-                    : "Click a still in Assets to fill this panel."}
-                </p>
-              </div>
-            )}
-          </div>
+          ) : (
+            <div
+              className={cn(
+                "flex h-full min-h-[140px] w-full flex-col items-center justify-center rounded-lg border border-dashed px-4 text-center",
+                darkBg ? "border-white/20 bg-black/10" : "border-slate-300/80 bg-slate-50",
+              )}
+            >
+              <p className={cn("text-sm", darkBg ? "text-white/60" : "text-slate-500")}>
+                No hero image
+              </p>
+              <p className={cn("mt-1 text-[11px]", darkBg ? "text-white/40" : "text-slate-400")}>
+                {readOnly
+                  ? "Add a reference in the editor."
+                  : "Click a still in Assets to fill this panel."}
+              </p>
+            </div>
+          )}
         </div>
       );
     }
     case "image": {
-      const map = assetMap(assets);
       const heroRef = slide.referenceIds[0]
         ? map.get(slide.referenceIds[0])
         : undefined;
       return (
-        <div className="relative flex h-full flex-col">
-          {heroRef?.type === "image" || heroRef?.type === "video" ? (
+        <div className="pointer-events-none absolute inset-0">
+          {heroRef?.type === "video" ? (
+            <TreatmentVideoStill
+              url={heroRef.url}
+              thumbnailUrl={heroRef.thumbnailUrl}
+              projectId={projectId}
+              alt={heroRef.title || "Clip"}
+              className="h-full w-full"
+              allowPlayback={Boolean(presentMode)}
+              playing={Boolean(presentMode && clipPlaying)}
+              showPlayHint={Boolean(presentMode && !clipPlaying)}
+            />
+          ) : heroRef?.type === "image" ? (
             <SecureImage
               fileRef={heroRef.thumbnailUrl || heroRef.url}
               alt={heroRef.title || "Reference"}
@@ -291,7 +531,7 @@ function layoutContent(
               projectId={projectId}
             />
           ) : (
-            <div className="flex flex-1 flex-col items-center justify-center gap-2 bg-slate-100 px-6 text-center text-slate-400">
+            <div className="flex h-full flex-col items-center justify-center gap-2 bg-slate-100 px-6 text-center text-slate-400">
               <p className="text-sm font-medium text-slate-500">No full-bleed image yet</p>
               <p className="max-w-xs text-xs leading-relaxed">
                 {readOnly
@@ -301,75 +541,41 @@ function layoutContent(
             </div>
           )}
           {(slide.title || !readOnly) && (
-            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-[5%]">
-              <EditableText
-                value={slide.title}
-                placeholder="Caption"
-                readOnly={readOnly}
-                onChange={(title) => change({ title })}
-                className="treatment-type-caption w-full text-white"
-              />
-            </div>
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[28%] bg-gradient-to-t from-black/70 to-transparent" />
           )}
         </div>
       );
     }
     case "references":
       return (
-        <div className="flex h-full flex-col p-[5%]">
-          <EditableText
-            value={slide.title}
-            placeholder="References"
-            readOnly={readOnly}
-            onChange={(title) => change({ title })}
-            className={cn(h2Class, "mb-[0.75em]")}
+        <div className="pointer-events-none absolute inset-x-[5%] bottom-[5%] top-[16%]">
+          <SlideReferences
+            referenceIds={slide.referenceIds}
+            assets={assets}
+            projectId={projectId}
+            presentMode={presentMode}
+            clipPlaying={clipPlaying}
           />
-          <div className="min-h-0 flex-1">
-            <SlideReferences
-              referenceIds={slide.referenceIds}
-              assets={assets}
-              projectId={projectId}
-            />
-          </div>
         </div>
       );
     case "blank":
-      return (
-        <div className="pointer-events-none flex h-full items-center justify-center p-[5%] text-sm text-slate-400">
-          {readOnly ? null : "Blank canvas — drop references or add text"}
+      return readOnly ? null : (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-[5%] text-sm text-slate-400">
+          Blank canvas — drop references or add text
         </div>
       );
-    case "content":
     default:
-      return (
-        <div className="flex h-full flex-col p-[6%]">
-          <EditableText
-            value={slide.title}
-            placeholder="Slide title"
-            readOnly={readOnly}
-            onChange={(title) => change({ title })}
-            className={h2Class}
-          />
-          <EditableText
-            value={slide.body ?? ""}
-            placeholder="Write your treatment copy..."
-            multiline
-            readOnly={readOnly}
-            onChange={(body) => change({ body })}
-            className={bodyClass}
-          />
-        </div>
-      );
+      return null;
   }
 }
-
-type DragMode = "move" | "resize-se" | "resize-e" | "resize-s";
 
 function FreeformElement({
   element,
   asset,
   selected,
   readOnly,
+  presentMode,
+  clipPlaying,
   projectId,
   onSelect,
   onChange,
@@ -379,121 +585,26 @@ function FreeformElement({
   asset?: TreatmentAsset;
   selected: boolean;
   readOnly: boolean;
+  presentMode?: boolean;
+  clipPlaying?: boolean;
   projectId?: string;
   onSelect: () => void;
   onChange: (patch: Partial<TreatmentElement>) => void;
   onDelete: () => void;
 }) {
   const [editingText, setEditingText] = useState(false);
-  const [livePos, setLivePos] = useState<{
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  } | null>(null);
-  const dragRef = useRef<{
-    mode: DragMode;
-    startX: number;
-    startY: number;
-    origX: number;
-    origY: number;
-    origW: number;
-    origH: number;
-    parentW: number;
-    parentH: number;
-    pointerId: number;
-  } | null>(null);
-  const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
-
-  const display = livePos ?? {
+  const frame: TreatmentFieldFrame = {
     x: element.x,
     y: element.y,
     width: element.width,
     height: element.height,
   };
-
-  const beginDrag = (e: React.PointerEvent, mode: DragMode) => {
-    if (readOnly) return;
-    e.stopPropagation();
-    e.preventDefault();
-    onSelect();
-    const parent = (e.currentTarget as HTMLElement).closest(
-      "[data-treatment-canvas]",
-    ) as HTMLElement | null;
-    if (!parent) return;
-    const rect = parent.getBoundingClientRect();
-    dragRef.current = {
-      mode,
-      startX: e.clientX,
-      startY: e.clientY,
-      origX: element.x,
-      origY: element.y,
-      origW: element.width,
-      origH: element.height,
-      parentW: rect.width,
-      parentH: rect.height,
-      pointerId: e.pointerId,
-    };
-    setLivePos({
-      x: element.x,
-      y: element.y,
-      width: element.width,
-      height: element.height,
-    });
-  };
-
-  useEffect(() => {
-    const onMove = (e: PointerEvent) => {
-      const drag = dragRef.current;
-      if (!drag || e.pointerId !== drag.pointerId) return;
-      const dx = ((e.clientX - drag.startX) / drag.parentW) * 100;
-      const dy = ((e.clientY - drag.startY) / drag.parentH) * 100;
-      let next = {
-        x: drag.origX,
-        y: drag.origY,
-        width: drag.origW,
-        height: drag.origH,
-      };
-      if (drag.mode === "move") {
-        next = {
-          ...next,
-          x: Math.min(95, Math.max(-5, drag.origX + dx)),
-          y: Math.min(95, Math.max(-5, drag.origY + dy)),
-        };
-      } else if (drag.mode === "resize-se") {
-        next = {
-          ...next,
-          width: Math.min(100, Math.max(8, drag.origW + dx)),
-          height: Math.min(100, Math.max(6, drag.origH + dy)),
-        };
-      } else if (drag.mode === "resize-e") {
-        next = { ...next, width: Math.min(100, Math.max(8, drag.origW + dx)) };
-      } else if (drag.mode === "resize-s") {
-        next = { ...next, height: Math.min(100, Math.max(6, drag.origH + dy)) };
-      }
-      setLivePos(next);
-    };
-
-    const onUp = (e: PointerEvent) => {
-      const drag = dragRef.current;
-      if (!drag || e.pointerId !== drag.pointerId) return;
-      dragRef.current = null;
-      setLivePos((pos) => {
-        if (pos) onChangeRef.current(pos);
-        return null;
-      });
-    };
-
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-    window.addEventListener("pointercancel", onUp);
-    return () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-      window.removeEventListener("pointercancel", onUp);
-    };
-  }, []);
+  const { display, beginDrag } = useFrameDrag(
+    readOnly,
+    frame,
+    (next) => onChange(next),
+    onSelect,
+  );
 
   useEffect(() => {
     if (readOnly || !selected) return;
@@ -510,12 +621,15 @@ function FreeformElement({
     return () => window.removeEventListener("keydown", onKey);
   }, [readOnly, selected, editingText, onDelete]);
 
+  const interactivePresent = Boolean(presentMode);
+
   return (
     <div
       className={cn(
         "absolute touch-none",
-        readOnly ? "pointer-events-none" : "cursor-move",
-        selected && !readOnly && "ring-2 ring-orange-400 ring-offset-1",
+        readOnly && !interactivePresent ? "pointer-events-none" : null,
+        !readOnly && "cursor-move",
+        selected && !readOnly && "z-[1200]",
       )}
       style={{
         left: `${display.x}%`,
@@ -577,17 +691,15 @@ function FreeformElement({
 
       {element.type === "image" ? (
         asset?.type === "video" ? (
-          <video
-            src={
-              resolveRenderableFileSource(asset.url, { projectId }) ?? undefined
-            }
-            poster={
-              resolveRenderableFileSource(asset.thumbnailUrl, { projectId }) ??
-              undefined
-            }
-            className="pointer-events-none h-full w-full rounded-sm object-cover"
-            muted
-            playsInline
+          <TreatmentVideoStill
+            url={asset.url}
+            thumbnailUrl={asset.thumbnailUrl}
+            projectId={projectId}
+            alt={asset.title || "Clip"}
+            className="h-full w-full rounded-sm"
+            allowPlayback={Boolean(presentMode)}
+            playing={Boolean(presentMode && clipPlaying)}
+            showPlayHint={Boolean(presentMode && !clipPlaying)}
           />
         ) : asset?.type === "link" ? (
           <div className="flex h-full w-full flex-col items-center justify-center gap-1 rounded-sm bg-slate-100 p-2 text-center">
@@ -625,38 +737,112 @@ function FreeformElement({
       ) : null}
 
       {selected && !readOnly ? (
-        <>
-          <button
-            type="button"
-            className="absolute -right-2 -top-2 z-30 flex h-6 w-6 items-center justify-center rounded-full bg-red-500 text-sm leading-none text-white shadow-md hover:bg-red-600"
-            onPointerDown={(e) => {
-              e.stopPropagation();
-              e.preventDefault();
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              e.preventDefault();
-              onDelete();
-            }}
-            aria-label="Delete element"
-          >
-            ×
-          </button>
-          <div
-            className="absolute bottom-0 right-0 z-20 h-3.5 w-3.5 translate-x-1/2 translate-y-1/2 cursor-se-resize rounded-sm bg-orange-400 shadow"
-            onPointerDown={(e) => beginDrag(e, "resize-se")}
-          />
-          <div
-            className="absolute right-0 top-1/2 z-20 h-3.5 w-2.5 -translate-y-1/2 translate-x-1/2 cursor-e-resize rounded-sm bg-orange-400 shadow"
-            onPointerDown={(e) => beginDrag(e, "resize-e")}
-          />
-          <div
-            className="absolute bottom-0 left-1/2 z-20 h-2.5 w-3.5 -translate-x-1/2 translate-y-1/2 cursor-s-resize rounded-sm bg-orange-400 shadow"
-            onPointerDown={(e) => beginDrag(e, "resize-s")}
-          />
-        </>
+        <SelectionChrome
+          onBeginResize={(e, h) => beginDrag(e, `resize-${h}`)}
+          onDelete={onDelete}
+          showDelete
+        />
       ) : null}
     </div>
+  );
+}
+
+function LayoutTextFields({
+  slide,
+  readOnly,
+  selectedFieldKey,
+  onFieldChange,
+  onSelectField,
+}: {
+  slide: TreatmentSlide;
+  readOnly: boolean;
+  selectedFieldKey?: TreatmentFieldKey | null;
+  onFieldChange?: (patch: Partial<TreatmentSlide>) => void;
+  onSelectField?: (key: TreatmentFieldKey | null) => void;
+}) {
+  const bg = (slide.backgroundColor || "#ffffff").replace("#", "");
+  const r = parseInt(bg.slice(0, 2) || "ff", 16);
+  const g = parseInt(bg.slice(2, 4) || "ff", 16);
+  const b = parseInt(bg.slice(4, 6) || "ff", 16);
+  const darkBg = (0.299 * r + 0.587 * g + 0.114 * b) / 255 < 0.55;
+
+  const titleClass =
+    slide.layout === "title"
+      ? cn("treatment-type-title w-full text-center", darkBg ? "text-white" : "text-slate-900")
+      : slide.layout === "image"
+        ? "treatment-type-caption w-full text-white"
+        : cn("treatment-type-heading w-full", darkBg ? "text-white" : "text-slate-900");
+  const subClass = cn(
+    "treatment-type-subtitle w-full text-center",
+    darkBg ? "text-white/75" : "text-slate-600",
+  );
+  const bodyClass = cn(
+    "treatment-type-body w-full",
+    darkBg ? "text-white/80" : "text-slate-700",
+  );
+
+  const keys = fieldsForLayout(slide.layout);
+  if (keys.length === 0) return null;
+
+  const updateFrame = (key: TreatmentFieldKey, frame: TreatmentFieldFrame) => {
+    onFieldChange?.({
+      fieldFrames: {
+        ...(slide.fieldFrames ?? {}),
+        [key]: frame,
+      },
+    });
+  };
+
+  return (
+    <>
+      {keys.map((key) => {
+        const frame = resolveFieldFrame(slide, key);
+        if (!frame) return null;
+        const value =
+          key === "title"
+            ? slide.title
+            : key === "subtitle"
+              ? slide.subtitle ?? ""
+              : slide.body ?? "";
+        const placeholder =
+          key === "title"
+            ? slide.layout === "title"
+              ? "Project Title"
+              : slide.layout === "image"
+                ? "Caption"
+                : slide.layout === "references"
+                  ? "References"
+                  : "Slide title"
+            : key === "subtitle"
+              ? "Subtitle or byline"
+              : "Write your treatment copy...";
+        const className =
+          key === "title" ? titleClass : key === "subtitle" ? subClass : bodyClass;
+
+        return (
+          <MovableField
+            key={key}
+            fieldKey={key}
+            frame={frame}
+            value={value}
+            placeholder={placeholder}
+            multiline={key === "body"}
+            className={className}
+            selected={selectedFieldKey === key}
+            readOnly={readOnly}
+            onSelect={() => {
+              onSelectField?.(key);
+            }}
+            onTextChange={(next) => {
+              if (key === "title") onFieldChange?.({ title: next });
+              else if (key === "subtitle") onFieldChange?.({ subtitle: next });
+              else onFieldChange?.({ body: next });
+            }}
+            onFrameChange={(next) => updateFrame(key, next)}
+          />
+        );
+      })}
+    </>
   );
 }
 
@@ -665,11 +851,15 @@ export function TreatmentSlideCanvas({
   assets,
   aspectRatio = "16:9",
   readOnly = false,
+  presentMode = false,
+  clipPlaying = false,
   className,
   selectedElementId,
+  selectedFieldKey,
   onFieldChange,
   onElementsChange,
   onSelectElement,
+  onSelectField,
   onDropAsset,
   onDropPexels,
   projectId,
@@ -741,7 +931,10 @@ export function TreatmentSlideCanvas({
         className,
       )}
       style={{ backgroundColor: slide.backgroundColor ?? "#ffffff" }}
-      onClick={() => onSelectElement?.(null)}
+      onClick={() => {
+        onSelectElement?.(null);
+        onSelectField?.(null);
+      }}
       onDragOver={(e) => {
         if (readOnly) return;
         if (
@@ -762,16 +955,27 @@ export function TreatmentSlideCanvas({
           Adding from Pexels…
         </div>
       ) : null}
-      <div className="pointer-events-none absolute inset-0 [&_*]:pointer-events-auto">
-        {layoutContent(
-          slide.layout,
-          slide,
-          assets,
-          readOnly,
-          onFieldChange,
-          projectId,
-        )}
-      </div>
+
+      {layoutMedia(
+        slide.layout,
+        slide,
+        assets,
+        readOnly,
+        projectId,
+        presentMode,
+        clipPlaying,
+      )}
+
+      <LayoutTextFields
+        slide={slide}
+        readOnly={readOnly}
+        selectedFieldKey={selectedFieldKey}
+        onFieldChange={onFieldChange}
+        onSelectField={(key) => {
+          onSelectElement?.(null);
+          onSelectField?.(key);
+        }}
+      />
 
       {slide.elements.map((el) => (
         <FreeformElement
@@ -780,8 +984,13 @@ export function TreatmentSlideCanvas({
           asset={el.referenceId ? map.get(el.referenceId) : undefined}
           selected={selectedElementId === el.id}
           readOnly={readOnly}
+          presentMode={presentMode}
+          clipPlaying={clipPlaying}
           projectId={projectId}
-          onSelect={() => onSelectElement?.(el.id)}
+          onSelect={() => {
+            onSelectField?.(null);
+            onSelectElement?.(el.id);
+          }}
           onChange={(patch) => updateElement(el.id, patch)}
           onDelete={() => deleteElement(el.id)}
         />
@@ -846,7 +1055,6 @@ export function TreatmentSlideThumbnail({
         type="button"
         draggable={draggable}
         onDragStart={(e) => {
-          // Keep click from firing after a successful drag reorder.
           e.dataTransfer.effectAllowed = "move";
           e.dataTransfer.setData("text/plain", slide.id);
           onDragStart?.(e);

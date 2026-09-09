@@ -10,15 +10,19 @@ const openRouter = createOpenAI({
   baseURL: "https://openrouter.ai/api/v1",
 });
 
-const SCREENPLAY_OCR_PROMPT = `You are extracting screenplay text from a PDF.
-The PDF may be a scan, OR it may have a corrupt embedded text layer (broken fonts / missing ToUnicode maps) that looks like gibberish when copied. Always read the VISIBLE page content as a human would see it.
+const SCREENPLAY_OCR_PROMPT = `You are extracting a screenplay from a PDF page image.
+Read ONLY what is visibly printed. Do not invent scenes.
 
-Return ONLY the screenplay content as plain text in standard screenplay layout:
-- Scene headings (INT./EXT.) on their own lines
-- Character names in ALL CAPS on their own lines above dialogue
-- Action lines as normal paragraphs
-- Parentheticals on their own lines when present
-Do not invent scenes. Do not add commentary, markdown, or JSON. Preserve reading order across pages.`;
+CRITICAL formatting rules — output must look like Final Draft / studio screenplay text:
+1. Scene headings (INT./EXT. …) alone on their own line, then a blank line.
+2. Action/description as normal sentences with correct English word spacing (never "tothe", "holdingMichaela", "DAYCROSS").
+3. Character names alone on their own line in ALL CAPS — NO trailing colon.
+4. Dialogue on the line(s) under the character name.
+5. Parentheticals like (V.O.) or (beat) on their own line between character and dialogue when present.
+6. Transitions (FADE TO BLACK, CUT TO:) alone on their own line.
+7. Preserve blank lines between blocks. Preserve reading order across pages.
+
+Return ONLY the screenplay plain text. No markdown, no commentary, no JSON.`;
 
 /**
  * Vision OCR fallback when pdf-parse/pdfjs cannot extract usable text

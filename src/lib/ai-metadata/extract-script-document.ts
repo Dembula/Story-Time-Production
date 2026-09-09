@@ -13,6 +13,7 @@ import {
 import {
   isUnusableScreenplayExtract,
   normalizeImportedScreenplayLayout,
+  prefersVisionOcrForScreenplay,
   scoreScreenplayLayout,
 } from "@/lib/script-studio/screenplay-layout-repair";
 
@@ -77,30 +78,37 @@ function pdfImportError(byteLength: number): string {
 async function extractPdfScreenplay(buffer: Buffer): Promise<Pick<ScriptFileExtraction, "text" | "extractionMethod" | "error">> {
   const { text, method } = await extractPdfTextFromBuffer(buffer);
   const embedScore = text ? scoreScreenplayLayout(text) : -1000;
-  const embedUnusable = !text || isUnusableScreenplayExtract(text);
+  const embedNeedsVision = !text || isUnusableScreenplayExtract(text) || prefersVisionOcrForScreenplay(text);
 
-  // Broken ToUnicode / CID fonts often extract as letter soup that still "looks" non-empty.
-  // Vision OCR is the only reliable recovery when the embedded text layer is corrupt.
-  if (embedUnusable && process.env.OPENROUTER_API_KEY?.trim()) {
+  // Broken ToUnicode / CID fonts, glued words, or collapsed structure → vision OCR.
+  if (embedNeedsVision && process.env.OPENROUTER_API_KEY?.trim()) {
     const { extractScreenplayPdfWithVision } = await import("@/lib/script-studio/script-pdf-vision-ocr");
     const vision = await extractScreenplayPdfWithVision({
       pdfBase64: buffer.toString("base64"),
       fileName: "screenplay.pdf",
       pageHint:
-        "Embedded PDF text may be corrupt (missing ToUnicode). Read the visible page glyphs, not the text layer.",
+        "Embedded PDF text may be corrupt, glued, or missing line breaks. Read the visible page layout exactly: scene headings alone, character names alone in ALL CAPS (no colons), dialogue under them, action as separate paragraphs. Keep normal English word spacing.",
     });
     if ("text" in vision && vision.text) {
-      const ocrText = normalizeImportedScreenplayLayout(vision.text).text || vision.text;
+      const ocrNormalized = normalizeImportedScreenplayLayout(vision.text);
+      const ocrText = ocrNormalized.text || vision.text;
       const ocrScore = scoreScreenplayLayout(ocrText);
-      const ocrUnusable = isUnusableScreenplayExtract(ocrText);
-      if (!ocrUnusable || ocrScore > embedScore + 15 || !text) {
+      const ocrStillBad = isUnusableScreenplayExtract(ocrText) && prefersVisionOcrForScreenplay(ocrText);
+      if (!ocrStillBad || ocrScore > embedScore + 10 || !text) {
         return { text: truncateScriptText(ocrText), extractionMethod: vision.method };
       }
     }
   }
 
-  if (text && !isUnusableScreenplayExtract(text)) {
-    return { text: truncateScriptText(text), extractionMethod: method };
+  if (text) {
+    // Always run glue/structure repair before accepting embedded extract.
+    const repaired = normalizeImportedScreenplayLayout(text);
+    const repairedText = repaired.text || text;
+    const repairedUsable = !isUnusableScreenplayExtract(repairedText);
+    // Prefer repaired text whenever OCR did not win — never discard readable letters.
+    if (repairedUsable || repairedText.replace(/[^A-Za-z]/g, "").length >= 40) {
+      return { text: truncateScriptText(repairedText), extractionMethod: method };
+    }
   }
 
   if (text && isUnusableScreenplayExtract(text)) {
@@ -108,7 +116,7 @@ async function extractPdfScreenplay(buffer: Buffer): Promise<Pick<ScriptFileExtr
       text: "",
       extractionMethod: method,
       error:
-        "This PDF’s embedded text is corrupt (common with custom screenplay fonts). Re-export as Fountain, FDX, or DOCX, or Print → Save as PDF with standard fonts. Vision OCR can also recover these files when OPENROUTER_API_KEY is configured.",
+        "This PDF’s embedded text is corrupt or collapsed (common with custom screenplay fonts). Re-export as Fountain, FDX, or DOCX, or Print → Save as PDF with standard fonts. Vision OCR can also recover these files when OPENROUTER_API_KEY is configured.",
     };
   }
 

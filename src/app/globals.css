@@ -996,6 +996,48 @@ select optgroup {
   pointer-events: none;
 }
 
+.treatment-selection-outline {
+  border: 1.5px solid rgba(251, 146, 60, 0.95);
+  box-shadow:
+    0 0 0 1px rgba(15, 23, 42, 0.35),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+  border-radius: 2px;
+}
+
+.treatment-resize-handle {
+  width: 7px;
+  height: 7px;
+  border-radius: 1.5px;
+  background: #fff;
+  border: 1.5px solid rgba(251, 146, 60, 0.95);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.25);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.treatment-resize-handle:hover {
+  filter: brightness(1.05);
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.4);
+}
+
+.treatment-element-delete {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: #ef4444;
+  color: #fff;
+  border: 1.5px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.35);
+  transition: background 0.12s ease, transform 0.12s ease;
+}
+
+.treatment-element-delete:hover {
+  background: #dc2626;
+  transform: scale(1.06);
+}
+
 .treatment-slide-thumb {
   aspect-ratio: 16 / 9;
   background: #111;

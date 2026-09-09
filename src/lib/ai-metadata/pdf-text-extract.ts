@@ -49,13 +49,19 @@ function hasMeaningfulText(text: string, minLetters = 8): boolean {
   return letterCount(text) >= minLetters;
 }
 
+const TRANSITION_INLINE =
+  /^(CROSS\s*CUTS?|CUT TO|FADE TO|DISSOLVE TO|MATCH CUT|SMASH CUT|WIPE TO|JUMP CUT)/i;
+
 /**
  * Reconstruct screenplay lines from pdf.js text items using positions.
+ * Preserves word gaps and approximate column indent from x positions.
  */
 function textItemsToScreenplayLines(items: PdfTextItem[]): string {
-  type Placed = { x: number; y: number; endX: number; height: number; str: string };
+  type Placed = { x: number; y: number; endX: number; height: number; str: string; hasEOL: boolean };
 
   const placed: Placed[] = [];
+  const charWidths: number[] = [];
+
   for (const item of items) {
     const str = item.str ?? "";
     if (!str || !item.transform || item.transform.length < 6) continue;
@@ -63,19 +69,39 @@ function textItemsToScreenplayLines(items: PdfTextItem[]): string {
     const x = item.transform[4] ?? 0;
     const y = item.transform[5] ?? 0;
     const height = Math.abs(item.height || item.transform[3] || 12) || 12;
-    const width =
-      typeof item.width === "number" && item.width > 0
-        ? item.width
-        : Math.max(str.replace(/\s+$/g, "").length, 1) * height * 0.5;
+    const visibleLen = Math.max(str.replace(/\s+$/g, "").length, 1);
+    let width =
+      typeof item.width === "number" && item.width > 0 ? item.width : visibleLen * height * 0.45;
 
-    placed.push({ x, y, endX: x + width, height, str });
+    // Prefer measured per-glyph width when the reported width looks inflated.
+    if (typeof item.width === "number" && item.width > 0 && visibleLen >= 2) {
+      charWidths.push(item.width / visibleLen);
+    }
+
+    placed.push({
+      x,
+      y,
+      endX: x + width,
+      height,
+      str,
+      hasEOL: Boolean(item.hasEOL),
+    });
   }
 
   if (placed.length === 0) return "";
 
+  charWidths.sort((a, b) => a - b);
+  const medianCharWidth =
+    charWidths.length > 0
+      ? charWidths[Math.floor(charWidths.length / 2)]!
+      : (placed.reduce((s, p) => s + p.height, 0) / placed.length) * 0.5;
+
   const avgHeight =
     placed.reduce((sum, item) => sum + item.height, 0) / Math.max(placed.length, 1);
   const yTolerance = Math.max(avgHeight * 0.35, 2);
+
+  // Left edge of content — used to map x → leading spaces for columns.
+  const minX = Math.min(...placed.map((p) => p.x));
 
   const rows: Array<{ y: number; items: Placed[] }> = [];
   for (const item of placed) {
@@ -91,23 +117,53 @@ function textItemsToScreenplayLines(items: PdfTextItem[]): string {
 
   for (const row of rows) {
     const sorted = [...row.items].sort((a, b) => a.x - b.x);
-    let line = "";
+    const firstX = sorted[0]?.x ?? minX;
+    const indentChars = Math.max(0, Math.round((firstX - minX) / Math.max(medianCharWidth, 0.1)));
+    // Cap indent so we map to screenplay columns (~0 / 10 / 16 / 22) without runaway pads.
+    const leading = " ".repeat(Math.min(indentChars, 40));
 
+    let line = leading;
     for (let i = 0; i < sorted.length; i += 1) {
       const item = sorted[i]!;
       const next = sorted[i + 1];
       line += item.str;
 
+      if (item.hasEOL && next) {
+        // Hard EOL mid-row (rare) — break before continuing.
+        const cleanedMid = line.replace(/[ \t]+$/g, "");
+        if (cleanedMid.trim()) lines.push(cleanedMid);
+        line = leading;
+      }
+
       if (!next) continue;
       if (/\s$/.test(item.str) || /^\s/.test(next.str)) continue;
 
-      const gap = next.x - item.endX;
-      const spaceThreshold = Math.max(item.height * 0.04, 0.35);
-      if (gap > spaceThreshold) line += " ";
+      // Use a conservative endX so inflated widths don't suppress spaces.
+      const estimatedEnd = item.x + Math.min(item.endX - item.x, item.str.replace(/\s+$/g, "").length * medianCharWidth * 1.05);
+      const gap = next.x - Math.min(item.endX, estimatedEnd);
+      const spaceThreshold = Math.max(medianCharWidth * 0.28, 0.2);
+
+      // Large horizontal jump before a transition → new line (slug | CUT TO)
+      const nextTrim = next.str.trim();
+      if (gap > medianCharWidth * 3.5 && TRANSITION_INLINE.test(nextTrim)) {
+        const cleaned = line.replace(/[ \t]+$/g, "");
+        if (cleaned.trim()) lines.push(cleaned);
+        line = "";
+        continue;
+      }
+
+      if (gap > spaceThreshold || gap < -medianCharWidth * 0.15) {
+        // Negative gap = overlapping/inflated boxes — still insert a space between letter runs.
+        if (/[A-Za-z0-9]$/.test(item.str) && /^[A-Za-z0-9(]/.test(next.str)) {
+          line += " ";
+        } else if (gap > spaceThreshold) {
+          line += " ";
+        }
+      }
     }
 
-    const cleaned = line.replace(/[ \t]{2,}/g, " ").trim();
-    if (!cleaned) continue;
+    const cleaned = line.replace(/[ \t]+$/g, "");
+    if (!cleaned.trim()) continue;
 
     if (previousY !== null && previousY - row.y > avgHeight * 1.55) {
       lines.push("");

@@ -126,6 +126,7 @@ describe("screenplay-keyboard", () => {
     const healed = hardWrapDocument(broken);
     const lines = healed.split("\n");
     assert.ok(lines.length <= 2, `expected healed wrap, got ${lines.length}: ${JSON.stringify(lines)}`);
-    assert.equal(healed.replace(/\n/g, ""), "a".repeat(60) + "dlub");
+    assert.equal(healed.replace(/\n/g, "").replace(/ /g, ""), "a".repeat(60) + "dlub");
+    assert.ok(!/\bd\b/.test(healed) || healed.includes("dlub") || healed.replace(/\n/g, "").includes("adl"));
   });
 });

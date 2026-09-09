@@ -58,6 +58,12 @@ import { SCRIPT_TEMPLATES } from "@/lib/script-studio/templates";
 import type { ScreenplayElementType, StudioTheme } from "@/lib/script-studio/types";
 import { ScreenplayReader } from "./screenplay-reader";
 import { ScreenplayEditor } from "./screenplay-editor";
+import {
+  resolveScriptAuthorName,
+  shouldReplaceDraftTitle,
+  titleFromImportFilename,
+} from "@/lib/script-studio/title-page";
+import { useSession } from "next-auth/react";
 import { CollaborationPresenceBar } from "./collaboration-presence-bar";
 import { ScriptCommentsPanel } from "./script-comments-panel";
 import { ScriptVersionsPanel } from "./script-versions-panel";
@@ -110,6 +116,7 @@ export interface ScriptWritingStudioProps {
 
 export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioProps) {
   const queryClient = useQueryClient();
+  const { data: session } = useSession();
   const hasProject = !!projectId;
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const pageViewportRef = useRef<HTMLDivElement | null>(null);
@@ -124,6 +131,29 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
     queryFn: projectToolQueryFn(listEndpoint),
   });
 
+  const { data: meData } = useQuery({
+    queryKey: ["me-profile-for-title-page"],
+    queryFn: async () => {
+      const res = await fetch("/api/me");
+      if (!res.ok) return null;
+      return res.json() as Promise<{
+        name?: string | null;
+        professionalName?: string | null;
+        email?: string | null;
+      }>;
+    },
+    staleTime: 60_000,
+  });
+
+  const scriptAuthorName = useMemo(
+    () =>
+      resolveScriptAuthorName({
+        professionalName: meData?.professionalName,
+        name: meData?.name ?? session?.user?.name,
+        email: meData?.email ?? session?.user?.email,
+      }),
+    [meData, session?.user?.email, session?.user?.name],
+  );
   const scripts = useMemo(
     () =>
       ((data?.scripts as {
@@ -803,7 +833,11 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
     pushHistoryBeforeChange({ immediate: true });
     // Import path already reflows + hard-wraps to page margins; allow editor heal if needed.
     setPreserveImportLayout(false);
-    setDraft({ ...draft, content: importPreview.text });
+    const nextTitle =
+      shouldReplaceDraftTitle(draft.title) && importPreview.filename
+        ? titleFromImportFilename(importPreview.filename) || draft.title
+        : draft.title;
+    setDraft({ ...draft, title: nextTitle, content: importPreview.text });
     setDirty(true);
     setImportPreview(null);
     setImportError(null);
@@ -936,6 +970,8 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
         open={readerOpen}
         onClose={() => setReaderOpen(false)}
         title={draft?.title ?? "Screenplay"}
+        scriptType={draft?.type ?? "FEATURE"}
+        authorName={scriptAuthorName}
         content={readerContent}
         fontCss={fontCss}
       />
@@ -1426,6 +1462,9 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                 <ScreenplayEditor
                   textareaRef={textareaRef}
                   value={draft.content}
+                  scriptTitle={draft.title}
+                  scriptType={draft.type}
+                  authorName={scriptAuthorName}
                   activeElement={selectedElement}
                   zoomPercent={zoom}
                   theme={studioTheme}

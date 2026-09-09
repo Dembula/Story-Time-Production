@@ -27,6 +27,8 @@ const SCENE_HEADING_START = /^(int\.?|ext\.?|i\/e\.?|est\.?)/i;
 const TRANSITION_START = /^(FADE|CUT|DISSOLVE|SMASH|MATCH|WIPE|IRIS|JUMP|CROSSFADE)/i;
 const TRANSITION_END = /(TO:|:|\.)$/;
 const CHARACTER_LINE = /^[A-Z][A-Z0-9 .'\-()]{0,42}$/;
+/** AV / dual-dialogue style cues: "DALE:" or "DEAN V.O:" */
+const COLON_CHARACTER_CUE = /^[A-Z][A-Z0-9 .'\-]{1,40}(?:\s*\((?:V\.O\.?|O\.S\.?|CONT'D)\))?\s*:/;
 const SHOT_LINE =
   /^(CLOSE UP|EXTREME CLOSE UP|WIDE SHOT|MEDIUM SHOT|INSERT|POV|OVERHEAD|TRACKING SHOT|AERIAL SHOT|HANDHELD|STEADICAM|CRANE SHOT|DRONE SHOT|OVER THE SHOULDER)\b/i;
 
@@ -91,9 +93,15 @@ export function detectLineElement(
 
   if (SCENE_HEADING.test(trimmed)) return "scene_heading";
 
+  // Cue-only ALL CAPS ending with colon (dialogue lives on following lines / expanded earlier)
+  if (/^[A-Z][A-Z0-9 .'\-]{1,40}(?:\s*\((?:V\.O\.?|O\.S\.?|CONT'D)\))?:\s*$/.test(trimmed)) {
+    return "character";
+  }
+
   if (
     (TRANSITION_START.test(trimmed) && TRANSITION_END.test(trimmed)) ||
-    (indent >= 32 && TRANSITION_END.test(trimmed))
+    (indent >= 32 && TRANSITION_END.test(trimmed)) ||
+    /^(CROSS\s*CUTS?|CROSS CUT|CUT TO|FADE OUT)/i.test(trimmed)
   ) {
     return "transition";
   }
@@ -360,14 +368,18 @@ export function hardWrapLineForElement(element: ScreenplayElementType, rawLine: 
 /** Rejoin hard-wrapped fragments so re-wrapping while typing doesn't peel one char per keystroke. */
 function joinWrapFragments(fragments: string[], maxWidth: number): string {
   if (fragments.length === 0) return "";
-  const hardBrokenRun = fragments[0]!.trim().length >= maxWidth;
   let result = fragments[0]!.trim();
   for (let i = 1; i < fragments.length; i++) {
     const prev = fragments[i - 1]!.trim();
     const next = fragments[i]!.trim();
     if (!next) continue;
-    // Full-width start (or previous) ⇒ hard break mid-token ⇒ concatenate with no space
-    if (hardBrokenRun || prev.length >= maxWidth) result += next;
+    // Mid-word peel only: full-width previous line + tiny lowercase remainder (e.g. "areyo"/"u").
+    // PDF visual wraps always need a space — joining without one caused DAYCROSS / thereDALE.
+    const midWordPeel =
+      prev.length >= maxWidth &&
+      /[A-Za-z0-9]$/.test(prev) &&
+      /^[a-z]{1,3}$/.test(next);
+    if (midWordPeel) result += next;
     else result += `${result.endsWith(" ") ? "" : " "}${next}`;
   }
   return result;
@@ -901,6 +913,24 @@ function shouldMergeImportedContinuation(prev: string, next: string): boolean {
   const nextTrim = next.trim();
   if (!prevTrim || !nextTrim) return false;
 
+  // Never merge across structural cues — including colon-style character names.
+  if (
+    SCENE_HEADING.test(nextTrim) ||
+    COLON_CHARACTER_CUE.test(nextTrim) ||
+    /^[A-Z][A-Z0-9 .'\-]{1,40}(?:\s*\((?:V\.O\.?|O\.S\.?|CONT'D)\))?:\s*/.test(nextTrim) ||
+    /^(FADE|CUT TO|DISSOLVE|CROSS\s*CUT|SMASH CUT|MATCH CUT|WIPE TO)/i.test(nextTrim)
+  ) {
+    return false;
+  }
+  if (
+    SCENE_HEADING.test(prevTrim) ||
+    COLON_CHARACTER_CUE.test(prevTrim) ||
+    /^[A-Z][A-Z0-9 .'\-]{1,40}(?:\s*\((?:V\.O\.?|O\.S\.?|CONT'D)\))?:\s*$/.test(prevTrim) ||
+    /^(FADE|CUT TO|DISSOLVE|CROSS\s*CUT)/i.test(prevTrim)
+  ) {
+    return false;
+  }
+
   const prevEl = detectLineElement(prev, { next });
   const nextEl = detectLineElement(next, { prev });
 
@@ -917,6 +947,10 @@ function shouldMergeImportedContinuation(prev: string, next: string): boolean {
     return false;
   }
   if (prevEl === "parenthetical" || nextEl === "parenthetical") return false;
+
+  // Don't merge if either side still looks glued
+  if (/[a-z][A-Z]/.test(prevTrim) || /[a-z][A-Z]/.test(nextTrim)) return false;
+  if (/[A-Z]{3,}:/.test(prevTrim) || /[A-Z]{3,}:/.test(nextTrim)) return false;
 
   const sameBlock =
     (prevEl === "action" && nextEl === "action") || (prevEl === "dialogue" && nextEl === "dialogue");
