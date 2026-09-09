@@ -822,8 +822,7 @@ export function ScreenplayEditor({
 
       <div className="script-writer-editor-meta">
         <p style={{ fontFamily: fontCss }}>
-          Title + {pageCount} page{pageCount === 1 ? "" : "s"} · US Letter ·{" "}
-          <span className="script-writer-editor-meta-element">{editingElement.replace(/_/g, " ")}</span>
+          Title + {pageCount} page{pageCount === 1 ? "" : "s"} · US Letter
         </p>
       </div>
     </div>

@@ -22,3 +22,12 @@ export function shouldKeepEmbedOverOcr(input: {
   }
   return false;
 }
+
+/** Rough completeness check vs known PDF page count. */
+export function extractLooksCompleteForPageCount(
+  letterCount: number,
+  pageCount?: number | null,
+): boolean {
+  if (!pageCount || pageCount <= 1) return letterCount >= 40;
+  return letterCount >= pageCount * 500;
+}

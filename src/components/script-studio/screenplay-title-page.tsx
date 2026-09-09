@@ -106,11 +106,16 @@ export function ScreenplayTitlePage({
                 value={SCRIPT_TYPE_LABELS[typeKey] ? typeKey : "OTHER"}
                 onChange={(e) => onScriptTypeChange?.(e.target.value)}
                 aria-label="Script type"
-                className={`${fieldClass} cursor-pointer appearance-none text-[12pt] opacity-80`}
-                style={{ width: "auto", minWidth: "8rem" }}
+                className="cursor-pointer rounded-sm border border-slate-300 bg-white px-2 py-1 text-center text-[12pt] text-slate-900 outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400/40"
+                style={{
+                  fontFamily: fontCss,
+                  color: "#0f172a",
+                  backgroundColor: "#ffffff",
+                  minWidth: "9rem",
+                }}
               >
                 {SCRIPT_TYPES.map((t) => (
-                  <option key={t} value={t}>
+                  <option key={t} value={t} style={{ color: "#0f172a", backgroundColor: "#ffffff" }}>
                     {SCRIPT_TYPE_LABELS[t]}
                   </option>
                 ))}

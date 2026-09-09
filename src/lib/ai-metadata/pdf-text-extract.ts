@@ -269,9 +269,47 @@ async function extractWithPdfJs(buffer: Buffer): Promise<string> {
         disableNormalization: false,
       });
       const pageText = textItemsToScreenplayLines(content.items as PdfTextItem[]);
-      if (pageText.trim()) pageTexts.push(pageText.trim());
+      // Keep a slot for every page so sparse/empty pages are visible to callers.
+      pageTexts.push(pageText.trim());
     }
-    return finalizePdfText(pageTexts.join("\n\n"));
+    return finalizePdfText(pageTexts.filter(Boolean).join("\n\n"));
+  } finally {
+    await doc.destroy().catch(() => {});
+  }
+}
+
+/** Per-page embedded text (empty string = no usable text layer on that page). */
+export async function extractPdfTextPagesFromBuffer(
+  buffer: Buffer,
+): Promise<{ pages: string[]; pageCount: number }> {
+  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const workerHref = resolvePdfjsWorkerHref();
+  if (workerHref && pdfjs.GlobalWorkerOptions) {
+    pdfjs.GlobalWorkerOptions.workerSrc = workerHref;
+  }
+  const doc = await pdfjs
+    .getDocument({
+      data: new Uint8Array(buffer),
+      useSystemFonts: true,
+      disableFontFace: false,
+      verbosity: 0,
+      ...(resolvePdfjsCMapUrl()
+        ? { cMapUrl: resolvePdfjsCMapUrl()!, cMapPacked: true }
+        : {}),
+    })
+    .promise;
+
+  try {
+    const pages: string[] = [];
+    for (let pageNum = 1; pageNum <= doc.numPages; pageNum += 1) {
+      const page = await doc.getPage(pageNum);
+      const content = await page.getTextContent({
+        includeMarkedContent: false,
+        disableNormalization: false,
+      });
+      pages.push(textItemsToScreenplayLines(content.items as PdfTextItem[]).trim());
+    }
+    return { pages, pageCount: doc.numPages };
   } finally {
     await doc.destroy().catch(() => {});
   }

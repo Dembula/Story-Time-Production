@@ -93,15 +93,40 @@ async function extractPdfScreenplay(buffer: Buffer): Promise<Pick<ScriptFileExtr
     !isUnusableScreenplayExtract(repairedEmbed) &&
     embedLetters >= 40;
 
-  // Prefer full embedded+repaired text whenever it already covers the script.
-  // Vision OCR often only returns the first few pages and was cropping imports.
+  // Heuristic: a lettered screenplay page is usually well over ~500 letters.
+  // If we have fewer letters than pages * floor, the extract is incomplete.
+  const expectedMinLetters = pageCount && pageCount > 1 ? pageCount * 500 : 0;
+  const embedLooksComplete =
+    !pageCount || pageCount <= 1 || embedLetters >= expectedMinLetters;
+
   const needsVision =
     !embedUsable ||
     embedGarbled ||
+    !embedLooksComplete ||
     (prefersVisionOcrForScreenplay(repairedEmbed || text || "") &&
-      // Only escalate glued/collapsed extracts to vision when they look incomplete
-      // for the known page count (otherwise repair keeps all pages).
       Boolean(pageCount && pageCount > 1 && embedLetters < pageCount * 350));
+
+  let bestText = repairedEmbed;
+  let bestMethod = method;
+  let bestLetters = embedLetters;
+  let bestScore = embedScore;
+
+  const consider = (candidate: string, candidateMethod: string | null | undefined) => {
+    const normalized = normalizeImportedScreenplayLayout(candidate).text || candidate;
+    const letters = letterCount(normalized);
+    const score = scoreScreenplayLayout(normalized);
+    // Prefer more complete extracts first, then higher layout score.
+    if (
+      letters > bestLetters * 1.08 ||
+      (letters >= bestLetters * 0.95 && score > bestScore + 8) ||
+      (!bestText && letters >= 40)
+    ) {
+      bestText = normalized;
+      bestMethod = candidateMethod ?? bestMethod;
+      bestLetters = letters;
+      bestScore = score;
+    }
+  };
 
   if (needsVision && process.env.OPENROUTER_API_KEY?.trim()) {
     const { extractScreenplayPdfWithVision } = await import("@/lib/script-studio/script-pdf-vision-ocr");
@@ -110,35 +135,48 @@ async function extractPdfScreenplay(buffer: Buffer): Promise<Pick<ScriptFileExtr
       fileName: "screenplay.pdf",
       pageCount: pageCount ?? undefined,
       pageHint:
-        "Embedded PDF text may be corrupt, glued, or missing line breaks. Read the visible page layout exactly: scene headings alone, character names alone in ALL CAPS (no colons), dialogue under them, action as separate paragraphs. Keep normal English word spacing. Extract every page.",
+        "Embedded PDF text may be corrupt, glued, incomplete, or missing later pages. Read visible page layout exactly. Keep normal English word spacing. Never skip later pages.",
     });
     if ("text" in vision && vision.text) {
-      const ocrNormalized = normalizeImportedScreenplayLayout(vision.text);
-      const ocrText = ocrNormalized.text || vision.text;
-      const ocrLetters = letterCount(ocrText);
-      const ocrScore = scoreScreenplayLayout(ocrText);
-      const ocrStillBad = isUnusableScreenplayExtract(ocrText);
-
-      // Never crop: if repaired embed has more of the script, keep it.
+      const ocrLetters = letterCount(vision.text);
+      // Never replace a fuller embed with a shorter OCR crop.
       if (
         shouldKeepEmbedOverOcr({
           embedLetters,
           ocrLetters,
-          embedUsable,
+          embedUsable: embedUsable && embedLooksComplete,
           pageCount,
         })
       ) {
-        return { text: truncateScriptText(repairedEmbed), extractionMethod: method };
-      }
-
-      if ((!ocrStillBad && ocrLetters >= 40) || ocrScore > embedScore + 10 || !embedUsable) {
-        return { text: truncateScriptText(ocrText), extractionMethod: vision.method };
+        /* keep embed */
+      } else {
+        consider(vision.text, vision.method);
       }
     }
   }
 
-  if (repairedEmbed && (embedUsable || embedLetters >= 40)) {
-    return { text: truncateScriptText(repairedEmbed), extractionMethod: method };
+  // If still short for the known page count, force another page-by-page vision pass.
+  if (
+    process.env.OPENROUTER_API_KEY?.trim() &&
+    pageCount &&
+    pageCount > 1 &&
+    bestLetters < expectedMinLetters
+  ) {
+    const { extractScreenplayPdfWithVision } = await import("@/lib/script-studio/script-pdf-vision-ocr");
+    const vision = await extractScreenplayPdfWithVision({
+      pdfBase64: buffer.toString("base64"),
+      fileName: "screenplay.pdf",
+      pageCount,
+      pageHint:
+        "Previous extract was incomplete. Extract every page completely, including late pages and closing dialogue (e.g. character cues near FADE TO BLACK).",
+    });
+    if ("text" in vision && vision.text) {
+      consider(vision.text, vision.method);
+    }
+  }
+
+  if (bestText && (letterCount(bestText) >= 40 || embedUsable)) {
+    return { text: truncateScriptText(bestText), extractionMethod: bestMethod };
   }
 
   if (text && isUnusableScreenplayExtract(text)) {

@@ -1175,19 +1175,30 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                     No script open
                   </span>
                 )}
-                <select
-                  value={selectedElement}
-                  onChange={(e) => handleElementSelect(e.target.value as ScreenplayElementType)}
-                  title="Select a format to insert at the cursor"
-                  className={creatorToolSelectSm("text-[10px]")}
-                  disabled={!effectiveCanWrite || !draft}
-                >
-                  {(Object.keys(SCREENPLAY_ELEMENT_LABELS) as ScreenplayElementType[]).map((k) => (
-                    <option key={k} value={k}>
-                      {SCREENPLAY_ELEMENT_LABELS[k]}
-                    </option>
-                  ))}
-                </select>
+                <label className="flex items-center gap-1.5">
+                  <span
+                    className={cn(
+                      "hidden text-[10px] font-medium uppercase tracking-wide sm:inline",
+                      studioTheme === "light" ? "text-slate-500" : "text-slate-400",
+                    )}
+                  >
+                    Format
+                  </span>
+                  <select
+                    value={selectedElement}
+                    onChange={(e) => handleElementSelect(e.target.value as ScreenplayElementType)}
+                    title="Selected screenplay format"
+                    aria-label="Selected screenplay format"
+                    className={creatorToolSelectSm("text-[10px]")}
+                    disabled={!effectiveCanWrite || !draft}
+                  >
+                    {(Object.keys(SCREENPLAY_ELEMENT_LABELS) as ScreenplayElementType[]).map((k) => (
+                      <option key={k} value={k}>
+                        {SCREENPLAY_ELEMENT_LABELS[k]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <select
                   value={fontId}
                   onChange={(e) => setFontId(e.target.value)}
