@@ -226,7 +226,10 @@ export function getScreenplaySuggestions(options: {
   return out.slice(0, limit);
 }
 
-/** True when Enter/Tab should accept a suggestion instead of advancing the screenplay. */
+/** True when Enter/Tab should accept a suggestion instead of advancing the screenplay.
+ * Never auto-force: only after the writer navigated the list (Alt+arrows) or equivalent.
+ * Clicking a chip always applies via the button handler, not this gate.
+ */
 export function shouldAcceptSuggestionOnCommit(options: {
   line: string;
   element: ScreenplayElementType;
@@ -234,18 +237,15 @@ export function shouldAcceptSuggestionOnCommit(options: {
   navigated: boolean;
   activeInsert?: string;
 }): boolean {
-  const { line, suggestionCount, navigated, activeInsert } = options;
+  const { suggestionCount, navigated, activeInsert, line } = options;
   if (suggestionCount <= 0) return false;
-  if (navigated) return true;
+  // Suggestions are opt-in: never steal Enter/Tab unless the writer highlighted one.
+  if (!navigated) return false;
   const trimmed = line.trim();
-  const query = trimmed.replace(/^\(+|\)+$/g, "").trim();
-  // Empty menus (INT/EXT on blank action, empty ()) must never steal Enter.
-  if (!query) return false;
-  // Already-complete slugline — Enter should move to Action, not re-apply DAY.
+  if (!trimmed) return false;
   if (/^(INT\.|EXT\.|INT\.\/EXT\.|EXT\.\/INT\.|EST\.|I\/E\.)\s+.+\s+-\s+\S+/i.test(trimmed)) {
     return false;
   }
-  // Accepting would not change the line — let Enter/Tab advance structure instead.
   if (activeInsert && activeInsert.trim() === trimmed) return false;
   return true;
 }

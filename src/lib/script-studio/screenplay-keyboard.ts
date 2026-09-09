@@ -25,7 +25,7 @@ const SCENE_HEADING =
   /^(INT\.|EXT\.|INT\.\/EXT\.|EXT\.\/INT\.|I\/E\.|EST\.)/i;
 const SCENE_HEADING_START = /^(int\.?|ext\.?|i\/e\.?|est\.?)/i;
 const TRANSITION_START = /^(FADE|CUT|DISSOLVE|SMASH|MATCH|WIPE|IRIS|JUMP|CROSSFADE)/i;
-const TRANSITION_END = /(TO:|:|\.)$/;
+const TRANSITION_END = /(TO:|:)$|^(FADE OUT\.|FADE TO BLACK\.|IRIS OUT\.)$/i;
 const CHARACTER_LINE = /^[A-Z][A-Z0-9 .'\-()]{0,42}$/;
 /** AV / dual-dialogue style cues: "DALE:" or "DEAN V.O:" */
 const COLON_CHARACTER_CUE = /^[A-Z][A-Z0-9 .'\-]{1,40}(?:\s*\((?:V\.O\.?|O\.S\.?|CONT'D)\))?\s*:/;
@@ -100,8 +100,7 @@ export function detectLineElement(
 
   if (
     (TRANSITION_START.test(trimmed) && TRANSITION_END.test(trimmed)) ||
-    (indent >= 32 && TRANSITION_END.test(trimmed)) ||
-    /^(CROSS\s*CUTS?|CROSS CUT|CUT TO|FADE OUT)/i.test(trimmed)
+    /^(CROSS\s*CUTS?|CROSS CUT|CUT TO|FADE OUT|FADE TO BLACK|DISSOLVE TO)/i.test(trimmed)
   ) {
     return "transition";
   }

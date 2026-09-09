@@ -1214,12 +1214,14 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                 </p>
               </section>
               <section>
-                <h4 className="mb-1 font-semibold text-white">Tab — cycle element type</h4>
+                <h4 className="mb-1 font-semibold text-white">Tab — structure cycle</h4>
                 <p>
-                  Press and release <kbd className="rounded bg-slate-800 px-1.5 py-0.5 text-[11px]">Tab</kbd>{" "}
-                  to cycle the current line through screenplay types.{" "}
-                  <kbd className="rounded bg-slate-800 px-1.5 py-0.5 text-[11px]">Shift+Tab</kbd> goes
-                  backward.
+                  Hold <kbd className="rounded bg-slate-800 px-1.5 py-0.5 text-[11px]">Tab</kbd> to
+                  preview formats beside the cursor. Cycle with Tab, press{" "}
+                  <kbd className="rounded bg-slate-800 px-1.5 py-0.5 text-[11px]">Space</kbd> to
+                  confirm, then release Tab — or click a chip. A quick Tab with no confirm does
+                  nothing (you can keep typing periods / ellipses normally).{" "}
+                  <kbd className="rounded bg-slate-800 px-1.5 py-0.5 text-[11px]">Esc</kbd> cancels.
                 </p>
               </section>
               <section>
@@ -1230,18 +1232,18 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                   </li>
                   <li>
                     Tap <kbd className="rounded bg-slate-800 px-1.5 py-0.5 text-[11px]">Enter</kbd> to
-                    cycle CUT TO:, FADE OUT., DISSOLVE TO:, etc.
+                    open transitions, then Enter again to cycle
                   </li>
-                  <li>Release Tab — the highlighted transition is inserted on the page.</li>
+                  <li>Release Tab or click a chip to insert — the popup closes</li>
                 </ol>
               </section>
               <section>
                 <h4 className="mb-1 font-semibold text-white">Suggestions</h4>
                 <p>
-                  Autocomplete chips appear above the page for scene prefixes and names. Use{" "}
-                  <kbd className="rounded bg-slate-800 px-1.5 py-0.5 text-[11px]">Alt</kbd> + arrow
-                  keys to highlight a chip, then Enter to accept. Plain Up/Down always move your
-                  cursor between lines.
+                  Autocomplete chips appear as hints only. They apply when you{" "}
+                  <strong className="font-medium text-slate-200">click</strong> one, or use{" "}
+                  <kbd className="rounded bg-slate-800 px-1.5 py-0.5 text-[11px]">Alt</kbd> + arrows
+                  then Enter. Plain Enter / typing never forces a suggestion.
                 </p>
               </section>
               <section>

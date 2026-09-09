@@ -76,7 +76,7 @@ describe("screenplay-autocomplete", () => {
     assert.equal(suggestions.length, 0);
   });
 
-  it("only accepts Enter for suggestions when the line has a real query", () => {
+  it("only accepts Enter for suggestions after the writer navigates the list", () => {
     assert.equal(
       shouldAcceptSuggestionOnCommit({
         line: "",
@@ -93,6 +93,15 @@ describe("screenplay-autocomplete", () => {
         suggestionCount: 1,
         navigated: false,
       }),
+      false,
+    );
+    assert.equal(
+      shouldAcceptSuggestionOnCommit({
+        line: "IN",
+        element: "scene_heading",
+        suggestionCount: 1,
+        navigated: true,
+      }),
       true,
     );
     assert.equal(
@@ -100,7 +109,7 @@ describe("screenplay-autocomplete", () => {
         line: "INT. ROOM - DAY",
         element: "scene_heading",
         suggestionCount: 3,
-        navigated: false,
+        navigated: true,
       }),
       false,
     );
