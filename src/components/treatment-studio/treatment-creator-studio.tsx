@@ -63,7 +63,10 @@ import { cn } from "@/lib/utils";
 import { ConfirmDeletePanel } from "@/components/ui/confirm-delete-panel";
 import { CONFIRM_DELETE_TREATMENT } from "@/lib/confirm-delete";
 
-const AUTO_SAVE_MS = 25_000;
+/** Save shortly after editing stops. */
+const IDLE_SAVE_MS = 20_000;
+/** Force a save while still dirty even if the user keeps editing. */
+const MAX_DIRTY_SAVE_MS = 2 * 60_000;
 
 const LAYOUT_OPTIONS: { id: TreatmentSlideLayout; label: string }[] = [
   { id: "title", label: "Title" },
@@ -115,6 +118,7 @@ export function TreatmentCreatorStudio({
   const slideDragDidMoveRef = useRef(false);
   const slideListRef = useRef<HTMLDivElement | null>(null);
   const dirtyRef = useRef(false);
+  const dirtySinceRef = useRef<number | null>(null);
   const localDocRef = useRef<TreatmentDocument | null>(null);
   const hydratedTreatmentKey = useRef<string | null>(null);
 
@@ -246,6 +250,7 @@ export function TreatmentCreatorStudio({
     },
     onSuccess: (result) => {
       dirtyRef.current = false;
+      dirtySinceRef.current = null;
       setUpdatedAt(result.treatment.updatedAt);
       hydratedTreatmentKey.current = `${result.treatment.id}:${result.treatment.updatedAt}`;
       setSaveState("saved");
@@ -272,6 +277,7 @@ export function TreatmentCreatorStudio({
   const markDirty = useCallback((next: TreatmentDocument) => {
     localDocRef.current = next;
     dirtyRef.current = true;
+    if (dirtySinceRef.current == null) dirtySinceRef.current = Date.now();
     if (treatment) {
       hydratedTreatmentKey.current = `${treatment.id}:`;
     }
@@ -539,22 +545,48 @@ export function TreatmentCreatorStudio({
     [document, docTitle, projectId, persist],
   );
 
+  const persistRef = useRef(persist);
+  persistRef.current = persist;
+
   useEffect(() => {
     if (!treatment || !dirtyRef.current) return;
     const timer = window.setTimeout(() => {
-      if (dirtyRef.current) void persist();
-    }, AUTO_SAVE_MS);
+      if (dirtyRef.current) void persistRef.current();
+    }, IDLE_SAVE_MS);
     return () => window.clearTimeout(timer);
-  }, [document, docTitle, treatment, persist]);
+  }, [document, docTitle, treatment]);
 
   useEffect(() => {
+    if (!treatment) return;
+    const tick = window.setInterval(() => {
+      const since = dirtySinceRef.current;
+      if (dirtyRef.current && since != null && Date.now() - since >= MAX_DIRTY_SAVE_MS) {
+        void persistRef.current();
+      }
+    }, 15_000);
+    return () => window.clearInterval(tick);
+  }, [treatment]);
+
+  useEffect(() => {
+    const flushIfDirty = () => {
+      if (!dirtyRef.current) return;
+      void persistRef.current();
+    };
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
       if (!dirtyRef.current) return;
+      flushIfDirty();
       e.preventDefault();
       e.returnValue = "";
     };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") flushIfDirty();
+    };
     window.addEventListener("beforeunload", onBeforeUnload);
-    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, []);
 
   const goToSlideIndex = useCallback(

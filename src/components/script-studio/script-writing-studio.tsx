@@ -73,7 +73,10 @@ import { cn } from "@/lib/utils";
 import { ConfirmDeletePanel } from "@/components/ui/confirm-delete-panel";
 import { CONFIRM_DELETE_SCRIPT } from "@/lib/confirm-delete";
 
-const AUTO_SAVE_MS = 30_000;
+/** Save shortly after editing stops. */
+const IDLE_SAVE_MS = 20_000;
+/** Force a save while still dirty even if the user keeps typing. */
+const MAX_DIRTY_SAVE_MS = 2 * 60_000;
 const HISTORY_MAX = 100;
 const HISTORY_COALESCE_MS = 450;
 
@@ -178,6 +181,8 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
     type: string;
     content: string;
   } | null>(null);
+  /** Title-page writer credit for this script only — never writes to the account profile. */
+  const [writerCredit, setWriterCredit] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
@@ -405,6 +410,36 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
     }
   }, [selected, selectedId, dirty, clearHistory]);
 
+  // Load per-script title-page writer credit (does not touch account profile).
+  useEffect(() => {
+    const scriptId = draft?.id;
+    if (!scriptId) {
+      setWriterCredit(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/creator/scripts/${scriptId}/studio-meta`);
+        if (!res.ok) return;
+        const json = (await res.json()) as { writerCredit?: string };
+        if (cancelled) return;
+        setWriterCredit(
+          typeof json.writerCredit === "string" && json.writerCredit.trim()
+            ? json.writerCredit.trim()
+            : null,
+        );
+      } catch {
+        if (!cancelled) setWriterCredit(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [draft?.id]);
+
+  const titlePageAuthorName = writerCredit?.trim() || scriptAuthorName;
+
   const createMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch("/api/creator/scripts", {
@@ -511,11 +546,54 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
     });
   }, [draft, dirty, saveMutation]);
 
+  const persistRef = useRef(persist);
+  persistRef.current = persist;
+  const dirtyRef = useRef(dirty);
+  dirtyRef.current = dirty;
+  const dirtySinceRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (dirty) {
+      if (dirtySinceRef.current == null) dirtySinceRef.current = Date.now();
+    } else {
+      dirtySinceRef.current = null;
+    }
+  }, [dirty]);
+
+  // Idle autosave: 20s after the last edit.
   useEffect(() => {
     if (!dirty || !draft?.id) return;
-    const t = window.setTimeout(persist, AUTO_SAVE_MS);
+    const t = window.setTimeout(() => persistRef.current(), IDLE_SAVE_MS);
     return () => window.clearTimeout(t);
-  }, [dirty, draft?.id, draft?.content, draft?.title, persist]);
+  }, [dirty, draft?.id, draft?.content, draft?.title, draft?.type]);
+
+  // Safety net: never stay unsaved longer than a couple of minutes while dirty.
+  useEffect(() => {
+    if (!dirty || !draft?.id) return;
+    const tick = window.setInterval(() => {
+      const since = dirtySinceRef.current;
+      if (since != null && Date.now() - since >= MAX_DIRTY_SAVE_MS) {
+        persistRef.current();
+      }
+    }, 15_000);
+    return () => window.clearInterval(tick);
+  }, [dirty, draft?.id]);
+
+  // Flush when leaving the tab / closing the window.
+  useEffect(() => {
+    const flushIfDirty = () => {
+      if (dirtyRef.current) persistRef.current();
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") flushIfDirty();
+    };
+    window.addEventListener("beforeunload", flushIfDirty);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("beforeunload", flushIfDirty);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
 
   useModocToolRefresh({
     queryKeys: hasProject && projectId
@@ -626,6 +704,48 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
   collabMarkSavedRef.current = collab.markSaved;
 
   const effectiveCanWrite = collab.canWrite && !conflictMessage;
+
+  const persistWriterCredit = useCallback(
+    async (credit: string) => {
+      const scriptId = draft?.id;
+      if (!scriptId || !effectiveCanWrite) return;
+      const trimmed = credit.trim();
+      try {
+        await fetch(`/api/creator/scripts/${scriptId}/studio-meta`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ writerCredit: trimmed }),
+        });
+      } catch {
+        /* keep local credit; next open can reload */
+      }
+    },
+    [draft?.id, effectiveCanWrite],
+  );
+
+  const writerCreditTimerRef = useRef<number | null>(null);
+  const schedulePersistWriterCredit = useCallback(
+    (credit: string) => {
+      setWriterCredit(credit);
+      if (writerCreditTimerRef.current != null) {
+        window.clearTimeout(writerCreditTimerRef.current);
+      }
+      writerCreditTimerRef.current = window.setTimeout(() => {
+        writerCreditTimerRef.current = null;
+        void persistWriterCredit(credit);
+      }, 500);
+    },
+    [persistWriterCredit],
+  );
+
+  useEffect(
+    () => () => {
+      if (writerCreditTimerRef.current != null) {
+        window.clearTimeout(writerCreditTimerRef.current);
+      }
+    },
+    [],
+  );
 
   const undoEdit = useCallback(() => {
     if (!effectiveCanWrite || undoStackRef.current.length === 0) return;
@@ -973,7 +1093,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
         onClose={() => setReaderOpen(false)}
         title={draft?.title ?? "Screenplay"}
         scriptType={draft?.type ?? "FEATURE"}
-        authorName={scriptAuthorName}
+        authorName={titlePageAuthorName}
         content={readerContent}
         fontCss={fontCss}
       />
@@ -1466,12 +1586,28 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                   value={draft.content}
                   scriptTitle={draft.title}
                   scriptType={draft.type}
-                  authorName={scriptAuthorName}
+                  authorName={titlePageAuthorName}
                   activeElement={selectedElement}
                   zoomPercent={zoom}
                   theme={studioTheme}
                   preserveStructure={preserveImportLayout}
                   onPreserveStructureEnd={() => setPreserveImportLayout(false)}
+                  onScriptTitleChange={(title) => {
+                    if (!effectiveCanWrite) return;
+                    pushHistoryBeforeChange();
+                    setDraft({ ...draft, title });
+                    setDirty(true);
+                  }}
+                  onScriptTypeChange={(type) => {
+                    if (!effectiveCanWrite) return;
+                    pushHistoryBeforeChange({ immediate: true });
+                    setDraft({ ...draft, type });
+                    setDirty(true);
+                  }}
+                  onAuthorNameChange={(name) => {
+                    if (!effectiveCanWrite) return;
+                    schedulePersistWriterCredit(name);
+                  }}
                   onChange={(content) => {
                     if (!effectiveCanWrite) return;
                     pushHistoryBeforeChange();
@@ -1647,7 +1783,13 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
             </span>
             <div className="flex items-center gap-2">
               <span className={cn("text-[11px]", studioTheme === "light" ? "text-slate-300" : "text-slate-400")}>
-                {saving ? "Saving…" : dirty ? "Unsaved" : lastSavedAt ? `Saved ${lastSavedAt.toLocaleTimeString()}` : "Saved"}
+                {saving
+                  ? "Saving…"
+                  : dirty
+                    ? "Unsaved · autosaves after 20s idle"
+                    : lastSavedAt
+                      ? `Saved ${lastSavedAt.toLocaleTimeString()}`
+                      : "Saved"}
               </span>
               <Button
               size="sm"

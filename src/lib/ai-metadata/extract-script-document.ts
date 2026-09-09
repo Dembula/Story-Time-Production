@@ -2,7 +2,7 @@ import "server-only";
 
 import mammoth from "mammoth";
 import { isAllowedStorageUrl } from "@/lib/storage-origin";
-import { extractPdfTextFromBuffer } from "@/lib/ai-metadata/pdf-text-extract";
+import { extractPdfTextFromBuffer, getPdfPageCount } from "@/lib/ai-metadata/pdf-text-extract";
 import {
   decodePlainTextBuffer,
   extractFdxText,
@@ -11,13 +11,19 @@ import {
   truncateScriptText,
 } from "@/lib/ai-metadata/screenplay-format-extract";
 import {
+  isGarbledPdfExtraction,
   isUnusableScreenplayExtract,
   normalizeImportedScreenplayLayout,
   prefersVisionOcrForScreenplay,
   scoreScreenplayLayout,
 } from "@/lib/script-studio/screenplay-layout-repair";
+import { shouldKeepEmbedOverOcr } from "@/lib/script-studio/screenplay-import-completeness";
 
 const MAX_SCRIPT_BYTES = 15 * 1024 * 1024;
+
+function letterCount(text: string): number {
+  return text.replace(/[^A-Za-z]/g, "").length;
+}
 
 export type ScriptFileExtraction = {
   text: string;
@@ -76,39 +82,63 @@ function pdfImportError(byteLength: number): string {
 }
 
 async function extractPdfScreenplay(buffer: Buffer): Promise<Pick<ScriptFileExtraction, "text" | "extractionMethod" | "error">> {
-  const { text, method } = await extractPdfTextFromBuffer(buffer);
-  const embedScore = text ? scoreScreenplayLayout(text) : -1000;
-  const embedNeedsVision = !text || isUnusableScreenplayExtract(text) || prefersVisionOcrForScreenplay(text);
+  const { text, method, pageCount: countedPages } = await extractPdfTextFromBuffer(buffer);
+  const pageCount = countedPages ?? (await getPdfPageCount(buffer));
+  const repairedEmbed = text ? normalizeImportedScreenplayLayout(text).text || text : "";
+  const embedLetters = letterCount(repairedEmbed);
+  const embedScore = repairedEmbed ? scoreScreenplayLayout(repairedEmbed) : -1000;
+  const embedGarbled = Boolean(text && isGarbledPdfExtraction(text));
+  const embedUsable =
+    Boolean(repairedEmbed) &&
+    !isUnusableScreenplayExtract(repairedEmbed) &&
+    embedLetters >= 40;
 
-  // Broken ToUnicode / CID fonts, glued words, or collapsed structure → vision OCR.
-  if (embedNeedsVision && process.env.OPENROUTER_API_KEY?.trim()) {
+  // Prefer full embedded+repaired text whenever it already covers the script.
+  // Vision OCR often only returns the first few pages and was cropping imports.
+  const needsVision =
+    !embedUsable ||
+    embedGarbled ||
+    (prefersVisionOcrForScreenplay(repairedEmbed || text || "") &&
+      // Only escalate glued/collapsed extracts to vision when they look incomplete
+      // for the known page count (otherwise repair keeps all pages).
+      Boolean(pageCount && pageCount > 1 && embedLetters < pageCount * 350));
+
+  if (needsVision && process.env.OPENROUTER_API_KEY?.trim()) {
     const { extractScreenplayPdfWithVision } = await import("@/lib/script-studio/script-pdf-vision-ocr");
     const vision = await extractScreenplayPdfWithVision({
       pdfBase64: buffer.toString("base64"),
       fileName: "screenplay.pdf",
+      pageCount: pageCount ?? undefined,
       pageHint:
-        "Embedded PDF text may be corrupt, glued, or missing line breaks. Read the visible page layout exactly: scene headings alone, character names alone in ALL CAPS (no colons), dialogue under them, action as separate paragraphs. Keep normal English word spacing.",
+        "Embedded PDF text may be corrupt, glued, or missing line breaks. Read the visible page layout exactly: scene headings alone, character names alone in ALL CAPS (no colons), dialogue under them, action as separate paragraphs. Keep normal English word spacing. Extract every page.",
     });
     if ("text" in vision && vision.text) {
       const ocrNormalized = normalizeImportedScreenplayLayout(vision.text);
       const ocrText = ocrNormalized.text || vision.text;
+      const ocrLetters = letterCount(ocrText);
       const ocrScore = scoreScreenplayLayout(ocrText);
-      const ocrStillBad = isUnusableScreenplayExtract(ocrText) && prefersVisionOcrForScreenplay(ocrText);
-      if (!ocrStillBad || ocrScore > embedScore + 10 || !text) {
+      const ocrStillBad = isUnusableScreenplayExtract(ocrText);
+
+      // Never crop: if repaired embed has more of the script, keep it.
+      if (
+        shouldKeepEmbedOverOcr({
+          embedLetters,
+          ocrLetters,
+          embedUsable,
+          pageCount,
+        })
+      ) {
+        return { text: truncateScriptText(repairedEmbed), extractionMethod: method };
+      }
+
+      if ((!ocrStillBad && ocrLetters >= 40) || ocrScore > embedScore + 10 || !embedUsable) {
         return { text: truncateScriptText(ocrText), extractionMethod: vision.method };
       }
     }
   }
 
-  if (text) {
-    // Always run glue/structure repair before accepting embedded extract.
-    const repaired = normalizeImportedScreenplayLayout(text);
-    const repairedText = repaired.text || text;
-    const repairedUsable = !isUnusableScreenplayExtract(repairedText);
-    // Prefer repaired text whenever OCR did not win — never discard readable letters.
-    if (repairedUsable || repairedText.replace(/[^A-Za-z]/g, "").length >= 40) {
-      return { text: truncateScriptText(repairedText), extractionMethod: method };
-    }
+  if (repairedEmbed && (embedUsable || embedLetters >= 40)) {
+    return { text: truncateScriptText(repairedEmbed), extractionMethod: method };
   }
 
   if (text && isUnusableScreenplayExtract(text)) {

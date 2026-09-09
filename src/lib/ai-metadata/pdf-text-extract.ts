@@ -39,10 +39,39 @@ type PdfTextItem = {
 export type PdfExtractionResult = {
   text: string | null;
   method: string | null;
+  pageCount?: number | null;
 };
 
 function letterCount(text: string): number {
   return text.replace(/[^A-Za-z]/g, "").length;
+}
+
+/** Count pages in a PDF buffer (pdf.js). */
+export async function getPdfPageCount(buffer: Buffer): Promise<number | null> {
+  try {
+    const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+    const workerHref = resolvePdfjsWorkerHref();
+    if (workerHref && pdfjs.GlobalWorkerOptions) {
+      pdfjs.GlobalWorkerOptions.workerSrc = workerHref;
+    }
+    const doc = await pdfjs
+      .getDocument({
+        data: new Uint8Array(buffer),
+        useSystemFonts: true,
+        verbosity: 0,
+        ...(resolvePdfjsCMapUrl()
+          ? { cMapUrl: resolvePdfjsCMapUrl()!, cMapPacked: true }
+          : {}),
+      })
+      .promise;
+    try {
+      return doc.numPages || null;
+    } finally {
+      await doc.destroy().catch(() => {});
+    }
+  } catch {
+    return null;
+  }
 }
 
 function hasMeaningfulText(text: string, minLetters = 8): boolean {
@@ -332,17 +361,17 @@ export async function extractPdfTextFromBuffer(buffer: Buffer): Promise<PdfExtra
 
   // If the "best" extract is still unusable, prefer a non-garbled fallback when present.
   if (bestText && isUnusableScreenplayExtract(bestText) && fallbackText && !isUnusableScreenplayExtract(fallbackText)) {
-    return { text: fallbackText, method: fallbackMethod };
+    return { text: fallbackText, method: fallbackMethod, pageCount: await getPdfPageCount(buffer) };
   }
 
   if (bestText) {
-    return { text: bestText, method: bestMethod };
+    return { text: bestText, method: bestMethod, pageCount: await getPdfPageCount(buffer) };
   }
 
   // Never 422 when we extracted letters — return best-effort text.
   if (fallbackText) {
-    return { text: fallbackText, method: fallbackMethod };
+    return { text: fallbackText, method: fallbackMethod, pageCount: await getPdfPageCount(buffer) };
   }
 
-  return { text: null, method: null };
+  return { text: null, method: null, pageCount: await getPdfPageCount(buffer) };
 }

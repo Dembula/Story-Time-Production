@@ -9,6 +9,8 @@ type StudioMeta = {
   storyCards?: StoryCardMeta[];
   sceneColors?: Record<string, string>;
   lockedScenes?: string[];
+  /** Title-page "Written by" credit for this script only (not account name). */
+  writerCredit?: string;
 };
 
 export async function GET(_req: NextRequest, { params }: RouteParams) {
@@ -21,6 +23,8 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
     storyCards: meta.storyCards ?? [],
     sceneColors: meta.sceneColors ?? {},
     lockedScenes: meta.lockedScenes ?? [],
+    writerCredit:
+      typeof meta.writerCredit === "string" ? meta.writerCredit : undefined,
   });
 }
 
@@ -35,10 +39,16 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   const body = (await req.json().catch(() => null)) as Partial<StudioMeta> | null;
   const prev = (gate.access.script.studioMeta ?? {}) as StudioMeta;
   const next: StudioMeta = {
+    ...prev,
     storyCards: body?.storyCards ?? prev.storyCards ?? [],
     sceneColors: body?.sceneColors ?? prev.sceneColors ?? {},
     lockedScenes: body?.lockedScenes ?? prev.lockedScenes ?? [],
   };
+  if (body && "writerCredit" in body) {
+    const credit = typeof body.writerCredit === "string" ? body.writerCredit.trim() : "";
+    if (credit) next.writerCredit = credit;
+    else delete next.writerCredit;
+  }
 
   const script = await prisma.creatorScript.update({
     where: { id: scriptId },

@@ -22,7 +22,6 @@ import {
 } from "@/lib/script-studio/screenplay-autocomplete";
 import type { ScreenplayElementType } from "@/lib/script-studio/types";
 import { ScreenplayTitlePage } from "@/components/script-studio/screenplay-title-page";
-import { resolveScriptAuthorName } from "@/lib/script-studio/title-page";
 import { stripScreenplayPageFooters } from "@/lib/script-studio/screenplay-layout-repair";
 
 /** US Letter page geometry (screenplay standard). */
@@ -63,6 +62,10 @@ type ScreenplayEditorProps = {
   scriptTitle?: string;
   scriptType?: string;
   authorName?: string;
+  onScriptTitleChange?: (title: string) => void;
+  onScriptTypeChange?: (type: string) => void;
+  /** Script-only writer credit — must not update the account profile. */
+  onAuthorNameChange?: (authorName: string) => void;
 };
 
 function splitContentIntoPages(content: string): string[] {
@@ -118,8 +121,11 @@ export function ScreenplayEditor({
   scriptTitle = "Untitled Screenplay",
   scriptType = "FEATURE",
   authorName,
+  onScriptTitleChange,
+  onScriptTypeChange,
+  onAuthorNameChange,
 }: ScreenplayEditorProps) {
-  const resolvedAuthor = resolveScriptAuthorName({ name: authorName });
+  const resolvedAuthor = authorName?.trim() || "Creator";
   const pageRefs = useRef<Array<HTMLTextAreaElement | null>>([]);
   const [editingElement, setEditingElement] = useState<ScreenplayElementType>(activeElementProp);
   const [activePageIdx, setActivePageIdx] = useState(0);
@@ -707,6 +713,10 @@ export function ScreenplayEditor({
             pageHeight={PAGE_HEIGHT}
             pageSurfaceClassName={`${pageSurface} text-[#0f172a]`}
             marginBottom={PAGE_GAP_PX}
+            readOnly={readOnly}
+            onTitleChange={onScriptTitleChange}
+            onAuthorNameChange={onAuthorNameChange}
+            onScriptTypeChange={onScriptTypeChange}
           />
 
           {pageTexts.map((pageText, pageIdx) => (
