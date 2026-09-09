@@ -10,6 +10,7 @@ import {
   handleScreenplayTab,
   hardWrapDocument,
   lineIndexAt,
+  maxContentWidthForElement,
   pageCountForContent,
   resolveLineElement,
 } from "@/lib/script-studio/screenplay-keyboard";
@@ -22,15 +23,18 @@ import {
 import type { ScreenplayElementType } from "@/lib/script-studio/types";
 import { ScreenplayTitlePage } from "@/components/script-studio/screenplay-title-page";
 import { resolveScriptAuthorName } from "@/lib/script-studio/title-page";
+import { stripScreenplayPageFooters } from "@/lib/script-studio/screenplay-layout-repair";
 
 /** US Letter page geometry (screenplay standard). */
 const PAGE_WIDTH = "8.5in";
 const PAGE_HEIGHT = "11in";
 const MARGIN_TOP = "1in";
 /** Extra bottom room so the page number never collides with the last script line. */
-const MARGIN_BOTTOM = "1.05in";
+const MARGIN_BOTTOM = "1in";
 const MARGIN_LEFT = "1.5in";
 const MARGIN_RIGHT = "1in";
+/** Approximate CSS px for 8.5in — used only for fit-to-viewport scaling. */
+const PAGE_WIDTH_PX = 8.5 * 96;
 
 /** Dismiss unused autocomplete after this idle period. */
 const SUGGESTION_IDLE_MS = 2000;
@@ -134,15 +138,40 @@ export function ScreenplayEditor({
     setEditingElement(activeElementProp);
   }, [activeElementProp]);
 
-  // One-time heal for scripts already damaged by peeled 1-char wrap lines — never on fresh imports.
+  // One-time heal: strip leftover PDF footers and re-wrap peeled lines.
   const didHealRef = useRef(false);
   useEffect(() => {
     if (preserveStructure || didHealRef.current) return;
     didHealRef.current = true;
-    const healed = hardWrapDocument(value);
+    const cleaned = stripScreenplayPageFooters(value);
+    const healed = hardWrapDocument(cleaned);
     if (healed !== value) onChange(healed);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only heal
   }, [preserveStructure]);
+
+  // Fit US Letter pages to the visible desk width — never allow horizontal slide.
+  const pagesStackRef = useRef<HTMLDivElement | null>(null);
+  const [fitScale, setFitScale] = useState(1);
+  useEffect(() => {
+    const resolveViewport = () =>
+      (pagesStackRef.current?.closest(".script-writer-page-viewport") as HTMLElement | null) ??
+      (document.querySelector(".script-writer-page-viewport") as HTMLElement | null);
+
+    const measure = () => {
+      const viewport = resolveViewport();
+      if (!viewport) return;
+      const pad = 32;
+      const available = Math.max(120, viewport.clientWidth - pad);
+      setFitScale(Math.min(1, available / PAGE_WIDTH_PX));
+    };
+
+    measure();
+    const viewport = resolveViewport();
+    if (!viewport) return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(viewport);
+    return () => ro.disconnect();
+  }, []);
 
   const clearSuggestionIdle = useCallback(() => {
     if (suggestionIdleTimerRef.current != null) {
@@ -325,13 +354,36 @@ export function ScreenplayEditor({
 
   const commitPageText = useCallback(
     (pageIdx: number, pageText: string, localCursor: number) => {
-      const provisional = mergePageIntoContent(valueRef.current, pageIdx, pageText);
-      const globalCursor = pageStartOffset(valueRef.current, pageIdx) + localCursor;
+      const previous = valueRef.current;
+      const provisional = mergePageIntoContent(previous, pageIdx, pageText);
+      const globalCursor = pageStartOffset(previous, pageIdx) + localCursor;
       if (preserveStructure) {
         onChange(provisional);
         refreshSuggestions(provisional, globalCursor, editingElement);
         return;
       }
+
+      // While deleting, skip live reformatting unless the line is still over width —
+      // constant format-on-backspace was stacking/overlapping text under the caret.
+      const shrinking = provisional.length < previous.length;
+      if (shrinking) {
+        const lineIdx = lineIndexAt(provisional, globalCursor);
+        const lines = provisional.split("\n");
+        const current = lines[lineIdx] ?? "";
+        const neighbors = {
+          prev: lineIdx > 0 ? lines[lineIdx - 1] : undefined,
+          next: lineIdx < lines.length - 1 ? lines[lineIdx + 1] : undefined,
+        };
+        const element = resolveLineElement(current, neighbors, editingElement);
+        const overMax =
+          current.trim().length > maxContentWidthForElement(element);
+        if (!overMax) {
+          onChange(provisional);
+          refreshSuggestions(provisional, globalCursor, element);
+          return;
+        }
+      }
+
       const formatted = formatLineWhileTyping(provisional, globalCursor, editingElement);
 
       if (formatted) {
@@ -561,7 +613,8 @@ export function ScreenplayEditor({
   );
 
   const pageSurface = "script-writer-page script-writer-page--light";
-  const zoomScale = Math.min(150, Math.max(50, zoomPercent)) / 100;
+  const zoomScale =
+    fitScale * (Math.min(150, Math.max(50, zoomPercent)) / 100);
   const lineHeightCss = `calc((11in - ${MARGIN_TOP} - ${MARGIN_BOTTOM}) / ${LINES_PER_PAGE})`;
 
   return (
@@ -641,6 +694,7 @@ export function ScreenplayEditor({
 
       <div className="script-writer-editor-scroll" data-screenplay-scroll>
         <div
+          ref={pagesStackRef}
           className="script-writer-pages-stack"
           style={{ zoom: zoomScale }}
         >
@@ -658,10 +712,10 @@ export function ScreenplayEditor({
           {pageTexts.map((pageText, pageIdx) => (
             <div
               key={`page-${pageIdx}`}
-              className={`relative overflow-hidden rounded-sm border ${pageSurface}`}
+              className={`relative overflow-hidden ${pageSurface}`}
               style={{
                 width: PAGE_WIDTH,
-                minWidth: PAGE_WIDTH,
+                maxWidth: PAGE_WIDTH,
                 height: PAGE_HEIGHT,
                 marginBottom: pageIdx < pageCount - 1 ? PAGE_GAP_PX : 0,
                 boxSizing: "border-box",
@@ -738,11 +792,13 @@ export function ScreenplayEditor({
                   paddingLeft: MARGIN_LEFT,
                   paddingRight: MARGIN_RIGHT,
                   // Hard-wrapped imports/edits: one \n = one page row. Soft wrap was
-                  // overflowing the fixed 55-line page box past the bottom margin.
+                  // overflowing the fixed page box past the bottom margin.
                   whiteSpace: "pre",
                   overflowWrap: "normal",
                   overflowX: "hidden",
                   overflowY: "hidden",
+                  letterSpacing: "normal",
+                  wordSpacing: "normal",
                 }}
                 placeholder={pageIdx === 0 ? placeholder : undefined}
                 autoCapitalize="off"

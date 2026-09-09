@@ -6,7 +6,7 @@ import {
   isSceneHeadingPrefixQuery,
 } from "./elements";
 
-export const LINES_PER_PAGE = 55;
+export const LINES_PER_PAGE = 52;
 export const PAGE_GAP_PX = 36;
 
 /** Tab / Shift+Tab cycle order for core screenplay elements. */

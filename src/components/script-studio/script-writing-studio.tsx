@@ -53,7 +53,7 @@ import {
   parseCharacters,
   parseScenes,
 } from "@/lib/script-studio/parse-screenplay";
-import { PAGE_GAP_PX } from "@/lib/script-studio/screenplay-keyboard";
+import { LINES_PER_PAGE, PAGE_GAP_PX } from "@/lib/script-studio/screenplay-keyboard";
 import { SCRIPT_TEMPLATES } from "@/lib/script-studio/templates";
 import type { ScreenplayElementType, StudioTheme } from "@/lib/script-studio/types";
 import { ScreenplayReader } from "./screenplay-reader";
@@ -754,9 +754,11 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
     el.setSelectionRange(pos, pos);
     const zoomFactor = zoom / 100;
     const lineHeightPx = 12 * 1.2 * (96 / 72) * zoomFactor;
-    const pageBlock = 55 * lineHeightPx + PAGE_GAP_PX * zoomFactor;
+    const pageBlock = LINES_PER_PAGE * lineHeightPx + PAGE_GAP_PX * zoomFactor;
     const scrollTop =
-      Math.floor(lineIndex / 55) * pageBlock + (lineIndex % 55) * lineHeightPx - lineHeightPx * 2;
+      Math.floor(lineIndex / LINES_PER_PAGE) * pageBlock +
+      (lineIndex % LINES_PER_PAGE) * lineHeightPx -
+      lineHeightPx * 2;
     const scroll =
       (el.closest(".script-writer-page-viewport") as HTMLElement | null) ??
       (el.closest("[data-screenplay-scroll]") as HTMLElement | null);

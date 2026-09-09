@@ -21,8 +21,8 @@ import { downloadTextFile } from "@/lib/script-studio/import-export";
 import { escapeHtmlForDocument, printHtmlDocument } from "@/lib/pdf/print-html-document";
 import { ScreenplayTitlePage } from "@/components/script-studio/screenplay-title-page";
 import { resolveScriptAuthorName, scriptTypeLabel } from "@/lib/script-studio/title-page";
+import { LINES_PER_PAGE } from "@/lib/script-studio/screenplay-keyboard";
 
-const LINES_PER_PAGE = 55;
 const PAGE_WIDTH = "8.5in";
 const PAGE_HEIGHT = "11in";
 

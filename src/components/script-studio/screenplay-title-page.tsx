@@ -33,10 +33,10 @@ export function ScreenplayTitlePage({
 
   return (
     <div
-      className={`relative overflow-hidden rounded-sm border ${pageSurfaceClassName}`}
+      className={`relative overflow-hidden ${pageSurfaceClassName}`}
       style={{
         width: pageWidth,
-        minWidth: pageWidth,
+        maxWidth: pageWidth,
         height: pageHeight,
         marginBottom,
         boxSizing: "border-box",

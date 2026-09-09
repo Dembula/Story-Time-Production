@@ -5,6 +5,7 @@ import {
   hasCollapsedScreenplayStructure,
   restructureGluedScreenplay,
   normalizeImportedScreenplayLayout,
+  lightCleanScreenplayText,
 } from "./screenplay-layout-repair";
 import { importScreenplayText } from "./import-export";
 
@@ -56,5 +57,27 @@ FADE TO BLACK flowing locks`;
     assert.ok(fixes.some((f) => /glued|structure|spaces/i.test(f)));
     assert.ok(text.includes("holding Michaela") || text.includes("holding Michaela".replace(" ", "")));
     assert.ok(/holding\s+Michaela/.test(text));
+  });
+
+  it("strips PDF (CONTINUED)/(MORE) footers but keeps CONT'D cues", () => {
+    const raw = `INT. OFFICE - DAY
+
+DEAN (CONT'D)
+Hello.
+
+(CONTINUED)
+
+MICHAELA
+Yes.
+
+(MORE)
+
+(CONTINUED) (CONTINUED)
+`;
+    const cleaned = lightCleanScreenplayText(raw);
+    assert.ok(!/\(CONTINUED\)/i.test(cleaned));
+    assert.ok(!/\(MORE\)/i.test(cleaned));
+    assert.match(cleaned, /DEAN \(CONT'D\)/);
+    assert.match(cleaned, /MICHAELA/);
   });
 });

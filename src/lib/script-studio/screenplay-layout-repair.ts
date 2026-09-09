@@ -46,18 +46,31 @@ const COMMON_CAPS_WORDS = new Set([
 
 /** Light cleanup that never invents structure. */
 export function lightCleanScreenplayText(text: string): string {
+  return stripScreenplayPageFooters(
+    text
+      .replace(/\r\n/g, "\n")
+      .replace(/\r/g, "\n")
+      .replace(/\f/g, "\n")
+      .replace(/[ \t]+\n/g, "\n")
+      .replace(/\b(INT\.|EXT\.|INT\/EXT\.|I\/E\.)([A-Z])/g, "$1 $2")
+      .replace(/([A-Z])-([A-Z])/g, "$1 - $2")
+      .replace(/^\s*\d{1,3}\.?\s*$/gm, "")
+      .replace(/[ \t]{2,}/g, " ")
+      .replace(/\n{4,}/g, "\n\n\n")
+      .trim(),
+  );
+}
+
+/**
+ * Remove PDF page-break footers like (CONTINUED) / (MORE).
+ * Does not touch character cues such as DEAN (CONT'D).
+ */
+export function stripScreenplayPageFooters(text: string): string {
   return text
-    .replace(/\r\n/g, "\n")
-    .replace(/\r/g, "\n")
-    .replace(/\f/g, "\n")
-    .replace(/[ \t]+\n/g, "\n")
-    .replace(/\b(INT\.|EXT\.|INT\/EXT\.|I\/E\.)([A-Z])/g, "$1 $2")
-    .replace(/([A-Z])-([A-Z])/g, "$1 - $2")
-    .replace(/^\s*(CONTINUED:|CONTINUED)\s*\d*\.?\s*$/gim, "")
+    .replace(/^\s*(?:\(\s*)?(?:CONTINUED|MORE)\s*:?\s*(?:\)\s*)?(?:\d+\.?)?\s*$/gim, "")
+    .replace(/^\s*(?:\(\s*CONTINUED\s*:?\s*\)\s*){1,}\s*$/gim, "")
     .replace(/\bCONTINUED:\s*\d+\.?\s*/gi, "")
-    .replace(/^\s*\d{1,3}\.?\s*$/gm, "")
-    .replace(/[ \t]{2,}/g, " ")
-    .replace(/\n{4,}/g, "\n\n\n")
+    .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
 
