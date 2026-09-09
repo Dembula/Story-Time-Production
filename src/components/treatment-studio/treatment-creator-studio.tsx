@@ -579,13 +579,13 @@ export function TreatmentCreatorStudio({
       e.returnValue = "";
     };
     const onVisibility = () => {
-      if (document.visibilityState === "hidden") flushIfDirty();
+      if (globalThis.document.visibilityState === "hidden") flushIfDirty();
     };
     window.addEventListener("beforeunload", onBeforeUnload);
-    document.addEventListener("visibilitychange", onVisibility);
+    globalThis.document.addEventListener("visibilitychange", onVisibility);
     return () => {
       window.removeEventListener("beforeunload", onBeforeUnload);
-      document.removeEventListener("visibilitychange", onVisibility);
+      globalThis.document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);
 
