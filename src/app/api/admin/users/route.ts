@@ -78,14 +78,16 @@ export async function GET() {
   });
 
   const payload = users.map((user) => {
-    const sub = user.viewerSubscriptions[0];
-    const license = user.creatorDistributionLicense;
+    const {
+      viewerSubscriptions,
+      creatorDistributionLicense: license,
+      companySubscriptions,
+      funderProfile,
+      ...rest
+    } = user;
+    const sub = viewerSubscriptions[0];
     return {
-      ...user,
-      viewerSubscriptions: undefined,
-      creatorDistributionLicense: undefined,
-      companySubscriptions: undefined,
-      funderProfile: undefined,
+      ...rest,
       viewerSubscription: sub
         ? {
             plan: sub.plan,
@@ -111,7 +113,7 @@ export async function GET() {
             pastDueSince: license.pastDueSince?.toISOString() ?? null,
           }
         : null,
-      companySubscriptions: user.companySubscriptions.map((row) => ({
+      companySubscriptions: companySubscriptions.map((row) => ({
         companyType: row.companyType,
         plan: row.plan,
         status: row.status,
@@ -122,12 +124,12 @@ export async function GET() {
         lastPaymentError: row.lastPaymentError,
         pastDueSince: row.pastDueSince?.toISOString() ?? null,
       })),
-      funderProfile: user.funderProfile
+      funderProfile: funderProfile
         ? {
-            verificationStatus: user.funderProfile.verificationStatus,
-            limitedAccessEnabled: user.funderProfile.limitedAccessEnabled,
-            submittedAt: user.funderProfile.submittedAt?.toISOString() ?? null,
-            reviewedAt: user.funderProfile.reviewedAt?.toISOString() ?? null,
+            verificationStatus: funderProfile.verificationStatus,
+            limitedAccessEnabled: funderProfile.limitedAccessEnabled,
+            submittedAt: funderProfile.submittedAt?.toISOString() ?? null,
+            reviewedAt: funderProfile.reviewedAt?.toISOString() ?? null,
           }
         : null,
     };
