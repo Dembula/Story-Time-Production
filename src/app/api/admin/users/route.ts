@@ -38,6 +38,40 @@ export async function GET() {
           pastDueSince: true,
         },
       },
+      creatorDistributionLicense: {
+        select: {
+          type: true,
+          status: true,
+          yearlyExpiresAt: true,
+          cancelAtPeriodEnd: true,
+          lastPaymentStatus: true,
+          lastPaymentAt: true,
+          lastPaymentError: true,
+          pastDueSince: true,
+        },
+      },
+      companySubscriptions: {
+        orderBy: { updatedAt: "desc" },
+        select: {
+          companyType: true,
+          plan: true,
+          status: true,
+          currentPeriodEnd: true,
+          cancelAtPeriodEnd: true,
+          lastPaymentStatus: true,
+          lastPaymentAt: true,
+          lastPaymentError: true,
+          pastDueSince: true,
+        },
+      },
+      funderProfile: {
+        select: {
+          verificationStatus: true,
+          limitedAccessEnabled: true,
+          submittedAt: true,
+          reviewedAt: true,
+        },
+      },
       _count: { select: { contents: true, musicTracks: true, watchSessions: true, comments: true, ratings: true, activityLogs: true, equipmentListings: true, locationListings: true } },
     },
     orderBy: { createdAt: "desc" },
@@ -45,9 +79,13 @@ export async function GET() {
 
   const payload = users.map((user) => {
     const sub = user.viewerSubscriptions[0];
+    const license = user.creatorDistributionLicense;
     return {
       ...user,
       viewerSubscriptions: undefined,
+      creatorDistributionLicense: undefined,
+      companySubscriptions: undefined,
+      funderProfile: undefined,
       viewerSubscription: sub
         ? {
             plan: sub.plan,
@@ -59,6 +97,37 @@ export async function GET() {
             lastPaymentStatus: sub.lastPaymentStatus,
             lastPaymentError: sub.lastPaymentError,
             pastDueSince: sub.pastDueSince?.toISOString() ?? null,
+          }
+        : null,
+      creatorLicense: license
+        ? {
+            type: license.type,
+            status: license.status,
+            yearlyExpiresAt: license.yearlyExpiresAt?.toISOString() ?? null,
+            cancelAtPeriodEnd: license.cancelAtPeriodEnd,
+            lastPaymentStatus: license.lastPaymentStatus,
+            lastPaymentAt: license.lastPaymentAt?.toISOString() ?? null,
+            lastPaymentError: license.lastPaymentError,
+            pastDueSince: license.pastDueSince?.toISOString() ?? null,
+          }
+        : null,
+      companySubscriptions: user.companySubscriptions.map((row) => ({
+        companyType: row.companyType,
+        plan: row.plan,
+        status: row.status,
+        currentPeriodEnd: row.currentPeriodEnd?.toISOString() ?? null,
+        cancelAtPeriodEnd: row.cancelAtPeriodEnd,
+        lastPaymentStatus: row.lastPaymentStatus,
+        lastPaymentAt: row.lastPaymentAt?.toISOString() ?? null,
+        lastPaymentError: row.lastPaymentError,
+        pastDueSince: row.pastDueSince?.toISOString() ?? null,
+      })),
+      funderProfile: user.funderProfile
+        ? {
+            verificationStatus: user.funderProfile.verificationStatus,
+            limitedAccessEnabled: user.funderProfile.limitedAccessEnabled,
+            submittedAt: user.funderProfile.submittedAt?.toISOString() ?? null,
+            reviewedAt: user.funderProfile.reviewedAt?.toISOString() ?? null,
           }
         : null,
     };

@@ -34,7 +34,11 @@ export async function PATCH(req: NextRequest) {
   }
 
   const callbackUrl = safeCallbackPath(body?.callbackUrl);
-  const redirectUrl = resolvePostSignInRedirect(outcome.role, callbackUrl);
+  const redirectUrl = resolvePostSignInRedirect(
+    outcome.role,
+    callbackUrl,
+    session.user.email,
+  );
 
   return NextResponse.json({
     ok: true,
@@ -49,6 +53,7 @@ export async function PATCH(req: NextRequest) {
       portalScope: outcome.portalScope,
       funderVerificationStatus: outcome.funderVerificationStatus,
       payoutKycVerificationStatus: outcome.payoutKycVerificationStatus,
+      ...(outcome.role === "ADMIN" ? { adminRights: outcome.adminRights ?? null } : { adminRights: null }),
     },
   });
 }

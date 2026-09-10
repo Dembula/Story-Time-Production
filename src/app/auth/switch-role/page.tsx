@@ -46,7 +46,7 @@ export default async function SwitchRolePage({
     );
   }
 
-  const redirectUrl = resolvePostSignInRedirect(outcome.role, callbackUrl);
+  const redirectUrl = resolvePostSignInRedirect(outcome.role, callbackUrl, session.user.email);
 
   return (
     <SwitchRoleClient
@@ -56,6 +56,9 @@ export default async function SwitchRolePage({
         portalScope: outcome.portalScope,
         funderVerificationStatus: outcome.funderVerificationStatus,
         payoutKycVerificationStatus: outcome.payoutKycVerificationStatus,
+        ...(outcome.role === "ADMIN"
+          ? { adminRights: outcome.adminRights ?? null }
+          : { adminRights: null }),
       }}
       redirectUrl={redirectUrl}
       roleLabel={requestedRole.replace(/_/g, " ")}

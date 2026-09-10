@@ -36,6 +36,7 @@ export async function resolveRoleSwitch(
       homePath: string;
       funderVerificationStatus?: FunderVerificationStatus;
       payoutKycVerificationStatus?: KycVerificationStatus;
+      adminRights?: unknown;
     }
   | { ok: false; error: string; status: number }
 > {
@@ -65,6 +66,15 @@ export async function resolveRoleSwitch(
     ? (await getPayoutKycStatus(userId)) ?? undefined
     : undefined;
 
+  let adminRights: unknown = undefined;
+  if (role === "ADMIN") {
+    const adminUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { adminRights: true },
+    });
+    adminRights = adminUser?.adminRights ?? null;
+  }
+
   const option = buildPlatformRoleOption(role);
 
   return {
@@ -75,5 +85,6 @@ export async function resolveRoleSwitch(
     homePath: option.homePath,
     funderVerificationStatus,
     payoutKycVerificationStatus,
+    adminRights,
   };
 }

@@ -33,8 +33,10 @@ export async function GET() {
     if (!status.complete) {
       return NextResponse.json({ path: status.onboardingPath });
     }
-    return NextResponse.json({ path: defaultHomeForRole(role) });
+    return NextResponse.json({ path: defaultHomeForRole(role, session.user.email) });
   }
 
-  return NextResponse.json({ path: defaultHomeForRole(role) });
+  return NextResponse.json({
+    path: defaultHomeForRole(role, session.user.email),
+  });
 }

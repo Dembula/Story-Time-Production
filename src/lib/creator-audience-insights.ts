@@ -19,11 +19,19 @@ export type AgeDistributionRow = {
   pct: number;
 };
 
+export type DemographicSlice = {
+  label: string;
+  viewers: number;
+  pct: number;
+};
+
 export type TitleAudienceRow = {
   contentId: string;
   title: string;
   totalViewers: number;
   ageDistribution: AgeDistributionRow[];
+  genderDistribution: DemographicSlice[];
+  raceDistribution: DemographicSlice[];
 };
 
 export type CreatorEngagementComment = {
@@ -66,8 +74,12 @@ export type CreatorEngagementRating = {
 
 export type CreatorAudienceInsights = {
   ageDistribution: AgeDistributionRow[];
+  genderDistribution: DemographicSlice[];
+  raceDistribution: DemographicSlice[];
   totalViewers: number;
   viewersWithKnownAge: number;
+  viewersWithKnownGender: number;
+  viewersWithKnownRace: number;
   byTitle: TitleAudienceRow[];
 };
 
@@ -104,6 +116,23 @@ function buildDistribution(counts: Map<AgeBracket, number>): AgeDistributionRow[
   });
 }
 
+function buildLabeledDistribution(counts: Map<string, number>): DemographicSlice[] {
+  const total = [...counts.values()].reduce((sum, n) => sum + n, 0);
+  const labels = [...counts.keys()].sort((a, b) => {
+    if (a === "Unknown") return 1;
+    if (b === "Unknown") return -1;
+    return (counts.get(b) ?? 0) - (counts.get(a) ?? 0);
+  });
+  return labels.map((label) => {
+    const viewers = counts.get(label) ?? 0;
+    return {
+      label,
+      viewers,
+      pct: total > 0 ? Math.round((viewers / total) * 1000) / 10 : 0,
+    };
+  });
+}
+
 function viewerDisplayName(user: { name: string | null; email: string | null }): string {
   const name = user.name?.trim();
   if (name) return name;
@@ -112,9 +141,15 @@ function viewerDisplayName(user: { name: string | null; email: string | null }):
   return "Viewer";
 }
 
+type ViewerDemo = {
+  ageBracket: AgeBracket;
+  gender: string;
+  race: string;
+};
+
 /**
- * Unique viewers per age bracket from watch sessions (profile age when available).
- * No IP, device, or exact DOB is exposed — only aggregated brackets.
+ * Unique viewers per demographic from watch sessions (profile fields when available).
+ * No IP, device, or exact DOB is exposed — only aggregated labels.
  */
 export async function getCreatorAudienceInsights(
   creatorId: string,
@@ -130,56 +165,79 @@ export async function getCreatorAudienceInsights(
       userId: true,
       contentId: true,
       viewerProfileId: true,
-      viewerProfile: { select: { age: true } },
+      viewerProfile: { select: { age: true, gender: true, race: true } },
       content: { select: { title: true } },
     },
   });
 
-  const overallKeys = new Map<string, AgeBracket>();
-  const titleKeys = new Map<string, Map<string, AgeBracket>>();
+  const overallKeys = new Map<string, ViewerDemo>();
+  const titleKeys = new Map<string, Map<string, ViewerDemo>>();
   const titleNames = new Map<string, string>();
 
   for (const session of sessions) {
     titleNames.set(session.contentId, session.content.title);
     const viewerKey = session.viewerProfileId ?? `user:${session.userId}`;
-    const bracket = session.viewerProfile?.age != null ? ageToBracket(session.viewerProfile.age) : "Unknown";
+    const demo: ViewerDemo = {
+      ageBracket: session.viewerProfile?.age != null ? ageToBracket(session.viewerProfile.age) : "Unknown",
+      gender: session.viewerProfile?.gender?.trim() || "Unknown",
+      race: session.viewerProfile?.race?.trim() || "Unknown",
+    };
 
-    if (!overallKeys.has(viewerKey)) overallKeys.set(viewerKey, bracket);
+    if (!overallKeys.has(viewerKey)) overallKeys.set(viewerKey, demo);
 
     let perTitle = titleKeys.get(session.contentId);
     if (!perTitle) {
       perTitle = new Map();
       titleKeys.set(session.contentId, perTitle);
     }
-    if (!perTitle.has(viewerKey)) perTitle.set(viewerKey, bracket);
+    if (!perTitle.has(viewerKey)) perTitle.set(viewerKey, demo);
   }
 
-  const overallCounts = new Map<AgeBracket, number>();
+  const overallAge = new Map<AgeBracket, number>();
+  const overallGender = new Map<string, number>();
+  const overallRace = new Map<string, number>();
   let viewersWithKnownAge = 0;
-  for (const bracket of overallKeys.values()) {
-    overallCounts.set(bracket, (overallCounts.get(bracket) ?? 0) + 1);
-    if (bracket !== "Unknown") viewersWithKnownAge += 1;
+  let viewersWithKnownGender = 0;
+  let viewersWithKnownRace = 0;
+
+  for (const demo of overallKeys.values()) {
+    overallAge.set(demo.ageBracket, (overallAge.get(demo.ageBracket) ?? 0) + 1);
+    overallGender.set(demo.gender, (overallGender.get(demo.gender) ?? 0) + 1);
+    overallRace.set(demo.race, (overallRace.get(demo.race) ?? 0) + 1);
+    if (demo.ageBracket !== "Unknown") viewersWithKnownAge += 1;
+    if (demo.gender !== "Unknown") viewersWithKnownGender += 1;
+    if (demo.race !== "Unknown") viewersWithKnownRace += 1;
   }
 
   const byTitle: TitleAudienceRow[] = [...titleKeys.entries()].map(([contentId, viewers]) => {
-    const counts = new Map<AgeBracket, number>();
-    for (const bracket of viewers.values()) {
-      counts.set(bracket, (counts.get(bracket) ?? 0) + 1);
+    const ageCounts = new Map<AgeBracket, number>();
+    const genderCounts = new Map<string, number>();
+    const raceCounts = new Map<string, number>();
+    for (const demo of viewers.values()) {
+      ageCounts.set(demo.ageBracket, (ageCounts.get(demo.ageBracket) ?? 0) + 1);
+      genderCounts.set(demo.gender, (genderCounts.get(demo.gender) ?? 0) + 1);
+      raceCounts.set(demo.race, (raceCounts.get(demo.race) ?? 0) + 1);
     }
     return {
       contentId,
       title: titleNames.get(contentId) ?? "Untitled",
       totalViewers: viewers.size,
-      ageDistribution: buildDistribution(counts),
+      ageDistribution: buildDistribution(ageCounts),
+      genderDistribution: buildLabeledDistribution(genderCounts),
+      raceDistribution: buildLabeledDistribution(raceCounts),
     };
   });
 
   byTitle.sort((a, b) => b.totalViewers - a.totalViewers);
 
   return {
-    ageDistribution: buildDistribution(overallCounts),
+    ageDistribution: buildDistribution(overallAge),
+    genderDistribution: buildLabeledDistribution(overallGender),
+    raceDistribution: buildLabeledDistribution(overallRace),
     totalViewers: overallKeys.size,
     viewersWithKnownAge,
+    viewersWithKnownGender,
+    viewersWithKnownRace,
     byTitle,
   };
 }
@@ -316,7 +374,13 @@ export async function getTitleAudienceInsights(
   contentId: string,
   start: Date,
   end: Date,
-): Promise<{ title: string; ageDistribution: AgeDistributionRow[]; totalViewers: number } | null> {
+): Promise<{
+  title: string;
+  ageDistribution: AgeDistributionRow[];
+  genderDistribution: DemographicSlice[];
+  raceDistribution: DemographicSlice[];
+  totalViewers: number;
+} | null> {
   const content = await prisma.content.findFirst({
     where: { id: contentId, creatorId },
     select: { id: true, title: true },
@@ -329,5 +393,7 @@ export async function getTitleAudienceInsights(
     title: content.title,
     totalViewers: row?.totalViewers ?? 0,
     ageDistribution: row?.ageDistribution ?? emptyDistribution(),
+    genderDistribution: row?.genderDistribution ?? [],
+    raceDistribution: row?.raceDistribution ?? [],
   };
 }

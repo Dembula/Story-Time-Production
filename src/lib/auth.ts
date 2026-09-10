@@ -355,17 +355,50 @@ export const authOptions: NextAuthOptions = {
             (s.activeCreatorStudioProfileId as string | null | undefined) ?? null;
         }
         if ("role" in s && typeof s.role === "string" && token.id) {
-          const outcome = await resolveRoleSwitch(
-            token.id as string,
-            s.role,
-            token.role as string | undefined,
-          );
-          if (outcome.ok) {
-            token.role = outcome.role;
-            token.roles = outcome.roles;
-            token.portalScope = outcome.portalScope;
-            token.funderVerificationStatus = outcome.funderVerificationStatus;
-            token.payoutKycVerificationStatus = outcome.payoutKycVerificationStatus;
+          // Prefer applying an already-validated API/page patch — avoid a second resolveRoleSwitch.
+          const hasValidatedPatch =
+            Array.isArray(s.roles) && typeof s.portalScope === "string";
+          if (hasValidatedPatch) {
+            token.role = s.role;
+            token.roles = s.roles as string[];
+            token.portalScope = s.portalScope as PortalScope;
+            if ("funderVerificationStatus" in s) {
+              token.funderVerificationStatus =
+                (s.funderVerificationStatus as string | undefined) ?? undefined;
+            }
+            if ("payoutKycVerificationStatus" in s) {
+              token.payoutKycVerificationStatus =
+                (s.payoutKycVerificationStatus as string | undefined) ?? undefined;
+            }
+            if ("adminRights" in s) {
+              token.adminRights =
+                s.adminRights === null || s.adminRights === undefined
+                  ? null
+                  : parseAdminRights(s.adminRights);
+            } else if (s.role !== "ADMIN") {
+              token.adminRights = null;
+            }
+          } else {
+            const outcome = await resolveRoleSwitch(
+              token.id as string,
+              s.role,
+              token.role as string | undefined,
+            );
+            if (outcome.ok) {
+              token.role = outcome.role;
+              token.roles = outcome.roles;
+              token.portalScope = outcome.portalScope;
+              token.funderVerificationStatus = outcome.funderVerificationStatus;
+              token.payoutKycVerificationStatus = outcome.payoutKycVerificationStatus;
+              if (outcome.role === "ADMIN") {
+                token.adminRights =
+                  outcome.adminRights === null || outcome.adminRights === undefined
+                    ? null
+                    : parseAdminRights(outcome.adminRights);
+              } else {
+                token.adminRights = null;
+              }
+            }
           }
         } else if ("portalScope" in s) {
           token.portalScope = (s.portalScope as PortalScope | undefined) ?? token.portalScope;
@@ -382,25 +415,34 @@ export const authOptions: NextAuthOptions = {
         token.funderVerificationStatus =
           (profile?.verificationStatus as FunderVerificationStatus | undefined) ?? undefined;
       }
-      if (requiresPayoutKyc(token.role as string) && token.id) {
+      if (
+        requiresPayoutKyc(token.role as string) &&
+        token.id &&
+        token.payoutKycVerificationStatus == null
+      ) {
         token.payoutKycVerificationStatus =
-          (await getPayoutKycStatus(token.id as string)) ?? token.payoutKycVerificationStatus ?? undefined;
+          (await getPayoutKycStatus(token.id as string)) ?? undefined;
       }
-      if (token.id) {
+      // Only sync adminRights from DB while the active role is ADMIN (not on every viewer poll).
+      if (token.id && token.role === "ADMIN") {
         const dbUser = await prisma.user.findUnique({
           where: { id: token.id as string },
           select: { role: true, adminRights: true, email: true },
         });
         if (dbUser?.role === "ADMIN") {
           token.role = "ADMIN";
-          token.adminRights =
-            dbUser.adminRights === null || dbUser.adminRights === undefined
-              ? null
-              : parseAdminRights(dbUser.adminRights);
+          token.portalScope = "ADMIN";
+          if (token.adminRights === undefined) {
+            token.adminRights =
+              dbUser.adminRights === null || dbUser.adminRights === undefined
+                ? null
+                : parseAdminRights(dbUser.adminRights);
+          }
           if (dbUser.email) token.email = dbUser.email;
-        } else if (token.role === "ADMIN") {
+        } else {
           token.role = dbUser?.role ?? "SUBSCRIBER";
           token.adminRights = null;
+          token.portalScope = getPortalScopeForRole(token.role as string);
         }
       }
       return token;

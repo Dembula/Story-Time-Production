@@ -3,6 +3,11 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getLatestViewerSubscription, getViewerProfileLimit } from "@/lib/viewer-access";
+import {
+  VIEWER_GENDER_OPTIONS,
+  VIEWER_RACE_OPTIONS,
+  normalizeOptionalDemographic,
+} from "@/lib/viewer-demographics";
 import { getDateFromBirthParts, getViewerProfileAge } from "@/lib/viewer-profiles";
 import { hashProfilePin, validateProfilePin, verifyProfilePin } from "@/lib/viewer-profile-pin";
 
@@ -16,6 +21,8 @@ function toProfileResponse(profile: {
   name: string;
   age: number;
   dateOfBirth?: Date | null;
+  gender?: string | null;
+  race?: string | null;
   updatedAt: Date;
   pinEnabled?: boolean;
 }) {
@@ -24,18 +31,26 @@ function toProfileResponse(profile: {
     name: profile.name,
     age: getViewerProfileAge(profile) ?? profile.age,
     dateOfBirth: profile.dateOfBirth?.toISOString() ?? null,
+    gender: profile.gender ?? null,
+    race: profile.race ?? null,
     updatedAt: profile.updatedAt,
     pinEnabled: profile.pinEnabled ?? false,
   };
 }
 
-const profileSelect = {
+const profilePublicSelect = {
   id: true,
   name: true,
   age: true,
   dateOfBirth: true,
+  gender: true,
+  race: true,
   updatedAt: true,
   pinEnabled: true,
+} as const;
+
+const profileSelect = {
+  ...profilePublicSelect,
   pinHash: true,
 } as const;
 
@@ -105,7 +120,7 @@ export async function GET() {
     const profiles = await delegate.findMany({
       where: { userId: session.user.id },
       orderBy: { createdAt: "asc" },
-      select: { id: true, name: true, age: true, dateOfBirth: true, updatedAt: true, pinEnabled: true },
+      select: profilePublicSelect,
     });
     return NextResponse.json({ profiles: profiles.map(toProfileResponse) });
   } catch (e) {
@@ -131,6 +146,8 @@ export async function POST(req: NextRequest) {
     birthYear?: number;
     birthMonth?: number;
     birthDay?: number;
+    gender?: string | null;
+    race?: string | null;
     pinEnabled?: boolean;
     pin?: string;
   } | null;
@@ -138,9 +155,17 @@ export async function POST(req: NextRequest) {
   const birthYear = typeof body?.birthYear === "number" ? Math.floor(body.birthYear) : null;
   const birthMonth = typeof body?.birthMonth === "number" ? Math.floor(body.birthMonth) : null;
   const birthDay = typeof body?.birthDay === "number" ? Math.floor(body.birthDay) : null;
+  const gender = normalizeOptionalDemographic(body?.gender, VIEWER_GENDER_OPTIONS);
+  const race = normalizeOptionalDemographic(body?.race, VIEWER_RACE_OPTIONS);
   if (!name) return NextResponse.json({ error: "Name is required" }, { status: 400 });
   if (!birthYear || !birthMonth || !birthDay) {
     return NextResponse.json({ error: "Date of birth is required" }, { status: 400 });
+  }
+  if (typeof body?.gender === "string" && body.gender.trim() && !gender) {
+    return NextResponse.json({ error: "Invalid gender option" }, { status: 400 });
+  }
+  if (typeof body?.race === "string" && body.race.trim() && !race) {
+    return NextResponse.json({ error: "Invalid race option" }, { status: 400 });
   }
 
   const dateOfBirth = getDateFromBirthParts(birthYear, birthMonth, birthDay);
@@ -193,11 +218,13 @@ export async function POST(req: NextRequest) {
         name,
         age,
         dateOfBirth,
+        gender,
+        race,
         pinEnabled,
         pinHash,
         pinUpdatedAt,
       },
-      select: { id: true, name: true, age: true, dateOfBirth: true, updatedAt: true, pinEnabled: true },
+      select: profilePublicSelect,
     });
     return NextResponse.json({ profile: toProfileResponse(profile) }, { status: 201 });
   } catch (e) {
@@ -225,6 +252,8 @@ export async function PATCH(req: NextRequest) {
     birthMonth?: number;
     birthDay?: number;
     isChild?: boolean;
+    gender?: string | null;
+    race?: string | null;
     pinEnabled?: boolean;
     pin?: string;
     currentPin?: string;
@@ -244,6 +273,8 @@ export async function PATCH(req: NextRequest) {
     name?: string;
     dateOfBirth?: Date;
     age?: number;
+    gender?: string | null;
+    race?: string | null;
     pinEnabled?: boolean;
     pinHash?: string | null;
     pinUpdatedAt?: Date;
@@ -282,6 +313,30 @@ export async function PATCH(req: NextRequest) {
     updates.age = getViewerProfileAge({ dateOfBirth: dob }) ?? (body.isChild ? 10 : 21);
   }
 
+  if ("gender" in (body ?? {})) {
+    if (body?.gender === null || body?.gender === "") {
+      updates.gender = null;
+    } else {
+      const gender = normalizeOptionalDemographic(body?.gender, VIEWER_GENDER_OPTIONS);
+      if (typeof body?.gender === "string" && body.gender.trim() && !gender) {
+        return NextResponse.json({ error: "Invalid gender option" }, { status: 400 });
+      }
+      updates.gender = gender;
+    }
+  }
+
+  if ("race" in (body ?? {})) {
+    if (body?.race === null || body?.race === "") {
+      updates.race = null;
+    } else {
+      const race = normalizeOptionalDemographic(body?.race, VIEWER_RACE_OPTIONS);
+      if (typeof body?.race === "string" && body.race.trim() && !race) {
+        return NextResponse.json({ error: "Invalid race option" }, { status: 400 });
+      }
+      updates.race = race;
+    }
+  }
+
   const pinUpdates = await applyPinUpdates(profile, body ?? {});
   if ("error" in pinUpdates) {
     return NextResponse.json({ error: pinUpdates.error }, { status: pinUpdates.status });
@@ -295,7 +350,7 @@ export async function PATCH(req: NextRequest) {
   const updated = await delegate.update({
     where: { id: profile.id },
     data: updates,
-    select: { id: true, name: true, age: true, dateOfBirth: true, updatedAt: true, pinEnabled: true },
+    select: profilePublicSelect,
   });
   return NextResponse.json({ profile: toProfileResponse(updated) });
 }

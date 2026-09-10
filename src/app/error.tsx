@@ -27,6 +27,8 @@ export default function AppError({
 
   useEffect(() => {
     if (!chunkError || typeof window === "undefined") return;
+    const exhaustedKey = "storytime-chunk-retry-exhausted";
+    if (sessionStorage.getItem(exhaustedKey) === "1") return;
     const key = "storytime-chunk-retry";
     const retries = Number(sessionStorage.getItem(key) ?? "0");
     if (retries < 2) {
@@ -34,6 +36,7 @@ export default function AppError({
       window.location.reload();
     } else {
       sessionStorage.removeItem(key);
+      sessionStorage.setItem(exhaustedKey, "1");
     }
   }, [chunkError]);
 
@@ -45,14 +48,17 @@ export default function AppError({
         </h2>
         <p className="mt-2 text-sm text-slate-300">
           {chunkError
-            ? "The dev server was still compiling when the browser requested this page. Wait a moment, then reload — it should recover automatically."
+            ? "The app hit a temporary loading error. Use Reload once the network is ready — automatic retries have stopped so this page will not keep refreshing."
             : "The browser hit an unexpected runtime error. Try reloading this view."}
         </p>
         <div className="mt-4 flex gap-3">
           <button
             type="button"
             onClick={() => {
-              if (typeof window !== "undefined") sessionStorage.removeItem("storytime-chunk-retry");
+              if (typeof window !== "undefined") {
+                sessionStorage.removeItem("storytime-chunk-retry");
+                sessionStorage.removeItem("storytime-chunk-retry-exhausted");
+              }
               reset();
             }}
             className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-400"

@@ -5,11 +5,15 @@ import { signInUrlForDestination } from "@/lib/auth-sign-in-path";
 import { canAccessAdminPath } from "@/lib/admin-permissions";
 import { requiredRoleForProtectedPath } from "@/lib/platform-roles-shared";
 import { userHasPlatformRole } from "@/lib/user-roles-shared";
+import {
+  executiveHomePath,
+  officeFromEmail,
+  officeFromExecutivePath,
+} from "@/lib/executive/seat-map";
 
 export async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
 
-  // Title detail pages are browsable without completing viewer onboarding.
   if (/^\/browse\/content\/[^/]+$/.test(path)) {
     const requestHeaders = new Headers(req.headers);
     requestHeaders.set("x-browse-public-detail", "1");
@@ -37,95 +41,130 @@ export async function middleware(req: NextRequest) {
 
   const role = token.role as string | undefined;
   const portalScope = token.portalScope as "VIEWER" | "CREATOR" | "ADMIN" | undefined;
+  const tokenRoles = (token.roles as string[] | undefined) ?? [];
+  const requiredRole = requiredRoleForProtectedPath(path);
+  const email = typeof token.email === "string" ? token.email : undefined;
+  const seatOffice = officeFromEmail(email);
 
-    if (
-      path.startsWith("/creator/company") &&
-      (role === "CONTENT_CREATOR" || role === "MUSIC_CREATOR")
-    ) {
-      return NextResponse.next();
-    }
-
-    if (portalScope === "ADMIN" && !path.startsWith("/admin") && !path.startsWith("/api/admin")) {
-      return NextResponse.redirect(new URL("/admin", req.url));
-    }
-    if (
-      portalScope === "VIEWER" &&
-      (path.startsWith("/admin") ||
-        path.startsWith("/creator") ||
-        path.startsWith("/music-creator") ||
-        path.startsWith("/equipment-company") ||
-        path.startsWith("/location-owner") ||
-        path.startsWith("/crew-team") ||
-        path.startsWith("/casting-agency") ||
-        path.startsWith("/catering-company") ||
-        path.startsWith("/company") ||
-        path.startsWith("/funders") ||
-        path.startsWith("/wallet"))
-    ) {
-      return NextResponse.redirect(new URL("/profiles", req.url));
-    }
-    if (portalScope === "CREATOR" && path.startsWith("/admin")) {
-      const fallback = role === "MUSIC_CREATOR" ? "/music-creator/dashboard" : "/creator/command-center";
-      return NextResponse.redirect(new URL(fallback, req.url));
-    }
-
-    const tokenRoles = (token.roles as string[] | undefined) ?? [];
-    const requiredRole = requiredRoleForProtectedPath(path);
-    if (requiredRole && role !== requiredRole && userHasPlatformRole(tokenRoles, requiredRole)) {
-      const switchUrl = new URL("/auth/switch-role", req.url);
-      switchUrl.searchParams.set("role", requiredRole);
-      switchUrl.searchParams.set("callbackUrl", path);
-      return NextResponse.redirect(switchUrl);
-    }
-
-    if (path.startsWith("/admin") && role !== "ADMIN") {
-      return NextResponse.redirect(new URL("/auth/admin", req.url));
-    }
-
-    if ((path.startsWith("/admin") || path.startsWith("/api/admin")) && role === "ADMIN") {
-      const email = typeof token.email === "string" ? token.email : undefined;
-      const rightsRaw = (token as { adminRights?: unknown }).adminRights;
-      const rights = rightsRaw === undefined ? null : rightsRaw;
-      if (!canAccessAdminPath(path, rights, { email, isAdminRole: true })) {
-        if (path.startsWith("/api/admin")) {
-          return NextResponse.json(
-            { error: "You do not have access to this admin section." },
-            { status: 403 },
-          );
-        }
-        return NextResponse.redirect(new URL("/admin?denied=1", req.url));
+  if (path.startsWith("/executive") || path.startsWith("/api/executive")) {
+    if (!seatOffice) {
+      if (path.startsWith("/api/executive")) {
+        return NextResponse.json({ error: "No executive seat for this account." }, { status: 403 });
       }
+      return NextResponse.redirect(new URL(role === "ADMIN" ? "/admin" : "/profiles", req.url));
     }
-    if (path.startsWith("/creator") && role !== "CONTENT_CREATOR") {
-      return NextResponse.redirect(new URL(signInUrlForDestination(path), req.url));
+    if (path === "/executive" || path === "/executive/") {
+      return NextResponse.redirect(new URL(executiveHomePath(seatOffice), req.url));
     }
-    if (path.startsWith("/music-creator") && role !== "MUSIC_CREATOR") {
-      return NextResponse.redirect(new URL(signInUrlForDestination(path), req.url));
+    const pathOffice = officeFromExecutivePath(path);
+    if (pathOffice && pathOffice !== seatOffice) {
+      if (path.startsWith("/api/executive")) {
+        return NextResponse.json({ error: "You cannot access another executive office." }, { status: 403 });
+      }
+      return NextResponse.redirect(new URL(executiveHomePath(seatOffice), req.url));
     }
-    if (path.startsWith("/equipment-company") && role !== "EQUIPMENT_COMPANY") {
-      return NextResponse.redirect(new URL(signInUrlForDestination(path), req.url));
+    return NextResponse.next();
+  }
+
+  if (requiredRole && role !== requiredRole && userHasPlatformRole(tokenRoles, requiredRole)) {
+    const switchUrl = new URL("/auth/switch-role", req.url);
+    switchUrl.searchParams.set("role", requiredRole);
+    switchUrl.searchParams.set("callbackUrl", path);
+    return NextResponse.redirect(switchUrl);
+  }
+
+  if (
+    path.startsWith("/creator/company") &&
+    (role === "CONTENT_CREATOR" || role === "MUSIC_CREATOR")
+  ) {
+    return NextResponse.next();
+  }
+
+  if (
+    portalScope === "ADMIN" &&
+    !path.startsWith("/admin") &&
+    !path.startsWith("/api/admin") &&
+    !path.startsWith("/executive") &&
+    !path.startsWith("/api/executive")
+  ) {
+    const dest = seatOffice ? executiveHomePath(seatOffice) : "/admin";
+    return NextResponse.redirect(new URL(dest, req.url));
+  }
+  if (
+    portalScope === "VIEWER" &&
+    (path.startsWith("/admin") ||
+      path.startsWith("/creator") ||
+      path.startsWith("/music-creator") ||
+      path.startsWith("/equipment-company") ||
+      path.startsWith("/location-owner") ||
+      path.startsWith("/crew-team") ||
+      path.startsWith("/casting-agency") ||
+      path.startsWith("/catering-company") ||
+      path.startsWith("/company") ||
+      path.startsWith("/funders") ||
+      path.startsWith("/wallet"))
+  ) {
+    return NextResponse.redirect(new URL("/profiles", req.url));
+  }
+  if (portalScope === "CREATOR" && path.startsWith("/admin")) {
+    const fallback = role === "MUSIC_CREATOR" ? "/music-creator/dashboard" : "/creator/command-center";
+    return NextResponse.redirect(new URL(fallback, req.url));
+  }
+
+  if (path.startsWith("/admin") && role !== "ADMIN") {
+    return NextResponse.redirect(new URL("/auth/admin", req.url));
+  }
+
+  if ((path.startsWith("/admin") || path.startsWith("/api/admin")) && role === "ADMIN") {
+    const rightsRaw = (token as { adminRights?: unknown }).adminRights;
+    const rights = rightsRaw === undefined ? null : rightsRaw;
+    if (!canAccessAdminPath(path, rights, { email, isAdminRole: true })) {
+      if (path.startsWith("/api/admin")) {
+        return NextResponse.json(
+          { error: "You do not have access to this admin section." },
+          { status: 403 },
+        );
+      }
+      const alreadyDenied = path === "/admin" && req.nextUrl.searchParams.get("denied") === "1";
+      if (alreadyDenied || path === "/admin") {
+        return NextResponse.next();
+      }
+      return NextResponse.redirect(new URL("/admin?denied=1", req.url));
     }
-    if (path.startsWith("/location-owner") && role !== "LOCATION_OWNER") {
-      return NextResponse.redirect(new URL(signInUrlForDestination(path), req.url));
-    }
-    if (path.startsWith("/crew-team") && role !== "CREW_TEAM") {
-      return NextResponse.redirect(new URL(signInUrlForDestination(path), req.url));
-    }
-    if (path.startsWith("/casting-agency") && role !== "CASTING_AGENCY") {
-      return NextResponse.redirect(new URL(signInUrlForDestination(path), req.url));
-    }
-    if (path.startsWith("/catering-company") && role !== "CATERING_COMPANY") {
-      return NextResponse.redirect(new URL(signInUrlForDestination(path), req.url));
-    }
-    if (path.startsWith("/funders") && role !== "FUNDER") {
-      return NextResponse.redirect(new URL(signInUrlForDestination(path), req.url));
-    }
-    if (path.startsWith("/company/onboarding") && !["CREW_TEAM", "CASTING_AGENCY", "LOCATION_OWNER", "EQUIPMENT_COMPANY", "CATERING_COMPANY"].includes(role ?? "")) {
-      return NextResponse.redirect(new URL(signInUrlForDestination(path), req.url));
-    }
-    if (path.startsWith("/wallet") && role === "SUBSCRIBER") {
-      return NextResponse.redirect(new URL("/profiles", req.url));
-    }
+  }
+  if (path.startsWith("/creator") && role !== "CONTENT_CREATOR") {
+    return NextResponse.redirect(new URL(signInUrlForDestination(path), req.url));
+  }
+  if (path.startsWith("/music-creator") && role !== "MUSIC_CREATOR") {
+    return NextResponse.redirect(new URL(signInUrlForDestination(path), req.url));
+  }
+  if (path.startsWith("/equipment-company") && role !== "EQUIPMENT_COMPANY") {
+    return NextResponse.redirect(new URL(signInUrlForDestination(path), req.url));
+  }
+  if (path.startsWith("/location-owner") && role !== "LOCATION_OWNER") {
+    return NextResponse.redirect(new URL(signInUrlForDestination(path), req.url));
+  }
+  if (path.startsWith("/crew-team") && role !== "CREW_TEAM") {
+    return NextResponse.redirect(new URL(signInUrlForDestination(path), req.url));
+  }
+  if (path.startsWith("/casting-agency") && role !== "CASTING_AGENCY") {
+    return NextResponse.redirect(new URL(signInUrlForDestination(path), req.url));
+  }
+  if (path.startsWith("/catering-company") && role !== "CATERING_COMPANY") {
+    return NextResponse.redirect(new URL(signInUrlForDestination(path), req.url));
+  }
+  if (path.startsWith("/funders") && role !== "FUNDER") {
+    return NextResponse.redirect(new URL(signInUrlForDestination(path), req.url));
+  }
+  if (
+    path.startsWith("/company/onboarding") &&
+    !["CREW_TEAM", "CASTING_AGENCY", "LOCATION_OWNER", "EQUIPMENT_COMPANY", "CATERING_COMPANY"].includes(role ?? "")
+  ) {
+    return NextResponse.redirect(new URL(signInUrlForDestination(path), req.url));
+  }
+  if (path.startsWith("/wallet") && role === "SUBSCRIBER") {
+    return NextResponse.redirect(new URL("/profiles", req.url));
+  }
 
   return NextResponse.next();
 }
@@ -139,6 +178,9 @@ export const config = {
     "/music-creator/:path*",
     "/admin/:path*",
     "/api/admin/:path*",
+    "/executive",
+    "/executive/:path*",
+    "/api/executive/:path*",
     "/equipment-company/:path*",
     "/location-owner/:path*",
     "/crew-team/:path*",

@@ -8,6 +8,7 @@ import { AccountPrivacyControls } from "@/components/account/account-privacy-con
 import { VIEWER_PLAN_CONFIG } from "@/lib/pricing";
 import { formatZar } from "@/lib/format-currency-zar";
 import { getBirthDateOptionSets } from "@/lib/viewer-profiles";
+import { VIEWER_GENDER_OPTIONS, VIEWER_RACE_OPTIONS } from "@/lib/viewer-demographics";
 import { getClientReturnPath } from "@/lib/payments/payfast-card-consent-client";
 import { useCardSaveReturnRefresh } from "@/lib/hooks/use-card-save-return";
 
@@ -17,6 +18,8 @@ type ViewerProfile = {
   name: string;
   age: number;
   dateOfBirth: string | null;
+  gender?: string | null;
+  race?: string | null;
   isMaster: boolean;
   pinEnabled: boolean;
 };
@@ -61,6 +64,8 @@ export function SettingsClient() {
   const [birthYear, setBirthYear] = useState<number | "">("");
   const [birthMonth, setBirthMonth] = useState<number | "">("");
   const [birthDay, setBirthDay] = useState<number | "">("");
+  const [newProfileGender, setNewProfileGender] = useState("");
+  const [newProfileRace, setNewProfileRace] = useState("");
   const { years, months } = getBirthDateOptionSets();
 
   const [currentPassword, setCurrentPassword] = useState("");
@@ -519,6 +524,8 @@ export function SettingsClient() {
         birthYear,
         birthMonth,
         birthDay,
+        ...(newProfileGender ? { gender: newProfileGender } : {}),
+        ...(newProfileRace ? { race: newProfileRace } : {}),
         pinEnabled: newProfilePinEnabled,
         ...(newProfilePinEnabled ? { pin: newProfilePin } : {}),
       }),
@@ -531,6 +538,8 @@ export function SettingsClient() {
       setBirthYear("");
       setBirthMonth("");
       setBirthDay("");
+      setNewProfileGender("");
+      setNewProfileRace("");
       setNewProfilePinEnabled(false);
       setNewProfilePin("");
       setNewProfilePinConfirm("");
@@ -850,6 +859,53 @@ export function SettingsClient() {
               disabled={!isMasterActive || profiles.length >= profileLimit}
               className="storytime-input w-20 px-3 py-2 text-sm"
             />
+          </div>
+          <div className="w-full space-y-3 rounded-xl border border-white/8 bg-white/[0.02] p-4">
+            <p className="text-xs text-slate-500">
+              Gender &amp; race are optional. Tap to select, tap again to clear.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {VIEWER_GENDER_OPTIONS.map((option) => {
+                const selected = newProfileGender === option;
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    disabled={!isMasterActive || profiles.length >= profileLimit}
+                    onClick={() => setNewProfileGender(selected ? "" : option)}
+                    className={`rounded-lg border px-3 py-2 text-xs transition ${
+                      selected
+                        ? "border-orange-400/60 bg-orange-500/20 text-orange-50"
+                        : "border-white/10 bg-white/[0.03] text-slate-300 hover:border-white/20"
+                    } disabled:opacity-50`}
+                    aria-pressed={selected}
+                  >
+                    {option}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {VIEWER_RACE_OPTIONS.map((option) => {
+                const selected = newProfileRace === option;
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    disabled={!isMasterActive || profiles.length >= profileLimit}
+                    onClick={() => setNewProfileRace(selected ? "" : option)}
+                    className={`rounded-lg border px-3 py-2 text-xs transition ${
+                      selected
+                        ? "border-orange-400/60 bg-orange-500/20 text-orange-50"
+                        : "border-white/10 bg-white/[0.03] text-slate-300 hover:border-white/20"
+                    } disabled:opacity-50`}
+                    aria-pressed={selected}
+                  >
+                    {option}
+                  </button>
+                );
+              })}
+            </div>
           </div>
           <label className="flex w-full items-center gap-2 text-sm text-slate-300 sm:w-auto">
             <input

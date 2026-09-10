@@ -8,7 +8,7 @@ import { StoryTimeMark } from "@/components/brand/story-time-mark";
 import { ArrowLeft, Shield, Lock, UserPlus, ChevronDown, ChevronUp } from "lucide-react";
 
 export default function AdminLoginPage() {
-  const { data: session, status } = useSession();
+  const { data: session, status, update: updateSession } = useSession();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -23,13 +23,70 @@ export default function AdminLoginPage() {
   const [requestOpen, setRequestOpen] = useState(false);
 
   const role = (session?.user as { role?: string })?.role;
+  const roles = (session?.user as { roles?: string[] })?.roles ?? [];
+  const canSwitchToAdmin = status === "authenticated" && role !== "ADMIN" && roles.includes("ADMIN");
+  const [switchingToAdmin, setSwitchingToAdmin] = useState(false);
 
   useEffect(() => {
-    if (status === "authenticated" && role === "ADMIN") {
-      window.location.href = "/admin";
-    }
+    if (status !== "authenticated" || role !== "ADMIN") return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/executive/home");
+        const data = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        if (res.ok && typeof data.path === "string") {
+          window.location.href = data.path;
+          return;
+        }
+      } catch {
+        // fall through to admin
+      }
+      if (!cancelled) window.location.href = "/admin";
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [status, role]);
 
+  async function switchToAdminProfile() {
+    setError("");
+    setSwitchingToAdmin(true);
+    try {
+      const res = await fetch("/api/me/platform-roles/active", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: "ADMIN", callbackUrl: "/executive" }),
+      });
+      const body = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        session?: Record<string, unknown>;
+        redirectUrl?: string;
+      };
+      if (!res.ok) {
+        setError(typeof body.error === "string" ? body.error : "Could not switch to admin.");
+        return;
+      }
+      if (body.session) {
+        await updateSession?.(body.session);
+      }
+      try {
+        const homeRes = await fetch("/api/executive/home");
+        const home = await homeRes.json().catch(() => ({}));
+        if (homeRes.ok && typeof home.path === "string") {
+          window.location.assign(home.path);
+          return;
+        }
+      } catch {
+        // fall through
+      }
+      window.location.assign(body.redirectUrl ?? "/admin");
+    } catch {
+      setError("Could not switch to admin.");
+    } finally {
+      setSwitchingToAdmin(false);
+    }
+  }
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
@@ -41,6 +98,16 @@ export default function AdminLoginPage() {
     });
     setLoading(false);
     if (res?.ok) {
+      try {
+        const homeRes = await fetch("/api/executive/home");
+        const home = await homeRes.json().catch(() => ({}));
+        if (homeRes.ok && typeof home.path === "string") {
+          window.location.href = home.path;
+          return;
+        }
+      } catch {
+        // fall through
+      }
       window.location.href = "/admin";
     } else {
       setError("Invalid credentials. Only approved administrator accounts can sign in here.");
@@ -115,16 +182,29 @@ export default function AdminLoginPage() {
             <div className="mb-6 rounded-xl border border-white/10 bg-white/[0.03] p-4">
               <p className="text-sm text-slate-300">
                 You are signed in as{" "}
-                <span className="font-medium text-white">{session.user?.email}</span> (not an administrator). Sign out
-                to use a different account, or submit an access request with the email you want promoted.
+                <span className="font-medium text-white">{session.user?.email}</span>
+                {canSwitchToAdmin
+                  ? " with admin access on this account."
+                  : " (not an administrator). Sign out to use a different account, or submit an access request with the email you want promoted."}
               </p>
-              <button
-                type="button"
-                onClick={() => void signOut({ redirect: false })}
-                className="mt-3 w-full rounded-xl border border-white/10 bg-white/[0.04] py-2.5 text-sm font-medium text-slate-200 hover:bg-white/[0.07]"
-              >
-                Sign out
-              </button>
+              {canSwitchToAdmin ? (
+                <button
+                  type="button"
+                  disabled={switchingToAdmin}
+                  onClick={() => void switchToAdminProfile()}
+                  className="mt-3 w-full rounded-xl bg-orange-500 py-2.5 text-sm font-semibold text-white hover:bg-orange-400 disabled:opacity-60"
+                >
+                  {switchingToAdmin ? "Switching…" : "Switch to admin profile"}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => void signOut({ redirect: false })}
+                  className="mt-3 w-full rounded-xl border border-white/10 bg-white/[0.04] py-2.5 text-sm font-medium text-slate-200 hover:bg-white/[0.07]"
+                >
+                  Sign out
+                </button>
+              )}
             </div>
           )}
 

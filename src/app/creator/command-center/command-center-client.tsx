@@ -35,6 +35,7 @@ import { isLongFormType } from "@/lib/content-types";
 import { OpsMetricCard, OpsQuickActions } from "@/components/ecosystem/ops-shell";
 import { CommandCenterCalendar } from "@/components/creator/command-center-calendar";
 import { AudienceAgeChart } from "@/components/creator/audience-age-chart";
+import { AudiencePieChart } from "@/components/creator/audience-pie-chart";
 import { EngagementFeed } from "@/components/creator/engagement-feed";
 
 type RevenueData = {
@@ -471,21 +472,44 @@ export function CommandCenterClient() {
           <div className="rounded-xl border border-white/8 bg-slate-950/30 p-4 space-y-2">
             <p className="text-sm font-medium text-white">Audience insight</p>
             <p className="text-sm text-slate-400 leading-relaxed">
-              {cc.audience.viewersWithKnownAge > 0 ? (
+              {cc.audience.totalViewers > 0 ? (
                 <>
-                  <span className="text-cyan-200 font-medium">{cc.audience.viewersWithKnownAge}</span> of{" "}
-                  <span className="text-white font-medium">{cc.audience.totalViewers}</span> unique viewers have profile
-                  age data in this window.
+                  <span className="text-white font-medium">{cc.audience.totalViewers}</span> unique viewers in this window
+                  —{" "}
+                  <span className="text-cyan-200 font-medium">{cc.audience.viewersWithKnownAge}</span> with age,{" "}
+                  <span className="text-cyan-200 font-medium">{cc.audience.viewersWithKnownGender}</span> with gender,{" "}
+                  <span className="text-cyan-200 font-medium">{cc.audience.viewersWithKnownRace}</span> with race.
                 </>
               ) : (
-                "Viewer profiles include age when subscribers set up household profiles — charts fill in as people watch."
+                "Viewer profiles can optionally include age, gender, and race — charts fill in as people watch."
               )}
             </p>
             <p className="text-[11px] text-slate-500 leading-relaxed">
-              Aggregated age brackets only. Story Time never shares IP addresses, device types, or exact birth dates with
-              creators.
+              Aggregated brackets and labels only. Story Time never shares IP addresses, device types, or exact birth dates
+              with creators.
             </p>
           </div>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <AudiencePieChart
+            title="Gender mix"
+            rows={cc.audience.genderDistribution}
+            emptyMessage="Gender pie fills in when viewers optionally set gender on their profile."
+          />
+          <AudiencePieChart
+            title="Race / ethnicity mix"
+            rows={cc.audience.raceDistribution}
+            emptyMessage="Race pie fills in when viewers optionally share this on their profile."
+          />
+          <AudiencePieChart
+            title="Age mix (pie)"
+            rows={cc.audience.ageDistribution.map((row) => ({
+              label: row.bracket,
+              viewers: row.viewers,
+              pct: row.pct,
+            }))}
+            emptyMessage="Age pie appears once viewers with profile ages watch your titles."
+          />
         </div>
         <div className="storytime-section p-4 space-y-4">
           <div className="flex flex-wrap items-end justify-between gap-2">
@@ -623,23 +647,48 @@ export function CommandCenterClient() {
           </div>
         </div>
         {selectedFilmId ? (
-          <div className="grid gap-4 lg:grid-cols-2">
-            <AudienceAgeChart
-              title={`${contentList.find((c) => c.id === selectedFilmId)?.title ?? "Film"} — viewer ages`}
-              rows={selectedFilmAudience?.ageDistribution ?? []}
-              emptyMessage="No profile-age watch data for this title in the selected window yet."
-            />
-            <div className="storytime-section p-4">
-              <p className="mb-3 text-sm font-medium text-white">Engagement for this title</p>
-              <EngagementFeed
-                comments={cc.engagement.comments}
-                ratings={cc.engagement.ratings}
-                contentFilter={selectedFilmId}
+          <div className="space-y-4">
+            <div className="grid gap-4 lg:grid-cols-2">
+              <AudienceAgeChart
+                title={`${contentList.find((c) => c.id === selectedFilmId)?.title ?? "Film"} — viewer ages`}
+                rows={selectedFilmAudience?.ageDistribution ?? []}
+                emptyMessage="No profile-age watch data for this title in the selected window yet."
+              />
+              <div className="storytime-section p-4">
+                <p className="mb-3 text-sm font-medium text-white">Engagement for this title</p>
+                <EngagementFeed
+                  comments={cc.engagement.comments}
+                  ratings={cc.engagement.ratings}
+                  contentFilter={selectedFilmId}
+                />
+              </div>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <AudiencePieChart
+                title="Gender for this title"
+                rows={selectedFilmAudience?.genderDistribution ?? []}
+                emptyMessage="No gender data for this title yet."
+              />
+              <AudiencePieChart
+                title="Race for this title"
+                rows={selectedFilmAudience?.raceDistribution ?? []}
+                emptyMessage="No race data for this title yet."
+              />
+              <AudiencePieChart
+                title="Age mix for this title"
+                rows={(selectedFilmAudience?.ageDistribution ?? []).map((row) => ({
+                  label: row.bracket,
+                  viewers: row.viewers,
+                  pct: row.pct,
+                }))}
+                emptyMessage="No age mix for this title yet."
               />
             </div>
           </div>
         ) : (
-          <p className="text-xs text-slate-500">Click a film row to open its age chart and viewer comments or ratings.</p>
+          <p className="text-xs text-slate-500">
+            Click a film row to open its demographic charts and viewer comments or ratings.
+          </p>
         )}
         <div>
           <p className="text-xs text-slate-500 mb-2">Trending velocity (heuristic)</p>

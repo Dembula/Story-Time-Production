@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import { StoryTimeLoader } from "@/components/ui/storytime-loader";
 import Link from "next/link";
 
@@ -19,29 +18,31 @@ export function SwitchRoleClient({
     portalScope: "VIEWER" | "CREATOR" | "ADMIN";
     funderVerificationStatus?: string;
     payoutKycVerificationStatus?: string;
+    adminRights?: unknown;
   };
   redirectUrl?: string;
   roleLabel?: string;
   error?: string;
   callbackUrl?: string | null;
 }) {
-  const router = useRouter();
   const { update } = useSession();
+  const didSwitchRef = useRef(false);
 
   useEffect(() => {
     if (error || !sessionPatch || !redirectUrl) return;
-    let cancelled = false;
+    if (didSwitchRef.current) return;
+    didSwitchRef.current = true;
+
     void (async () => {
-      await update?.(sessionPatch);
-      if (!cancelled) {
-        router.replace(redirectUrl);
-        router.refresh();
+      try {
+        await update?.(sessionPatch);
+      } catch {
+        // Still navigate — cookie may already match server switch from the page render.
       }
+      // Hard navigation so middleware sees the updated JWT cookie immediately.
+      window.location.assign(redirectUrl);
     })();
-    return () => {
-      cancelled = true;
-    };
-  }, [error, redirectUrl, router, sessionPatch, update]);
+  }, [error, redirectUrl, sessionPatch, update]);
 
   if (error) {
     return (

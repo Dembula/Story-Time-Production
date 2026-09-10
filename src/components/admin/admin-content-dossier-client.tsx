@@ -7,18 +7,24 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   CheckCircle,
+  Clock3,
   Eye,
   Film,
   MessageSquare,
+  Percent,
   Play,
+  Search,
   Star,
   Users,
+  Wallet,
   XCircle,
   AlertTriangle,
 } from "lucide-react";
 import { StoryTimeLoadingCenter } from "@/components/ui/storytime-loader";
 import { AdminReviewPlayer } from "@/components/admin/admin-review-player";
 import { AdminEncodeProgress } from "@/components/admin/admin-encode-progress";
+import { formatZar } from "@/lib/format-currency-zar";
+import { formatWatchDuration } from "@/lib/format-watch-duration";
 import {
   REVIEW_CTA_PRESET_TEMPLATES,
   resolveCtaPresetPath,
@@ -27,6 +33,68 @@ import {
 } from "@/lib/review-feedback";
 
 type TabId = "media" | "engagement" | "encode" | "review";
+
+type EngagementInsights = {
+  contentId: string;
+  title: string;
+  creator: { id: string; name: string | null; email: string | null };
+  split: { creatorPct: number; platformPct: number };
+  windows: {
+    allTime: {
+      uniqueViewers: number;
+      sessionCount: number;
+      watchSeconds: number;
+      eligibleSessionCount: number;
+      eligibleWatchSeconds: number;
+      platformEligibleWatchSeconds: number;
+      viewerPoolZar: number;
+      creatorPoolZar: number;
+      platformRetainZar: number;
+      platformWatchSharePct: number;
+      titleCreatorAttributionZar: number;
+      titlePlatformAttributionZar: number;
+      creatorCatalogueEligibleSeconds: number;
+      creatorCatalogueRevenueZar: number;
+      titleShareOfCreatorCataloguePct: number;
+    };
+    monthToDate: {
+      uniqueViewers: number;
+      sessionCount: number;
+      watchSeconds: number;
+      eligibleSessionCount: number;
+      eligibleWatchSeconds: number;
+      platformEligibleWatchSeconds: number;
+      viewerPoolZar: number;
+      creatorPoolZar: number;
+      platformRetainZar: number;
+      platformWatchSharePct: number;
+      titleCreatorAttributionZar: number;
+      titlePlatformAttributionZar: number;
+      creatorCatalogueEligibleSeconds: number;
+      creatorCatalogueRevenueZar: number;
+      titleShareOfCreatorCataloguePct: number;
+      periodLabel: string;
+    };
+  };
+  explanation: { summary: string; bullets: string[] };
+  viewers: Array<{
+    userId: string;
+    displayName: string;
+    email: string | null;
+    sessionCount: number;
+    watchSeconds: number;
+    eligibleSessionCount: number;
+    eligibleWatchSeconds: number;
+    firstWatchedAt: string | null;
+    lastWatchedAt: string | null;
+    mtdWatchSeconds: number;
+    mtdEligibleWatchSeconds: number;
+    titleEligibleSharePct: number;
+    attributedCreatorZarAllTime: number;
+    attributedCreatorZarMtd: number;
+  }>;
+  viewerCount: number;
+};
 
 type Dossier = {
   id: string;
@@ -122,6 +190,8 @@ export function AdminContentDossierClient() {
     Array<{ kind: ReviewFeedbackKind; message: string; presetPath: string }>
   >([]);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
+  const [viewerSearch, setViewerSearch] = useState("");
+  const [engagementWindow, setEngagementWindow] = useState<"allTime" | "monthToDate">("allTime");
 
   const dossierQuery = useQuery({
     queryKey: ["admin-content-dossier", contentId],
@@ -131,6 +201,17 @@ export function AdminContentDossierClient() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed to load content");
       return json as Dossier;
+    },
+  });
+
+  const engagementQuery = useQuery({
+    queryKey: ["admin-content-engagement", contentId],
+    enabled: Boolean(contentId) && tab === "engagement",
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/content/${contentId}/engagement`);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to load engagement");
+      return json as EngagementInsights;
     },
   });
 
@@ -460,67 +541,365 @@ export function AdminContentDossierClient() {
       ) : null}
 
       {tab === "engagement" ? (
-        <section className="grid gap-4 lg:grid-cols-2">
-          <div className="storytime-plan-card p-4">
-            <h2 className="text-sm font-semibold text-white">
-              Ratings · avg {dossier.ratingAverage ?? "—"} ({dossier._count.ratings})
-            </h2>
-            <ul className="mt-3 max-h-80 space-y-2 overflow-y-auto text-sm">
-              {dossier.ratings.length === 0 ? (
-                <li className="text-slate-500">No ratings yet.</li>
-              ) : (
-                dossier.ratings.map((r) => (
-                  <li key={r.id} className="rounded-lg border border-white/5 px-3 py-2">
-                    <div className="flex justify-between gap-2">
-                      <span className="text-white">{r.user.name || r.user.email}</span>
-                      <span className="text-amber-300">{r.score}/5</span>
-                    </div>
-                    <p className="text-xs text-slate-500">{new Date(r.createdAt).toLocaleString()}</p>
-                  </li>
-                ))
-              )}
-            </ul>
-          </div>
-          <div className="storytime-plan-card p-4">
-            <h2 className="text-sm font-semibold text-white">Comments ({dossier._count.comments})</h2>
-            <ul className="mt-3 max-h-80 space-y-3 overflow-y-auto text-sm">
-              {dossier.comments.length === 0 ? (
-                <li className="text-slate-500">No comments yet.</li>
-              ) : (
-                dossier.comments.map((c) => (
-                  <li key={c.id} className="rounded-lg border border-white/5 px-3 py-2">
-                    <p className="text-xs text-slate-500">
-                      {c.user.name || c.user.email} · {new Date(c.createdAt).toLocaleString()}
-                    </p>
-                    <p className="mt-1 text-slate-200">{c.body}</p>
-                    {c.replies.map((r) => (
-                      <div key={r.id} className="mt-2 border-l border-white/10 pl-3 text-xs text-slate-400">
-                        <p className="text-slate-500">{r.user.name || r.user.email}</p>
-                        <p>{r.body}</p>
+        <section className="space-y-4">
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="storytime-plan-card p-4">
+              <h2 className="text-sm font-semibold text-white">
+                Ratings · avg {dossier.ratingAverage ?? "—"} ({dossier._count.ratings})
+              </h2>
+              <ul className="mt-3 max-h-80 space-y-2 overflow-y-auto text-sm">
+                {dossier.ratings.length === 0 ? (
+                  <li className="text-slate-500">No ratings yet.</li>
+                ) : (
+                  dossier.ratings.map((r) => (
+                    <li key={r.id} className="rounded-lg border border-white/5 px-3 py-2">
+                      <div className="flex justify-between gap-2">
+                        <span className="text-white">{r.user.name || r.user.email}</span>
+                        <span className="text-amber-300">{r.score}/5</span>
                       </div>
-                    ))}
-                  </li>
-                ))
-              )}
-            </ul>
+                      <p className="text-xs text-slate-500">{new Date(r.createdAt).toLocaleString()}</p>
+                    </li>
+                  ))
+                )}
+              </ul>
+            </div>
+            <div className="storytime-plan-card p-4">
+              <h2 className="text-sm font-semibold text-white">Comments ({dossier._count.comments})</h2>
+              <ul className="mt-3 max-h-80 space-y-3 overflow-y-auto text-sm">
+                {dossier.comments.length === 0 ? (
+                  <li className="text-slate-500">No comments yet.</li>
+                ) : (
+                  dossier.comments.map((c) => (
+                    <li key={c.id} className="rounded-lg border border-white/5 px-3 py-2">
+                      <p className="text-xs text-slate-500">
+                        {c.user.name || c.user.email} · {new Date(c.createdAt).toLocaleString()}
+                      </p>
+                      <p className="mt-1 text-slate-200">{c.body}</p>
+                      {c.replies.map((r) => (
+                        <div key={r.id} className="mt-2 border-l border-white/10 pl-3 text-xs text-slate-400">
+                          <p className="text-slate-500">{r.user.name || r.user.email}</p>
+                          <p>{r.body}</p>
+                        </div>
+                      ))}
+                    </li>
+                  ))
+                )}
+              </ul>
+            </div>
           </div>
-          <div className="storytime-plan-card p-4 lg:col-span-2">
-            <h2 className="text-sm font-semibold text-white">Recent watches</h2>
-            <ul className="mt-3 grid gap-2 sm:grid-cols-2 text-sm">
-              {dossier.recentWatches.length === 0 ? (
-                <li className="text-slate-500">No watch sessions.</li>
-              ) : (
-                dossier.recentWatches.map((w) => (
-                  <li key={w.id} className="rounded-lg border border-white/5 px-3 py-2">
-                    <p className="text-white">{w.user.name || w.user.email}</p>
-                    <p className="text-xs text-slate-500">
-                      {new Date(w.startedAt).toLocaleString()} · {Math.round(w.durationSeconds / 60)} min
-                    </p>
-                  </li>
-                ))
-              )}
-            </ul>
-          </div>
+
+          {engagementQuery.isLoading ? (
+            <div className="storytime-plan-card p-8">
+              <StoryTimeLoadingCenter />
+            </div>
+          ) : engagementQuery.isError || !engagementQuery.data ? (
+            <div className="storytime-plan-card p-4 text-sm text-rose-300">
+              {engagementQuery.error instanceof Error
+                ? engagementQuery.error.message
+                : "Failed to load all-time engagement."}
+            </div>
+          ) : (
+            (() => {
+              const eng = engagementQuery.data;
+              const windowStats =
+                engagementWindow === "allTime" ? eng.windows.allTime : eng.windows.monthToDate;
+              const filteredViewers = eng.viewers.filter((v) => {
+                const q = viewerSearch.trim().toLowerCase();
+                if (!q) return true;
+                return (
+                  v.displayName.toLowerCase().includes(q) ||
+                  (v.email?.toLowerCase().includes(q) ?? false)
+                );
+              });
+              return (
+                <div className="space-y-4">
+                  <div className="storytime-plan-card space-y-4 p-4 md:p-5">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+                          <Users className="h-4 w-4 text-orange-400" />
+                          Viewer watch activity &amp; creator revenue attribution
+                        </h2>
+                        <p className="mt-1 max-w-3xl text-xs text-slate-400 leading-relaxed">
+                          {eng.explanation.summary}
+                        </p>
+                      </div>
+                      <div className="inline-flex rounded-lg border border-white/10 bg-black/20 p-1">
+                        <button
+                          type="button"
+                          onClick={() => setEngagementWindow("allTime")}
+                          className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                            engagementWindow === "allTime"
+                              ? "bg-orange-500/20 text-orange-100"
+                              : "text-slate-400 hover:text-white"
+                          }`}
+                        >
+                          All time
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEngagementWindow("monthToDate")}
+                          className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                            engagementWindow === "monthToDate"
+                              ? "bg-orange-500/20 text-orange-100"
+                              : "text-slate-400 hover:text-white"
+                          }`}
+                        >
+                          Month to date
+                          {"periodLabel" in eng.windows.monthToDate
+                            ? ` (${eng.windows.monthToDate.periodLabel})`
+                            : ""}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                      <div className="rounded-xl border border-white/8 bg-slate-950/40 p-3">
+                        <p className="text-[11px] uppercase tracking-wide text-slate-500 flex items-center gap-1.5">
+                          <Users className="h-3.5 w-3.5 text-cyan-400" /> Unique viewers
+                        </p>
+                        <p className="mt-1 text-2xl font-semibold text-white">
+                          {windowStats.uniqueViewers.toLocaleString()}
+                        </p>
+                        <p className="text-[11px] text-slate-500">
+                          {windowStats.sessionCount.toLocaleString()} sessions
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-white/8 bg-slate-950/40 p-3">
+                        <p className="text-[11px] uppercase tracking-wide text-slate-500 flex items-center gap-1.5">
+                          <Clock3 className="h-3.5 w-3.5 text-violet-400" /> Watch time
+                        </p>
+                        <p className="mt-1 text-2xl font-semibold text-white">
+                          {formatWatchDuration(windowStats.watchSeconds)}
+                        </p>
+                        <p className="text-[11px] text-slate-500">
+                          Eligible: {formatWatchDuration(windowStats.eligibleWatchSeconds)} ·{" "}
+                          {windowStats.eligibleSessionCount.toLocaleString()} sessions
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-white/8 bg-slate-950/40 p-3">
+                        <p className="text-[11px] uppercase tracking-wide text-slate-500 flex items-center gap-1.5">
+                          <Percent className="h-3.5 w-3.5 text-emerald-400" /> Platform watch share
+                        </p>
+                        <p className="mt-1 text-2xl font-semibold text-emerald-200">
+                          {windowStats.platformWatchSharePct}%
+                        </p>
+                        <p className="text-[11px] text-slate-500">
+                          of {formatWatchDuration(windowStats.platformEligibleWatchSeconds)} platform
+                          eligible watch
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-white/8 bg-slate-950/40 p-3">
+                        <p className="text-[11px] uppercase tracking-wide text-slate-500 flex items-center gap-1.5">
+                          <Wallet className="h-3.5 w-3.5 text-amber-400" /> Title → creator pool
+                        </p>
+                        <p className="mt-1 text-2xl font-semibold text-amber-100">
+                          {formatZar(windowStats.titleCreatorAttributionZar, {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                        </p>
+                        <p className="text-[11px] text-slate-500">
+                          of{" "}
+                          {formatZar(windowStats.creatorPoolZar, {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}{" "}
+                          creator pool ({eng.split.creatorPct}%)
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-3 lg:grid-cols-3">
+                      <div className="rounded-xl border border-white/8 bg-black/20 p-3 text-xs text-slate-400 space-y-1.5">
+                        <p className="font-medium text-slate-200">Viewer pool → split</p>
+                        <p>
+                          Viewer pool (net):{" "}
+                          <span className="text-white">
+                            {formatZar(windowStats.viewerPoolZar, {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}
+                          </span>
+                        </p>
+                        <p>
+                          Creator pool ({eng.split.creatorPct}%):{" "}
+                          <span className="text-emerald-200">
+                            {formatZar(windowStats.creatorPoolZar, {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}
+                          </span>
+                        </p>
+                        <p>
+                          Story Time retain ({eng.split.platformPct}%):{" "}
+                          <span className="text-slate-200">
+                            {formatZar(windowStats.platformRetainZar, {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}
+                          </span>
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-white/8 bg-black/20 p-3 text-xs text-slate-400 space-y-1.5">
+                        <p className="font-medium text-slate-200">This title&apos;s cut</p>
+                        <p>
+                          Creator attribution:{" "}
+                          <span className="text-amber-100">
+                            {formatZar(windowStats.titleCreatorAttributionZar, {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}
+                          </span>
+                        </p>
+                        <p>
+                          Platform attribution:{" "}
+                          <span className="text-slate-200">
+                            {formatZar(windowStats.titlePlatformAttributionZar, {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}
+                          </span>
+                        </p>
+                        <p>
+                          Share of creator catalogue:{" "}
+                          <span className="text-cyan-200">
+                            {windowStats.titleShareOfCreatorCataloguePct}%
+                          </span>
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-white/8 bg-black/20 p-3 text-xs text-slate-400 space-y-1.5">
+                        <p className="font-medium text-slate-200">Creator overall</p>
+                        <p>
+                          {eng.creator.name || eng.creator.email || "Creator"}
+                        </p>
+                        <p>
+                          Catalogue eligible watch:{" "}
+                          <span className="text-white">
+                            {formatWatchDuration(windowStats.creatorCatalogueEligibleSeconds)}
+                          </span>
+                        </p>
+                        <p>
+                          Estimated catalogue revenue:{" "}
+                          <span className="text-emerald-200">
+                            {formatZar(windowStats.creatorCatalogueRevenueZar, {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+
+                    <ul className="space-y-1 text-[11px] text-slate-500 leading-relaxed">
+                      {eng.explanation.bullets.map((bullet) => (
+                        <li key={bullet}>• {bullet}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="storytime-plan-card p-4 md:p-5 space-y-3">
+                    <div className="flex flex-wrap items-end justify-between gap-3">
+                      <div>
+                        <h3 className="text-sm font-semibold text-white">
+                          All viewers ({eng.viewerCount})
+                        </h3>
+                        <p className="text-xs text-slate-500">
+                          Every account that has watched this title — watch time, eligible share, and
+                          attributed creator-pool ZAR.
+                        </p>
+                      </div>
+                      <div className="relative w-full max-w-xs">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
+                        <input
+                          value={viewerSearch}
+                          onChange={(e) => setViewerSearch(e.target.value)}
+                          placeholder="Search viewers…"
+                          className="w-full rounded-lg border border-white/10 bg-black/30 py-2 pl-9 pr-3 text-sm text-white placeholder:text-slate-500"
+                        />
+                      </div>
+                    </div>
+
+                    {filteredViewers.length === 0 ? (
+                      <p className="text-sm text-slate-500">No viewers match this filter.</p>
+                    ) : (
+                      <div className="overflow-x-auto rounded-xl border border-white/8">
+                        <table className="storytime-table w-full min-w-[920px] text-left text-xs">
+                          <thead>
+                            <tr className="border-b border-white/8 text-slate-500">
+                              <th className="px-3 py-2.5 font-medium">Viewer</th>
+                              <th className="px-3 py-2.5 font-medium">Sessions</th>
+                              <th className="px-3 py-2.5 font-medium">Watch time</th>
+                              <th className="px-3 py-2.5 font-medium">Eligible watch</th>
+                              <th className="px-3 py-2.5 font-medium">Title share</th>
+                              <th className="px-3 py-2.5 font-medium">Creator ZAR (all-time)</th>
+                              <th className="px-3 py-2.5 font-medium">Creator ZAR (MTD)</th>
+                              <th className="px-3 py-2.5 font-medium">First / last watch</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filteredViewers.map((v) => (
+                              <tr key={v.userId} className="border-b border-white/5 hover:bg-white/[0.02]">
+                                <td className="px-3 py-2.5">
+                                  <p className="font-medium text-white">{v.displayName}</p>
+                                  <p className="text-slate-500">{v.email}</p>
+                                </td>
+                                <td className="px-3 py-2.5 text-slate-300">
+                                  {v.sessionCount}
+                                  <span className="text-slate-600">
+                                    {" "}
+                                    / {v.eligibleSessionCount} elig.
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2.5 text-slate-200">
+                                  {formatWatchDuration(v.watchSeconds)}
+                                  {engagementWindow === "monthToDate" ? (
+                                    <span className="block text-[10px] text-slate-500">
+                                      MTD {formatWatchDuration(v.mtdWatchSeconds)}
+                                    </span>
+                                  ) : null}
+                                </td>
+                                <td className="px-3 py-2.5 text-cyan-100">
+                                  {formatWatchDuration(v.eligibleWatchSeconds)}
+                                  {engagementWindow === "monthToDate" ? (
+                                    <span className="block text-[10px] text-slate-500">
+                                      MTD {formatWatchDuration(v.mtdEligibleWatchSeconds)}
+                                    </span>
+                                  ) : null}
+                                </td>
+                                <td className="px-3 py-2.5 text-slate-300">{v.titleEligibleSharePct}%</td>
+                                <td className="px-3 py-2.5 text-amber-100">
+                                  {formatZar(v.attributedCreatorZarAllTime, {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2,
+                                  })}
+                                </td>
+                                <td className="px-3 py-2.5 text-emerald-200">
+                                  {formatZar(v.attributedCreatorZarMtd, {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2,
+                                  })}
+                                </td>
+                                <td className="px-3 py-2.5 text-slate-500">
+                                  {v.firstWatchedAt
+                                    ? new Date(v.firstWatchedAt).toLocaleDateString()
+                                    : "—"}
+                                  {" → "}
+                                  {v.lastWatchedAt
+                                    ? new Date(v.lastWatchedAt).toLocaleDateString()
+                                    : "—"}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()
+          )}
         </section>
       ) : null}
 

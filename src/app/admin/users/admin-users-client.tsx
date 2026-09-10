@@ -1,7 +1,7 @@
 "use client";
 
 import { StoryTimeLoader, StoryTimeLoadingCenter } from "@/components/ui/storytime-loader";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
   Users, Shield, Trash2, Edit3, ChevronDown, ChevronUp, Search,
@@ -13,6 +13,18 @@ import {
   subscriptionStatusBadgeClass,
   type AdminViewerSubscriptionSnapshot,
 } from "@/lib/admin/viewer-subscription-status";
+import {
+  COMPANY_TYPE_LABELS,
+  describeAdminCompanySubscription,
+  describeAdminCreatorLicense,
+  describeAdminFunderVerification,
+  userHasCompanyRole,
+  userHasCreatorRole,
+  type AdminCompanySubscriptionSnapshot,
+  type AdminCreatorLicenseSnapshot,
+  type AdminFunderProfileSnapshot,
+} from "@/lib/admin/package-billing-status";
+import { formatCreatorLicenseSummary, getCompanyPlanConfig } from "@/lib/pricing";
 import {
   ADMIN_RIGHT_SUITES,
   adminRightsSummary,
@@ -37,6 +49,9 @@ interface User {
   updatedAt: string;
   _count: { contents: number; musicTracks: number; watchSessions: number; comments: number; ratings: number; activityLogs: number; equipmentListings: number; locationListings: number };
   viewerSubscription?: AdminViewerSubscriptionSnapshot | null;
+  creatorLicense?: AdminCreatorLicenseSnapshot | null;
+  companySubscriptions?: AdminCompanySubscriptionSnapshot[];
+  funderProfile?: AdminFunderProfileSnapshot | null;
 }
 
 const ROLES = [
@@ -72,6 +87,22 @@ function getRoleList(user: User): string[] {
   const roles = user.userRoles?.map((entry) => entry.role).filter(Boolean) ?? [];
   if (roles.length > 0) return Array.from(new Set(roles));
   return [user.role];
+}
+
+function BillingBadge({ label, tone }: { label: string; tone: Parameters<typeof subscriptionStatusBadgeClass>[0] }) {
+  return (
+    <span className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[10px] font-medium ${subscriptionStatusBadgeClass(tone)}`}>
+      <CreditCard className="w-3 h-3" />
+      {label}
+    </span>
+  );
+}
+
+function companySubsForUser(user: User, roles: string[]): AdminCompanySubscriptionSnapshot[] {
+  const all = user.companySubscriptions ?? [];
+  const roleSet = new Set(roles);
+  const matching = all.filter((sub) => roleSet.has(sub.companyType));
+  return matching.length > 0 ? matching : all;
 }
 
 export function AdminUsersClient() {
@@ -229,23 +260,60 @@ export function AdminUsersClient() {
                   {getRoleList(u).map((roleName) => (
                     <span key={roleName}>{roleBadge(roleName)}</span>
                   ))}
-                  {getRoleList(u).includes("SUBSCRIBER") && (() => {
-                    const subStatus = describeAdminViewerSubscription(u.viewerSubscription);
-                    return (
-                      <span className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[10px] font-medium ${subscriptionStatusBadgeClass(subStatus.tone)}`}>
-                        <CreditCard className="w-3 h-3" />
-                        {subStatus.label}
-                      </span>
-                    );
+                  {(() => {
+                    const roles = getRoleList(u);
+                    const badges: ReactNode[] = [];
+                    if (roles.includes("SUBSCRIBER")) {
+                      const subStatus = describeAdminViewerSubscription(u.viewerSubscription);
+                      badges.push(<BillingBadge key="viewer" label={subStatus.label} tone={subStatus.tone} />);
+                    }
+                    if (userHasCreatorRole(roles)) {
+                      const creatorStatus = describeAdminCreatorLicense(u.creatorLicense);
+                      badges.push(<BillingBadge key="creator" label={creatorStatus.label} tone={creatorStatus.tone} />);
+                    }
+                    if (userHasCompanyRole(roles)) {
+                      const companyRows = companySubsForUser(u, roles);
+                      if (companyRows.length === 0) {
+                        const empty = describeAdminCompanySubscription(null);
+                        badges.push(<BillingBadge key="company-empty" label={empty.label} tone={empty.tone} />);
+                      } else {
+                        companyRows.forEach((sub) => {
+                          const status = describeAdminCompanySubscription(sub);
+                          badges.push(
+                            <BillingBadge key={`company-${sub.companyType}-${sub.plan}`} label={status.label} tone={status.tone} />,
+                          );
+                        });
+                      }
+                    }
+                    if (roles.includes("FUNDER")) {
+                      const funderStatus = describeAdminFunderVerification(u.funderProfile);
+                      badges.push(<BillingBadge key="funder" label={funderStatus.label} tone={funderStatus.tone} />);
+                    }
+                    return badges;
                   })()}
                   {u.isAfdaStudent && <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400"><GraduationCap className="w-3 h-3 inline" /> Student</span>}
                 </div>
                 <p className="text-xs text-slate-500 truncate">{u.email}</p>
-                {getRoleList(u).includes("SUBSCRIBER") && u.viewerSubscription ? (
-                  <p className="text-[10px] text-slate-500 mt-0.5">
-                    {describeAdminViewerSubscription(u.viewerSubscription).detail}
-                  </p>
-                ) : null}
+                {(() => {
+                  const roles = getRoleList(u);
+                  const details: string[] = [];
+                  if (roles.includes("SUBSCRIBER") && u.viewerSubscription) {
+                    details.push(describeAdminViewerSubscription(u.viewerSubscription).detail);
+                  }
+                  if (userHasCreatorRole(roles) && u.creatorLicense) {
+                    details.push(describeAdminCreatorLicense(u.creatorLicense).detail);
+                  }
+                  if (userHasCompanyRole(roles)) {
+                    for (const sub of companySubsForUser(u, roles)) {
+                      details.push(describeAdminCompanySubscription(sub).detail);
+                    }
+                  }
+                  if (roles.includes("FUNDER") && u.funderProfile) {
+                    details.push(describeAdminFunderVerification(u.funderProfile).detail);
+                  }
+                  if (details.length === 0) return null;
+                  return <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-2">{details.join(" · ")}</p>;
+                })()}
               </div>
               <div className="hidden md:flex items-center gap-6 text-xs text-slate-400">
                 <span className="flex items-center gap-1"><Film className="w-3 h-3" /> {u._count.contents}</span>
@@ -319,6 +387,132 @@ export function AdminUsersClient() {
                       );
                     })() : (
                       <p className="text-sm text-slate-500">No subscription record</p>
+                    )}
+                  </div>
+                ) : null}
+
+                {userHasCreatorRole(getRoleList(u)) ? (
+                  <div className="p-4 rounded-lg bg-slate-800/40 border border-slate-700/40">
+                    <p className="text-xs uppercase tracking-wide text-slate-500 mb-2 flex items-center gap-1.5">
+                      <CreditCard className="w-3.5 h-3.5 text-emerald-400" /> Creator distribution package
+                    </p>
+                    {u.creatorLicense ? (() => {
+                      const status = describeAdminCreatorLicense(u.creatorLicense);
+                      const license = u.creatorLicense!;
+                      return (
+                        <div className="space-y-2 text-sm">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className={`rounded border px-2 py-0.5 text-xs font-medium ${subscriptionStatusBadgeClass(status.tone)}`}>
+                              {status.label}
+                            </span>
+                            <span className="text-slate-400">{status.detail}</span>
+                          </div>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-slate-400">
+                            <p>Plan: <span className="text-slate-200">{formatCreatorLicenseSummary(license.type)}</span></p>
+                            <p>Status: <span className="text-slate-200">{license.status}</span></p>
+                            {license.lastPaymentStatus ? (
+                              <p>Last payment: <span className="text-slate-200">{license.lastPaymentStatus}</span></p>
+                            ) : null}
+                            {license.lastPaymentAt ? (
+                              <p>Paid at: <span className="text-slate-200">{new Date(license.lastPaymentAt).toLocaleDateString()}</span></p>
+                            ) : null}
+                            {license.yearlyExpiresAt ? (
+                              <p>Period end: <span className="text-slate-200">{new Date(license.yearlyExpiresAt).toLocaleDateString()}</span></p>
+                            ) : null}
+                            {license.pastDueSince ? (
+                              <p>Past due since: <span className="text-red-300">{new Date(license.pastDueSince).toLocaleDateString()}</span></p>
+                            ) : null}
+                          </div>
+                          {license.lastPaymentError ? (
+                            <p className="text-xs text-red-300">Payment error: {license.lastPaymentError}</p>
+                          ) : null}
+                        </div>
+                      );
+                    })() : (
+                      <p className="text-sm text-slate-500">No creator package / licence record — payment not completed or package not started.</p>
+                    )}
+                  </div>
+                ) : null}
+
+                {userHasCompanyRole(getRoleList(u)) ? (
+                  <div className="p-4 rounded-lg bg-slate-800/40 border border-slate-700/40 space-y-3">
+                    <p className="text-xs uppercase tracking-wide text-slate-500 flex items-center gap-1.5">
+                      <CreditCard className="w-3.5 h-3.5 text-blue-400" /> Company listing subscription
+                    </p>
+                    {companySubsForUser(u, getRoleList(u)).length === 0 ? (
+                      <p className="text-sm text-slate-500">No company listing payment record yet.</p>
+                    ) : (
+                      companySubsForUser(u, getRoleList(u)).map((sub) => {
+                        const status = describeAdminCompanySubscription(sub);
+                        const plan = getCompanyPlanConfig(sub.plan);
+                        return (
+                          <div key={`${sub.companyType}-${sub.plan}-${sub.status}`} className="space-y-2 text-sm border-t border-slate-700/40 pt-3 first:border-0 first:pt-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className={`rounded border px-2 py-0.5 text-xs font-medium ${subscriptionStatusBadgeClass(status.tone)}`}>
+                                {status.label}
+                              </span>
+                              <span className="text-slate-400">{status.detail}</span>
+                            </div>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-slate-400">
+                              <p>Type: <span className="text-slate-200">{COMPANY_TYPE_LABELS[sub.companyType] ?? sub.companyType}</span></p>
+                              <p>Plan: <span className="text-slate-200">{plan.label} (R{plan.price})</span></p>
+                              <p>Status: <span className="text-slate-200">{sub.status}</span></p>
+                              {sub.lastPaymentStatus ? (
+                                <p>Last payment: <span className="text-slate-200">{sub.lastPaymentStatus}</span></p>
+                              ) : null}
+                              {sub.lastPaymentAt ? (
+                                <p>Paid at: <span className="text-slate-200">{new Date(sub.lastPaymentAt).toLocaleDateString()}</span></p>
+                              ) : null}
+                              {sub.currentPeriodEnd ? (
+                                <p>Period end: <span className="text-slate-200">{new Date(sub.currentPeriodEnd).toLocaleDateString()}</span></p>
+                              ) : null}
+                              {sub.pastDueSince ? (
+                                <p>Past due since: <span className="text-red-300">{new Date(sub.pastDueSince).toLocaleDateString()}</span></p>
+                              ) : null}
+                            </div>
+                            {sub.lastPaymentError ? (
+                              <p className="text-xs text-red-300">Payment error: {sub.lastPaymentError}</p>
+                            ) : null}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                ) : null}
+
+                {getRoleList(u).includes("FUNDER") ? (
+                  <div className="p-4 rounded-lg bg-slate-800/40 border border-slate-700/40">
+                    <p className="text-xs uppercase tracking-wide text-slate-500 mb-2 flex items-center gap-1.5">
+                      <CreditCard className="w-3.5 h-3.5 text-cyan-400" /> Funder / stakeholder verification
+                    </p>
+                    {u.funderProfile ? (() => {
+                      const status = describeAdminFunderVerification(u.funderProfile);
+                      const profile = u.funderProfile!;
+                      return (
+                        <div className="space-y-2 text-sm">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className={`rounded border px-2 py-0.5 text-xs font-medium ${subscriptionStatusBadgeClass(status.tone)}`}>
+                              {status.label}
+                            </span>
+                            <span className="text-slate-400">{status.detail}</span>
+                          </div>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-slate-400">
+                            <p>KYC: <span className="text-slate-200">{profile.verificationStatus}</span></p>
+                            <p>Limited access: <span className="text-slate-200">{profile.limitedAccessEnabled ? "Yes" : "No"}</span></p>
+                            {profile.submittedAt ? (
+                              <p>Submitted: <span className="text-slate-200">{new Date(profile.submittedAt).toLocaleDateString()}</span></p>
+                            ) : null}
+                            {profile.reviewedAt ? (
+                              <p>Reviewed: <span className="text-slate-200">{new Date(profile.reviewedAt).toLocaleDateString()}</span></p>
+                            ) : null}
+                          </div>
+                          <Link href="/admin/funders" className="text-xs text-cyan-300 hover:text-cyan-200 inline-flex items-center gap-1">
+                            Open funders review <ExternalLink className="w-3 h-3" />
+                          </Link>
+                        </div>
+                      );
+                    })() : (
+                      <p className="text-sm text-slate-500">No funder profile yet — stakeholder has not started KYC.</p>
                     )}
                   </div>
                 ) : null}

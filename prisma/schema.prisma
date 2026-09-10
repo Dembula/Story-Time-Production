@@ -280,6 +280,14 @@ model User {
   capTableEntries       CapTableEntry[]
   projectRevenueEventsLogged ProjectRevenueEvent[] @relation("ProjectRevenueEventRecordedBy")
   stakeholderPayouts    StakeholderPayout[]
+  executiveSeat         ExecutiveSeat?
+  executiveAuditLogs    ExecutiveAuditLog[]
+  executiveCalendarOwned ExecutiveCalendarEvent[] @relation("ExecutiveCalendarOwner")
+  executiveCalendarCreated ExecutiveCalendarEvent[] @relation("ExecutiveCalendarCreator")
+  executiveCalendarAttendees ExecutiveCalendarAttendee[]
+  executiveThreadMembers ExecutiveThreadMember[]
+  executiveMessagesSent  ExecutiveMessage[] @relation("ExecutiveMessageSender")
+  executiveReportsCreated ExecutiveReport[] @relation("ExecutiveReportCreator")
 }
 
 model UserRole {
@@ -708,6 +716,10 @@ model ViewerProfile {
   name      String
   age       Int
   dateOfBirth DateTime?
+  /// Optional self-described gender (aggregated for creator audience insights).
+  gender    String?
+  /// Optional self-described race / ethnicity (aggregated for creator audience insights).
+  race      String?
   /// Free-form personalization and learned preferences for recommendations.
   preferences Json?
 
@@ -4845,5 +4857,167 @@ model StakeholderSyncEvent {
 
   @@index([projectId])
   @@index([createdAt])
+}
+
+/// C-suite executive seat — email maps to one office (CEO/COO/CMO/CFO/CIO).
+model ExecutiveSeat {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  office    String   // CEO | COO | CMO | CFO | CIO
+  userId    String?  @unique
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([office])
+  @@index([active])
+}
+
+model ExecutiveAuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  email      String?
+  office     String?
+  action     String
+  entityType String?
+  entityId   String?
+  outcome    String   @default("OK")
+  meta       Json?
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([office])
+  @@index([createdAt])
+  @@index([action])
+}
+
+model ExecutiveCalendarEvent {
+  id                String   @id @default(cuid())
+  title             String
+  description       String?
+  startsAt          DateTime
+  endsAt            DateTime
+  allDay            Boolean  @default(false)
+  ownerId           String
+  owner             User     @relation("ExecutiveCalendarOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  createdById       String
+  createdBy         User     @relation("ExecutiveCalendarCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  department        String?
+  priority          String   @default("MEDIUM")
+  status            String   @default("SCHEDULED")
+  eventType         String   @default("MEETING")
+  relatedContentId  String?
+  relatedCampaignId String?
+  relatedCreatorId  String?
+  relatedProjectId  String?
+  relatedReportId   String?
+  notes             String?
+  reminderAt        DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  attendees ExecutiveCalendarAttendee[]
+
+  @@index([startsAt])
+  @@index([ownerId])
+  @@index([department])
+  @@index([status])
+}
+
+model ExecutiveCalendarAttendee {
+  id       String @id @default(cuid())
+  eventId  String
+  event    ExecutiveCalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  response String @default("PENDING")
+
+  @@unique([eventId, userId])
+  @@index([userId])
+}
+
+model ExecutiveThread {
+  id          String   @id @default(cuid())
+  subject     String?
+  kind        String   @default("GROUP")
+  sensitivity String   @default("STANDARD")
+  department  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members  ExecutiveThreadMember[]
+  messages ExecutiveMessage[]
+
+  @@index([kind])
+  @@index([updatedAt])
+}
+
+model ExecutiveThreadMember {
+  id         String    @id @default(cuid())
+  threadId   String
+  thread     ExecutiveThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  office     String?
+  lastReadAt DateTime?
+  joinedAt   DateTime  @default(now())
+
+  @@unique([threadId, userId])
+  @@index([userId])
+}
+
+model ExecutiveMessage {
+  id              String   @id @default(cuid())
+  threadId        String
+  thread          ExecutiveThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  senderId        String
+  sender          User     @relation("ExecutiveMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  ciphertext      String
+  iv              String
+  priority        String   @default("NORMAL")
+  pinned          Boolean  @default(false)
+  parentMessageId String?
+  meta            Json?
+  createdAt       DateTime @default(now())
+
+  @@index([threadId, createdAt])
+  @@index([senderId])
+}
+
+model ExecutiveReport {
+  id          String    @id @default(cuid())
+  office      String
+  title       String
+  definition  Json
+  createdById String
+  createdBy   User      @relation("ExecutiveReportCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  lastRunAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  schedules ExecutiveReportSchedule[]
+
+  @@index([office])
+  @@index([createdById])
+}
+
+model ExecutiveReportSchedule {
+  id        String    @id @default(cuid())
+  reportId  String
+  report    ExecutiveReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  cadence   String
+  timezone  String    @default("Africa/Johannesburg")
+  hourLocal Int       @default(8)
+  weekday   Int?
+  active    Boolean   @default(true)
+  nextRunAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([reportId])
+  @@index([active, nextRunAt])
 }
 

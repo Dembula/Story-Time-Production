@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { defaultHomeForRole } from "@/lib/auth-sign-in-path";
+import { executiveHomePath, officeFromEmail } from "@/lib/executive/seat-map";
 import { LandingHeader } from "@/components/landing/LandingHeader";
 import { Hero } from "@/components/landing/Hero";
 import { Stats } from "@/components/landing/Stats";
@@ -15,16 +16,21 @@ import { PlatformMediaPrefetch } from "@/components/prefetch/platform-media-pref
 export default async function HomePage() {
   const session = await getServerSession(authOptions);
 
-  if (session?.user?.role === "ADMIN") redirect("/admin");
-  if (session?.user?.role === "CONTENT_CREATOR") redirect("/creator/command-center");
-  if (session?.user?.role === "MUSIC_CREATOR") redirect("/music-creator/dashboard");
-  if (session?.user?.role === "EQUIPMENT_COMPANY") redirect("/company/onboarding/subscription");
-  if (session?.user?.role === "LOCATION_OWNER") redirect("/company/onboarding/subscription");
-  if (session?.user?.role === "CREW_TEAM") redirect("/company/onboarding/subscription");
-  if (session?.user?.role === "CASTING_AGENCY") redirect("/company/onboarding/subscription");
-  if (session?.user?.role === "CATERING_COMPANY") redirect("/company/onboarding/subscription");
-  if (session?.user?.role === "FUNDER") redirect(defaultHomeForRole("FUNDER"));
-  if (session) redirect(defaultHomeForRole(session.user.role));
+  if (session?.user) {
+    const office = officeFromEmail(session.user.email);
+    if (office) redirect(executiveHomePath(office));
+
+    if (session.user.role === "ADMIN") redirect("/admin");
+    if (session.user.role === "CONTENT_CREATOR") redirect("/creator/command-center");
+    if (session.user.role === "MUSIC_CREATOR") redirect("/music-creator/dashboard");
+    if (session.user.role === "EQUIPMENT_COMPANY") redirect("/company/onboarding/subscription");
+    if (session.user.role === "LOCATION_OWNER") redirect("/company/onboarding/subscription");
+    if (session.user.role === "CREW_TEAM") redirect("/company/onboarding/subscription");
+    if (session.user.role === "CASTING_AGENCY") redirect("/company/onboarding/subscription");
+    if (session.user.role === "CATERING_COMPANY") redirect("/company/onboarding/subscription");
+    if (session.user.role === "FUNDER") redirect(defaultHomeForRole("FUNDER"));
+    redirect(defaultHomeForRole(session.user.role, session.user.email));
+  }
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-background text-white">

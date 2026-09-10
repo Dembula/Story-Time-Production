@@ -238,19 +238,27 @@ export const AUDITION_LISTING_FEE_ZAR = 99.99;
 export const COMPANY_PLAN_CONFIG = {
   STANDARD: {
     label: "Normal listing",
-    price: 24.99,
+    price: 249.99,
     featured: false,
   },
   FEATURED: {
     label: "Featured listing",
-    price: 44.99,
+    price: 599.99,
     featured: true,
   },
 } as const;
 
 export function normalizeCompanyPlan(plan?: string | null) {
   if (!plan) return "STANDARD" as const;
-  if (plan === "FEATURED" || plan === "PROMOTED_R49" || plan === "PROMOTED_R44_99") return "FEATURED" as const;
+  if (
+    plan === "FEATURED" ||
+    plan === "PROMOTED_R49" ||
+    plan === "PROMOTED_R44_99" ||
+    plan === "PROMOTED_R599_99" ||
+    plan === "FEATURED_R599_99"
+  ) {
+    return "FEATURED" as const;
+  }
   return "STANDARD" as const;
 }
 

@@ -120,8 +120,12 @@ export async function getCreatorCommandCenter(
       })),
       getCreatorAudienceInsights(creatorId, start, end).catch(() => ({
         ageDistribution: [],
+        genderDistribution: [],
+        raceDistribution: [],
         totalViewers: 0,
         viewersWithKnownAge: 0,
+        viewersWithKnownGender: 0,
+        viewersWithKnownRace: 0,
         byTitle: [],
       })),
       getCreatorEngagementInsights(creatorId, new Date(0), end, 100),

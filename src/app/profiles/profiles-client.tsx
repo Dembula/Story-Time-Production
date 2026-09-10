@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus, User, Shield, Users, CheckCircle, AlertCircle, Settings, Lock } from "lucide-react";
 import { getBirthDateOptionSets } from "@/lib/viewer-profiles";
+import { VIEWER_GENDER_OPTIONS, VIEWER_RACE_OPTIONS } from "@/lib/viewer-demographics";
 import { ProfilePinModal } from "@/components/viewer/profile-pin-modal";
 import { LogOutButton } from "@/components/auth/log-out-button";
 import { SubscriptionResumeButton } from "@/components/viewer/subscription-resume-checkout";
@@ -15,6 +16,8 @@ type Profile = {
   name: string;
   age: number;
   dateOfBirth: string | null;
+  gender?: string | null;
+  race?: string | null;
   updatedAt: string | Date;
   pinEnabled?: boolean;
 };
@@ -23,6 +26,49 @@ function ageLabel(age: number): string {
   if (age <= 12) return "Kids";
   if (age <= 15) return "Teen";
   return "Adult";
+}
+
+function DemographicChipGroup({
+  label,
+  hint,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  options: readonly string[];
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="space-y-1">
+        <p className="text-sm font-medium text-white">{label}</p>
+        <p className="text-xs text-slate-500 leading-relaxed">{hint}</p>
+      </div>
+      <div className="flex flex-wrap gap-2.5 sm:gap-3">
+        {options.map((option) => {
+          const selected = value === option;
+          return (
+            <button
+              key={option}
+              type="button"
+              onClick={() => onChange(selected ? "" : option)}
+              className={`rounded-xl border px-3.5 py-2.5 text-sm transition duration-200 ease-out ${
+                selected
+                  ? "border-orange-400/60 bg-orange-500/20 text-orange-50 shadow-[0_0_0_1px_rgba(249,115,22,0.25)]"
+                  : "border-white/10 bg-white/[0.03] text-slate-300 hover:border-white/20 hover:bg-white/[0.06] hover:text-white"
+              }`}
+              aria-pressed={selected}
+            >
+              {option}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 export function ProfilesClient({
@@ -57,6 +103,8 @@ export function ProfilesClient({
   const [birthYear, setBirthYear] = useState<number | "">("");
   const [birthMonth, setBirthMonth] = useState<number | "">("");
   const [birthDay, setBirthDay] = useState<number | "">("");
+  const [gender, setGender] = useState("");
+  const [race, setRace] = useState("");
   const [pinEnabledOnCreate, setPinEnabledOnCreate] = useState(false);
   const [createPin, setCreatePin] = useState("");
   const [createPinConfirm, setCreatePinConfirm] = useState("");
@@ -244,6 +292,8 @@ export function ProfilesClient({
           birthYear,
           birthMonth,
           birthDay,
+          ...(gender ? { gender } : {}),
+          ...(race ? { race } : {}),
           pinEnabled: pinEnabledOnCreate,
           ...(pinEnabledOnCreate ? { pin: createPin } : {}),
         }),
@@ -256,6 +306,8 @@ export function ProfilesClient({
       setBirthYear("");
       setBirthMonth("");
       setBirthDay("");
+      setGender("");
+      setRace("");
       setPinEnabledOnCreate(false);
       setCreatePin("");
       setCreatePinConfirm("");
@@ -521,6 +573,29 @@ export function ProfilesClient({
                 The app calculates age automatically from the birth date and applies the correct censorship rules.
               </p>
             </div>
+          </div>
+
+          <div className="space-y-6 rounded-xl border border-white/8 bg-white/[0.02] p-5 sm:p-6">
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-white">About you <span className="font-normal text-slate-500">(optional)</span></p>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Helps creators understand who their films reach. Tap once to select, tap again to clear. Never required.
+              </p>
+            </div>
+            <DemographicChipGroup
+              label="Gender"
+              hint="Choose the option that fits best, or skip."
+              options={VIEWER_GENDER_OPTIONS}
+              value={gender}
+              onChange={setGender}
+            />
+            <DemographicChipGroup
+              label="Race / ethnicity"
+              hint="Optional — used only in anonymous audience charts for creators."
+              options={VIEWER_RACE_OPTIONS}
+              value={race}
+              onChange={setRace}
+            />
           </div>
 
           <div className="rounded-xl border border-white/8 bg-white/[0.03] p-4 space-y-3">

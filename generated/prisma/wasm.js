@@ -469,6 +469,8 @@ exports.Prisma.ViewerProfileScalarFieldEnum = {
   name: 'name',
   age: 'age',
   dateOfBirth: 'dateOfBirth',
+  gender: 'gender',
+  race: 'race',
   preferences: 'preferences',
   pinEnabled: 'pinEnabled',
   pinHash: 'pinHash',
@@ -3101,6 +3103,117 @@ exports.Prisma.StakeholderSyncEventScalarFieldEnum = {
   createdAt: 'createdAt'
 };
 
+exports.Prisma.ExecutiveSeatScalarFieldEnum = {
+  id: 'id',
+  email: 'email',
+  office: 'office',
+  userId: 'userId',
+  active: 'active',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.ExecutiveAuditLogScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  email: 'email',
+  office: 'office',
+  action: 'action',
+  entityType: 'entityType',
+  entityId: 'entityId',
+  outcome: 'outcome',
+  meta: 'meta',
+  ip: 'ip',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.ExecutiveCalendarEventScalarFieldEnum = {
+  id: 'id',
+  title: 'title',
+  description: 'description',
+  startsAt: 'startsAt',
+  endsAt: 'endsAt',
+  allDay: 'allDay',
+  ownerId: 'ownerId',
+  createdById: 'createdById',
+  department: 'department',
+  priority: 'priority',
+  status: 'status',
+  eventType: 'eventType',
+  relatedContentId: 'relatedContentId',
+  relatedCampaignId: 'relatedCampaignId',
+  relatedCreatorId: 'relatedCreatorId',
+  relatedProjectId: 'relatedProjectId',
+  relatedReportId: 'relatedReportId',
+  notes: 'notes',
+  reminderAt: 'reminderAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.ExecutiveCalendarAttendeeScalarFieldEnum = {
+  id: 'id',
+  eventId: 'eventId',
+  userId: 'userId',
+  response: 'response'
+};
+
+exports.Prisma.ExecutiveThreadScalarFieldEnum = {
+  id: 'id',
+  subject: 'subject',
+  kind: 'kind',
+  sensitivity: 'sensitivity',
+  department: 'department',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.ExecutiveThreadMemberScalarFieldEnum = {
+  id: 'id',
+  threadId: 'threadId',
+  userId: 'userId',
+  office: 'office',
+  lastReadAt: 'lastReadAt',
+  joinedAt: 'joinedAt'
+};
+
+exports.Prisma.ExecutiveMessageScalarFieldEnum = {
+  id: 'id',
+  threadId: 'threadId',
+  senderId: 'senderId',
+  ciphertext: 'ciphertext',
+  iv: 'iv',
+  priority: 'priority',
+  pinned: 'pinned',
+  parentMessageId: 'parentMessageId',
+  meta: 'meta',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.ExecutiveReportScalarFieldEnum = {
+  id: 'id',
+  office: 'office',
+  title: 'title',
+  definition: 'definition',
+  createdById: 'createdById',
+  lastRunAt: 'lastRunAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.ExecutiveReportScheduleScalarFieldEnum = {
+  id: 'id',
+  reportId: 'reportId',
+  cadence: 'cadence',
+  timezone: 'timezone',
+  hourLocal: 'hourLocal',
+  weekday: 'weekday',
+  active: 'active',
+  nextRunAt: 'nextRunAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
 exports.Prisma.SortOrder = {
   asc: 'asc',
   desc: 'desc'
@@ -3354,7 +3467,16 @@ exports.Prisma.ModelName = {
   LocationListingManager: 'LocationListingManager',
   EquipmentInventoryTag: 'EquipmentInventoryTag',
   CateringMealForecast: 'CateringMealForecast',
-  StakeholderSyncEvent: 'StakeholderSyncEvent'
+  StakeholderSyncEvent: 'StakeholderSyncEvent',
+  ExecutiveSeat: 'ExecutiveSeat',
+  ExecutiveAuditLog: 'ExecutiveAuditLog',
+  ExecutiveCalendarEvent: 'ExecutiveCalendarEvent',
+  ExecutiveCalendarAttendee: 'ExecutiveCalendarAttendee',
+  ExecutiveThread: 'ExecutiveThread',
+  ExecutiveThreadMember: 'ExecutiveThreadMember',
+  ExecutiveMessage: 'ExecutiveMessage',
+  ExecutiveReport: 'ExecutiveReport',
+  ExecutiveReportSchedule: 'ExecutiveReportSchedule'
 };
 
 /**

@@ -2,7 +2,7 @@
 
 import { useSession } from "next-auth/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 import { Check, ChevronDown, Loader2, UserRound } from "lucide-react";
 
@@ -34,7 +34,6 @@ export function PlatformRoleSwitcher({
   variant?: "dark" | "light";
   className?: string;
 }) {
-  const router = useRouter();
   const pathname = usePathname();
   const queryClient = useQueryClient();
   const { data: session, update: updateSession, status } = useSession();
@@ -69,32 +68,47 @@ export function PlatformRoleSwitcher({
         });
         const body = (await res.json().catch(() => ({}))) as {
           error?: string;
+          activeRole?: string;
+          roles?: string[];
+          portalScope?: "VIEWER" | "CREATOR" | "ADMIN";
+          options?: PlatformRoleOption[];
+          multiRole?: boolean;
           session?: {
             role?: string;
             roles?: string[];
             portalScope?: "VIEWER" | "CREATOR" | "ADMIN";
             funderVerificationStatus?: string;
             payoutKycVerificationStatus?: string;
+            adminRights?: unknown;
           };
           redirectUrl?: string;
         };
         if (!res.ok) {
           setSwitchError(typeof body.error === "string" ? body.error : "Could not switch profile.");
+          setSwitching(false);
           return;
         }
         if (body.session) {
           await updateSession?.(body.session);
         }
-        await queryClient.invalidateQueries({ queryKey: [...PLATFORM_ROLES_QUERY_KEY] });
-        router.push(body.redirectUrl ?? activeOption?.homePath ?? "/");
-        router.refresh();
+        // Prefer cache write over awaited refetch — don't block navigation.
+        if (body.activeRole && body.options) {
+          queryClient.setQueryData([...PLATFORM_ROLES_QUERY_KEY], {
+            activeRole: body.activeRole,
+            roles: body.roles ?? [],
+            options: body.options,
+            multiRole: body.multiRole ?? (body.options?.length ?? 0) > 1,
+          } satisfies PlatformRolesPayload);
+        }
+        const target = body.redirectUrl ?? activeOption?.homePath ?? "/";
+        // Cross-portal switches need a full document load so middleware sees the new cookie.
+        window.location.assign(target);
       } catch {
         setSwitchError("Could not switch profile.");
-      } finally {
         setSwitching(false);
       }
     },
-    [activeOption?.homePath, data?.activeRole, pathname, queryClient, router, switching, updateSession],
+    [activeOption?.homePath, data?.activeRole, pathname, queryClient, switching, updateSession],
   );
 
   if (status !== "authenticated" || pathname.startsWith("/auth")) return null;

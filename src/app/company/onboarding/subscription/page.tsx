@@ -1,10 +1,10 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { prisma } from "@/lib/prisma";
 import { CompanySubscriptionClient } from "./subscription-client";
 import { signInUrlForDestination } from "@/lib/auth-sign-in-path";
 import { OnboardingExitBar } from "@/components/auth/onboarding-exit-bar";
+import { hasCompletedPackagePaymentForPayoutKyc } from "@/lib/payout-kyc-eligibility";
 
 const COMPANY_DASHBOARDS: Record<string, string> = {
   CREW_TEAM: "/crew-team/dashboard",
@@ -27,40 +27,22 @@ export default async function CompanySubscriptionOnboardingPage() {
   if (!session?.user?.email) redirect(signInUrlForDestination("/company/onboarding/subscription"));
 
   const role = (session.user as { role?: string })?.role;
+  const userId = session.user.id;
   const companyRoles = ["CREW_TEAM", "CASTING_AGENCY", "LOCATION_OWNER", "EQUIPMENT_COMPANY", "CATERING_COMPANY"];
   if (!role || !companyRoles.includes(role)) redirect("/browse");
-  const now = new Date();
 
-  const user = await prisma.user.findUnique({
-    where: { email: session.user.email },
-    include: {
-      companySubscriptions: {
-        where: { companyType: role, status: "ACTIVE", currentPeriodEnd: { gt: now } },
-        orderBy: { createdAt: "desc" },
-        take: 1,
-      },
-    },
-  });
-
-  if (user?.companySubscriptions?.[0]) redirect(COMPANY_DASHBOARDS[role] ?? "/browse");
+  // Match package-gate: only leave onboarding when payment is actually complete
+  // (ACTIVE-but-unpaid must not bounce dashboard ↔ onboarding).
+  if (userId && (await hasCompletedPackagePaymentForPayoutKyc(userId, role))) {
+    redirect(COMPANY_DASHBOARDS[role] ?? "/browse");
+  }
 
   return (
     <div className="min-h-screen bg-background px-6 py-16 text-slate-100">
       <div className="mx-auto w-full max-w-5xl">
         <OnboardingExitBar />
-        <div className="mx-auto max-w-3xl text-center">
-          <p className="mb-3 text-sm uppercase tracking-[0.28em] text-orange-300/80">
-            {COMPANY_LABELS[role] ?? "Company"} onboarding
-          </p>
-          <h1 className="font-display text-4xl font-semibold text-white md:text-5xl">Choose your listing plan</h1>
-          <p className="mt-3 text-slate-300/78">
-            Match the same polished onboarding journey as viewer plans while choosing how prominently your company should appear to creators.
-          </p>
-        </div>
-
-        <div className="mt-12">
-        <CompanySubscriptionClient dashboardUrl={COMPANY_DASHBOARDS[role]} />
-        </div>
+        <p className="mb-2 text-sm text-slate-400">{COMPANY_LABELS[role] ?? "Company"} package</p>
+        <CompanySubscriptionClient dashboardUrl={COMPANY_DASHBOARDS[role] ?? "/browse"} />
       </div>
     </div>
   );
