@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireExecutiveActor } from "@/lib/executive/seats";
 import { writeExecutiveAudit } from "@/lib/executive/audit";
-import { executiveHomePath } from "@/lib/executive/seat-map";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,8 +23,4 @@ export async function GET() {
     email: actor.email,
     isAdmin: actor.isAdmin,
   });
-}
-
-export function executiveFallbackHome() {
-  return executiveHomePath("CEO");
 }
