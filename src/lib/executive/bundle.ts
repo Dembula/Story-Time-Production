@@ -131,10 +131,20 @@ export async function fetchExecutiveDataBundle(office: ExecutiveOffice): Promise
         by: ["name"],
         where: { createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } },
         _count: { _all: true },
-        orderBy: { _count: { _all: "desc" } },
-        take: 8,
       })
-      .catch(() => [] as Array<{ name: string; _count: { _all: number } }>),
+      .then((rows) =>
+        rows
+          .map((r) => ({
+            name: r.name,
+            count:
+              typeof r._count === "object" && r._count && typeof r._count._all === "number"
+                ? r._count._all
+                : 0,
+          }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 8),
+      )
+      .catch(() => [] as Array<{ name: string; count: number }>),
     getViewerPoolRevenue(prior.start, prior.end).catch(() => 0),
   ]);
 
@@ -238,7 +248,7 @@ export async function fetchExecutiveDataBundle(office: ExecutiveOffice): Promise
     churnRisk,
     watchUniqueMtd,
     watchHoursMtd: shared.watchHoursMtd,
-    topEvents: analyticsTop.map((e) => ({ name: e.name, count: e._count._all })),
+    topEvents: analyticsTop.map((e) => ({ name: e.name, count: e.count })),
     funnelNote:
       "Campaign spend / CAC / ROAS require marketing cost sources — structure ready; acquisition volumes use subscriptions + product events.",
     sourcePending: ["campaignSpend", "cac", "roas", "ltvCohorts"],
@@ -303,7 +313,7 @@ export async function fetchExecutiveDataBundle(office: ExecutiveOffice): Promise
       kpi("churn-risk", "Churn risk set", churnRisk, { tone: churnRisk > 10 ? "warn" : "neutral" }),
       kpi("watchers", "Unique watchers (MTD)", watchUniqueMtd),
       kpi("watch-hours", "Watch hours (eligible MTD)", shared.watchHoursMtd),
-      kpi("events", "Top analytics event volume", analyticsTop[0]?._count._all ?? 0),
+      kpi("events", "Top analytics event volume", analyticsTop[0]?.count ?? 0),
     ],
     CFO: [
       kpi("viewer-pool", "Viewer pool net (MTD)", viewerPool, { unit: "ZAR", tone: "good", deltaPct: growthPct }),

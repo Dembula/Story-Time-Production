@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
+import type { InputJsonValue } from "@/lib/prisma-json";
 import type { ExecutiveOffice } from "@/lib/executive/seat-map";
 
 export async function writeExecutiveAudit(args: {
@@ -24,7 +25,7 @@ export async function writeExecutiveAudit(args: {
         entityType: args.entityType ?? null,
         entityId: args.entityId ?? null,
         outcome: args.outcome ?? "OK",
-        meta: args.meta ?? undefined,
+        meta: args.meta ? (args.meta as InputJsonValue) : undefined,
         ip: args.ip ?? null,
       },
     });

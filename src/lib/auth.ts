@@ -19,6 +19,23 @@ import { parseAdminRights } from "./admin-permissions";
 
 type PortalScope = "VIEWER" | "CREATOR" | "ADMIN";
 
+const VERIFICATION_STATUSES = [
+  "DRAFT",
+  "PENDING",
+  "UNDER_REVIEW",
+  "APPROVED",
+  "REJECTED",
+] as const;
+
+type SessionVerificationStatus = (typeof VERIFICATION_STATUSES)[number];
+
+function asVerificationStatus(value: unknown): SessionVerificationStatus | undefined {
+  if (typeof value !== "string") return undefined;
+  return (VERIFICATION_STATUSES as readonly string[]).includes(value)
+    ? (value as SessionVerificationStatus)
+    : undefined;
+}
+
 function pickCreatorRole(roles: Set<string>, fallbackRole?: string | null): string | null {
   const creatorRoles = [...roles].filter((r) => CREATOR_ROLES.has(r));
   if (creatorRoles.length === 0) {
@@ -363,12 +380,10 @@ export const authOptions: NextAuthOptions = {
             token.roles = s.roles as string[];
             token.portalScope = s.portalScope as PortalScope;
             if ("funderVerificationStatus" in s) {
-              token.funderVerificationStatus =
-                (s.funderVerificationStatus as string | undefined) ?? undefined;
+              token.funderVerificationStatus = asVerificationStatus(s.funderVerificationStatus);
             }
             if ("payoutKycVerificationStatus" in s) {
-              token.payoutKycVerificationStatus =
-                (s.payoutKycVerificationStatus as string | undefined) ?? undefined;
+              token.payoutKycVerificationStatus = asVerificationStatus(s.payoutKycVerificationStatus);
             }
             if ("adminRights" in s) {
               token.adminRights =
