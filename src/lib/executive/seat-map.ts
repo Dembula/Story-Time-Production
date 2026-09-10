@@ -1,6 +1,8 @@
 /**
  * Canonical executive seat map (edge-safe — no DB).
  * Must stay in sync with ExecutiveSeat seed rows.
+ *
+ * Executive suite lives inside the admin shell at /admin/executive/*.
  */
 export const EXECUTIVE_OFFICES = ["CEO", "COO", "CMO", "CFO", "CIO"] as const;
 export type ExecutiveOffice = (typeof EXECUTIVE_OFFICES)[number];
@@ -36,6 +38,14 @@ export const EXECUTIVE_OFFICE_QUESTIONS: Record<ExecutiveOffice, string> = {
   CIO: "Is the technology healthy, secure, scalable and efficient?",
 };
 
+export const EXECUTIVE_OFFICE_BLURBS: Record<ExecutiveOffice, string> = {
+  CEO: "Company health, growth trajectory, and leadership priorities.",
+  COO: "Content pipeline, encoding fleet, and day-to-day operations.",
+  CMO: "Acquisition, engagement, retention, and product event signals.",
+  CFO: "Pools, treasury, payment health, and Story Time economics.",
+  CIO: "Platform reliability, AI observability, and encode/infra risk.",
+};
+
 export function normalizeExecutiveEmail(email: string | null | undefined): string | null {
   if (!email) return null;
   const normalized = email.trim().toLowerCase();
@@ -49,7 +59,7 @@ export function officeFromEmail(email: string | null | undefined): ExecutiveOffi
 }
 
 export function executiveHomePath(office: ExecutiveOffice): string {
-  return `/executive/${office.toLowerCase()}`;
+  return `/admin/executive/${office.toLowerCase()}`;
 }
 
 export function parseExecutiveOfficeParam(value: string | null | undefined): ExecutiveOffice | null {
@@ -60,12 +70,26 @@ export function parseExecutiveOfficeParam(value: string | null | undefined): Exe
 
 export function officeFromExecutivePath(path: string | null | undefined): ExecutiveOffice | null {
   if (!path) return null;
-  const match = path.match(/^\/executive\/(ceo|coo|cmo|cfo|cio)(?:\/|$)/i);
+  const match = path.match(/\/(?:admin\/)?executive\/(ceo|coo|cmo|cfo|cio)(?:\/|$)/i);
   if (!match?.[1]) return null;
   return parseExecutiveOfficeParam(match[1]);
 }
 
 export function isExecutivePath(path: string | null | undefined): boolean {
   if (!path) return false;
-  return path === "/executive" || path.startsWith("/executive/") || path.startsWith("/api/executive");
+  return (
+    path === "/executive" ||
+    path.startsWith("/executive/") ||
+    path === "/admin/executive" ||
+    path.startsWith("/admin/executive/") ||
+    path.startsWith("/api/executive")
+  );
+}
+
+/** Legacy portal paths → admin-nested suite. */
+export function migrateLegacyExecutivePath(path: string): string | null {
+  if (path === "/executive" || path === "/executive/") return "/admin/executive";
+  const match = path.match(/^\/executive(\/.*)?$/i);
+  if (!match) return null;
+  return `/admin/executive${match[1] ?? ""}`;
 }

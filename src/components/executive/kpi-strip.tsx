@@ -16,11 +16,11 @@ const toneValueClass: Record<NonNullable<ExecutiveKpi["tone"]>, string> = {
   bad: "text-red-300",
 };
 
-const toneBorderClass: Record<NonNullable<ExecutiveKpi["tone"]>, string> = {
-  neutral: "border-l-slate-500/50",
-  good: "border-l-emerald-500/60",
-  warn: "border-l-amber-500/60",
-  bad: "border-l-red-500/60",
+const toneGlowClass: Record<NonNullable<ExecutiveKpi["tone"]>, string> = {
+  neutral: "from-slate-500/10",
+  good: "from-emerald-500/15",
+  warn: "from-amber-500/15",
+  bad: "from-red-500/15",
 };
 
 function formatKpiValue(kpi: ExecutiveKpi): string {
@@ -57,13 +57,13 @@ export function KpiStrip({ kpis, className = "" }: KpiStripProps) {
         return (
           <div
             key={kpi.id}
-            className={`rounded-xl border border-white/8 border-l-4 bg-slate-900/50 p-4 shadow-panel ${toneBorderClass[tone]}`}
+            className={`relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br ${toneGlowClass[tone]} to-slate-950/80 p-4 shadow-[0_14px_40px_rgba(0,0,0,0.25)]`}
           >
-            <div className="mb-2 flex items-start justify-between gap-2">
-              <p className="text-[11px] font-medium uppercase tracking-wider text-slate-500">{kpi.label}</p>
+            <div className="mb-3 flex items-start justify-between gap-2">
+              <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-500">{kpi.label}</p>
               {kpi.deltaPct != null ? <DeltaBadge deltaPct={kpi.deltaPct} /> : null}
             </div>
-            <p className={`font-display text-2xl font-semibold tabular-nums tracking-tight ${toneValueClass[tone]}`}>
+            <p className={`font-display text-[1.7rem] font-semibold tabular-nums tracking-tight ${toneValueClass[tone]}`}>
               {formatKpiValue(kpi)}
               {kpi.unit && kpi.unit !== "ZAR" && kpi.unit !== "%" && kpi.unit !== "ms" ? (
                 <span className="ml-1 text-sm font-normal text-slate-400">{kpi.unit}</span>

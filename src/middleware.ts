@@ -46,14 +46,20 @@ export async function middleware(req: NextRequest) {
   const email = typeof token.email === "string" ? token.email : undefined;
   const seatOffice = officeFromEmail(email);
 
-  if (path.startsWith("/executive") || path.startsWith("/api/executive")) {
+  // Legacy /executive → admin-nested suite
+  if (path === "/executive" || path.startsWith("/executive/")) {
+    const migrated = path.replace(/^\/executive/, "/admin/executive") || "/admin/executive";
+    return NextResponse.redirect(new URL(migrated, req.url));
+  }
+
+  if (path.startsWith("/admin/executive") || path.startsWith("/api/executive")) {
     if (!seatOffice) {
       if (path.startsWith("/api/executive")) {
         return NextResponse.json({ error: "No executive seat for this account." }, { status: 403 });
       }
       return NextResponse.redirect(new URL(role === "ADMIN" ? "/admin" : "/profiles", req.url));
     }
-    if (path === "/executive" || path === "/executive/") {
+    if (path === "/admin/executive" || path === "/admin/executive/") {
       return NextResponse.redirect(new URL(executiveHomePath(seatOffice), req.url));
     }
     const pathOffice = officeFromExecutivePath(path);
@@ -84,7 +90,6 @@ export async function middleware(req: NextRequest) {
     portalScope === "ADMIN" &&
     !path.startsWith("/admin") &&
     !path.startsWith("/api/admin") &&
-    !path.startsWith("/executive") &&
     !path.startsWith("/api/executive")
   ) {
     const dest = seatOffice ? executiveHomePath(seatOffice) : "/admin";
@@ -112,7 +117,10 @@ export async function middleware(req: NextRequest) {
   }
 
   if (path.startsWith("/admin") && role !== "ADMIN") {
-    return NextResponse.redirect(new URL("/auth/admin", req.url));
+    // Seat holders may use the executive suite inside admin without a full ADMIN role.
+    if (!(seatOffice && path.startsWith("/admin/executive"))) {
+      return NextResponse.redirect(new URL("/auth/admin", req.url));
+    }
   }
 
   if ((path.startsWith("/admin") || path.startsWith("/api/admin")) && role === "ADMIN") {

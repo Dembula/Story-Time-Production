@@ -3,9 +3,18 @@ import type { DashboardNavSection } from "@/components/layout/dashboard-sidebar-
 /** Admin sidebar — grouped by operational sector. */
 export const adminNavSections: DashboardNavSection[] = [
   {
+    title: "Executive suite",
+    items: [
+      { href: "/admin/executive", label: "Leadership home", highlight: true },
+      { href: "/admin/executive/calendar", label: "Calendar" },
+      { href: "/admin/executive/comms", label: "Comms" },
+      { href: "/admin/executive/reports", label: "Reports" },
+    ],
+  },
+  {
     title: "Operations",
     items: [
-      { href: "/admin", label: "Overview" },
+      { href: "/admin/overview", label: "Ops overview" },
       { href: "/admin/review", label: "Review hub" },
       { href: "/admin/script-reviews", label: "Executive script reviews", highlight: true },
       { href: "/admin/projects", label: "Creator projects" },

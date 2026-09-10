@@ -1,5 +1,5 @@
 import type { ExecutiveAlert } from "@/lib/executive/types";
-import type { ExecutiveOffice } from "@/lib/executive/seat-map";
+import { executiveHomePath, type ExecutiveOffice } from "@/lib/executive/seat-map";
 
 type AnomalyInput = {
   churnRiskCount: number;
@@ -20,7 +20,7 @@ export function detectExecutiveAnomalies(input: AnomalyInput): ExecutiveAlert[] 
       title: "Open operational incidents",
       description: `${input.openIncidents} unresolved ops incident${input.openIncidents === 1 ? "" : "s"} on the platform.`,
       offices: ["CEO", "COO", "CIO"],
-      href: "/executive/cio",
+      href: executiveHomePath("CIO"),
       metric: "openIncidents",
       currentValue: String(input.openIncidents),
       expectedValue: "0",
@@ -34,7 +34,7 @@ export function detectExecutiveAnomalies(input: AnomalyInput): ExecutiveAlert[] 
       title: "Encoding failures detected",
       description: `${input.encodeFailed} encode job${input.encodeFailed === 1 ? "" : "s"} in error state.`,
       offices: ["COO", "CIO"],
-      href: "/executive/cio",
+      href: executiveHomePath("CIO"),
       metric: "encodeFailed",
       currentValue: String(input.encodeFailed),
     });
@@ -47,7 +47,7 @@ export function detectExecutiveAnomalies(input: AnomalyInput): ExecutiveAlert[] 
       title: "Elevated AI error rate",
       description: `AI request error rate is ${input.aiErrorRatePct.toFixed(1)}% in the recent window.`,
       offices: ["CIO", "CFO"],
-      href: "/executive/cio",
+      href: executiveHomePath("CIO"),
       metric: "aiErrorRatePct",
       currentValue: `${input.aiErrorRatePct.toFixed(1)}%`,
       expectedValue: "< 5%",
@@ -61,7 +61,7 @@ export function detectExecutiveAnomalies(input: AnomalyInput): ExecutiveAlert[] 
       title: "Elevated subscription risk",
       description: `${input.churnRiskCount} subscriptions cancelled, past due, or scheduled to cancel.`,
       offices: ["CMO", "CEO", "CFO"],
-      href: "/executive/cmo",
+      href: executiveHomePath("CMO"),
       metric: "churnRiskCount",
       currentValue: String(input.churnRiskCount),
     });
@@ -79,7 +79,7 @@ export function detectExecutiveAnomalies(input: AnomalyInput): ExecutiveAlert[] 
       title: "Revenue anomaly vs prior month",
       description: `MTD net revenue is ${drop}% below the prior full month run-rate comparison.`,
       offices: ["CFO", "CEO"],
-      href: "/executive/cfo",
+      href: executiveHomePath("CFO"),
       metric: "revenueNetZar",
       currentValue: String(input.revenueNetZar),
     });

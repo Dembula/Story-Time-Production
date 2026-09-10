@@ -56,7 +56,7 @@ export default function AdminLoginPage() {
       const res = await fetch("/api/me/platform-roles/active", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: "ADMIN", callbackUrl: "/executive" }),
+        body: JSON.stringify({ role: "ADMIN", callbackUrl: "/admin" }),
       });
       const body = (await res.json().catch(() => ({}))) as {
         error?: string;

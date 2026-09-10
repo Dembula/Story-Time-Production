@@ -122,7 +122,13 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       title: body?.title?.trim() || `${actor.office} snapshot — ${bundle.meta.period.label}`,
+      office: actor.office,
+      question: bundle.question,
       period: bundle.meta.period,
+      meta: {
+        period: bundle.meta.period,
+        freshnessLabel: bundle.meta.freshnessLabel,
+      },
       generatedAt,
       freshness: bundle.meta.freshnessLabel,
       narrative,
