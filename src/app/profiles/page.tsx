@@ -49,7 +49,9 @@ export default async function ProfilesPage({
   const paymentRequired = subscriptionPaymentRequired(subscription) && !paymentStillProcessing;
   const needsReactivation = subscriptionNeedsReactivation(subscription);
   const accountDetailsIncomplete = Boolean(userRecord && !isViewerAccountOnboardingComplete(userRecord));
-  if (accountDetailsIncomplete && !onboardingDeferred && !paymentRequired) {
+  // Don't bounce incomplete accounts to onboarding while PayFast is still confirming —
+  // that redirect + payment polling refresh looped the profiles page.
+  if (accountDetailsIncomplete && !onboardingDeferred && !paymentRequired && !paymentStillProcessing) {
     redirect("/onboarding/account");
   }
 

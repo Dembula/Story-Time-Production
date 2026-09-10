@@ -41,8 +41,9 @@ export default async function BrowseLayout({
       }
       if (getViewerModel(sub) === "SUBSCRIPTION") {
         const stillProcessing = await hasPendingGatewayPayment("ViewerSubscription", sub.id);
-        const needsPay = subscriptionNeedsReactivation(sub) || stillProcessing;
-        if (needsPay && !isAccountManagement) {
+        // Pending PayFast confirmation alone must not wall users back to /profiles —
+        // that combined with profiles payment polling caused a reload/bounce loop.
+        if (subscriptionNeedsReactivation(sub) && !stillProcessing && !isAccountManagement) {
           redirect("/profiles?payment=required");
         }
         subscriptionExpired = subscriptionNeedsReactivation(sub) && !stillProcessing;
@@ -62,7 +63,17 @@ export default async function BrowseLayout({
           redirect("/profiles?verify=1");
         }
       }
-    } catch {
+    } catch (e) {
+      // Next.js redirect() throws — must rethrow or redirects are silently cancelled.
+      if (
+        typeof e === "object" &&
+        e !== null &&
+        "digest" in e &&
+        typeof (e as { digest?: unknown }).digest === "string" &&
+        (e as { digest: string }).digest.startsWith("NEXT_REDIRECT")
+      ) {
+        throw e;
+      }
       // DB unreachable (e.g. wrong port or Neon suspended): still render layout
     }
   }

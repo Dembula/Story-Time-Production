@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus, User, Shield, Users, CheckCircle, AlertCircle, Settings, Lock } from "lucide-react";
@@ -64,9 +64,13 @@ export function ProfilesClient({
   const [error, setError] = useState("");
   const [pinModalProfile, setPinModalProfile] = useState<Profile | null>(null);
   const [pinModalError, setPinModalError] = useState("");
+  const [paymentConfirmTimedOut, setPaymentConfirmTimedOut] = useState(false);
+  const refreshedForPaymentRef = useRef<string | null>(null);
   const paymentPendingCheckout = paymentRequired || needsReactivation || subscriptionStatus === "PAST_DUE" || subscriptionStatus === "CANCELLED";
   const paymentBlocked = paymentPendingCheckout && !paymentStillProcessing;
-  const accessLocked = paymentPendingCheckout || paymentStillProcessing;
+  // While PayFast is still confirming, do not hard-lock the page into a refresh trap —
+  // users with an already-active subscription can continue; only unpaid accounts stay gated.
+  const accessLocked = paymentBlocked;
   const canCreateMore = profiles.length < maxProfiles;
   const { years, months } = getBirthDateOptionSets();
   const days = useMemo(() => {
@@ -79,16 +83,44 @@ export function ProfilesClient({
 
   useEffect(() => {
     if (!paymentStillProcessing || !pendingPaymentRecordId) return;
+
+    const storageKey = `st_profiles_pay_poll_${pendingPaymentRecordId}`;
+    try {
+      if (typeof sessionStorage !== "undefined" && sessionStorage.getItem(storageKey) === "1") {
+        setPaymentConfirmTimedOut(true);
+        return;
+      }
+    } catch {
+      // private mode / unavailable
+    }
+    if (refreshedForPaymentRef.current === pendingPaymentRecordId) return;
+
     let cancelled = false;
+    const markDone = (timedOut: boolean) => {
+      refreshedForPaymentRef.current = pendingPaymentRecordId;
+      try {
+        if (typeof sessionStorage !== "undefined") {
+          sessionStorage.setItem(storageKey, "1");
+        }
+      } catch {
+        // ignore
+      }
+      if (timedOut) setPaymentConfirmTimedOut(true);
+    };
+
     const poll = async () => {
-      for (let i = 0; i < 60 && !cancelled; i++) {
+      for (let i = 0; i < 40 && !cancelled; i++) {
         try {
           const res = await fetch(
             `/api/payments/status?paymentRecordId=${encodeURIComponent(pendingPaymentRecordId)}`,
             { cache: "no-store" },
           );
           const data = await res.json().catch(() => ({}));
-          if (String(data?.payment?.status || "").toUpperCase() === "SUCCEEDED") {
+          const status = String(data?.payment?.status || "").toUpperCase();
+          if (status === "SUCCEEDED" || status === "FAILED" || status === "CANCELLED") {
+            if (cancelled) return;
+            markDone(false);
+            // One refresh only — never restart this poll for the same payment id.
             router.refresh();
             return;
           }
@@ -97,13 +129,17 @@ export function ProfilesClient({
         }
         await new Promise((r) => setTimeout(r, 3000));
       }
-      if (!cancelled) router.refresh();
+      if (!cancelled) {
+        // Stop forever for this id — do not refresh (refresh remounts and used to restart the loop).
+        markDone(true);
+      }
     };
     void poll();
     return () => {
       cancelled = true;
     };
-  }, [paymentStillProcessing, pendingPaymentRecordId, router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot poll per pendingPaymentRecordId
+  }, [paymentStillProcessing, pendingPaymentRecordId]);
 
   useEffect(() => {
     if (!pendingPinProfile) return;
@@ -146,8 +182,9 @@ export function ProfilesClient({
         throw new Error(data.error || "Failed to select profile");
       }
       setPinModalProfile(null);
-      router.push("/browse");
-      router.refresh();
+      // Hard navigation so Set-Cookie from activate is applied before browse layout runs
+      // (soft router.push races WebKit cookie application on iPad and loops back to /profiles).
+      window.location.assign("/browse");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to select profile");
     } finally {
@@ -157,11 +194,7 @@ export function ProfilesClient({
 
   function requestProfile(profile: Profile) {
     if (accessLocked) {
-      setError(
-        paymentStillProcessing
-          ? "Please wait for PayFast to confirm your payment before entering the catalogue."
-          : "Complete your subscription payment before entering the catalogue.",
-      );
+      setError("Complete your subscription payment before entering the catalogue.");
       return;
     }
     if (profile.pinEnabled) {
@@ -279,9 +312,13 @@ export function ProfilesClient({
 
       {paymentStillProcessing ? (
         <div className="rounded-xl border border-cyan-400/30 bg-cyan-500/10 p-4 text-sm text-cyan-100 shadow-panel">
-          <p className="font-medium text-white">Confirming your payment</p>
+          <p className="font-medium text-white">
+            {paymentConfirmTimedOut ? "Payment confirmation is taking longer" : "Confirming your payment"}
+          </p>
           <p className="mt-1 text-cyan-100/90">
-            PayFast is sending secure confirmation. This usually takes a few seconds — you can create profiles while we finish activating your subscription.
+            {paymentConfirmTimedOut
+              ? "You can keep using profiles. If catalogue access is still blocked after a few minutes, open Account or tap Pay now once — we will not keep reloading this page."
+              : "PayFast is sending secure confirmation. This usually takes a few seconds — you can create profiles while we finish activating your subscription."}
           </p>
         </div>
       ) : null}
