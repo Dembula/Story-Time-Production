@@ -92,6 +92,10 @@ const nextConfig: NextConfig = {
         : "false",
   },
   images: {
+    // Signed S3 poster URLs unique every hour; optimizing them burns Vercel Image
+    // Transformation quota and then returns HTTP 402 for every `/_next/image` request.
+    // Serve catalogue media directly from storage / CDN instead.
+    unoptimized: true,
     remotePatterns: [
       ...(storagePublicPattern ? [storagePublicPattern] : []),
       ...(storageEndpointPattern ? [storageEndpointPattern] : []),

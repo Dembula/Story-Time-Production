@@ -5,7 +5,8 @@ import { packDisplayImageUrl } from "@/lib/content-media-urls";
 
 /**
  * Browser-safe image URL for catalogue art.
- * Private `s3://` / storage objects get a short-lived signed GET so next/image can load them.
+ * Private `s3://` / storage objects get a short-lived signed GET so the browser can load them
+ * directly (Next/Vercel image optimization is bypassed for these URLs — see next.config images.unoptimized).
  */
 export async function packPlatformImageUrl(
   value: string | null | undefined,

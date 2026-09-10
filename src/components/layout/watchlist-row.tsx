@@ -3,7 +3,6 @@
 import { useSession } from "next-auth/react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import Image from "next/image";
 import { Bookmark } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getDisplayPosterUrl } from "@/lib/content-media-urls";
@@ -15,6 +14,7 @@ import {
 } from "@/lib/browse-card-layout";
 import { BrowsePosterCardShell } from "@/components/layout/browse-poster-card-shell";
 import { HorizontalScrollRow } from "@/components/layout/horizontal-scroll-row";
+import { MediaImage } from "@/components/media/media-image";
 
 type WatchlistItem = {
   content: {
@@ -82,7 +82,7 @@ function WatchlistRowInner() {
           >
             <div className={`${browsePosterMediaClass} transition duration-300 md:group-hover/card:shadow-[var(--cin-depth-1)]`} data-browse-poster-media>
               {poster ? (
-                <Image src={poster} alt={c.title} fill sizes={browsePosterCardImageSizes} className="object-cover transition duration-300 group-hover/card:scale-[1.03]" />
+                <MediaImage src={poster} alt={c.title} fill sizes={browsePosterCardImageSizes} className="object-cover transition duration-300 group-hover/card:scale-[1.03]" />
               ) : (
                 <div className="flex h-full items-center justify-center bg-slate-900">
                   <Bookmark className="h-8 w-8 text-slate-600" />

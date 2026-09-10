@@ -1,8 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { MediaImage } from "@/components/media/media-image";
 
 type SpotlightItem = {
   id: string;
@@ -74,13 +74,13 @@ export function LandingSpotlightSlider({ variant = "default" }: LandingSpotlight
             >
               <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg border border-orange-400/15 bg-white/[0.03] transition group-hover:border-orange-300/35">
                 {item.posterUrl ? (
-                  <Image
+                  <MediaImage
                     src={item.posterUrl}
                     alt={item.title}
                     fill
                     sizes={hero ? "(max-width: 640px) 128px, (max-width: 1024px) 116px, 128px" : "(max-width: 640px) 136px, 116px"}
                     className="object-cover transition duration-300 group-hover:scale-[1.03]"
-                    unoptimized={item.posterUrl.includes(".gif")}
+                    fallbackClassName="flex h-full w-full flex-col items-center justify-center bg-zinc-900 px-2 text-center"
                   />
                 ) : (
                   <div className="flex h-full w-full flex-col items-center justify-center bg-zinc-900 px-2 text-center">

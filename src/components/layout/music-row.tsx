@@ -1,13 +1,13 @@
 "use client";
 
 import { Music } from "lucide-react";
-import Image from "next/image";
 import {
   browseMusicCardClass,
   browseMusicCardImageSizes,
   browseRowGapClass,
 } from "@/lib/browse-card-layout";
 import { HorizontalScrollRow } from "@/components/layout/horizontal-scroll-row";
+import { MediaImage } from "@/components/media/media-image";
 
 type MusicTrack = {
   id: string;

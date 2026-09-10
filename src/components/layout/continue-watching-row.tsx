@@ -3,7 +3,6 @@
 import { useSession } from "next-auth/react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import Image from "next/image";
 import { Play } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -15,6 +14,7 @@ import {
 import { BrowsePosterCardShell } from "@/components/layout/browse-poster-card-shell";
 import { markPlaybackPlayIntent } from "@/lib/player/play-intent";
 import { HorizontalScrollRow } from "@/components/layout/horizontal-scroll-row";
+import { MediaImage } from "@/components/media/media-image";
 
 type ContinueItem = {
   id: string;
@@ -73,7 +73,7 @@ function ContinueWatchingRowInner() {
         >
           <div className={browsePosterMediaClass} data-browse-poster-media>
             {item.posterUrl || item.backdropUrl ? (
-              <Image
+              <MediaImage
                 src={item.posterUrl || item.backdropUrl || ""}
                 alt={item.title}
                 fill

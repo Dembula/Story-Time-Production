@@ -1,7 +1,7 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
+import { MediaImage } from "@/components/media/media-image";
 
 const FALLBACK_POSTERS = [
   "/posters/poster-1.svg",
@@ -77,13 +77,12 @@ export function LandingPosterBackdrop() {
                   key={`m-${rowIndex}-${poster.src}-${i}`}
                   className="relative aspect-[2/3] overflow-hidden rounded-md"
                 >
-                  <Image
+                  <MediaImage
                     src={poster.src}
                     alt=""
                     fill
                     sizes="72px"
                     className="object-cover"
-                    unoptimized={poster.src.includes(".gif")}
                   />
                 </div>
               ))}
@@ -105,14 +104,13 @@ export function LandingPosterBackdrop() {
                   key={`d-${rowIndex}-${poster.src}-${i}`}
                   className="relative aspect-[2/3] overflow-hidden rounded-lg border border-white/[0.06]"
                 >
-                  <Image
+                  <MediaImage
                     src={poster.src}
                     alt=""
                     fill
                     sizes="120px"
                     className="object-cover"
                     priority={rowIndex === 0 && i < 2}
-                    unoptimized={poster.src.includes(".gif")}
                   />
                 </div>
               ))}

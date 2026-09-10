@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { Play, Info } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { getDisplayBackdropUrl } from "@/lib/content-media-urls";
+import { MediaImage } from "@/components/media/media-image";
 
 type Content = {
   id: string;
@@ -112,7 +112,7 @@ export function Hero({ content }: { content: Content[] }) {
             aria-hidden={!active}
           >
             {slide.url ? (
-              <Image
+              <MediaImage
                 src={slide.url}
                 alt=""
                 fill
@@ -120,6 +120,7 @@ export function Hero({ content }: { content: Content[] }) {
                 quality={90}
                 priority={index === 0 || index === activeIndex || index === (activeIndex + 1) % backdrops.length}
                 className="h-full w-full object-cover brightness-[0.88] contrast-105"
+                fallbackClassName="h-full w-full bg-gradient-to-b from-slate-900 to-slate-950"
               />
             ) : (
               <div className="h-full w-full bg-gradient-to-b from-slate-900 to-slate-950" />

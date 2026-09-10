@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Play, Plus, Check, ChevronLeft, Download, Clapperboard } from "lucide-react";
@@ -9,6 +8,7 @@ import { contentTypeLabel } from "@/lib/content-types";
 import { useAdaptiveUi } from "@/components/adaptive/adaptive-provider";
 import { markPlaybackPlayIntent } from "@/lib/player/play-intent";
 import { beginBrowseNavigation } from "@/lib/navigation/route-transition";
+import { MediaImage } from "@/components/media/media-image";
 
 type Props = {
   contentId: string;
@@ -150,13 +150,14 @@ export function ContentDetailHero({
         } ${isTv ? "rounded-b-[2.5rem]" : ""}`}
       >
         {backdropUrl ? (
-          <Image
+          <MediaImage
             src={backdropUrl}
             alt=""
             fill
             priority
             sizes="100vw"
             className={`object-cover ${isMobile ? "object-[center_30%] scale-105" : "object-top"}`}
+            fallbackClassName="absolute inset-0 bg-gradient-to-b from-slate-800 to-black"
           />
         ) : (
           <div className="absolute inset-0 bg-gradient-to-b from-slate-800 to-black" />

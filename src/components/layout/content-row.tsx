@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { Lock } from "lucide-react";
 import { useRef, useState, useCallback } from "react";
 import { useContentPrefetch } from "@/hooks/use-content-prefetch";
@@ -17,6 +16,7 @@ import {
 } from "@/lib/browse-card-layout";
 import { BrowsePosterCardShell } from "@/components/layout/browse-poster-card-shell";
 import { HorizontalScrollRow } from "@/components/layout/horizontal-scroll-row";
+import { MediaImage } from "@/components/media/media-image";
 
 export type ContentItem = {
   id: string;
@@ -97,7 +97,7 @@ function ContentCard({
     >
       <div className={browsePosterMediaClass} data-browse-poster-media>
         {imageUrl ? (
-          <Image
+          <MediaImage
             src={imageUrl}
             alt={item.title}
             fill
@@ -105,7 +105,7 @@ function ContentCard({
             className={`object-cover transition duration-500 ${
               hovering && (trailerVideo || hoverGif) ? "opacity-0" : "opacity-100"
             } md:group-hover/card:scale-[1.04] md:group-hover/card:brightness-110`}
-            unoptimized={Boolean(hoverGif && imageUrl?.includes(".gif"))}
+            fallbackClassName="flex h-full w-full items-center justify-center bg-slate-900 text-sm text-slate-500"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-sm text-slate-500">No image</div>
