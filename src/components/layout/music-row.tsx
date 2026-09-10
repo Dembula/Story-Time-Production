@@ -42,7 +42,7 @@ export function MusicRow({
         >
           <div className="relative aspect-square overflow-hidden rounded-t-xl bg-slate-900 sm:rounded-t-2xl">
             {track.coverUrl ? (
-              <Image
+              <MediaImage
                 src={track.coverUrl}
                 alt={track.title}
                 fill

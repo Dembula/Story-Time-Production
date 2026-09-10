@@ -135,7 +135,7 @@ export function TreatmentCreatorStudio({
     },
   });
 
-  const treatments = data?.treatments ?? [];
+  const treatments = useMemo(() => data?.treatments ?? [], [data?.treatments]);
   const [selectedTreatmentId, setSelectedTreatmentId] = useState<string | null>(null);
 
   useEffect(() => {
