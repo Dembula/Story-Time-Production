@@ -31,7 +31,7 @@ function chunkRows(posters: Poster[], rows: number, perRow: number): Poster[][] 
 
 /**
  * Faded film-poster backdrop — clean non-overlapping rows, no glow orbs.
- * Mobile: capped poster count (Safari OOM guard) behind the mark.
+ * Mobile: 3 even rows behind the mark (15 posters), lazy-loaded so Safari does not decode all at once.
  * Desktop: 3 even rows filling the empty right side.
  */
 export function LandingPosterBackdrop() {
@@ -62,17 +62,16 @@ export function LandingPosterBackdrop() {
     };
   }, []);
 
-  // Mobile: 2×3 = 6 posters (was 3×5 = 15) — primary crash fix for homepage.
-  const mobileRows = useMemo(() => chunkRows(posters, 2, 3), [posters]);
+  const mobileRows = useMemo(() => chunkRows(posters, 3, 5), [posters]);
   const desktopRows = useMemo(() => chunkRows(posters, 3, 4), [posters]);
 
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
-      {/* Mobile: fewer posters, lazy decode except first row */}
+      {/* Mobile: full 3×5 grid; only first few decode eagerly */}
       <div className="absolute inset-0 lg:hidden">
         <div className="absolute inset-x-0 top-0 bottom-[28%] flex flex-col justify-start gap-2 px-2 pt-14 opacity-[0.22]">
           {mobileRows.map((row, rowIndex) => (
-            <div key={`m-row-${rowIndex}`} className="grid grid-cols-3 gap-2">
+            <div key={`m-row-${rowIndex}`} className="grid grid-cols-5 gap-2">
               {row.map((poster, i) => (
                 <div
                   key={`m-${rowIndex}-${poster.src}-${i}`}
@@ -82,7 +81,7 @@ export function LandingPosterBackdrop() {
                     src={poster.src}
                     alt=""
                     fill
-                    sizes="96px"
+                    sizes="72px"
                     loading={rowIndex === 0 && i < 2 ? "eager" : "lazy"}
                     className="object-cover"
                   />

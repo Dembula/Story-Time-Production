@@ -30,9 +30,6 @@ export default async function BrowsePage({
   const filter = params.filter;
   const ua = (await headers()).get("user-agent") || "";
   const isMobileUa = /iPhone|iPad|iPod|Android/i.test(ua);
-  const rowTake = isMobileUa ? 8 : 16;
-  const featuredTake = isMobileUa ? 3 : 5;
-  const prefetchLimit = isMobileUa ? 8 : 24;
 
   if (search?.trim()) {
     const qs = new URLSearchParams({ q: search.trim() });
@@ -141,14 +138,14 @@ export default async function BrowsePage({
     const results = await Promise.all([
       prisma.content.findMany({
         where: { ...where, featured: true },
-        take: featuredTake,
+        take: 5,
         orderBy: { createdAt: "desc" },
         select: browseSelect,
       }),
       // Popularity without loading every rating row — use rating counts (fast under load).
       prisma.content.findMany({
         where,
-        take: isMobileUa ? 16 : 32,
+        take: 32,
         orderBy: [{ featured: "desc" }, { createdAt: "desc" }],
         select: browseSelect,
       }).then((list) =>
@@ -164,74 +161,74 @@ export default async function BrowsePage({
       ),
       prisma.content.findMany({
         where,
-        take: rowTake,
+        take: 16,
         orderBy: { createdAt: "desc" },
         select: browseSelect,
       }),
       prisma.content.findMany({
         where: { ...where, type: "MOVIE" },
-        take: rowTake,
+        take: 16,
         orderBy: { createdAt: "desc" },
         select: browseSelect,
       }),
       prisma.content.findMany({
         where: { ...where, type: "SERIES" },
-        take: rowTake,
+        take: 16,
         orderBy: { createdAt: "desc" },
         select: browseSelect,
       }),
       prisma.content.findMany({
         where: { ...where, type: "ANIMATION" },
-        take: rowTake,
+        take: 16,
         orderBy: { createdAt: "desc" },
         select: browseSelect,
       }),
       prisma.content.findMany({
         where: { ...where, type: "SPORTS" },
-        take: rowTake,
+        take: 16,
         orderBy: { createdAt: "desc" },
         select: browseSelect,
       }),
       prisma.content.findMany({
         where: { ...where, type: { in: ["COMEDY_SKIT", "STAND_UP"] } },
-        take: rowTake,
+        take: 16,
         orderBy: { createdAt: "desc" },
         select: browseSelect,
       }),
       prisma.content.findMany({
         where: { ...where, type: "DOCUMENTARY" },
-        take: rowTake,
+        take: 16,
         orderBy: { createdAt: "desc" },
         select: browseSelect,
       }),
       prisma.content.findMany({
         where: { ...where, type: "SHOW" },
-        take: rowTake,
+        take: 16,
         orderBy: { createdAt: "desc" },
         select: browseSelect,
       }),
       prisma.content.findMany({
         where: { ...where, type: "LIVE_EVENT" },
-        take: rowTake,
+        take: 16,
         orderBy: { createdAt: "desc" },
         select: browseSelect,
       }),
       prisma.content.findMany({
         where: { ...where, type: "SHOW", category: { contains: "Comedy" } },
-        take: rowTake,
+        take: 16,
         orderBy: { createdAt: "desc" },
         select: browseSelect,
       }),
       prisma.content.findMany({
         where: { ...where, type: "PODCAST" },
-        take: rowTake,
+        take: 16,
         orderBy: { createdAt: "desc" },
         select: browseSelect,
       }),
       prisma.musicTrack.findMany({
         where: { published: true },
         orderBy: { createdAt: "desc" },
-        take: rowTake,
+        take: 16,
         select: {
           id: true,
           title: true,
@@ -243,7 +240,7 @@ export default async function BrowsePage({
       }),
       prisma.content.findMany({
         where: { ...where, isStudentWork: true },
-        take: rowTake,
+        take: 16,
         orderBy: { createdAt: "desc" },
         select: {
           ...browseSelect,
@@ -253,7 +250,7 @@ export default async function BrowsePage({
       prisma.musicTrack.findMany({
         where: { published: true, isStudentWork: true },
         orderBy: { createdAt: "desc" },
-        take: rowTake,
+        take: 16,
         select: {
           id: true,
           title: true,
@@ -384,7 +381,7 @@ export default async function BrowsePage({
 
   return (
     <div className="pb-16">
-      <PlatformMediaPrefetch items={prefetchCatalog} limit={prefetchLimit} deferMs={isMobileUa ? 4500 : 2800} />
+      <PlatformMediaPrefetch items={prefetchCatalog} limit={24} deferMs={isMobileUa ? 4500 : 2800} />
       {loadError && (
         <div className="max-w-[1800px] mx-auto px-6 md:px-12 pt-4">
           <div className="rounded-2xl border border-amber-400/22 bg-amber-500/10 p-4 text-sm text-amber-100 shadow-panel">

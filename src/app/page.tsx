@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { defaultHomeForRole } from "@/lib/auth-sign-in-path";
 import { LandingHeader } from "@/components/landing/LandingHeader";
 import { Hero } from "@/components/landing/Hero";
+import { LandingAvailableOn } from "@/components/landing/LandingAvailableOn";
 import { Stats } from "@/components/landing/Stats";
 import { Features } from "@/components/landing/Features";
 import { Vision } from "@/components/landing/Vision";
@@ -35,6 +36,7 @@ export default async function HomePage() {
       <div className="pointer-events-none fixed inset-x-0 top-0 -z-10 h-80 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),transparent)]" />
       <LandingHeader />
       <Hero />
+      <LandingAvailableOn />
       <Stats />
       <Features />
       <Vision />
