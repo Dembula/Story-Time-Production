@@ -1,37 +1,39 @@
 /**
- * Remote catalogue art (esp. S3 presigned URLs) must not go through Vercel Image Optimization:
- * - each unique signature is billed as a new transformation and burns the monthly quota
- * - once the quota is exhausted, `/_next/image` returns HTTP 402 and posters appear broken
- * - GIFs / signed query strings also break or thrash the optimizer cache key
+ * Decide when Next/Vercel Image Optimization must be skipped.
+ *
+ * Stable catalogue URLs (`/api/media/catalogue/...` and public CDN hosts without
+ * signatures) SHOULD be optimized. Only bypass true signed/private query URLs and GIFs.
  */
 export function shouldBypassImageOptimization(src: string | null | undefined): boolean {
   const value = src?.trim();
   if (!value) return false;
   if (value.startsWith("data:") || value.startsWith("blob:")) return true;
-  if (!/^https?:\/\//i.test(value)) return false;
+
+  // Same-origin catalogue proxy — always optimizable.
+  if (value.startsWith("/api/media/catalogue/")) return false;
+
+  if (!/^https?:\/\//i.test(value)) {
+    // Local/public path (e.g. /posters/*.svg) — let Next handle it.
+    return false;
+  }
 
   try {
-    const url = new URL(value);
-    const host = url.hostname.toLowerCase();
-    if (
-      host.includes("amazonaws.com") ||
-      host.includes("cloudfront.net") ||
-      host.includes("r2.cloudflarestorage.com") ||
-      host.endsWith(".supabase.co") ||
-      host.includes("videodelivery.net") ||
-      host.includes("cloudflarestream.com")
-    ) {
-      return true;
-    }
+    const url = new URL(value, "https://story-time.online");
     if (
       url.searchParams.has("X-Amz-Signature") ||
       url.searchParams.has("X-Amz-Credential") ||
+      url.searchParams.has("X-Amz-Security-Token") ||
       url.searchParams.has("Signature") ||
-      url.searchParams.has("token")
+      url.searchParams.has("X-Amz-Date")
     ) {
       return true;
     }
-    if (/\.gif($|\?)/i.test(url.pathname) || url.pathname.toLowerCase().endsWith(".gif")) {
+
+    const path = url.pathname.toLowerCase();
+    if (path.endsWith(".gif") || /\.gif$/i.test(path)) return true;
+
+    // Stream animated thumbs / customer playback hosts — leave as-is.
+    if (url.hostname.includes("videodelivery.net") || url.hostname.includes("cloudflarestream.com")) {
       return true;
     }
   } catch {

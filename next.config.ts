@@ -92,10 +92,13 @@ const nextConfig: NextConfig = {
         : "false",
   },
   images: {
-    // Signed S3 poster URLs unique every hour; optimizing them burns Vercel Image
-    // Transformation quota and then returns HTTP 402 for every `/_next/image` request.
-    // Serve catalogue media directly from storage / CDN instead.
-    unoptimized: true,
+    // Catalogue art uses stable `/api/media/catalogue/...` (or public CDN) URLs so
+    // Image Optimization can cache transforms. Signed S3 query URLs are bypassed in MediaImage.
+    unoptimized: false,
+    minimumCacheTTL: 60 * 60 * 24 * 7,
+    formats: ["image/avif", "image/webp"],
+    deviceSizes: [640, 750, 828, 1080, 1200, 1920],
+    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
     remotePatterns: [
       ...(storagePublicPattern ? [storagePublicPattern] : []),
       ...(storageEndpointPattern ? [storageEndpointPattern] : []),
@@ -114,6 +117,15 @@ const nextConfig: NextConfig = {
         headers: [
           { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
           { key: "Access-Control-Allow-Origin", value: "*" },
+        ],
+      },
+      {
+        source: "/api/media/catalogue/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400",
+          },
         ],
       },
     ];

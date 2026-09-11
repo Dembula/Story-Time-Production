@@ -12,8 +12,9 @@ type MediaImageProps = Omit<ImageProps, "src" | "alt"> & {
 };
 
 /**
- * Catalogue / storage media image. Bypasses Next/Vercel optimization for signed
- * and private-storage URLs so posters keep loading when the optimizer quota is exhausted.
+ * Catalogue / storage media image.
+ * Uses Next Image Optimization for stable catalogue/CDN URLs; bypasses only for
+ * signed query strings and GIFs so Vercel transform quota stays healthy at scale.
  */
 export function MediaImage({
   src,

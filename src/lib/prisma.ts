@@ -7,6 +7,8 @@ const { PrismaClient } = require("../../generated/prisma") as {
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClientType };
 
 function createPrismaClient(): PrismaClientType {
+  // Prefer Neon pooler URLs (port 6543 / -pooler hostname) in production so
+  // many concurrent serverless isolates don't exhaust Postgres connections.
   return new PrismaClient({
     log: process.env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
   }) as PrismaClientType;
