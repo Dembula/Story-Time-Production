@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { MediaImage } from "@/components/media/media-image";
+import { ProgressivePoster, useSequentialPosterUnlock } from "@/components/landing/progressive-poster";
+import { loadLandingSpotlightClient } from "@/lib/landing-spotlight-client";
 
 const FALLBACK_POSTERS = [
   "/posters/poster-1.svg",
@@ -25,69 +26,56 @@ function chunkRows(posters: Poster[], rows: number, perRow: number): Poster[][] 
   const pool = [...posters];
   while (pool.length < needed) pool.push(...posters);
   return Array.from({ length: rows }, (_, row) =>
-    pool.slice(row * perRow, row * perRow + perRow)
+    pool.slice(row * perRow, row * perRow + perRow),
   );
 }
 
 /**
- * Faded film-poster backdrop — clean non-overlapping rows, no glow orbs.
- * Mobile: 3 even rows behind the mark (15 posters), lazy-loaded so Safari does not decode all at once.
- * Desktop: 3 even rows filling the empty right side.
+ * Faded film-poster backdrop — full 15 on mobile / 12 on desktop.
+ * Images unlock one-by-one (mobile) with a soft fade so Safari/Chrome never
+ * decode the whole wall at once — still feels cinematic, not sparse.
  */
 export function LandingPosterBackdrop() {
   const [posters, setPosters] = useState<Poster[]>(
-    FALLBACK_POSTERS.map((src, i) => ({ src, alt: `Featured title ${i + 1}` }))
+    FALLBACK_POSTERS.map((src, i) => ({ src, alt: `Featured title ${i + 1}` })),
   );
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch("/api/landing/spotlight", { cache: "force-cache" });
-        if (!res.ok) return;
-        const data = (await res.json()) as { items?: { title: string; posterUrl: string | null }[] };
-        if (cancelled || !Array.isArray(data.items)) return;
-        const fromApi = data.items
-          .filter((item) => Boolean(item.posterUrl))
-          .map((item) => ({ src: item.posterUrl as string, alt: item.title }));
-        if (fromApi.length >= 3) {
-          setPosters(fromApi);
-        }
-      } catch {
-        // Keep SVG fallbacks
-      }
-    })();
+    void loadLandingSpotlightClient().then((items) => {
+      if (cancelled) return;
+      const fromApi = items
+        .filter((item) => Boolean(item.posterUrl))
+        .map((item) => ({ src: item.posterUrl as string, alt: item.title }));
+      if (fromApi.length >= 3) setPosters(fromApi);
+    });
     return () => {
       cancelled = true;
     };
   }, []);
 
-  const mobileRows = useMemo(() => chunkRows(posters, 3, 5), [posters]);
-  const desktopRows = useMemo(() => chunkRows(posters, 3, 4), [posters]);
+  const mobileFlat = useMemo(() => chunkRows(posters, 3, 5).flat(), [posters]);
+  const desktopFlat = useMemo(() => chunkRows(posters, 3, 4).flat(), [posters]);
+  const posterKey = useMemo(() => posters.map((p) => p.src).join("|"), [posters]);
+  const mobileUnlock = useSequentialPosterUnlock(mobileFlat.length, posterKey);
+  const desktopUnlock = useSequentialPosterUnlock(desktopFlat.length, posterKey);
 
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
-      {/* Mobile: full 3×5 grid; only first few decode eagerly */}
+      {/* Mobile: full 3×5 grid — sequential decode */}
       <div className="absolute inset-0 lg:hidden">
-        <div className="absolute inset-x-0 top-0 bottom-[28%] flex flex-col justify-start gap-2 px-2 pt-14 opacity-[0.22]">
-          {mobileRows.map((row, rowIndex) => (
-            <div key={`m-row-${rowIndex}`} className="grid grid-cols-5 gap-2">
-              {row.map((poster, i) => (
-                <div
-                  key={`m-${rowIndex}-${poster.src}-${i}`}
-                  className="relative aspect-[2/3] overflow-hidden rounded-md"
-                >
-                  <MediaImage
-                    src={poster.src}
-                    alt=""
-                    fill
-                    sizes="72px"
-                    loading={rowIndex === 0 && i < 2 ? "eager" : "lazy"}
-                    className="object-cover"
-                  />
-                </div>
-              ))}
-            </div>
+        <div className="absolute inset-x-0 top-0 bottom-[28%] grid grid-cols-5 grid-rows-3 gap-2 px-2 pt-14 opacity-[0.22]">
+          {mobileFlat.map((poster, index) => (
+            <ProgressivePoster
+              key={`m-${poster.src}-${index}`}
+              src={poster.src}
+              index={index}
+              unlockedThrough={mobileUnlock.unlockedThrough}
+              onSettled={mobileUnlock.onSettled}
+              sizes="72px"
+              className="rounded-md"
+              priority={index === 0}
+            />
           ))}
         </div>
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(0,0,0,0.28)_18%,rgba(0,0,0,0.78)_68%,#000_100%)]" />
@@ -95,27 +83,20 @@ export function LandingPosterBackdrop() {
         <div className="absolute inset-x-0 top-0 h-14 bg-gradient-to-b from-black/70 to-transparent" />
       </div>
 
-      {/* Desktop: 3 clean rows on the right — no staggered overlap */}
+      {/* Desktop: 3×4 on the right — faster unlock, still staggered */}
       <div className="absolute inset-y-0 right-0 hidden w-[50%] lg:block xl:w-[46%]">
-        <div className="absolute inset-y-[10%] right-0 flex w-full flex-col justify-center gap-3 px-3 opacity-[0.32]">
-          {desktopRows.map((row, rowIndex) => (
-            <div key={`d-row-${rowIndex}`} className="grid grid-cols-4 gap-3">
-              {row.map((poster, i) => (
-                <div
-                  key={`d-${rowIndex}-${poster.src}-${i}`}
-                  className="relative aspect-[2/3] overflow-hidden rounded-lg border border-white/[0.06]"
-                >
-                  <MediaImage
-                    src={poster.src}
-                    alt=""
-                    fill
-                    sizes="120px"
-                    className="object-cover"
-                    priority={rowIndex === 0 && i < 2}
-                  />
-                </div>
-              ))}
-            </div>
+        <div className="absolute inset-y-[10%] right-0 grid w-full grid-cols-4 grid-rows-3 gap-3 px-3 opacity-[0.32]">
+          {desktopFlat.map((poster, index) => (
+            <ProgressivePoster
+              key={`d-${poster.src}-${index}`}
+              src={poster.src}
+              index={index}
+              unlockedThrough={desktopUnlock.unlockedThrough}
+              onSettled={desktopUnlock.onSettled}
+              sizes="120px"
+              className="rounded-lg border border-white/[0.06]"
+              priority={index < 2}
+            />
           ))}
         </div>
         <div className="absolute inset-0 bg-[linear-gradient(90deg,#000_0%,rgba(0,0,0,0.75)_16%,rgba(0,0,0,0.28)_50%,rgba(0,0,0,0.5)_100%)]" />

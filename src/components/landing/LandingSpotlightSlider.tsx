@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { MediaImage } from "@/components/media/media-image";
+import { useEffect, useRef, useState } from "react";
+import { ProgressivePoster, useSequentialPosterUnlock } from "@/components/landing/progressive-poster";
+import { loadLandingSpotlightClient } from "@/lib/landing-spotlight-client";
 
 type SpotlightItem = {
   id: string;
@@ -19,24 +20,80 @@ type LandingSpotlightSliderProps = {
   variant?: "default" | "hero";
 };
 
+/**
+ * Top 10 keeps all cards, but only the first few decode immediately.
+ * Further posters unlock as the user swipes them near the viewport — smooth, not sparse.
+ */
+function SpotlightCardPoster({
+  src,
+  alt,
+  index,
+  unlockedThrough,
+  onSettled,
+  sizes,
+}: {
+  src: string;
+  alt: string;
+  index: number;
+  unlockedThrough: number;
+  onSettled: (index: number) => void;
+  sizes: string;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [nearView, setNearView] = useState(index < 3);
+
+  useEffect(() => {
+    if (index < 3) return;
+    const node = ref.current;
+    if (!node || typeof IntersectionObserver === "undefined") {
+      setNearView(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setNearView(true);
+          io.disconnect();
+        }
+      },
+      { root: null, rootMargin: "120px 80px", threshold: 0.01 },
+    );
+    io.observe(node);
+    return () => io.disconnect();
+  }, [index]);
+
+  // Queue unlock OR near-viewport for this card only.
+  return (
+    <div ref={ref} className="absolute inset-0">
+      <ProgressivePoster
+        src={src}
+        alt={alt}
+        index={index}
+        unlockedThrough={unlockedThrough}
+        forceReveal={nearView && index >= 3}
+        onSettled={onSettled}
+        sizes={sizes}
+        className="h-full w-full"
+        imageClassName="transition duration-300 group-hover:scale-[1.03]"
+        priority={index === 0}
+      />
+    </div>
+  );
+}
+
 export function LandingSpotlightSlider({ variant = "default" }: LandingSpotlightSliderProps) {
   const [items, setItems] = useState<SpotlightItem[] | null>(null);
   const hero = variant === "hero";
+  const unlock = useSequentialPosterUnlock(
+    items?.length ?? 0,
+    items?.map((i) => i.id).join("|") ?? "",
+  );
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch("/api/landing/spotlight", { cache: "force-cache" });
-        if (!res.ok) return;
-        const data = (await res.json()) as { items?: SpotlightItem[] };
-        if (!cancelled && Array.isArray(data.items) && data.items.length > 0) {
-          setItems(data.items);
-        }
-      } catch {
-        // Stay hidden when unavailable
-      }
-    })();
+    void loadLandingSpotlightClient().then((list) => {
+      if (!cancelled && list.length > 0) setItems(list);
+    });
     return () => {
       cancelled = true;
     };
@@ -44,8 +101,6 @@ export function LandingSpotlightSlider({ variant = "default" }: LandingSpotlight
 
   if (!items?.length) return null;
 
-  // Fixed rem widths (not vw) so the row never widens the page.
-  // Hero cards ~25–30% smaller than the prior oversized set; swipe to scroll — no arrow buttons.
   const cardClass = hero
     ? "group relative block shrink-0 snap-start overflow-hidden w-[8rem] min-w-[8rem] max-w-[8rem] sm:w-[7.25rem] sm:min-w-[7.25rem] sm:max-w-[7.25rem] lg:w-[8rem] lg:min-w-[8rem] lg:max-w-[8rem]"
     : "group relative block shrink-0 snap-start overflow-hidden w-[8.5rem] min-w-[8.5rem] max-w-[8.5rem] sm:w-[7.25rem] sm:min-w-[7.25rem] sm:max-w-[7.25rem]";
@@ -74,14 +129,17 @@ export function LandingSpotlightSlider({ variant = "default" }: LandingSpotlight
             >
               <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg border border-orange-400/15 bg-white/[0.03] transition group-hover:border-orange-300/35">
                 {item.posterUrl ? (
-                  <MediaImage
+                  <SpotlightCardPoster
                     src={item.posterUrl}
                     alt={item.title}
-                    fill
-                    sizes={hero ? "(max-width: 640px) 128px, (max-width: 1024px) 116px, 128px" : "(max-width: 640px) 136px, 116px"}
-                    loading={index < 2 ? "eager" : "lazy"}
-                    className="object-cover transition duration-300 group-hover:scale-[1.03]"
-                    fallbackClassName="flex h-full w-full flex-col items-center justify-center bg-zinc-900 px-2 text-center"
+                    index={index}
+                    unlockedThrough={unlock.unlockedThrough}
+                    onSettled={unlock.onSettled}
+                    sizes={
+                      hero
+                        ? "(max-width: 640px) 128px, (max-width: 1024px) 116px, 128px"
+                        : "(max-width: 640px) 136px, 116px"
+                    }
                   />
                 ) : (
                   <div className="flex h-full w-full flex-col items-center justify-center bg-zinc-900 px-2 text-center">

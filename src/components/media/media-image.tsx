@@ -22,6 +22,7 @@ export function MediaImage({
   className,
   fallbackClassName,
   onError,
+  onLoad,
   unoptimized,
   loading,
   priority,
@@ -51,6 +52,9 @@ export function MediaImage({
       unoptimized={bypass}
       priority={priority}
       loading={resolvedLoading}
+      onLoad={(event) => {
+        onLoad?.(event);
+      }}
       onError={(event) => {
         setFailed(true);
         onError?.(event);

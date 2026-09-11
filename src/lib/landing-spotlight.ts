@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getDisplayPosterUrl } from "@/lib/content-media-urls";
+import { packPlatformImageUrl } from "@/lib/browse-media-pack";
 
 export type LandingSpotlightItem = {
   id: string;
@@ -56,5 +57,16 @@ export async function getLandingSpotlight(limit = 10): Promise<LandingSpotlightI
       creatorName: item.creator?.name ?? null,
     }));
 
-  return ranked;
+  // Prefer packed/CDN URLs so mobile does not decode giant private S3 originals.
+  return Promise.all(
+    ranked.map(async (item) => {
+      if (!item.posterUrl) return item;
+      try {
+        const packed = await packPlatformImageUrl(item.posterUrl);
+        return { ...item, posterUrl: packed || item.posterUrl };
+      } catch {
+        return item;
+      }
+    }),
+  );
 }
