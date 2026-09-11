@@ -30,6 +30,8 @@ const storagePublicPattern = parseRemotePattern(
 );
 const storageEndpointPattern = parseRemotePattern(process.env.STORAGE_ENDPOINT ?? process.env.S3_ENDPOINT);
 const cloudflareCustomerPattern = parseRemotePattern(process.env.CLOUDFLARE_STREAM_CUSTOMER_SUBDOMAIN);
+/** Without a public CDN, catalogue art uses signed S3 URLs — skip Image Optimization to protect quota + avoid failed origin fetches. */
+const hasPublicStorageCdn = Boolean(storagePublicPattern);
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -92,9 +94,9 @@ const nextConfig: NextConfig = {
         : "false",
   },
   images: {
-    // Catalogue art uses stable `/api/media/catalogue/...` (or public CDN) URLs so
-    // Image Optimization can cache transforms. Signed S3 query URLs are bypassed in MediaImage.
-    unoptimized: false,
+    // Optimize only when STORAGE_PUBLIC_BASE_URL (CDN) is set. Otherwise posters are
+    // signed private-S3 URLs — optimizing them burns quota and fails under load.
+    unoptimized: !hasPublicStorageCdn,
     minimumCacheTTL: 60 * 60 * 24 * 7,
     formats: ["image/avif", "image/webp"],
     deviceSizes: [640, 750, 828, 1080, 1200, 1920],

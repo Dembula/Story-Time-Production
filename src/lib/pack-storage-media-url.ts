@@ -10,7 +10,22 @@ function trimTrailingSlash(value: string): string {
   return value.replace(/\/+$/, "");
 }
 
-/** HTTPS public base used when packaging private `s3://` refs for browsers / Stream ingest. */
+/**
+ * True only when an explicit public CDN / bucket base is configured
+ * (`STORAGE_PUBLIC_BASE_URL` / `S3_PUBLIC_BASE_URL`).
+ * Do NOT treat the inferred private `bucket.s3.region.amazonaws.com` host as public —
+ * those objects 403 in the browser and burn Image Optimization on failed fetches.
+ */
+export function hasConfiguredPublicStorageBase(): boolean {
+  return Boolean(getStorageConfig().publicBaseUrl?.trim());
+}
+
+/**
+ * HTTPS public base for packaging `s3://` refs.
+ * Prefer a configured CDN; fall back to the regional S3 virtual-host URL only for
+ * non-browser use (e.g. Stream ingest lookups). Browsers must not use the fallback
+ * unless the bucket is actually public.
+ */
 export function getStoragePublicBaseUrl(bucket?: string): string | null {
   const storage = getStorageConfig();
   const targetBucket = bucket || storage.bucket;
@@ -27,6 +42,12 @@ export function getStoragePublicBaseUrl(bucket?: string): string | null {
   }
 
   return null;
+}
+
+/** Browser-safe public HTTPS URL — only when a real public base is configured. */
+export function buildConfiguredPublicStorageUrl(ref: StorageObjectRef): string | null {
+  if (!hasConfiguredPublicStorageBase()) return null;
+  return buildHttpsStorageUrl(ref);
 }
 
 /** Build a browser/Stream-reachable HTTPS object URL for a bucket key. */

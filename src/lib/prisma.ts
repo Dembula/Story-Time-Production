@@ -1,16 +1,46 @@
 import type { PrismaClient as PrismaClientType } from "../../generated/prisma";
 
 const { PrismaClient } = require("../../generated/prisma") as {
-  PrismaClient: new (options?: { log?: string[] }) => any;
+  PrismaClient: new (options?: {
+    log?: string[];
+    datasources?: { db?: { url?: string } };
+  }) => any;
 };
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClientType };
 
+/**
+ * Harden DATABASE_URL for serverless: one connection per isolate + short timeouts.
+ * Prefer Neon pooler (port 6543 / `-pooler` host) in production env.
+ */
+function resolveDatasourceUrl(): string | undefined {
+  const raw = process.env.DATABASE_URL?.trim();
+  if (!raw) return undefined;
+  try {
+    const url = new URL(raw);
+    if (!url.searchParams.has("connection_limit")) {
+      url.searchParams.set("connection_limit", "1");
+    }
+    if (!url.searchParams.has("connect_timeout")) {
+      url.searchParams.set("connect_timeout", "10");
+    }
+    if (!url.searchParams.has("pool_timeout")) {
+      url.searchParams.set("pool_timeout", "10");
+    }
+    if (!url.searchParams.has("pgbouncer") && (url.port === "6543" || url.hostname.includes("-pooler"))) {
+      url.searchParams.set("pgbouncer", "true");
+    }
+    return url.toString();
+  } catch {
+    return raw;
+  }
+}
+
 function createPrismaClient(): PrismaClientType {
-  // Prefer Neon pooler URLs (port 6543 / -pooler hostname) in production so
-  // many concurrent serverless isolates don't exhaust Postgres connections.
+  const url = resolveDatasourceUrl();
   return new PrismaClient({
     log: process.env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
+    ...(url ? { datasources: { db: { url } } } : {}),
   }) as PrismaClientType;
 }
 

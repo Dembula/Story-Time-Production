@@ -295,50 +295,57 @@ export default async function BrowsePage({
     items: T[],
   ) => packBrowseContentList(items);
 
-  [
-    featured,
-    mostPopular,
-    trending,
-    movies,
-    series,
-    animated,
-    sports,
-    comedySkits,
-    documentaries,
-    shows,
-    liveMusic,
-    comedyShows,
-    podcasts,
-    afdaContent,
-  ] = await Promise.all([
-    withMedia(featured),
-    withMedia(mostPopular),
-    withMedia(trending),
-    withMedia(movies),
-    withMedia(series),
-    withMedia(animated),
-    withMedia(sports),
-    withMedia(comedySkits),
-    withMedia(documentaries),
-    withMedia(shows),
-    withMedia(liveMusic),
-    withMedia(comedyShows),
-    withMedia(podcasts),
-    withMedia(afdaContent),
-  ]);
+  try {
+    [
+      featured,
+      mostPopular,
+      trending,
+      movies,
+      series,
+      animated,
+      sports,
+      comedySkits,
+      documentaries,
+      shows,
+      liveMusic,
+      comedyShows,
+      podcasts,
+      afdaContent,
+    ] = await Promise.all([
+      withMedia(featured),
+      withMedia(mostPopular),
+      withMedia(trending),
+      withMedia(movies),
+      withMedia(series),
+      withMedia(animated),
+      withMedia(sports),
+      withMedia(comedySkits),
+      withMedia(documentaries),
+      withMedia(shows),
+      withMedia(liveMusic),
+      withMedia(comedyShows),
+      withMedia(podcasts),
+      withMedia(afdaContent),
+    ]);
 
-  musicTracks = await Promise.all(
-    musicTracks.map(async (track) => ({
-      ...track,
-      coverUrl: (await packPlatformImageUrl(track.coverUrl)) ?? track.coverUrl,
-    })),
-  );
-  afdaMusic = await Promise.all(
-    afdaMusic.map(async (track) => ({
-      ...track,
-      coverUrl: (await packPlatformImageUrl(track.coverUrl)) ?? track.coverUrl,
-    })),
-  );
+    musicTracks = await Promise.all(
+      musicTracks.map(async (track) => ({
+        ...track,
+        coverUrl: (await packPlatformImageUrl(track.coverUrl)) ?? track.coverUrl,
+      })),
+    );
+    afdaMusic = await Promise.all(
+      afdaMusic.map(async (track) => ({
+        ...track,
+        coverUrl: (await packPlatformImageUrl(track.coverUrl)) ?? track.coverUrl,
+      })),
+    );
+  } catch (err) {
+    // Media packing must never take down browse — show rows without art rather than 500.
+    if (process.env.NODE_ENV === "development") {
+      console.error("Browse media packing error:", err);
+    }
+  }
 
   const heroMapped =
     mostPopular.length > 0
