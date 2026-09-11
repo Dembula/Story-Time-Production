@@ -3,15 +3,6 @@ import type { DashboardNavSection } from "@/components/layout/dashboard-sidebar-
 /** Admin sidebar — grouped by operational sector. */
 export const adminNavSections: DashboardNavSection[] = [
   {
-    title: "Executive suite",
-    items: [
-      { href: "/admin/executive", label: "Leadership home", highlight: true },
-      { href: "/admin/executive/calendar", label: "Calendar" },
-      { href: "/admin/executive/comms", label: "Comms" },
-      { href: "/admin/executive/reports", label: "Reports" },
-    ],
-  },
-  {
     title: "Operations",
     items: [
       { href: "/admin/overview", label: "Ops overview" },

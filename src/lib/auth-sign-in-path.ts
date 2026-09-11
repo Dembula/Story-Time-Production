@@ -1,5 +1,4 @@
 import { safeCallbackPath } from "@/lib/auth-callback-path";
-import { executiveHomePath, isExecutivePath, officeFromEmail } from "@/lib/executive/seat-map";
 
 const CREATOR_PORTAL_PREFIXES = [
   "/creator",
@@ -27,14 +26,10 @@ export function isAdminPortalPath(path: string | null | undefined): boolean {
   return safe === "/admin" || safe.startsWith("/admin/");
 }
 
-export function isExecutivePortalPath(path: string | null | undefined): boolean {
-  return isExecutivePath(safeCallbackPath(path));
-}
-
 export function isViewerPortalPath(path: string | null | undefined): boolean {
   const safe = safeCallbackPath(path);
   if (!safe) return true;
-  return !isCreatorPortalPath(safe) && !isAdminPortalPath(safe) && !isExecutivePortalPath(safe);
+  return !isCreatorPortalPath(safe) && !isAdminPortalPath(safe);
 }
 
 /** Sign-in page URL for a protected destination (includes callbackUrl when provided). */
@@ -42,7 +37,7 @@ export function signInUrlForDestination(destination: string): string {
   const safe = safeCallbackPath(destination) ?? "/";
   const query = `callbackUrl=${encodeURIComponent(safe)}`;
 
-  if (isAdminPortalPath(safe) || isExecutivePortalPath(safe)) {
+  if (isAdminPortalPath(safe)) {
     return `/auth/admin?${query}`;
   }
   if (isCreatorPortalPath(safe)) {
@@ -62,7 +57,7 @@ export function resolvePortalSignInRedirect(
   const dest = safeCallbackPath(callbackUrl);
   if (!dest) return null;
 
-  if ((isAdminPortalPath(dest) || isExecutivePortalPath(dest)) && currentSignInPath !== "/auth/admin") {
+  if (isAdminPortalPath(dest) && currentSignInPath !== "/auth/admin") {
     return signInUrlForDestination(dest);
   }
   if (isCreatorPortalPath(dest) && currentSignInPath !== "/auth/creator/signin") {
@@ -74,10 +69,7 @@ export function resolvePortalSignInRedirect(
   return null;
 }
 
-export function defaultHomeForRole(role: string | null | undefined, email?: string | null): string {
-  const office = officeFromEmail(email);
-  if (office) return executiveHomePath(office);
-
+export function defaultHomeForRole(role: string | null | undefined, _email?: string | null): string {
   const roleRedirects: Record<string, string> = {
     CONTENT_CREATOR: "/creator/command-center",
     MUSIC_CREATOR: "/music-creator/dashboard",

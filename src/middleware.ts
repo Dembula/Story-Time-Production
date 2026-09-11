@@ -5,11 +5,6 @@ import { signInUrlForDestination } from "@/lib/auth-sign-in-path";
 import { canAccessAdminPath } from "@/lib/admin-permissions";
 import { requiredRoleForProtectedPath } from "@/lib/platform-roles-shared";
 import { userHasPlatformRole } from "@/lib/user-roles-shared";
-import {
-  executiveHomePath,
-  officeFromEmail,
-  officeFromExecutivePath,
-} from "@/lib/executive/seat-map";
 
 export async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
@@ -44,33 +39,6 @@ export async function middleware(req: NextRequest) {
   const tokenRoles = (token.roles as string[] | undefined) ?? [];
   const requiredRole = requiredRoleForProtectedPath(path);
   const email = typeof token.email === "string" ? token.email : undefined;
-  const seatOffice = officeFromEmail(email);
-
-  // Legacy /executive → admin-nested suite
-  if (path === "/executive" || path.startsWith("/executive/")) {
-    const migrated = path.replace(/^\/executive/, "/admin/executive") || "/admin/executive";
-    return NextResponse.redirect(new URL(migrated, req.url));
-  }
-
-  if (path.startsWith("/admin/executive") || path.startsWith("/api/executive")) {
-    if (!seatOffice) {
-      if (path.startsWith("/api/executive")) {
-        return NextResponse.json({ error: "No executive seat for this account." }, { status: 403 });
-      }
-      return NextResponse.redirect(new URL(role === "ADMIN" ? "/admin" : "/profiles", req.url));
-    }
-    if (path === "/admin/executive" || path === "/admin/executive/") {
-      return NextResponse.redirect(new URL(executiveHomePath(seatOffice), req.url));
-    }
-    const pathOffice = officeFromExecutivePath(path);
-    if (pathOffice && pathOffice !== seatOffice) {
-      if (path.startsWith("/api/executive")) {
-        return NextResponse.json({ error: "You cannot access another executive office." }, { status: 403 });
-      }
-      return NextResponse.redirect(new URL(executiveHomePath(seatOffice), req.url));
-    }
-    return NextResponse.next();
-  }
 
   if (requiredRole && role !== requiredRole && userHasPlatformRole(tokenRoles, requiredRole)) {
     const switchUrl = new URL("/auth/switch-role", req.url);
@@ -89,11 +57,9 @@ export async function middleware(req: NextRequest) {
   if (
     portalScope === "ADMIN" &&
     !path.startsWith("/admin") &&
-    !path.startsWith("/api/admin") &&
-    !path.startsWith("/api/executive")
+    !path.startsWith("/api/admin")
   ) {
-    const dest = seatOffice ? executiveHomePath(seatOffice) : "/admin";
-    return NextResponse.redirect(new URL(dest, req.url));
+    return NextResponse.redirect(new URL("/admin", req.url));
   }
   if (
     portalScope === "VIEWER" &&
@@ -117,10 +83,7 @@ export async function middleware(req: NextRequest) {
   }
 
   if (path.startsWith("/admin") && role !== "ADMIN") {
-    // Seat holders may use the executive suite inside admin without a full ADMIN role.
-    if (!(seatOffice && path.startsWith("/admin/executive"))) {
-      return NextResponse.redirect(new URL("/auth/admin", req.url));
-    }
+    return NextResponse.redirect(new URL("/auth/admin", req.url));
   }
 
   if ((path.startsWith("/admin") || path.startsWith("/api/admin")) && role === "ADMIN") {
@@ -186,9 +149,6 @@ export const config = {
     "/music-creator/:path*",
     "/admin/:path*",
     "/api/admin/:path*",
-    "/executive",
-    "/executive/:path*",
-    "/api/executive/:path*",
     "/equipment-company/:path*",
     "/location-owner/:path*",
     "/crew-team/:path*",

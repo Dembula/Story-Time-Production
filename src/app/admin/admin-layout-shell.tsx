@@ -6,15 +6,13 @@ import { useRouter } from "next/navigation";
 import { DashboardSidebarShell } from "@/components/layout/dashboard-sidebar-shell";
 import { NotificationBell } from "@/components/layout/notification-bell";
 import type { DashboardNavSection } from "@/components/layout/dashboard-sidebar-shell";
-import type { ExecutiveOffice } from "@/lib/executive/seat-map";
 
 type Props = {
   children: React.ReactNode;
   navSections: DashboardNavSection[];
-  office?: ExecutiveOffice | null;
 };
 
-export function AdminLayoutShell({ children, navSections, office = null }: Props) {
+export function AdminLayoutShell({ children, navSections }: Props) {
   const router = useRouter();
 
   const handleSignOut = async () => {
@@ -34,11 +32,6 @@ export function AdminLayoutShell({ children, navSections, office = null }: Props
         brandLabel="Admin"
         headerEnd={
           <>
-            {office ? (
-              <span className="hidden rounded-md border border-orange-500/25 bg-orange-500/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-orange-200 sm:inline-flex">
-                {office} office
-              </span>
-            ) : null}
             <NotificationBell />
             <button
               onClick={handleSignOut}

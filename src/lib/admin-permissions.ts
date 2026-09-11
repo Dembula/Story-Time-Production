@@ -84,7 +84,6 @@ export function hasAdminRight(
 
 /** Longest-prefix wins. `null` = any admin may access (overview). */
 const ADMIN_PATH_RULES: { prefix: string; right: AdminRightKey | null }[] = [
-  { prefix: "/admin/executive", right: null },
   { prefix: "/admin/users", right: "canManageUsers" },
   { prefix: "/admin/creators", right: "canManageUsers" },
   { prefix: "/admin/requests", right: "canManageUsers" },
@@ -140,6 +139,7 @@ const ADMIN_PATH_RULES: { prefix: string; right: AdminRightKey | null }[] = [
   { prefix: "/api/admin/competition", right: "canManageCompetition" },
   { prefix: "/api/admin/ai", right: "canManageSystem" },
   { prefix: "/api/admin/revenue-connector", right: "canManageSystem" },
+  { prefix: "/api/admin/email-smoke-test", right: "canManageSystem" },
   { prefix: "/api/admin/stats", right: null },
   { prefix: "/api/admin/analytics", right: null },
   { prefix: "/admin", right: null },
@@ -190,10 +190,6 @@ export function canAccessAdminPath(
 const NAV_ITEM_RIGHTS: Record<string, AdminRightKey | null> = {
   "/admin": null,
   "/admin/overview": null,
-  "/admin/executive": null,
-  "/admin/executive/calendar": null,
-  "/admin/executive/comms": null,
-  "/admin/executive/reports": null,
   "/admin/review": "canManageContent",
   "/admin/script-reviews": "canManageContent",
   "/admin/projects": "canManageContent",
@@ -236,9 +232,7 @@ export function filterAdminNavSections(
         const required =
           item.href in NAV_ITEM_RIGHTS
             ? NAV_ITEM_RIGHTS[item.href]
-            : item.href.startsWith("/admin/executive")
-              ? null
-              : undefined;
+            : undefined;
         if (required === undefined) return hasAdminRight(rights, "canManageSystem", opts);
         if (required === null) {
           return item.href === "/browse" || hasAnyAdminRight(rights, opts);

@@ -29,24 +29,7 @@ export default function AdminLoginPage() {
 
   useEffect(() => {
     if (status !== "authenticated" || role !== "ADMIN") return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch("/api/executive/home");
-        const data = await res.json().catch(() => ({}));
-        if (cancelled) return;
-        if (res.ok && typeof data.path === "string") {
-          window.location.href = data.path;
-          return;
-        }
-      } catch {
-        // fall through to admin
-      }
-      if (!cancelled) window.location.href = "/admin";
-    })();
-    return () => {
-      cancelled = true;
-    };
+    window.location.href = "/admin";
   }, [status, role]);
 
   async function switchToAdminProfile() {
@@ -70,16 +53,6 @@ export default function AdminLoginPage() {
       if (body.session) {
         await updateSession?.(body.session);
       }
-      try {
-        const homeRes = await fetch("/api/executive/home");
-        const home = await homeRes.json().catch(() => ({}));
-        if (homeRes.ok && typeof home.path === "string") {
-          window.location.assign(home.path);
-          return;
-        }
-      } catch {
-        // fall through
-      }
       window.location.assign(body.redirectUrl ?? "/admin");
     } catch {
       setError("Could not switch to admin.");
@@ -98,16 +71,6 @@ export default function AdminLoginPage() {
     });
     setLoading(false);
     if (res?.ok) {
-      try {
-        const homeRes = await fetch("/api/executive/home");
-        const home = await homeRes.json().catch(() => ({}));
-        if (homeRes.ok && typeof home.path === "string") {
-          window.location.href = home.path;
-          return;
-        }
-      } catch {
-        // fall through
-      }
       window.location.href = "/admin";
     } else {
       setError("Invalid credentials. Only approved administrator accounts can sign in here.");
