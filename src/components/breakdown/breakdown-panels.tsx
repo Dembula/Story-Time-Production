@@ -267,7 +267,7 @@ export function BreakdownSceneDashboard({
                 </Link>
               ) : null}
               <Link
-                href={`/creator/projects/${projectId}/pre-production/visual-planning?category=scene&scene=${active.sceneNumber}`}
+                href={`/creator/projects/${projectId}/pre-production/visual-planning?category=edit&scene=${active.sceneNumber}`}
                 className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 text-[11px] font-medium text-orange-300 hover:border-orange-500/40"
               >
                 Shot list & frames

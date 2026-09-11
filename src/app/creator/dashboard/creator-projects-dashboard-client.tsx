@@ -158,6 +158,7 @@ function ProjectRow({
   meId,
   onInviteCollaborator,
   invitePending,
+  onInviteByEmail,
   onDeleteProject,
   deletePending,
 }: {
@@ -169,12 +170,16 @@ function ProjectRow({
   meId?: string;
   onInviteCollaborator: (projectId: string, inviteeUserId: string) => void;
   invitePending: boolean;
+  onInviteByEmail: (projectId: string, email: string) => Promise<{ message: string }>;
   onDeleteProject: (projectId: string) => void;
   deletePending: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const [selectedInvitees, setSelectedInvitees] = useState<string[]>([]);
   const [inviteMessage, setInviteMessage] = useState("");
+  const [inviteMessageIsError, setInviteMessageIsError] = useState(false);
+  const [emailInvite, setEmailInvite] = useState("");
+  const [emailInvitePending, setEmailInvitePending] = useState(false);
   const [deleteStep, setDeleteStep] = useState<"idle" | "confirm">("idle");
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -233,7 +238,26 @@ function ProjectRow({
       onInviteCollaborator(project.id, inviteeId);
     }
     setSelectedInvitees([]);
+    setInviteMessageIsError(false);
     setInviteMessage("Invites sent — collaborators will see them under My Projects.");
+  };
+
+  const sendEmailInvite = async () => {
+    const email = emailInvite.trim();
+    if (!email) return;
+    setEmailInvitePending(true);
+    setInviteMessage("");
+    setInviteMessageIsError(false);
+    try {
+      const result = await onInviteByEmail(project.id, email);
+      setEmailInvite("");
+      setInviteMessage(result.message);
+    } catch (err) {
+      setInviteMessageIsError(true);
+      setInviteMessage(err instanceof Error ? err.message : "Could not send email invite");
+    } finally {
+      setEmailInvitePending(false);
+    }
   };
 
   const renderSection = (
@@ -472,55 +496,90 @@ function ProjectRow({
               <div className="mt-5 border-t border-white/[0.08] pt-5">
                 <p className="text-xs font-medium uppercase tracking-wide text-emerald-300/90">Invite collaborators</p>
                 <p className="mt-1 text-xs text-slate-500">
-                  Send invites to connected creators from your Network. They&apos;ll accept under My Projects.
+                  Invite creators from your Network, or email anyone — if they&apos;re new, they&apos;ll create a creator
+                  account and then join this project.
                 </p>
-                {inviteCandidates.length === 0 ? (
-                  <p className="mt-3 rounded-xl border border-dashed border-white/12 px-3 py-2 text-[11px] text-slate-500">
-                    No new creators to invite — connect with creators on Network first, or everyone listed is already on this project.
-                  </p>
-                ) : (
-                  <div className="mt-3 flex max-h-32 flex-wrap gap-2 overflow-y-auto rounded-xl border border-white/8 bg-black/12 px-2 py-2">
-                    {inviteCandidates.map((c) => {
-                      const active = selectedInvitees.includes(c.id);
-                      return (
-                        <button
-                          key={c.id}
-                          type="button"
-                          onClick={() => toggleInvitee(c.id)}
-                          className={[
-                            "inline-flex items-center gap-2 rounded-full border px-2.5 py-1.5 text-xs transition",
-                            active
-                              ? "border-emerald-500 bg-emerald-500/10 text-emerald-300"
-                              : "border-white/10 bg-white/[0.03] text-slate-300 hover:border-white/18",
-                          ].join(" ")}
-                        >
-                          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/[0.06] text-[10px]">
-                            {networkDisplayInitial(c)}
-                          </span>
-                          <span className="max-w-[120px] truncate">
-                            {c.displayName ?? resolveNetworkDisplayName(c)}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-                {selectedInvitees.length > 0 && (
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <Button size="sm" disabled={invitePending} onClick={sendInvites}>
-                      {invitePending ? "Sending…" : `Send ${selectedInvitees.length} invite${selectedInvitees.length !== 1 ? "s" : ""}`}
-                    </Button>
+
+                <div className="mt-4 space-y-2">
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">Invite by email</p>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <input
+                      type="email"
+                      value={emailInvite}
+                      onChange={(e) => setEmailInvite(e.target.value)}
+                      placeholder="creator@email.com"
+                      className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-emerald-400/40 focus:outline-none"
+                    />
                     <Button
                       size="sm"
-                      variant="outline"
-                      className="border-white/10 text-slate-400"
-                      onClick={() => setSelectedInvitees([])}
+                      disabled={emailInvitePending || !emailInvite.trim()}
+                      onClick={() => void sendEmailInvite()}
                     >
-                      Clear
+                      {emailInvitePending ? "Sending…" : "Send email invite"}
                     </Button>
                   </div>
-                )}
-                {inviteMessage ? <p className="mt-2 text-xs text-emerald-300/90">{inviteMessage}</p> : null}
+                </div>
+
+                <div className="mt-5 space-y-2">
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">From your Network</p>
+                  {inviteCandidates.length === 0 ? (
+                    <p className="rounded-xl border border-dashed border-white/12 px-3 py-2 text-[11px] text-slate-500">
+                      No network connections left to invite — use email above, or connect more creators on Network.
+                    </p>
+                  ) : (
+                    <div className="flex max-h-32 flex-wrap gap-2 overflow-y-auto rounded-xl border border-white/8 bg-black/12 px-2 py-2">
+                      {inviteCandidates.map((c) => {
+                        const active = selectedInvitees.includes(c.id);
+                        return (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => toggleInvitee(c.id)}
+                            className={[
+                              "inline-flex items-center gap-2 rounded-full border px-2.5 py-1.5 text-xs transition",
+                              active
+                                ? "border-emerald-500 bg-emerald-500/10 text-emerald-300"
+                                : "border-white/10 bg-white/[0.03] text-slate-300 hover:border-white/18",
+                            ].join(" ")}
+                          >
+                            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/[0.06] text-[10px]">
+                              {networkDisplayInitial(c)}
+                            </span>
+                            <span className="max-w-[120px] truncate">
+                              {c.displayName ?? resolveNetworkDisplayName(c)}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {selectedInvitees.length > 0 && (
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <Button size="sm" disabled={invitePending} onClick={sendInvites}>
+                        {invitePending
+                          ? "Sending…"
+                          : `Send ${selectedInvitees.length} network invite${selectedInvitees.length !== 1 ? "s" : ""}`}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-white/10 text-slate-400"
+                        onClick={() => setSelectedInvitees([])}
+                      >
+                        Clear
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                {inviteMessage ? (
+                  <p
+                    className={`mt-2 text-xs ${
+                      inviteMessageIsError ? "text-rose-300" : "text-emerald-300/90"
+                    }`}
+                  >
+                    {inviteMessage}
+                  </p>
+                ) : null}
               </div>
             )}
           </div>
@@ -816,6 +875,32 @@ export function CreatorProjectsDashboardClient() {
 
   const handleInviteCollaborator = (projectId: string, inviteeUserId: string) => {
     inviteCollaboratorMutation.mutate({ projectId, inviteeUserId });
+  };
+
+  const handleInviteByEmail = async (projectId: string, email: string) => {
+    const res = await fetch(`/api/creator/projects/${projectId}/collaborators/invite`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, role: "Collaborator" }),
+    });
+    const data = (await res.json().catch(() => ({}))) as {
+      error?: string;
+      message?: string;
+      joinUrl?: string;
+      emailed?: boolean;
+    };
+    if (!res.ok) {
+      throw new Error(typeof data.error === "string" ? data.error : "Could not send email invite");
+    }
+    void queryClient.invalidateQueries({ queryKey: ["creator-projects"] });
+    const base =
+      typeof data.message === "string" && data.message.trim()
+        ? data.message
+        : "Invite sent";
+    if (!data.emailed && data.joinUrl) {
+      return { message: `${base} Join link: ${data.joinUrl}` };
+    }
+    return { message: base };
   };
 
   const handleDeleteProject = (projectId: string) => {
@@ -1140,6 +1225,7 @@ export function CreatorProjectsDashboardClient() {
               meId={meId}
               onInviteCollaborator={handleInviteCollaborator}
               invitePending={inviteCollaboratorMutation.isPending}
+              onInviteByEmail={handleInviteByEmail}
               onDeleteProject={handleDeleteProject}
               deletePending={
                 deleteProjectMutation.isPending &&

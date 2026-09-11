@@ -18,6 +18,7 @@ import {
 } from "@/lib/prisma-missing-table";
 import { ensureUserRole } from "@/lib/user-roles";
 import { linkPendingStudioInvitesToUser } from "@/lib/creator-studio-company";
+import { linkPendingProjectInvitesToUser } from "@/lib/project-collaborator-invites";
 
 const CREATOR_TYPES = ["content", "music", "equipment", "location", "crew", "casting", "catering", "funder"] as const;
 const ROLE_MAP: Record<string, string> = {
@@ -605,6 +606,7 @@ export async function POST(request: NextRequest) {
     }
     await ensureUserRole(userForRole.id, role);
     await linkPendingStudioInvitesToUser(userForRole.id, normalizedEmail);
+    await linkPendingProjectInvitesToUser(userForRole.id, normalizedEmail);
 
     const { linkUserToCreditProfiles } = await import("@/lib/credit-person");
     void linkUserToCreditProfiles(userForRole.id).catch((err) => {

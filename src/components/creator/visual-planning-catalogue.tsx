@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   VISUAL_PLANNING_CATEGORIES,
+  normalizeVisualPlanningCategory,
+  visualPlanningCategoryLabel,
   type VisualPlanningCategoryId,
 } from "@/lib/visual-planning-categories";
 import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
@@ -69,9 +71,10 @@ export function VisualPlanningCatalogue({ projectId }: { projectId: string }) {
 
   useEffect(() => {
     const categoryParam = searchParams.get("category");
-    if (categoryParam && VISUAL_PLANNING_CATEGORIES.some((c) => c.id === categoryParam)) {
-      setFilter(categoryParam as VisualPlanningCategoryId);
-      if (categoryParam === "scene") setUploadCategory("scene");
+    const normalized = categoryParam ? normalizeVisualPlanningCategory(categoryParam) : null;
+    if (normalized) {
+      setFilter(normalized);
+      setUploadCategory(normalized);
     }
     const sceneNum = searchParams.get("scene")?.trim();
     if (sceneNum && scenesData?.scenes) {
@@ -143,13 +146,15 @@ export function VisualPlanningCatalogue({ projectId }: { projectId: string }) {
   });
 
   const filtered = assets.filter((a) => {
-    if (filter !== "all" && a.category !== filter) return false;
+    if (filter !== "all") {
+      const assetCat = normalizeVisualPlanningCategory(a.category) ?? a.category;
+      if (assetCat !== filter) return false;
+    }
     if (sceneFilterId && a.sceneId !== sceneFilterId) return false;
     return true;
   });
 
-  const labelFor = (cat: string) =>
-    VISUAL_PLANNING_CATEGORIES.find((c) => c.id === cat)?.label ?? cat;
+  const labelFor = (cat: string) => visualPlanningCategoryLabel(cat);
 
   function uploadPayload(base: {
     category: VisualPlanningCategoryId;
@@ -159,7 +164,7 @@ export function VisualPlanningCatalogue({ projectId }: { projectId: string }) {
   }) {
     return {
       ...base,
-      sceneId: uploadCategory === "scene" ? sceneFilterId : null,
+      sceneId: uploadCategory === "edit" ? sceneFilterId : null,
     };
   }
 
@@ -218,9 +223,9 @@ export function VisualPlanningCatalogue({ projectId }: { projectId: string }) {
         <div>
           <h3 className="text-sm font-semibold text-white">Visual catalogue</h3>
           <p className="text-[11px] text-slate-500 mt-1 max-w-3xl leading-relaxed">
-            Upload references or pull stills from Pexels into World of story, Moodboard, Tone & palette, and the other
-            folders — so everyone shares the same sense of{" "}
-            <span className="text-slate-400">tone, direction, and feel</span>.
+            Upload references or pull stills from Pexels into Edit, Colour, Art direction, Locations, Characters,
+            Mood board, and Tone & palette — so everyone shares the same sense of{" "}
+            <span className="text-slate-400">look, tone, and feel</span>.
           </p>
         </div>
         <span className="text-[11px] text-slate-500 shrink-0">{assets.length} image{assets.length === 1 ? "" : "s"}</span>
@@ -380,11 +385,12 @@ export function VisualPlanningCatalogue({ projectId }: { projectId: string }) {
               <div className="p-2 space-y-1.5 flex-1 flex flex-col">
                 <select
                   key={`${a.id}-cat-${a.category}`}
-                  defaultValue={a.category}
+                  defaultValue={normalizeVisualPlanningCategory(a.category) ?? "moodboard"}
                   className="w-full rounded-md border border-slate-700 bg-slate-900/80 px-2 py-1.5 text-[10px] text-slate-200 outline-none focus:border-orange-500"
                   onChange={(e) => {
                     const next = e.target.value as VisualPlanningCategoryId;
-                    if (next === a.category) return;
+                    const current = normalizeVisualPlanningCategory(a.category) ?? a.category;
+                    if (next === current) return;
                     patchMutation.mutate({ id: a.id, category: next });
                   }}
                 >

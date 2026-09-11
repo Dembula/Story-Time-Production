@@ -64,7 +64,7 @@ export async function buildDailiesIntelligence(projectId: string): Promise<Daili
       where: { projectId },
       select: { sceneId: true, shootDayId: true },
     }),
-    prisma.projectVisualAsset.count({ where: { projectId, category: "scene" } }),
+    prisma.projectVisualAsset.count({ where: { projectId, category: { in: ["scene", "edit"] } } }),
     prisma.projectScript.findFirst({
       where: { projectId },
       select: { id: true },

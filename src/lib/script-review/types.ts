@@ -6,9 +6,39 @@ export const REVIEW_LAYERS = [
   { id: "budget", label: "Budget Notes", color: "#eab308" },
   { id: "executive", label: "Executive Notes", color: "#f97316" },
   { id: "continuity", label: "Continuity Notes", color: "#06b6d4" },
+  // Production HODs — department leads may also leave notes on the same draft
+  { id: "ad", label: "1st AD Notes", color: "#f43f5e" },
+  { id: "dop", label: "DOP / Camera Notes", color: "#0ea5e9" },
+  { id: "production_design", label: "Production Design Notes", color: "#d946ef" },
+  { id: "art", label: "Art Department Notes", color: "#c026d3" },
+  { id: "costume", label: "Costume Notes", color: "#ec4899" },
+  { id: "hair_makeup", label: "Hair & Makeup Notes", color: "#f472b6" },
+  { id: "gaffer", label: "Gaffer / Lighting Notes", color: "#fbbf24" },
+  { id: "sound", label: "Sound Notes", color: "#14b8a6" },
+  { id: "locations", label: "Locations Notes", color: "#84cc16" },
+  { id: "stunts", label: "Stunts Notes", color: "#f87171" },
+  { id: "vfx", label: "VFX Notes", color: "#818cf8" },
+  { id: "editor", label: "Editor Notes", color: "#67e8f9" },
+  { id: "production", label: "Production / UPM Notes", color: "#fb923c" },
 ] as const;
 
 export type ReviewLayerId = (typeof REVIEW_LAYERS)[number]["id"];
+
+/** Core creative / business note layers (shown first in the notes picker). */
+export const CORE_REVIEW_LAYER_IDS: ReviewLayerId[] = [
+  "producer",
+  "director",
+  "writer",
+  "legal",
+  "budget",
+  "executive",
+  "continuity",
+];
+
+/** Production HOD note layers. */
+export const HOD_REVIEW_LAYER_IDS: ReviewLayerId[] = REVIEW_LAYERS.map((l) => l.id).filter(
+  (id) => !CORE_REVIEW_LAYER_IDS.includes(id),
+);
 
 export type ReviewTool =
   | "red_pen"

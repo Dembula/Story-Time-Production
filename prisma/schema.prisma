@@ -178,6 +178,8 @@ model User {
 
   creatorStudioInvitesSent     CreatorStudioTeamInvite[] @relation("CreatorStudioInviteSender")
   creatorStudioInvitesReceived CreatorStudioTeamInvite[] @relation("CreatorStudioInviteRecipientUser")
+  projectCollaboratorInvitesSent     ProjectCollaboratorInvite[] @relation("ProjectCollabInviteSender")
+  projectCollaboratorInvitesReceived ProjectCollaboratorInvite[] @relation("ProjectCollabInviteRecipientUser")
   creatorAccountProfileVault   CreatorAccountProfileVault?
 
   // Project & production tooling ownership/participation
@@ -1118,6 +1120,7 @@ model OriginalProject {
 
   pitches       OriginalPitch[]
   members       OriginalMember[]
+  collaboratorInvites ProjectCollaboratorInvite[]
   networkPosts  NetworkPost[]
   networkPortfolioItems NetworkPortfolioItem[]
   ideas         ProjectIdea[]
@@ -1286,6 +1289,32 @@ model OriginalMember {
   @@index([userId])
   @@index([projectId])
   @@unique([userId, projectId])
+}
+
+/// Email invite to join an OriginalProject as a collaborator (works before the invitee has an account).
+model ProjectCollaboratorInvite {
+  id              String   @id @default(cuid())
+  projectId       String
+  project         OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  invitedByUserId String
+  invitedBy       User     @relation("ProjectCollabInviteSender", fields: [invitedByUserId], references: [id], onDelete: Cascade)
+  emailNorm       String
+  invitedUserId   String?
+  invitedUser     User?    @relation("ProjectCollabInviteRecipientUser", fields: [invitedUserId], references: [id], onDelete: SetNull)
+  role            String   @default("Collaborator")
+  department      String?
+  personalMessage String?
+  status          String   @default("PENDING") // PENDING | ACCEPTED | DECLINED | EXPIRED | REVOKED
+  token           String   @unique
+  expiresAt       DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([emailNorm])
+  @@index([invitedUserId])
+  @@index([token])
+  @@index([status])
 }
 
 model LocationListing {
@@ -2349,7 +2378,7 @@ model ProjectVisualAsset {
   id          String   @id @default(cuid())
   projectId   String
   project     OriginalProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  /// world_of_story | moodboard | tone_palette | direction | character | location | scene
+  /// edit | colour | art_direction | character | location | moodboard | tone_palette
   category    String
   imageUrl    String
   title       String?

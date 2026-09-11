@@ -20,15 +20,33 @@ export type ReviewPermissions = {
 
 const ALL_LAYERS = REVIEW_LAYERS.map((l) => l.id);
 
+const CORE_TEAM: ReviewCollaborationMode[] = ["owner", "writer", "producer", "executive_reviewer"];
+const PRODUCER_TEAM: ReviewCollaborationMode[] = ["owner", "producer", "executive_reviewer"];
+const OWNER_EXEC: ReviewCollaborationMode[] = ["owner", "executive_reviewer"];
+const HOD_TEAM: ReviewCollaborationMode[] = ["owner", "writer", "producer", "executive_reviewer"];
+
 /** Which collaboration modes may mark up each review layer. */
 export const LAYER_ROLE_MATRIX: Record<ReviewLayerId, ReviewCollaborationMode[]> = {
-  producer: ["owner", "writer", "producer", "executive_reviewer"],
-  director: ["owner", "writer", "producer", "executive_reviewer"],
+  producer: CORE_TEAM,
+  director: CORE_TEAM,
   writer: ["owner", "writer", "executive_reviewer"],
-  legal: ["owner", "producer", "executive_reviewer"],
-  budget: ["owner", "producer", "executive_reviewer"],
-  executive: ["owner", "executive_reviewer"],
-  continuity: ["owner", "writer", "producer", "executive_reviewer"],
+  legal: PRODUCER_TEAM,
+  budget: PRODUCER_TEAM,
+  executive: OWNER_EXEC,
+  continuity: CORE_TEAM,
+  ad: HOD_TEAM,
+  dop: HOD_TEAM,
+  production_design: HOD_TEAM,
+  art: HOD_TEAM,
+  costume: HOD_TEAM,
+  hair_makeup: HOD_TEAM,
+  gaffer: HOD_TEAM,
+  sound: HOD_TEAM,
+  locations: HOD_TEAM,
+  stunts: HOD_TEAM,
+  vfx: HOD_TEAM,
+  editor: HOD_TEAM,
+  production: HOD_TEAM,
 };
 
 export function resolveReviewCollaborationMode(input: {

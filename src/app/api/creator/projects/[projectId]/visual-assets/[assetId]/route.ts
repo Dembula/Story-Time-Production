@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import type { Prisma } from "../../../../../../../../generated/prisma";
 import { prisma } from "@/lib/prisma";
 import { ensureProjectAccess } from "@/lib/project-access";
-import { isVisualPlanningCategory } from "@/lib/visual-planning-categories";
+import { isVisualPlanningCategory, normalizeVisualPlanningCategory } from "@/lib/visual-planning-categories";
 
 interface Params {
   params: Promise<{ projectId: string; assetId: string }>;
@@ -41,10 +41,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     data.sortOrder = Math.floor(body.sortOrder);
   }
   if (body.category !== undefined) {
-    if (!isVisualPlanningCategory(body.category)) {
+    const category = normalizeVisualPlanningCategory(body.category);
+    if (!category || !isVisualPlanningCategory(category)) {
       return NextResponse.json({ error: "Invalid category" }, { status: 400 });
     }
-    data.category = body.category;
+    data.category = category;
   }
 
   if (Object.keys(data).length === 0) {

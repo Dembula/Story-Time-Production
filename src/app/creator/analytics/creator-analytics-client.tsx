@@ -183,7 +183,7 @@ export function CreatorAnalyticsClient() {
           ))}
         </div>
         <p className="text-xs text-slate-500">
-          Window snapshot and pool math for views/streams use this range. Engagement and the content table stay all-time.
+          Window snapshot for views/streams uses this range. Engagement and the content table stay all-time.
         </p>
       </div>
 
@@ -193,14 +193,14 @@ export function CreatorAnalyticsClient() {
             <TrendingUp className="w-5 h-5 text-cyan-400" /> Window snapshot
             <span className="text-xs font-normal text-slate-500">({RANGE_LABEL[analytics?.rangeKey ?? "month"]})</span>
           </h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             <div className="storytime-kpi p-5">
               <div className="flex items-center gap-2 mb-2">
                 <DollarSign className="w-4 h-4 text-orange-400" />
                 <span className="text-xs text-slate-400">Attributed earnings</span>
               </div>
               <p className="text-2xl font-bold text-white">{formatZar(win.amount)}</p>
-              <p className="text-xs text-slate-500 mt-1">Share in this window</p>
+              <p className="text-xs text-slate-500 mt-1">Your earnings in this window</p>
             </div>
             <div className="storytime-kpi p-5">
               <div className="flex items-center gap-2 mb-2">
@@ -218,14 +218,6 @@ export function CreatorAnalyticsClient() {
               <p className="text-2xl font-bold text-white">{Math.floor(win.watchTimeSeconds / 3600)}h</p>
               <p className="text-xs text-slate-500 mt-1">{formatZar(win.perStreamRand)} per stream</p>
             </div>
-            <div className="storytime-kpi p-5">
-              <div className="flex items-center gap-2 mb-2">
-                <Percent className="w-4 h-4 text-cyan-400" />
-                <span className="text-xs text-slate-400">Share of pool</span>
-              </div>
-              <p className="text-2xl font-bold text-white">{win.sharePercent.toFixed(2)}%</p>
-              <p className="text-xs text-slate-500 mt-1">Creator pool {formatZar(win.creatorPool)}</p>
-            </div>
           </div>
         </section>
       )}
@@ -236,7 +228,7 @@ export function CreatorAnalyticsClient() {
           <DollarSign className="w-5 h-5 text-orange-400" /> Revenue
           <span className="text-xs font-normal text-slate-500">(payout period)</span>
         </h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           <div className="storytime-kpi p-5">
             <div className="flex items-center gap-2 mb-2">
               <DollarSign className="w-4 h-4 text-orange-400" />
@@ -262,14 +254,6 @@ export function CreatorAnalyticsClient() {
             </div>
             <p className="text-2xl font-bold text-white">{Math.floor(data.watchTime / 3600)}h</p>
             <p className="text-xs text-slate-500 mt-1">{formatZar(data.perStreamRand)} per stream</p>
-          </div>
-          <div className="storytime-kpi p-5">
-            <div className="flex items-center gap-2 mb-2">
-              <Percent className="w-4 h-4 text-cyan-400" />
-              <span className="text-xs text-slate-400">Share of pool</span>
-            </div>
-            <p className="text-2xl font-bold text-white">{data.share.toFixed(2)}%</p>
-            <p className="text-xs text-slate-500 mt-1">Creator pool {formatZar(data.creatorPool)}</p>
           </div>
         </div>
       </section>
@@ -445,7 +429,7 @@ export function CreatorAnalyticsClient() {
           <TrendingUp className="w-5 h-5 text-orange-400" /> How you earn
         </h2>
         <p className="text-slate-400 text-sm">
-          60% of viewer subscription revenue is shared among creators by view share. Your share is based on your content&apos;s proportion of total platform views in the selected period.
+          Your earnings are based on how much eligible watch time your content earns in the selected period.
         </p>
       </div>
 

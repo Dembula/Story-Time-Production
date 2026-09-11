@@ -711,18 +711,10 @@ export function CommandCenterClient() {
           </p>
         ) : (
         <>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-2 gap-3">
           <div className="storytime-kpi p-4">
             <p className="text-xs text-slate-400">Payout period earnings</p>
             <p className="text-2xl font-bold text-white">{formatZar(revenueData.revenue)}</p>
-          </div>
-          <div className="storytime-kpi p-4">
-            <p className="text-xs text-slate-400">Viewer sub pool (window)</p>
-            <p className="text-2xl font-bold text-white">{formatZar(win.viewerSubRevenue, { maximumFractionDigits: 0 })}</p>
-          </div>
-          <div className="storytime-kpi p-4">
-            <p className="text-xs text-slate-400">Your pool share</p>
-            <p className="text-2xl font-bold text-white">{win.sharePercent.toFixed(2)}%</p>
           </div>
           <div className="storytime-kpi p-4">
             <p className="text-xs text-slate-400">RPU (rough)</p>
@@ -733,8 +725,7 @@ export function CommandCenterClient() {
           </div>
         </div>
         <p className="text-xs text-slate-500">
-          Revenue mix (ads vs subs vs licensing) follows your live payout rules — subscription pool attribution is shown
-          above. Forecasting uses manual review for now; export CSV for investor packs.
+          Revenue follows your live payout rules. Forecasting uses manual review for now; export CSV for investor packs.
         </p>
         <p className="text-xs text-slate-500 mt-2">
           {revenueData.banking ? (

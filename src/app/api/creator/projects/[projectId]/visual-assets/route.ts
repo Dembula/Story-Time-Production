@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ensureProjectAccess } from "@/lib/project-access";
-import { isVisualPlanningCategory } from "@/lib/visual-planning-categories";
+import { isVisualPlanningCategory, normalizeVisualPlanningCategory } from "@/lib/visual-planning-categories";
 import { validateStorageUrlField } from "@/lib/storage-origin";
 
 interface Params {
@@ -40,7 +40,8 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "category and imageUrl are required" }, { status: 400 });
   }
 
-  if (!isVisualPlanningCategory(body.category)) {
+  const category = normalizeVisualPlanningCategory(body.category);
+  if (!category || !isVisualPlanningCategory(category)) {
     return NextResponse.json({ error: "Invalid category" }, { status: 400 });
   }
 
@@ -49,7 +50,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (imageErr) return NextResponse.json({ error: imageErr }, { status: 400 });
 
   const agg = await prisma.projectVisualAsset.aggregate({
-    where: { projectId, category: body.category },
+    where: { projectId, category },
     _max: { sortOrder: true },
   });
   const sortOrder = (agg._max.sortOrder ?? -1) + 1;
@@ -68,7 +69,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   const asset = await prisma.projectVisualAsset.create({
     data: {
       projectId,
-      category: body.category,
+      category,
       imageUrl: url,
       title: body.title?.trim() || null,
       caption: body.caption?.trim() || null,

@@ -129,7 +129,7 @@ export function CreatorDashboardClient() {
           </CardHeader>
           <CardContent>
             <p className="text-3xl font-bold text-orange-500">{formatZar(stats?.revenue ?? 0)}</p>
-            <p className="text-xs text-slate-500 mt-1">{stats?.revenueShare ?? 0}% of platform attention</p>
+            <p className="text-xs text-slate-500 mt-1">Your earnings this month</p>
           </CardContent>
         </Card>
       </div>

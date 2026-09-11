@@ -93,7 +93,7 @@ export async function buildBreakdownIntelligence(projectId: string): Promise<Bre
   const locationsBookedCount = locations.filter((l) => l.locationListingId).length;
 
   const visualAssets = await prisma.projectVisualAsset.findMany({
-    where: { projectId, category: "scene" },
+    where: { projectId, category: { in: ["scene", "edit"] } },
     select: { id: true, sceneId: true, title: true },
   });
   const visualCountByScene = new Map<string, number>();
@@ -105,7 +105,7 @@ export async function buildBreakdownIntelligence(projectId: string): Promise<Bre
   const sceneIntelEnriched = sceneIntel.map((s) => ({
     ...s,
     visualAssetCount: visualCountByScene.get(s.sceneId) ?? 0,
-    storyboardHref: `${basePath}/visual-planning?scene=${s.sceneNumber}`,
+    storyboardHref: `${basePath}/visual-planning?category=edit&scene=${s.sceneNumber}`,
   }));
   const budgetLineCount = budgetRecord?._count.lines ?? 0;
 

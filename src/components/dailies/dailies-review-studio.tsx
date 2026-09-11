@@ -100,7 +100,7 @@ export function DailiesReviewStudio({ projectId, title }: { projectId?: string; 
 
   const storyboardHref =
     selectedClip?.sceneNumber && projectId
-      ? `/creator/projects/${projectId}/pre-production/visual-planning?category=scene&scene=${selectedClip.sceneNumber}`
+      ? `/creator/projects/${projectId}/pre-production/visual-planning?category=edit&scene=${selectedClip.sceneNumber}`
       : null;
 
   const { data: notesData, isLoading: notesLoading } = useQuery({

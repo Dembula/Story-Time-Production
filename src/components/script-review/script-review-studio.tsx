@@ -28,6 +28,8 @@ import { formatZar } from "@/lib/format-currency-zar";
 import { EXECUTIVE_SCRIPT_REVIEW_FEE_ZAR } from "@/lib/pricing";
 import { projectToolQueryFn } from "@/lib/project-tool-fetch";
 import {
+  CORE_REVIEW_LAYER_IDS,
+  HOD_REVIEW_LAYER_IDS,
   REVIEW_LAYERS,
   REVIEW_STATUSES,
   paginateScreenplay,
@@ -558,11 +560,24 @@ export function ScriptReviewStudio({ projectId, title }: ScriptReviewStudioProps
               onChange={(e) => setActiveLayer(e.target.value as ReviewLayerId)}
               className={creatorToolSelectSm("ml-auto text-[10px]")}
             >
-              {REVIEW_LAYERS.filter((l) => allowedLayers.includes(l.id)).map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.label}
-                </option>
-              ))}
+              <optgroup label="Notes">
+                {REVIEW_LAYERS.filter(
+                  (l) => CORE_REVIEW_LAYER_IDS.includes(l.id) && allowedLayers.includes(l.id),
+                ).map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.label}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Production HODs">
+                {REVIEW_LAYERS.filter(
+                  (l) => HOD_REVIEW_LAYER_IDS.includes(l.id) && allowedLayers.includes(l.id),
+                ).map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.label}
+                  </option>
+                ))}
+              </optgroup>
             </select>
             <select
               value={session?.reviewStatus ?? "IN_REVIEW"}
@@ -697,7 +712,31 @@ export function ScriptReviewStudio({ projectId, title }: ScriptReviewStudioProps
               <div className="flex-1 overflow-y-auto p-3 text-[11px] space-y-3">
                 {rightTab === "layers" && (
                   <div className="space-y-2">
-                    {REVIEW_LAYERS.filter((l) => allowedLayers.includes(l.id)).map((l) => (
+                    <p className="text-[10px] uppercase tracking-wide text-slate-500">Notes</p>
+                    {REVIEW_LAYERS.filter(
+                      (l) => CORE_REVIEW_LAYER_IDS.includes(l.id) && allowedLayers.includes(l.id),
+                    ).map((l) => (
+                      <label key={l.id} className="flex items-center gap-2 text-slate-300">
+                        <input
+                          type="checkbox"
+                          checked={visibleLayers.has(l.id)}
+                          onChange={() => {
+                            setVisibleLayers((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(l.id)) next.delete(l.id);
+                              else next.add(l.id);
+                              return next;
+                            });
+                          }}
+                        />
+                        <span className="h-2 w-2 rounded-full" style={{ backgroundColor: l.color }} />
+                        {l.label}
+                      </label>
+                    ))}
+                    <p className="text-[10px] uppercase tracking-wide text-slate-500 pt-2">Production HODs</p>
+                    {REVIEW_LAYERS.filter(
+                      (l) => HOD_REVIEW_LAYER_IDS.includes(l.id) && allowedLayers.includes(l.id),
+                    ).map((l) => (
                       <label key={l.id} className="flex items-center gap-2 text-slate-300">
                         <input
                           type="checkbox"

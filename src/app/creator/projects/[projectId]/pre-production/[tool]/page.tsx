@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronRight, Clapperboard, FileText } from "lucide-react";
+import { ChevronDown, ChevronRight, Clapperboard, FileText, Upload } from "lucide-react";
 import { ProjectStageControls } from "../../project-stage-controls";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9125,6 +9125,7 @@ function EquipmentPlanningWorkspace({
   const [selectedListingId, setSelectedListingId] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
   const [filterSpecs, setFilterSpecs] = useState("");
+  const importFileRef = useRef<HTMLInputElement>(null);
 
   const queryUrl = useMemo(() => {
     const params = new URLSearchParams();
@@ -9254,6 +9255,31 @@ function EquipmentPlanningWorkspace({
       setPortalMessage(mutationErrorMessage(err, "Could not delete equipment item."));
     },
   });
+  const importListMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const fd = new FormData();
+      fd.set("file", file);
+      const res = await fetch(`/api/creator/projects/${projectId}/equipment-plan/import`, {
+        method: "POST",
+        body: fd,
+      });
+      const json = (await res.json().catch(() => null)) as
+        | { error?: string; imported?: number; sourceName?: string }
+        | null;
+      if (!res.ok) throw new Error(json?.error || "Import failed");
+      return json;
+    },
+    onSuccess: (json) => {
+      queryClient.invalidateQueries({ queryKey: ["project-equipment-plan", projectId] });
+      invalidateProjectPipeline(queryClient, projectId, ["equipment"]);
+      setPortalMessage(
+        `Imported ${json?.imported ?? 0} item${(json?.imported ?? 0) === 1 ? "" : "s"} from ${json?.sourceName ?? "file"}.`,
+      );
+    },
+    onError: (err) => {
+      setPortalMessage(mutationErrorMessage(err, "Could not import equipment list."));
+    },
+  });
 
   useEffect(() => {
     if (!selectedItemId && items.length > 0) {
@@ -9280,7 +9306,8 @@ function EquipmentPlanningWorkspace({
             </p>
             <h2 className="creator-tool-workspace-title">{title}</h2>
             <p className="creator-tool-workspace-description">
-              Build equipment plans, browse marketplace gear with photos, send free hire requests, and link listings to plan items.
+              Build equipment plans, import a PDF/CSV/TXT list, browse marketplace gear with photos, send free hire
+              requests, and link listings to plan items.
             </p>
           </div>
           
@@ -9302,6 +9329,35 @@ function EquipmentPlanningWorkspace({
             <Button size="sm" className="bg-orange-500 hover:bg-orange-600 text-xs" onClick={() => createMutation.mutate()} disabled={!hasProject || createMutation.isPending}>
               Add equipment plan item
             </Button>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2">
+            <input
+              ref={importFileRef}
+              type="file"
+              accept=".pdf,.csv,.txt,text/plain,text/csv,application/pdf"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (!file) return;
+                importListMutation.mutate(file);
+              }}
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="border-slate-700 bg-slate-900 text-xs text-slate-200 hover:bg-slate-800"
+              disabled={!hasProject || importListMutation.isPending}
+              onClick={() => importFileRef.current?.click()}
+            >
+              <Upload className="mr-1.5 h-3.5 w-3.5" />
+              {importListMutation.isPending ? "Importing…" : "Import list (PDF / CSV / TXT)"}
+            </Button>
+            <p className="text-[11px] text-slate-500">
+              One item per line — e.g. <span className="text-slate-400">2x Tripod</span> or{" "}
+              <span className="text-slate-400">Camera,2,Arri Alexa</span>.
+            </p>
           </div>
           {items.length === 0 ? (
             <p className="text-xs text-slate-500 p-3 rounded-xl bg-slate-900/60">No equipment planned yet.</p>
@@ -10004,8 +10060,8 @@ function VisualPlanningWorkspace({
             </p>
             <h2 className="creator-tool-workspace-title">{title}</h2>
             <p className="creator-tool-workspace-description">
-              Build a shared visual language — upload references or browse Pexels into World of story, Moodboard,
-              Tone & palette, Direction, Characters, Locations, and Scenes.
+              Build a shared visual language — upload references or browse Pexels into Edit, Colour, Art direction,
+              Locations, Characters, Mood board, and Tone & palette.
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">

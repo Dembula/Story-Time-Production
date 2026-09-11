@@ -10,3 +10,11 @@ export function safeCallbackPath(path: string | null | undefined): string | null
 export function isStudioTeamJoinCallback(path: string | null | undefined): boolean {
   return Boolean(path?.includes("/creator/join/company/"));
 }
+
+export function isProjectInviteJoinCallback(path: string | null | undefined): boolean {
+  return Boolean(path?.includes("/creator/join/project/"));
+}
+
+export function isCreatorInviteJoinCallback(path: string | null | undefined): boolean {
+  return isStudioTeamJoinCallback(path) || isProjectInviteJoinCallback(path);
+}

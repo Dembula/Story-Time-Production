@@ -5,7 +5,7 @@ import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Check, GraduationCap, Shield } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { isStudioTeamJoinCallback, safeCallbackPath } from "@/lib/auth-callback-path";
+import { isCreatorInviteJoinCallback, safeCallbackPath } from "@/lib/auth-callback-path";
 import { isStudioCreatorSignupType, signupBioPlaceholder } from "@/lib/creator-signup-fields";
 import { StoryTimeMark } from "@/components/brand/story-time-mark";
 
@@ -70,7 +70,7 @@ function CreatorSignUpPageInner() {
   useEffect(() => {
     setConsentReady(searchParams.get("termsAccepted") === "1");
     const cb = safeCallbackPath(searchParams.get("callbackUrl"));
-    if (isStudioTeamJoinCallback(cb)) {
+    if (isCreatorInviteJoinCallback(cb)) {
       setAccountStructure("INDIVIDUAL");
     }
   }, [searchParams]);
