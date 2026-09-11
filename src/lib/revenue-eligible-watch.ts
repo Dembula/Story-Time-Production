@@ -19,6 +19,9 @@ export async function resolveWatchCountsForCreatorRevenue(
   userId: string,
   contentId: string,
 ): Promise<boolean> {
+  const { isCreatorRevenueTrackingEnabled } = await import("@/lib/finance/revenue-connector");
+  if (!(await isCreatorRevenueTrackingEnabled())) return false;
+
   const subscription = await getLatestViewerSubscription(userId);
   if (!subscription) return false;
 

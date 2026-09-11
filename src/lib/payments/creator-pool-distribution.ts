@@ -91,6 +91,11 @@ export async function distributeCreatorPoolForPeriod(
 ): Promise<CreatorPoolDistributionResult> {
   const periodKey = formatRevenuePeriodKey(periodStart);
 
+  const { isCreatorRevenueTrackingEnabled } = await import("@/lib/finance/revenue-connector");
+  if (!(await isCreatorRevenueTrackingEnabled())) {
+    return { ok: true, skipped: true, periodKey, reason: "creator_revenue_tracking_paused" };
+  }
+
   if (await hasCreatorPoolDistribution(periodKey)) {
     return { ok: true, skipped: true, periodKey, reason: "already_distributed" };
   }

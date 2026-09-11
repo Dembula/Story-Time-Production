@@ -51,6 +51,11 @@ export async function getCreatorRevenue(
   periodStart: Date,
   periodEnd: Date
 ): Promise<{ revenue: number; watchTime: number; share: number }> {
+  const { isCreatorRevenueTrackingEnabled } = await import("@/lib/finance/revenue-connector");
+  if (!(await isCreatorRevenueTrackingEnabled())) {
+    return { revenue: 0, watchTime: 0, share: 0 };
+  }
+
   const [creatorWatchTime, totalPlatformWatchTime, platformRevenue, viewerSubRevenue] = await Promise.all([
     prisma.watchSession.aggregate({
       where: {

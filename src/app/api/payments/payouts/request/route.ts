@@ -17,6 +17,19 @@ export async function POST(req: NextRequest) {
   if (!user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (user.role === "SUBSCRIBER") return NextResponse.json({ error: "Viewers cannot request payouts." }, { status: 403 });
 
+  if (user.role === "CONTENT_CREATOR" || user.role === "MUSIC_CREATOR") {
+    const { isCreatorRevenueTrackingEnabled } = await import("@/lib/finance/revenue-connector");
+    if (!(await isCreatorRevenueTrackingEnabled())) {
+      return NextResponse.json(
+        {
+          error: "Creator payouts are paused while platform revenue tracking is offline.",
+          code: "REVENUE_TRACKING_PAUSED",
+        },
+        { status: 403 },
+      );
+    }
+  }
+
   if (user.role === "FUNDER") {
     const funderCheck = await assertFunderVerificationApproved(user.id);
     if (!funderCheck.ok) {

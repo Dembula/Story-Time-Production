@@ -577,6 +577,24 @@ exports.Prisma.FinanceFeeSettingsHistoryScalarFieldEnum = {
   createdAt: 'createdAt'
 };
 
+exports.Prisma.PlatformRevenueConnectorScalarFieldEnum = {
+  id: 'id',
+  creatorRevenueTrackingEnabled: 'creatorRevenueTrackingEnabled',
+  note: 'note',
+  updatedByUserId: 'updatedByUserId',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.PlatformRevenueConnectorHistoryScalarFieldEnum = {
+  id: 'id',
+  settingsId: 'settingsId',
+  creatorRevenueTrackingEnabled: 'creatorRevenueTrackingEnabled',
+  note: 'note',
+  updatedByUserId: 'updatedByUserId',
+  createdAt: 'createdAt'
+};
+
 exports.Prisma.PendingCreatorSignupScalarFieldEnum = {
   id: 'id',
   email: 'email',
@@ -3280,6 +3298,8 @@ exports.Prisma.ModelName = {
   PlatformRevenue: 'PlatformRevenue',
   FinanceFeeSettings: 'FinanceFeeSettings',
   FinanceFeeSettingsHistory: 'FinanceFeeSettingsHistory',
+  PlatformRevenueConnector: 'PlatformRevenueConnector',
+  PlatformRevenueConnectorHistory: 'PlatformRevenueConnectorHistory',
   PendingCreatorSignup: 'PendingCreatorSignup',
   ActivityLog: 'ActivityLog',
   EquipmentListing: 'EquipmentListing',

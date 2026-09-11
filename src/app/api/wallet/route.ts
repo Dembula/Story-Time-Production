@@ -15,31 +15,62 @@ export async function GET() {
 
   try {
     await ensureWalletForUser(user.id);
+    const trackingEnabled = await (async () => {
+      if (user.role !== "CONTENT_CREATOR" && user.role !== "MUSIC_CREATOR") return true;
+      const { isCreatorRevenueTrackingEnabled } = await import("@/lib/finance/revenue-connector");
+      return isCreatorRevenueTrackingEnabled();
+    })();
+
     const wallet = await getWalletSnapshot(user.id);
-    const transactions = await db.ledgerEntry.findMany({
-      where: { userId: user.id },
-      orderBy: { createdAt: "desc" },
-      take: 100,
-    });
-    const escrows = await db.escrowAccount.findMany({
-      where: {
-        OR: [{ buyerWalletId: wallet?.id }, { sellerWalletId: wallet?.id }],
-      },
-      include: {
-        buyerWallet: { select: { userId: true } },
-        sellerWallet: { select: { userId: true } },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 25,
-    });
+    const transactions = trackingEnabled
+      ? await db.ledgerEntry.findMany({
+          where: { userId: user.id },
+          orderBy: { createdAt: "desc" },
+          take: 100,
+        })
+      : [];
+    const escrows = trackingEnabled
+      ? await db.escrowAccount.findMany({
+          where: {
+            OR: [{ buyerWalletId: wallet?.id }, { sellerWalletId: wallet?.id }],
+          },
+          include: {
+            buyerWallet: { select: { userId: true } },
+            sellerWallet: { select: { userId: true } },
+          },
+          orderBy: { createdAt: "desc" },
+          take: 25,
+        })
+      : [];
 
     const [payfastToken, payoutBanking] = await Promise.all([
       getPayFastTokenForUser(user.id),
       resolvePayoutBankingForUser(user.id, user.role),
     ]);
 
+    const maskedWallet =
+      trackingEnabled || !wallet
+        ? wallet
+        : {
+            ...wallet,
+            availableBalance: 0,
+            pendingBalance: 0,
+            lockedBalance: 0,
+            totalEarnings: 0,
+            totalWithdrawn: 0,
+            accounts: (wallet.accounts ?? []).map((account: { accountType: string; balance: number }) => ({
+              ...account,
+              balance:
+                account.accountType === "AVAILABLE" ||
+                account.accountType === "PENDING" ||
+                account.accountType === "LOCKED"
+                  ? 0
+                  : account.balance,
+            })),
+          };
+
     return NextResponse.json({
-      wallet,
+      wallet: maskedWallet,
       transactions,
       escrows,
       payfastCard: {
@@ -47,6 +78,7 @@ export async function GET() {
         source: payfastToken?.source ?? null,
       },
       payoutBanking: payoutBanking ? maskPayoutBanking(payoutBanking) : null,
+      revenueTrackingPaused: !trackingEnabled,
     });
   } catch (error: any) {
     if (error?.code === "P2021") {

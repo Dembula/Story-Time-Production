@@ -878,6 +878,30 @@ model FinanceFeeSettingsHistory {
   @@index([createdAt])
 }
 
+/// Singleton switch: when false, creators see no attributed earnings and new viewer revenue stays with the platform.
+model PlatformRevenueConnector {
+  id                             String   @id @default(cuid())
+  /// When false, creator dashboards show zero earnings and watch/pool attribution is paused.
+  creatorRevenueTrackingEnabled  Boolean  @default(false)
+  note                           String?
+  updatedByUserId                String?
+  createdAt                      DateTime @default(now())
+  updatedAt                      DateTime @updatedAt
+
+  @@index([updatedAt])
+}
+
+model PlatformRevenueConnectorHistory {
+  id                             String   @id @default(cuid())
+  settingsId                     String?
+  creatorRevenueTrackingEnabled  Boolean
+  note                           String?
+  updatedByUserId                String?
+  createdAt                      DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 model PendingCreatorSignup {
   id              String   @id @default(cuid())
   email           String   @unique

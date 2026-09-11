@@ -96,6 +96,7 @@ export function WalletDashboard({
   });
 
   const wallet = data?.wallet;
+  const revenueTrackingPaused = Boolean((data as { revenueTrackingPaused?: boolean } | undefined)?.revenueTrackingPaused);
   const transactions = useMemo(
     () => (filterMutation.data?.transactions as any[] | undefined) ?? (data?.transactions as any[] | undefined) ?? [],
     [data?.transactions, filterMutation.data?.transactions],
@@ -132,6 +133,11 @@ export function WalletDashboard({
 
       {requiresPayoutKyc(role) ? <PayoutKycBanner inline /> : null}
       {isFunder ? <FunderVerificationBanner inline /> : null}
+      {revenueTrackingPaused ? (
+        <div className="rounded-xl border border-amber-400/25 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+          Creator revenue tracking is paused by the platform. Earnings and payout history stay at zero until tracking is reconnected.
+        </div>
+      ) : null}
 
       <section className="grid gap-4 md:grid-cols-4">
         <Card label="Available" value={`R${money.format(Number(wallet?.availableBalance ?? 0))}`} />

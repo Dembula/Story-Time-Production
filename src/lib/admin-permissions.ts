@@ -110,6 +110,7 @@ const ADMIN_PATH_RULES: { prefix: string; right: AdminRightKey | null }[] = [
   { prefix: "/admin/payout-verification", right: "canManageFinance" },
   { prefix: "/admin/competition", right: "canManageCompetition" },
   { prefix: "/admin/ai", right: "canManageSystem" },
+  { prefix: "/admin/revenue-connector", right: "canManageSystem" },
   { prefix: "/api/admin/users", right: "canManageUsers" },
   { prefix: "/api/admin/creators", right: "canManageUsers" },
   { prefix: "/api/admin/requests", right: "canManageUsers" },
@@ -138,6 +139,7 @@ const ADMIN_PATH_RULES: { prefix: string; right: AdminRightKey | null }[] = [
   { prefix: "/api/admin/payout", right: "canManageFinance" },
   { prefix: "/api/admin/competition", right: "canManageCompetition" },
   { prefix: "/api/admin/ai", right: "canManageSystem" },
+  { prefix: "/api/admin/revenue-connector", right: "canManageSystem" },
   { prefix: "/api/admin/stats", right: null },
   { prefix: "/api/admin/analytics", right: null },
   { prefix: "/admin", right: null },
@@ -217,6 +219,7 @@ const NAV_ITEM_RIGHTS: Record<string, AdminRightKey | null> = {
   "/admin/activity": "canViewActivity",
   "/admin/ai": "canManageSystem",
   "/admin/competition": "canManageCompetition",
+  "/admin/revenue-connector": "canManageSystem",
   "/browse": null,
 };
 

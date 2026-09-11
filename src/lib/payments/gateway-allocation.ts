@@ -230,9 +230,13 @@ export async function allocateGatewayPaymentLedger(payment: {
 
   if (isViewerPoolPaymentPurpose(purpose)) {
     const feeSettings = await getFinanceFeeSettings();
-    const split = splitViewerRevenue(settlementAmount, feeSettings);
-    const creatorPct = Math.round(feeSettings.viewerCreatorSplit * 100);
-    const platformPct = Math.round(feeSettings.viewerPlatformSplit * 100);
+    const { isCreatorRevenueTrackingEnabled } = await import("@/lib/finance/revenue-connector");
+    const creatorsTracking = await isCreatorRevenueTrackingEnabled();
+    const split = creatorsTracking
+      ? splitViewerRevenue(settlementAmount, feeSettings)
+      : { creator: 0, platform: settlementAmount };
+    const creatorPct = creatorsTracking ? Math.round(feeSettings.viewerCreatorSplit * 100) : 0;
+    const platformPct = creatorsTracking ? Math.round(feeSettings.viewerPlatformSplit * 100) : 100;
     const poolLabel =
       purpose === "viewer_ppv" || purpose === "viewer_ppv_apple_iap"
         ? "Viewer PPV payment received"
@@ -246,23 +250,27 @@ export async function allocateGatewayPaymentLedger(payment: {
         amount: settlementAmount,
         description: `${poolLabel} (net after gateway fees)`,
       },
-      {
+    ];
+    if (split.creator > 0) {
+      credits.push({
         userId: treasuryUserId,
         direction: "CREDIT",
         accountType: "CREATOR_REVENUE",
         transactionType: "viewer_creator_pool",
         amount: split.creator,
         description: `Creator pool (${creatorPct}%) — distributed by watch time`,
-      },
-      {
-        userId: treasuryUserId,
-        direction: "CREDIT",
-        accountType: "PLATFORM_REVENUE",
-        transactionType: "viewer_platform_share",
-        amount: split.platform,
-        description: `Story Time platform share (${platformPct}%)`,
-      },
-    ];
+      });
+    }
+    credits.push({
+      userId: treasuryUserId,
+      direction: "CREDIT",
+      accountType: "PLATFORM_REVENUE",
+      transactionType: creatorsTracking ? "viewer_platform_share" : "viewer_platform_hold_while_paused",
+      amount: split.platform,
+      description: creatorsTracking
+        ? `Story Time platform share (${platformPct}%)`
+        : "Story Time platform hold — creator revenue tracking paused",
+    });
     const creditTotal = credits.reduce((sum, entry) => sum + entry.amount, 0);
     await postBalancedLedgerBatch({
       idempotencyKey,
@@ -277,6 +285,7 @@ export async function allocateGatewayPaymentLedger(payment: {
         providerFeeAmount,
         creatorPool: split.creator,
         platformShare: split.platform,
+        creatorRevenueTrackingEnabled: creatorsTracking,
       },
       entries: [...credits, balancingLockedDebit(treasuryUserId, creditTotal)],
     });
