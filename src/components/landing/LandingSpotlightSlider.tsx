@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { MediaImage } from "@/components/media/media-image";
+import { computeIsMobileLikeClient } from "@/lib/player/mobile-detect";
 
 type SpotlightItem = {
   id: string;
@@ -21,13 +22,18 @@ type LandingSpotlightSliderProps = {
 
 export function LandingSpotlightSlider({ variant = "default" }: LandingSpotlightSliderProps) {
   const [items, setItems] = useState<SpotlightItem[] | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
   const hero = variant === "hero";
+
+  useEffect(() => {
+    setIsMobile(computeIsMobileLikeClient());
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/landing/spotlight", { cache: "no-store" });
+        const res = await fetch("/api/landing/spotlight", { cache: "force-cache" });
         if (!res.ok) return;
         const data = (await res.json()) as { items?: SpotlightItem[] };
         if (!cancelled && Array.isArray(data.items) && data.items.length > 0) {
@@ -44,8 +50,8 @@ export function LandingSpotlightSlider({ variant = "default" }: LandingSpotlight
 
   if (!items?.length) return null;
 
-  // Fixed rem widths (not vw) so the row never widens the page.
-  // Hero cards ~25–30% smaller than the prior oversized set; swipe to scroll — no arrow buttons.
+  const visible = isMobile ? items.slice(0, 5) : items;
+
   const cardClass = hero
     ? "group relative block shrink-0 snap-start overflow-hidden w-[8rem] min-w-[8rem] max-w-[8rem] sm:w-[7.25rem] sm:min-w-[7.25rem] sm:max-w-[7.25rem] lg:w-[8rem] lg:min-w-[8rem] lg:max-w-[8rem]"
     : "group relative block shrink-0 snap-start overflow-hidden w-[8.5rem] min-w-[8.5rem] max-w-[8.5rem] sm:w-[7.25rem] sm:min-w-[7.25rem] sm:max-w-[7.25rem]";
@@ -63,7 +69,7 @@ export function LandingSpotlightSlider({ variant = "default" }: LandingSpotlight
       </div>
 
       <div className="flex min-w-0 w-full snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-1 [-webkit-overflow-scrolling:touch] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:gap-3.5 lg:gap-4">
-        {items.map((item, index) => {
+        {visible.map((item, index) => {
           const callbackUrl = encodeURIComponent(`/browse/content/${item.id}`);
           return (
             <Link
@@ -79,6 +85,7 @@ export function LandingSpotlightSlider({ variant = "default" }: LandingSpotlight
                     alt={item.title}
                     fill
                     sizes={hero ? "(max-width: 640px) 128px, (max-width: 1024px) 116px, 128px" : "(max-width: 640px) 136px, 116px"}
+                    loading={index < 2 ? "eager" : "lazy"}
                     className="object-cover transition duration-300 group-hover:scale-[1.03]"
                     fallbackClassName="flex h-full w-full flex-col items-center justify-center bg-zinc-900 px-2 text-center"
                   />

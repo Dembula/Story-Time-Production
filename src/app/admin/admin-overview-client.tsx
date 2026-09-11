@@ -143,6 +143,90 @@ export function AdminOverviewClient() {
         </CardContent>
       </Card>
 
+      <Card className="storytime-section mb-10 border-cyan-500/20">
+        <CardHeader>
+          <CardTitle className="text-white flex items-center justify-between gap-2">
+            <span className="flex items-center gap-2">
+              <Activity className="w-5 h-5 text-cyan-400" /> Live activity & stability
+            </span>
+            <Link href="/admin/activity" className="text-xs font-medium text-orange-300 hover:text-orange-200">
+              Full activity →
+            </Link>
+          </CardTitle>
+          <p className="text-sm text-slate-400">
+            Who is on the site now, what they are opening, and client crash / error signals (including anonymous homepage visits).
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+            <div className="rounded-xl border border-white/8 bg-white/[0.03] p-3">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500">Active ~15m</p>
+              <p className="text-2xl font-bold text-white">{analyticsSummary?.live?.activeUsersApprox ?? 0}</p>
+            </div>
+            <div className="rounded-xl border border-white/8 bg-white/[0.03] p-3">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500">Page views 7d</p>
+              <p className="text-2xl font-bold text-white">{analyticsSummary?.live?.pageViews7d ?? 0}</p>
+            </div>
+            <div className="rounded-xl border border-white/8 bg-white/[0.03] p-3">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500">Crashes / errors 7d</p>
+              <p className="text-2xl font-bold text-amber-300">{analyticsSummary?.live?.crashes7d ?? 0}</p>
+            </div>
+            <div className="rounded-xl border border-white/8 bg-white/[0.03] p-3">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500">Client errors 7d</p>
+              <p className="text-2xl font-bold text-white">{analyticsSummary?.live?.clientErrors7d ?? 0}</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500 mb-2">What users are opening (1h)</p>
+              <ul className="space-y-1.5">
+                {(analyticsSummary?.live?.topPaths1h ?? []).length === 0 ? (
+                  <li className="text-sm text-slate-500">No recent page activity yet.</li>
+                ) : (
+                  (analyticsSummary?.live?.topPaths1h ?? []).map((row: { path: string | null; count: number }) => (
+                    <li key={`${row.path}-${row.count}`} className="flex justify-between gap-3 text-sm">
+                      <span className="truncate text-slate-300">{row.path || "/"}</span>
+                      <span className="shrink-0 text-slate-500">{row.count}</span>
+                    </li>
+                  ))
+                )}
+              </ul>
+            </div>
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500 mb-2">Recent crash / error signals</p>
+              <ul className="space-y-2">
+                {(analyticsSummary?.live?.recentCrashes ?? []).length === 0 ? (
+                  <li className="text-sm text-slate-500">No crash beacons in the last 7 days.</li>
+                ) : (
+                  (analyticsSummary?.live?.recentCrashes ?? []).map(
+                    (row: {
+                      id: string;
+                      name: string;
+                      path: string | null;
+                      createdAt: string;
+                      message: string | null;
+                      mobile: boolean | null;
+                    }) => (
+                      <li key={row.id} className="rounded-lg border border-white/8 bg-white/[0.02] px-3 py-2 text-xs">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="font-medium text-amber-200">{row.name}</span>
+                          <span className="text-slate-500">{new Date(row.createdAt).toLocaleString()}</span>
+                        </div>
+                        <p className="mt-0.5 text-slate-400">
+                          {row.path || "/"}
+                          {row.mobile ? " · mobile" : ""}
+                        </p>
+                        {row.message ? <p className="mt-1 text-slate-500 line-clamp-2">{row.message}</p> : null}
+                      </li>
+                    ),
+                  )
+                )}
+              </ul>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
         {[

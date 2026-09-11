@@ -8,6 +8,7 @@ import {
   warmMediaUrls,
   warmPlatformEntryAssets,
 } from "@/lib/prefetch";
+import { computeIsMobileLikeClient } from "@/lib/player/mobile-detect";
 
 type CatalogItem = {
   id?: string;
@@ -19,6 +20,7 @@ type CatalogItem = {
 /**
  * Idle-time warm-up for posters, backdrops, film metadata, and key routes.
  * Defers heavy catalogue warming so the browse hero can claim bandwidth first.
+ * On mobile/iOS this is heavily capped to avoid Safari Web Content OOM crashes.
  */
 export function PlatformMediaPrefetch({
   items = [],
@@ -40,17 +42,27 @@ export function PlatformMediaPrefetch({
     .join("|");
 
   useEffect(() => {
+    const mobile = computeIsMobileLikeClient();
+    const warmLimit = mobile ? Math.min(limit, 6) : limit;
+    const warmDefer = mobile ? Math.max(deferMs, 4500) : deferMs;
+
     if (entry) {
-      warmPlatformEntryAssets(router);
+      // Landing entry warm of 24 posters + intro video is a common iOS crash trigger.
+      if (!mobile) {
+        warmPlatformEntryAssets(router);
+      } else {
+        prefetchBrowseRoute("/browse", router);
+        prefetchBrowseRoute("/auth/signin", router);
+        prefetchBrowseRoute("/auth/signup", router);
+      }
     }
 
     if (!items.length) return;
 
-    // Warm the first few hero/featured backdrops immediately for smooth rotator.
-    const priority = items.slice(0, 5);
+    const priority = items.slice(0, mobile ? 2 : 5);
     warmMediaUrls(
       priority.flatMap((item) => [item.backdropUrl, item.posterUrl]),
-      10,
+      mobile ? 4 : 10,
     );
     for (const item of priority) {
       if (!item.id) continue;
@@ -60,19 +72,21 @@ export function PlatformMediaPrefetch({
     const timer = window.setTimeout(() => {
       warmMediaUrls(
         items.flatMap((item) => [item.posterUrl, item.backdropUrl]),
-        limit,
+        warmLimit,
       );
 
-      const top = items.slice(0, 10);
+      const top = items.slice(0, mobile ? 4 : 10);
       for (const item of top) {
         if (!item.id) continue;
         prefetchBrowseRoute(`/browse/content/${item.id}`, router);
-        if (item.videoUrl) {
+        if (!mobile && item.videoUrl) {
           prefetchBrowseRoute(`/browse/content/${item.id}/watch`, router);
         }
-        void warmContentMetadata(item.id);
+        if (!mobile) {
+          void warmContentMetadata(item.id);
+        }
       }
-    }, Math.max(0, deferMs));
+    }, Math.max(0, warmDefer));
 
     return () => window.clearTimeout(timer);
     // itemKey captures media identity without depending on array identity

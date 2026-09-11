@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import * as Sentry from "@sentry/nextjs";
+import { sendAnalyticsBeacon } from "@/lib/analytics-beacon";
 
 export default function GlobalError({
   error,
@@ -14,6 +15,15 @@ export default function GlobalError({
   useEffect(() => {
     console.error("Global app error boundary:", error);
     Sentry.captureException(error);
+    sendAnalyticsBeacon({
+      name: "web_crash",
+      path: typeof window !== "undefined" ? window.location.pathname : "/",
+      properties: {
+        message: String(error.message || "global_error").slice(0, 240),
+        digest: error.digest ?? null,
+        kind: "global_error",
+      },
+    });
   }, [error]);
 
   return (

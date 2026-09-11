@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
+import { sendAnalyticsBeacon } from "@/lib/analytics-beacon";
 
 function isChunkLoadError(error: Error): boolean {
   const msg = error.message ?? "";
@@ -23,7 +24,16 @@ export default function AppError({
 
   useEffect(() => {
     console.error("App runtime error boundary:", error);
-  }, [error]);
+    sendAnalyticsBeacon({
+      name: chunkError ? "client_error" : "web_crash",
+      path: typeof window !== "undefined" ? window.location.pathname : "/",
+      properties: {
+        message: String(error.message || "runtime_error").slice(0, 240),
+        digest: error.digest ?? null,
+        kind: chunkError ? "chunk_load" : "error_boundary",
+      },
+    });
+  }, [error, chunkError]);
 
   useEffect(() => {
     if (!chunkError || typeof window === "undefined") return;

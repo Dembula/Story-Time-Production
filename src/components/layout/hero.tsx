@@ -30,12 +30,17 @@ function resolveHeroBackdrop(item: Content): string | null {
 
 export function Hero({ content }: { content: Content[] }) {
   const [activeIndex, setActiveIndex] = useState(0);
+  const [isMobile, setIsMobile] = useState(false);
   const slides = useMemo(() => content.slice(0, 5), [content]);
 
   const backdrops = useMemo(
     () => slides.map((item) => ({ id: item.id, url: resolveHeroBackdrop(item) })),
     [slides],
   );
+
+  useEffect(() => {
+    setIsMobile(typeof window !== "undefined" && window.matchMedia("(max-width: 900px)").matches);
+  }, []);
 
   // Keep slides mounted and crossfade — avoids remount flashes and lets next
   // backdrops finish loading before they become visible.
@@ -97,9 +102,17 @@ export function Hero({ content }: { content: Content[] }) {
     );
   }
 
+  const mountedIndexes = isMobile
+    ? Array.from(
+        new Set([activeIndex, (activeIndex + 1) % Math.max(backdrops.length, 1)]),
+      ).filter((i) => i >= 0 && i < backdrops.length)
+    : backdrops.map((_, i) => i);
+
   return (
     <div className="relative flex h-[58vh] min-h-[320px] max-h-[640px] items-end overflow-hidden cinematic-vignette sm:h-[64vh] sm:min-h-[400px] md:h-[68vh] md:min-h-[440px]">
-      {backdrops.map((slide, index) => {
+      {mountedIndexes.map((index) => {
+        const slide = backdrops[index];
+        if (!slide) return null;
         const active = index === activeIndex;
         return (
           <motion.div
@@ -117,8 +130,8 @@ export function Hero({ content }: { content: Content[] }) {
                 alt=""
                 fill
                 sizes="100vw"
-                quality={90}
-                priority={index === 0 || index === activeIndex || index === (activeIndex + 1) % backdrops.length}
+                quality={isMobile ? 65 : 78}
+                priority={active || index === (activeIndex + 1) % backdrops.length}
                 className="h-full w-full object-cover brightness-[0.88] contrast-105"
                 fallbackClassName="h-full w-full bg-gradient-to-b from-slate-900 to-slate-950"
               />

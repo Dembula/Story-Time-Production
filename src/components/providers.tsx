@@ -13,6 +13,7 @@ import { MotionProvider } from "@/components/motion/motion-provider";
 import { MiniPlayer } from "@/components/player/mini-player";
 import { SessionTelemetry } from "@/components/session-telemetry";
 import { ProductAnalytics } from "@/components/product-analytics";
+import { ClientStabilityMonitor } from "@/components/client-stability-monitor";
 import { FunderVerificationBanner } from "@/components/funders/funder-verification-banner";
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -22,6 +23,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <SessionProvider>
       <SessionTelemetry />
       <ProductAnalytics />
+      <ClientStabilityMonitor />
       <QueryClientProvider client={queryClient}>
         <AdaptiveUiProvider>
           <PlatformInputProvider>

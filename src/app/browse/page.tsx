@@ -7,7 +7,7 @@ import { MoodBrowseRow } from "@/components/layout/mood-browse-row";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getViewerProfileAge } from "@/lib/viewer-profiles";
@@ -28,6 +28,11 @@ export default async function BrowsePage({
   const type = params.type;
   const search = params.search;
   const filter = params.filter;
+  const ua = (await headers()).get("user-agent") || "";
+  const isMobileUa = /iPhone|iPad|iPod|Android/i.test(ua);
+  const rowTake = isMobileUa ? 8 : 16;
+  const featuredTake = isMobileUa ? 3 : 5;
+  const prefetchLimit = isMobileUa ? 8 : 24;
 
   if (search?.trim()) {
     const qs = new URLSearchParams({ q: search.trim() });
@@ -136,14 +141,14 @@ export default async function BrowsePage({
     const results = await Promise.all([
       prisma.content.findMany({
         where: { ...where, featured: true },
-        take: 5,
+        take: featuredTake,
         orderBy: { createdAt: "desc" },
         select: browseSelect,
       }),
       // Popularity without loading every rating row — use rating counts (fast under load).
       prisma.content.findMany({
         where,
-        take: 32,
+        take: isMobileUa ? 16 : 32,
         orderBy: [{ featured: "desc" }, { createdAt: "desc" }],
         select: browseSelect,
       }).then((list) =>
@@ -159,74 +164,74 @@ export default async function BrowsePage({
       ),
       prisma.content.findMany({
         where,
-        take: 16,
+        take: rowTake,
         orderBy: { createdAt: "desc" },
         select: browseSelect,
       }),
       prisma.content.findMany({
         where: { ...where, type: "MOVIE" },
-        take: 16,
+        take: rowTake,
         orderBy: { createdAt: "desc" },
         select: browseSelect,
       }),
       prisma.content.findMany({
         where: { ...where, type: "SERIES" },
-        take: 16,
+        take: rowTake,
         orderBy: { createdAt: "desc" },
         select: browseSelect,
       }),
       prisma.content.findMany({
         where: { ...where, type: "ANIMATION" },
-        take: 16,
+        take: rowTake,
         orderBy: { createdAt: "desc" },
         select: browseSelect,
       }),
       prisma.content.findMany({
         where: { ...where, type: "SPORTS" },
-        take: 16,
+        take: rowTake,
         orderBy: { createdAt: "desc" },
         select: browseSelect,
       }),
       prisma.content.findMany({
         where: { ...where, type: { in: ["COMEDY_SKIT", "STAND_UP"] } },
-        take: 16,
+        take: rowTake,
         orderBy: { createdAt: "desc" },
         select: browseSelect,
       }),
       prisma.content.findMany({
         where: { ...where, type: "DOCUMENTARY" },
-        take: 16,
+        take: rowTake,
         orderBy: { createdAt: "desc" },
         select: browseSelect,
       }),
       prisma.content.findMany({
         where: { ...where, type: "SHOW" },
-        take: 16,
+        take: rowTake,
         orderBy: { createdAt: "desc" },
         select: browseSelect,
       }),
       prisma.content.findMany({
         where: { ...where, type: "LIVE_EVENT" },
-        take: 16,
+        take: rowTake,
         orderBy: { createdAt: "desc" },
         select: browseSelect,
       }),
       prisma.content.findMany({
         where: { ...where, type: "SHOW", category: { contains: "Comedy" } },
-        take: 16,
+        take: rowTake,
         orderBy: { createdAt: "desc" },
         select: browseSelect,
       }),
       prisma.content.findMany({
         where: { ...where, type: "PODCAST" },
-        take: 16,
+        take: rowTake,
         orderBy: { createdAt: "desc" },
         select: browseSelect,
       }),
       prisma.musicTrack.findMany({
         where: { published: true },
         orderBy: { createdAt: "desc" },
-        take: 16,
+        take: rowTake,
         select: {
           id: true,
           title: true,
@@ -238,7 +243,7 @@ export default async function BrowsePage({
       }),
       prisma.content.findMany({
         where: { ...where, isStudentWork: true },
-        take: 16,
+        take: rowTake,
         orderBy: { createdAt: "desc" },
         select: {
           ...browseSelect,
@@ -248,7 +253,7 @@ export default async function BrowsePage({
       prisma.musicTrack.findMany({
         where: { published: true, isStudentWork: true },
         orderBy: { createdAt: "desc" },
-        take: 16,
+        take: rowTake,
         select: {
           id: true,
           title: true,
@@ -379,7 +384,7 @@ export default async function BrowsePage({
 
   return (
     <div className="pb-16">
-      <PlatformMediaPrefetch items={prefetchCatalog} limit={24} deferMs={2800} />
+      <PlatformMediaPrefetch items={prefetchCatalog} limit={prefetchLimit} deferMs={isMobileUa ? 4500 : 2800} />
       {loadError && (
         <div className="max-w-[1800px] mx-auto px-6 md:px-12 pt-4">
           <div className="rounded-2xl border border-amber-400/22 bg-amber-500/10 p-4 text-sm text-amber-100 shadow-panel">

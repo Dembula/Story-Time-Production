@@ -184,6 +184,13 @@ export function warmPlatformEntryAssets(router?: { prefetch: (url: string) => vo
   prefetchBrowseRoute("/auth/creator/signup", router);
   warmThumbnail("/st-mark.png");
   warmThumbnail("/logo.png");
+
+  // Skip intro fMP4 + spotlight poster stampede on phones — common Safari OOM trigger.
+  const mobile =
+    /iPhone|iPad|iPod|Android/i.test(window.navigator.userAgent || "") ||
+    window.innerWidth < 900;
+  if (mobile) return;
+
   warmPlatformIntroAssets();
 
   scheduleIdle(() => {
@@ -197,9 +204,9 @@ export function warmPlatformEntryAssets(router?: { prefetch: (url: string) => vo
         const items = Array.isArray(data.items) ? data.items : [];
         warmMediaUrls(
           items.map((item) => item.posterUrl),
-          24,
+          12,
         );
-        for (const item of items.slice(0, 6)) {
+        for (const item of items.slice(0, 4)) {
           if (item.id) {
             prefetchBrowseRoute(`/browse/content/${item.id}`, router);
             void warmContentMetadata(item.id);

@@ -23,10 +23,13 @@ export function MediaImage({
   fallbackClassName,
   onError,
   unoptimized,
+  loading,
+  priority,
   ...rest
 }: MediaImageProps) {
   const [failed, setFailed] = useState(false);
   const bypass = unoptimized ?? shouldBypassImageOptimization(src);
+  const resolvedLoading = priority ? "eager" : loading ?? "lazy";
 
   if (failed || !src) {
     return (
@@ -46,6 +49,8 @@ export function MediaImage({
       alt={alt}
       className={className}
       unoptimized={bypass}
+      priority={priority}
+      loading={resolvedLoading}
       onError={(event) => {
         setFailed(true);
         onError?.(event);
