@@ -142,6 +142,37 @@ export async function fetchCloudflareStreamTokenFromApi(
   }
 }
 
+type CachedSignedPlayback = {
+  src: string;
+  expiresAtMs: number;
+};
+
+/** Reuse signed HLS URLs across playback-bundle + hls-manifest on the same isolate. */
+const signedPlaybackCache = new Map<string, CachedSignedPlayback>();
+const SIGNED_CACHE_SKEW_MS = 5 * 60 * 1000;
+
+function getCachedSignedPlayback(uid: string): PlaybackSource | null {
+  const hit = signedPlaybackCache.get(uid);
+  if (!hit) return null;
+  if (hit.expiresAtMs - SIGNED_CACHE_SKEW_MS <= Date.now()) {
+    signedPlaybackCache.delete(uid);
+    return null;
+  }
+  return { src: hit.src, type: "application/x-mpegurl" };
+}
+
+function putCachedSignedPlayback(uid: string, src: string, ttlSeconds: number) {
+  signedPlaybackCache.set(uid, {
+    src,
+    expiresAtMs: Date.now() + Math.max(300, ttlSeconds) * 1000,
+  });
+  // Bound memory on long-lived Node isolates.
+  if (signedPlaybackCache.size > 500) {
+    const first = signedPlaybackCache.keys().next().value;
+    if (first) signedPlaybackCache.delete(first);
+  }
+}
+
 export async function buildSignedCloudflarePlaybackSource(
   videoUrl: string | null | undefined,
   options?: { ttlSeconds?: number },
@@ -152,19 +183,25 @@ export async function buildSignedCloudflarePlaybackSource(
   const uid = extractCloudflareStreamUid(url);
   if (!uid) return null;
 
+  const cached = getCachedSignedPlayback(uid);
+  if (cached) return cached;
+
   const hasLocalSigning = Boolean(process.env.CLOUDFLARE_STREAM_SIGNING_KEY_ID?.trim());
   const api = getCloudflareStreamApiCredentials();
   if (!hasLocalSigning && !api) return null;
 
-  const signOpts = { ttlSeconds: options?.ttlSeconds, downloadable: false as const };
+  const ttlSeconds = options?.ttlSeconds ?? DEFAULT_TTL_SECONDS;
+  const signOpts = { ttlSeconds, downloadable: false as const };
   const token =
     (hasLocalSigning ? signCloudflareStreamTokenLocally(uid, signOpts) : null) ??
     (api ? await fetchCloudflareStreamTokenFromApi(uid, signOpts) : null);
 
   if (!token) return null;
 
+  const src = buildSignedHlsUrl(token);
+  putCachedSignedPlayback(uid, src, ttlSeconds);
   return {
-    src: buildSignedHlsUrl(token),
+    src,
     type: "application/x-mpegurl",
   };
 }

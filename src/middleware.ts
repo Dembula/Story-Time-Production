@@ -5,9 +5,29 @@ import { signInUrlForDestination } from "@/lib/auth-sign-in-path";
 import { canAccessAdminPath } from "@/lib/admin-permissions";
 import { requiredRoleForProtectedPath } from "@/lib/platform-roles-shared";
 import { userHasPlatformRole } from "@/lib/user-roles-shared";
+import { headersWithInjectedSessionCookie, TV_CORS_HEADERS } from "@/lib/tv-auth-edge";
 
 export async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
+
+  // Universe iOS/Android (+ TV): map Bearer JWT → NextAuth cookie so getServerSession works.
+  if (
+    path.startsWith("/api/content") ||
+    path.startsWith("/api/watch") ||
+    path.startsWith("/api/viewer") ||
+    path.startsWith("/api/browse") ||
+    path.startsWith("/api/tv")
+  ) {
+    if (req.method === "OPTIONS") {
+      return new NextResponse(null, { status: 204, headers: TV_CORS_HEADERS });
+    }
+    const requestHeaders = headersWithInjectedSessionCookie(req);
+    const res = NextResponse.next({ request: { headers: requestHeaders } });
+    for (const [k, v] of Object.entries(TV_CORS_HEADERS)) {
+      res.headers.set(k, v);
+    }
+    return res;
+  }
 
   if (/^\/browse\/content\/[^/]+$/.test(path)) {
     const requestHeaders = new Headers(req.headers);
@@ -142,6 +162,11 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
+    "/api/content/:path*",
+    "/api/watch/:path*",
+    "/api/viewer/:path*",
+    "/api/browse/:path*",
+    "/api/tv/:path*",
     "/browse/content/:id",
     "/browse/account",
     "/browse/account/:path*",

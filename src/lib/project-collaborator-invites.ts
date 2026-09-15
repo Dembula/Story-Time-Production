@@ -178,22 +178,30 @@ export async function createProjectCollaboratorEmailInvite(input: CreateProjectE
         url: joinPath,
       },
     });
-    // Also surface in the network-style My Projects inbox.
-    await prisma.originalMember.upsert({
+    // Surface in My Projects inbox — never demote an already-active collaborator.
+    const existingMember = await prisma.originalMember.findUnique({
       where: { userId_projectId: { userId: existingUser.id, projectId: input.projectId } },
-      create: {
-        userId: existingUser.id,
-        projectId: input.projectId,
-        role,
-        department,
-        status: "INVITED",
-      },
-      update: {
-        role,
-        department,
-        status: "INVITED",
-      },
     });
+    if (!existingMember) {
+      await prisma.originalMember.create({
+        data: {
+          userId: existingUser.id,
+          projectId: input.projectId,
+          role,
+          department,
+          status: "INVITED",
+        },
+      });
+    } else if (existingMember.status !== "ACTIVE" && existingMember.status !== "ACCEPTED") {
+      await prisma.originalMember.update({
+        where: { id: existingMember.id },
+        data: {
+          role,
+          department,
+          status: "INVITED",
+        },
+      });
+    }
   }
 
   return {
@@ -213,13 +221,14 @@ export async function createProjectCollaboratorEmailInvite(input: CreateProjectE
         ? "Invite emailed. They can accept from the link or My Projects."
         : "Invite created and notified in-app. Email delivery failed — share the join link."
       : emailed
-        ? "Invite emailed. After they create a creator account with that email, they'll get access to this project."
+        ? "Invite emailed. After they create a creator account with that email, they'll see the invite in My Projects to accept."
         : "Invite saved, but email could not be sent. Share the join link with them.",
   };
 }
 
 /**
- * After creator registration: attach pending email invites and grant project access.
+ * After creator registration: attach pending email invites into My Projects as INVITED.
+ * Do not auto-accept — the creator must accept from the email link or My Projects inbox.
  */
 export async function linkPendingProjectInvitesToUser(userId: string, email: string): Promise<void> {
   const emailNorm = normalizeInviteEmail(email);
@@ -238,28 +247,94 @@ export async function linkPendingProjectInvitesToUser(userId: string, email: str
       await prisma.$transaction(async (tx) => {
         await tx.projectCollaboratorInvite.update({
           where: { id: invite.id },
-          data: { status: "ACCEPTED", invitedUserId: userId },
+          data: { invitedUserId: userId },
         });
-        await tx.originalMember.upsert({
+
+        const existing = await tx.originalMember.findUnique({
           where: { userId_projectId: { userId, projectId: invite.projectId } },
-          create: {
-            userId,
-            projectId: invite.projectId,
-            role: invite.role || "Collaborator",
-            department: invite.department,
-            status: "ACTIVE",
-          },
-          update: {
-            role: invite.role || "Collaborator",
-            department: invite.department,
-            status: "ACTIVE",
-          },
         });
+        if (!existing) {
+          await tx.originalMember.create({
+            data: {
+              userId,
+              projectId: invite.projectId,
+              role: invite.role || "Collaborator",
+              department: invite.department,
+              status: "INVITED",
+            },
+          });
+        } else if (existing.status !== "ACTIVE" && existing.status !== "ACCEPTED") {
+          await tx.originalMember.update({
+            where: { id: existing.id },
+            data: {
+              role: invite.role || "Collaborator",
+              department: invite.department,
+              status: "INVITED",
+            },
+          });
+        }
       });
     }
   } catch (e) {
     if (isPrismaMissingTable(e, "ProjectCollaboratorInvite")) return;
     throw e;
+  }
+}
+
+async function syncMemberStatusForInvite(options: {
+  projectId: string;
+  userId: string;
+  invitedUserId?: string | null;
+  status: "ACTIVE" | "DECLINED";
+  role?: string | null;
+  department?: string | null;
+}) {
+  const userIds = Array.from(
+    new Set([options.userId, options.invitedUserId].filter(Boolean) as string[]),
+  );
+  for (const userId of userIds) {
+    const existing = await prisma.originalMember.findUnique({
+      where: { userId_projectId: { userId, projectId: options.projectId } },
+    });
+    if (!existing) {
+      if (options.status === "ACTIVE") {
+        await prisma.originalMember.create({
+          data: {
+            userId,
+            projectId: options.projectId,
+            role: options.role || "Collaborator",
+            department: options.department ?? null,
+            status: "ACTIVE",
+          },
+        });
+      }
+      continue;
+    }
+    if (options.status === "DECLINED") {
+      if (existing.status === "INVITED") {
+        await prisma.originalMember.update({
+          where: { id: existing.id },
+          data: { status: "DECLINED" },
+        });
+      }
+      continue;
+    }
+    if (existing.status !== "ACTIVE" && existing.status !== "ACCEPTED") {
+      await prisma.originalMember.update({
+        where: { id: existing.id },
+        data: {
+          role: options.role || existing.role || "Collaborator",
+          department: options.department ?? existing.department,
+          status: "ACTIVE",
+        },
+      });
+    } else if (existing.status === "ACCEPTED") {
+      // Normalize accepted → active for tool access consistency.
+      await prisma.originalMember.update({
+        where: { id: existing.id },
+        data: { status: "ACTIVE" },
+      });
+    }
   }
 }
 
@@ -276,17 +351,14 @@ export async function acceptProjectCollaboratorInvite(options: {
   });
   if (!invite) return { ok: false as const, status: 404, error: "Invite not found" };
   if (invite.status === "ACCEPTED") {
-    // Idempotent: ensure membership exists if they already activated via signup auto-grant.
-    await prisma.originalMember.upsert({
-      where: { userId_projectId: { userId: options.userId, projectId: invite.projectId } },
-      create: {
-        userId: options.userId,
-        projectId: invite.projectId,
-        role: invite.role || "Collaborator",
-        department: invite.department,
-        status: "ACTIVE",
-      },
-      update: { status: "ACTIVE" },
+    // Idempotent: ensure membership exists if they already activated.
+    await syncMemberStatusForInvite({
+      projectId: invite.projectId,
+      userId: options.userId,
+      invitedUserId: invite.invitedUserId,
+      status: "ACTIVE",
+      role: invite.role,
+      department: invite.department,
     });
     return {
       ok: true as const,
@@ -295,6 +367,15 @@ export async function acceptProjectCollaboratorInvite(options: {
       projectTitle: invite.project.title,
       alreadyAccepted: true as const,
     };
+  }
+  if (invite.status === "DECLINED") {
+    await syncMemberStatusForInvite({
+      projectId: invite.projectId,
+      userId: options.userId,
+      invitedUserId: invite.invitedUserId,
+      status: "DECLINED",
+    });
+    return { ok: true as const, declined: true as const, projectId: invite.projectId };
   }
   if (invite.status !== "PENDING") {
     return { ok: false as const, status: 410, error: "This invite is no longer pending." };
@@ -318,6 +399,12 @@ export async function acceptProjectCollaboratorInvite(options: {
     await prisma.projectCollaboratorInvite.update({
       where: { id: invite.id },
       data: { status: "DECLINED", invitedUserId: options.userId },
+    });
+    await syncMemberStatusForInvite({
+      projectId: invite.projectId,
+      userId: options.userId,
+      invitedUserId: invite.invitedUserId,
+      status: "DECLINED",
     });
     return { ok: true as const, declined: true as const, projectId: invite.projectId };
   }

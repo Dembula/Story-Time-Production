@@ -46,7 +46,7 @@ export function getDisplayPosterUrl(item: {
   if (poster && !poster.startsWith("s3://")) return poster;
   const backdrop = packDisplayImageUrl(item.backdropUrl);
   if (backdrop && !backdrop.startsWith("s3://")) return backdrop;
-  return getStreamThumbnailUrl(item.videoUrl, { time: "3s" }) ?? null;
+  return getStreamThumbnailUrl(item.videoUrl, { time: "3s", height: 480 }) ?? null;
 }
 
 /**

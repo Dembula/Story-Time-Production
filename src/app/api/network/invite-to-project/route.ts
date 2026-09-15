@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { notifyUser } from "@/lib/notify-user";
+import { assertCanInviteToProject } from "@/lib/project-collaborator-invites";
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -28,32 +29,34 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Cannot invite yourself" }, { status: 400 });
   }
 
-  const invitee = await prisma.user.findUnique({ where: { id: inviteeUserId }, select: { id: true, name: true, email: true } });
+  const invitee = await prisma.user.findUnique({
+    where: { id: inviteeUserId },
+    select: { id: true, name: true, email: true },
+  });
   if (!invitee) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
-  const project = await prisma.originalProject.findUnique({
-    where: { id: projectId },
-    select: { id: true, title: true },
-  });
-  if (!project) {
-    return NextResponse.json({ error: "Project not found" }, { status: 404 });
-  }
-
-  const activeMember = await prisma.originalMember.findFirst({
-    where: { projectId, userId, status: { in: ["ACTIVE", "ACCEPTED"] } },
-  });
-  const pitchOwner = await prisma.originalPitch.findFirst({
-    where: { projectId, creatorId: userId },
-    select: { id: true },
-  });
-  if (!activeMember && !pitchOwner) {
-    return NextResponse.json({ error: "You can only invite from projects you belong to" }, { status: 403 });
+  const gate = await assertCanInviteToProject(projectId, userId);
+  if (!gate.ok) {
+    return NextResponse.json({ error: gate.error }, { status: gate.status });
   }
 
   const memberRole = (body?.role ?? "Collaborator").trim() || "Collaborator";
   const department = body?.department?.trim() || null;
+
+  const existing = await prisma.originalMember.findUnique({
+    where: { userId_projectId: { userId: inviteeUserId, projectId } },
+  });
+  if (existing && (existing.status === "ACTIVE" || existing.status === "ACCEPTED")) {
+    return NextResponse.json({ error: "That creator is already on this project." }, { status: 409 });
+  }
+  if (existing?.status === "INVITED") {
+    return NextResponse.json(
+      { error: "That creator already has a pending invite on this project." },
+      { status: 409 },
+    );
+  }
 
   const member = await prisma.originalMember.upsert({
     where: { userId_projectId: { userId: inviteeUserId, projectId } },
@@ -75,7 +78,7 @@ export async function POST(req: NextRequest) {
     userId: inviteeUserId,
     type: "PROJECT_COLLAB_INVITE",
     title: "Project collaboration invite",
-    body: `${session.user?.name ?? "A creator"} invited you to join "${project.title}" as ${memberRole}. Open My Projects to accept or decline.`,
+    body: `${session.user?.name ?? "A creator"} invited you to join "${gate.project.title}" as ${memberRole}. Open My Projects to accept or decline.`,
     metadata: {
       projectId,
       memberId: member.id,

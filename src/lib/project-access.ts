@@ -59,12 +59,28 @@ export async function ensureProjectAccess(projectId: string): Promise<ProjectAcc
     };
   }
 
-  const isCreatorMember =
-    role === "ADMIN" ||
-    project.pitches.some((p) => p.creatorId === userId) ||
-    project.members.some((m) => m.userId === userId && ACTIVE_MEMBER_STATUSES.has(m.status));
+  const isPitchOwner = project.pitches.some((p) => p.creatorId === userId);
+  const myMembership = project.members.find((m) => m.userId === userId);
+  const isActiveMember = Boolean(
+    myMembership && ACTIVE_MEMBER_STATUSES.has(myMembership.status),
+  );
+  const isCreatorMember = role === "ADMIN" || isPitchOwner || isActiveMember;
 
   if (!isCreatorMember) {
+    // Pending invites must never block owners; for invitees, ask them to accept first.
+    if (myMembership?.status === "INVITED") {
+      return {
+        error: NextResponse.json(
+          {
+            error:
+              "Accept this project invite in My Projects before using tools. Open invites do not block the project owner.",
+          },
+          { status: 403 },
+        ),
+        userId: null,
+        project: null,
+      };
+    }
     return {
       error: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
       userId: null,

@@ -4,7 +4,7 @@ import {
   buildConfiguredPublicStorageUrl,
   hasConfiguredPublicStorageBase,
 } from "@/lib/pack-storage-media-url";
-import { packDisplayImageUrl } from "@/lib/content-media-urls";
+import { packDisplayImageUrl, getDisplayPosterUrl, getDisplayBackdropUrl } from "@/lib/content-media-urls";
 import { buildCatalogueMediaProxyUrl, isCatalogueImageKey } from "@/lib/catalogue-media-proxy";
 import { getStorageObjectSignedUrl } from "@/lib/storage-object-fetch";
 
@@ -22,8 +22,8 @@ function memoizePack(key: string, factory: () => Promise<string | null>): Promis
   const existing = packMemo.get(key);
   if (existing) return existing;
   const pending = factory().finally(() => {
-    // Keep successful results briefly for the lifetime of this isolate request burst.
-    setTimeout(() => packMemo.delete(key), 30_000).unref?.();
+    // Keep successful results for a few minutes so feed scroll / detail / play reuse art URLs.
+    setTimeout(() => packMemo.delete(key), 5 * 60_000).unref?.();
   });
   packMemo.set(key, pending);
   return pending;
@@ -40,18 +40,36 @@ function memoizePack(key: string, factory: () => Promise<string | null>): Promis
  *
  * Never emit bare private `bucket.s3.region.amazonaws.com` URLs — they 403 and look like an outage.
  */
+export type PackImageRole = "poster" | "backdrop" | "thumb";
+
+function withStreamThumbnailSize(url: string, role: PackImageRole): string {
+  if (!/videodelivery\.net|cloudflarestream\.com/i.test(url)) return url;
+  if (!/\/thumbnails\/thumbnail\.(jpg|png|gif)/i.test(url)) return url;
+  try {
+    const parsed = new URL(url);
+    if (parsed.searchParams.has("height") || parsed.searchParams.has("width")) return url;
+    const height = role === "backdrop" ? 720 : role === "thumb" ? 360 : 480;
+    parsed.searchParams.set("height", String(height));
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+}
+
 export async function packPlatformImageUrl(
   value: string | null | undefined,
   expiresInSeconds = IMAGE_SIGNED_TTL_SECONDS,
+  options?: { role?: PackImageRole },
 ): Promise<string | null> {
   const trimmed = value?.trim();
   if (!trimmed) return null;
+  const role = options?.role ?? "poster";
 
-  return memoizePack(`${trimmed}|${expiresInSeconds}`, async () => {
+  return memoizePack(`${trimmed}|${expiresInSeconds}|${role}`, async () => {
     try {
       // Already a non-storage http URL — keep as-is (Cloudflare Stream thumbs, etc.).
       if (/^https?:\/\//i.test(trimmed) && !resolveStorageObjectRef(trimmed)) {
-        return trimmed;
+        return withStreamThumbnailSize(trimmed, role);
       }
 
       // Already our stable proxy path.
@@ -84,8 +102,10 @@ export async function packPlatformImageUrl(
       if (packed && /^https?:\/\//i.test(packed)) {
         // packBrowserMediaUrl may have built a private S3 host URL — only keep if CDN configured
         // or the URL already carries a signature.
-        if (hasConfiguredPublicStorageBase()) return packed;
-        if (/[?&]X-Amz-Signature=/i.test(packed) || /[?&]Signature=/i.test(packed)) return packed;
+        if (hasConfiguredPublicStorageBase()) return withStreamThumbnailSize(packed, role);
+        if (/[?&]X-Amz-Signature=/i.test(packed) || /[?&]Signature=/i.test(packed)) {
+          return withStreamThumbnailSize(packed, role);
+        }
         const packedRef = resolveStorageObjectRef(packed);
         if (packedRef && isCatalogueImageKey(packedRef.key)) {
           try {
@@ -94,10 +114,10 @@ export async function packPlatformImageUrl(
             return null;
           }
         }
-        return packed;
+        return withStreamThumbnailSize(packed, role);
       }
 
-      if (/^https?:\/\//i.test(trimmed)) return trimmed;
+      if (/^https?:\/\//i.test(trimmed)) return withStreamThumbnailSize(trimmed, role);
       return null;
     } catch {
       return null;
@@ -114,16 +134,18 @@ export async function packBrowseContentMedia<
     trailerUrl?: string | null;
   },
 >(item: T): Promise<T> {
+  const displayPoster = getDisplayPosterUrl(item);
+  const displayBackdrop = getDisplayBackdropUrl(item);
   const [posterUrl, backdropUrl] = await Promise.all([
-    packPlatformImageUrl(item.posterUrl),
-    packPlatformImageUrl(item.backdropUrl),
+    packPlatformImageUrl(item.posterUrl ?? displayPoster, undefined, { role: "poster" }),
+    packPlatformImageUrl(item.backdropUrl ?? displayBackdrop, undefined, { role: "backdrop" }),
   ]);
 
   return {
     ...item,
     // Prefer poster; if missing, allow portrait cards to use backdrop art.
-    posterUrl: posterUrl ?? backdropUrl ?? null,
-    backdropUrl: backdropUrl ?? null,
+    posterUrl: posterUrl ?? backdropUrl ?? displayPoster ?? null,
+    backdropUrl: backdropUrl ?? displayBackdrop ?? null,
   };
 }
 

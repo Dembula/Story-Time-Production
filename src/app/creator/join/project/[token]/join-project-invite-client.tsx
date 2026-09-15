@@ -50,7 +50,7 @@ export function JoinProjectInviteClient({ token }: { token: string }) {
     onSuccess: (data, action) => {
       void queryClient.invalidateQueries({ queryKey: ["creator-projects"] });
       if (action === "accept" && data.projectId) {
-        router.push(`/creator/dashboard?project=${encodeURIComponent(data.projectId)}`);
+        router.push(`/creator/dashboard?openProject=${encodeURIComponent(data.projectId)}`);
       } else {
         router.push("/creator/dashboard");
       }

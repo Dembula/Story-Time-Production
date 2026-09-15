@@ -55,6 +55,9 @@ type Project = {
   genre: string | null;
   updatedAt: string;
   creatorId?: string | null;
+  myMembershipStatus?: string | null;
+  canUseTools?: boolean;
+  canInviteCollaborators?: boolean;
   members: ProjectMember[];
   projectToolProgress?: ToolProgress[];
   pipelineRollup?: PipelineRollup;
@@ -168,7 +171,7 @@ function ProjectRow({
   pipelineAccess?: boolean;
   networkCreators: NetworkCreator[];
   meId?: string;
-  onInviteCollaborator: (projectId: string, inviteeUserId: string) => void;
+  onInviteCollaborator: (projectId: string, inviteeUserId: string) => void | Promise<void>;
   invitePending: boolean;
   onInviteByEmail: (projectId: string, email: string) => Promise<{ message: string }>;
   onDeleteProject: (projectId: string) => void;
@@ -218,12 +221,34 @@ function ProjectRow({
   const prod = rollup?.phaseSummaries.prod ?? { done: 0, skipped: 0, inProgress: 0, total: PRODUCTION_TOOLS.length };
   const post = rollup?.phaseSummaries.post ?? { done: 0, skipped: 0, inProgress: 0, total: POST_PRODUCTION_HUB_TOOLS.length };
 
-  const memberUserIds = new Set(project.members.map((m) => m.userId));
-  const inviteCandidates = networkCreators.filter((c) => c.id !== meId && !memberUserIds.has(c.id));
+  const activeMemberUserIds = new Set(
+    project.members.filter((m) => ACTIVE_MEMBER_STATUSES.has(m.status)).map((m) => m.userId),
+  );
+  const pendingInviteUserIds = new Set(
+    project.members.filter((m) => m.status === "INVITED").map((m) => m.userId),
+  );
+  // Only exclude people already on the team — pending invites stay visible (disabled) so
+  // creators can keep inviting others after sending the first invite.
+  const inviteCandidates = networkCreators.filter(
+    (c) => c.id !== meId && !activeMemberUserIds.has(c.id),
+  );
   const canInvite =
-    meId &&
-    (project.creatorId === meId ||
-      project.members.some((m) => m.userId === meId && ACTIVE_MEMBER_STATUSES.has(m.status)));
+    project.canInviteCollaborators ??
+    Boolean(
+      meId &&
+        (project.creatorId === meId ||
+          project.members.some((m) => m.userId === meId && ACTIVE_MEMBER_STATUSES.has(m.status))),
+    );
+  const canUseTools =
+    project.canUseTools ??
+    Boolean(
+      meId &&
+        (project.creatorId === meId ||
+          project.members.some((m) => m.userId === meId && ACTIVE_MEMBER_STATUSES.has(m.status))),
+    );
+  const isPendingInviteOnly = Boolean(
+    meId && project.myMembershipStatus === "INVITED" && !canUseTools,
+  );
   const canDelete = Boolean(meId && project.creatorId === meId);
   const deleteConfirmMatches =
     deleteConfirmText.trim().toLowerCase() === DELETE_PROJECT_CONFIRM_PHRASE;
@@ -234,12 +259,40 @@ function ProjectRow({
 
   const sendInvites = () => {
     if (!selectedInvitees.length) return;
-    for (const inviteeId of selectedInvitees) {
-      onInviteCollaborator(project.id, inviteeId);
-    }
+    const ids = [...selectedInvitees];
     setSelectedInvitees([]);
     setInviteMessageIsError(false);
-    setInviteMessage("Invites sent — collaborators will see them under My Projects.");
+    setInviteMessage(
+      ids.length === 1
+        ? "Sending invite…"
+        : `Sending ${ids.length} invites…`,
+    );
+    void (async () => {
+      const failures: string[] = [];
+      for (const inviteeId of ids) {
+        try {
+          await onInviteCollaborator(project.id, inviteeId);
+        } catch (err) {
+          failures.push(err instanceof Error ? err.message : "Invite failed");
+        }
+      }
+      if (failures.length === 0) {
+        setInviteMessageIsError(false);
+        setInviteMessage(
+          ids.length === 1
+            ? "Invite sent — you can keep inviting more collaborators."
+            : `${ids.length} invites sent — you can keep inviting more collaborators.`,
+        );
+      } else if (failures.length === ids.length) {
+        setInviteMessageIsError(true);
+        setInviteMessage(failures[0] || "Could not send invites");
+      } else {
+        setInviteMessageIsError(true);
+        setInviteMessage(
+          `Some invites failed (${failures.length}). Others were sent — you can retry or invite more.`,
+        );
+      }
+    })();
   };
 
   const sendEmailInvite = async () => {
@@ -461,6 +514,12 @@ function ProjectRow({
                 </p>
               </div>
             </div>
+            {isPendingInviteOnly ? (
+              <p className="mt-4 rounded-xl border border-violet-500/25 bg-violet-500/10 px-3 py-2.5 text-sm text-violet-100">
+                You have a pending invite to this project. Accept it from the invites section above before using
+                production tools or inviting others.
+              </p>
+            ) : null}
             {project.members.length === 0 ? (
               <p className="mt-4 text-sm text-slate-500">No team members recorded yet.</p>
             ) : (
@@ -496,8 +555,8 @@ function ProjectRow({
               <div className="mt-5 border-t border-white/[0.08] pt-5">
                 <p className="text-xs font-medium uppercase tracking-wide text-emerald-300/90">Invite collaborators</p>
                 <p className="mt-1 text-xs text-slate-500">
-                  Invite creators from your Network, or email anyone — if they&apos;re new, they&apos;ll create a creator
-                  account and then join this project.
+                  Send as many invites as you need. Pending invites stay on the team list — you can keep inviting more
+                  creators by email or from your Network.
                 </p>
 
                 <div className="mt-4 space-y-2">
@@ -524,22 +583,29 @@ function ProjectRow({
                   <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">From your Network</p>
                   {inviteCandidates.length === 0 ? (
                     <p className="rounded-xl border border-dashed border-white/12 px-3 py-2 text-[11px] text-slate-500">
-                      No network connections left to invite — use email above, or connect more creators on Network.
+                      No more connected creators available to invite right now — use email above, or connect more
+                      creators on Network. You can still send unlimited email invites.
                     </p>
                   ) : (
-                    <div className="flex max-h-32 flex-wrap gap-2 overflow-y-auto rounded-xl border border-white/8 bg-black/12 px-2 py-2">
+                    <div className="flex max-h-40 flex-wrap gap-2 overflow-y-auto rounded-xl border border-white/8 bg-black/12 px-2 py-2">
                       {inviteCandidates.map((c) => {
+                        const pending = pendingInviteUserIds.has(c.id);
                         const active = selectedInvitees.includes(c.id);
                         return (
                           <button
                             key={c.id}
                             type="button"
-                            onClick={() => toggleInvitee(c.id)}
+                            disabled={pending}
+                            onClick={() => {
+                              if (!pending) toggleInvitee(c.id);
+                            }}
                             className={[
                               "inline-flex items-center gap-2 rounded-full border px-2.5 py-1.5 text-xs transition",
-                              active
-                                ? "border-emerald-500 bg-emerald-500/10 text-emerald-300"
-                                : "border-white/10 bg-white/[0.03] text-slate-300 hover:border-white/18",
+                              pending
+                                ? "cursor-not-allowed border-violet-500/35 bg-violet-500/10 text-violet-200/90 opacity-90"
+                                : active
+                                  ? "border-emerald-500 bg-emerald-500/10 text-emerald-300"
+                                  : "border-white/10 bg-white/[0.03] text-slate-300 hover:border-white/18",
                             ].join(" ")}
                           >
                             <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/[0.06] text-[10px]">
@@ -548,6 +614,7 @@ function ProjectRow({
                             <span className="max-w-[120px] truncate">
                               {c.displayName ?? resolveNetworkDisplayName(c)}
                             </span>
+                            {pending ? <span className="text-[10px] text-violet-200/80">Pending</span> : null}
                           </button>
                         );
                       })}
@@ -584,6 +651,7 @@ function ProjectRow({
             )}
           </div>
 
+          {canUseTools ? (
           <div className="flex flex-col gap-8 lg:gap-10">
             {pipelineAccess ? (
               <>
@@ -636,6 +704,11 @@ function ProjectRow({
               )
             )}
           </div>
+          ) : (
+            <p className="rounded-2xl border border-white/10 bg-slate-900/40 px-4 py-5 text-sm text-slate-400">
+              Production tools unlock after you accept the collaboration invite for this project.
+            </p>
+          )}
 
           {canDelete ? (
             <div className="mt-8 rounded-2xl border border-red-500/25 bg-red-950/20 p-5 md:p-6">
@@ -873,8 +946,8 @@ export function CreatorProjectsDashboardClient() {
     },
   });
 
-  const handleInviteCollaborator = (projectId: string, inviteeUserId: string) => {
-    inviteCollaboratorMutation.mutate({ projectId, inviteeUserId });
+  const handleInviteCollaborator = async (projectId: string, inviteeUserId: string) => {
+    await inviteCollaboratorMutation.mutateAsync({ projectId, inviteeUserId });
   };
 
   const handleInviteByEmail = async (projectId: string, email: string) => {
@@ -898,9 +971,9 @@ export function CreatorProjectsDashboardClient() {
         ? data.message
         : "Invite sent";
     if (!data.emailed && data.joinUrl) {
-      return { message: `${base} Join link: ${data.joinUrl}` };
+      return { message: `${base} Join link: ${data.joinUrl} You can send more invites anytime.` };
     }
-    return { message: base };
+    return { message: `${base} You can send more invites anytime.` };
   };
 
   const handleDeleteProject = (projectId: string) => {
@@ -1003,7 +1076,7 @@ export function CreatorProjectsDashboardClient() {
         <div className="rounded-xl border border-violet-500/30 bg-violet-950/25 px-4 py-4 md:px-5">
           <p className="text-xs font-medium uppercase tracking-wide text-violet-200/90">Collaboration invites</p>
           <p className="mt-1 text-sm text-slate-300">
-            Creators you connected with on Network can invite you onto a project. Accept to join the team.
+            Creators can invite you by email or from Network. Accept to join the team, or decline to ignore the invite.
           </p>
           <ul className="mt-3 space-y-2">
             {collabInvites.map((inv) => (

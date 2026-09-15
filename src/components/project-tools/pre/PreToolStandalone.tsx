@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useRef } from "react";
+import { Suspense, useEffect, useMemo, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import PreProductionToolPageImpl from "@/app/creator/projects/[projectId]/pre-production/[tool]/page";
@@ -28,31 +28,45 @@ function PreToolStandaloneContent({ toolSlug }: PreToolStandaloneProps) {
     queryFn: projectToolQueryFn("/api/creator/projects"),
   });
 
-  const projects = (data?.projects ?? []) as {
-    id: string;
-    title: string;
-    createdAt?: string;
-    updatedAt?: string;
-  }[];
+  const projects = useMemo(
+    () =>
+      ((data?.projects ?? []) as {
+        id: string;
+        title: string;
+        createdAt?: string;
+        updatedAt?: string;
+        canUseTools?: boolean;
+      }[]).filter((p) => p.canUseTools !== false),
+    [data?.projects],
+  );
   const orderedProjects = sortProjectsWithActiveFirst(projects, activeProjectId);
   const defaultProjectId = useDefaultCreatorProjectId(projects);
 
-  // Auto-link standalone tools to the active/newest project.
+  // Auto-link standalone tools to the active/newest project the user can actually use.
   useEffect(() => {
-    if (isLoading || projectIdFromUrl) return;
+    if (isLoading) return;
+    if (projectIdFromUrl && projects.some((p) => p.id === projectIdFromUrl)) return;
     if (!defaultProjectId) return;
     if (skipAutoLinkRef.current && !activeProjectId) return;
     skipAutoLinkRef.current = false;
     setActiveProjectId(defaultProjectId);
     router.replace(`/creator/projects/${defaultProjectId}/pre-production/${toolSlug}`);
-  }, [isLoading, projectIdFromUrl, defaultProjectId, activeProjectId, router, toolSlug]);
+  }, [
+    isLoading,
+    projectIdFromUrl,
+    defaultProjectId,
+    activeProjectId,
+    router,
+    toolSlug,
+    projects,
+  ]);
 
   useEffect(() => {
-    if (projectIdFromUrl) {
+    if (projectIdFromUrl && projects.some((p) => p.id === projectIdFromUrl)) {
       skipAutoLinkRef.current = false;
       setActiveProjectId(projectIdFromUrl);
     }
-  }, [projectIdFromUrl]);
+  }, [projectIdFromUrl, projects]);
 
   const handleProjectChange = (value: string) => {
     if (value) {
@@ -69,7 +83,12 @@ function PreToolStandaloneContent({ toolSlug }: PreToolStandaloneProps) {
     router.push(qs ? `${pathname}?${qs}` : pathname);
   };
 
-  const selectedProjectId = projectIdFromUrl || defaultProjectId || "";
+  const selectedProjectId =
+    (projectIdFromUrl && projects.some((p) => p.id === projectIdFromUrl)
+      ? projectIdFromUrl
+      : null) ||
+    defaultProjectId ||
+    "";
 
   return (
     <div className="creator-pipeline-shell creator-pipeline-shell--tool">

@@ -7,6 +7,7 @@ import type { Prisma } from "../../../../generated/prisma";
 import { notifyUser } from "@/lib/notify-user";
 import { buildAppUrl } from "@/lib/app-url";
 import { validateStorageUrlField } from "@/lib/storage-origin";
+import { normalizeInviteEmail } from "@/lib/creator-team-invites";
 
 const REVIEW_REASON_CODES = [
   "STORY_CLARITY",
@@ -609,11 +610,44 @@ export async function POST(req: NextRequest) {
   if (action === "RESPOND_INVITE") {
     const { memberId, accept } = body;
     const member = await prisma.originalMember.findUnique({ where: { id: memberId } });
-    if (!member || member.userId !== session.user.id) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+    if (!member || member.userId !== session.user.id) {
+      return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+    }
+    if (member.status !== "INVITED" && member.status !== "DECLINED") {
+      // Already on the team — treat accept as idempotent.
+      if (accept && (member.status === "ACTIVE" || member.status === "ACCEPTED")) {
+        return NextResponse.json(member);
+      }
+    }
     const updated = await prisma.originalMember.update({
       where: { id: memberId },
       data: { status: accept ? "ACTIVE" : "DECLINED" },
     });
+
+    // Keep email-token invites in sync so the join link cannot reverse a My Projects decision.
+    const memberUser = await prisma.user.findUnique({
+      where: { id: member.userId },
+      select: { email: true },
+    });
+    const emailNorm = normalizeInviteEmail(memberUser?.email ?? "");
+    if (emailNorm) {
+      try {
+        await prisma.projectCollaboratorInvite.updateMany({
+          where: {
+            projectId: member.projectId,
+            emailNorm,
+            status: "PENDING",
+          },
+          data: {
+            status: accept ? "ACCEPTED" : "DECLINED",
+            invitedUserId: member.userId,
+          },
+        });
+      } catch {
+        // Table may be missing in older environments — membership update already succeeded.
+      }
+    }
+
     return NextResponse.json(updated);
   }
 

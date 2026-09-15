@@ -13,11 +13,17 @@ import { packBrowseContentMedia } from "@/lib/browse-media-pack";
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
-    return NextResponse.json([]);
+    return NextResponse.json([], {
+      headers: { "Cache-Control": "private, max-age=5" },
+    });
   }
 
   const profileId = await getActiveViewerProfileId(session.user.id);
-  if (!profileId) return NextResponse.json([]);
+  if (!profileId) {
+    return NextResponse.json([], {
+      headers: { "Cache-Control": "private, max-age=5" },
+    });
+  }
 
   const profile = await prisma.viewerProfile.findFirst({
     where: { id: profileId, userId: session.user.id },
@@ -44,6 +50,7 @@ export async function GET() {
           category: true,
           type: true,
           duration: true,
+          // Needed only to fall back to Stream thumbs when art is missing — stripped below.
           trailerUrl: true,
           videoUrl: true,
         },
@@ -62,7 +69,13 @@ export async function GET() {
       .map(async (row) => {
         const packed = await packBrowseContentMedia(row.content);
         return {
-          ...packed,
+          id: packed.id,
+          title: packed.title,
+          posterUrl: packed.posterUrl,
+          backdropUrl: packed.backdropUrl,
+          category: packed.category,
+          type: packed.type,
+          duration: packed.duration,
           positionSeconds: row.positionSeconds,
           durationSeconds: row.durationSeconds ?? row.content.duration,
           progressPercent:
@@ -76,5 +89,9 @@ export async function GET() {
       }),
   );
 
-  return NextResponse.json(items);
+  return NextResponse.json(items, {
+    headers: {
+      "Cache-Control": "private, max-age=20, stale-while-revalidate=60",
+    },
+  });
 }

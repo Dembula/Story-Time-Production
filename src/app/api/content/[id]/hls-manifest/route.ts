@@ -13,18 +13,22 @@ import {
   stitchIntroIntoMediaPlaylist,
   withPublicOrigin,
 } from "@/lib/playback-intro-stitch";
-import { resolvePublishedContentVideoUrl } from "@/lib/playback-content-url";
+import {
+  decodeUpstreamPlaybackRef,
+  resolvePublishedContentVideoUrl,
+} from "@/lib/playback-content-url";
 import { rewriteHlsManifestForProxy } from "@/lib/playback-manifest-rewrite";
 import { resolveServerPlaybackSource } from "@/lib/server-playback-sources";
 
 export const runtime = "nodejs";
 
-function hlsResponse(body: string) {
+function hlsResponse(body: string, cacheSeconds = 20) {
   return new NextResponse(body, {
     status: 200,
     headers: {
       "Content-Type": "application/vnd.apple.mpegurl",
-      "Cache-Control": "private, no-store, max-age=0",
+      // Short private cache — cuts repeated play taps while token is warm.
+      "Cache-Control": `private, max-age=${cacheSeconds}, stale-while-revalidate=${cacheSeconds * 3}`,
     },
   });
 }
@@ -34,7 +38,8 @@ async function fetchUpstreamManifest(url: string): Promise<string | null> {
     method: "GET",
     headers: { Accept: "*/*" },
     redirect: "follow",
-    cache: "no-store",
+    // Allow brief CDN reuse of the signed master while our isolate is warm.
+    next: { revalidate: 15 },
   });
   if (!upstream.ok) {
     console.error("hls-manifest upstream failed:", upstream.status, url.slice(0, 120));
@@ -70,6 +75,7 @@ export async function GET(
     // Default ON for apps that only play playback.src. Opt out with intro=0.
     const wantStitch = !isTrailer && req.nextUrl.searchParams.get("intro") !== "0";
     const origin = req.nextUrl.origin;
+    const upstreamFromBundle = decodeUpstreamPlaybackRef(req.nextUrl.searchParams.get("u"));
 
     if (audioRef) {
       const audioUrl = decodeVariantRef(audioRef);
@@ -79,13 +85,13 @@ export async function GET(
       const mediaRaw = await fetchUpstreamManifest(audioUrl);
       if (!mediaRaw) return new NextResponse("Upstream audio unavailable", { status: 502 });
       const media = rewriteHlsManifestForProxy(mediaRaw, audioUrl);
-      if (!wantStitch) return hlsResponse(media);
+      if (!wantStitch) return hlsResponse(media, 30);
       try {
         const intro = withPublicOrigin(await loadPlatformIntroFmp4AudioPlaylist(), origin);
-        return hlsResponse(stitchIntroIntoMediaPlaylist(intro, media));
+        return hlsResponse(stitchIntroIntoMediaPlaylist(intro, media), 30);
       } catch (err) {
         console.error("platform intro audio stitch failed; serving feature audio only", err);
-        return hlsResponse(media);
+        return hlsResponse(media, 30);
       }
     }
 
@@ -97,42 +103,46 @@ export async function GET(
       const mediaRaw = await fetchUpstreamManifest(variantUrl);
       if (!mediaRaw) return new NextResponse("Upstream manifest unavailable", { status: 502 });
       const media = rewriteHlsManifestForProxy(mediaRaw, variantUrl);
-      if (!wantStitch) return hlsResponse(media);
+      if (!wantStitch) return hlsResponse(media, 30);
       try {
-        return hlsResponse(await stitchWithMatchingIntro(media, origin));
+        return hlsResponse(await stitchWithMatchingIntro(media, origin), 30);
       } catch (err) {
         console.error("platform intro stitch failed; serving feature only", err);
-        return hlsResponse(media);
+        return hlsResponse(media, 30);
       }
     }
 
-    const videoUrl = await resolvePublishedContentVideoUrl(id, { episodeId, trailer: isTrailer });
-    if (!videoUrl) {
-      return new NextResponse("Not found", { status: 404 });
+    let playbackSrc = upstreamFromBundle;
+    if (!playbackSrc) {
+      const videoUrl = await resolvePublishedContentVideoUrl(id, { episodeId, trailer: isTrailer });
+      if (!videoUrl) {
+        return new NextResponse("Not found", { status: 404 });
+      }
+
+      const playback = await resolveServerPlaybackSource(videoUrl).catch((err) => {
+        console.error("hls-manifest resolve source failed:", err);
+        return null;
+      });
+      if (!playback?.src || playback.type !== "application/x-mpegurl") {
+        return new NextResponse("Playback unavailable", { status: 404 });
+      }
+      playbackSrc = playback.src;
     }
 
-    const playback = await resolveServerPlaybackSource(videoUrl).catch((err) => {
-      console.error("hls-manifest resolve source failed:", err);
-      return null;
-    });
-    if (!playback?.src || playback.type !== "application/x-mpegurl") {
-      return new NextResponse("Playback unavailable", { status: 404 });
-    }
-
-    const raw = await fetchUpstreamManifest(playback.src);
+    const raw = await fetchUpstreamManifest(playbackSrc);
     if (!raw) return new NextResponse("Upstream manifest unavailable", { status: 502 });
 
-    const rewritten = rewriteHlsManifestForProxy(raw, playback.src);
+    const rewritten = rewriteHlsManifestForProxy(raw, playbackSrc);
 
     if (!wantStitch) {
-      return hlsResponse(rewritten);
+      return hlsResponse(rewritten, 45);
     }
 
     if (playlistIsMaster(rewritten)) {
       // Stream demuxed A/V: proxy both tracks so bumper video + audio stay aligned.
       // Muxed masters: do not stitch (would mix video-only bumper into muxed media).
       if (!masterHasDemuxedAudio(rewritten)) {
-        return hlsResponse(rewritten);
+        return hlsResponse(rewritten, 45);
       }
       const stitchedMaster = rewriteMasterPlaylistForIntroStitch(rewritten, {
         buildVariantProxyUrl: (absoluteVariantUrl) => {
@@ -148,14 +158,14 @@ export async function GET(
           return `${origin}/api/content/${id}/hls-manifest?${params.toString()}`;
         },
       });
-      return hlsResponse(stitchedMaster);
+      return hlsResponse(stitchedMaster, 20);
     }
 
     try {
-      return hlsResponse(await stitchWithMatchingIntro(rewritten, origin));
+      return hlsResponse(await stitchWithMatchingIntro(rewritten, origin), 20);
     } catch (err) {
       console.error("platform intro stitch failed; serving feature only", err);
-      return hlsResponse(rewritten);
+      return hlsResponse(rewritten, 20);
     }
   } catch (err) {
     console.error("hls-manifest error:", err);

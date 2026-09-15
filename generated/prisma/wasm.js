@@ -793,6 +793,22 @@ exports.Prisma.OriginalMemberScalarFieldEnum = {
   projectId: 'projectId'
 };
 
+exports.Prisma.ProjectCollaboratorInviteScalarFieldEnum = {
+  id: 'id',
+  projectId: 'projectId',
+  invitedByUserId: 'invitedByUserId',
+  emailNorm: 'emailNorm',
+  invitedUserId: 'invitedUserId',
+  role: 'role',
+  department: 'department',
+  personalMessage: 'personalMessage',
+  status: 'status',
+  token: 'token',
+  expiresAt: 'expiresAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
 exports.Prisma.LocationListingScalarFieldEnum = {
   id: 'id',
   name: 'name',
@@ -3202,6 +3218,7 @@ exports.Prisma.ModelName = {
   CreatorCalendarEvent: 'CreatorCalendarEvent',
   OriginalPitch: 'OriginalPitch',
   OriginalMember: 'OriginalMember',
+  ProjectCollaboratorInvite: 'ProjectCollaboratorInvite',
   LocationListing: 'LocationListing',
   LocationBooking: 'LocationBooking',
   CrewTeam: 'CrewTeam',

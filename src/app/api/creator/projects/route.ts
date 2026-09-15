@@ -58,6 +58,8 @@ export async function GET() {
 
   const signalsByProject = await loadProjectUsageSignals(projectIds, ideaCountByProject);
 
+  const TOOL_MEMBER_STATUSES = new Set(["ACTIVE", "ACCEPTED"]);
+
   const withActivity = projects.map((p) => {
     const latestPitch = p.pitches[0];
     const isOriginal = isStoryTimeOriginalGreenlit(latestPitch);
@@ -101,10 +103,22 @@ export async function GET() {
     const pipelineRollup = buildPipelineRollup(resolvedProgress, p.status);
 
     const { toolProgress: _toolProgress, ...rest } = p;
+    const creatorId = latestPitch?.creatorId ?? null;
+    const myMembership = p.members.find((m) => m.userId === userId);
+    const isPitchOwner = p.pitches.some((pitch) => pitch.creatorId === userId);
+    const myMembershipStatus = myMembership?.status ?? null;
+    const canUseTools =
+      role === "ADMIN" ||
+      isPitchOwner ||
+      Boolean(myMembershipStatus && TOOL_MEMBER_STATUSES.has(myMembershipStatus));
+    const canInviteCollaborators = canUseTools;
 
     return {
       ...rest,
-      creatorId: latestPitch?.creatorId ?? null,
+      creatorId,
+      myMembershipStatus,
+      canUseTools,
+      canInviteCollaborators,
       projectToolProgress: resolvedProgress,
       pipelineRollup,
       ideasCount,

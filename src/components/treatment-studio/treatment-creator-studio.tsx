@@ -124,7 +124,7 @@ export function TreatmentCreatorStudio({
 
   const treatmentsKey = ["creator-treatments", projectId ?? "standalone"];
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: treatmentsKey,
     queryFn: async () => {
       const qs = projectId ? `?projectId=${encodeURIComponent(projectId)}` : "";
@@ -662,6 +662,44 @@ export function TreatmentCreatorStudio({
       <div className="treatment-studio-loading space-y-4 p-6">
         <Skeleton className="h-10 w-64 bg-slate-800" />
         <Skeleton className="h-[480px] w-full bg-slate-800/60" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    const message =
+      error instanceof Error ? error.message : "Failed to load treatments";
+    const inviteBlocked = /accept this project invite/i.test(message);
+    return (
+      <div className="creator-tool-workspace">
+        <header className="creator-tool-workspace-header">
+          <p className="creator-tool-workspace-eyebrow">Pre-production workspace</p>
+          <h2 className="creator-tool-workspace-title">{title}</h2>
+        </header>
+        <div className="rounded-xl border border-rose-500/30 bg-rose-950/20 px-4 py-6 text-center">
+          <p className="text-sm text-rose-200">{message}</p>
+          {inviteBlocked ? (
+            <p className="mt-2 text-xs text-slate-400">
+              Open invites never block the project owner. If you were invited to this project, accept
+              the invite in My Projects first — or switch to a project you own.
+            </p>
+          ) : (
+            <p className="mt-2 text-xs text-slate-400">
+              Switch to a project you own or co-own, then try again.
+            </p>
+          )}
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+            <Button type="button" variant="outline" onClick={() => void refetch()}>
+              Retry
+            </Button>
+            <Link
+              href="/creator/dashboard"
+              className="inline-flex h-9 items-center rounded-md border border-white/10 px-3 text-sm text-slate-200 hover:bg-white/5"
+            >
+              My Projects
+            </Link>
+          </div>
+        </div>
       </div>
     );
   }

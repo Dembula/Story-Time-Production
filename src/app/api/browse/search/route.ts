@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getViewerProfileAge } from "@/lib/viewer-profiles";
 import { rankSearchResults } from "@/lib/browse-search";
 import { getDisplayPosterUrl } from "@/lib/content-media-urls";
+import { packPlatformImageUrl } from "@/lib/browse-media-pack";
 
 export async function GET(req: NextRequest) {
   try {
@@ -56,19 +57,29 @@ export async function GET(req: NextRequest) {
   });
 
   const ranked = rankSearchResults(items, q).slice(0, limit);
-
-  return NextResponse.json({
-    results: ranked.map((c) => ({
+  const results = await Promise.all(
+    ranked.map(async (c) => ({
       id: c.id,
       title: c.title,
       type: c.type,
       category: c.category,
       year: c.year,
-      posterUrl: getDisplayPosterUrl(c),
+      posterUrl:
+        (await packPlatformImageUrl(getDisplayPosterUrl(c), undefined, { role: "poster" })) ??
+        getDisplayPosterUrl(c),
       creatorName: c.creator?.name ?? null,
       ratingCount: c._count.ratings,
     })),
-  });
+  );
+
+  return NextResponse.json(
+    { results },
+    {
+      headers: {
+        "Cache-Control": "private, max-age=20, stale-while-revalidate=60",
+      },
+    },
+  );
   } catch (err) {
     console.error("Browse search API error:", err);
     return NextResponse.json({ results: [] });
