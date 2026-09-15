@@ -21,6 +21,18 @@ const policyLinks = [
   { href: "/legal/copyright", label: "Copyright" },
 ] as const;
 
+/** Split registration digits so iOS data detectors do not turn them into links before hydration. */
+function CipcRegistration({ className }: { className?: string }) {
+  const zws = "\u200B";
+  return (
+    <span className={className} suppressHydrationWarning>
+      {`2026${zws}/${zws}269060${zws}/${zws}07`}
+    </span>
+  );
+}
+
+const COPYRIGHT_YEAR = 2026;
+
 export function LandingFooter() {
   return (
     <footer className="border-t border-white/8 px-4 py-12 sm:px-6">
@@ -28,12 +40,20 @@ export function LandingFooter() {
         <div className="mb-8 flex flex-col items-center justify-between gap-6 md:flex-row">
           <Link href="/" className="flex flex-col items-center gap-2 md:items-start" aria-label="Story Time home">
             <StoryTimeMark size={32} />
-            <span className="text-[10px] tracking-wide text-slate-500">STORYTIME STUDIOS (Pty) Ltd · 2026/269060/07</span>
+            <span className="text-[10px] tracking-wide text-slate-500">
+              STORYTIME STUDIOS (Pty) Ltd · <CipcRegistration />
+            </span>
           </Link>
           <div className="flex flex-wrap justify-center gap-6 text-sm text-slate-400">
-            <Link href="/auth/signin" className="hover:text-white">Sign In</Link>
-            <Link href="/auth/creator/signin" className="hover:text-white">Creator Portal</Link>
-            <Link href="/auth/admin" className="hover:text-white">Admin</Link>
+            <Link href="/auth/signin" className="hover:text-white">
+              Sign In
+            </Link>
+            <Link href="/auth/creator/signin" className="hover:text-white">
+              Creator Portal
+            </Link>
+            <Link href="/auth/admin" className="hover:text-white">
+              Admin
+            </Link>
           </div>
           <PlaybackComplianceBadge variant="footer" />
         </div>
@@ -50,7 +70,10 @@ export function LandingFooter() {
             </Link>
           ))}
         </div>
-        <p className="mt-4 text-xs text-slate-600">&copy; {new Date().getFullYear()} Story Time. All rights reserved. STORYTIME STUDIOS (Pty) Ltd (CIPC 2026/269060/07)</p>
+        <p className="mt-4 text-xs text-slate-600" suppressHydrationWarning>
+          &copy; {COPYRIGHT_YEAR} Story Time. All rights reserved. STORYTIME STUDIOS (Pty) Ltd (CIPC{" "}
+          <CipcRegistration />)
+        </p>
       </div>
     </footer>
   );

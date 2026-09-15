@@ -85,6 +85,16 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark" data-scroll-behavior="smooth" suppressHydrationWarning>
+      <head>
+        {/*
+          iOS Safari data detectors rewrite phone/date-like strings (e.g. CIPC 2026/269060/07)
+          into <a> tags before React hydrates → Minified React error #418 (text mismatch).
+        */}
+        <meta
+          name="format-detection"
+          content="telephone=no, date=no, email=no, address=no"
+        />
+      </head>
       <body
         suppressHydrationWarning
         className={`${inter.variable} ${outfit.variable} min-h-dvh bg-background font-sans text-foreground antialiased`}
