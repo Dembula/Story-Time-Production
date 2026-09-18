@@ -52,85 +52,108 @@ export async function applyPaymentRecordSettlementEffects(paymentRecord: {
       paymentRecord.metadata && typeof paymentRecord.metadata === "object"
         ? (paymentRecord.metadata as Record<string, unknown>)
         : {};
-    const current = await db.viewerSubscription.findUnique({
-      where: { id: paymentRecord.relatedEntityId },
-      select: { currentPeriodEnd: true },
-    });
-    let nextPeriodEnd: Date;
-    if (isPlanChange) {
-      nextPeriodEnd =
-        current?.currentPeriodEnd && current.currentPeriodEnd > now
-          ? current.currentPeriodEnd
-          : addViewerSubscriptionPeriod(now);
-    } else if (isRenewal) {
-      const base = current?.currentPeriodEnd && current.currentPeriodEnd > now ? current.currentPeriodEnd : now;
-      nextPeriodEnd = addViewerSubscriptionPeriod(base);
-    } else {
-      nextPeriodEnd = addViewerSubscriptionPeriod(now);
-    }
 
-    const planType = typeof meta.planType === "string" ? meta.planType : undefined;
-    const viewerModel = typeof meta.viewerModel === "string" ? meta.viewerModel : undefined;
-    const planConfig =
-      planType && planType in VIEWER_PLAN_CONFIG
-        ? VIEWER_PLAN_CONFIG[planType as keyof typeof VIEWER_PLAN_CONFIG]
-        : null;
-
-    await db.viewerSubscription.update({
-      where: { id: paymentRecord.relatedEntityId },
-      data: {
-        status: "ACTIVE",
-        trialEndsAt: null,
-        currentPeriodEnd: nextPeriodEnd,
-        lastPaymentStatus: "SUCCEEDED",
-        lastPaymentAt: now,
-        ...buildRecurringBillingSuccessReset(),
-        ...(planConfig
-          ? {
-              plan: planType,
-              viewerModel: viewerModel ?? "SUBSCRIPTION",
-              deviceCount: planConfig.deviceCount,
-              profileLimit: planConfig.profileLimit,
-            }
-          : {}),
-      },
-    });
-
-    if (typeof paymentRecord.amount === "number" && paymentRecord.amount > 0) {
-      await db.subscriptionPayment.create({
-        data: {
+    const alreadySettled =
+      paymentRecord.id &&
+      (await db.subscriptionPayment.findFirst({
+        where: {
           viewerSubscriptionId: paymentRecord.relatedEntityId,
-          amount: paymentRecord.amount,
-          currency: "ZAR",
-          status: "COMPLETED",
-          purpose: paymentRecord.purpose ?? "viewer_subscription",
-          paidAt: now,
+          OR: [
+            { purpose: { equals: `settled:${paymentRecord.id}` } },
+            ...(typeof meta.subscriptionPaymentKey === "string"
+              ? [{ purpose: { equals: meta.subscriptionPaymentKey } }]
+              : []),
+          ],
+        },
+        select: { id: true },
+      }));
+
+    if (alreadySettled) {
+      // Idempotent retry — period/entitlements already applied for this payment.
+    } else {
+      const current = await db.viewerSubscription.findUnique({
+        where: { id: paymentRecord.relatedEntityId },
+        select: { currentPeriodEnd: true },
+      });
+      let nextPeriodEnd: Date;
+      if (isPlanChange) {
+        nextPeriodEnd =
+          current?.currentPeriodEnd && current.currentPeriodEnd > now
+            ? current.currentPeriodEnd
+            : addViewerSubscriptionPeriod(now);
+      } else if (isRenewal) {
+        const base =
+          current?.currentPeriodEnd && current.currentPeriodEnd > now ? current.currentPeriodEnd : now;
+        nextPeriodEnd = addViewerSubscriptionPeriod(base);
+      } else {
+        nextPeriodEnd = addViewerSubscriptionPeriod(now);
+      }
+
+      const planType = typeof meta.planType === "string" ? meta.planType : undefined;
+      const viewerModel = typeof meta.viewerModel === "string" ? meta.viewerModel : undefined;
+      const planConfig =
+        planType && planType in VIEWER_PLAN_CONFIG
+          ? VIEWER_PLAN_CONFIG[planType as keyof typeof VIEWER_PLAN_CONFIG]
+          : null;
+
+      await db.viewerSubscription.update({
+        where: { id: paymentRecord.relatedEntityId },
+        data: {
+          status: "ACTIVE",
+          trialEndsAt: null,
+          currentPeriodEnd: nextPeriodEnd,
+          lastPaymentStatus: "SUCCEEDED",
+          lastPaymentAt: now,
+          ...buildRecurringBillingSuccessReset(),
+          ...(planConfig
+            ? {
+                plan: planType,
+                viewerModel: viewerModel ?? "SUBSCRIPTION",
+                deviceCount: planConfig.deviceCount,
+                profileLimit: planConfig.profileLimit,
+              }
+            : {}),
         },
       });
-    }
 
-    // Redeem partial viewer promo after cash settles (full comps redeem at checkout).
-    const promoCodeId = typeof meta.promoCodeId === "string" ? meta.promoCodeId : null;
-    if (promoCodeId && paymentRecord.userId) {
-      try {
-        const { redeemPromoCode } = await import("@/lib/promo-codes");
-        await redeemPromoCode({
-          promoCodeId,
-          userId: paymentRecord.userId,
-          context: "VIEWER_SUBSCRIPTION",
-          referenceId: paymentRecord.relatedEntityId,
-          discountAmount: typeof meta.discountAmount === "number" ? meta.discountAmount : null,
-          resultingPlan: typeof meta.planType === "string" ? meta.planType : null,
-          metadata: {
-            basePrice: meta.basePrice ?? null,
-            finalPrice: meta.finalPriceAfterPromo ?? paymentRecord.amount ?? null,
-            fundingSource: "partial_promo",
-            promoFreeGrant: false,
-            paymentRecordId: paymentRecord.id ?? null,
+      if (typeof paymentRecord.amount === "number" && paymentRecord.amount > 0) {
+        await db.subscriptionPayment.create({
+          data: {
+            viewerSubscriptionId: paymentRecord.relatedEntityId,
+            amount: paymentRecord.amount,
+            currency: "ZAR",
+            status: "COMPLETED",
+            purpose: paymentRecord.id
+              ? `settled:${paymentRecord.id}`
+              : paymentRecord.purpose ?? "viewer_subscription",
+            paidAt: now,
           },
         });
-      } catch (err) {
-        console.warn("[settlement] viewer promo redeem after payment failed", err);
+      }
+
+      // Redeem partial viewer promo after cash settles (full comps redeem at checkout).
+      const promoCodeId = typeof meta.promoCodeId === "string" ? meta.promoCodeId : null;
+      if (promoCodeId && paymentRecord.userId) {
+        try {
+          const { redeemPromoCode } = await import("@/lib/promo-codes");
+          await redeemPromoCode({
+            promoCodeId,
+            userId: paymentRecord.userId,
+            context: "VIEWER_SUBSCRIPTION",
+            referenceId: paymentRecord.relatedEntityId,
+            discountAmount: typeof meta.discountAmount === "number" ? meta.discountAmount : null,
+            resultingPlan: typeof meta.planType === "string" ? meta.planType : null,
+            metadata: {
+              basePrice: meta.basePrice ?? null,
+              finalPrice: meta.finalPriceAfterPromo ?? paymentRecord.amount ?? null,
+              fundingSource: "partial_promo",
+              promoFreeGrant: false,
+              paymentRecordId: paymentRecord.id ?? null,
+            },
+          });
+        } catch (err) {
+          console.warn("[settlement] viewer promo redeem after payment failed", err);
+        }
       }
     }
   }

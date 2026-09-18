@@ -132,10 +132,12 @@ export function AdminRevenueClient() {
           <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6">
             <h3 className="text-white font-semibold mb-4 flex items-center gap-2"><PieChart className="w-5 h-5 text-orange-400" /> Revenue Split Breakdown</h3>
             <p className="text-sm text-slate-400 mb-4">
-              Viewer subscription revenue splits <strong className="text-slate-300">60% creator pool</strong> /{" "}
-              <strong className="text-slate-300">40% Story Time</strong> on <strong className="text-slate-300">net</strong>{" "}
-              PayFast settlement (after gateway fees). Promo and demo completions are excluded from this pool.
-              proportion across the period.
+              Cleared viewer subscription / PPV cash splits{" "}
+              <strong className="text-slate-300">60% creator pool</strong> /{" "}
+              <strong className="text-slate-300">40% Story Time</strong> on{" "}
+              <strong className="text-slate-300">net</strong> settlement (after PayFast / Apple fees).
+              PayFast clears in 3 days, Apple in 45 days (or earlier via Finance Hub → Cleared). Promo
+              and demo completions are excluded. Existing subscribers only contribute on renewal.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="p-4 rounded-xl bg-green-500/5 border border-green-500/20">

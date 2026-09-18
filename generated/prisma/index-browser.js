@@ -580,6 +580,7 @@ exports.Prisma.FinanceFeeSettingsHistoryScalarFieldEnum = {
 exports.Prisma.PlatformRevenueConnectorScalarFieldEnum = {
   id: 'id',
   creatorRevenueTrackingEnabled: 'creatorRevenueTrackingEnabled',
+  trackingStartedAt: 'trackingStartedAt',
   note: 'note',
   updatedByUserId: 'updatedByUserId',
   createdAt: 'createdAt',
@@ -590,6 +591,7 @@ exports.Prisma.PlatformRevenueConnectorHistoryScalarFieldEnum = {
   id: 'id',
   settingsId: 'settingsId',
   creatorRevenueTrackingEnabled: 'creatorRevenueTrackingEnabled',
+  trackingStartedAt: 'trackingStartedAt',
   note: 'note',
   updatedByUserId: 'updatedByUserId',
   createdAt: 'createdAt'
@@ -1223,6 +1225,11 @@ exports.Prisma.PaymentRecordScalarFieldEnum = {
   providerFeeAmount: 'providerFeeAmount',
   settlementAmount: 'settlementAmount',
   settlementSource: 'settlementSource',
+  fundsClearDueAt: 'fundsClearDueAt',
+  fundsClearedAt: 'fundsClearedAt',
+  fundsClearedMode: 'fundsClearedMode',
+  fundsClearedByUserId: 'fundsClearedByUserId',
+  ledgerAllocatedAt: 'ledgerAllocatedAt',
   customerCode: 'customerCode',
   authorizationCode: 'authorizationCode',
   paidAt: 'paidAt',

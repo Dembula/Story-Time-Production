@@ -33,6 +33,9 @@ export async function GET() {
     history: history.map((row) => ({
       id: row.id,
       creatorRevenueTrackingEnabled: row.creatorRevenueTrackingEnabled,
+      trackingStartedAt: (row as { trackingStartedAt?: Date | null }).trackingStartedAt
+        ? (row as { trackingStartedAt: Date }).trackingStartedAt.toISOString()
+        : null,
       note: row.note,
       updatedByUserId: row.updatedByUserId,
       createdAt: row.createdAt.toISOString(),

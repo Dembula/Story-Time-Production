@@ -162,10 +162,36 @@ async function handleCardConsentItn(data: Record<string, string>): Promise<PayFa
       cardType: data.payment_method ? String(data.payment_method) : undefined,
     }).catch((err: unknown) => console.error("payfast method upsert failed", err));
 
-    await db.viewerSubscription.updateMany({
-      where: { userId: payerUserId, viewerModel: "SUBSCRIPTION" },
-      data: { externalPaymentId: data.token, lastPaymentStatus: "SUCCEEDED", lastPaymentError: null },
-    }).catch(() => {});
+    // Only stamp the consent target subscription — never overwrite every viewer sub for the user.
+    if (reference.startsWith("trial-consent-")) {
+      const subscriptionId = reference.slice("trial-consent-".length);
+      if (subscriptionId) {
+        await db.viewerSubscription.update({
+          where: { id: subscriptionId },
+          data: {
+            externalPaymentId: data.token,
+            lastPaymentStatus: "SUCCEEDED",
+            lastPaymentError: null,
+          },
+        }).catch(() => {});
+      }
+    } else {
+      const activeSub = await db.viewerSubscription.findFirst({
+        where: { userId: payerUserId, viewerModel: "SUBSCRIPTION", status: { in: ["ACTIVE", "TRIALING"] } },
+        orderBy: { updatedAt: "desc" },
+        select: { id: true },
+      });
+      if (activeSub?.id) {
+        await db.viewerSubscription.update({
+          where: { id: activeSub.id },
+          data: {
+            externalPaymentId: data.token,
+            lastPaymentStatus: "SUCCEEDED",
+            lastPaymentError: null,
+          },
+        }).catch(() => {});
+      }
+    }
 
     await markCardConsentPaymentSucceeded(reference, payerUserId);
   }

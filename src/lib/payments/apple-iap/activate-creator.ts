@@ -174,19 +174,37 @@ export async function processCreatorApplePurchase(options: {
 
   const prior = await findApplePaymentByTransactionId(transactionId);
   if (prior?.status === "SUCCEEDED") {
+    if (prior.userId && prior.userId !== options.userId) {
+      throw Object.assign(new Error("This Apple transaction belongs to another account."), {
+        status: 409,
+      });
+    }
     if (mapped.kind === "content_upload") {
       const contentId = options.body.contentId?.trim() ?? prior.relatedEntityId;
-      if (contentId) {
-        const content = await db.content.findFirst({
-          where: { id: contentId, creatorId: options.userId },
-          select: { id: true, reviewStatus: true },
+      if (!contentId) {
+        return {
+          ok: true as const,
+          alreadyApplied: true as const,
+          contentId: prior.relatedEntityId,
+          reviewStatus: "PENDING",
+        };
+      }
+      // Replay must unlock the original paid title only — never another creator's upload.
+      if (prior.relatedEntityId && prior.relatedEntityId !== contentId) {
+        throw Object.assign(
+          new Error("This Apple upload receipt is already tied to a different title."),
+          { status: 409 },
+        );
+      }
+      const content = await db.content.findFirst({
+        where: { id: contentId, creatorId: options.userId },
+        select: { id: true, reviewStatus: true },
+      });
+      if (content && content.reviewStatus === "AWAITING_PAYMENT") {
+        await db.content.update({
+          where: { id: content.id },
+          data: { reviewStatus: "PENDING", submittedAt: new Date() },
         });
-        if (content && content.reviewStatus === "AWAITING_PAYMENT") {
-          await db.content.update({
-            where: { id: content.id },
-            data: { reviewStatus: "PENDING", submittedAt: new Date() },
-          });
-        }
       }
       return {
         ok: true as const,

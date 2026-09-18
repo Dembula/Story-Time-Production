@@ -8,19 +8,23 @@ export async function getOrCreateLedgerBatch(args: {
   status?: string;
   metadata?: Record<string, unknown>;
 }) {
-  const existing = await db.ledgerBatch.findUnique({
-    where: { idempotencyKey: args.idempotencyKey },
-  });
-  if (existing) return existing;
-  return db.ledgerBatch.create({
-    data: {
-      idempotencyKey: args.idempotencyKey,
-      referenceType: args.referenceType,
-      referenceId: args.referenceId,
-      status: args.status ?? "COMPLETED",
-      metadata: args.metadata ?? {},
-    },
-  });
+  try {
+    return await db.ledgerBatch.create({
+      data: {
+        idempotencyKey: args.idempotencyKey,
+        referenceType: args.referenceType,
+        referenceId: args.referenceId,
+        status: args.status ?? "COMPLETED",
+        metadata: args.metadata ?? {},
+      },
+    });
+  } catch {
+    const existing = await db.ledgerBatch.findUnique({
+      where: { idempotencyKey: args.idempotencyKey },
+    });
+    if (existing) return existing;
+    throw new Error(`Failed to create or load ledger batch ${args.idempotencyKey}`);
+  }
 }
 
 export async function recordGatewayEventIfNew(args: {

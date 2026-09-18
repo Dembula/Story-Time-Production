@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   estimatePayFastFee,
   estimatePayFastSettlement,
+  getPaymentSettlementAmount,
   normalizePayFastMethodCode,
   parsePayFastSettlementFromItn,
 } from "@/lib/payments/payfast-settlement";
@@ -52,6 +53,11 @@ describe("payfast-settlement", () => {
     const creatorPool = Math.round(parsed.settlementAmount * 0.6 * 100) / 100;
     assert.ok(creatorPool < 17.99);
     assert.equal(creatorPool, 15.89);
+  });
+
+  it("trusts explicit settlement 0 instead of falling back to gross", () => {
+    assert.equal(getPaymentSettlementAmount({ amount: 29.99, settlementAmount: 0 }), 0);
+    assert.equal(getPaymentSettlementAmount({ amount: 29.99, settlementAmount: 26.48 }), 26.48);
   });
 });
 

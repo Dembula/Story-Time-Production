@@ -183,6 +183,11 @@ export async function activateAppleViewerSubscription(options: {
 
   const prior = await findApplePaymentByTransactionId(transactionId);
   if (prior?.status === "SUCCEEDED" && prior.relatedEntityType === "ViewerSubscription" && prior.relatedEntityId) {
+    if (prior.userId && prior.userId !== options.userId) {
+      throw Object.assign(new Error("This Apple transaction belongs to another account."), {
+        status: 409,
+      });
+    }
     const sub = await db.viewerSubscription.findUnique({ where: { id: prior.relatedEntityId } });
     if (sub) {
       return {
@@ -233,10 +238,13 @@ export async function activateAppleViewerSubscription(options: {
         },
       });
 
+  const bookedAmount =
+    mapped.billingInterval === "year" ? planConfig.yearlyPrice : planConfig.price;
+
   const { already } = await recordApplePayment({
     userId: options.userId,
     email: options.email,
-    amount: planConfig.price,
+    amount: bookedAmount,
     purpose: VIEWER_APPLE_IAP_SUBSCRIPTION_PURPOSE,
     relatedEntityType: "ViewerSubscription",
     relatedEntityId: subscription.id,
@@ -254,7 +262,7 @@ export async function activateAppleViewerSubscription(options: {
   await db.subscriptionPayment.create({
     data: {
       viewerSubscriptionId: subscription.id,
-      amount: planConfig.price,
+      amount: bookedAmount,
       currency: "ZAR",
       status: "COMPLETED",
       purpose: VIEWER_APPLE_IAP_SUBSCRIPTION_PURPOSE,
@@ -317,7 +325,20 @@ export async function activateAppleViewerPpv(options: {
   });
 
   const prior = await findApplePaymentByTransactionId(transactionId);
-  if (prior?.status === "SUCCEEDED" || existingCompleted) {
+  if (prior?.status === "SUCCEEDED") {
+    if (prior.userId && prior.userId !== options.userId) {
+      throw Object.assign(new Error("This Apple transaction belongs to another account."), {
+        status: 409,
+      });
+    }
+    return {
+      ok: true as const,
+      alreadyOwned: true as const,
+      contentId,
+      alreadyApplied: true as const,
+    };
+  }
+  if (existingCompleted) {
     return {
       ok: true as const,
       alreadyOwned: true as const,

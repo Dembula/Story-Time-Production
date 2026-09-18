@@ -4,6 +4,8 @@ export const VIEWER_PLAN_CONFIG = {
   BASE_1: {
     label: "Basic",
     price: 29.99,
+    /** App Store yearly SKU list price (12× monthly until Connect prices differ). */
+    yearlyPrice: 359.88,
     deviceCount: 1,
     profileLimit: 1,
     deviceLabel: "1",
@@ -11,6 +13,7 @@ export const VIEWER_PLAN_CONFIG = {
   STANDARD_3: {
     label: "Standard",
     price: 89.99,
+    yearlyPrice: 1079.88,
     deviceCount: 3,
     profileLimit: 3,
     deviceLabel: "3",
@@ -18,6 +21,7 @@ export const VIEWER_PLAN_CONFIG = {
   FAMILY_5: {
     label: "Premium",
     price: 119.99,
+    yearlyPrice: 1439.88,
     deviceCount: 5,
     profileLimit: 5,
     deviceLabel: "5+",
@@ -25,6 +29,7 @@ export const VIEWER_PLAN_CONFIG = {
   PPV_FILM: {
     label: "Pay Per View",
     price: 49.99,
+    yearlyPrice: 49.99,
     deviceCount: 1,
     profileLimit: 1,
     deviceLabel: "1",

@@ -1,16 +1,22 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
-import { DEMO_PAYMENT_PROVIDER } from "@/lib/payments/config";
+import { DEMO_PAYMENT_PROVIDER, PAYMENT_PROVIDER } from "@/lib/payments/config";
 import { isCashRecognizedPayment } from "@/lib/payments/cash-recognition";
 import { recordGatewayEventIfNew } from "@/lib/payments/idempotency";
 import { applyPaymentRecordSettlementEffects } from "@/lib/payments/settlement-effects";
-import { allocateGatewayPaymentLedger } from "@/lib/payments/gateway-allocation";
 import {
   demoPayFastSettlement,
+  estimatePayFastSettlement,
+  estimatePayFastFee,
   getPaymentSettlementAmount,
   type PayFastSettlementBreakdown,
 } from "@/lib/payments/payfast-settlement";
+import {
+  computeFundsClearDueAt,
+  markPaymentFundsCleared,
+  scheduleFundsClearForPayment,
+} from "@/lib/payments/funds-clearing";
 
 const db = prisma as any;
 
@@ -26,13 +32,127 @@ export type CompleteGatewayPaymentOptions = {
 
 function resolveSettlement(
   payment: { amount: number; provider?: string | null },
+  provider: string,
   settlement?: PayFastSettlementBreakdown,
 ): PayFastSettlementBreakdown {
   if (settlement) return settlement;
-  if ((payment.provider ?? "") === DEMO_PAYMENT_PROVIDER) {
+  if (provider === DEMO_PAYMENT_PROVIDER || (payment.provider ?? "") === DEMO_PAYMENT_PROVIDER) {
     return demoPayFastSettlement(payment.amount);
   }
-  return demoPayFastSettlement(payment.amount);
+  // Live PayFast without ITN fields: estimate card fees rather than treating as demo (0 fee).
+  return {
+    amountGross: payment.amount,
+    providerFeeAmount: estimatePayFastFee(payment.amount, "cc"),
+    settlementAmount: estimatePayFastSettlement(payment.amount, "cc"),
+    providerPaymentMethod: "cc",
+    providerPaymentMethodLabel: "Estimated (credit card schedule)",
+    settlementSource: "estimated",
+  };
+}
+
+async function runPostSuccessMoneyAndEffects(args: {
+  paymentRecordId: string;
+  payment: {
+    id: string;
+    userId: string | null;
+    amount: number;
+    purpose: string | null;
+    relatedEntityType: string | null;
+    relatedEntityId: string | null;
+    provider: string | null;
+    metadata: unknown;
+  };
+  provider: string;
+  settlement: PayFastSettlementBreakdown;
+  metadata: Record<string, unknown>;
+  isDemo: boolean;
+  /** When true, skip domain effects if they were already applied (recovery path). */
+  recovery?: boolean;
+}) {
+  const allocatableAmount = getPaymentSettlementAmount({
+    amount: args.payment.amount,
+    settlementAmount: args.settlement.settlementAmount,
+  });
+
+  const cashRecognized = isCashRecognizedPayment({
+    amount: args.payment.amount,
+    settlementAmount: args.settlement.settlementAmount,
+    status: "SUCCEEDED",
+    purpose: args.payment.purpose,
+    provider: args.provider,
+    metadata: {
+      ...args.metadata,
+      ...(args.isDemo ? { demoCompletedAt: new Date().toISOString() } : {}),
+    },
+    settlementSource: args.settlement.settlementSource,
+  });
+
+  if (cashRecognized && allocatableAmount > 0) {
+    const { ensureCreatorRevenueTrackingLive } = await import("@/lib/finance/revenue-connector");
+    await ensureCreatorRevenueTrackingLive().catch(() => {});
+
+    // Schedule PayFast (3d) / Apple (45d) clear clock — ledger books only after clear.
+    const paidAt = new Date();
+    const existing = await db.paymentRecord.findUnique({
+      where: { id: args.paymentRecordId },
+      select: {
+        paidAt: true,
+        fundsClearDueAt: true,
+        fundsClearedAt: true,
+        provider: true,
+      },
+    });
+    const paidAtEffective = existing?.paidAt ? new Date(existing.paidAt) : paidAt;
+    if (!existing?.fundsClearDueAt && !existing?.fundsClearedAt) {
+      await scheduleFundsClearForPayment({
+        paymentRecordId: args.paymentRecordId,
+        paidAt: paidAtEffective,
+        provider: args.provider,
+      });
+    }
+
+    // Clear now if due (or already past), including recovery for already-cleared rows.
+    const due =
+      existing?.fundsClearDueAt != null
+        ? new Date(existing.fundsClearDueAt)
+        : computeFundsClearDueAt(paidAtEffective, args.provider);
+    if (existing?.fundsClearedAt || due.getTime() <= Date.now()) {
+      await markPaymentFundsCleared({
+        paymentRecordId: args.paymentRecordId,
+        mode: "auto",
+        now: new Date(),
+      });
+    }
+  }
+
+  const effectsAlreadyApplied = args.metadata.domainEffectsApplied === true;
+  if (args.recovery && effectsAlreadyApplied) {
+    return;
+  }
+
+  await applyPaymentRecordSettlementEffects({
+    id: args.paymentRecordId,
+    userId: args.payment.userId,
+    purpose: args.payment.purpose,
+    amount: args.payment.amount,
+    relatedEntityType: args.payment.relatedEntityType,
+    relatedEntityId: args.payment.relatedEntityId,
+    metadata: {
+      ...args.metadata,
+      payfastSettlement: args.settlement,
+    },
+  });
+
+  await db.paymentRecord.update({
+    where: { id: args.paymentRecordId },
+    data: {
+      metadata: {
+        ...args.metadata,
+        domainEffectsApplied: true,
+        domainEffectsAppliedAt: new Date().toISOString(),
+      },
+    },
+  });
 }
 
 /** Persist PayFast fee / net settlement on a payment record (ITN backfill or completion). */
@@ -64,7 +184,44 @@ export async function completeGatewayPayment(
     return { ok: false, error: "Payment not found.", status: 404 };
   }
 
+  const now = new Date();
+  const provider =
+    options?.provider ??
+    payment.provider ??
+    (options?.settlement?.settlementSource === "demo" ? DEMO_PAYMENT_PROVIDER : PAYMENT_PROVIDER);
+  const metadata =
+    payment.metadata && typeof payment.metadata === "object"
+      ? (payment.metadata as Record<string, unknown>)
+      : {};
+  const settlement = resolveSettlement(payment, provider, options?.settlement);
+  const isDemo = provider === DEMO_PAYMENT_PROVIDER;
+
   if (payment.status === "SUCCEEDED") {
+    // Recovery path: prior run may have marked SUCCEEDED then failed mid-allocation/effects.
+    try {
+      await runPostSuccessMoneyAndEffects({
+        paymentRecordId,
+        payment,
+        provider,
+        settlement:
+          payment.settlementAmount != null && Number.isFinite(Number(payment.settlementAmount))
+            ? {
+                amountGross: Number(payment.amount),
+                providerFeeAmount: Number(payment.providerFeeAmount ?? 0),
+                settlementAmount: Number(payment.settlementAmount),
+                providerPaymentMethod: payment.providerPaymentMethod ?? settlement.providerPaymentMethod,
+                providerPaymentMethodLabel: settlement.providerPaymentMethodLabel,
+                settlementSource: (payment.settlementSource as PayFastSettlementBreakdown["settlementSource"]) ||
+                  settlement.settlementSource,
+              }
+            : settlement,
+        metadata,
+        isDemo,
+        recovery: true,
+      });
+    } catch (err) {
+      console.error("gateway recovery allocation/effects failed", paymentRecordId, err);
+    }
     return { ok: true, already: true, paymentRecordId };
   }
 
@@ -72,22 +229,9 @@ export async function completeGatewayPayment(
     return { ok: false, error: "Payment is no longer pending.", status: 409 };
   }
 
-  const now = new Date();
-  const provider = options?.provider ?? payment.provider ?? DEMO_PAYMENT_PROVIDER;
-  const metadata =
-    payment.metadata && typeof payment.metadata === "object"
-      ? (payment.metadata as Record<string, unknown>)
-      : {};
-
-  const settlement = resolveSettlement(payment, options?.settlement);
-  const allocatableAmount = getPaymentSettlementAmount({
-    amount: payment.amount,
-    settlementAmount: settlement.settlementAmount,
-  });
-  const isDemo = provider === DEMO_PAYMENT_PROVIDER;
-
-  await db.paymentRecord.update({
-    where: { id: paymentRecordId },
+  // Conditional claim: only one concurrent completer wins the PENDING → SUCCEEDED race.
+  const claimed = await db.paymentRecord.updateMany({
+    where: { id: paymentRecordId, status: "PENDING" },
     data: {
       status: "SUCCEEDED",
       paidAt: now,
@@ -99,6 +243,20 @@ export async function completeGatewayPayment(
       providerFeeAmount: settlement.providerFeeAmount,
       settlementAmount: settlement.settlementAmount,
       settlementSource: settlement.settlementSource,
+    },
+  });
+
+  if (claimed.count === 0) {
+    const latest = await db.paymentRecord.findUnique({ where: { id: paymentRecordId } });
+    if (latest?.status === "SUCCEEDED") {
+      return completeGatewayPayment(paymentRecordId, options);
+    }
+    return { ok: false, error: "Payment is no longer pending.", status: 409 };
+  }
+
+  await db.paymentRecord.update({
+    where: { id: paymentRecordId },
+    data: {
       metadata: {
         ...metadata,
         ...(isDemo ? { demoCompletedAt: now.toISOString() } : {}),
@@ -130,52 +288,26 @@ export async function completeGatewayPayment(
     payload: {
       paymentRecordId,
       mode: provider === DEMO_PAYMENT_PROVIDER ? "demo" : "live",
-      settlementAmount: allocatableAmount,
+      settlementAmount: settlement.settlementAmount,
       providerFeeAmount: settlement.providerFeeAmount,
     },
     signatureVerified: provider === DEMO_PAYMENT_PROVIDER ? true : Boolean(options?.reference),
   });
 
-  const cashRecognized = isCashRecognizedPayment({
-    amount: payment.amount,
-    settlementAmount: settlement.settlementAmount,
-    status: "SUCCEEDED",
-    purpose: payment.purpose,
-    provider,
-    metadata: {
-      ...metadata,
-      ...(isDemo ? { demoCompletedAt: now.toISOString() } : {}),
-    },
-    settlementSource: settlement.settlementSource,
-  });
-
-  // Domain entitlements always apply; ledger cash only for real PayFast money.
-  if (cashRecognized && allocatableAmount > 0) {
-    await allocateGatewayPaymentLedger({
-      id: paymentRecordId,
-      amount: payment.amount,
-      settlementAmount: allocatableAmount,
-      providerFeeAmount: settlement.providerFeeAmount,
-      purpose: payment.purpose,
-      relatedEntityType: payment.relatedEntityType,
-      relatedEntityId: payment.relatedEntityId,
-    }).catch((err: unknown) => {
-      console.error("gateway allocation skipped", err);
+  try {
+    await runPostSuccessMoneyAndEffects({
+      paymentRecordId,
+      payment,
+      provider,
+      settlement,
+      metadata,
+      isDemo,
+      recovery: false,
     });
+  } catch (err) {
+    // Status is already SUCCEEDED; recovery path on retry re-runs idempotent allocation/effects.
+    console.error("gateway allocation/effects failed after SUCCEEDED; will retry on next completion", paymentRecordId, err);
   }
-
-  await applyPaymentRecordSettlementEffects({
-    id: paymentRecordId,
-    userId: payment.userId,
-    purpose: payment.purpose,
-    amount: payment.amount,
-    relatedEntityType: payment.relatedEntityType,
-    relatedEntityId: payment.relatedEntityId,
-    metadata: {
-      ...metadata,
-      payfastSettlement: settlement,
-    },
-  });
 
   return { ok: true, paymentRecordId };
 }

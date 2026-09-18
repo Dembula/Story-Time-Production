@@ -1,39 +1,16 @@
 import { prisma } from "./prisma";
-import { getCashSettlementAmount, isCashRecognizedPayment } from "@/lib/payments/cash-recognition";
-import { VIEWER_POOL_PAYMENT_PURPOSES } from "@/lib/payments/viewer-pool-purposes";
 import { revenueEligibleWatchSessionWhere } from "@/lib/revenue-eligible-watch";
 import { getFinanceFeeSettings } from "@/lib/finance/fee-settings";
 import { VIEWER_CREATOR_SPLIT } from "@/lib/payments/config";
 
 /**
- * Viewer pool revenue (subscriptions + PPV) in ZAR — net after PayFast fees.
- * Uses PaymentRecord only (SubscriptionPayment is a legacy mirror and must not double-count).
- * Excludes promo-covered and demo completions.
+ * Viewer pool revenue (subscriptions + PPV) in ZAR — net after gateway fees.
+ * Only counts funds that have cleared (PayFast 3d / Apple 45d or early manual clear)
+ * and that are eligible under the creator revenue tracking start / grandfather rules.
  */
 export async function getViewerPoolRevenue(periodStart: Date, periodEnd: Date): Promise<number> {
-  const gatewayPayments = await prisma.paymentRecord.findMany({
-    where: {
-      status: "SUCCEEDED",
-      purpose: { in: [...VIEWER_POOL_PAYMENT_PURPOSES] },
-      paidAt: { gte: periodStart, lte: periodEnd },
-      amount: { gt: 0 },
-    },
-    select: {
-      amount: true,
-      settlementAmount: true,
-      status: true,
-      purpose: true,
-      metadata: true,
-      provider: true,
-      settlementSource: true,
-    },
-  });
-
-  const gatewayNet = gatewayPayments
-    .filter((p) => isCashRecognizedPayment(p))
-    .reduce((sum, p) => sum + getCashSettlementAmount(p), 0);
-
-  return roundMoney(gatewayNet);
+  const { sumClearedViewerPoolRevenue } = await import("@/lib/finance/revenue-eligibility");
+  return sumClearedViewerPoolRevenue(periodStart, periodEnd);
 }
 
 /** @deprecated Use getViewerPoolRevenue — includes subscriptions and PPV. */

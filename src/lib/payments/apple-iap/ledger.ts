@@ -1,9 +1,16 @@
 import "server-only";
 
 import { isCashRecognizedPayment } from "@/lib/payments/cash-recognition";
-import { allocateGatewayPaymentLedger } from "@/lib/payments/gateway-allocation";
+import {
+  computeFundsClearDueAt,
+  markPaymentFundsCleared,
+  scheduleFundsClearForPayment,
+} from "@/lib/payments/funds-clearing";
+import { prisma } from "@/lib/prisma";
 
-/** Book treasury ledger entries for a succeeded Apple IAP payment (production cash only). */
+const db = prisma as any;
+
+/** Schedule Apple IAP clear clock (45d). Ledger books only after clear / early manual clear. */
 export async function bookAppleIapLedgerIfCash(payment: {
   id: string;
   amount: number;
@@ -30,14 +37,31 @@ export async function bookAppleIapLedgerIfCash(payment: {
 
   if (!cashRecognized || !(settlementAmount > 0)) return;
 
-  await allocateGatewayPaymentLedger({
-    id: payment.id,
-    amount: payment.amount,
-    settlementAmount,
-    purpose: payment.purpose,
-    relatedEntityType: payment.relatedEntityType,
-    relatedEntityId: payment.relatedEntityId,
-  }).catch((err: unknown) => {
-    console.error("apple_iap ledger allocation skipped", payment.id, err);
+  const row = await db.paymentRecord.findUnique({
+    where: { id: payment.id },
+    select: { paidAt: true, fundsClearDueAt: true, fundsClearedAt: true },
   });
+  const paidAt = row?.paidAt ? new Date(row.paidAt) : new Date();
+
+  if (!row?.fundsClearDueAt && !row?.fundsClearedAt) {
+    await scheduleFundsClearForPayment({
+      paymentRecordId: payment.id,
+      paidAt,
+      provider: "APPLE",
+    });
+  }
+
+  const due =
+    row?.fundsClearDueAt != null
+      ? new Date(row.fundsClearDueAt)
+      : computeFundsClearDueAt(paidAt, "APPLE");
+  if (row?.fundsClearedAt || due.getTime() <= Date.now()) {
+    await markPaymentFundsCleared({
+      paymentRecordId: payment.id,
+      mode: "auto",
+      now: new Date(),
+    }).catch((err: unknown) => {
+      console.error("apple_iap funds clear/allocate failed", payment.id, err);
+    });
+  }
 }

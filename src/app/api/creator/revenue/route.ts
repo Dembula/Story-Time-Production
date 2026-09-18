@@ -93,6 +93,9 @@ export async function GET(request: NextRequest) {
   const perViewRand = totalViews > 0 ? revenue.revenue / totalViews : 0;
   const perStreamRand = watchSessions.length > 0 ? revenue.revenue / watchSessions.length : 0;
 
+  const { getRevenueConnector } = await import("@/lib/finance/revenue-connector");
+  const connector = await getRevenueConnector();
+
   return NextResponse.json({
     revenue: revenue.revenue,
     watchTime: revenue.watchTime,
@@ -119,5 +122,13 @@ export async function GET(request: NextRequest) {
       : null,
     payouts: trackingEnabled ? payouts : [],
     revenueTrackingPaused: !trackingEnabled,
+    revenueRules: {
+      trackingStartedAt: connector.trackingStartedAt,
+      clearedCashOnly: true,
+      payfastClearDays: 3,
+      appleClearDays: 45,
+      split: { creator: VIEWER_CREATOR_SPLIT, platform: 1 - VIEWER_CREATOR_SPLIT },
+      note: "Figures use cleared viewer cash only (PayFast 3d / Apple 45d). Existing subscribers contribute on renewal; new subscribers after the tracking start date.",
+    },
   });
 }

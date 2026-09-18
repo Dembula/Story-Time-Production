@@ -25,6 +25,10 @@
       "schedule": "0 6 * * *"
     },
     {
+      "path": "/api/cron/funds-clearing",
+      "schedule": "15 * * * *"
+    },
+    {
       "path": "/api/cron/stream-mezzanine",
       "schedule": "0 4 * * *"
     }

@@ -874,24 +874,27 @@ model FinanceFeeSettingsHistory {
 
 /// Singleton switch: when false, creators see no attributed earnings and new viewer revenue stays with the platform.
 model PlatformRevenueConnector {
-  id                            String   @id @default(cuid())
+  id                            String    @id @default(cuid())
   /// When false, creator dashboards show zero earnings and watch/pool attribution is paused.
-  creatorRevenueTrackingEnabled Boolean  @default(false)
+  creatorRevenueTrackingEnabled Boolean   @default(false)
+  /// Inclusive start of creator-pool recording. Existing subs before this only count on renewal.
+  trackingStartedAt             DateTime?
   note                          String?
   updatedByUserId               String?
-  createdAt                     DateTime @default(now())
-  updatedAt                     DateTime @updatedAt
+  createdAt                     DateTime  @default(now())
+  updatedAt                     DateTime  @updatedAt
 
   @@index([updatedAt])
 }
 
 model PlatformRevenueConnectorHistory {
-  id                            String   @id @default(cuid())
+  id                            String    @id @default(cuid())
   settingsId                    String?
   creatorRevenueTrackingEnabled Boolean
+  trackingStartedAt             DateTime?
   note                          String?
   updatedByUserId               String?
-  createdAt                     DateTime @default(now())
+  createdAt                     DateTime  @default(now())
 
   @@index([createdAt])
 }
@@ -1914,7 +1917,16 @@ model PaymentRecord {
   providerPaymentMethod   String? // PayFast payment_method code (cc, dc, ap, gp, …)
   providerFeeAmount       Float? // PayFast processing fee (incl. VAT) deducted from gross
   settlementAmount        Float? // Net amount credited to merchant after PayFast fees
-  settlementSource        String? // itn | estimated | demo
+  settlementSource        String? // itn | estimated | demo | apple_*
+  /// When gateway funds are expected to clear into usable revenue (PayFast +3d, Apple +45d).
+  fundsClearDueAt         DateTime?
+  /// When funds were marked cleared (auto clock or admin early clear).
+  fundsClearedAt          DateTime?
+  /// auto | manual
+  fundsClearedMode        String?
+  fundsClearedByUserId    String?
+  /// When treasury ledger allocation ran (after clear).
+  ledgerAllocatedAt       DateTime?
   customerCode            String?
   authorizationCode       String?
   paidAt                  DateTime?
@@ -1927,6 +1939,8 @@ model PaymentRecord {
   @@index([purpose])
   @@index([status])
   @@index([providerPaymentId])
+  @@index([fundsClearDueAt])
+  @@index([fundsClearedAt])
 }
 
 model PaymentWebhookEvent {

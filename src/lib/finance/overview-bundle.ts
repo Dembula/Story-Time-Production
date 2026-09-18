@@ -6,6 +6,13 @@ import {
   isCashRecognizedPayment,
   paymentFundingSource,
 } from "@/lib/payments/cash-recognition";
+import {
+  APPLE_FUNDS_CLEAR_DAYS,
+  PAYFAST_FUNDS_CLEAR_DAYS,
+  describeFundsClearStatus,
+} from "@/lib/payments/funds-clearing-policy";
+import { ensureCreatorRevenueTrackingLive, getRevenueConnector } from "@/lib/finance/revenue-connector";
+import { isClearedCreatorPoolEligiblePayment } from "@/lib/finance/revenue-eligibility";
 import { getFinanceFeeSettings } from "@/lib/finance/fee-settings";
 import { splitViewerRevenueWithRates } from "@/lib/finance/fee-math";
 import { resolveFinancePeriodRange, type FinancePeriodKey } from "@/lib/finance/period-range";
@@ -45,6 +52,13 @@ export type FinanceSheetRow = {
   currency: string;
   fundingSource: "cash" | "promo" | "demo" | "other";
   status: string;
+  fundsClearStatus: "cleared" | "pending" | "not_applicable";
+  fundsClearLabel: string;
+  fundsClearDueAt: string | null;
+  fundsClearedAt: string | null;
+  fundsClearDaysRemaining: number | null;
+  fundsClearDelayDays: number | null;
+  canClearEarly: boolean;
   payer: { id: string | null; name: string | null; email: string | null };
   payee: { id: string | null; name: string | null; email: string | null } | null;
 };
@@ -77,6 +91,15 @@ export type FinanceOverviewBundle = {
     marketplaceTxCount: number;
     promoLiabilityZar: number;
     fundingSettledZar: number;
+    /** Cash recognized but not yet cleared (awaiting PayFast 3d / Apple 45d). */
+    pendingClearNet: number;
+    pendingClearCount: number;
+  };
+  revenueTracking: {
+    enabled: boolean;
+    trackingStartedAt: string | null;
+    note: string | null;
+    clearRules: { payfastDays: number; appleDays: number };
   };
   byProvider: Array<{
     provider: string;
@@ -124,12 +147,18 @@ export async function fetchFinanceOverviewBundle(options: {
   to?: string | null;
   sheetLimit?: number;
 }): Promise<FinanceOverviewBundle> {
+  // Go-live: record creator-pool revenue from start of today; existing subs count on renewal.
+  await ensureCreatorRevenueTrackingLive({
+    note: "Creator revenue recording live — cleared PayFast/Apple cash only; existing subs on next renewal.",
+  }).catch((err) => console.warn("[finance] ensure revenue tracking failed", err));
+
   const range = resolveFinancePeriodRange({
     period: options.period,
     from: options.from,
     to: options.to,
   });
   const feeSettings = await getFinanceFeeSettings();
+  const connector = await getRevenueConnector();
   const sheetLimit = Math.min(500, Math.max(50, options.sheetLimit ?? 200));
 
   const [payments, marketplace, webhookEvents, pendingPayouts, paidPayouts, marketplaceTxs] =
@@ -153,6 +182,11 @@ export async function fetchFinanceOverviewBundle(options: {
           paidAt: true,
           email: true,
           userId: true,
+          relatedEntityType: true,
+          relatedEntityId: true,
+          fundsClearDueAt: true,
+          fundsClearedAt: true,
+          fundsClearedMode: true,
           user: { select: { id: true, name: true, email: true } },
         },
         orderBy: { paidAt: "desc" },
@@ -195,10 +229,13 @@ export async function fetchFinanceOverviewBundle(options: {
   let net = 0;
   let viewerPoolNet = 0;
   let serviceRevenueNet = 0;
+  let pendingClearNet = 0;
+  let pendingClearCount = 0;
   let payfastItnFees = 0;
   let payfastEstimatedFees = 0;
   let appleEstimatedFees = 0;
   let appleProceedsFees = 0;
+  let clearedPaymentCount = 0;
 
   const byProviderMap = new Map<string, { count: number; gross: number; fees: number; net: number }>();
   const bySourceMap = new Map<string, { count: number; fees: number; net: number }>();
@@ -228,71 +265,100 @@ export async function fetchFinanceOverviewBundle(options: {
         ? roundMoney(Number(p.providerFeeAmount))
         : roundMoney(Math.max(0, g - settlement));
 
-    gross = roundMoney(gross + g);
-    gatewayFees = roundMoney(gatewayFees + fee);
-    net = roundMoney(net + settlement);
+    const clearInfo = describeFundsClearStatus({
+      provider: p.provider,
+      paidAt: p.paidAt,
+      fundsClearDueAt: p.fundsClearDueAt,
+      fundsClearedAt: p.fundsClearedAt,
+      fundsClearedMode: p.fundsClearedMode,
+    });
 
     const isViewerPool = isViewerPoolPaymentPurpose(p.purpose);
-    const split = splitViewerRevenueWithRates(settlement, feeSettings);
-    const platformShare = isViewerPool ? split.platform : settlement;
-    const creatorShare = isViewerPool ? split.creator : 0;
+    const poolEligible = isViewerPool
+      ? await isClearedCreatorPoolEligiblePayment(p, {
+          trackingEnabled: connector.creatorRevenueTrackingEnabled,
+          trackingStartedAt: connector.trackingStartedAt
+            ? new Date(connector.trackingStartedAt)
+            : null,
+        })
+      : clearInfo.status === "cleared";
 
-    if (isViewerPool) {
-      viewerPoolNet = roundMoney(viewerPoolNet + settlement);
+    // KPI / pool math: cleared (+ pool-eligible for viewer share) only.
+    if (clearInfo.status === "cleared") {
+      clearedPaymentCount += 1;
+      gross = roundMoney(gross + g);
+      gatewayFees = roundMoney(gatewayFees + fee);
+      net = roundMoney(net + settlement);
+
+      const split = splitViewerRevenueWithRates(settlement, feeSettings);
+      const platformShare = isViewerPool ? (poolEligible ? split.platform : settlement) : settlement;
+      const creatorShare = isViewerPool && poolEligible ? split.creator : 0;
+
+      if (isViewerPool && poolEligible) {
+        viewerPoolNet = roundMoney(viewerPoolNet + settlement);
+      } else {
+        serviceRevenueNet = roundMoney(serviceRevenueNet + settlement);
+      }
+
+      const provider = String(p.provider || "UNKNOWN").toUpperCase();
+      const prov = byProviderMap.get(provider) ?? { count: 0, gross: 0, fees: 0, net: 0 };
+      prov.count += 1;
+      prov.gross = roundMoney(prov.gross + g);
+      prov.fees = roundMoney(prov.fees + fee);
+      prov.net = roundMoney(prov.net + settlement);
+      byProviderMap.set(provider, prov);
+
+      const source = String(p.settlementSource || "unknown");
+      const src = bySourceMap.get(source) ?? { count: 0, fees: 0, net: 0 };
+      src.count += 1;
+      src.fees = roundMoney(src.fees + fee);
+      src.net = roundMoney(src.net + settlement);
+      bySourceMap.set(source, src);
+
+      if (source === "itn") payfastItnFees = roundMoney(payfastItnFees + fee);
+      if (source === "estimated") payfastEstimatedFees = roundMoney(payfastEstimatedFees + fee);
+      if (source === "apple_estimated" || source === "apple_iap") {
+        appleEstimatedFees = roundMoney(appleEstimatedFees + fee);
+      }
+      if (source === "apple_proceeds") appleProceedsFees = roundMoney(appleProceedsFees + fee);
+
+      if (p.paidAt) {
+        const key = dayKey(p.paidAt);
+        const day = seriesMap.get(key) ?? { gross: 0, fees: 0, net: 0 };
+        day.gross = roundMoney(day.gross + g);
+        day.fees = roundMoney(day.fees + fee);
+        day.net = roundMoney(day.net + settlement);
+        seriesMap.set(key, day);
+      }
+
+      const purposeKey = p.purpose || "unknown";
+      const purposeRow = byPurposeMap.get(purposeKey) ?? {
+        purpose: purposeKey,
+        purposeLabel: paymentPurposeLabel(purposeKey),
+        count: 0,
+        gross: 0,
+        gatewayFees: 0,
+        net: 0,
+        platformShare: 0,
+        creatorShare: 0,
+        category: categorizePaymentPurpose(purposeKey),
+      };
+      purposeRow.count += 1;
+      purposeRow.gross = roundMoney(purposeRow.gross + g);
+      purposeRow.gatewayFees = roundMoney(purposeRow.gatewayFees + fee);
+      purposeRow.net = roundMoney(purposeRow.net + settlement);
+      purposeRow.platformShare = roundMoney(purposeRow.platformShare + platformShare);
+      purposeRow.creatorShare = roundMoney(purposeRow.creatorShare + creatorShare);
+      byPurposeMap.set(purposeKey, purposeRow);
     } else {
-      serviceRevenueNet = roundMoney(serviceRevenueNet + settlement);
+      pendingClearNet = roundMoney(pendingClearNet + settlement);
+      pendingClearCount += 1;
     }
 
+    const splitForSheet = splitViewerRevenueWithRates(settlement, feeSettings);
+    const sheetPlatform = isViewerPool ? splitForSheet.platform : settlement;
+    const sheetCreator = isViewerPool ? splitForSheet.creator : 0;
     const provider = String(p.provider || "UNKNOWN").toUpperCase();
-    const prov = byProviderMap.get(provider) ?? { count: 0, gross: 0, fees: 0, net: 0 };
-    prov.count += 1;
-    prov.gross = roundMoney(prov.gross + g);
-    prov.fees = roundMoney(prov.fees + fee);
-    prov.net = roundMoney(prov.net + settlement);
-    byProviderMap.set(provider, prov);
-
-    const source = String(p.settlementSource || "unknown");
-    const src = bySourceMap.get(source) ?? { count: 0, fees: 0, net: 0 };
-    src.count += 1;
-    src.fees = roundMoney(src.fees + fee);
-    src.net = roundMoney(src.net + settlement);
-    bySourceMap.set(source, src);
-
-    if (source === "itn") payfastItnFees = roundMoney(payfastItnFees + fee);
-    if (source === "estimated") payfastEstimatedFees = roundMoney(payfastEstimatedFees + fee);
-    if (source === "apple_estimated" || source === "apple_iap") {
-      appleEstimatedFees = roundMoney(appleEstimatedFees + fee);
-    }
-    if (source === "apple_proceeds") appleProceedsFees = roundMoney(appleProceedsFees + fee);
-
-    if (p.paidAt) {
-      const key = dayKey(p.paidAt);
-      const day = seriesMap.get(key) ?? { gross: 0, fees: 0, net: 0 };
-      day.gross = roundMoney(day.gross + g);
-      day.fees = roundMoney(day.fees + fee);
-      day.net = roundMoney(day.net + settlement);
-      seriesMap.set(key, day);
-    }
-
-    const purposeKey = p.purpose || "unknown";
-    const purposeRow = byPurposeMap.get(purposeKey) ?? {
-      purpose: purposeKey,
-      purposeLabel: paymentPurposeLabel(purposeKey),
-      count: 0,
-      gross: 0,
-      gatewayFees: 0,
-      net: 0,
-      platformShare: 0,
-      creatorShare: 0,
-      category: categorizePaymentPurpose(purposeKey),
-    };
-    purposeRow.count += 1;
-    purposeRow.gross = roundMoney(purposeRow.gross + g);
-    purposeRow.gatewayFees = roundMoney(purposeRow.gatewayFees + fee);
-    purposeRow.net = roundMoney(purposeRow.net + settlement);
-    purposeRow.platformShare = roundMoney(purposeRow.platformShare + platformShare);
-    purposeRow.creatorShare = roundMoney(purposeRow.creatorShare + creatorShare);
-    byPurposeMap.set(purposeKey, purposeRow);
 
     if (sheets.length < sheetLimit) {
       sheets.push({
@@ -305,12 +371,19 @@ export async function fetchFinanceOverviewBundle(options: {
         gross: g,
         gatewayFee: fee,
         net: settlement,
-        platformShare,
-        creatorShare,
+        platformShare: sheetPlatform,
+        creatorShare: sheetCreator,
         settlementSource: p.settlementSource,
         currency: p.currency || "ZAR",
         fundingSource: paymentFundingSource(p),
         status: p.status,
+        fundsClearStatus: clearInfo.status,
+        fundsClearLabel: clearInfo.label,
+        fundsClearDueAt: clearInfo.clearDueAt,
+        fundsClearedAt: clearInfo.clearedAt,
+        fundsClearDaysRemaining: clearInfo.daysRemaining,
+        fundsClearDelayDays: clearInfo.clearDelayDays,
+        canClearEarly: clearInfo.status === "pending" && (provider === "PAYFAST" || provider === "APPLE"),
         payer: {
           id: p.user?.id ?? p.userId ?? null,
           name: p.user?.name ?? null,
@@ -344,6 +417,13 @@ export async function fetchFinanceOverviewBundle(options: {
       currency: "ZAR",
       fundingSource: "cash" as const,
       status: tx.status,
+      fundsClearStatus: "cleared" as const,
+      fundsClearLabel: "Wallet / internal",
+      fundsClearDueAt: null,
+      fundsClearedAt: tx.createdAt.toISOString(),
+      fundsClearDaysRemaining: 0,
+      fundsClearDelayDays: null,
+      canClearEarly: false,
       payer: {
         id: tx.payer?.id ?? null,
         name: tx.payer?.name ?? null,
@@ -405,10 +485,18 @@ export async function fetchFinanceOverviewBundle(options: {
       platformTotalRetained,
       marketplaceFees,
       marketplaceVolume,
-      paymentCount: cashPayments.length,
+      paymentCount: clearedPaymentCount,
       marketplaceTxCount: marketplaceTxs.length,
       promoLiabilityZar: promo.totalDiscountZar,
       fundingSettledZar: funding.dealPayments.settledZar,
+      pendingClearNet,
+      pendingClearCount,
+    },
+    revenueTracking: {
+      enabled: connector.creatorRevenueTrackingEnabled,
+      trackingStartedAt: connector.trackingStartedAt,
+      note: connector.note,
+      clearRules: { payfastDays: PAYFAST_FUNDS_CLEAR_DAYS, appleDays: APPLE_FUNDS_CLEAR_DAYS },
     },
     byProvider: [...byProviderMap.entries()].map(([provider, v]) => ({ provider, ...v })),
     bySettlementSource: [...bySourceMap.entries()].map(([source, v]) => ({ source, ...v })),

@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 type ConnectorSettings = {
   id: string | null;
   creatorRevenueTrackingEnabled: boolean;
+  trackingStartedAt: string | null;
   note: string | null;
   updatedByUserId: string | null;
   updatedAt: string | null;
@@ -106,10 +107,16 @@ export function RevenueConnectorClient() {
           Revenue connector
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-slate-300">
-          Control whether creators can see attributed earnings on their dashboards. When paused, viewer
-          subscriptions still collect revenue for the platform, but creator wallets and revenue views stay
-          at a clean zero until you reconnect tracking.
+          Control whether creators can see attributed earnings. When live, new subscriber revenue
+          (after PayFast 3-day / Apple 45-day clear) splits into the creator pool. Existing
+          subscribers only enter the pool on their next renewal. Dashboards and payouts use cleared
+          cash only.
         </p>
+        {settings?.trackingStartedAt ? (
+          <p className="mt-2 text-xs text-emerald-300/80">
+            Recording started {new Date(settings.trackingStartedAt).toLocaleString()} (Africa/Johannesburg day boundary).
+          </p>
+        ) : null}
       </div>
 
       {error ? (

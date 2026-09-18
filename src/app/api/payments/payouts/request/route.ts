@@ -61,45 +61,67 @@ export async function POST(req: NextRequest) {
   }
 
   const wallet = await ensureWalletForUser(user.id);
-  if (wallet.availableBalance < amount) {
+
+  const payoutRequest = await prisma.$transaction(async (tx) => {
+    const locked = await (tx as any).wallet.findUnique({
+      where: { userId: user.id },
+      select: { id: true, availableBalance: true },
+    });
+    if (!locked || Number(locked.availableBalance) < amount) {
+      throw new Error("INSUFFICIENT_BALANCE");
+    }
+
+    return (tx as any).payoutRequest.create({
+      data: {
+        userId: user.id,
+        walletId: locked.id,
+        amount,
+        currency: "ZAR",
+        provider: "MANUAL",
+        providerReference: toGatewaySafeReference("payout", `${user.id}-${Date.now()}`),
+        status: "PENDING_REVIEW",
+      },
+    });
+  }).catch((err: unknown) => {
+    if (err instanceof Error && err.message === "INSUFFICIENT_BALANCE") return null;
+    throw err;
+  });
+
+  if (!payoutRequest) {
     return NextResponse.json({ error: "Insufficient available balance." }, { status: 400 });
   }
 
-  const payoutRequest = await db.payoutRequest.create({
-    data: {
-      userId: user.id,
-      walletId: wallet.id,
-      amount,
-      currency: "ZAR",
-      provider: "MANUAL",
-      providerReference: toGatewaySafeReference("payout", `${user.id}-${Date.now()}`),
-      status: "PENDING_REVIEW",
-    },
-  });
-
-  await postBalancedLedgerBatch({
-    idempotencyKey: `payout_request_${payoutRequest.id}`,
-    referenceType: "PAYOUT_REQUEST",
-    referenceId: payoutRequest.id,
-    entries: [
-      {
-        userId: user.id,
-        direction: "DEBIT",
-        accountType: "AVAILABLE",
-        transactionType: "withdrawal_hold",
-        amount,
-        description: "Payout request — funds held pending admin review",
-      },
-      {
-        userId: user.id,
-        direction: "CREDIT",
-        accountType: "PENDING",
-        transactionType: "withdrawal_hold",
-        amount,
-        description: "Payout pending manual transfer",
-      },
-    ],
-  });
+  try {
+    await postBalancedLedgerBatch({
+      idempotencyKey: `payout_request_${payoutRequest.id}`,
+      referenceType: "PAYOUT_REQUEST",
+      referenceId: payoutRequest.id,
+      entries: [
+        {
+          userId: user.id,
+          direction: "DEBIT",
+          accountType: "AVAILABLE",
+          transactionType: "withdrawal_hold",
+          amount,
+          description: "Payout request — funds held pending admin review",
+        },
+        {
+          userId: user.id,
+          direction: "CREDIT",
+          accountType: "PENDING",
+          transactionType: "withdrawal_hold",
+          amount,
+          description: "Payout pending manual transfer",
+        },
+      ],
+    });
+  } catch (err) {
+    await db.payoutRequest.update({
+      where: { id: payoutRequest.id },
+      data: { status: "DECLINED", declineReason: "ledger_hold_failed" },
+    }).catch(() => {});
+    throw err;
+  }
 
   const requester = await db.user.findUnique({
     where: { id: user.id },

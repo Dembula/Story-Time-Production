@@ -111,7 +111,7 @@ export async function resolveMarketplaceSettlement(
       endDate: row.endDate,
     });
     const feeAmount = computeMarketplaceFeeZar(baseAmount);
-    const totalAmount = baseAmount + feeAmount;
+    const totalAmount = Math.round((baseAmount + feeAmount) * 100) / 100;
     return {
       ok: true,
       quote: {

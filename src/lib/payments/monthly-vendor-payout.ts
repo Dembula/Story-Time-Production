@@ -13,7 +13,12 @@ const VENDOR_ROLES = [
   "CONTENT_CREATOR",
 ] as const;
 
-/** Move marketplace vendor pending balances to available for monthly payout eligibility. */
+const OPEN_PAYOUT_STATUSES = ["PENDING_REVIEW", "APPROVED", "PROCESSING"] as const;
+
+/**
+ * Move marketplace vendor pending balances to available for monthly payout eligibility.
+ * Never releases funds held for open withdrawal requests (AVAILABLE → PENDING holds).
+ */
 export async function releaseDueMarketplaceVendorBalances() {
   const vendors = await db.user.findMany({
     where: {
@@ -31,21 +36,39 @@ export async function releaseDueMarketplaceVendorBalances() {
   const period = new Date().toISOString().slice(0, 7);
 
   for (const vendor of vendors) {
-    const pending = vendor.wallet?.pendingBalance ?? 0;
+    const pending = Number(vendor.wallet?.pendingBalance ?? 0);
     if (pending <= 0) continue;
+
+    const openPayouts = await db.payoutRequest.aggregate({
+      where: {
+        userId: vendor.id,
+        status: { in: [...OPEN_PAYOUT_STATUSES] },
+      },
+      _sum: { amount: true },
+    });
+    const heldForWithdrawal = Number(openPayouts._sum?.amount ?? 0);
+    const releasable = Math.round((pending - heldForWithdrawal) * 100) / 100;
+    if (releasable <= 0) continue;
+
     await ensureWalletForUser(vendor.id);
     await postBalancedLedgerBatch({
       idempotencyKey: `marketplace_vendor_release_${vendor.id}_${period}`,
       referenceType: "MARKETPLACE_VENDOR_PAYOUT",
       referenceId: vendor.id,
-      metadata: { period, source: "monthly_vendor_release" },
+      metadata: {
+        period,
+        source: "monthly_vendor_release",
+        pendingBefore: pending,
+        heldForWithdrawal,
+        releasable,
+      },
       entries: [
         {
           userId: vendor.id,
           direction: "DEBIT",
           accountType: "PENDING",
           transactionType: "marketplace_vendor_release",
-          amount: pending,
+          amount: releasable,
           description: `Marketplace earnings released for ${period}`,
         },
         {
@@ -53,7 +76,7 @@ export async function releaseDueMarketplaceVendorBalances() {
           direction: "CREDIT",
           accountType: "AVAILABLE",
           transactionType: "marketplace_vendor_release",
-          amount: pending,
+          amount: releasable,
           description: `Available for withdrawal — ${period}`,
         },
       ],

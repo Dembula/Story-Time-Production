@@ -168,6 +168,22 @@ export function AdminFinanceHub() {
     onError: (err: Error) => setSettingsMsg(err.message),
   });
 
+  const clearFunds = useMutation({
+    mutationFn: async (paymentRecordId: string) => {
+      const res = await fetch("/api/admin/payments/clear-funds", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paymentRecordId }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Clear failed");
+      return json;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["admin-finance-overview"] });
+    },
+  });
+
   const distributePool = useMutation({
     mutationFn: async () => {
       const res = await fetch("/api/admin/revenue/distribute", {
@@ -314,14 +330,32 @@ export function AdminFinanceHub() {
 
       {tab === "overview" && bundle ? (
         <section className="space-y-4">
+          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-100/90">
+            <p className="font-medium text-emerald-200">Cleared revenue only</p>
+            <p className="mt-1 text-xs text-emerald-100/70">
+              KPIs and creator pool use funds that have cleared — PayFast after{" "}
+              {bundle.revenueTracking.clearRules.payfastDays} days, Apple after{" "}
+              {bundle.revenueTracking.clearRules.appleDays} days (or earlier via Cleared). Recording
+              started{" "}
+              {bundle.revenueTracking.trackingStartedAt
+                ? new Date(bundle.revenueTracking.trackingStartedAt).toLocaleDateString()
+                : "—"}
+              . Existing subscribers count on their next renewal; new subscribers count after clear.
+            </p>
+          </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Kpi
-              label="Gross cash inflow"
+              label="Gross cleared inflow"
               value={money.format(bundle.totals.gross)}
-              hint={`${bundle.totals.paymentCount} gateway payments`}
+              hint={`${bundle.totals.paymentCount} cleared gateway payments`}
             />
-            <Kpi label="Gateway fees" value={money.format(bundle.totals.gatewayFees)} hint="PayFast + Apple" />
-            <Kpi label="Net settlement" value={money.format(bundle.totals.net)} hint="Cash after gateway cuts" />
+            <Kpi label="Gateway fees (cleared)" value={money.format(bundle.totals.gatewayFees)} hint="PayFast + Apple" />
+            <Kpi label="Net cleared settlement" value={money.format(bundle.totals.net)} hint="Cash after gateway cuts" />
+            <Kpi
+              label="Awaiting clear"
+              value={money.format(bundle.totals.pendingClearNet)}
+              hint={`${bundle.totals.pendingClearCount} payments · not in pool yet`}
+            />
             <Kpi
               label="Platform total retained"
               value={money.format(bundle.totals.platformTotalRetained)}
@@ -330,12 +364,12 @@ export function AdminFinanceHub() {
             <Kpi
               label="Viewer pool → creators"
               value={money.format(bundle.totals.creatorPool)}
-              hint={`${pct(bundle.feeSettings.viewerCreatorSplit)} of viewer net`}
+              hint={`${pct(bundle.feeSettings.viewerCreatorSplit)} of cleared viewer net`}
             />
             <Kpi
               label="Viewer pool → platform"
               value={money.format(bundle.totals.platformRetained)}
-              hint={`${pct(bundle.feeSettings.viewerPlatformSplit)} of viewer net`}
+              hint={`${pct(bundle.feeSettings.viewerPlatformSplit)} of cleared viewer net`}
             />
             <Kpi
               label="Platform service revenue"
@@ -424,7 +458,9 @@ export function AdminFinanceHub() {
               <div>
                 <h2 className="text-sm font-semibold text-white">Transaction dossier sheet</h2>
                 <p className="mt-1 text-xs text-slate-500">
-                  Click any row for payer, payee, fees, gateway refs, and revenue routing.
+                  Click any row for detail. Clear status shows the PayFast 3-day / Apple 45-day clock.
+                  Use <span className="text-amber-200">Cleared</span> to mark early settlement when
+                  funds arrive sooner — only cleared cash feeds the creator pool and revenue KPIs.
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -449,7 +485,7 @@ export function AdminFinanceHub() {
               </div>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1100px] text-left text-sm">
+              <table className="w-full min-w-[1280px] text-left text-sm">
                 <thead className="text-xs uppercase text-slate-500">
                   <tr>
                     <th className="py-2">When</th>
@@ -460,35 +496,95 @@ export function AdminFinanceHub() {
                     <th>Gross</th>
                     <th>Fee</th>
                     <th>Net</th>
-                    <th>Platform</th>
-                    <th>Status</th>
+                    <th>Clear status</th>
+                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {sheetRows.map((row) => (
-                    <tr
-                      key={`${row.kind}-${row.id}`}
-                      className="cursor-pointer border-t border-white/5 hover:bg-white/5"
-                      onClick={() => setDetail({ kind: row.kind, id: row.id })}
-                    >
-                      <td className="whitespace-nowrap py-2 text-slate-300">
+                    <tr key={`${row.kind}-${row.id}`} className="border-t border-white/5 hover:bg-white/5">
+                      <td
+                        className="cursor-pointer whitespace-nowrap py-2 text-slate-300"
+                        onClick={() => setDetail({ kind: row.kind, id: row.id })}
+                      >
                         {row.paidAt ? new Date(row.paidAt).toLocaleString() : "—"}
                       </td>
-                      <td className="capitalize text-slate-400">{row.kind}</td>
-                      <td className="max-w-[160px] truncate" title={row.payer.email || ""}>
+                      <td
+                        className="cursor-pointer capitalize text-slate-400"
+                        onClick={() => setDetail({ kind: row.kind, id: row.id })}
+                      >
+                        {row.kind}
+                      </td>
+                      <td
+                        className="max-w-[160px] cursor-pointer truncate"
+                        title={row.payer.email || ""}
+                        onClick={() => setDetail({ kind: row.kind, id: row.id })}
+                      >
                         {row.payer.name || row.payer.email || "—"}
                       </td>
-                      <td className="max-w-[160px] truncate">
+                      <td
+                        className="max-w-[160px] cursor-pointer truncate"
+                        onClick={() => setDetail({ kind: row.kind, id: row.id })}
+                      >
                         {row.payee ? row.payee.name || row.payee.email || "—" : "Story Time"}
                       </td>
-                      <td className="max-w-[200px] truncate" title={row.purpose}>
+                      <td
+                        className="max-w-[200px] cursor-pointer truncate"
+                        title={row.purpose}
+                        onClick={() => setDetail({ kind: row.kind, id: row.id })}
+                      >
                         {row.purposeLabel || row.purpose}
                       </td>
-                      <td>{money.format(row.gross)}</td>
-                      <td>{money.format(row.gatewayFee)}</td>
-                      <td>{money.format(row.net)}</td>
-                      <td>{money.format(row.platformShare)}</td>
-                      <td className="text-slate-400">{row.status}</td>
+                      <td className="cursor-pointer" onClick={() => setDetail({ kind: row.kind, id: row.id })}>
+                        {money.format(row.gross)}
+                      </td>
+                      <td className="cursor-pointer" onClick={() => setDetail({ kind: row.kind, id: row.id })}>
+                        {money.format(row.gatewayFee)}
+                      </td>
+                      <td className="cursor-pointer" onClick={() => setDetail({ kind: row.kind, id: row.id })}>
+                        {money.format(row.net)}
+                      </td>
+                      <td className="text-xs">
+                        {row.fundsClearStatus === "cleared" ? (
+                          <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-emerald-300">
+                            {row.fundsClearLabel}
+                          </span>
+                        ) : row.fundsClearStatus === "pending" ? (
+                          <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-amber-200">
+                            {row.fundsClearLabel}
+                            {row.provider === "APPLE"
+                              ? " · Apple 45d"
+                              : row.provider === "PAYFAST"
+                                ? " · PayFast 3d"
+                                : ""}
+                          </span>
+                        ) : (
+                          <span className="text-slate-500">{row.fundsClearLabel}</span>
+                        )}
+                      </td>
+                      <td>
+                        {row.kind === "payment" && row.canClearEarly ? (
+                          <button
+                            type="button"
+                            className="rounded-lg bg-white/10 px-2.5 py-1 text-xs text-white hover:bg-amber-500/20 hover:text-amber-100 disabled:opacity-50"
+                            disabled={clearFunds.isPending}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (
+                                window.confirm(
+                                  `Mark this ${row.provider} payment as cleared early?\n\nIt will enter cleared revenue / creator pool immediately.`,
+                                )
+                              ) {
+                                clearFunds.mutate(row.id);
+                              }
+                            }}
+                          >
+                            Cleared
+                          </button>
+                        ) : row.fundsClearStatus === "cleared" ? (
+                          <span className="text-xs text-slate-500">—</span>
+                        ) : null}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

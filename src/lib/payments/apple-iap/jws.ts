@@ -89,8 +89,26 @@ export function verifyAppleTransactionJws(jws: string): VerifiedAppleTransaction
   if (!leafDer) {
     throw new Error("Apple JWS missing certificate chain (x5c)");
   }
+  if (!header.x5c || header.x5c.length < 2) {
+    throw new Error("Apple JWS certificate chain too short (need leaf + intermediate)");
+  }
 
   const cert = new X509Certificate(Buffer.from(leafDer, "base64"));
+  const intermediate = new X509Certificate(Buffer.from(header.x5c[1], "base64"));
+  // Basic chain integrity: leaf must be issued by the embedded intermediate.
+  // Full Apple Root CA pinning can be layered on when APPLE_IAP_ROOT_CERT_PEM is configured.
+  try {
+    if (typeof (cert as { checkIssued?: (issuer: X509Certificate) => boolean }).checkIssued === "function") {
+      const issued = (cert as { checkIssued: (issuer: X509Certificate) => boolean }).checkIssued(intermediate);
+      if (!issued) {
+        throw new Error("Apple JWS leaf is not issued by the provided intermediate certificate");
+      }
+    }
+  } catch (err) {
+    if (err instanceof Error && err.message.includes("not issued")) throw err;
+    // Older Node builds may lack checkIssued — continue with signature verify on leaf.
+  }
+
   // Node 22+: cert.publicKey is already a PublicKeyObject. Passing it to
   // createPublicKey() throws "Invalid key object type public, expected private"
   // and was breaking iOS subscribe / restore after Apple charged the user.
@@ -118,8 +136,10 @@ export function verifyAppleTransactionJws(jws: string): VerifiedAppleTransaction
 
   const allowed = allowedAppleBundleIds();
   const bundleId = typeof payload.bundleId === "string" ? payload.bundleId : "";
-  if (allowed.length > 0 && bundleId && !allowed.includes(bundleId)) {
-    throw new Error(`Apple bundleId not allowed: ${bundleId}`);
+  if (allowed.length > 0) {
+    if (!bundleId || !allowed.includes(bundleId)) {
+      throw new Error(bundleId ? `Apple bundleId not allowed: ${bundleId}` : "Apple JWS missing bundleId");
+    }
   }
 
   return {

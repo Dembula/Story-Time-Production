@@ -157,10 +157,8 @@ export function getPaymentSettlementAmount(payment: {
     Number.isFinite(payment.settlementAmount) &&
     payment.settlementAmount >= 0
   ) {
-    // Allow settlement 0 only when gross is also effectively free; otherwise fall back.
-    if (payment.settlementAmount > 0 || gross <= 0) {
-      return roundMoney(payment.settlementAmount);
-    }
+    // Trust explicit net (including legitimate 0) — do not fall back to gross.
+    return roundMoney(payment.settlementAmount);
   }
   return roundMoney(gross);
 }

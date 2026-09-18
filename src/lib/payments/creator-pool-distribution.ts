@@ -66,7 +66,11 @@ function allocateByWatchShare(
 
 export async function hasCreatorPoolDistribution(periodKey: string): Promise<boolean> {
   const payout = await db.creatorPayout.findFirst({
-    where: { period: periodKey, bankReference: { startsWith: "pool:" } },
+    where: {
+      period: periodKey,
+      amount: { gt: 0 },
+      bankReference: { startsWith: "pool:" },
+    },
     select: { id: true },
   });
   return Boolean(payout);
@@ -136,11 +140,24 @@ export async function distributeCreatorPoolForPeriod(
 
   const treasuryWallet = await db.wallet.findUnique({
     where: { userId: treasuryUserId },
-    select: { id: true, availableBalance: true, accounts: { where: { accountType: "CREATOR_REVENUE" } } },
+    select: {
+      id: true,
+      availableBalance: true,
+      accounts: { where: { accountType: "CREATOR_REVENUE" } },
+    },
   });
   const totalDistributed = roundMoney(allocations.reduce((sum, row) => sum + row.amount, 0));
   const treasuryAvailable = Number(treasuryWallet?.availableBalance ?? 0);
   const creatorPoolHeld = Number(treasuryWallet?.accounts?.[0]?.balance ?? 0);
+
+  // Cash still owed to vendors / open withdrawal holds sits in treasury AVAILABLE until mark_paid.
+  const reservedAgg = await db.wallet.aggregate({
+    where: { userId: { not: treasuryUserId } },
+    _sum: { pendingBalance: true },
+  });
+  const reservedForPayees = Number(reservedAgg._sum?.pendingBalance ?? 0);
+  const freeTreasuryCash = roundMoney(treasuryAvailable - reservedForPayees);
+
   if (creatorPoolHeld + 0.001 < totalDistributed) {
     return {
       ok: false,
@@ -151,7 +168,7 @@ export async function distributeCreatorPoolForPeriod(
       totalDistributed,
     };
   }
-  if (treasuryAvailable + 0.001 < totalDistributed) {
+  if (freeTreasuryCash + 0.001 < totalDistributed) {
     return {
       ok: false,
       periodKey,
@@ -161,6 +178,37 @@ export async function distributeCreatorPoolForPeriod(
       totalDistributed,
     };
   }
+
+  // Claim the period before per-creator writes so concurrent runs cannot double-pay.
+  try {
+    await db.ledgerBatch.create({
+      data: {
+        idempotencyKey: `creator_pool_claim_${periodKey}`,
+        referenceType: "CREATOR_POOL_DISTRIBUTION",
+        referenceId: periodKey,
+        status: "COMPLETED",
+        metadata: { periodKey, totalDistributed, viewerSubRevenue: viewerPoolRevenue, claim: true },
+      },
+    });
+  } catch {
+    if (await hasCreatorPoolDistribution(periodKey)) {
+      return { ok: true, skipped: true, periodKey, reason: "already_distributed" };
+    }
+    // Claim exists from a partial prior run — continue; per-creator ledger keys are idempotent.
+  }
+
+  // Soft marker for admin/history queries that look for pool: bank references.
+  await db.creatorPayout.create({
+    data: {
+      creatorId: treasuryUserId,
+      amount: 0,
+      currency: "ZAR",
+      status: "COMPLETED",
+      period: periodKey,
+      paidAt: new Date(),
+      bankReference: `pool:${periodKey}:claim`,
+    },
+  }).catch(() => {});
 
   for (const allocation of allocations) {
     await ensureWalletForUser(allocation.creatorId);
