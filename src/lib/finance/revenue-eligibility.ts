@@ -139,7 +139,7 @@ export async function sumClearedViewerPoolRevenue(
     if (
       await isClearedCreatorPoolEligiblePayment(p, {
         trackingEnabled: true,
-        trackingStartedAt: connector.trackingStartedAt,
+        trackingStartedAt: new Date(connector.trackingStartedAt),
       })
     ) {
       sum += getCashSettlementAmount(p);
