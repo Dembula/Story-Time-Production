@@ -62,5 +62,5 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  return NextResponse.json({ ok: true, ...result, payment });
+  return NextResponse.json({ ...result, payment });
 }
