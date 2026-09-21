@@ -5,6 +5,7 @@ import { STORYTIME_TRANSACTION_FEE_LABEL } from "@/lib/payments/config";
 import { toGatewaySafeReference } from "@/lib/payments/reference";
 import { PAYMENT_PROVIDER } from "@/lib/payments/config";
 import { appendPaymentRecordToReturnUrl } from "@/lib/payments/return-url";
+import { shouldTokenizePayFastCheckout } from "@/lib/payments/providers/payfast";
 const db = prisma as any;
 
 function generateInvoiceNumber(prefix: string) {
@@ -99,7 +100,17 @@ export async function initializeCheckout(args: {
       email: args.email ?? undefined,
       relatedEntityType: args.referenceType,
       relatedEntityId: args.referenceId,
-      metadata: { invoiceId: invoice.id, returnUrl: args.returnUrl, ...(args.metadata ?? {}) },
+      metadata: {
+        invoiceId: invoice.id,
+        returnUrl: args.returnUrl,
+        ...(args.metadata ?? {}),
+        referenceType: args.referenceType,
+        referenceId: args.referenceId,
+        tokenize: shouldTokenizePayFastCheckout(args.purpose, {
+          ...(args.metadata ?? {}),
+          referenceType: args.referenceType,
+        }),
+      },
     },
   });
 

@@ -242,8 +242,8 @@ export function CompanySubscriptionClient({ dashboardUrl }: { dashboardUrl: stri
 
       <PayFastSavedCardSection
         returnPath={getClientReturnPath()}
-        title="Save a card for renewals"
-        description="PayFast billing card for listing plan renewals only — separate from KYC/KYB bank details used for payouts. A R5 verification charge is refunded after the card is saved."
+        title="Card on file (optional)"
+        description="Paying for this listing plan already saves your card for renewals — you do not need a separate R5 verification. Use this only if you want a card on file without buying a plan right now."
       />
 
       <button
@@ -254,6 +254,9 @@ export function CompanySubscriptionClient({ dashboardUrl }: { dashboardUrl: stri
         {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
         Pay & continue
       </button>
+      <p className="text-center text-xs text-slate-500">
+        Your card is saved automatically from this payment for renewals. No extra R5 verification charge.
+      </p>
 
     </div>
   );

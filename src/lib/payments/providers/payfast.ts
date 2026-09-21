@@ -168,12 +168,7 @@ export function buildPayFastCheckoutFields(args: {
   const itemName = args.purpose.replace(/_/g, " ").slice(0, 100);
   const baseAmount = args.metadata?.baseAmount;
   const feeAmount = args.metadata?.feeAmount;
-  const tokenize =
-    args.metadata?.tokenize === true ||
-    args.metadata?.saveCard === true ||
-    String(args.purpose).includes("subscription") ||
-    String(args.purpose).includes("license") ||
-    String(args.purpose).includes("renewal");
+  const tokenize = shouldTokenizePayFastCheckout(args.purpose, args.metadata);
 
   const fields: Record<string, string> = {
     merchant_id: getPayFastMerchantId(),
@@ -190,14 +185,16 @@ export function buildPayFastCheckoutFields(args: {
     custom_str1: args.paymentRecordId,
   };
 
-  // subscription_type=2 tokenizes the card for later adhoc renewals (our cron).
+  // subscription_type=2 tokenizes the card from this paid checkout for later adhoc renewals.
   // payment_method=cc keeps the buyer on the card rail (required for tokenization).
   if (tokenize) {
     fields.subscription_type = "2";
     fields.payment_method = "cc";
-  }
-
-  if (typeof baseAmount === "number" && typeof feeAmount === "number" && feeAmount > 0) {
+    fields.item_description =
+      typeof baseAmount === "number" && typeof feeAmount === "number" && feeAmount > 0
+        ? `Service R${Number(baseAmount).toFixed(2)} + fee R${Number(feeAmount).toFixed(2)} — card saved for renewals`
+        : "Package payment — your card is saved securely for renewals";
+  } else if (typeof baseAmount === "number" && typeof feeAmount === "number" && feeAmount > 0) {
     fields.item_description = `Service R${Number(baseAmount).toFixed(2)} + Story Time transaction fee R${Number(feeAmount).toFixed(2)}`;
   }
 
@@ -207,6 +204,37 @@ export function buildPayFastCheckoutFields(args: {
   if (referenceId) fields.custom_str3 = referenceId;
 
   return buildSignedFields(fields);
+}
+
+/** True when this checkout should create a reusable PayFast token from the same card payment. */
+export function shouldTokenizePayFastCheckout(
+  purpose: string,
+  metadata?: Record<string, unknown> | null,
+): boolean {
+  const meta = metadata ?? {};
+  const flag = meta.tokenize ?? meta.saveCard;
+  if (flag === true || flag === "true" || flag === 1 || flag === "1") return true;
+  if (flag === false || flag === "false" || flag === 0 || flag === "0") return false;
+
+  const purposeLc = String(purpose ?? "").toLowerCase();
+  if (
+    purposeLc.includes("subscription") ||
+    purposeLc.includes("license") ||
+    purposeLc.includes("renewal") ||
+    purposeLc.includes("package") ||
+    purposeLc.includes("pipeline")
+  ) {
+    return true;
+  }
+
+  const referenceType = String(meta.referenceType ?? "").toLowerCase();
+  return (
+    referenceType.includes("subscription") ||
+    referenceType.includes("license") ||
+    referenceType === "viewersubscription" ||
+    referenceType === "companysubscription" ||
+    referenceType === "creatordistributionlicense"
+  );
 }
 
 export function buildPayFastCardConsentFields(args: {

@@ -23,13 +23,17 @@ export function isPayFastChargeToken(value: string | null | undefined): boolean 
 
 export type PayFastTokenLookup = {
   token: string;
-  source: "viewer_payment_method" | "viewer_subscription";
+  source:
+    | "viewer_payment_method"
+    | "viewer_subscription"
+    | "company_subscription"
+    | "creator_license";
   methodId?: string;
   subscriptionId?: string;
   cardType?: string | null;
 };
 
-/** Resolve a PayFast adhoc charge token for any user (viewer or creator). */
+/** Resolve a PayFast adhoc charge token for any user (viewer, company, or creator). */
 export async function getPayFastTokenForUser(userId: string): Promise<PayFastTokenLookup | null> {
   const method = await db.viewerPaymentMethod.findFirst({
     where: {
@@ -59,17 +63,45 @@ export async function getPayFastTokenForUser(userId: string): Promise<PayFastTok
     };
   }
 
-  const subscription = await db.viewerSubscription.findFirst({
-    where: { userId, viewerModel: "SUBSCRIPTION" },
-    orderBy: { createdAt: "desc" },
-    select: { id: true, externalPaymentId: true },
-  });
+  const [viewerSub, companySub, creatorLicense] = await Promise.all([
+    db.viewerSubscription.findFirst({
+      where: { userId, viewerModel: "SUBSCRIPTION" },
+      orderBy: { updatedAt: "desc" },
+      select: { id: true, externalPaymentId: true },
+    }),
+    db.companySubscription.findFirst({
+      where: { userId, status: { in: ["ACTIVE", "PAST_DUE"] } },
+      orderBy: { updatedAt: "desc" },
+      select: { id: true, externalPaymentId: true },
+    }),
+    db.creatorDistributionLicense.findFirst({
+      where: { userId, status: { in: ["ACTIVE", "PAST_DUE"] } },
+      orderBy: { updatedAt: "desc" },
+      select: { id: true, externalPaymentId: true },
+    }),
+  ]);
 
-  if (subscription?.externalPaymentId && isPayFastChargeToken(subscription.externalPaymentId)) {
+  if (viewerSub?.externalPaymentId && isPayFastChargeToken(viewerSub.externalPaymentId)) {
     return {
-      token: subscription.externalPaymentId,
+      token: viewerSub.externalPaymentId,
       source: "viewer_subscription",
-      subscriptionId: subscription.id,
+      subscriptionId: viewerSub.id,
+    };
+  }
+
+  if (companySub?.externalPaymentId && isPayFastChargeToken(companySub.externalPaymentId)) {
+    return {
+      token: companySub.externalPaymentId,
+      source: "company_subscription",
+      subscriptionId: companySub.id,
+    };
+  }
+
+  if (creatorLicense?.externalPaymentId && isPayFastChargeToken(creatorLicense.externalPaymentId)) {
+    return {
+      token: creatorLicense.externalPaymentId,
+      source: "creator_license",
+      subscriptionId: creatorLicense.id,
     };
   }
 
@@ -84,6 +116,8 @@ export async function upsertPayFastPaymentMethod(args: {
   lastFour?: string | null;
   cardType?: string | null;
   bank?: string | null;
+  relatedEntityType?: string | null;
+  relatedEntityId?: string | null;
 }) {
   if (!isPayFastChargeToken(args.token)) {
     throw new Error("Refusing to store non-PayFast payment reference as a card token.");
@@ -106,48 +140,101 @@ export async function upsertPayFastPaymentMethod(args: {
     select: { id: true },
   });
 
-  if (existing) {
-    const updated = await db.viewerPaymentMethod.update({
-      where: { id: existing.id },
-      data: {
-        label,
-        lastFour,
-        cardType: args.cardType ?? undefined,
-        bank: args.bank ?? undefined,
-        email: args.email ?? undefined,
-        reusable: true,
-        isDefault: true,
-        provider: "PAYFAST",
-      },
-    });
-    await db.viewerSubscription.updateMany({
-      where: { userId: args.userId, viewerModel: "SUBSCRIPTION" },
-      data: { paymentMethodId: updated.id },
-    });
-    await clearViewerCardReminderQuietly(args.userId);
-    return updated;
-  }
+  const method = existing
+    ? await db.viewerPaymentMethod.update({
+        where: { id: existing.id },
+        data: {
+          label,
+          lastFour,
+          cardType: args.cardType ?? undefined,
+          bank: args.bank ?? undefined,
+          email: args.email ?? undefined,
+          reusable: true,
+          isDefault: true,
+          provider: "PAYFAST",
+        },
+      })
+    : await db.viewerPaymentMethod.create({
+        data: {
+          userId: args.userId,
+          provider: "PAYFAST",
+          email: args.email ?? undefined,
+          label,
+          lastFour,
+          authorizationCode: args.token,
+          cardType: args.cardType ?? undefined,
+          bank: args.bank ?? undefined,
+          reusable: true,
+          isDefault: true,
+        },
+      });
 
-  const created = await db.viewerPaymentMethod.create({
-    data: {
-      userId: args.userId,
-      provider: "PAYFAST",
-      email: args.email ?? undefined,
-      label,
-      lastFour,
-      authorizationCode: args.token,
-      cardType: args.cardType ?? undefined,
-      bank: args.bank ?? undefined,
-      reusable: true,
-      isDefault: true,
-    },
-  });
-  await db.viewerSubscription.updateMany({
-    where: { userId: args.userId, viewerModel: "SUBSCRIPTION" },
-    data: { paymentMethodId: created.id },
+  await linkPayFastTokenToBillables({
+    userId: args.userId,
+    paymentMethodId: method.id,
+    token: args.token,
+    relatedEntityType: args.relatedEntityType,
+    relatedEntityId: args.relatedEntityId,
   });
   await clearViewerCardReminderQuietly(args.userId);
-  return created;
+  return method;
+}
+
+/** Attach a saved PayFast token to viewer/company/creator billable rows for renewals. */
+export async function linkPayFastTokenToBillables(args: {
+  userId: string;
+  paymentMethodId: string;
+  token: string;
+  relatedEntityType?: string | null;
+  relatedEntityId?: string | null;
+}) {
+  await db.viewerSubscription.updateMany({
+    where: { userId: args.userId, viewerModel: "SUBSCRIPTION" },
+    data: {
+      paymentMethodId: args.paymentMethodId,
+      externalPaymentId: args.token,
+    },
+  });
+
+  await db.companySubscription.updateMany({
+    where: { userId: args.userId },
+    data: {
+      paymentMethodId: args.paymentMethodId,
+      externalPaymentId: args.token,
+    },
+  });
+
+  await db.creatorDistributionLicense.updateMany({
+    where: { userId: args.userId },
+    data: { externalPaymentId: args.token },
+  });
+
+  const relatedType = args.relatedEntityType?.trim();
+  const relatedId = args.relatedEntityId?.trim();
+  if (!relatedType || !relatedId) return;
+
+  if (relatedType === "ViewerSubscription") {
+    await db.viewerSubscription.update({
+      where: { id: relatedId },
+      data: {
+        paymentMethodId: args.paymentMethodId,
+        externalPaymentId: args.token,
+      },
+    }).catch(() => {});
+  } else if (relatedType === "CompanySubscription") {
+    await db.companySubscription.update({
+      where: { id: relatedId },
+      data: {
+        paymentMethodId: args.paymentMethodId,
+        externalPaymentId: args.token,
+      },
+    }).catch(() => {});
+  } else if (relatedType === "CreatorDistributionLicense") {
+    await db.creatorDistributionLicense.update({
+      where: { id: relatedId },
+      data: { externalPaymentId: args.token },
+    }).catch(() => {});
+  }
 }
 
 async function clearViewerCardReminderQuietly(userId: string) {

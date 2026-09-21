@@ -517,6 +517,20 @@ export async function processPayFastItn(
     return { ok: false, status: 404, error: "Payment not found" };
   }
 
+  // Prefer saving the reusable card token before settlement so renewals can charge immediately.
+  if (data.token && payment.userId && isPayFastChargeToken(data.token)) {
+    await upsertPayFastPaymentMethod({
+      userId: payment.userId,
+      token: data.token,
+      email: data.email_address ?? payment.email,
+      label: data.payment_method ? String(data.payment_method) : undefined,
+      lastFour: data.cc_mask ? String(data.cc_mask).slice(-4) : undefined,
+      cardType: data.payment_method ? String(data.payment_method) : undefined,
+      relatedEntityType: payment.relatedEntityType,
+      relatedEntityId: payment.relatedEntityId,
+    }).catch((err: unknown) => console.error("payfast checkout token save failed", err));
+  }
+
   if (payment.status === "SUCCEEDED") {
     const settlement = parsePayFastSettlementFromItn(data, Number(payment.amount));
     await persistPaymentSettlement(paymentRecordId, settlement).catch(() => {});
@@ -559,17 +573,6 @@ export async function processPayFastItn(
     provider: PAYMENT_PROVIDER,
     settlement,
   });
-
-  if (data.token && payment.userId && isPayFastChargeToken(data.token)) {
-    await upsertPayFastPaymentMethod({
-      userId: payment.userId,
-      token: data.token,
-      email: data.email_address ?? payment.email,
-      label: data.payment_method ? String(data.payment_method) : undefined,
-      lastFour: data.cc_mask ? String(data.cc_mask).slice(-4) : undefined,
-      cardType: data.payment_method ? String(data.payment_method) : undefined,
-    }).catch((err: unknown) => console.error("payfast checkout token save failed", err));
-  }
 
   if (!result.ok && result.status !== 409) {
     await persistPayFastItn({

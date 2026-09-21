@@ -22,7 +22,7 @@ type SavedCardStatus = {
 export function PayFastSavedCardSection({
   returnPath,
   title = "Billing card (PayFast)",
-  description = "Save a card once through PayFast to pay Story Time packages and renewals. A R5 verification charge is taken and refunded after the card is saved. This is not your KYC/KYB payout banking.",
+  description = "Paying for a Story Time package already saves your card for renewals. Use this only when you need a card on file without a package payment (R5 verification, refunded). Not KYC/KYB payout banking.",
   className = "",
 }: {
   returnPath?: string;
@@ -109,7 +109,7 @@ export function PayFastSavedCardSection({
         checkoutUrl={checkoutUrl}
         dismissible
         title="Save your card with PayFast"
-        subtitle="PayFast will charge R5.00 to verify your card, then we refund that R5 once the card is saved. Your bank may ask for 3D Secure."
+        subtitle="Only needed if you are not buying a package right now. PayFast charges R5.00 to verify the card, then we refund that R5 after it is saved. Package Pay & continue already saves your card with no extra R5."
         onClose={() => setCheckoutOpen(false)}
       />
 
@@ -126,9 +126,9 @@ export function PayFastSavedCardSection({
       <div className="mt-4 flex items-start gap-2 rounded-xl border border-sky-400/20 bg-sky-500/10 px-3 py-2.5 text-xs text-sky-100/90">
         <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-sky-300" />
         <p>
-          PayFast shows <span className="font-medium text-sky-50">ZAR R 5.00</span> for card verification.
-          Complete 3D Secure when your bank asks. That R5 is refunded after your card is saved — it is not a
-          subscription charge. This never replaces KYC/KYB bank documents used for payouts.
+          Paying for a package already saves your card — no separate verification charge. This optional flow uses{" "}
+          <span className="font-medium text-sky-50">ZAR R 5.00</span> only when you save a card without a package
+          payment; that R5 is refunded after the card is stored. Not KYC/KYB payout banking.
         </p>
       </div>
 
