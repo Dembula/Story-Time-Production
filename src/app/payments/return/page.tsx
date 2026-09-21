@@ -22,6 +22,8 @@ const PAYFAST_RETURN_FIELD_KEYS = new Set([
   "email_address",
   "name_first",
   "name_last",
+  "token",
+  "cc_mask",
 ]);
 
 function resolvePaymentRecordId(params: URLSearchParams): string {

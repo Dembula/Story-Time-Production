@@ -4,7 +4,7 @@ import { createHash } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { PAYMENT_PROVIDER } from "@/lib/payments/config";
 import { completeGatewayPayment, persistPaymentSettlement } from "@/lib/payments/complete-gateway-payment";
-import { isPayFastChargeToken, upsertPayFastPaymentMethod } from "@/lib/payments/payfast-saved-card";
+import { getPayFastTokenForUser, isPayFastChargeToken, upsertPayFastPaymentMethod } from "@/lib/payments/payfast-saved-card";
 import { addViewerSubscriptionPeriod } from "@/lib/payments/billing-interval";
 import { resolvePaymentRecordIdFromPayFastItn } from "@/lib/payments/resolve-itn-payment-record";
 import { parsePayFastSettlementFromItn } from "@/lib/payments/payfast-settlement";
@@ -92,8 +92,22 @@ function amountsMatch(expected: number, received: number): boolean {
   return Math.abs(expected - received) <= 0.05;
 }
 
-async function markCardConsentPaymentSucceeded(consentReference: string, payerUserId: string | null) {
-  if (!payerUserId || !consentReference.trim()) return;
+async function markCardConsentPaymentSucceeded(args: {
+  paymentRecordId?: string | null;
+  consentReference?: string | null;
+  payerUserId?: string | null;
+}) {
+  if (args.paymentRecordId?.trim()) {
+    await db.paymentRecord.update({
+      where: { id: args.paymentRecordId.trim() },
+      data: { status: "SUCCEEDED", paidAt: new Date() },
+    }).catch(() => {});
+    return;
+  }
+
+  const consentReference = args.consentReference?.trim();
+  const payerUserId = args.payerUserId?.trim();
+  if (!payerUserId || !consentReference) return;
 
   const pending = await db.paymentRecord.findMany({
     where: {
@@ -124,15 +138,108 @@ async function markCardConsentPaymentSucceeded(consentReference: string, payerUs
 
 const TRIAL_LENGTH_MS = 30 * 24 * 60 * 60 * 1000;
 
-async function handleCardConsentItn(data: Record<string, string>): Promise<PayFastItnProcessResult> {
-  const reference = data.custom_str3 ?? data.m_payment_id ?? "";
-  const payerUserId = data.custom_str1?.trim() || null;
-  const paymentStatus = (data.payment_status ?? "").toUpperCase();
+function isCardConsentItn(data: Record<string, string>): boolean {
+  const flow = (data.custom_str2 ?? "").trim().toLowerCase();
+  if (flow === "card_consent") return true;
+  const reference = (data.custom_str3 ?? data.m_payment_id ?? "").trim();
+  return reference.startsWith("trial-consent-") || reference.startsWith("card-consent-");
+}
 
-  if (reference.startsWith("trial-consent-")) {
-    const subscriptionId = reference.slice("trial-consent-".length);
-    const cardSaved = paymentStatus === "COMPLETE" && isPayFastChargeToken(data.token);
-    if (subscriptionId && cardSaved) {
+async function handleCardConsentItn(
+  data: Record<string, string>,
+  paymentRecordIdHint?: string | null,
+): Promise<PayFastItnProcessResult> {
+  const paymentStatus = (data.payment_status ?? "").toUpperCase();
+  const token = (data.token ?? "").trim();
+  const hasToken = isPayFastChargeToken(token);
+
+  // Resolve PaymentRecord first (m_payment_id / custom_str1 are now the record id).
+  let paymentRecordId =
+    paymentRecordIdHint?.trim() ||
+    (await resolvePaymentRecordIdFromPayFastItn(data));
+
+  let payment: {
+    id: string;
+    userId: string | null;
+    purpose: string;
+    status: string;
+    email: string | null;
+    metadata: unknown;
+  } | null = null;
+
+  if (paymentRecordId) {
+    payment = await db.paymentRecord.findUnique({
+      where: { id: paymentRecordId },
+      select: { id: true, userId: true, purpose: true, status: true, email: true, metadata: true },
+    });
+  }
+
+  // Legacy ITNs used consent reference as m_payment_id — match via metadata.
+  if (!payment) {
+    const consentRef = (data.custom_str3 ?? data.m_payment_id ?? "").trim();
+    if (consentRef) {
+      const recent = await db.paymentRecord.findMany({
+        where: { purpose: "CARD_CONSENT", status: { in: ["PENDING", "SUCCEEDED"] } },
+        orderBy: { createdAt: "desc" },
+        take: 40,
+        select: { id: true, userId: true, purpose: true, status: true, email: true, metadata: true },
+      });
+      payment =
+        recent.find((row: { metadata?: unknown }) => {
+          const meta =
+            row.metadata && typeof row.metadata === "object"
+              ? (row.metadata as Record<string, unknown>)
+              : {};
+          return meta.consentReference === consentRef;
+        }) ?? null;
+      if (payment) paymentRecordId = payment.id;
+    }
+  }
+
+  const meta =
+    payment?.metadata && typeof payment.metadata === "object"
+      ? (payment.metadata as Record<string, unknown>)
+      : {};
+  const consentReference =
+    (typeof meta.consentReference === "string" && meta.consentReference.trim()) ||
+    (data.custom_str3 ?? "").trim() ||
+    (data.m_payment_id ?? "").trim();
+
+  const payerUserId =
+    payment?.userId?.trim() ||
+    (data.custom_str4 ?? "").trim() ||
+    // Legacy: custom_str1 used to be the user id (only when it is not a PaymentRecord id).
+    (payment ? null : (data.custom_str1 ?? "").trim()) ||
+    null;
+
+  // Failed / cancelled authorization — mark and stop.
+  if (paymentStatus === "CANCELLED" || paymentStatus === "FAILED") {
+    if (paymentRecordId) {
+      await db.paymentRecord.update({
+        where: { id: paymentRecordId },
+        data: { status: paymentStatus === "CANCELLED" ? "CANCELLED" : "FAILED" },
+      }).catch(() => {});
+    }
+    return { ok: true, cardConsent: true, paymentRecordId: paymentRecordId ?? undefined };
+  }
+
+  // Incomplete without a token — acknowledge so PayFast stops retrying; return sync will keep polling.
+  if (paymentStatus && paymentStatus !== "COMPLETE") {
+    return { ok: true, cardConsent: true, paymentRecordId: paymentRecordId ?? undefined };
+  }
+
+  if (!hasToken) {
+    console.warn("payfast card consent ITN missing token", {
+      paymentRecordId,
+      paymentStatus,
+      m_payment_id: data.m_payment_id,
+    });
+    return { ok: true, cardConsent: true, paymentRecordId: paymentRecordId ?? undefined };
+  }
+
+  if (consentReference.startsWith("trial-consent-")) {
+    const subscriptionId = consentReference.slice("trial-consent-".length);
+    if (subscriptionId) {
       const sub = await db.viewerSubscription.findUnique({
         where: { id: subscriptionId },
         select: {
@@ -157,7 +264,7 @@ async function handleCardConsentItn(data: Record<string, string>): Promise<PayFa
               status: "TRIAL_ACTIVE",
               trialEndsAt,
               currentPeriodEnd: addViewerSubscriptionPeriod(trialEndsAt),
-              externalPaymentId: data.token,
+              externalPaymentId: token,
               lastPaymentStatus: "SUCCEEDED",
               lastPaymentError: null,
             },
@@ -166,59 +273,73 @@ async function handleCardConsentItn(data: Record<string, string>): Promise<PayFa
           await db.viewerSubscription.update({
             where: { id: subscriptionId },
             data: {
-              externalPaymentId: data.token,
+              externalPaymentId: token,
               lastPaymentStatus: "SUCCEEDED",
               lastPaymentError: null,
             },
           });
         }
 
-        if (sub.userId) {
+        const ownerId = sub.userId ?? payerUserId;
+        if (ownerId) {
           await upsertPayFastPaymentMethod({
-            userId: sub.userId,
-            token: data.token,
-            email: sub.user?.email ?? data.email_address,
+            userId: ownerId,
+            token,
+            email: sub.user?.email ?? data.email_address ?? payment?.email,
             label: data.payment_method ? String(data.payment_method) : undefined,
             lastFour: data.cc_mask ? String(data.cc_mask).slice(-4) : undefined,
             cardType: data.payment_method ? String(data.payment_method) : undefined,
           }).catch((err: unknown) => console.error("payfast method upsert failed", err));
         }
-        await markCardConsentPaymentSucceeded(reference, sub.userId ?? payerUserId);
-      } else if (payerUserId) {
-        await markCardConsentPaymentSucceeded(reference, payerUserId);
+        await markCardConsentPaymentSucceeded({
+          paymentRecordId,
+          consentReference,
+          payerUserId: ownerId,
+        });
+        return { ok: true, cardConsent: true, paymentRecordId: paymentRecordId ?? undefined };
       }
     }
-    return { ok: true, cardConsent: true };
-  } else if (payerUserId && isPayFastChargeToken(data.token)) {
+  }
+
+  if (payerUserId) {
     await upsertPayFastPaymentMethod({
       userId: payerUserId,
-      token: data.token,
-      email: data.email_address,
+      token,
+      email: data.email_address ?? payment?.email,
       label: data.payment_method ? String(data.payment_method) : undefined,
       lastFour: data.cc_mask ? String(data.cc_mask).slice(-4) : undefined,
       cardType: data.payment_method ? String(data.payment_method) : undefined,
     }).catch((err: unknown) => console.error("payfast method upsert failed", err));
 
     const activeSub = await db.viewerSubscription.findFirst({
-        where: { userId: payerUserId, viewerModel: "SUBSCRIPTION", status: { in: ["ACTIVE", "TRIALING"] } },
-        orderBy: { updatedAt: "desc" },
-        select: { id: true },
-      });
+      where: { userId: payerUserId, viewerModel: "SUBSCRIPTION", status: { in: ["ACTIVE", "TRIALING", "TRIAL_ACTIVE"] } },
+      orderBy: { updatedAt: "desc" },
+      select: { id: true },
+    });
     if (activeSub?.id) {
       await db.viewerSubscription.update({
         where: { id: activeSub.id },
         data: {
-          externalPaymentId: data.token,
+          externalPaymentId: token,
           lastPaymentStatus: "SUCCEEDED",
           lastPaymentError: null,
         },
       }).catch(() => {});
     }
 
-    await markCardConsentPaymentSucceeded(reference, payerUserId);
+    await markCardConsentPaymentSucceeded({
+      paymentRecordId,
+      consentReference,
+      payerUserId,
+    });
+  } else {
+    console.warn("payfast card consent ITN could not resolve payer user", {
+      paymentRecordId,
+      consentReference,
+    });
   }
 
-  return { ok: true, cardConsent: true };
+  return { ok: true, cardConsent: true, paymentRecordId: paymentRecordId ?? undefined };
 }
 
 export async function processPayFastItn(
@@ -243,21 +364,30 @@ export async function processPayFastItn(
 
   const paymentStatus = (data.payment_status ?? "").toUpperCase();
   const pfPaymentId = data.pf_payment_id ?? "";
-  const flow = data.custom_str2 ?? "";
+  const paymentRecordId = paymentRecordIdPreview;
 
-  if (flow === "card_consent" && data.token) {
-    const result = await handleCardConsentItn(data);
+  // Card consent / tokenization — detect by custom fields OR CARD_CONSENT payment purpose.
+  let cardConsentPaymentPurpose = false;
+  if (paymentRecordId) {
+    const purposeRow = await db.paymentRecord.findUnique({
+      where: { id: paymentRecordId },
+      select: { purpose: true },
+    });
+    cardConsentPaymentPurpose = purposeRow?.purpose === "CARD_CONSENT";
+  }
+
+  if (isCardConsentItn(data) || cardConsentPaymentPurpose) {
+    const result = await handleCardConsentItn(data, paymentRecordId);
     await persistPayFastItn({
       rawBody,
       data,
       signatureVerified,
-      paymentRecordId: paymentRecordIdPreview,
+      paymentRecordId: result.paymentRecordId ?? paymentRecordId,
       processed: true,
     });
     return result;
   }
 
-  const paymentRecordId = paymentRecordIdPreview;
   if (!paymentRecordId) {
     await persistPayFastItn({
       rawBody,
@@ -390,9 +520,22 @@ async function completeFromPayFastHistory(paymentRecordId: string): Promise<PayF
     return { ok: true, paymentRecordId, already: true };
   }
 
-  let transaction;
+  const meta =
+    payment.metadata && typeof payment.metadata === "object"
+      ? (payment.metadata as Record<string, unknown>)
+      : {};
+  const consentReference =
+    typeof meta.consentReference === "string" ? meta.consentReference.trim() : "";
+
+  // Prefer PaymentRecord id (current). Also try legacy consent reference m_payment_id.
+  const lookupIds = [paymentRecordId, consentReference].filter(Boolean);
+
+  let transaction = null;
   try {
-    transaction = await findPayFastTransactionByMPaymentId(paymentRecordId, new Date(payment.createdAt));
+    for (const mPaymentId of lookupIds) {
+      transaction = await findPayFastTransactionByMPaymentId(mPaymentId, new Date(payment.createdAt));
+      if (transaction) break;
+    }
   } catch (err) {
     console.error("PayFast history lookup failed", { paymentRecordId, err });
     return { ok: false, status: 202, error: "Awaiting PayFast confirmation" };
@@ -404,6 +547,20 @@ async function completeFromPayFastHistory(paymentRecordId: string): Promise<PayF
 
   if (transaction.gross > 0 && !amountsMatch(Number(payment.amount), transaction.gross)) {
     return { ok: false, status: 400, error: "Amount mismatch" };
+  }
+
+  // R0 card consent: history confirms the auth, but the reusable token only arrives via ITN.
+  // Do not mark SUCCEEDED from history alone — return sync will flip once the token ITN lands
+  // (or once getPayFastTokenForUser already has a token).
+  if (payment.purpose === "CARD_CONSENT") {
+    await db.paymentRecord.update({
+      where: { id: paymentRecordId },
+      data: {
+        providerPaymentId: transaction.pfPaymentId,
+        providerItnStatus: "COMPLETE",
+      },
+    }).catch(() => {});
+    return { ok: false, status: 202, error: "Awaiting PayFast card token" };
   }
 
   const settlementFields: Record<string, string> = {
@@ -467,13 +624,33 @@ export async function processPayFastReturnFields(
   ) as Record<string, string>;
 
   if (!cleaned.m_payment_id) cleaned.m_payment_id = paymentRecordId;
+  // Never overwrite a real custom_str1 (user id or payment id) with a guess when absent —
+  // always ensure payment record id is present for resolve.
   if (!cleaned.custom_str1) cleaned.custom_str1 = paymentRecordId;
+
+  const payment = await db.paymentRecord.findUnique({
+    where: { id: paymentRecordId },
+    select: { purpose: true, metadata: true, userId: true },
+  });
+  if (payment?.purpose === "CARD_CONSENT") {
+    cleaned.custom_str2 = cleaned.custom_str2 || "card_consent";
+    const meta =
+      payment.metadata && typeof payment.metadata === "object"
+        ? (payment.metadata as Record<string, unknown>)
+        : {};
+    if (!cleaned.custom_str3 && typeof meta.consentReference === "string") {
+      cleaned.custom_str3 = meta.consentReference;
+    }
+    if (!cleaned.custom_str4 && payment.userId) {
+      cleaned.custom_str4 = payment.userId;
+    }
+  }
 
   const rawBody = Object.entries(cleaned)
     .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
     .join("&");
 
-  return processPayFastItn(rawBody, { skipRemoteValidate: true });
+  return processPayFastItn(rawBody, { skipRemoteValidate: true, requireSignature: false });
 }
 
 /** Replay ITN, process return fields, or poll PayFast transaction history for a pending payment. */
@@ -487,6 +664,18 @@ export async function syncPayFastPaymentRecord(
   }
   if (payment.status === "SUCCEEDED") {
     return { ok: true, paymentRecordId, already: true };
+  }
+
+  // Card already tokenized via an earlier ITN that failed to flip PaymentRecord status.
+  if (payment.purpose === "CARD_CONSENT" && payment.userId) {
+    const existing = await getPayFastTokenForUser(payment.userId);
+    if (existing?.token) {
+      await db.paymentRecord.update({
+        where: { id: paymentRecordId },
+        data: { status: "SUCCEEDED", paidAt: new Date() },
+      }).catch(() => {});
+      return { ok: true, paymentRecordId, cardConsent: true };
+    }
   }
 
   const webhook = await findStoredItnWebhookForPayment(paymentRecordId);

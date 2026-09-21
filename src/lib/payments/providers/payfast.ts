@@ -212,11 +212,20 @@ export function buildPayFastCardConsentFields(args: {
   customerEmail?: string | null;
   customerName?: string | null;
   payerId?: string | null;
+  /**
+   * PaymentRecord id — MUST be m_payment_id so ITN/return sync can resolve the row.
+   * Consent reference stays in custom_str3 (trial-consent-… / card-consent-…).
+   */
+  paymentRecordId?: string | null;
 }): Record<string, string> {
   const { first, last } = splitCustomerName(args.customerName);
   const cancelUrl = args.returnUrl.includes("?")
     ? `${args.returnUrl}&payment_status=cancelled`
     : `${args.returnUrl}?payment_status=cancelled`;
+
+  const paymentRecordId = args.paymentRecordId?.trim() || "";
+  // Prefer PaymentRecord id so webhooks/history/return polling all share one key.
+  const mPaymentId = paymentRecordId || args.reference;
 
   const fields: Record<string, string> = {
     merchant_id: getPayFastMerchantId(),
@@ -227,18 +236,21 @@ export function buildPayFastCardConsentFields(args: {
     name_first: first,
     name_last: last,
     email_address: args.customerEmail?.trim() || "no-reply@story-time.online",
-    m_payment_id: args.reference,
+    m_payment_id: mPaymentId,
     amount: "0.00",
     item_name: "Story Time card authorization",
     // Tokenization only supports credit/cheque cards — force the card rail so EFT is not offered.
     payment_method: "cc",
     subscription_type: "2",
+    // Resolve ITN → PaymentRecord (same pattern as paid checkouts).
+    custom_str1: paymentRecordId || args.payerId?.trim() || mPaymentId,
     custom_str2: "card_consent",
+    // Logical consent reference for trial activation / matching.
     custom_str3: args.reference,
   };
 
   const payerId = args.payerId?.trim();
-  if (payerId) fields.custom_str1 = payerId;
+  if (payerId) fields.custom_str4 = payerId;
 
   return buildSignedFields(fields);
 }

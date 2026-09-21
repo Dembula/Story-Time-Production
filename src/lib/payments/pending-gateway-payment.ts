@@ -15,10 +15,13 @@ function itnFieldsFromPayload(payload: ItnPayload): Record<string, string> | nul
   return null;
 }
 
-function itnMatchesPaymentRecord(fields: Record<string, string>, paymentRecordId: string): boolean {
+function itnMatchesPaymentRecord(fields: Record<string, string>, paymentRecordId: string, consentReference?: string | null): boolean {
   const custom = fields.custom_str1?.trim();
   const mPaymentId = fields.m_payment_id?.trim();
-  return custom === paymentRecordId || mPaymentId === paymentRecordId;
+  const custom3 = fields.custom_str3?.trim();
+  if (custom === paymentRecordId || mPaymentId === paymentRecordId) return true;
+  if (consentReference && (mPaymentId === consentReference || custom3 === consentReference)) return true;
+  return false;
 }
 
 /** Fresh checkout window — abandoned PayFast attempts must not look like a live confirmation. */
@@ -56,8 +59,14 @@ export async function findStoredItnWebhookForPayment(paymentRecordId: string) {
 
   const payment = await db.paymentRecord.findUnique({
     where: { id: paymentRecordId },
-    select: { providerPaymentId: true },
+    select: { providerPaymentId: true, metadata: true },
   });
+  const meta =
+    payment?.metadata && typeof payment.metadata === "object"
+      ? (payment.metadata as Record<string, unknown>)
+      : {};
+  const consentReference =
+    typeof meta.consentReference === "string" ? meta.consentReference.trim() : null;
 
   const recent = await db.paymentWebhookEvent.findMany({
     where: { provider: PAYMENT_PROVIDER, eventType: "itn" },
@@ -68,7 +77,7 @@ export async function findStoredItnWebhookForPayment(paymentRecordId: string) {
   for (const webhook of recent) {
     const fields = itnFieldsFromPayload(webhook.payload as ItnPayload);
     if (!fields) continue;
-    if (itnMatchesPaymentRecord(fields, paymentRecordId)) return webhook;
+    if (itnMatchesPaymentRecord(fields, paymentRecordId, consentReference)) return webhook;
     const pfPaymentId = fields.pf_payment_id?.trim();
     if (pfPaymentId && payment?.providerPaymentId === pfPaymentId) return webhook;
   }

@@ -127,6 +127,7 @@ export async function GET(req: NextRequest) {
         customerEmail: payment.email ?? payment.user?.email,
         customerName: payment.user?.name,
         payerId: payment.userId,
+        paymentRecordId: payment.id,
       }),
     });
   }
