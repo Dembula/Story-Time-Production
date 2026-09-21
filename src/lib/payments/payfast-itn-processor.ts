@@ -9,8 +9,8 @@ import { addViewerSubscriptionPeriod } from "@/lib/payments/billing-interval";
 import { resolvePaymentRecordIdFromPayFastItn } from "@/lib/payments/resolve-itn-payment-record";
 import { parsePayFastSettlementFromItn } from "@/lib/payments/payfast-settlement";
 import { findStoredItnWebhookForPayment } from "@/lib/payments/pending-gateway-payment";
-import { findPayFastTransactionByMPaymentId } from "@/lib/payments/providers/payfast-api-client";
-import { PAYFAST_VALIDATE_URL } from "@/lib/payments/providers/payfast-config";
+import { findPayFastTransactionByMPaymentId, refundPayFastPayment } from "@/lib/payments/providers/payfast-api-client";
+import { PAYFAST_CARD_CONSENT_AMOUNT_ZAR, PAYFAST_VALIDATE_URL } from "@/lib/payments/providers/payfast-config";
 import {
   buildPayFastItnValidatePayload,
   parsePayFastFormBody,
@@ -134,6 +134,72 @@ async function markCardConsentPaymentSucceeded(args: {
     where: { id: target.id },
     data: { status: "SUCCEEDED", paidAt: new Date() },
   });
+}
+
+async function refundCardConsentVerificationCharge(args: {
+  paymentRecordId?: string | null;
+  pfPaymentId?: string | null;
+  amountZar?: number;
+}) {
+  const pfPaymentId = args.pfPaymentId?.trim();
+  if (!pfPaymentId) return;
+
+  const amountZar = args.amountZar && args.amountZar > 0 ? args.amountZar : PAYFAST_CARD_CONSENT_AMOUNT_ZAR;
+
+  if (args.paymentRecordId) {
+    const existing = await db.paymentRecord.findUnique({
+      where: { id: args.paymentRecordId },
+      select: { metadata: true },
+    });
+    const existingMeta =
+      existing?.metadata && typeof existing.metadata === "object"
+        ? (existing.metadata as Record<string, unknown>)
+        : {};
+    if (existingMeta.verificationRefund === "refunded") return;
+  }
+
+  const result = await refundPayFastPayment({
+    pfPaymentId,
+    amountZar,
+    reason: "Story Time R1 card verification refund",
+  });
+
+  if (!args.paymentRecordId) {
+    if (!result.ok) console.warn("payfast card consent refund failed", result);
+    return;
+  }
+
+  const payment = await db.paymentRecord.findUnique({
+    where: { id: args.paymentRecordId },
+    select: { metadata: true },
+  });
+  const meta =
+    payment?.metadata && typeof payment.metadata === "object"
+      ? (payment.metadata as Record<string, unknown>)
+      : {};
+
+  await db.paymentRecord.update({
+    where: { id: args.paymentRecordId },
+    data: {
+      metadata: {
+        ...meta,
+        verificationRefund: result.ok ? "refunded" : "failed",
+        verificationRefundAt: new Date().toISOString(),
+        verificationRefundDetail: result.ok
+          ? { status: result.status, amountCents: result.amountCents }
+          : { error: result.error, status: result.status ?? null },
+      },
+      ...(pfPaymentId ? { providerPaymentId: pfPaymentId } : {}),
+    },
+  }).catch((err: unknown) => console.error("payfast card consent refund metadata update failed", err));
+
+  if (!result.ok) {
+    console.warn("payfast card consent refund failed", {
+      paymentRecordId: args.paymentRecordId,
+      pfPaymentId,
+      error: result.error,
+    });
+  }
 }
 
 const TRIAL_LENGTH_MS = 30 * 24 * 60 * 60 * 1000;
@@ -296,6 +362,14 @@ async function handleCardConsentItn(
           consentReference,
           payerUserId: ownerId,
         });
+        await refundCardConsentVerificationCharge({
+          paymentRecordId,
+          pfPaymentId: data.pf_payment_id,
+          amountZar:
+            typeof meta.verificationAmountZar === "number"
+              ? meta.verificationAmountZar
+              : PAYFAST_CARD_CONSENT_AMOUNT_ZAR,
+        }).catch((err: unknown) => console.error("payfast verification refund failed", err));
         return { ok: true, cardConsent: true, paymentRecordId: paymentRecordId ?? undefined };
       }
     }
@@ -332,6 +406,14 @@ async function handleCardConsentItn(
       consentReference,
       payerUserId,
     });
+    await refundCardConsentVerificationCharge({
+      paymentRecordId,
+      pfPaymentId: data.pf_payment_id,
+      amountZar:
+        typeof meta.verificationAmountZar === "number"
+          ? meta.verificationAmountZar
+          : PAYFAST_CARD_CONSENT_AMOUNT_ZAR,
+    }).catch((err: unknown) => console.error("payfast verification refund failed", err));
   } else {
     console.warn("payfast card consent ITN could not resolve payer user", {
       paymentRecordId,

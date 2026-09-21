@@ -5,6 +5,7 @@ import { buildPayFastCardUpdateUrl } from "@/lib/payments/providers/payfast-conf
 import { buildPaymentReturnUrl, appendPaymentRecordToReturnUrl } from "@/lib/payments/return-url";
 import { isPayFastConfigured, PAYMENT_PROVIDER } from "@/lib/payments/config";
 import { createPayFastGateway } from "@/lib/payments/providers/payfast";
+import { PAYFAST_CARD_CONSENT_AMOUNT_ZAR } from "@/lib/payments/providers/payfast-config";
 
 const db = prisma as any;
 
@@ -158,7 +159,7 @@ async function clearViewerCardReminderQuietly(userId: string) {
   }
 }
 
-/** Start PayFast tokenization (R0 subscription_type=2) — no card data touches Story Time. */
+/** Start PayFast tokenization (R1 verification + subscription_type=2) — no card data touches Story Time. */
 export async function createPayFastCardConsentForUser(args: {
   userId: string;
   email?: string | null;
@@ -186,13 +187,15 @@ export async function createPayFastCardConsentForUser(args: {
       provider: PAYMENT_PROVIDER,
       purpose: "CARD_CONSENT",
       status: "PENDING",
-      amount: 0,
+      amount: PAYFAST_CARD_CONSENT_AMOUNT_ZAR,
       currency: "ZAR",
       email: args.email ?? null,
       metadata: {
         consentReference: reference,
         returnPath,
         flow: "payfast_card_consent",
+        verificationAmountZar: PAYFAST_CARD_CONSENT_AMOUNT_ZAR,
+        verificationRefund: "pending",
         ...(args.subscriptionId ? { subscriptionId: args.subscriptionId } : {}),
       },
     },
@@ -208,6 +211,8 @@ export async function createPayFastCardConsentForUser(args: {
         returnUrl,
         flow: "payfast_card_consent",
         paymentRecordId: paymentRecord.id,
+        verificationAmountZar: PAYFAST_CARD_CONSENT_AMOUNT_ZAR,
+        verificationRefund: "pending",
         ...(args.subscriptionId ? { subscriptionId: args.subscriptionId } : {}),
       },
     },

@@ -13,6 +13,7 @@ import {
   payfastCheckoutPageUrl,
   payfastNotifyUrl,
   PAYFAST_API_BASE,
+  PAYFAST_CARD_CONSENT_AMOUNT_ZAR,
 } from "@/lib/payments/providers/payfast-config";
 import {
   generatePayFastCheckoutSignature,
@@ -22,6 +23,8 @@ import {
   verifyPayFastItnSignature,
 } from "@/lib/payments/providers/payfast-signature";
 import { isPayFastChargeToken } from "@/lib/payments/payfast-saved-card";
+
+export { PAYFAST_CARD_CONSENT_AMOUNT_ZAR };
 
 function formatPayFastAmount(amount: number): string {
   return amount.toFixed(2);
@@ -237,8 +240,9 @@ export function buildPayFastCardConsentFields(args: {
     name_last: last,
     email_address: args.customerEmail?.trim() || "no-reply@story-time.online",
     m_payment_id: mPaymentId,
-    amount: "0.00",
-    item_name: "Story Time card authorization",
+    amount: formatPayFastAmount(PAYFAST_CARD_CONSENT_AMOUNT_ZAR),
+    item_name: "Story Time card verification",
+    item_description: "R1 card verification — refunded after your card is saved",
     // Tokenization only supports credit/cheque cards — force the card rail so EFT is not offered.
     payment_method: "cc",
     subscription_type: "2",
