@@ -41,6 +41,12 @@ const DEPENDENCY_RULES: Partial<
 
 const DUPLICATE_WINDOW_MS = 90_000;
 
+const PROJECTLESS_ACTIONS = new Set<ModocActionType>([
+  "submit_support_ticket",
+  "lookup_support_ticket",
+  "list_my_support_tickets",
+]);
+
 /** Validate action against production graph, dependencies, and recent duplicates. */
 export async function validateModocActionSafety(params: {
   userId: string;
@@ -51,6 +57,10 @@ export async function validateModocActionSafety(params: {
 }): Promise<ActionSafetyResult> {
   const { action, payload, graph, confirmDestructive } = params;
   const projectId = typeof payload.projectId === "string" ? payload.projectId : undefined;
+
+  if (PROJECTLESS_ACTIONS.has(action)) {
+    return { mode: "execute", action, payload };
+  }
 
   if (!projectId) {
     return { mode: "block", reason: "projectId is required in context before executing actions" };

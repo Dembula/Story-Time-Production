@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { GripVertical, X } from "lucide-react";
+import { GripVertical, ImagePlus, RotateCcw, Type, X } from "lucide-react";
 import { SecureImage } from "@/components/files/secure-image";
 import { PEXELS_PHOTO_MIME } from "@/components/pexels/pexels-media-browser";
 import {
-  fieldsForLayout,
   resolveFieldFrame,
+  visibleFieldsForSlide,
 } from "@/lib/treatment-studio/field-frames";
+import { hideSlideField, createTextElement, nextElementZIndex } from "@/lib/treatment-studio/document";
 import type {
   TreatmentAsset,
   TreatmentElement,
@@ -31,6 +32,11 @@ type TreatmentSlideCanvasProps = {
   presentMode?: boolean;
   /** When true in presentMode, play video clips on this slide */
   clipPlaying?: boolean;
+  /**
+   * editor = fills stage box; thumb = navigator preview (no viewport max-height);
+   * present = fullscreen present mode.
+   */
+  variant?: "editor" | "thumb" | "present";
   className?: string;
   selectedElementId?: string | null;
   selectedFieldKey?: TreatmentFieldKey | null;
@@ -41,6 +47,13 @@ type TreatmentSlideCanvasProps = {
   onDropAsset?: (assetId: string, xPercent: number, yPercent: number) => void;
   /** Drop a Pexels search result — parent imports then places on slide */
   onDropPexels?: (photoId: number, xPercent: number, yPercent: number) => void | Promise<void>;
+  /** Upload local files into the library and place them on this slide (Keynote Insert → Choose). */
+  onUploadFiles?: (
+    files: File[],
+    at?: { xPercent: number; yPercent: number },
+  ) => void | Promise<void>;
+  /** Restore a deleted layout text field */
+  onRestoreField?: (key: TreatmentFieldKey) => void;
   projectId?: string;
 };
 
@@ -300,6 +313,7 @@ function EditableText({
   multiline,
   readOnly,
   onChange,
+  onFocusChange,
 }: {
   value: string;
   placeholder: string;
@@ -307,6 +321,7 @@ function EditableText({
   multiline?: boolean;
   readOnly?: boolean;
   onChange?: (value: string) => void;
+  onFocusChange?: (focused: boolean) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const focusedRef = useRef(false);
@@ -341,9 +356,11 @@ function EditableText({
       )}
       onFocus={() => {
         focusedRef.current = true;
+        onFocusChange?.(true);
       }}
       onBlur={(e) => {
         focusedRef.current = false;
+        onFocusChange?.(false);
         if (readOnly) return;
         const raw = e.currentTarget.innerText ?? "";
         const next = multiline
@@ -380,6 +397,7 @@ function MovableField({
   onSelect,
   onTextChange,
   onFrameChange,
+  onDelete,
 }: {
   fieldKey: TreatmentFieldKey;
   frame: TreatmentFieldFrame;
@@ -392,6 +410,7 @@ function MovableField({
   onSelect: () => void;
   onTextChange: (value: string) => void;
   onFrameChange: (frame: TreatmentFieldFrame) => void;
+  onDelete?: () => void;
 }) {
   const { display, beginDrag } = useFrameDrag(
     readOnly,
@@ -399,6 +418,26 @@ function MovableField({
     onFrameChange,
     onSelect,
   );
+  const [editingText, setEditingText] = useState(false);
+
+  // Keynote-style: Delete/Backspace removes the placeholder when selected (not while typing).
+  useEffect(() => {
+    if (readOnly || !selected || !onDelete) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (editingText) return;
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      const tag = target.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (target.isContentEditable || target.closest("[contenteditable='true']")) return;
+      if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault();
+        onDelete();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [readOnly, selected, editingText, onDelete]);
 
   return (
     <div
@@ -424,6 +463,7 @@ function MovableField({
         ) {
           e.stopPropagation();
           onSelect();
+          setEditingText(true);
           return;
         }
         beginDrag(e, "move");
@@ -437,6 +477,7 @@ function MovableField({
         if (readOnly) return;
         e.stopPropagation();
         onSelect();
+        setEditingText(true);
         const text = (e.currentTarget as HTMLElement).querySelector(
           "[contenteditable='true']",
         ) as HTMLElement | null;
@@ -450,13 +491,15 @@ function MovableField({
           multiline={multiline}
           readOnly={readOnly}
           onChange={onTextChange}
+          onFocusChange={setEditingText}
           className={cn(className, "h-full")}
         />
       </div>
       {selected && !readOnly ? (
         <SelectionChrome
           onBeginResize={(e, h) => beginDrag(e, `resize-${h}`)}
-          showDelete={false}
+          showDelete={Boolean(onDelete)}
+          onDelete={onDelete}
         />
       ) : null}
     </div>
@@ -802,7 +845,7 @@ function LayoutTextFields({
     darkBg ? "text-white/80" : "text-slate-700",
   );
 
-  const keys = fieldsForLayout(slide.layout);
+  const keys = visibleFieldsForSlide(slide);
   if (keys.length === 0) return null;
 
   const updateFrame = (key: TreatmentFieldKey, frame: TreatmentFieldFrame) => {
@@ -828,14 +871,14 @@ function LayoutTextFields({
         const placeholder =
           key === "title"
             ? slide.layout === "title"
-              ? "Project Title"
+              ? "Project title"
               : slide.layout === "image"
                 ? "Caption"
                 : slide.layout === "references"
                   ? "References"
                   : "Slide title"
             : key === "subtitle"
-              ? "Subtitle or byline"
+              ? "Made by / byline (optional)"
               : "Write your treatment copy...";
         const className =
           key === "title" ? titleClass : key === "subtitle" ? subClass : bodyClass;
@@ -847,7 +890,7 @@ function LayoutTextFields({
             frame={frame}
             value={value}
             placeholder={placeholder}
-            multiline={key === "body"}
+            multiline={key === "body" || key === "subtitle"}
             className={className}
             selected={selectedFieldKey === key}
             readOnly={readOnly}
@@ -860,6 +903,10 @@ function LayoutTextFields({
               else onFieldChange?.({ body: next });
             }}
             onFrameChange={(next) => updateFrame(key, next)}
+            onDelete={() => {
+              onFieldChange?.(hideSlideField(slide, key));
+              onSelectField?.(null);
+            }}
           />
         );
       })}
@@ -874,6 +921,7 @@ export function TreatmentSlideCanvas({
   readOnly = false,
   presentMode = false,
   clipPlaying = false,
+  variant,
   className,
   selectedElementId,
   selectedFieldKey,
@@ -883,11 +931,38 @@ export function TreatmentSlideCanvas({
   onSelectField,
   onDropAsset,
   onDropPexels,
+  onUploadFiles,
+  onRestoreField,
   projectId,
 }: TreatmentSlideCanvasProps) {
+  const resolvedVariant =
+    variant ?? (presentMode ? "present" : readOnly ? "thumb" : "editor");
   const [dragOver, setDragOver] = useState(false);
   const [pexelsDropBusy, setPexelsDropBusy] = useState(false);
+  const [fileDropBusy, setFileDropBusy] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    slideX: number;
+    slideY: number;
+  } | null>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const contextFileInputRef = useRef<HTMLInputElement>(null);
   const map = assetMap(assets);
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const close = () => setContextMenu(null);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
+    };
+    window.addEventListener("click", close);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("click", close);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [contextMenu]);
 
   const updateElement = useCallback(
     (id: string, patch: Partial<TreatmentElement>) => {
@@ -907,6 +982,19 @@ export function TreatmentSlideCanvas({
     [slide.elements, onElementsChange, onSelectElement],
   );
 
+  const dropPercents = (clientX: number, clientY: number, target: HTMLElement) => {
+    const rect = target.getBoundingClientRect();
+    const xPercent = Math.min(
+      70,
+      Math.max(0, ((clientX - rect.left) / rect.width) * 100 - 15),
+    );
+    const yPercent = Math.min(
+      70,
+      Math.max(0, ((clientY - rect.top) / rect.height) * 100 - 15),
+    );
+    return { xPercent, yPercent };
+  };
+
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -914,9 +1002,18 @@ export function TreatmentSlideCanvas({
     if (readOnly) return;
 
     const target = e.currentTarget as HTMLElement;
-    const rect = target.getBoundingClientRect();
-    const xPercent = Math.min(70, Math.max(0, ((e.clientX - rect.left) / rect.width) * 100 - 15));
-    const yPercent = Math.min(70, Math.max(0, ((e.clientY - rect.top) / rect.height) * 100 - 15));
+    const { xPercent, yPercent } = dropPercents(e.clientX, e.clientY, target);
+
+    const files = Array.from(e.dataTransfer.files ?? []).filter((f) =>
+      /^(image|video|audio)\//.test(f.type),
+    );
+    if (files.length && onUploadFiles) {
+      setFileDropBusy(true);
+      void Promise.resolve(
+        onUploadFiles(files, { xPercent, yPercent }),
+      ).finally(() => setFileDropBusy(false));
+      return;
+    }
 
     const pexelsRaw = e.dataTransfer.getData(PEXELS_PHOTO_MIME);
     if (pexelsRaw && onDropPexels) {
@@ -942,27 +1039,77 @@ export function TreatmentSlideCanvas({
     onDropAsset(assetId, xPercent, yPercent);
   };
 
+  const handleContextFiles = (files: FileList | null) => {
+    if (!files?.length || !onUploadFiles || !contextMenu) return;
+    setFileDropBusy(true);
+    void Promise.resolve(
+      onUploadFiles(Array.from(files), {
+        xPercent: contextMenu.slideX,
+        yPercent: contextMenu.slideY,
+      }),
+    ).finally(() => setFileDropBusy(false));
+    setContextMenu(null);
+  };
+
+  const hiddenFields = slide.hiddenFields ?? [];
+
   return (
     <div
+      ref={canvasRef}
       data-treatment-canvas
+      data-treatment-variant={resolvedVariant}
+      data-aspect={aspectRatio === "4:3" ? "4:3" : "16:9"}
       className={cn(
-        "treatment-slide-canvas relative overflow-hidden rounded-sm bg-white text-slate-900",
-        aspectRatio === "16:9" ? "aspect-video" : "aspect-[4/3]",
+        "treatment-slide-canvas relative w-full max-w-full overflow-hidden rounded-sm bg-white text-slate-900",
+        resolvedVariant === "thumb" && "treatment-slide-canvas--thumb",
+        resolvedVariant === "editor" && "treatment-slide-canvas--editor",
+        resolvedVariant === "present" && "treatment-slide-canvas--present",
         dragOver && "ring-2 ring-orange-400",
         className,
       )}
-      style={{ backgroundColor: slide.backgroundColor ?? "#ffffff" }}
+      style={{
+        backgroundColor: slide.backgroundColor ?? "#ffffff",
+        // Variant sizing is owned by CSS (.treatment-slide-canvas--*) so Chrome
+        // does not fight aspect-ratio + max-height:100% and leave black gaps.
+        ...(resolvedVariant === "present" || resolvedVariant === "editor"
+          ? undefined
+          : resolvedVariant === "thumb"
+            ? { width: "100%", height: "100%" }
+            : undefined),
+      }}
       onClick={() => {
         onSelectElement?.(null);
         onSelectField?.(null);
+        setContextMenu(null);
+      }}
+      onContextMenu={(e) => {
+        if (readOnly) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const target = canvasRef.current;
+        if (!target) return;
+        const { xPercent, yPercent } = dropPercents(e.clientX, e.clientY, target);
+        // Keep menu inside the viewport on mobile / iPad.
+        const menuW = 220;
+        const menuH = 160;
+        const x = Math.min(e.clientX, window.innerWidth - menuW - 8);
+        const y = Math.min(e.clientY, window.innerHeight - menuH - 8);
+        setContextMenu({
+          x: Math.max(8, x),
+          y: Math.max(8, y),
+          slideX: xPercent,
+          slideY: yPercent,
+        });
       }}
       onDragOver={(e) => {
         if (readOnly) return;
-        if (
-          e.dataTransfer.types.includes(TREATMENT_ASSET_MIME) ||
-          e.dataTransfer.types.includes(PEXELS_PHOTO_MIME) ||
-          e.dataTransfer.types.includes("text/plain")
-        ) {
+        const types = Array.from(e.dataTransfer.types);
+        const canDrop =
+          types.includes(TREATMENT_ASSET_MIME) ||
+          types.includes(PEXELS_PHOTO_MIME) ||
+          types.includes("text/plain") ||
+          types.includes("Files");
+        if (canDrop) {
           e.preventDefault();
           e.dataTransfer.dropEffect = "copy";
           setDragOver(true);
@@ -971,9 +1118,21 @@ export function TreatmentSlideCanvas({
       onDragLeave={() => setDragOver(false)}
       onDrop={handleDrop}
     >
-      {pexelsDropBusy ? (
+      <input
+        ref={contextFileInputRef}
+        type="file"
+        accept="image/*,video/*,audio/*"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          handleContextFiles(e.target.files);
+          e.target.value = "";
+        }}
+      />
+
+      {pexelsDropBusy || fileDropBusy ? (
         <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/40 text-xs font-medium text-white">
-          Adding from Pexels…
+          {fileDropBusy ? "Uploading to slide…" : "Adding from Pexels…"}
         </div>
       ) : null}
 
@@ -1022,6 +1181,75 @@ export function TreatmentSlideCanvas({
           <span className="rounded-full bg-black/70 px-3 py-1 text-xs text-white">
             Drop to place on slide
           </span>
+        </div>
+      ) : null}
+
+      {contextMenu && !readOnly ? (
+        <div
+          className="fixed z-[80] min-w-[220px] overflow-hidden rounded-lg border border-white/15 bg-[#1c1c1e]/95 py-1 text-sm text-white shadow-2xl backdrop-blur-md"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 px-3 py-2.5 text-left hover:bg-white/10"
+            onClick={() => {
+              contextFileInputRef.current?.click();
+            }}
+          >
+            <ImagePlus className="h-3.5 w-3.5 text-orange-300" />
+            Choose Photo or Video…
+          </button>
+          {onElementsChange ? (
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-white/10"
+              onClick={() => {
+                const el = createTextElement({
+                  x: Math.min(70, Math.max(2, contextMenu.slideX - 10)),
+                  y: Math.min(80, Math.max(2, contextMenu.slideY - 5)),
+                  zIndex: nextElementZIndex(slide.elements),
+                });
+                onElementsChange([...slide.elements, el]);
+                onSelectElement?.(el.id);
+                onSelectField?.(null);
+                setContextMenu(null);
+              }}
+            >
+              <Type className="h-3.5 w-3.5 text-sky-300" />
+              Insert Text Box
+            </button>
+          ) : null}
+          <p className="px-3 pb-2 text-[10px] leading-snug text-zinc-500">
+            Media saves to the library and places on this slide.
+          </p>
+          {hiddenFields.length > 0 && onRestoreField ? (
+            <>
+              <div className="my-1 border-t border-white/10" />
+              <div className="px-3 py-1 text-[10px] uppercase tracking-wide text-zinc-500">
+                Restore deleted field
+              </div>
+              {hiddenFields.map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-white/10"
+                  onClick={() => {
+                    onRestoreField(key);
+                    setContextMenu(null);
+                  }}
+                >
+                  <RotateCcw className="h-3 w-3 text-zinc-400" />
+                  {key === "title"
+                    ? "Title"
+                    : key === "subtitle"
+                      ? "Made by / byline"
+                      : "Body text"}
+                </button>
+              ))}
+            </>
+          ) : null}
         </div>
       ) : null}
     </div>
@@ -1092,13 +1320,25 @@ export function TreatmentSlideThumbnail({
           dragging && "cursor-grabbing ring-1 ring-orange-400/50",
         )}
       >
-        <div className="pointer-events-none scale-[0.22] origin-top-left w-[454%]">
-          <TreatmentSlideCanvas
-            slide={slide}
-            assets={assets}
-            readOnly
-            projectId={projectId}
-          />
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          {/* Absolute so scaled layout box never inflates thumb height (Chrome/WebKit). */}
+          <div
+            className="absolute left-0 top-0 origin-top-left"
+            style={{
+              width: `${100 / 0.22}%`,
+              height: `${100 / 0.22}%`,
+              transform: "scale(0.22)",
+            }}
+          >
+            <TreatmentSlideCanvas
+              slide={slide}
+              assets={assets}
+              readOnly
+              variant="thumb"
+              projectId={projectId}
+              className="!shadow-none"
+            />
+          </div>
         </div>
         <span className="absolute left-1.5 top-1.5 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">
           {index + 1}

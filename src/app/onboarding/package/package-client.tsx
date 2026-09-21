@@ -116,6 +116,7 @@ export function PackageClient({
   const [error, setError] = useState("");
   const [checkoutUrl, setCheckoutUrl] = useState("");
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [checkoutKind, setCheckoutKind] = useState<"pay" | "trial">("pay");
 
   const selectedPlan = PLANS.find((plan) => plan.id === selected) ?? PLANS[0];
   const changingExistingPlan = existingSubscription;
@@ -123,11 +124,13 @@ export function PackageClient({
 
   const checkoutMandatory =
     reactivationMode || changingExistingPlan || viewerModel === "SUBSCRIPTION";
+  const offerFreeTrial =
+    !reactivationMode && !changingExistingPlan && viewerModel === "SUBSCRIPTION";
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function submitPackage(billingMode?: "trial") {
     setError("");
     setPromoMessage("");
+    setCheckoutKind(billingMode === "trial" ? "trial" : "pay");
     setLoading(true);
     try {
       const endpoint = changingExistingPlan
@@ -147,7 +150,9 @@ export function PackageClient({
             : {
                 viewerModel,
                 plan: viewerModel === "SUBSCRIPTION" ? selected : PPV_PLAN.id,
-                promoCode: viewerModel === "SUBSCRIPTION" ? promoCode : undefined,
+                promoCode:
+                  billingMode === "trial" || viewerModel !== "SUBSCRIPTION" ? undefined : promoCode,
+                ...(billingMode === "trial" ? { billingMode: "trial" } : {}),
               },
         ),
       });
@@ -194,6 +199,11 @@ export function PackageClient({
     }
   }
 
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    void submitPackage();
+  }
+
   return (
     <form onSubmit={handleSubmit} className="space-y-8" suppressHydrationWarning>
       <CheckoutModal
@@ -201,16 +211,20 @@ export function PackageClient({
         checkoutUrl={checkoutUrl}
         dismissible={!checkoutMandatory}
         title={
-          reactivationMode || changingExistingPlan
-            ? "Complete subscription payment"
-            : "Complete viewer subscription payment"
+          checkoutKind === "trial"
+            ? "Save your card to start the free trial"
+            : reactivationMode || changingExistingPlan
+              ? "Complete subscription payment"
+              : "Complete viewer subscription payment"
         }
         subtitle={
-          reactivationMode
-            ? "Finish payment to restart your subscription and resume watching."
-            : changingExistingPlan
-              ? "Finish payment to switch household size or viewer model."
-              : "Finish secure payment to activate your package."
+          checkoutKind === "trial"
+            ? "PayFast will save your card. You are not charged today. The 30-day trial starts when the card is confirmed."
+            : reactivationMode
+              ? "Finish payment to restart your subscription and resume watching."
+              : changingExistingPlan
+                ? "Finish payment to switch household size or viewer model."
+                : "Finish secure payment to activate your package."
         }
         onClose={() => setCheckoutOpen(false)}
       />
@@ -508,12 +522,24 @@ export function PackageClient({
         </div>
       )}
 
+      {offerFreeTrial ? (
+        <button
+          type="button"
+          disabled={loading}
+          onClick={() => void submitPackage("trial")}
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-orange-400/40 bg-orange-500/10 py-4 font-semibold text-orange-100 hover:bg-orange-500/20 disabled:opacity-50"
+        >
+          {loading && checkoutKind === "trial" ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
+          Start 30-day free trial
+        </button>
+      ) : null}
+
       <button
         type="submit"
         disabled={loading}
         className="flex w-full items-center justify-center gap-2 rounded-xl bg-orange-500 py-4 font-semibold text-white shadow-glow hover:-translate-y-0.5 hover:bg-orange-400 disabled:opacity-50"
       >
-        {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
+        {loading && checkoutKind !== "trial" ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
         {viewerModel === "SUBSCRIPTION"
           ? reactivationMode
             ? "Pay and activate this plan"
@@ -524,6 +550,11 @@ export function PackageClient({
             ? "Switch to PPV"
             : "Continue with PPV"}
       </button>
+      {offerFreeTrial ? (
+        <p className="text-center text-xs text-slate-400">
+          The free trial starts only after PayFast confirms a saved card. Nothing is charged today. The card is billed when the 30 days end.
+        </p>
+      ) : null}
 
     </form>
   );

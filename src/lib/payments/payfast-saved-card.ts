@@ -123,6 +123,7 @@ export async function upsertPayFastPaymentMethod(args: {
       where: { userId: args.userId, viewerModel: "SUBSCRIPTION" },
       data: { paymentMethodId: updated.id },
     });
+    await clearViewerCardReminderQuietly(args.userId);
     return updated;
   }
 
@@ -144,7 +145,17 @@ export async function upsertPayFastPaymentMethod(args: {
     where: { userId: args.userId, viewerModel: "SUBSCRIPTION" },
     data: { paymentMethodId: created.id },
   });
+  await clearViewerCardReminderQuietly(args.userId);
   return created;
+}
+
+async function clearViewerCardReminderQuietly(userId: string) {
+  try {
+    const { clearViewerCardReminder } = await import("@/lib/viewer-card-reminder");
+    await clearViewerCardReminder(userId);
+  } catch (error) {
+    console.error("viewer card reminder clear failed", error);
+  }
 }
 
 /** Start PayFast tokenization (R0 subscription_type=2) — no card data touches Story Time. */
@@ -155,12 +166,17 @@ export async function createPayFastCardConsentForUser(args: {
   returnUrl: string;
   returnPath?: string;
   referencePrefix?: string;
+  /** Exact PayFast reference. Trial capture uses `trial-consent-{subscriptionId}`. */
+  reference?: string;
+  subscriptionId?: string | null;
 }) {
   if (!isPayFastConfigured()) {
     throw new Error("PayFast is not configured. Card saving requires live PayFast integration.");
   }
 
-  const reference = `${args.referencePrefix ?? "card-consent"}-${args.userId}-${Date.now()}`;
+  const reference =
+    args.reference?.trim() ||
+    `${args.referencePrefix ?? "card-consent"}-${args.userId}-${Date.now()}`;
   const returnPath = args.returnPath?.trim() || "/browse/settings";
   const baseReturnUrl = args.returnUrl.trim() || buildPaymentReturnUrl(returnPath, "payfast_card_consent");
 
@@ -177,6 +193,7 @@ export async function createPayFastCardConsentForUser(args: {
         consentReference: reference,
         returnPath,
         flow: "payfast_card_consent",
+        ...(args.subscriptionId ? { subscriptionId: args.subscriptionId } : {}),
       },
     },
   });
@@ -191,6 +208,7 @@ export async function createPayFastCardConsentForUser(args: {
         returnUrl,
         flow: "payfast_card_consent",
         paymentRecordId: paymentRecord.id,
+        ...(args.subscriptionId ? { subscriptionId: args.subscriptionId } : {}),
       },
     },
   });

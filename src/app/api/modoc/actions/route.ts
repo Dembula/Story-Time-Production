@@ -23,6 +23,8 @@ export async function POST(req: NextRequest) {
     payload?: ModocActionPayload;
     conversationId?: string;
     confirmDestructive?: boolean;
+    pageContext?: Record<string, string | number | boolean | null>;
+    path?: string;
   } | null;
 
   if (!body?.action) {
@@ -39,10 +41,30 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const payload: ModocActionPayload = { ...(body.payload ?? {}) };
+  if (
+    action === "submit_support_ticket" ||
+    action === "lookup_support_ticket" ||
+    action === "list_my_support_tickets"
+  ) {
+    if (!payload.sourceSurface && body.pageContext?.clientSurface) {
+      payload.sourceSurface = String(body.pageContext.clientSurface);
+    }
+    if (!payload.sourcePath && body.path) {
+      payload.sourcePath = body.path;
+    }
+    if (!payload.toolSlug && body.pageContext?.tool) {
+      payload.toolSlug = String(body.pageContext.tool);
+    }
+    if (!payload.projectId && body.pageContext?.projectId) {
+      payload.projectId = String(body.pageContext.projectId);
+    }
+  }
+
   const result = await runVaAction({
     userId,
     action,
-    payload: body.payload ?? {},
+    payload,
     conversationId: body.conversationId,
     confirmDestructive: body.confirmDestructive === true,
   });

@@ -57,6 +57,8 @@ export async function GET(request: NextRequest) {
         ["appleEstimatedFees", bundle.gateways.appleEstimatedFees],
         ["appleProceedsFees", bundle.gateways.appleProceedsFees],
         ["paymentCount", bundle.totals.paymentCount],
+        ["trialCount", bundle.totals.trialCount],
+        ["trialPotentialZar_notRevenue", bundle.totals.trialPotentialZar],
         ["marketplaceTxCount", bundle.totals.marketplaceTxCount],
         ["escrowHeldZar", bundle.retention.escrow.heldZar],
         ["treasuryPlatformRevenue", bundle.retention.treasury.platformRevenueBalance],
@@ -86,7 +88,7 @@ export async function GET(request: NextRequest) {
         "status",
         "currency",
       ],
-      [...bundle.sheets, ...bundle.marketplaceSheets].map((r) => [
+      [...bundle.sheets, ...(bundle.trialSheets || []), ...bundle.marketplaceSheets].map((r) => [
         r.kind,
         r.id,
         r.paidAt ?? "",

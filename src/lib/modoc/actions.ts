@@ -24,6 +24,7 @@ import { executeExtendedModocAction } from "@/lib/modoc/execute-va-extended-acti
 import { executeVaCrudAction } from "@/lib/modoc/execute-va-crud";
 import { executeVaLegalPostAction } from "@/lib/modoc/execute-va-legal-post";
 import { executePriorityModocAction } from "@/lib/modoc/execute-va-priority-actions";
+import { executeVaSupportTicketAction } from "@/lib/modoc/execute-va-support-tickets";
 import type { ModocActionPayload, ModocActionType } from "@/lib/modoc/action-types";
 
 export type { ModocActionPayload, ModocActionType } from "@/lib/modoc/action-types";
@@ -458,6 +459,14 @@ export async function executeModocAction(
         return { ok: false, error: "projectId is required", status: 400 };
       }
       return vaUpdateIdeaNotes(payload.projectId, payload);
+
+    case "submit_support_ticket":
+    case "lookup_support_ticket":
+    case "list_my_support_tickets": {
+      const ticketResult = await executeVaSupportTicketAction(userId, action, payload);
+      if (ticketResult) return ticketResult;
+      return { ok: false, error: "Support ticket action failed", status: 500 };
+    }
 
     default: {
       const legalPost = await executeVaLegalPostAction(userId, action, payload);

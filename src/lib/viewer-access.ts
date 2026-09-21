@@ -20,6 +20,7 @@ type ViewerSubscriptionLike = {
   lastPaymentAt?: Date | string | null;
   renewalAttemptCount?: number | null;
   pastDueSince?: Date | string | null;
+  externalPaymentId?: string | null;
 };
 
 type ViewerContentAccessLike = {
@@ -54,8 +55,14 @@ export function hasViewerRenewalPaymentInFlight(subscription?: ViewerSubscriptio
   return ageMs >= 0 && ageMs < 20 * 60 * 1000;
 }
 
+/** Card must be saved on PayFast before a free trial can start or stream. */
+export function trialCardCaptureRequired(subscription?: ViewerSubscriptionLike | null) {
+  return subscription?.status === "TRIAL_CARD_PENDING";
+}
+
 export function isViewerSubscriptionExpired(subscription?: ViewerSubscriptionLike | null) {
   if (!subscription) return true;
+  if (subscription.status === "TRIAL_CARD_PENDING") return true;
 
   if (getViewerModel(subscription) === VIEWER_MODELS.PPV) {
     return subscription.status === "PAST_DUE" || subscription.status === "CANCELLED";
@@ -124,6 +131,19 @@ export function isInitialSubscriptionPaymentPending(subscription?: ViewerSubscri
 }
 
 export function hasActiveCatalogueSubscription(subscription?: ViewerSubscriptionLike | null) {
+  if (!subscription || trialCardCaptureRequired(subscription)) return false;
+  if (subscription.status === "TRIAL_ACTIVE") {
+    const token = subscription.externalPaymentId?.trim() ?? "";
+    if (
+      !token ||
+      token.startsWith("demo-") ||
+      token.startsWith("trial-consent-") ||
+      token.startsWith("card-consent-") ||
+      token.length < 8
+    ) {
+      return false;
+    }
+  }
   return getViewerModel(subscription) === VIEWER_MODELS.SUBSCRIPTION && !isViewerSubscriptionExpired(subscription);
 }
 

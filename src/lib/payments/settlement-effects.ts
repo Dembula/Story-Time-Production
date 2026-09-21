@@ -116,6 +116,19 @@ export async function applyPaymentRecordSettlementEffects(paymentRecord: {
         },
       });
 
+      if (
+        paymentRecord.userId &&
+        typeof paymentRecord.amount === "number" &&
+        paymentRecord.amount > 0
+      ) {
+        try {
+          const { syncViewerCardReminder } = await import("@/lib/viewer-card-reminder");
+          await syncViewerCardReminder(paymentRecord.userId);
+        } catch (error) {
+          console.error("viewer card reminder failed after payment", error);
+        }
+      }
+
       if (typeof paymentRecord.amount === "number" && paymentRecord.amount > 0) {
         await db.subscriptionPayment.create({
           data: {

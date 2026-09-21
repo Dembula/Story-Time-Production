@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { SubscriptionExpiredModal } from "./subscription-expired-modal";
 import { ViewerSuggestionsTrigger } from "./viewer-suggestions-trigger";
 import { cookies, headers } from "next/headers";
-import { getLatestViewerSubscription, getViewerModel, subscriptionNeedsReactivation } from "@/lib/viewer-access";
+import { getLatestViewerSubscription, getViewerModel, subscriptionNeedsReactivation, trialCardCaptureRequired } from "@/lib/viewer-access";
 import { hasPendingGatewayPayment } from "@/lib/payments/pending-gateway-payment";
 import { isViewerAccountOnboardingComplete } from "@/lib/viewer-account-onboarding";
 import { isViewerProfilePinUnlocked } from "@/lib/viewer-profile-access";
@@ -38,6 +38,9 @@ export default async function BrowseLayout({
       const sub = user?.id ? await getLatestViewerSubscription(user.id) : null;
       if (!sub) {
         redirect("/onboarding/package");
+      }
+      if (trialCardCaptureRequired(sub) && !isAccountManagement) {
+        redirect("/profiles?card=required");
       }
       if (getViewerModel(sub) === "SUBSCRIPTION") {
         const stillProcessing = await hasPendingGatewayPayment("ViewerSubscription", sub.id);

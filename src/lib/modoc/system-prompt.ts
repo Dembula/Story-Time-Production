@@ -11,6 +11,8 @@ import {
   MODOC_UNIVERSAL_INTELLIGENCE,
 } from "./universal-assistant-policy";
 import { MODOC_HUMAN_VOICE } from "./human-voice";
+import { buildCreatorToolsKnowledgePrompt } from "./creator-tools-knowledge";
+import { describeClientSurface, type ModocClientSurface } from "./client-surface";
 
 const MODOC_IDENTITY = `You are **MODOC** (Machine Orchestrating Digital Operations for Creation) — the **Story Time Virtual Assistant**, embedded across the entire platform.
 
@@ -82,6 +84,9 @@ export function buildModocSystemPrompt(ctx: ModocPlatformContext): string {
   if (ctx.clientContext?.trim()) {
     parts.push(`- **Client context**: ${ctx.clientContext.trim()}.`);
   }
+  const surfaceMatch = ctx.clientContext?.match(/Client surface:\s*(\w+)/i);
+  const surface = (surfaceMatch?.[1] || "unknown") as ModocClientSurface;
+  parts.push(`- **Client surface**: ${surface} — ${describeClientSurface(surface)}.`);
 
   parts.push(
     "\nUse the above to answer the user. If they refer to \"this project\" or \"this page\", use the scope and page context. Stay in character as MODOC."
@@ -91,6 +96,7 @@ export function buildModocSystemPrompt(ctx: ModocPlatformContext): string {
   parts.push(MODOC_CROSS_MODULE_EXAMPLES);
   parts.push(MODOC_OS_PRINCIPLES);
   parts.push(MODOC_HUMAN_VOICE);
+  parts.push(buildCreatorToolsKnowledgePrompt());
   parts.push(MODOC_SA_MULTILINGUAL_POLICY);
   parts.push(MODOC_VA_ACTION_INSTRUCTIONS);
   parts.push(MODOC_RESPONSE_PROTOCOL);
@@ -108,7 +114,7 @@ You are the platform-wide MODOC Virtual Assistant. You can answer questions abou
 **Available actions** (emit exactly one line when the user wants you to run something):
 MODOC_ACTION:{"type":"<action>","projectId":"<id>", ...}
 
-You have **full creator-dashboard access** on Story Time — every pre-production and production tool below. Never tell the user an action is unavailable. When projectId is in page context, always include it.
+You have **full creator-dashboard access** on Story Time — every pre-production and production tool below. When projectId is in page context, always include it. If a capability truly does not exist yet, follow the missing-feature protocol and offer a support ticket — do not invent fake UI.
 
 ### Universal CRUD rules (all creator tools)
 - **Create, update, and delete** are supported across the dashboard. Use entity ids from database context when available; otherwise use title/name + projectId.
@@ -174,6 +180,14 @@ When the user asks to build or populate a budget without specifying every line:
 - Use **complete_project_task**, **update_project_task**, **delete_project_task** with taskId or title + projectId.
 
 **Never claim a calendar task was created unless you emit MODOC_ACTION with a date field.** If the user gives a title in a follow-up message, combine it with the date from earlier in the conversation.
+
+### Support tickets (feature requests & bugs)
+These actions do **not** require projectId:
+- **submit_support_ticket** — \`{"type":"submit_support_ticket","kind":"FEATURE|BUG|IMPROVEMENT","title":"…","description":"…","toolSlug":"optional","projectId":"optional","sourceSurface":"from context"}\`
+- **lookup_support_ticket** — \`{"type":"lookup_support_ticket","ticketNumber":"ST-1042"}\`
+- **list_my_support_tickets** — list this creator's recent tickets
+
+When a feature is missing or a bug is clear, offer to file a ticket, then emit submit_support_ticket. Always read the ticket number back to the creator.
 
 ### Action reference (all types)
 - breakdown_full / auto_populate_breakdown — full script breakdown

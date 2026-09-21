@@ -20,6 +20,7 @@ import { initializeCheckout } from "@/lib/payments/billing";
 import { getPaymentGateway } from "@/lib/payments/gateway";
 import { buildPaymentReturnUrl } from "@/lib/payments/return-url";
 import { addViewerSubscriptionPeriod } from "@/lib/payments/billing-interval";
+import { createPayFastCardConsentForUser } from "@/lib/payments/payfast-saved-card";
 
 function promoFailureMessage(reason: string) {
   switch (reason) {
@@ -36,6 +37,14 @@ function promoFailureMessage(reason: string) {
     default:
       return "Promo code could not be redeemed.";
   }
+}
+
+async function userHasUsedFreeTrial(userId: string) {
+  const rows = await prisma.viewerSubscription.findMany({
+    where: { userId },
+    select: { status: true, trialEndsAt: true },
+  });
+  return rows.some((row) => row.trialEndsAt != null || row.status === "TRIAL_ACTIVE");
 }
 
 function isRetryableConsentSetupError(message: string) {
@@ -97,11 +106,13 @@ export async function POST(req: Request) {
   if (!body) {
     return NextResponse.json({ error: "Invalid request payload." }, { status: 400 });
   }
-  const { plan, viewerModel } = body as {
+  const { plan, viewerModel, billingMode } = body as {
     plan?: string;
     viewerModel?: string;
     promoCode?: string;
+    billingMode?: string;
   };
+  const startTrial = billingMode === "trial";
 
   const selectedViewerModel = viewerModel === VIEWER_MODELS.PPV ? VIEWER_MODELS.PPV : VIEWER_MODELS.SUBSCRIPTION;
   const planType =
@@ -143,8 +154,105 @@ export async function POST(req: Request) {
     });
   }
 
-  const initialPaymentPending = Boolean(existing && isInitialSubscriptionPaymentPending(existing));
-  const reactivating = Boolean(existing && subscriptionNeedsReactivation(existing) && !initialPaymentPending);
+  const cardCapturePending = existing?.status === "TRIAL_CARD_PENDING";
+  const initialPaymentPending = Boolean(
+    existing && (isInitialSubscriptionPaymentPending(existing) || cardCapturePending),
+  );
+  const reactivating = Boolean(
+    existing && subscriptionNeedsReactivation(existing) && !initialPaymentPending,
+  );
+
+  if (startTrial) {
+    if (selectedViewerModel !== VIEWER_MODELS.SUBSCRIPTION) {
+      return NextResponse.json(
+        { error: "The free trial is only available on a subscription plan." },
+        { status: 400 },
+      );
+    }
+    if (reactivating || (existing && !initialPaymentPending && existing.status !== "TRIAL_CARD_PENDING")) {
+      return NextResponse.json(
+        { error: "A free trial is only available when you first create an account." },
+        { status: 400 },
+      );
+    }
+    if (await userHasUsedFreeTrial(user.id)) {
+      return NextResponse.json(
+        { error: "This account has already used its free trial." },
+        { status: 400 },
+      );
+    }
+
+    const pendingData = {
+      viewerModel: VIEWER_MODELS.SUBSCRIPTION,
+      plan: planType,
+      status: "TRIAL_CARD_PENDING",
+      trialEndsAt: null,
+      currentPeriodEnd: null,
+      deviceCount: planConfig.deviceCount,
+      profileLimit: planConfig.profileLimit,
+      billingEmail: user.email,
+      externalPaymentId: null,
+      lastPaymentStatus: "PENDING",
+      lastPaymentAt: null,
+      lastPaymentError: null,
+      cancelAtPeriodEnd: false,
+      renewalAttemptCount: 0,
+      pastDueSince: null,
+    };
+
+    const subscription = existing
+      ? await prisma.viewerSubscription.update({
+          where: { id: existing.id },
+          data: pendingData,
+        })
+      : await prisma.viewerSubscription.create({
+          data: {
+            userId: user.id,
+            ...pendingData,
+          },
+        });
+
+    try {
+      const consent = await createPayFastCardConsentForUser({
+        userId: user.id,
+        email: user.email,
+        name: user.name,
+        returnPath: "/profiles?card=required",
+        returnUrl: buildPaymentReturnUrl("/profiles?card=required", "viewer_trial_card_capture"),
+        reference: `trial-consent-${subscription.id}`,
+        subscriptionId: subscription.id,
+      });
+      return NextResponse.json({
+        subscription,
+        profileId: null,
+        redirectTo: "/profiles?card=required",
+        requiresPayment: true,
+        deferCheckout: true,
+        checkoutUrl: consent.checkoutUrl,
+        trialPendingCard: true,
+        message: "Save your card to start the 30-day free trial. You will not be charged today.",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to start card capture.";
+      await prisma.viewerSubscription.update({
+        where: { id: subscription.id },
+        data: {
+          status: "TRIAL_CARD_PENDING",
+          trialEndsAt: null,
+          lastPaymentStatus: "FAILED",
+          lastPaymentError: message,
+        },
+      });
+      return NextResponse.json(
+        {
+          error: isRetryableConsentSetupError(message)
+            ? "Card saving is unavailable right now. The free trial starts only after PayFast confirms a saved card."
+            : message,
+        },
+        { status: 502 },
+      );
+    }
+  }
   const postTrialReturnPath = user.accountOnboardingCompletedAt ? "/browse" : "/profiles";
   const checkoutReturnPath = user.accountOnboardingCompletedAt ? "/profiles" : "/onboarding/account";
 
@@ -303,6 +411,15 @@ export async function POST(req: Request) {
   }
 
   if (initialPaymentPending && existing) {
+    if (cardCapturePending && selectedViewerModel === VIEWER_MODELS.PPV) {
+      return NextResponse.json(
+        {
+          error:
+            "Save your card to start the free trial, or pay for a subscription. Streaming stays locked until a card is confirmed.",
+        },
+        { status: 400 },
+      );
+    }
     if (selectedViewerModel === VIEWER_MODELS.PPV) {
       const updated = await prisma.viewerSubscription.update({
         where: { id: existing.id },
@@ -345,7 +462,7 @@ export async function POST(req: Request) {
       skipPromoRedeem = promoResult.skipRedeem;
     }
 
-    const trialEndsAt = useTrial ? new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000) : null;
+    const trialEndsAt = useTrial ? new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000) : null;
     const currentPeriodEnd =
       useTrial && trialEndsAt ? addViewerSubscriptionPeriod(trialEndsAt) : addViewerSubscriptionPeriod(now);
     const subscription = await prisma.viewerSubscription.update({
@@ -533,7 +650,7 @@ export async function POST(req: Request) {
     appliedPromo = promoResult.promo;
     skipPromoRedeem = promoResult.skipRedeem;
   }
-  const trialEndsAt = useTrial ? new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000) : null;
+  const trialEndsAt = useTrial ? new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000) : null;
   const currentPeriodEnd =
     useTrial && trialEndsAt ? addViewerSubscriptionPeriod(trialEndsAt) : addViewerSubscriptionPeriod(now);
   const subscription = await prisma.viewerSubscription.create({

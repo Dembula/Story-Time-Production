@@ -174,6 +174,8 @@ model User {
   modocActionLogs      ModocActionLog[]
   modocTopicStats      ModocTopicStat[]
   modocSessionIntel    ModocSessionIntel[]
+  vaSupportTicketsCreated  VaSupportTicket[] @relation("VaSupportTicketCreator")
+  vaSupportTicketsReviewed VaSupportTicket[] @relation("VaSupportTicketReviewer")
   budgetsLastGenerated ProjectBudget[] @relation("BudgetLastGeneratedBy")
 
   creatorStudioInvitesSent     CreatorStudioTeamInvite[] @relation("CreatorStudioInviteSender")
@@ -4415,6 +4417,37 @@ model ProjectToolProgress {
   @@unique([projectId, toolId])
   @@index([projectId])
   @@index([phase])
+}
+
+/// Creator VA → admin tickets (feature requests, bugs, improvements). Numbered ST-1001+.
+model VaSupportTicket {
+  id                 String   @id @default(cuid())
+  ticketNumber       String   @unique
+  seq                Int      @unique
+  kind               String   // FEATURE | BUG | IMPROVEMENT | QUESTION
+  title              String
+  description        String   @db.Text
+  status             String   @default("OPEN") // OPEN | IN_PROGRESS | APPROVED | FIXED | REJECTED | CLOSED
+  /// Internal admin notes (optional; may also inform creator when rejected).
+  adminNotes         String?  @db.Text
+  /// Note the VA should share with the creator on status lookup.
+  creatorVisibleNote String?  @db.Text
+  sourceSurface      String?
+  sourcePath         String?
+  toolSlug           String?
+  projectId          String?
+  conversationId     String?
+  createdById        String
+  createdBy          User     @relation("VaSupportTicketCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  reviewedById       String?
+  reviewedBy         User?    @relation("VaSupportTicketReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedAt         DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([createdById, status])
+  @@index([status, createdAt])
+  @@index([kind, status])
 }
 
 // --- MODOC (AI assistant) conversation persistence ---

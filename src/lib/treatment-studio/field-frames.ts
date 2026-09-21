@@ -59,3 +59,9 @@ export function fieldsForLayout(layout: TreatmentSlideLayout): TreatmentFieldKey
       return [];
   }
 }
+
+/** Visible layout fields after the creator has deleted optional placeholders. */
+export function visibleFieldsForSlide(slide: TreatmentSlide): TreatmentFieldKey[] {
+  const hidden = new Set(slide.hiddenFields ?? []);
+  return fieldsForLayout(slide.layout).filter((key) => !hidden.has(key));
+}

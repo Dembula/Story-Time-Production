@@ -322,6 +322,15 @@ export const authOptions: NextAuthOptions = {
           deviceType: meta.deviceType,
         },
       });
+
+      if (user.id) {
+        try {
+          const { syncViewerCardReminder } = await import("@/lib/viewer-card-reminder");
+          await syncViewerCardReminder(user.id, { resurface: true });
+        } catch (error) {
+          console.error("viewer card reminder failed on sign-in:", error);
+        }
+      }
     },
   },
   callbacks: {

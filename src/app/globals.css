@@ -998,28 +998,79 @@ select optgroup {
 /* Treatment Creator studio (Frameset-style pitch deck) */
 .treatment-studio {
   --treatment-canvas-bg: #ffffff;
+  --treatment-stage-max-h: min(72dvh, 100svh - 12rem);
+  --treatment-stage-ratio: 16 / 9;
+}
+
+/* Invisible stage box: sizes itself to fit width AND height without black gaps
+   (Chrome/WebKit often leave empty stage when aspect-ratio + max-height:100% fight). */
+.treatment-editor-stage,
+.treatment-presenter-stage {
+  --treatment-stage-ratio: 16 / 9;
+  position: relative;
+  display: block;
+  margin-inline: auto;
+  max-width: 960px;
+  /* Width capped so height from aspect-ratio never exceeds --treatment-stage-max-h */
+  width: min(100%, calc(var(--treatment-stage-max-h) * 16 / 9));
+  aspect-ratio: var(--treatment-stage-ratio);
+  max-height: var(--treatment-stage-max-h);
+  height: auto;
+  overflow: hidden;
+  isolation: isolate;
+  contain: layout paint;
+  padding: 0;
+  box-sizing: border-box;
+  /* Soft invisible clip edge so overflow never paints as black void */
+  clip-path: inset(0);
+}
+
+.treatment-editor-stage[data-aspect="4:3"],
+.treatment-presenter-stage[data-aspect="4:3"] {
+  --treatment-stage-ratio: 4 / 3;
+  width: min(100%, calc(var(--treatment-stage-max-h) * 4 / 3));
 }
 
 .treatment-slide-canvas {
   container-type: inline-size;
   container-name: treatment-slide;
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
-  width: 100%;
-  max-width: 960px;
+  box-sizing: border-box;
 }
 
-.treatment-editor-stage,
-.treatment-presenter-stage {
-  width: 100%;
-  max-width: 960px;
-  margin-inline: auto;
-}
-
-.treatment-editor-stage .treatment-slide-canvas,
-.treatment-presenter-stage .treatment-slide-canvas {
-  width: 100%;
-  max-width: none;
+.treatment-slide-canvas--editor,
+.treatment-editor-stage .treatment-slide-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  aspect-ratio: unset !important;
   border-radius: 0.25rem;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+}
+
+.treatment-slide-canvas--present,
+.treatment-presenter-stage .treatment-slide-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  aspect-ratio: unset !important;
+  border-radius: 0.25rem;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+}
+
+.treatment-slide-canvas--thumb {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  aspect-ratio: unset !important;
+  box-shadow: none !important;
+  border-radius: 0;
 }
 
 /* Slide-relative type scale — same in editor and presentation (no viewport breakpoints) */
@@ -1111,6 +1162,14 @@ select optgroup {
 .treatment-slide-thumb {
   aspect-ratio: 16 / 9;
   background: #111;
+  position: relative;
+  overflow: hidden;
+  /* Prevent scaled canvas layout box from expanding the thumb (Chrome/WebKit) */
+  contain: layout paint size;
+  isolation: isolate;
+  /* Hard clip — some Blink builds ignore overflow on aspect-ratio buttons */
+  clip-path: inset(0);
+  max-height: none;
 }
 
 .treatment-assets-panel {
@@ -1120,6 +1179,7 @@ select optgroup {
 @media (max-width: 768px) {
   .treatment-studio {
     min-height: auto;
+    --treatment-stage-max-h: min(52dvh, 100svh - 11rem);
   }
 
   .treatment-assets-panel {
@@ -1130,6 +1190,12 @@ select optgroup {
     z-index: 30;
     max-height: none;
     box-shadow: -8px 0 32px rgba(0, 0, 0, 0.5);
+  }
+}
+
+@media (max-height: 720px) {
+  .treatment-studio {
+    --treatment-stage-max-h: min(58dvh, 100svh - 10rem);
   }
 }
 

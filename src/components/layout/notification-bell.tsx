@@ -420,7 +420,11 @@ export function NotificationBell() {
                             ) : linkUrl ? (
                               <button
                                 type="button"
-                                className="text-[11px] font-medium text-orange-300 hover:text-orange-200"
+                                className={
+                                  n.type === "VIEWER_PAYMENT_SETUP"
+                                    ? "rounded-lg bg-orange-500 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-orange-400"
+                                    : "text-[11px] font-medium text-orange-300 hover:text-orange-200"
+                                }
                                 onClick={() => {
                                   void markOneRead(n.id);
                                   setOpen(false);

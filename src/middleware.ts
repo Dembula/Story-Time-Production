@@ -37,7 +37,7 @@ export async function middleware(req: NextRequest) {
     });
   }
 
-  if (path.startsWith("/browse/account")) {
+  if (path.startsWith("/browse/account") || path.startsWith("/browse/settings")) {
     const requestHeaders = new Headers(req.headers);
     requestHeaders.set("x-browse-account-access", "1");
     return NextResponse.next({

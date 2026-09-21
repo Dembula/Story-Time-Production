@@ -89,7 +89,10 @@ export type ModocActionType =
   | "create_post_review"
   | "add_post_review_note"
   | "update_post_review"
-  | "delete_post_review";
+  | "delete_post_review"
+  | "submit_support_ticket"
+  | "lookup_support_ticket"
+  | "list_my_support_tickets";
 
 export type ModocActionPayload = {
   projectId?: string;
@@ -155,6 +158,13 @@ export type ModocActionPayload = {
   cutAssetId?: string;
   resourceType?: string;
   resourceId?: string;
+  /** Support ticket fields */
+  kind?: string;
+  ticketNumber?: string;
+  ticketKind?: string;
+  sourceSurface?: string;
+  sourcePath?: string;
+  toolSlug?: string;
 };
 
 /** All actions the VA can execute — used for validation and prompts. */
@@ -250,6 +260,9 @@ export const MODOC_ACTION_TYPES: ModocActionType[] = [
   "add_post_review_note",
   "update_post_review",
   "delete_post_review",
+  "submit_support_ticket",
+  "lookup_support_ticket",
+  "list_my_support_tickets",
 ];
 
 const ACTION_ALIASES: Record<string, ModocActionType> = {
@@ -440,6 +453,17 @@ const ACTION_ALIASES: Record<string, ModocActionType> = {
   review_note: "add_post_review_note",
   edit_review: "update_post_review",
   remove_review: "delete_post_review",
+
+  // Support tickets
+  file_ticket: "submit_support_ticket",
+  create_ticket: "submit_support_ticket",
+  feature_request: "submit_support_ticket",
+  bug_report: "submit_support_ticket",
+  submit_ticket: "submit_support_ticket",
+  check_ticket: "lookup_support_ticket",
+  ticket_status: "lookup_support_ticket",
+  my_tickets: "list_my_support_tickets",
+  list_tickets: "list_my_support_tickets",
 };
 
 export function normalizeModocActionType(raw: string): ModocActionType | null {

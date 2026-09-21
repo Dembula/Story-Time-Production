@@ -158,6 +158,7 @@ export function resolveNotificationUrl(
 }
 
 export function notificationActionLabel(n: NotificationItem): string {
+  if (n.type === "VIEWER_PAYMENT_SETUP") return "Take me to profile";
   if (n.type === "VA_ACTION_COMPLETE") return "View result";
   if (n.type === "CONTENT_UPLOAD_COMPLETE") return "View catalogue";
   if (n.type === "CONTENT_UPLOAD_FAILED") return "Fix upload";

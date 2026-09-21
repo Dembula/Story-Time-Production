@@ -105,10 +105,11 @@ export function TreatmentPresenter({
         </Button>
       </div>
 
-      <div className="flex flex-1 items-center justify-center bg-black p-6 md:p-12">
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-black p-6 md:p-12">
         <button
           type="button"
-          className="treatment-presenter-stage w-full cursor-pointer border-0 bg-transparent p-0 text-left"
+          className="treatment-presenter-stage cursor-pointer border-0 bg-transparent p-0 text-left"
+          data-aspect={document.settings.aspectRatio === "4:3" ? "4:3" : "16:9"}
           onClick={() => {
             if (!hasClip) {
               goNext();
@@ -132,6 +133,7 @@ export function TreatmentPresenter({
             aspectRatio={document.settings.aspectRatio}
             readOnly
             presentMode
+            variant="present"
             clipPlaying={clipPlaying}
             selectedElementId={null}
             projectId={projectId}

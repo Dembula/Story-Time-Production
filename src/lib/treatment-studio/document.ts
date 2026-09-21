@@ -1,6 +1,7 @@
 import type {
   TreatmentDocument,
   TreatmentElement,
+  TreatmentFieldKey,
   TreatmentSlide,
   TreatmentSlideLayout,
 } from "./types";
@@ -363,7 +364,17 @@ function normalizeSlide(raw: unknown): TreatmentSlide {
       : [],
     elements,
     fieldFrames: normalizeFieldFrames(s.fieldFrames),
+    hiddenFields: normalizeHiddenFields(s.hiddenFields),
   };
+}
+
+function normalizeHiddenFields(raw: unknown): TreatmentFieldKey[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const allowed = new Set(["title", "subtitle", "body"]);
+  const out = raw.filter(
+    (k): k is TreatmentFieldKey => typeof k === "string" && allowed.has(k),
+  );
+  return out.length ? Array.from(new Set(out)) : undefined;
 }
 
 function normalizeFieldFrames(
@@ -589,5 +600,43 @@ export function placeAssetOnSlideDocument(
     },
     selectedElementId: el.id,
   };
+}
+
+/** Soft-delete a layout text box (title / subtitle / body) — optional like Keynote placeholders. */
+export function hideSlideField(
+  slide: TreatmentSlide,
+  key: TreatmentFieldKey,
+): Partial<TreatmentSlide> {
+  const hidden = new Set(slide.hiddenFields ?? []);
+  hidden.add(key);
+  const patch: Partial<TreatmentSlide> = {
+    hiddenFields: Array.from(hidden),
+  };
+  if (key === "title") patch.title = "";
+  if (key === "subtitle") patch.subtitle = "";
+  if (key === "body") patch.body = "";
+  return patch;
+}
+
+/** Restore a previously deleted layout text box. */
+export function restoreSlideField(
+  slide: TreatmentSlide,
+  key: TreatmentFieldKey,
+  seed?: string,
+): Partial<TreatmentSlide> {
+  const hidden = (slide.hiddenFields ?? []).filter((k) => k !== key);
+  const patch: Partial<TreatmentSlide> = {
+    hiddenFields: hidden.length ? hidden : undefined,
+  };
+  if (key === "title" && !(slide.title || "").trim()) {
+    patch.title = seed ?? "Title";
+  }
+  if (key === "subtitle" && !(slide.subtitle || "").trim()) {
+    patch.subtitle = seed ?? "Subtitle";
+  }
+  if (key === "body" && !(slide.body || "").trim()) {
+    patch.body = seed ?? "Body text";
+  }
+  return patch;
 }
 

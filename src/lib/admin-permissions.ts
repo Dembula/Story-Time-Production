@@ -25,7 +25,7 @@ export const ADMIN_RIGHT_SUITES: { key: AdminRightKey; label: string; descriptio
   { key: "canManageFinance", label: "Finance operations", description: "Payments, promo codes, funders, payout KYC" },
   { key: "canManageCompetition", label: "Competition", description: "Competition programs and judging" },
   { key: "canViewActivity", label: "Activity intelligence", description: "Platform activity log and telemetry" },
-  { key: "canManageSystem", label: "System & AI", description: "AI/VA settings and platform tools" },
+  { key: "canManageSystem", label: "System & AI", description: "AI/VA settings, VA tickets, and platform tools" },
 ];
 
 /** Primary platform owner — permanent full access; cannot be revoked or modified. */
@@ -109,6 +109,7 @@ const ADMIN_PATH_RULES: { prefix: string; right: AdminRightKey | null }[] = [
   { prefix: "/admin/payout-verification", right: "canManageFinance" },
   { prefix: "/admin/competition", right: "canManageCompetition" },
   { prefix: "/admin/ai", right: "canManageSystem" },
+  { prefix: "/admin/va-tickets", right: "canManageSystem" },
   { prefix: "/admin/revenue-connector", right: "canManageSystem" },
   { prefix: "/api/admin/users", right: "canManageUsers" },
   { prefix: "/api/admin/creators", right: "canManageUsers" },
@@ -138,6 +139,7 @@ const ADMIN_PATH_RULES: { prefix: string; right: AdminRightKey | null }[] = [
   { prefix: "/api/admin/payout", right: "canManageFinance" },
   { prefix: "/api/admin/competition", right: "canManageCompetition" },
   { prefix: "/api/admin/ai", right: "canManageSystem" },
+  { prefix: "/api/admin/va-tickets", right: "canManageSystem" },
   { prefix: "/api/admin/revenue-connector", right: "canManageSystem" },
   { prefix: "/api/admin/email-smoke-test", right: "canManageSystem" },
   { prefix: "/api/admin/stats", right: null },
@@ -214,6 +216,7 @@ const NAV_ITEM_RIGHTS: Record<string, AdminRightKey | null> = {
   "/admin/requests": "canManageUsers",
   "/admin/activity": "canViewActivity",
   "/admin/ai": "canManageSystem",
+  "/admin/va-tickets": "canManageSystem",
   "/admin/competition": "canManageCompetition",
   "/admin/revenue-connector": "canManageSystem",
   "/browse": null,

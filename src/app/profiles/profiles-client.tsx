@@ -9,6 +9,7 @@ import { VIEWER_GENDER_OPTIONS, VIEWER_RACE_OPTIONS } from "@/lib/viewer-demogra
 import { ProfilePinModal } from "@/components/viewer/profile-pin-modal";
 import { LogOutButton } from "@/components/auth/log-out-button";
 import { SubscriptionResumeButton } from "@/components/viewer/subscription-resume-checkout";
+import { CheckoutModal } from "@/components/payments/checkout-modal";
 import { formatPpvAccessWindowLabel } from "@/lib/pricing";
 
 type Profile = {
@@ -83,6 +84,10 @@ export function ProfilesClient({
   paymentStillProcessing = false,
   pendingPaymentRecordId = null,
   pendingPinProfile = null,
+  cardRequired = false,
+  cardCaptureCancelled = false,
+  pendingTrialConsentPaymentId = null,
+  subscriptionPlan = "BASE_1",
 }: {
   initialProfiles: Profile[];
   maxProfiles: number;
@@ -95,6 +100,10 @@ export function ProfilesClient({
   paymentStillProcessing?: boolean;
   pendingPaymentRecordId?: string | null;
   pendingPinProfile?: { id: string; name: string } | null;
+  cardRequired?: boolean;
+  cardCaptureCancelled?: boolean;
+  pendingTrialConsentPaymentId?: string | null;
+  subscriptionPlan?: string;
 }) {
   const router = useRouter();
   const [profiles, setProfiles] = useState<Profile[]>(initialProfiles ?? []);
@@ -113,12 +122,15 @@ export function ProfilesClient({
   const [pinModalProfile, setPinModalProfile] = useState<Profile | null>(null);
   const [pinModalError, setPinModalError] = useState("");
   const [paymentConfirmTimedOut, setPaymentConfirmTimedOut] = useState(false);
+  const [trialCheckoutUrl, setTrialCheckoutUrl] = useState("");
+  const [trialCheckoutOpen, setTrialCheckoutOpen] = useState(false);
   const refreshedForPaymentRef = useRef<string | null>(null);
   const paymentPendingCheckout = paymentRequired || needsReactivation || subscriptionStatus === "PAST_DUE" || subscriptionStatus === "CANCELLED";
-  const paymentBlocked = paymentPendingCheckout && !paymentStillProcessing;
+  const paymentBlocked = paymentPendingCheckout && !paymentStillProcessing && !cardRequired;
   // While PayFast is still confirming, do not hard-lock the page into a refresh trap —
   // users with an already-active subscription can continue; only unpaid accounts stay gated.
-  const accessLocked = paymentBlocked;
+  // A free trial stays locked until PayFast confirms a saved card.
+  const accessLocked = paymentBlocked || cardRequired;
   const canCreateMore = profiles.length < maxProfiles;
   const { years, months } = getBirthDateOptionSets();
   const days = useMemo(() => {
@@ -190,6 +202,34 @@ export function ProfilesClient({
   }, [paymentStillProcessing, pendingPaymentRecordId]);
 
   useEffect(() => {
+    if (!cardRequired || !pendingTrialConsentPaymentId) return;
+    let cancelled = false;
+    const poll = async () => {
+      for (let i = 0; i < 40 && !cancelled; i++) {
+        try {
+          const res = await fetch(
+            `/api/payments/status?paymentRecordId=${encodeURIComponent(pendingTrialConsentPaymentId)}`,
+            { cache: "no-store" },
+          );
+          const data = await res.json().catch(() => ({}));
+          const status = String(data?.payment?.status || "").toUpperCase();
+          if (status === "SUCCEEDED") {
+            if (!cancelled) router.refresh();
+            return;
+          }
+        } catch {
+          // retry
+        }
+        await new Promise((r) => setTimeout(r, 3000));
+      }
+    };
+    void poll();
+    return () => {
+      cancelled = true;
+    };
+  }, [cardRequired, pendingTrialConsentPaymentId, router]);
+
+  useEffect(() => {
     if (!pendingPinProfile) return;
     const profile = profiles.find((p) => p.id === pendingPinProfile.id);
     if (profile) {
@@ -240,7 +280,39 @@ export function ProfilesClient({
     }
   }
 
+  async function retryTrialCardCapture() {
+    setError("");
+    setLoading("trial-card");
+    try {
+      const res = await fetch("/api/viewer/subscription", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          billingMode: "trial",
+          viewerModel: "SUBSCRIPTION",
+          plan: subscriptionPlan,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Unable to open card setup.");
+      if (typeof data?.checkoutUrl === "string" && data.checkoutUrl) {
+        setTrialCheckoutUrl(data.checkoutUrl);
+        setTrialCheckoutOpen(true);
+        return;
+      }
+      throw new Error("Unable to open card setup. Please try again.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to open card setup.");
+    } finally {
+      setLoading(null);
+    }
+  }
+
   function requestProfile(profile: Profile) {
+    if (cardRequired) {
+      setError("Save your card to start the free trial before you can watch.");
+      return;
+    }
     if (accessLocked) {
       setError("Complete your subscription payment before entering the catalogue.");
       return;
@@ -320,6 +392,14 @@ export function ProfilesClient({
 
   return (
     <div className="space-y-8">
+      <CheckoutModal
+        open={trialCheckoutOpen}
+        checkoutUrl={trialCheckoutUrl}
+        dismissible
+        title="Save your card to start the free trial"
+        subtitle="PayFast will save your card. You are not charged today. The 30-day trial starts when the card is confirmed."
+        onClose={() => setTrialCheckoutOpen(false)}
+      />
       <div className="flex shrink-0 justify-end">
         <LogOutButton label="Log out to home" />
       </div>
@@ -375,6 +455,27 @@ export function ProfilesClient({
         </div>
       ) : null}
 
+      {cardRequired ? (
+        <div className="rounded-xl border border-orange-400/30 bg-orange-500/10 p-4 text-sm text-orange-100 shadow-panel">
+          <p className="font-medium text-white">Save your card to start the free trial</p>
+          <p className="mt-1 text-orange-100/90">
+            {cardCaptureCancelled
+              ? "Card setup was cancelled. Your trial has not started, and streaming stays locked until PayFast confirms a saved card."
+              : "Nothing is charged today. The 30 days start when PayFast confirms the card. Until then you can only use this page or log out."}
+          </p>
+          <div className="mt-3">
+            <button
+              type="button"
+              disabled={loading === "trial-card"}
+              onClick={() => void retryTrialCardCapture()}
+              className="inline-flex rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-400 disabled:opacity-60"
+            >
+              {loading === "trial-card" ? "Opening PayFast…" : "Save card"}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       {paymentBlocked ? (
         <div className="rounded-xl border border-orange-400/30 bg-orange-500/10 p-4 text-sm text-orange-100 shadow-panel">
           <p className="font-medium text-white">Subscription payment required</p>
@@ -424,7 +525,11 @@ export function ProfilesClient({
       {profiles.length === 0 && !creating && (
         <div className="mb-6 rounded-2xl border border-orange-400/20 bg-orange-500/6 p-6 shadow-panel">
           <p className="text-orange-200 font-medium">
-            {viewerModel === "PPV" ? "Create your viewer profile to continue." : "Create your first profile to start watching."}
+            {viewerModel === "PPV"
+              ? "Create your viewer profile to continue."
+              : cardRequired
+                ? "Create a profile now. Watching stays locked until your card is saved."
+                : "Create your first profile to start watching."}
           </p>
           <p className="text-slate-400 text-sm mt-1">
             {viewerModel === "PPV"

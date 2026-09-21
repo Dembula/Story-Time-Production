@@ -20,6 +20,7 @@ import { resolveFinancePeriodRange, type FinancePeriodKey } from "@/lib/finance/
 import { aggregateCompletedMarketplaceFees } from "@/lib/financial-ledger";
 import { isViewerPoolPaymentPurpose } from "@/lib/payments/viewer-pool-purposes";
 import { roundMoney } from "@/lib/payments/config";
+import { getViewerPlanConfigById } from "@/lib/pricing";
 import {
   hasCreatorPoolDistribution,
   getPreviousCalendarMonthRange,
@@ -39,7 +40,7 @@ const db = prisma as any;
 
 export type FinanceSheetRow = {
   id: string;
-  kind: "payment" | "marketplace";
+  kind: "payment" | "marketplace" | "trial";
   paidAt: string | null;
   provider: string;
   purpose: string;
@@ -51,7 +52,7 @@ export type FinanceSheetRow = {
   creatorShare: number;
   settlementSource: string | null;
   currency: string;
-  fundingSource: "cash" | "promo" | "demo" | "other";
+  fundingSource: "cash" | "promo" | "demo" | "other" | "trial";
   status: string;
   fundsClearStatus: "cleared" | "pending" | "not_applicable";
   fundsClearLabel: string;
@@ -95,6 +96,9 @@ export type FinanceOverviewBundle = {
     /** Cash recognized but not yet cleared (awaiting PayFast 3d / Apple 45d). */
     pendingClearNet: number;
     pendingClearCount: number;
+    /** List price of active free trials in the period. Not included in gross, net, or pool. */
+    trialPotentialZar: number;
+    trialCount: number;
   };
   revenueTracking: {
     enabled: boolean;
@@ -133,6 +137,7 @@ export type FinanceOverviewBundle = {
   series: Array<{ date: string; gross: number; fees: number; net: number }>;
   sheets: FinanceSheetRow[];
   marketplaceSheets: FinanceSheetRow[];
+  trialSheets: FinanceSheetRow[];
   promo: PromoLiabilityBundle;
   funding: FundingMoneyBundle;
   retention: RetentionBreakdownBundle;
@@ -168,7 +173,8 @@ export async function fetchFinanceOverviewBundle(options: {
   const feeSettings = await getFinanceFeeSettings();
   const sheetLimit = Math.min(500, Math.max(50, options.sheetLimit ?? 200));
 
-  const [payments, marketplace, webhookEvents, pendingPayouts, paidPayouts, marketplaceTxs] =
+  const trialWindowEnd = new Date(range.periodEnd.getTime() + 30 * 24 * 60 * 60 * 1000);
+  const [payments, marketplace, webhookEvents, pendingPayouts, paidPayouts, marketplaceTxs, activeTrials] =
     await Promise.all([
       prisma.paymentRecord.findMany({
         where: {
@@ -225,6 +231,22 @@ export async function fetchFinanceOverviewBundle(options: {
           payee: { select: { id: true, name: true, email: true } },
         },
         orderBy: { createdAt: "desc" },
+        take: sheetLimit,
+      }),
+      prisma.viewerSubscription.findMany({
+        where: {
+          status: "TRIAL_ACTIVE",
+          viewerModel: "SUBSCRIPTION",
+          trialEndsAt: { gte: range.periodStart, lte: trialWindowEnd },
+        },
+        select: {
+          id: true,
+          plan: true,
+          status: true,
+          trialEndsAt: true,
+          user: { select: { id: true, name: true, email: true } },
+        },
+        orderBy: { trialEndsAt: "desc" },
         take: sheetLimit,
       }),
     ]);
@@ -445,6 +467,50 @@ export async function fetchFinanceOverviewBundle(options: {
     };
   });
 
+  const TRIAL_MS = 30 * 24 * 60 * 60 * 1000;
+  const trialSheets: FinanceSheetRow[] = [];
+  let trialPotentialZar = 0;
+  for (const trial of activeTrials) {
+    if (!trial.trialEndsAt) continue;
+    const endsAt = new Date(trial.trialEndsAt);
+    const startedAt = new Date(endsAt.getTime() - TRIAL_MS);
+    if (startedAt > range.periodEnd || endsAt < range.periodStart) continue;
+    const plan = getViewerPlanConfigById(trial.plan);
+    const potential = roundMoney(plan.price);
+    trialPotentialZar = roundMoney(trialPotentialZar + potential);
+    const endsLabel = endsAt.toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" });
+    trialSheets.push({
+      id: trial.id,
+      kind: "trial",
+      paidAt: startedAt.toISOString(),
+      provider: "TRIAL",
+      purpose: "viewer_free_trial",
+      purposeLabel: `Free trial · ${plan.label} · ends ${endsLabel}`,
+      gross: potential,
+      gatewayFee: 0,
+      net: 0,
+      platformShare: 0,
+      creatorShare: 0,
+      settlementSource: "free_trial",
+      currency: "ZAR",
+      fundingSource: "trial",
+      status: trial.status,
+      fundsClearStatus: "not_applicable",
+      fundsClearLabel: "Potential · not revenue",
+      fundsClearDueAt: endsAt.toISOString(),
+      fundsClearedAt: null,
+      fundsClearDaysRemaining: null,
+      fundsClearDelayDays: null,
+      canClearEarly: false,
+      payer: {
+        id: trial.user?.id ?? null,
+        name: trial.user?.name ?? null,
+        email: trial.user?.email ?? null,
+      },
+      payee: null,
+    });
+  }
+
   const viewerSplit = splitViewerRevenueWithRates(viewerPoolNet, feeSettings);
   const platformTotalRetained = roundMoney(
     viewerSplit.platform + serviceRevenueNet + marketplaceFees,
@@ -499,6 +565,8 @@ export async function fetchFinanceOverviewBundle(options: {
       fundingSettledZar: funding.dealPayments.settledZar,
       pendingClearNet,
       pendingClearCount,
+      trialPotentialZar,
+      trialCount: trialSheets.length,
     },
     revenueTracking: {
       enabled: connector.creatorRevenueTrackingEnabled,
@@ -528,6 +596,7 @@ export async function fetchFinanceOverviewBundle(options: {
       .map(([date, v]) => ({ date, ...v })),
     sheets,
     marketplaceSheets,
+    trialSheets,
     promo,
     funding,
     retention,

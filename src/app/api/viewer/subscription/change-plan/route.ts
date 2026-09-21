@@ -98,6 +98,12 @@ export async function POST(req: Request) {
   if (!loaded) return NextResponse.json({ error: "User not found" }, { status: 404 });
   const { user, subscription } = loaded;
   if (!subscription) return NextResponse.json({ error: "Subscription not found" }, { status: 404 });
+  if (subscription.status === "TRIAL_CARD_PENDING") {
+    return NextResponse.json(
+      { error: "Save your card to start the free trial before changing plans." },
+      { status: 400 },
+    );
+  }
 
   const quote = quoteViewerPlanChange(subscription, planType, selectedViewerModel);
   const samePlanNoCharge =

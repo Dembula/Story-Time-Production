@@ -62,6 +62,8 @@ export type TreatmentSlide = {
   elements: TreatmentElement[];
   /** Absolute % frames for layout title/subtitle/body — enables move/resize. */
   fieldFrames?: Partial<Record<TreatmentFieldKey, TreatmentFieldFrame>>;
+  /** Layout text boxes the creator removed (Keynote-style optional placeholders). */
+  hiddenFields?: TreatmentFieldKey[];
 };
 
 export type TreatmentDocument = {

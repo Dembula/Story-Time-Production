@@ -53,6 +53,7 @@ export const adminNavSections: DashboardNavSection[] = [
     title: "System",
     items: [
       { href: "/admin/ai", label: "AI & VA" },
+      { href: "/admin/va-tickets", label: "VA tickets", highlight: true },
       { href: "/admin/competition", label: "Competition" },
       { href: "/admin/revenue-connector", label: "Revenue connector", highlight: true },
       { href: "/browse", label: "View public site" },

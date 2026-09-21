@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { PackageClient } from "./package-client";
-import { getViewerModel, isInitialSubscriptionPaymentPending, subscriptionNeedsReactivation } from "@/lib/viewer-access";
+import { getViewerModel, isInitialSubscriptionPaymentPending, subscriptionNeedsReactivation, trialCardCaptureRequired } from "@/lib/viewer-access";
 import { OnboardingExitBar } from "@/components/auth/onboarding-exit-bar";
 
 export default async function OnboardingPackagePage() {
@@ -26,9 +26,10 @@ export default async function OnboardingPackagePage() {
   });
 
   const sub = user?.viewerSubscriptions?.[0];
-  const existingSubscription = Boolean(sub);
+  const cardCapturePending = trialCardCaptureRequired(sub);
+  const existingSubscription = Boolean(sub) && !cardCapturePending;
   const reactivationMode = Boolean(
-    sub && subscriptionNeedsReactivation(sub) && !isInitialSubscriptionPaymentPending(sub),
+    sub && subscriptionNeedsReactivation(sub) && !isInitialSubscriptionPaymentPending(sub) && !cardCapturePending,
   );
   const changePlanMode = existingSubscription && !isInitialSubscriptionPaymentPending(sub);
   const initialViewerModel = sub ? getViewerModel(sub) : undefined;

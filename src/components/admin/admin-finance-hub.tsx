@@ -66,7 +66,7 @@ export function AdminFinanceHub() {
   const [period, setPeriod] = useState<FinancePeriodKey>("mtd");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
-  const [sheetFilter, setSheetFilter] = useState<"all" | "payment" | "marketplace">("all");
+  const [sheetFilter, setSheetFilter] = useState<"all" | "payment" | "marketplace" | "trial">("all");
   const [sheetSearch, setSheetSearch] = useState("");
   const [detail, setDetail] = useState<{ kind: "payment" | "marketplace"; id: string } | null>(null);
   const [settingsForm, setSettingsForm] = useState({
@@ -227,8 +227,9 @@ export function AdminFinanceHub() {
   const sheetRows = useMemo(() => {
     if (!bundle) return [] as FinanceSheetRow[];
     const merged = [
-      ...(sheetFilter !== "marketplace" ? bundle.sheets : []),
-      ...(sheetFilter !== "payment" ? bundle.marketplaceSheets || [] : []),
+      ...(sheetFilter === "all" || sheetFilter === "payment" ? bundle.sheets : []),
+      ...(sheetFilter === "all" || sheetFilter === "marketplace" ? bundle.marketplaceSheets || [] : []),
+      ...(sheetFilter === "all" || sheetFilter === "trial" ? bundle.trialSheets || [] : []),
     ].sort((a, b) => String(b.paidAt || "").localeCompare(String(a.paidAt || "")));
     const needle = sheetSearch.trim().toLowerCase();
     if (!needle) return merged;
@@ -342,6 +343,29 @@ export function AdminFinanceHub() {
                 : "—"}
               . Existing subscribers count on their next renewal; new subscribers count after clear.
             </p>
+          </div>
+          <div className="rounded-xl border border-violet-400/30 bg-violet-500/10 p-4 sm:flex sm:items-center sm:justify-between sm:gap-6">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-violet-200">Free trial pipeline</p>
+              <p className="mt-1 text-2xl font-semibold text-white">
+                {money.format(bundle.totals.trialPotentialZar)}
+              </p>
+              <p className="mt-1 max-w-xl text-xs text-violet-100/80">
+                {bundle.totals.trialCount} active {bundle.totals.trialCount === 1 ? "trial" : "trials"} in
+                this period, priced at the monthly plan they would pay if they convert. This figure is
+                potential only and is not included in cleared revenue, gateway fees, or the creator pool.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setSheetFilter("trial");
+                selectTab("sheets");
+              }}
+              className="mt-3 shrink-0 rounded-lg bg-violet-500/20 px-3 py-2 text-xs font-semibold text-violet-100 hover:bg-violet-500/30 sm:mt-0"
+            >
+              View trial transactions
+            </button>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Kpi
@@ -458,25 +482,33 @@ export function AdminFinanceHub() {
               <div>
                 <h2 className="text-sm font-semibold text-white">Transaction dossier sheet</h2>
                 <p className="mt-1 text-xs text-slate-500">
-                  Click any row for detail. Clear status shows the PayFast 3-day / Apple 45-day clock
-                  for payments from 18 Sep 2026 onward. Earlier invoices show{" "}
-                  <span className="text-slate-300">Before tracking</span> and do not count.
-                  Use <span className="text-amber-200">Cleared</span> to mark early settlement when
-                  gateway funds have landed.
-                  funds arrive sooner — only cleared cash feeds the creator pool and revenue KPIs.
+                  Click a payment or marketplace row for detail. Free trials appear in violet at
+                  their monthly plan price so you can see potential revenue. Their fee and net stay
+                  at zero and they are excluded from cleared revenue and the creator pool.
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
-                {(["all", "payment", "marketplace"] as const).map((f) => (
+                {(
+                  [
+                    ["all", "All"],
+                    ["payment", "Payments"],
+                    ["marketplace", "Marketplace"],
+                    ["trial", "Free trials"],
+                  ] as const
+                ).map(([f, label]) => (
                   <button
                     key={f}
                     type="button"
                     onClick={() => setSheetFilter(f)}
-                    className={`rounded-lg px-3 py-1.5 text-xs capitalize ${
-                      sheetFilter === f ? "bg-amber-500/20 text-amber-100" : "bg-white/5 text-slate-400"
+                    className={`rounded-lg px-3 py-1.5 text-xs ${
+                      sheetFilter === f
+                        ? f === "trial"
+                          ? "bg-violet-500/25 text-violet-100"
+                          : "bg-amber-500/20 text-amber-100"
+                        : "bg-white/5 text-slate-400"
                     }`}
                   >
-                    {f}
+                    {label}
                   </button>
                 ))}
                 <input
@@ -504,51 +536,77 @@ export function AdminFinanceHub() {
                   </tr>
                 </thead>
                 <tbody>
-                  {sheetRows.map((row) => (
-                    <tr key={`${row.kind}-${row.id}`} className="border-t border-white/5 hover:bg-white/5">
+                  {sheetRows.map((row) => {
+                    const openDetail = () => {
+                      if (row.kind === "trial") return;
+                      setDetail({ kind: row.kind, id: row.id });
+                    };
+                    const isTrial = row.kind === "trial";
+                    return (
+                    <tr
+                      key={`${row.kind}-${row.id}`}
+                      className={`border-t border-white/5 ${
+                        isTrial ? "bg-violet-500/[0.07] hover:bg-violet-500/10" : "hover:bg-white/5"
+                      }`}
+                    >
                       <td
-                        className="cursor-pointer whitespace-nowrap py-2 text-slate-300"
-                        onClick={() => setDetail({ kind: row.kind, id: row.id })}
+                        className={`whitespace-nowrap py-2 ${isTrial ? "text-violet-100" : "cursor-pointer text-slate-300"}`}
+                        onClick={openDetail}
                       >
                         {row.paidAt ? new Date(row.paidAt).toLocaleString() : "—"}
+                        {isTrial ? (
+                          <span className="mt-0.5 block text-[10px] uppercase tracking-wide text-violet-300/80">
+                            Started
+                          </span>
+                        ) : null}
                       </td>
                       <td
-                        className="cursor-pointer capitalize text-slate-400"
-                        onClick={() => setDetail({ kind: row.kind, id: row.id })}
+                        className={isTrial ? "text-violet-200" : "cursor-pointer capitalize text-slate-400"}
+                        onClick={openDetail}
                       >
-                        {row.kind}
+                        {isTrial ? "Free trial" : row.kind}
                       </td>
                       <td
-                        className="max-w-[160px] cursor-pointer truncate"
+                        className={`max-w-[160px] truncate ${isTrial ? "" : "cursor-pointer"}`}
                         title={row.payer.email || ""}
-                        onClick={() => setDetail({ kind: row.kind, id: row.id })}
+                        onClick={openDetail}
                       >
                         {row.payer.name || row.payer.email || "—"}
                       </td>
-                      <td
-                        className="max-w-[160px] cursor-pointer truncate"
-                        onClick={() => setDetail({ kind: row.kind, id: row.id })}
-                      >
+                      <td className={`max-w-[160px] truncate ${isTrial ? "" : "cursor-pointer"}`} onClick={openDetail}>
                         {row.payee ? row.payee.name || row.payee.email || "—" : "Story Time"}
                       </td>
                       <td
-                        className="max-w-[200px] cursor-pointer truncate"
-                        title={row.purpose}
-                        onClick={() => setDetail({ kind: row.kind, id: row.id })}
+                        className={`max-w-[220px] truncate ${isTrial ? "text-violet-100" : "cursor-pointer"}`}
+                        title={row.purposeLabel || row.purpose}
+                        onClick={openDetail}
                       >
                         {row.purposeLabel || row.purpose}
                       </td>
-                      <td className="cursor-pointer" onClick={() => setDetail({ kind: row.kind, id: row.id })}>
-                        {money.format(row.gross)}
+                      <td className={isTrial ? "text-violet-100" : "cursor-pointer"} onClick={openDetail}>
+                        {isTrial ? (
+                          <span>
+                            {money.format(row.gross)}
+                            <span className="mt-0.5 block text-[10px] uppercase tracking-wide text-violet-300/80">
+                              Potential
+                            </span>
+                          </span>
+                        ) : (
+                          money.format(row.gross)
+                        )}
                       </td>
-                      <td className="cursor-pointer" onClick={() => setDetail({ kind: row.kind, id: row.id })}>
-                        {money.format(row.gatewayFee)}
+                      <td className={isTrial ? "text-slate-500" : "cursor-pointer"} onClick={openDetail}>
+                        {isTrial ? "—" : money.format(row.gatewayFee)}
                       </td>
-                      <td className="cursor-pointer" onClick={() => setDetail({ kind: row.kind, id: row.id })}>
-                        {money.format(row.net)}
+                      <td className={isTrial ? "text-slate-500" : "cursor-pointer"} onClick={openDetail}>
+                        {isTrial ? "—" : money.format(row.net)}
                       </td>
                       <td className="text-xs">
-                        {row.fundsClearStatus === "cleared" ? (
+                        {isTrial ? (
+                          <span className="rounded-full bg-violet-500/20 px-2 py-0.5 text-violet-100">
+                            {row.fundsClearLabel}
+                          </span>
+                        ) : row.fundsClearStatus === "cleared" ? (
                           <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-emerald-300">
                             {row.fundsClearLabel}
                           </span>
@@ -579,12 +637,15 @@ export function AdminFinanceHub() {
                           >
                             Cleared
                           </button>
+                        ) : isTrial ? (
+                          <span className="text-xs text-violet-300/80">Not revenue</span>
                         ) : row.fundsClearStatus === "cleared" ? (
                           <span className="text-xs text-slate-500">—</span>
                         ) : null}
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
               {sheetRows.length === 0 ? <p className="py-6 text-center text-sm text-slate-500">No rows match.</p> : null}

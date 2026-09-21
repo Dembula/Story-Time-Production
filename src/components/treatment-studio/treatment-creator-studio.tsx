@@ -34,6 +34,7 @@ import {
   TreatmentSlideCanvas,
   TreatmentSlideThumbnail,
 } from "./treatment-slide-canvas";
+import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
 import {
   adaptSlideToLayout,
   createImageElement,
@@ -44,6 +45,7 @@ import {
   nextElementZIndex,
   parseTreatmentDocument,
   placeAssetOnSlideDocument,
+  restoreSlideField,
   TREATMENT_SLIDE_TEMPLATES,
   type TreatmentSlideTemplateId,
 } from "@/lib/treatment-studio/document";
@@ -53,6 +55,7 @@ import {
 } from "@/lib/treatment-studio/export-treatment";
 import type {
   CreatorTreatmentRecord,
+  TreatmentAsset,
   TreatmentDocument,
   TreatmentElement,
   TreatmentFieldKey,
@@ -465,6 +468,65 @@ export function TreatmentCreatorStudio({
     [document, activeSlide, addPexelsAsset],
   );
 
+  const uploadFilesToSlide = useCallback(
+    async (
+      files: File[],
+      at?: { xPercent: number; yPercent: number },
+    ) => {
+      if (!document || !activeSlide || !files.length) return;
+      const isVideoFile = (file: File) =>
+        file.type.startsWith("video/") || /\.(mp4|mov|webm|m4v)$/i.test(file.name);
+
+      const uploaded: TreatmentAsset[] = [];
+      for (const file of files) {
+        if (!/^(image|video)\//.test(file.type) && !isVideoFile(file)) continue;
+        const url = await uploadContentMediaViaApi(file);
+        uploaded.push({
+          id: newId(),
+          type: isVideoFile(file) ? "video" : "image",
+          url,
+          title: file.name.replace(/\.[^.]+$/, ""),
+          source: "upload",
+          createdAt: new Date().toISOString(),
+        });
+      }
+      if (!uploaded.length) return;
+
+      let nextSlide = activeSlide;
+      let selectedId: string | null = null;
+      let x = at?.xPercent ?? 18;
+      let y = at?.yPercent ?? 18;
+      for (const asset of uploaded) {
+        const result = placeAssetOnSlideDocument(nextSlide, asset.id, { x, y });
+        nextSlide = { ...nextSlide, ...result.slide };
+        if (result.selectedElementId) selectedId = result.selectedElementId;
+        x = Math.min(60, x + 4);
+        y = Math.min(60, y + 4);
+      }
+
+      markDirty({
+        ...document,
+        assets: [...document.assets, ...uploaded],
+        slides: document.slides.map((s) =>
+          s.id === activeSlide.id ? { ...s, ...nextSlide } : s,
+        ),
+      });
+      setSelectedElementId(selectedId);
+      setAssetsOpen(true);
+    },
+    [document, activeSlide, markDirty],
+  );
+
+  const restoreFieldOnSlide = useCallback(
+    (key: TreatmentFieldKey) => {
+      if (!activeSlide) return;
+      updateSlide(activeSlide.id, restoreSlideField(activeSlide, key));
+      setSelectedFieldKey(key);
+      setSelectedElementId(null);
+    },
+    [activeSlide, updateSlide],
+  );
+
   const updateAssets = useCallback(
     (assets: TreatmentDocument["assets"]) => {
       if (!document) return;
@@ -749,7 +811,7 @@ export function TreatmentCreatorStudio({
 
   return (
     <>
-      <div className="treatment-studio flex min-h-[calc(100vh-8rem)] flex-col overflow-hidden rounded-xl border border-white/10 bg-black">
+      <div className="treatment-studio flex min-h-[calc(100dvh-8rem)] max-h-[calc(100dvh-6rem)] flex-col overflow-hidden rounded-xl border border-white/10 bg-black">
         <div className="flex flex-wrap items-center gap-3 border-b border-white/10 px-3 py-2.5 md:px-4">
           <Link
             href={projectId ? `/creator/pre-production` : "/creator/pre-production"}
@@ -1304,12 +1366,16 @@ export function TreatmentCreatorStudio({
             </div>
           </aside>
 
-          <main className="flex min-w-0 flex-1 flex-col items-center justify-center bg-black p-4 md:p-8">
-            <div className="treatment-editor-stage w-full">
+          <main className="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center overflow-hidden bg-black p-4 md:p-8">
+            <div
+              className="treatment-editor-stage"
+              data-aspect={document.settings.aspectRatio === "4:3" ? "4:3" : "16:9"}
+            >
               <TreatmentSlideCanvas
                 slide={activeSlide}
                 assets={document.assets}
                 aspectRatio={document.settings.aspectRatio}
+                variant="editor"
                 projectId={projectId}
                 selectedElementId={selectedElementId}
                 selectedFieldKey={selectedFieldKey}
@@ -1325,11 +1391,14 @@ export function TreatmentCreatorStudio({
                 }}
                 onDropAsset={(assetId, x, y) => placeAssetOnSlide(assetId, x, y)}
                 onDropPexels={(photoId, x, y) => dropPexelsOnSlide(photoId, x, y)}
+                onUploadFiles={uploadFilesToSlide}
+                onRestoreField={restoreFieldOnSlide}
                 className="shadow-2xl"
               />
             </div>
             <p className="mt-4 max-w-xl text-center text-xs text-slate-500">
-              Drag any text or media to move · resize from the corners · clips show a still until Present
+              Drag text or media · resize from corners · right-click to insert photo/video · drop
+              files onto the slide · clips stay still until Present
               {" · "}
               Slide {activeIndex + 1} of {document.slides.length}
               {activeSlide.layout !== "content" && activeSlide.layout !== "title"
@@ -1340,7 +1409,7 @@ export function TreatmentCreatorStudio({
                 ? " · Click a library still for the hero"
                 : activeSlide.layout === "references"
                   ? " · Click stills for the grid"
-                  : " · Click text to edit"}
+                  : " · Delete title/byline boxes if unused · click text to edit"}
             </p>
           </main>
 
@@ -1353,7 +1422,10 @@ export function TreatmentCreatorStudio({
                 .filter((id): id is string => Boolean(id))}
               onAssetsChange={updateAssets}
               onToggleReference={toggleReference}
-              onAddPexels={(imported) => addPexelsAsset(imported, { place: false })}
+              onAddPexels={(imported) =>
+                addPexelsAsset(imported, { place: true, x: 18, y: 18 })
+              }
+              onUploadAndPlace={(files) => uploadFilesToSlide(files, { xPercent: 18, yPercent: 18 })}
               onClose={() => setAssetsOpen(false)}
               projectId={projectId}
             />

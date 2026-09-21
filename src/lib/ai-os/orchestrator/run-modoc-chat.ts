@@ -110,6 +110,21 @@ export async function resolveModocActionsAndPlan(
           ...(resolvedExecuteAction.payload ?? {}),
           projectId: resolvedExecuteAction.payload?.projectId ?? focusProjectId ?? undefined,
         };
+        if (
+          actionType === "submit_support_ticket" ||
+          actionType === "lookup_support_ticket" ||
+          actionType === "list_my_support_tickets"
+        ) {
+          if (!actionPayload.sourceSurface && input.pageContext?.clientSurface) {
+            actionPayload.sourceSurface = String(input.pageContext.clientSurface);
+          }
+          if (!actionPayload.sourcePath && input.path) {
+            actionPayload.sourcePath = input.path;
+          }
+          if (!actionPayload.toolSlug && input.pageContext?.tool) {
+            actionPayload.toolSlug = String(input.pageContext.tool);
+          }
+        }
         const actionResult = await runVaAction({
           userId: input.userId,
           action: actionType,

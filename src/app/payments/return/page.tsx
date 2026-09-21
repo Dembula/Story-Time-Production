@@ -51,7 +51,11 @@ function isPayFastSuccessStatus(raw: string): boolean {
 }
 
 function isCardSaveFlow(flow: string): boolean {
-  return flow === "payfast_card_consent" || flow === "payfast_card_update";
+  return (
+    flow === "payfast_card_consent" ||
+    flow === "payfast_card_update" ||
+    flow === "viewer_trial_card_capture"
+  );
 }
 
 function PaymentsReturnContent() {
@@ -59,17 +63,26 @@ function PaymentsReturnContent() {
   const paymentStatus = params.get("payment_status") || "";
   const rawNext = params.get("next") || "/profiles";
   const flow = params.get("flow") || "payment";
-  const next = useMemo(
-    () => (isCardSaveFlow(flow) ? appendCardSavedFlag(rawNext) : rawNext),
-    [flow, rawNext],
-  );
-  const reference = params.get("reference") || "";
-  const paymentRecordId = resolvePaymentRecordId(params);
-  const payfastReturnFields = useMemo(() => collectPayFastReturnFields(params), [params]);
   const [resolvedStatus, setResolvedStatus] = useState(() =>
     isPayFastSuccessStatus(paymentStatus) ? "success" : paymentStatus.toLowerCase() === "cancelled" ? "failed" : "",
   );
   const [timedOut, setTimedOut] = useState(false);
+  const next = useMemo(() => {
+    if (flow === "viewer_trial_card_capture") {
+      const base = rawNext.startsWith("/") ? rawNext : "/profiles?card=required";
+      if (resolvedStatus === "failed") {
+        return base.includes("payment_status=")
+          ? base
+          : `${base}${base.includes("?") ? "&" : "?"}payment_status=cancelled`;
+      }
+      if (resolvedStatus === "success") return appendCardSavedFlag(base);
+      return base;
+    }
+    return isCardSaveFlow(flow) ? appendCardSavedFlag(rawNext) : rawNext;
+  }, [flow, rawNext, resolvedStatus]);
+  const reference = params.get("reference") || "";
+  const paymentRecordId = resolvePaymentRecordId(params);
+  const payfastReturnFields = useMemo(() => collectPayFastReturnFields(params), [params]);
 
   useEffect(() => {
     if (paymentStatus.toLowerCase() === "cancelled") {
@@ -166,12 +179,14 @@ function PaymentsReturnContent() {
   }, [paymentRecordId, payfastReturnFields]);
 
   useEffect(() => {
-    if (resolvedStatus !== "success") return;
+    if (resolvedStatus !== "success" && !(flow === "viewer_trial_card_capture" && resolvedStatus === "failed")) {
+      return;
+    }
     const timeout = window.setTimeout(() => {
       window.location.assign(next);
     }, 900);
     return () => window.clearTimeout(timeout);
-  }, [resolvedStatus, next]);
+  }, [resolvedStatus, next, flow]);
 
   const heading = useMemo(() => {
     if (resolvedStatus === "success") {

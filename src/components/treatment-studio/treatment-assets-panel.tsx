@@ -35,6 +35,8 @@ type TreatmentAssetsPanelProps = {
   onToggleReference: (assetId: string) => void;
   /** Add imported Pexels still to the library only (do not place on slide). Returns new asset id. */
   onAddPexels?: (imported: PexelsImportedAsset) => string | null | void;
+  /** Upload files into the library and place them on the active slide (Keynote-style). */
+  onUploadAndPlace?: (files: File[]) => void | Promise<void>;
   onClose: () => void;
   projectId?: string;
 };
@@ -50,6 +52,7 @@ export function TreatmentAssetsPanel({
   onAssetsChange,
   onToggleReference,
   onAddPexels,
+  onUploadAndPlace,
   onClose,
   projectId,
 }: TreatmentAssetsPanelProps) {
@@ -70,8 +73,14 @@ export function TreatmentAssetsPanel({
     setUploading(true);
     setError("");
     try {
+      const list = Array.from(files);
+      if (onUploadAndPlace) {
+        await onUploadAndPlace(list);
+        setTab("library");
+        return;
+      }
       const uploaded: TreatmentAsset[] = [];
-      for (const file of Array.from(files)) {
+      for (const file of list) {
         const url = await uploadContentMediaViaApi(file);
         uploaded.push({
           id: newId(),
@@ -158,8 +167,8 @@ export function TreatmentAssetsPanel({
           <PexelsMediaBrowser
             variant="panel"
             allowDrag
-            primaryActionLabel="Add to library"
-            emptyHint="Search Pexels, then Add to library — or drag a still onto the slide to place it."
+            primaryActionLabel="Add & place on slide"
+            emptyHint="Search Pexels, then add — saves to the library and places on the current slide. You can also drag a still onto the canvas."
             onImport={(imported) => {
               if (onAddPexels) {
                 const id = onAddPexels(imported);
@@ -205,7 +214,7 @@ export function TreatmentAssetsPanel({
               ) : (
                 <ImagePlus className="mr-2 h-4 w-4" />
               )}
-              {uploading ? "Uploading…" : "Upload still / clip"}
+              {uploading ? "Uploading…" : "Upload & place on slide"}
             </Button>
 
             <div className="space-y-2">
@@ -235,9 +244,11 @@ export function TreatmentAssetsPanel({
             </div>
             {error ? <p className="text-xs text-red-400">{error}</p> : null}
             <p className="text-[10px] leading-relaxed text-slate-500">
-              Full image / Split / References use library picks as the layout hero or grid. Title,
-              Content, and Blank place freeform boxes you can drag. Drag from Pexels onto the canvas
-              to place for the active layout.
+              Upload &amp; Pexels place media in the library and on the current slide. Right-click the
+              slide → Choose Photo or Video, or drag files / Pexels / library items onto the canvas.
+              Full image / Split / References use picks as hero or grid; other layouts get freeform
+              boxes. Delete unused title/byline boxes with Delete or the red X — restore from the
+              right-click menu.
             </p>
           </div>
 

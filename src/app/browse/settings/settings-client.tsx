@@ -153,6 +153,20 @@ export function SettingsClient() {
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const focusPayment = new URLSearchParams(window.location.search).get("focus") === "payment";
+    if (window.location.hash !== "#settings-payment-methods" && !focusPayment) return;
+    const el = document.getElementById("settings-payment-methods");
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+    el.classList.add("ring-2", "ring-orange-400/80", "ring-offset-2", "ring-offset-black");
+    const timeout = window.setTimeout(() => {
+      el.classList.remove("ring-2", "ring-orange-400/80", "ring-offset-2", "ring-offset-black");
+    }, 4500);
+    return () => window.clearTimeout(timeout);
+  }, [loading]);
+
+  useEffect(() => {
     if (!mounted) return;
 
     let cancelled = false;
@@ -999,7 +1013,7 @@ export function SettingsClient() {
         </Link>
       </section>
 
-      <section id="settings-payment-methods" className="storytime-section p-6">
+      <section id="settings-payment-methods" className="storytime-section scroll-mt-28 p-6">
         <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-white">
           <CreditCard className="w-5 h-5 text-slate-400" /> Settings · Payment methods
         </h2>

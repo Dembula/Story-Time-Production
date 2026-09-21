@@ -7,6 +7,10 @@ import { useModocOptional } from "./use-modoc";
 import { derivePageContext, getModocRoleProfile } from "@/lib/modoc/role-config";
 import { canShowCreatorVa } from "@/lib/modoc/creator-va";
 import { canShowViewerModoc } from "@/lib/modoc/viewer-va";
+import {
+  describeClientSurface,
+  detectModocClientSurface,
+} from "@/lib/modoc/client-surface";
 
 /** Keeps MODOC request context in sync with the current route and user role. */
 export function ModocRouteSync() {
@@ -22,8 +26,9 @@ export function ModocRouteSync() {
     const creatorVaActive = canShowCreatorVa({ sessionStatus, role, pathname });
     const viewerModocActive = canShowViewerModoc({ sessionStatus, role, pathname });
     const profile = getModocRoleProfile(creatorVaActive || viewerModocActive ? role : undefined);
+    const surface = detectModocClientSurface();
 
-    let clientContext = `User is on ${pathname}.`;
+    let clientContext = `User is on ${pathname}. Client surface: ${surface} (${describeClientSurface(surface)}).`;
     if (pageContext.tool) {
       clientContext += ` Active tool: ${pageContext.tool.replace(/-/g, " ")}.`;
     }
@@ -36,6 +41,10 @@ export function ModocRouteSync() {
     if (creatorVaActive) {
       clientContext +=
         " Creator Virtual Assistant is active — only discuss and act within this creator's own projects and creator workspace.";
+      if (surface === "native_ios" || surface === "native_android") {
+        clientContext +=
+          " Native app: prefer update/status help; for full studio tools direct them to the Story Time web creator dashboard.";
+      }
     } else if (viewerModocActive) {
       clientContext +=
         " Viewer MODOC is active — help discover titles, search scenes in the published catalogue, and recommend based on watch history. Only suggest published Story Time titles.";
@@ -44,7 +53,10 @@ export function ModocRouteSync() {
     modoc.setRequestContext({
       scope: creatorVaActive ? "creator" : profile.scope,
       clientContext,
-      pageContext,
+      pageContext: {
+        ...pageContext,
+        clientSurface: surface,
+      },
     });
   }, [pathname, role, sessionStatus, modoc]);
 

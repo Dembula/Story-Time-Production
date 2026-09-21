@@ -1,9 +1,11 @@
 import { resolveRenderableFileSource } from "@/lib/secure-file-preview-path";
 import { escapeHtmlForDocument } from "@/lib/pdf/print-html-document";
+import { visibleFieldsForSlide } from "./field-frames";
 import type {
   TreatmentAsset,
   TreatmentDocument,
   TreatmentElement,
+  TreatmentFieldKey,
   TreatmentSlide,
 } from "./types";
 
@@ -13,6 +15,10 @@ export type TreatmentExportOptions = {
   projectId?: string;
   filenameBase?: string;
 };
+
+function fieldVisible(slide: TreatmentSlide, key: TreatmentFieldKey): boolean {
+  return visibleFieldsForSlide(slide).includes(key);
+}
 
 function safeFilename(title: string) {
   const base = title.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase();
@@ -104,9 +110,15 @@ function layoutHtml(
   const textColor = contrastText(slide.backgroundColor);
   const muted = textColor === "F8FAFC" ? "CBD5E1" : "64748B";
 
-  const title = escapeHtmlForDocument(slide.title || "");
-  const subtitle = escapeHtmlForDocument(slide.subtitle || "");
-  const body = escapeHtmlForDocument(slide.body || "").replace(/\n/g, "<br/>");
+  const title = fieldVisible(slide, "title")
+    ? escapeHtmlForDocument(slide.title || "")
+    : "";
+  const subtitle = fieldVisible(slide, "subtitle")
+    ? escapeHtmlForDocument(slide.subtitle || "")
+    : "";
+  const body = fieldVisible(slide, "body")
+    ? escapeHtmlForDocument(slide.body || "").replace(/\n/g, "<br/>")
+    : "";
 
   const imgTag = (assetId: string, className: string) => {
     const data = images.get(assetId);
@@ -123,15 +135,15 @@ function layoutHtml(
   switch (slide.layout) {
     case "title":
       return `<div class="layout layout-title" style="color:#${textColor}">
-        <h1>${title || "Untitled"}</h1>
+        ${title ? `<h1>${title}</h1>` : ""}
         ${subtitle ? `<p class="subtitle" style="color:#${muted}">${subtitle}</p>` : ""}
       </div>`;
     case "split": {
       const hero = slide.referenceIds[0];
       return `<div class="layout layout-split" style="color:#${textColor}">
         <div class="split-copy">
-          <h2>${title}</h2>
-          <p class="body">${body}</p>
+          ${title ? `<h2>${title}</h2>` : ""}
+          ${body ? `<p class="body">${body}</p>` : ""}
         </div>
         <div class="split-media">${hero ? imgTag(hero, "hero") : `<div class="img-placeholder hero">Add reference</div>`}</div>
       </div>`;
@@ -145,7 +157,7 @@ function layoutHtml(
     }
     case "references":
       return `<div class="layout layout-refs" style="color:#${textColor}">
-        <h2>${title || "References"}</h2>
+        ${title ? `<h2>${title}</h2>` : ""}
         <div class="ref-grid">
           ${slide.referenceIds
             .map((id) => `<div class="ref-cell">${imgTag(id, "ref")}</div>`)
@@ -157,8 +169,8 @@ function layoutHtml(
     case "content":
     default:
       return `<div class="layout layout-content" style="color:#${textColor}">
-        <h2>${title}</h2>
-        <p class="body">${body}</p>
+        ${title ? `<h2>${title}</h2>` : ""}
+        ${body ? `<p class="body">${body}</p>` : ""}
       </div>`;
   }
 }
@@ -463,18 +475,20 @@ export async function downloadTreatmentPptx(options: TreatmentExportOptions): Pr
 
     switch (slideDoc.layout) {
       case "title":
-        slide.addText(slideDoc.title || "Untitled", {
-          x: padX,
-          y: slideH * 0.32,
-          w: slideW - padX * 2,
-          h: 1.2,
-          fontSize: 44,
-          bold: true,
-          color: fg,
-          align: "center",
-          valign: "middle",
-        });
-        if (slideDoc.subtitle?.trim()) {
+        if (fieldVisible(slideDoc, "title") && (slideDoc.title || "").trim()) {
+          slide.addText(slideDoc.title, {
+            x: padX,
+            y: slideH * 0.32,
+            w: slideW - padX * 2,
+            h: 1.2,
+            fontSize: 44,
+            bold: true,
+            color: fg,
+            align: "center",
+            valign: "middle",
+          });
+        }
+        if (fieldVisible(slideDoc, "subtitle") && slideDoc.subtitle?.trim()) {
           slide.addText(slideDoc.subtitle, {
             x: padX,
             y: slideH * 0.5,
@@ -488,24 +502,28 @@ export async function downloadTreatmentPptx(options: TreatmentExportOptions): Pr
         break;
       case "split": {
         const colW = (slideW - padX * 2 - 0.4) / 2;
-        slide.addText(slideDoc.title || "", {
-          x: padX,
-          y: padY,
-          w: colW,
-          h: 0.7,
-          fontSize: 28,
-          bold: true,
-          color: fg,
-        });
-        slide.addText(slideDoc.body || "", {
-          x: padX,
-          y: padY + 0.85,
-          w: colW,
-          h: slideH - padY * 2 - 0.9,
-          fontSize: 14,
-          color: fg,
-          valign: "top",
-        });
+        if (fieldVisible(slideDoc, "title") && (slideDoc.title || "").trim()) {
+          slide.addText(slideDoc.title, {
+            x: padX,
+            y: padY,
+            w: colW,
+            h: 0.7,
+            fontSize: 28,
+            bold: true,
+            color: fg,
+          });
+        }
+        if (fieldVisible(slideDoc, "body") && (slideDoc.body || "").trim()) {
+          slide.addText(slideDoc.body, {
+            x: padX,
+            y: padY + (fieldVisible(slideDoc, "title") ? 0.85 : 0),
+            w: colW,
+            h: slideH - padY * 2 - (fieldVisible(slideDoc, "title") ? 0.9 : 0),
+            fontSize: 14,
+            color: fg,
+            valign: "top",
+          });
+        }
         if (slideDoc.referenceIds[0]) {
           addAssetImage(
             slideDoc.referenceIds[0],
@@ -521,7 +539,7 @@ export async function downloadTreatmentPptx(options: TreatmentExportOptions): Pr
         if (slideDoc.referenceIds[0]) {
           addAssetImage(slideDoc.referenceIds[0], 0, 0, slideW, slideH);
         }
-        if (slideDoc.title?.trim()) {
+        if (fieldVisible(slideDoc, "title") && slideDoc.title?.trim()) {
           slide.addShape(pres.ShapeType.rect, {
             x: 0,
             y: slideH - 1.4,
@@ -542,18 +560,21 @@ export async function downloadTreatmentPptx(options: TreatmentExportOptions): Pr
         }
         break;
       case "references": {
-        slide.addText(slideDoc.title || "References", {
-          x: padX,
-          y: padY * 0.7,
-          w: slideW - padX * 2,
-          h: 0.55,
-          fontSize: 26,
-          bold: true,
-          color: fg,
-        });
+        if (fieldVisible(slideDoc, "title") && (slideDoc.title || "").trim()) {
+          slide.addText(slideDoc.title, {
+            x: padX,
+            y: padY * 0.7,
+            w: slideW - padX * 2,
+            h: 0.55,
+            fontSize: 26,
+            bold: true,
+            color: fg,
+          });
+        }
         const cols = 3;
         const gap = 0.2;
-        const gridTop = padY * 0.7 + 0.7;
+        const gridTop =
+          padY * 0.7 + (fieldVisible(slideDoc, "title") && (slideDoc.title || "").trim() ? 0.7 : 0.2);
         const cellW = (slideW - padX * 2 - gap * (cols - 1)) / cols;
         const cellH = cellW * (9 / 16);
         slideDoc.referenceIds.slice(0, 9).forEach((id, i) => {
@@ -573,24 +594,28 @@ export async function downloadTreatmentPptx(options: TreatmentExportOptions): Pr
         break;
       case "content":
       default:
-        slide.addText(slideDoc.title || "", {
-          x: padX,
-          y: padY,
-          w: slideW - padX * 2,
-          h: 0.7,
-          fontSize: 30,
-          bold: true,
-          color: fg,
-        });
-        slide.addText(slideDoc.body || "", {
-          x: padX,
-          y: padY + 0.9,
-          w: slideW - padX * 2,
-          h: slideH - padY * 2 - 1,
-          fontSize: 15,
-          color: fg,
-          valign: "top",
-        });
+        if (fieldVisible(slideDoc, "title") && (slideDoc.title || "").trim()) {
+          slide.addText(slideDoc.title, {
+            x: padX,
+            y: padY,
+            w: slideW - padX * 2,
+            h: 0.7,
+            fontSize: 30,
+            bold: true,
+            color: fg,
+          });
+        }
+        if (fieldVisible(slideDoc, "body") && (slideDoc.body || "").trim()) {
+          slide.addText(slideDoc.body, {
+            x: padX,
+            y: padY + (fieldVisible(slideDoc, "title") ? 0.9 : 0),
+            w: slideW - padX * 2,
+            h: slideH - padY * 2 - (fieldVisible(slideDoc, "title") ? 1 : 0),
+            fontSize: 15,
+            color: fg,
+            valign: "top",
+          });
+        }
         break;
     }
 

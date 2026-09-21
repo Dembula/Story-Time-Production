@@ -129,7 +129,11 @@ export function NotificationCenterClient({
                     {url ? (
                       <Link
                         href={url}
-                        className="text-xs font-medium text-orange-300 hover:text-orange-200"
+                        className={
+                          n.type === "VIEWER_PAYMENT_SETUP"
+                            ? "rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-400"
+                            : "text-xs font-medium text-orange-300 hover:text-orange-200"
+                        }
                         onClick={() => {
                           if (!n.read) {
                             void markRead([n.id]);

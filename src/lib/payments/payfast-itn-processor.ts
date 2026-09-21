@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { PAYMENT_PROVIDER } from "@/lib/payments/config";
 import { completeGatewayPayment, persistPaymentSettlement } from "@/lib/payments/complete-gateway-payment";
 import { isPayFastChargeToken, upsertPayFastPaymentMethod } from "@/lib/payments/payfast-saved-card";
+import { addViewerSubscriptionPeriod } from "@/lib/payments/billing-interval";
 import { resolvePaymentRecordIdFromPayFastItn } from "@/lib/payments/resolve-itn-payment-record";
 import { parsePayFastSettlementFromItn } from "@/lib/payments/payfast-settlement";
 import { findStoredItnWebhookForPayment } from "@/lib/payments/pending-gateway-payment";
@@ -121,37 +122,73 @@ async function markCardConsentPaymentSucceeded(consentReference: string, payerUs
   });
 }
 
+const TRIAL_LENGTH_MS = 30 * 24 * 60 * 60 * 1000;
+
 async function handleCardConsentItn(data: Record<string, string>): Promise<PayFastItnProcessResult> {
   const reference = data.custom_str3 ?? data.m_payment_id ?? "";
   const payerUserId = data.custom_str1?.trim() || null;
+  const paymentStatus = (data.payment_status ?? "").toUpperCase();
 
   if (reference.startsWith("trial-consent-")) {
     const subscriptionId = reference.slice("trial-consent-".length);
-    if (subscriptionId && isPayFastChargeToken(data.token)) {
-      await db.viewerSubscription.update({
-        where: { id: subscriptionId },
-        data: {
-          externalPaymentId: data.token,
-          lastPaymentStatus: "SUCCEEDED",
-          lastPaymentError: null,
-        },
-      }).catch(() => {});
-
+    const cardSaved = paymentStatus === "COMPLETE" && isPayFastChargeToken(data.token);
+    if (subscriptionId && cardSaved) {
       const sub = await db.viewerSubscription.findUnique({
         where: { id: subscriptionId },
-        select: { userId: true, user: { select: { email: true } } },
+        select: {
+          id: true,
+          userId: true,
+          status: true,
+          trialEndsAt: true,
+          externalPaymentId: true,
+          user: { select: { email: true } },
+        },
       });
-      if (sub?.userId) {
-        await upsertPayFastPaymentMethod({
-          userId: sub.userId,
-          token: data.token,
-          email: sub.user?.email ?? data.email_address,
-          label: data.payment_method ? String(data.payment_method) : undefined,
-          lastFour: data.cc_mask ? String(data.cc_mask).slice(-4) : undefined,
-          cardType: data.payment_method ? String(data.payment_method) : undefined,
-        }).catch((err: unknown) => console.error("payfast method upsert failed", err));
+      if (sub?.id) {
+        const alreadyStarted =
+          sub.status === "TRIAL_ACTIVE" &&
+          !!sub.trialEndsAt &&
+          isPayFastChargeToken(sub.externalPaymentId);
+        if (sub.status === "TRIAL_CARD_PENDING" || (sub.status === "TRIAL_ACTIVE" && !alreadyStarted)) {
+          const trialEndsAt = new Date(Date.now() + TRIAL_LENGTH_MS);
+          await db.viewerSubscription.update({
+            where: { id: subscriptionId },
+            data: {
+              status: "TRIAL_ACTIVE",
+              trialEndsAt,
+              currentPeriodEnd: addViewerSubscriptionPeriod(trialEndsAt),
+              externalPaymentId: data.token,
+              lastPaymentStatus: "SUCCEEDED",
+              lastPaymentError: null,
+            },
+          });
+        } else if (sub.status === "TRIAL_ACTIVE" || sub.status === "ACTIVE") {
+          await db.viewerSubscription.update({
+            where: { id: subscriptionId },
+            data: {
+              externalPaymentId: data.token,
+              lastPaymentStatus: "SUCCEEDED",
+              lastPaymentError: null,
+            },
+          });
+        }
+
+        if (sub.userId) {
+          await upsertPayFastPaymentMethod({
+            userId: sub.userId,
+            token: data.token,
+            email: sub.user?.email ?? data.email_address,
+            label: data.payment_method ? String(data.payment_method) : undefined,
+            lastFour: data.cc_mask ? String(data.cc_mask).slice(-4) : undefined,
+            cardType: data.payment_method ? String(data.payment_method) : undefined,
+          }).catch((err: unknown) => console.error("payfast method upsert failed", err));
+        }
+        await markCardConsentPaymentSucceeded(reference, sub.userId ?? payerUserId);
+      } else if (payerUserId) {
+        await markCardConsentPaymentSucceeded(reference, payerUserId);
       }
     }
+    return { ok: true, cardConsent: true };
   } else if (payerUserId && isPayFastChargeToken(data.token)) {
     await upsertPayFastPaymentMethod({
       userId: payerUserId,
@@ -162,35 +199,20 @@ async function handleCardConsentItn(data: Record<string, string>): Promise<PayFa
       cardType: data.payment_method ? String(data.payment_method) : undefined,
     }).catch((err: unknown) => console.error("payfast method upsert failed", err));
 
-    // Only stamp the consent target subscription — never overwrite every viewer sub for the user.
-    if (reference.startsWith("trial-consent-")) {
-      const subscriptionId = reference.slice("trial-consent-".length);
-      if (subscriptionId) {
-        await db.viewerSubscription.update({
-          where: { id: subscriptionId },
-          data: {
-            externalPaymentId: data.token,
-            lastPaymentStatus: "SUCCEEDED",
-            lastPaymentError: null,
-          },
-        }).catch(() => {});
-      }
-    } else {
-      const activeSub = await db.viewerSubscription.findFirst({
+    const activeSub = await db.viewerSubscription.findFirst({
         where: { userId: payerUserId, viewerModel: "SUBSCRIPTION", status: { in: ["ACTIVE", "TRIALING"] } },
         orderBy: { updatedAt: "desc" },
         select: { id: true },
       });
-      if (activeSub?.id) {
-        await db.viewerSubscription.update({
-          where: { id: activeSub.id },
-          data: {
-            externalPaymentId: data.token,
-            lastPaymentStatus: "SUCCEEDED",
-            lastPaymentError: null,
-          },
-        }).catch(() => {});
-      }
+    if (activeSub?.id) {
+      await db.viewerSubscription.update({
+        where: { id: activeSub.id },
+        data: {
+          externalPaymentId: data.token,
+          lastPaymentStatus: "SUCCEEDED",
+          lastPaymentError: null,
+        },
+      }).catch(() => {});
     }
 
     await markCardConsentPaymentSucceeded(reference, payerUserId);

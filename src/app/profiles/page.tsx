@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ProfilesClient } from "./profiles-client";
-import { getLatestViewerSubscription, getViewerDeviceCount, getViewerModel, getViewerProfileLimit, subscriptionNeedsReactivation, subscriptionPaymentRequired } from "@/lib/viewer-access";
+import { getLatestViewerSubscription, getViewerDeviceCount, getViewerModel, getViewerProfileLimit, subscriptionNeedsReactivation, subscriptionPaymentRequired, trialCardCaptureRequired } from "@/lib/viewer-access";
 import { hasPendingGatewayPayment } from "@/lib/payments/pending-gateway-payment";
 import { getViewerProfileAge } from "@/lib/viewer-profiles";
 import { isViewerAccountOnboardingComplete } from "@/lib/viewer-account-onboarding";
@@ -13,7 +13,7 @@ import { isViewerProfilePinUnlocked } from "@/lib/viewer-profile-access";
 export default async function ProfilesPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ verify?: string }>;
+  searchParams?: Promise<{ verify?: string; card?: string; payment_status?: string }>;
 }) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) redirect("/auth/signin");
@@ -46,17 +46,48 @@ export default async function ProfilesPage({
         orderBy: { createdAt: "desc" },
       })
     : null;
-  const paymentRequired = subscriptionPaymentRequired(subscription) && !paymentStillProcessing;
+  const cardRequired = trialCardCaptureRequired(subscription);
+  const paymentRequired = subscriptionPaymentRequired(subscription) && !paymentStillProcessing && !cardRequired;
   const needsReactivation = subscriptionNeedsReactivation(subscription);
   const accountDetailsIncomplete = Boolean(userRecord && !isViewerAccountOnboardingComplete(userRecord));
   // Don't bounce incomplete accounts to onboarding while PayFast is still confirming —
   // that redirect + payment polling refresh looped the profiles page.
-  if (accountDetailsIncomplete && !onboardingDeferred && !paymentRequired && !paymentStillProcessing) {
+  // A pending trial card stays on profiles until PayFast confirms the card.
+  if (
+    accountDetailsIncomplete &&
+    !onboardingDeferred &&
+    !paymentRequired &&
+    !paymentStillProcessing &&
+    !cardRequired
+  ) {
     redirect("/onboarding/account");
   }
 
   const params = searchParams ? await searchParams : {};
   const verifyRequested = params.verify === "1";
+  const cardCaptureCancelled = params.payment_status === "cancelled";
+
+  const pendingConsent = cardRequired
+    ? await prisma.paymentRecord.findFirst({
+        where: {
+          userId: session.user.id,
+          purpose: "CARD_CONSENT",
+          status: "PENDING",
+        },
+        orderBy: { createdAt: "desc" },
+        select: { id: true, metadata: true },
+      })
+    : null;
+  const pendingConsentMeta =
+    pendingConsent?.metadata && typeof pendingConsent.metadata === "object"
+      ? (pendingConsent.metadata as { consentReference?: string; subscriptionId?: string })
+      : null;
+  const pendingTrialConsentPaymentId =
+    pendingConsent &&
+    (pendingConsentMeta?.subscriptionId === subscription.id ||
+      String(pendingConsentMeta?.consentReference ?? "").startsWith("trial-consent-"))
+      ? pendingConsent.id
+      : pendingConsent?.id ?? null;
 
   const profiles =
     "viewerProfile" in prisma && prisma.viewerProfile
@@ -96,6 +127,10 @@ export default async function ProfilesPage({
           paymentRequired={paymentRequired}
           paymentStillProcessing={paymentStillProcessing}
           pendingPaymentRecordId={pendingPayment?.id ?? null}
+          cardRequired={cardRequired}
+          cardCaptureCancelled={cardCaptureCancelled}
+          pendingTrialConsentPaymentId={pendingTrialConsentPaymentId}
+          subscriptionPlan={subscription.plan}
           initialProfiles={profiles.map((profile) => ({
             id: profile.id,
             name: profile.name,

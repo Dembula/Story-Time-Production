@@ -2829,6 +2829,28 @@ exports.Prisma.ProjectToolProgressScalarFieldEnum = {
   createdAt: 'createdAt'
 };
 
+exports.Prisma.VaSupportTicketScalarFieldEnum = {
+  id: 'id',
+  ticketNumber: 'ticketNumber',
+  seq: 'seq',
+  kind: 'kind',
+  title: 'title',
+  description: 'description',
+  status: 'status',
+  adminNotes: 'adminNotes',
+  creatorVisibleNote: 'creatorVisibleNote',
+  sourceSurface: 'sourceSurface',
+  sourcePath: 'sourcePath',
+  toolSlug: 'toolSlug',
+  projectId: 'projectId',
+  conversationId: 'conversationId',
+  createdById: 'createdById',
+  reviewedById: 'reviewedById',
+  reviewedAt: 'reviewedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
 exports.Prisma.ModocConversationScalarFieldEnum = {
   id: 'id',
   userId: 'userId',
@@ -3374,6 +3396,7 @@ exports.Prisma.ModelName = {
   DistributionSubmission: 'DistributionSubmission',
   ProjectWorkspaceLink: 'ProjectWorkspaceLink',
   ProjectToolProgress: 'ProjectToolProgress',
+  VaSupportTicket: 'VaSupportTicket',
   ModocConversation: 'ModocConversation',
   ModocPlaybookRule: 'ModocPlaybookRule',
   ModocActionLog: 'ModocActionLog',

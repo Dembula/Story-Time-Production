@@ -24,6 +24,7 @@ import {
   notifyModocFieldFill,
   notifyModocToolsChanged,
 } from "@/lib/modoc/modoc-tool-sync";
+import { detectModocClientSurface } from "@/lib/modoc/client-surface";
 import { getModocMessageText } from "./modoc-context";
 import type { ModocActivityNudge } from "@/lib/modoc/build-activity-nudge";
 
@@ -417,6 +418,12 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
             payload: resolvedPayload,
             conversationId,
             confirmDestructive: options?.confirmDestructive === true,
+            path: pathname,
+            pageContext: {
+              clientSurface: detectModocClientSurface(),
+              tool: typeof resolvedPayload.toolSlug === "string" ? resolvedPayload.toolSlug : undefined,
+              projectId: resolvedPayload.projectId,
+            },
           }),
         });
         const data = await res.json().catch(() => ({}));
