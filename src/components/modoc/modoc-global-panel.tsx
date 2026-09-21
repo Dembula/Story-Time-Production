@@ -396,7 +396,7 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
       if (!options?.force && completedActionKeys.has(key)) return;
 
       const projectMatch = pathname.match(/\/creator\/projects\/([^/]+)/);
-      const resolvedPayload = {
+      const resolvedPayload: Record<string, unknown> = {
         ...payload,
         projectId:
           (typeof payload.projectId === "string" && payload.projectId) ||
