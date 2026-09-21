@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Briefcase, Save, ArrowLeft } from "lucide-react";
 import { AccountPrivacyControls } from "@/components/account/account-privacy-controls";
+import { PayFastSavedCardSection } from "@/components/payments/payfast-saved-card-section";
 
 export default function CastingAgencyProfilePage() {
   const router = useRouter();
@@ -48,6 +49,13 @@ export default function CastingAgencyProfilePage() {
         <div><label className="block text-sm font-medium text-slate-300 mb-1">Contact email</label><input value={form.contactEmail} onChange={(e) => setForm((f) => ({ ...f, contactEmail: e.target.value }))} className="w-full px-4 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white" type="email" /></div>
         <button onClick={save} disabled={saving || !form.agencyName.trim()} className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-violet-500 text-white font-medium hover:bg-violet-600 disabled:opacity-50"><Save className="w-4 h-4" /> {agency ? "Save" : "Create profile"}</button>
       </div>
+
+      <PayFastSavedCardSection
+        className="mt-8"
+        returnPath="/casting-agency/profile"
+        title="Billing card"
+        description="PayFast card for listing renewals and inquiry payments only — not KYC/KYB payout banking. Authorization is R0 today."
+      />
 
       <AccountPrivacyControls variant="marketplace" className="mt-8" />
     </div>

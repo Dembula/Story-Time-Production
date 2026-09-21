@@ -6,6 +6,8 @@ import { Check, ChevronDown, ChevronUp, Loader2, Megaphone, Shield, Sparkles } f
 import { COMPANY_PLAN_CONFIG } from "@/lib/pricing";
 import { formatZar } from "@/lib/format-currency-zar";
 import { CheckoutModal } from "@/components/payments/checkout-modal";
+import { PayFastSavedCardSection } from "@/components/payments/payfast-saved-card-section";
+import { getClientReturnPath } from "@/lib/payments/payfast-card-consent-client";
 
 const PLANS = [
   {
@@ -237,6 +239,12 @@ export function CompanySubscriptionClient({ dashboardUrl }: { dashboardUrl: stri
           {error}
         </div>
       )}
+
+      <PayFastSavedCardSection
+        returnPath={getClientReturnPath()}
+        title="Save a card for renewals"
+        description="PayFast billing card for listing plan renewals only — separate from KYC/KYB bank details used for payouts. Authorization is R0 today."
+      />
 
       <button
         onClick={submit}

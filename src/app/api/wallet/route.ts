@@ -3,7 +3,6 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ensureWalletForUser, getWalletSnapshot } from "@/lib/payments/wallet";
-import { getPayFastTokenForUser } from "@/lib/payments/payfast-saved-card";
 import { maskPayoutBanking, resolvePayoutBankingForUser } from "@/lib/payments/payout-banking";
 const db = prisma as any;
 
@@ -43,10 +42,7 @@ export async function GET() {
         })
       : [];
 
-    const [payfastToken, payoutBanking] = await Promise.all([
-      getPayFastTokenForUser(user.id),
-      resolvePayoutBankingForUser(user.id, user.role),
-    ]);
+    const payoutBanking = await resolvePayoutBankingForUser(user.id, user.role);
 
     const maskedWallet =
       trackingEnabled || !wallet
@@ -73,10 +69,6 @@ export async function GET() {
       wallet: maskedWallet,
       transactions,
       escrows,
-      payfastCard: {
-        hasToken: Boolean(payfastToken),
-        source: payfastToken?.source ?? null,
-      },
       payoutBanking: payoutBanking ? maskPayoutBanking(payoutBanking) : null,
       revenueTrackingPaused: !trackingEnabled,
     });

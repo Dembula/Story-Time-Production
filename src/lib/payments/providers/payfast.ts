@@ -188,8 +188,10 @@ export function buildPayFastCheckoutFields(args: {
   };
 
   // subscription_type=2 tokenizes the card for later adhoc renewals (our cron).
+  // payment_method=cc keeps the buyer on the card rail (required for tokenization).
   if (tokenize) {
     fields.subscription_type = "2";
+    fields.payment_method = "cc";
   }
 
   if (typeof baseAmount === "number" && typeof feeAmount === "number" && feeAmount > 0) {
@@ -228,6 +230,8 @@ export function buildPayFastCardConsentFields(args: {
     m_payment_id: args.reference,
     amount: "0.00",
     item_name: "Story Time card authorization",
+    // Tokenization only supports credit/cheque cards — force the card rail so EFT is not offered.
+    payment_method: "cc",
     subscription_type: "2",
     custom_str2: "card_consent",
     custom_str3: args.reference,

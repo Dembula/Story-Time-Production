@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
         referenceType: "CompanySubscription",
         referenceId: refreshed.id,
         returnUrl: buildPaymentReturnUrl(redirectTo, "company_subscription"),
-        metadata: { plan, companyType: role },
+        metadata: { plan, companyType: role, tokenize: true },
       });
         return NextResponse.json({
           requiresPayment: true,
@@ -156,7 +156,7 @@ export async function POST(req: NextRequest) {
       referenceType: "CompanySubscription",
       referenceId: subscription.id,
       returnUrl: buildPaymentReturnUrl(redirectTo, "company_subscription"),
-      metadata: { plan, companyType: role },
+      metadata: { plan, companyType: role, tokenize: true },
     });
       checkoutUrl = checkout.checkout.checkoutUrl;
     } catch (error) {

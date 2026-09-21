@@ -16,6 +16,7 @@ export default async function EquipmentCompanyAccountPage() {
       backHref="/equipment-company/dashboard"
       title="Account"
       subtitle="Your company account details. Manage your listings from My Listings."
+      cardReturnPath="/equipment-company/account"
     />
   );
 }

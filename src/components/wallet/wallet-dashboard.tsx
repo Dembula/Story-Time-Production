@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
@@ -8,9 +8,7 @@ import { PAYEE_DASHBOARD_REFETCH_MS } from "@/lib/dashboard-refresh";
 import { PayoutKycBanner } from "@/components/payout-kyc/payout-kyc-banner";
 import { requiresPayoutKyc } from "@/lib/payout-kyc-shared";
 import { FunderVerificationBanner } from "@/components/funders/funder-verification-banner";
-import { getClientReturnPath } from "@/lib/payments/payfast-card-consent-client";
-import { useCardSaveReturnRefresh } from "@/lib/hooks/use-card-save-return";
-import { getBankingEntryRouteForRole, getPayoutVerificationRouteForRole, getWalletRouteForRole } from "@/lib/wallet-route";
+import { getBankingEntryRouteForRole, getPayoutVerificationRouteForRole } from "@/lib/wallet-route";
 import { EscrowActions } from "@/components/wallet/escrow-actions";
 
 const money = new Intl.NumberFormat("en-ZA", {
@@ -35,7 +33,6 @@ export function WalletDashboard({
 
   const [typeFilter, setTypeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
-  const [cardSavedNotice, setCardSavedNotice] = useState(false);
   const { data, refetch, isLoading } = useQuery({
     queryKey: ["wallet-page"],
     queryFn: async () => {
@@ -44,11 +41,6 @@ export function WalletDashboard({
     },
     refetchInterval: PAYEE_DASHBOARD_REFETCH_MS,
   });
-  const refreshAfterCardSave = useCallback(() => {
-    void refetch();
-    setCardSavedNotice(true);
-  }, [refetch]);
-  useCardSaveReturnRefresh(refreshAfterCardSave);
   const filterMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch("/api/wallet", {
@@ -70,30 +62,6 @@ export function WalletDashboard({
     },
     onSuccess: () => refetch(),
   });
-  const payfastCardMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch("/api/payments/payfast/card-consent", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ returnPath: getClientReturnPath(walletReturnPath) }),
-      });
-      const payload = await readJsonOrThrow(res);
-      if (payload.checkoutUrl) window.location.href = payload.checkoutUrl;
-      return payload;
-    },
-  });
-  const payfastUpdateCardMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch("/api/payments/payfast/update-card", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ returnPath: getClientReturnPath(walletReturnPath) }),
-      });
-      const payload = await readJsonOrThrow(res);
-      if (payload.updateUrl) window.location.href = payload.updateUrl;
-      return payload;
-    },
-  });
 
   const wallet = data?.wallet;
   const revenueTrackingPaused = Boolean((data as { revenueTrackingPaused?: boolean } | undefined)?.revenueTrackingPaused);
@@ -103,7 +71,6 @@ export function WalletDashboard({
   );
   const escrows = (data?.escrows as any[] | undefined) ?? [];
   const payouts = (wallet?.payoutRequests as any[] | undefined) ?? [];
-  const payfastCard = data?.payfastCard as { hasToken?: boolean } | undefined;
   const payoutBanking = data?.payoutBanking as
     | { bankName?: string; accountNumberMasked?: string; accountType?: string }
     | null
@@ -111,7 +78,6 @@ export function WalletDashboard({
   const { data: session } = useSession();
   const role = session?.user?.role;
   const userId = session?.user?.id ?? "";
-  const walletReturnPath = getWalletRouteForRole(role);
   const payoutKycStatus = (session?.user as { payoutKycVerificationStatus?: string })?.payoutKycVerificationStatus;
   const funderStatus = (session?.user as { funderVerificationStatus?: string })?.funderVerificationStatus;
   const isFunder = role === "FUNDER";
@@ -168,79 +134,34 @@ export function WalletDashboard({
         </div>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-2">
-        <div className="storytime-section p-6">
-          <h2 className="text-lg font-semibold">Marketplace payments</h2>
-          {cardSavedNotice ? (
-            <p className="mt-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
-              Card saved successfully. Marketplace checkout can now use your PayFast card.
-            </p>
-          ) : null}
-          <p className="mt-1 text-xs text-slate-400">
-            Marketplace checkout uses your wallet first, then a PayFast-saved card, then hosted checkout.
-          </p>
-          {payfastCard?.hasToken ? (
-            <div className="mt-3 space-y-2">
-              <p className="text-xs text-emerald-300">PayFast card on file — marketplace charges can use your saved card.</p>
-              <button
-                type="button"
-                onClick={() => payfastUpdateCardMutation.mutate()}
-                disabled={payfastUpdateCardMutation.isPending}
-                className="rounded-xl border border-sky-400/30 bg-sky-500/10 px-3 py-2 text-xs font-semibold text-sky-200 hover:bg-sky-500/20 disabled:opacity-50"
-              >
-                {payfastUpdateCardMutation.isPending ? "Redirecting…" : "Update card on PayFast"}
-              </button>
-              {payfastUpdateCardMutation.error ? (
-                <p className="text-sm text-red-400">{(payfastUpdateCardMutation.error as Error).message}</p>
-              ) : null}
-            </div>
-          ) : (
-            <div className="mt-3 space-y-2">
-              <p className="text-xs text-amber-200">
-                No PayFast card saved. Add one to pay equipment, crew, cast, locations, and catering without leaving Story Time.
-              </p>
-              <button
-                type="button"
-                onClick={() => payfastCardMutation.mutate()}
-                disabled={payfastCardMutation.isPending}
-                className="rounded-xl bg-orange-500 px-3 py-2 text-xs font-semibold text-white hover:bg-orange-400 disabled:opacity-50"
-              >
-                {payfastCardMutation.isPending ? "Redirecting…" : "Add card via PayFast"}
-              </button>
-              {payfastCardMutation.error ? (
-                <p className="text-sm text-red-400">{(payfastCardMutation.error as Error).message}</p>
-              ) : null}
-            </div>
-          )}
-        </div>
-        <div className="storytime-section p-6">
-          <h2 className="text-lg font-semibold">Payout banking</h2>
-          <p className="mt-1 text-xs text-slate-400">
-            Withdrawals are reviewed manually by admin. Bank details come from your verified payout profile — complete
-            KYC/KYB before you can withdraw.
-          </p>
-          {payoutBanking?.bankName && payoutKycApproved ? (
-            <div className="mt-3 rounded-xl border border-slate-800 bg-slate-900/50 px-3 py-3 text-xs text-slate-300">
-              <p>{payoutBanking.bankName}</p>
-              <p className="mt-1 font-mono">{payoutBanking.accountNumberMasked}</p>
-              <p className="mt-1 text-slate-500">{payoutBanking.accountType}</p>
-            </div>
-          ) : needsPayoutKyc && !payoutKycApproved ? (
-            <div className="mt-3 rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-3 text-xs text-amber-100">
-              Complete identity and banking verification (KYC/KYB) before you can request a payout.{" "}
-              <Link href={verificationHref} className="font-semibold text-orange-300 underline hover:text-orange-200">
-                Start payout verification
-              </Link>
-            </div>
-          ) : (
-            <div className="mt-3 rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-3 text-xs text-amber-100">
-              Bank details required before you can request a payout.{" "}
-              <Link href={bankingHref} className="font-semibold text-orange-300 underline hover:text-orange-200">
-                Add banking details
-              </Link>
-            </div>
-          )}
-        </div>
+      <section className="storytime-section p-6">
+        <h2 className="text-lg font-semibold">Payout banking (KYC / KYB)</h2>
+        <p className="mt-1 text-xs text-slate-400">
+          This is only for withdrawing earnings. Bank details come from your verified payout profile — complete
+          KYC/KYB before you can withdraw. This is separate from any PayFast billing card used to pay Story Time
+          packages or renewals (managed on Account / Billing, not here).
+        </p>
+        {payoutBanking?.bankName && payoutKycApproved ? (
+          <div className="mt-3 rounded-xl border border-slate-800 bg-slate-900/50 px-3 py-3 text-xs text-slate-300">
+            <p>{payoutBanking.bankName}</p>
+            <p className="mt-1 font-mono">{payoutBanking.accountNumberMasked}</p>
+            <p className="mt-1 text-slate-500">{payoutBanking.accountType}</p>
+          </div>
+        ) : needsPayoutKyc && !payoutKycApproved ? (
+          <div className="mt-3 rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-3 text-xs text-amber-100">
+            Complete identity and banking verification (KYC/KYB) before you can request a payout.{" "}
+            <Link href={verificationHref} className="font-semibold text-orange-300 underline hover:text-orange-200">
+              Start payout verification
+            </Link>
+          </div>
+        ) : (
+          <div className="mt-3 rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-3 text-xs text-amber-100">
+            Bank details required before you can request a payout.{" "}
+            <Link href={bankingHref} className="font-semibold text-orange-300 underline hover:text-orange-200">
+              Add banking details
+            </Link>
+          </div>
+        )}
       </section>
 
       <section className="grid gap-4 lg:grid-cols-2">

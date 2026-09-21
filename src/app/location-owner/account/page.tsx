@@ -16,6 +16,7 @@ export default async function LocationOwnerAccountPage() {
       backHref="/location-owner/dashboard"
       title="Account"
       subtitle="Your account details. Manage your listings from My Listings."
+      cardReturnPath="/location-owner/account"
     />
   );
 }

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Briefcase, Save, ArrowLeft, Upload, Loader2 } from "lucide-react";
 import { AccountPrivacyControls } from "@/components/account/account-privacy-controls";
+import { PayFastSavedCardSection } from "@/components/payments/payfast-saved-card-section";
 import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
 
 type Team = {
@@ -188,6 +189,13 @@ export default function CrewTeamProfilePage() {
           </button>
         </div>
       </div>
+
+      <PayFastSavedCardSection
+        className="mt-8"
+        returnPath="/crew-team/profile"
+        title="Billing card"
+        description="PayFast card for listing renewals and booking charges only — not KYC/KYB payout banking. Authorization is R0 today."
+      />
 
       <AccountPrivacyControls variant="marketplace" className="mt-8" />
     </div>

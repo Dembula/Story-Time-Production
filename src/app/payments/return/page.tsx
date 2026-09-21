@@ -205,7 +205,7 @@ function PaymentsReturnContent() {
     }
     if (resolvedStatus === "failed") {
       return isCardSaveFlow(flow)
-        ? "We could not save your card. You can try again from the previous screen."
+        ? "We could not save your card. If PayFast showed a 3D Secure error, try again with the same or another card, or ask your bank to allow the R0 authorization. Then return here and tap Save card again."
         : "The payment could not be completed. You can retry from the previous screen.";
     }
     if (timedOut) {

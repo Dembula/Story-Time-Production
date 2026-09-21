@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { UtensilsCrossed, Upload } from "lucide-react";
 import { AccountPrivacyControls } from "@/components/account/account-privacy-controls";
+import { PayFastSavedCardSection } from "@/components/payments/payfast-saved-card-section";
 import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
 
 type CateringProfile = {
@@ -336,6 +337,13 @@ export function CateringProfileClient() {
         </button>
       </form>
       {!company && <p className="mt-4 text-sm text-slate-500">Complete your profile so creators can browse your menu and gallery.</p>}
+
+      <PayFastSavedCardSection
+        className="mt-8"
+        returnPath="/catering-company/profile"
+        title="Billing card"
+        description="PayFast card for listing renewals and booking charges only — not KYC/KYB payout banking. Authorization is R0 today."
+      />
 
       <div id="account">
         <AccountPrivacyControls variant="marketplace" className="mt-8" />

@@ -5,15 +5,19 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { User, Save, ArrowLeft } from "lucide-react";
 import { AccountPrivacyControls } from "@/components/account/account-privacy-controls";
+import { PayFastSavedCardSection } from "@/components/payments/payfast-saved-card-section";
 
 export function CompanyAccountClient({
   backHref,
   title,
   subtitle,
+  cardReturnPath,
 }: {
   backHref: string;
   title: string;
   subtitle: string;
+  /** Where PayFast should return after card save (defaults to this account page). */
+  cardReturnPath?: string;
 }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -113,6 +117,13 @@ export function CompanyAccountClient({
           <Save className="w-4 h-4" /> {saving ? "Saving..." : "Save changes"}
         </button>
       </form>
+
+      <PayFastSavedCardSection
+        className="mt-8"
+        returnPath={cardReturnPath ?? backHref.replace(/\/dashboard\/?$/, "/account")}
+        title="Billing card"
+        description="PayFast card for listing renewals and marketplace charges only — not KYC/KYB payout banking. Nothing is charged until a billing cycle or booking needs it."
+      />
 
       <AccountPrivacyControls
         variant="marketplace"

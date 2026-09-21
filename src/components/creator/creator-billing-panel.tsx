@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CreditCard, Loader2, RefreshCw } from "lucide-react";
+import { Loader2, RefreshCw } from "lucide-react";
 import { CheckoutModal } from "@/components/payments/checkout-modal";
 import {
   CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY,
@@ -11,6 +11,7 @@ import {
 } from "@/lib/pricing";
 import { formatZar } from "@/lib/format-currency-zar";
 import { getClientReturnPath } from "@/lib/payments/payfast-card-consent-client";
+import { PayFastSavedCardSection } from "@/components/payments/payfast-saved-card-section";
 
 type LicensePayload = {
   license?: {
@@ -79,7 +80,6 @@ export function CreatorBillingPanel() {
   const [error, setError] = useState("");
   const [checkoutUrl, setCheckoutUrl] = useState("");
   const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [cardBusy, setCardBusy] = useState(false);
 
   const license = data?.license ?? null;
   const choice = useMemo(
@@ -168,27 +168,6 @@ export function CreatorBillingPanel() {
     }
   }
 
-  async function saveCardForRenewals() {
-    setCardBusy(true);
-    setError("");
-    try {
-      const res = await fetch("/api/payments/payfast/card-consent", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ returnPath: getClientReturnPath() }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error || "Unable to start card setup");
-      if (!json.checkoutUrl) throw new Error("No checkout URL returned");
-      setCheckoutUrl(json.checkoutUrl);
-      setCheckoutOpen(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to start card setup");
-    } finally {
-      setCardBusy(false);
-    }
-  }
-
   if (isLoading) {
     return <p className="text-sm text-slate-400">Loading billing…</p>;
   }
@@ -270,15 +249,6 @@ export function CreatorBillingPanel() {
             {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
             {license ? "Switch & pay" : "Select package"}
           </button>
-          <button
-            type="button"
-            disabled={cardBusy}
-            onClick={() => void saveCardForRenewals()}
-            className="inline-flex items-center rounded-xl border border-white/15 bg-white/[0.04] px-5 py-2.5 text-sm font-medium text-slate-200 hover:bg-white/[0.07] disabled:opacity-60"
-          >
-            {cardBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
-            Save card for auto-renew
-          </button>
         </div>
         {license?.status === "ACTIVE" && !license.cancelAtPeriodEnd ? (
           <button
@@ -303,6 +273,12 @@ export function CreatorBillingPanel() {
         {message ? <p className="mt-3 text-sm text-emerald-300">{message}</p> : null}
         {error ? <p className="mt-3 text-sm text-red-300">{error}</p> : null}
       </div>
+
+      <PayFastSavedCardSection
+        returnPath={getClientReturnPath()}
+        title="Card for package renewals"
+        description="PayFast billing card for package renewals only. This is not KYC/KYB payout banking — bank documents for withdrawals stay on payout verification."
+      />
 
       <CheckoutModal
         open={checkoutOpen}
