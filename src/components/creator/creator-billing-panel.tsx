@@ -277,7 +277,7 @@ export function CreatorBillingPanel() {
       <PayFastSavedCardSection
         returnPath={getClientReturnPath()}
         title="Card for package renewals"
-        description="PayFast billing card for package renewals only. A R1 verification charge is refunded after the card is saved. Not KYC/KYB payout banking."
+        description="PayFast billing card for package renewals only. A R5 verification charge is refunded after the card is saved. Not KYC/KYB payout banking."
       />
 
       <CheckoutModal

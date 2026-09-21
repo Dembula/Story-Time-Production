@@ -242,7 +242,7 @@ export function buildPayFastCardConsentFields(args: {
     m_payment_id: mPaymentId,
     amount: formatPayFastAmount(PAYFAST_CARD_CONSENT_AMOUNT_ZAR),
     item_name: "Story Time card verification",
-    item_description: "R1 card verification — refunded after your card is saved",
+    item_description: "R5 card verification — refunded after your card is saved",
     // Tokenization only supports credit/cheque cards — force the card rail so EFT is not offered.
     payment_method: "cc",
     subscription_type: "2",

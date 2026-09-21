@@ -122,7 +122,7 @@ export function CompanyAccountClient({
         className="mt-8"
         returnPath={cardReturnPath ?? backHref.replace(/\/dashboard\/?$/, "/account")}
         title="Billing card"
-        description="PayFast card for listing renewals and marketplace charges only — not KYC/KYB payout banking. A R1 verification charge is refunded after the card is saved."
+        description="PayFast card for listing renewals and marketplace charges only — not KYC/KYB payout banking. A R5 verification charge is refunded after the card is saved."
       />
 
       <AccountPrivacyControls

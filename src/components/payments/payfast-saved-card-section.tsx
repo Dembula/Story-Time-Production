@@ -17,12 +17,12 @@ type SavedCardStatus = {
 
 /**
  * Shared PayFast card save/update block for creator, company, funder, and marketplace profiles.
- * Starts an R1 verification tokenization (subscription_type=2); the R1 is refunded after the card is saved.
+ * Starts an R5 verification tokenization (subscription_type=2); the R5 is refunded after the card is saved.
  */
 export function PayFastSavedCardSection({
   returnPath,
   title = "Billing card (PayFast)",
-  description = "Save a card once through PayFast to pay Story Time packages and renewals. A R1 verification charge is taken and refunded after the card is saved. This is not your KYC/KYB payout banking.",
+  description = "Save a card once through PayFast to pay Story Time packages and renewals. A R5 verification charge is taken and refunded after the card is saved. This is not your KYC/KYB payout banking.",
   className = "",
 }: {
   returnPath?: string;
@@ -109,7 +109,7 @@ export function PayFastSavedCardSection({
         checkoutUrl={checkoutUrl}
         dismissible
         title="Save your card with PayFast"
-        subtitle="PayFast will charge R1.00 to verify your card, then we refund that R1 once the card is saved. Your bank may ask for 3D Secure."
+        subtitle="PayFast will charge R5.00 to verify your card, then we refund that R5 once the card is saved. Your bank may ask for 3D Secure."
         onClose={() => setCheckoutOpen(false)}
       />
 
@@ -126,8 +126,8 @@ export function PayFastSavedCardSection({
       <div className="mt-4 flex items-start gap-2 rounded-xl border border-sky-400/20 bg-sky-500/10 px-3 py-2.5 text-xs text-sky-100/90">
         <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-sky-300" />
         <p>
-          PayFast shows <span className="font-medium text-sky-50">ZAR R 1.00</span> for card verification.
-          Complete 3D Secure when your bank asks. That R1 is refunded after your card is saved — it is not a
+          PayFast shows <span className="font-medium text-sky-50">ZAR R 5.00</span> for card verification.
+          Complete 3D Secure when your bank asks. That R5 is refunded after your card is saved — it is not a
           subscription charge. This never replaces KYC/KYB bank documents used for payouts.
         </p>
       </div>

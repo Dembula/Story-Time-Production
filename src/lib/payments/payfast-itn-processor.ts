@@ -161,7 +161,7 @@ async function refundCardConsentVerificationCharge(args: {
   const result = await refundPayFastPayment({
     pfPaymentId,
     amountZar,
-    reason: "Story Time R1 card verification refund",
+    reason: "Story Time R5 card verification refund",
   });
 
   if (!args.paymentRecordId) {

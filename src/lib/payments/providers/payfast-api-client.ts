@@ -189,7 +189,7 @@ export type PayFastRefundResult =
   | { ok: false; error: string; status?: string };
 
 /**
- * Refund a completed PayFast payment (e.g. R1 card-verification charge) back to the card.
+ * Refund a completed PayFast payment (e.g. R5 card-verification charge) back to the card.
  * Queries refundability first, then creates a PAYMENT_SOURCE refund when available.
  */
 export async function refundPayFastPayment(args: {

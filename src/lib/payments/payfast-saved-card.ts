@@ -159,7 +159,7 @@ async function clearViewerCardReminderQuietly(userId: string) {
   }
 }
 
-/** Start PayFast tokenization (R1 verification + subscription_type=2) — no card data touches Story Time. */
+/** Start PayFast tokenization (R5 verification + subscription_type=2) — no card data touches Story Time. */
 export async function createPayFastCardConsentForUser(args: {
   userId: string;
   email?: string | null;

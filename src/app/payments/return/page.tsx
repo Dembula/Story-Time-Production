@@ -202,21 +202,21 @@ function PaymentsReturnContent() {
   const message = useMemo(() => {
     if (resolvedStatus === "success") {
       return isCardSaveFlow(flow)
-        ? "Your card is saved securely through PayFast. Any R1 verification charge is being refunded. Redirecting you back…"
+        ? "Your card is saved securely through PayFast. Any R5 verification charge is being refunded. Redirecting you back…"
         : "Your transaction is confirmed. Redirecting now...";
     }
     if (resolvedStatus === "failed") {
       return isCardSaveFlow(flow)
-        ? "We could not save your card. If PayFast showed a 3D Secure error, try again with the same or another card, or ask your bank to allow the R1 verification charge. Then return here and tap Save card again."
+        ? "We could not save your card. If PayFast showed a 3D Secure error, try again with the same or another card, or ask your bank to allow the R5 verification charge. Then return here and tap Save card again."
         : "The payment could not be completed. You can retry from the previous screen.";
     }
     if (timedOut) {
       return isCardSaveFlow(flow)
-        ? "PayFast may still be confirming your card. You can continue — it will appear once confirmation arrives. Any R1 verification charge is refunded after the card is saved."
+        ? "PayFast may still be confirming your card. You can continue — it will appear once confirmation arrives. Any R5 verification charge is refunded after the card is saved."
         : "PayFast may still be sending confirmation. You can continue — we will activate your access as soon as confirmation arrives.";
     }
     return isCardSaveFlow(flow)
-      ? "Waiting for secure confirmation from PayFast. The R1 verification charge is refunded after your card is saved…"
+      ? "Waiting for secure confirmation from PayFast. The R5 verification charge is refunded after your card is saved…"
       : "Waiting for secure confirmation from the payment network...";
   }, [resolvedStatus, timedOut, flow]);
 

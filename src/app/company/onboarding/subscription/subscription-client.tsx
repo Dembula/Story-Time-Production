@@ -243,7 +243,7 @@ export function CompanySubscriptionClient({ dashboardUrl }: { dashboardUrl: stri
       <PayFastSavedCardSection
         returnPath={getClientReturnPath()}
         title="Save a card for renewals"
-        description="PayFast billing card for listing plan renewals only — separate from KYC/KYB bank details used for payouts. A R1 verification charge is refunded after the card is saved."
+        description="PayFast billing card for listing plan renewals only — separate from KYC/KYB bank details used for payouts. A R5 verification charge is refunded after the card is saved."
       />
 
       <button

@@ -5,8 +5,8 @@ export const PAYFAST_VALIDATE_URL = "https://www.payfast.co.za/eng/query/validat
 export const PAYFAST_RECURRING_UPDATE_BASE = "https://www.payfast.co.za/eng/recurring/update";
 export const PAYFAST_API_BASE = "https://api.payfast.co.za";
 
-/** Card-save verification charge (ZAR). Refunded via PayFast Refunds API after token is stored. */
-export const PAYFAST_CARD_CONSENT_AMOUNT_ZAR = 1;
+/** Card-save verification charge (ZAR). PayFast minimum live amount is R5; refunded after token is stored. */
+export const PAYFAST_CARD_CONSENT_AMOUNT_ZAR = 5;
 
 /** Canonical production origin for PayFast notify/return URLs. */
 export const PAYFAST_PRODUCTION_ORIGIN = "https://story-time.online";

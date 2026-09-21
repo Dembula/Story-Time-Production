@@ -54,7 +54,7 @@ export default function CastingAgencyProfilePage() {
         className="mt-8"
         returnPath="/casting-agency/profile"
         title="Billing card"
-        description="PayFast card for listing renewals and inquiry payments only — not KYC/KYB payout banking. A R1 verification charge is refunded after the card is saved."
+        description="PayFast card for listing renewals and inquiry payments only — not KYC/KYB payout banking. A R5 verification charge is refunded after the card is saved."
       />
 
       <AccountPrivacyControls variant="marketplace" className="mt-8" />
