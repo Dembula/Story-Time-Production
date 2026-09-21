@@ -475,7 +475,7 @@ export async function downloadTreatmentPptx(options: TreatmentExportOptions): Pr
 
     switch (slideDoc.layout) {
       case "title":
-        if (fieldVisible(slideDoc, "title") && (slideDoc.title || "").trim()) {
+        if (fieldVisible(slideDoc, "title") && slideDoc.title?.trim()) {
           slide.addText(slideDoc.title, {
             x: padX,
             y: slideH * 0.32,
@@ -502,7 +502,7 @@ export async function downloadTreatmentPptx(options: TreatmentExportOptions): Pr
         break;
       case "split": {
         const colW = (slideW - padX * 2 - 0.4) / 2;
-        if (fieldVisible(slideDoc, "title") && (slideDoc.title || "").trim()) {
+        if (fieldVisible(slideDoc, "title") && slideDoc.title?.trim()) {
           slide.addText(slideDoc.title, {
             x: padX,
             y: padY,
@@ -513,7 +513,7 @@ export async function downloadTreatmentPptx(options: TreatmentExportOptions): Pr
             color: fg,
           });
         }
-        if (fieldVisible(slideDoc, "body") && (slideDoc.body || "").trim()) {
+        if (fieldVisible(slideDoc, "body") && slideDoc.body?.trim()) {
           slide.addText(slideDoc.body, {
             x: padX,
             y: padY + (fieldVisible(slideDoc, "title") ? 0.85 : 0),
@@ -560,7 +560,7 @@ export async function downloadTreatmentPptx(options: TreatmentExportOptions): Pr
         }
         break;
       case "references": {
-        if (fieldVisible(slideDoc, "title") && (slideDoc.title || "").trim()) {
+        if (fieldVisible(slideDoc, "title") && slideDoc.title?.trim()) {
           slide.addText(slideDoc.title, {
             x: padX,
             y: padY * 0.7,
@@ -574,7 +574,7 @@ export async function downloadTreatmentPptx(options: TreatmentExportOptions): Pr
         const cols = 3;
         const gap = 0.2;
         const gridTop =
-          padY * 0.7 + (fieldVisible(slideDoc, "title") && (slideDoc.title || "").trim() ? 0.7 : 0.2);
+          padY * 0.7 + (fieldVisible(slideDoc, "title") && slideDoc.title?.trim() ? 0.7 : 0.2);
         const cellW = (slideW - padX * 2 - gap * (cols - 1)) / cols;
         const cellH = cellW * (9 / 16);
         slideDoc.referenceIds.slice(0, 9).forEach((id, i) => {
@@ -594,7 +594,7 @@ export async function downloadTreatmentPptx(options: TreatmentExportOptions): Pr
         break;
       case "content":
       default:
-        if (fieldVisible(slideDoc, "title") && (slideDoc.title || "").trim()) {
+        if (fieldVisible(slideDoc, "title") && slideDoc.title?.trim()) {
           slide.addText(slideDoc.title, {
             x: padX,
             y: padY,
@@ -605,7 +605,7 @@ export async function downloadTreatmentPptx(options: TreatmentExportOptions): Pr
             color: fg,
           });
         }
-        if (fieldVisible(slideDoc, "body") && (slideDoc.body || "").trim()) {
+        if (fieldVisible(slideDoc, "body") && slideDoc.body?.trim()) {
           slide.addText(slideDoc.body, {
             x: padX,
             y: padY + (fieldVisible(slideDoc, "title") ? 0.9 : 0),
