@@ -382,7 +382,7 @@ export async function processPayFastItn(
       rawBody,
       data,
       signatureVerified,
-      paymentRecordId: result.paymentRecordId ?? paymentRecordId,
+      paymentRecordId: (result.ok ? result.paymentRecordId : undefined) ?? paymentRecordId,
       processed: true,
     });
     return result;
