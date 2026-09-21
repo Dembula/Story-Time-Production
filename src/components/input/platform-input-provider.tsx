@@ -7,6 +7,7 @@ import { isEditableTarget, getFocusableElements } from "@/lib/input/focusable";
 import { startGamepadNavigation } from "@/lib/input/gamepad-navigation";
 import { matchesShortcut } from "@/lib/input/keyboard-shortcuts";
 import { isOfflineDownloadEnabled } from "@/lib/platform/offline-downloads";
+import { startPlatformEditingShortcuts } from "@/lib/input/platform-editing-shortcuts";
 import { mapKeyboardToRemoteAction } from "@/lib/input/remote-keys";
 import {
   closeTopOverlay,
@@ -58,6 +59,8 @@ export function PlatformInputProvider({ children }: { children: React.ReactNode 
       onBack: handleBack,
     });
   }, [handleBack]);
+
+  useEffect(() => startPlatformEditingShortcuts(), []);
 
   useEffect(() => {
     document.documentElement.dataset.gamepadConnected = gamepadConnected ? "true" : "false";

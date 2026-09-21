@@ -88,8 +88,11 @@ async function runPostSuccessMoneyAndEffects(args: {
   });
 
   if (cashRecognized && allocatableAmount > 0) {
-    const { ensureCreatorRevenueTrackingLive } = await import("@/lib/finance/revenue-connector");
+    const { ensureCreatorRevenueTrackingLive, getRevenueConnector } = await import(
+      "@/lib/finance/revenue-connector"
+    );
     await ensureCreatorRevenueTrackingLive().catch(() => {});
+    const connector = await getRevenueConnector();
 
     // Schedule PayFast (3d) / Apple (45d) clear clock — ledger books only after clear.
     const paidAt = new Date();
@@ -103,25 +106,32 @@ async function runPostSuccessMoneyAndEffects(args: {
       },
     });
     const paidAtEffective = existing?.paidAt ? new Date(existing.paidAt) : paidAt;
+    let dueAt =
+      existing?.fundsClearDueAt != null ? new Date(existing.fundsClearDueAt) : null;
     if (!existing?.fundsClearDueAt && !existing?.fundsClearedAt) {
-      await scheduleFundsClearForPayment({
+      const scheduled = await scheduleFundsClearForPayment({
         paymentRecordId: args.paymentRecordId,
         paidAt: paidAtEffective,
         provider: args.provider,
+        trackingStartedAt: connector.trackingStartedAt,
       });
+      if (scheduled.skipped || !scheduled.fundsClearDueAt) {
+        // Pre-tracking: no clock, no early auto-clear into the pool.
+      } else {
+        dueAt = scheduled.fundsClearDueAt;
+      }
     }
 
     // Clear now if due (or already past), including recovery for already-cleared rows.
-    const due =
-      existing?.fundsClearDueAt != null
-        ? new Date(existing.fundsClearDueAt)
-        : computeFundsClearDueAt(paidAtEffective, args.provider);
-    if (existing?.fundsClearedAt || due.getTime() <= Date.now()) {
-      await markPaymentFundsCleared({
-        paymentRecordId: args.paymentRecordId,
-        mode: "auto",
-        now: new Date(),
-      });
+    if (dueAt || existing?.fundsClearedAt) {
+      const due = dueAt ?? computeFundsClearDueAt(paidAtEffective, args.provider);
+      if (existing?.fundsClearedAt || due.getTime() <= Date.now()) {
+        await markPaymentFundsCleared({
+          paymentRecordId: args.paymentRecordId,
+          mode: "auto",
+          now: new Date(),
+        });
+      }
     }
   }
 

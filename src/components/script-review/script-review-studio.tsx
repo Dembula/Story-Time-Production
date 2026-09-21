@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ChevronLeft,
@@ -9,7 +9,9 @@ import {
   Download,
   Layers,
   MessageSquare,
+  Redo2,
   Sparkles,
+  Undo2,
   Users,
   ZoomIn,
   ZoomOut,
@@ -27,6 +29,7 @@ import {
 import { formatZar } from "@/lib/format-currency-zar";
 import { EXECUTIVE_SCRIPT_REVIEW_FEE_ZAR } from "@/lib/pricing";
 import { projectToolQueryFn } from "@/lib/project-tool-fetch";
+import { isEditableTarget } from "@/lib/input/focusable";
 import {
   CORE_REVIEW_LAYER_IDS,
   HOD_REVIEW_LAYER_IDS,
@@ -45,6 +48,20 @@ import type { ReviewPeer } from "@/lib/script-review/collaboration-room";
 import { ReviewPageCanvas } from "./review-page-canvas";
 import { ReviewThreadsPanel } from "./review-threads-panel";
 
+const REVIEW_HISTORY_MAX = 80;
+
+type ReviewHistoryEntry =
+  | {
+      kind: "add";
+      id: string;
+      recreate: Record<string, unknown>;
+    }
+  | {
+      kind: "resolve";
+      id: string;
+      from: boolean;
+      to: boolean;
+    };
 function openCreatorVa(prompt: string) {
   window.dispatchEvent(new CustomEvent("modoc:open-creator", { detail: { prompt } }));
 }
@@ -98,10 +115,20 @@ export function ScriptReviewStudio({ projectId, title }: ScriptReviewStudioProps
   const [coverageDraft, setCoverageDraft] = useState("");
   const [reviewPeers, setReviewPeers] = useState<ReviewPeer[]>([]);
   const [permissions, setPermissions] = useState<ReviewPermissions | null>(null);
+  const [historyTick, setHistoryTick] = useState(0);
+  const [historyBusy, setHistoryBusy] = useState(false);
+  const undoStackRef = useRef<ReviewHistoryEntry[]>([]);
+  const redoStackRef = useRef<ReviewHistoryEntry[]>([]);
 
   useEffect(() => {
     setWorkingProjectId(projectId ?? "");
   }, [projectId]);
+
+  useEffect(() => {
+    undoStackRef.current = [];
+    redoStackRef.current = [];
+    setHistoryTick((t) => t + 1);
+  }, [workingProjectId, selectedDraftId, executiveRequestId]);
 
   const hasProject = !!workingProjectId;
 
@@ -289,12 +316,149 @@ export function ScriptReviewStudio({ projectId, title }: ScriptReviewStudioProps
         },
       );
       if (!res.ok) throw new Error("Failed to save annotation");
-      return res.json();
+      return res.json() as Promise<{ annotation: ReviewAnnotationRecord }>;
     },
     onSuccess: () => {
       void refetchSession();
     },
   });
+
+  const pushUndo = useCallback((entry: ReviewHistoryEntry) => {
+    undoStackRef.current = [...undoStackRef.current.slice(-(REVIEW_HISTORY_MAX - 1)), entry];
+    redoStackRef.current = [];
+    setHistoryTick((t) => t + 1);
+  }, []);
+
+  const saveAnnotation = useCallback(
+    async (payload: Record<string, unknown>) => {
+      const result = await createAnnotation.mutateAsync(payload);
+      const annotation = result?.annotation;
+      if (annotation?.id) {
+        pushUndo({
+          kind: "add",
+          id: annotation.id,
+          recreate: { layer: activeLayer, ...payload },
+        });
+      }
+      return result;
+    },
+    [createAnnotation, activeLayer, pushUndo],
+  );
+
+  const patchAnnotationResolved = useCallback(
+    async (id: string, resolved: boolean) => {
+      const res = await fetch(
+        `/api/creator/projects/${workingProjectId}/script-review/annotations`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id, resolved }),
+        },
+      );
+      if (!res.ok) throw new Error("Failed to update annotation");
+      await refetchSession();
+    },
+    [workingProjectId, refetchSession],
+  );
+
+  const deleteAnnotationById = useCallback(
+    async (id: string) => {
+      const res = await fetch(
+        `/api/creator/projects/${workingProjectId}/script-review/annotations?id=${encodeURIComponent(id)}`,
+        { method: "DELETE" },
+      );
+      if (!res.ok) throw new Error("Failed to remove annotation");
+      await refetchSession();
+    },
+    [workingProjectId, refetchSession],
+  );
+
+  const undoMarkup = useCallback(async () => {
+    if (historyBusy || undoStackRef.current.length === 0) return;
+    const entry = undoStackRef.current[undoStackRef.current.length - 1];
+    if (!entry) return;
+    setHistoryBusy(true);
+    try {
+      undoStackRef.current = undoStackRef.current.slice(0, -1);
+      if (entry.kind === "add") {
+        await deleteAnnotationById(entry.id);
+        redoStackRef.current = [...redoStackRef.current.slice(-(REVIEW_HISTORY_MAX - 1)), entry];
+      } else {
+        await patchAnnotationResolved(entry.id, entry.from);
+        redoStackRef.current = [...redoStackRef.current.slice(-(REVIEW_HISTORY_MAX - 1)), entry];
+      }
+      setHistoryTick((t) => t + 1);
+    } catch (err) {
+      // Restore stack entry if the API call failed.
+      undoStackRef.current = [...undoStackRef.current, entry];
+      console.error("[script-review] undo failed", err);
+    } finally {
+      setHistoryBusy(false);
+    }
+  }, [historyBusy, deleteAnnotationById, patchAnnotationResolved]);
+
+  const redoMarkup = useCallback(async () => {
+    if (historyBusy || redoStackRef.current.length === 0) return;
+    const entry = redoStackRef.current[redoStackRef.current.length - 1];
+    if (!entry) return;
+    setHistoryBusy(true);
+    try {
+      redoStackRef.current = redoStackRef.current.slice(0, -1);
+      if (entry.kind === "add") {
+        const result = await createAnnotation.mutateAsync(entry.recreate);
+        const annotation = result?.annotation;
+        if (annotation?.id) {
+          undoStackRef.current = [
+            ...undoStackRef.current.slice(-(REVIEW_HISTORY_MAX - 1)),
+            { kind: "add", id: annotation.id, recreate: entry.recreate },
+          ];
+        }
+      } else {
+        await patchAnnotationResolved(entry.id, entry.to);
+        undoStackRef.current = [...undoStackRef.current.slice(-(REVIEW_HISTORY_MAX - 1)), entry];
+      }
+      setHistoryTick((t) => t + 1);
+    } catch (err) {
+      redoStackRef.current = [...redoStackRef.current, entry];
+      console.error("[script-review] redo failed", err);
+    } finally {
+      setHistoryBusy(false);
+    }
+  }, [historyBusy, createAnnotation, patchAnnotationResolved]);
+
+  const canUndoMarkup = historyTick >= 0 && undoStackRef.current.length > 0;
+  const canRedoMarkup = historyTick >= 0 && redoStackRef.current.length > 0;
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      // Text fields keep platform field-level undo/redo.
+      if (isEditableTarget(target)) return;
+      const key = e.key.toLowerCase();
+      if (key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        void undoMarkup();
+        return;
+      }
+      if (key === "y" || (key === "z" && e.shiftKey)) {
+        e.preventDefault();
+        void redoMarkup();
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [undoMarkup, redoMarkup]);
+
+  const resolveAnnotation = useCallback(
+    async (id: string) => {
+      const current = annotations.find((a) => a.id === id);
+      const from = current?.resolved ?? false;
+      await patchAnnotationResolved(id, true);
+      pushUndo({ kind: "resolve", id, from, to: true });
+    },
+    [annotations, patchAnnotationResolved, pushUndo],
+  );
 
   const updateSession = useMutation({
     mutationFn: async (payload: { reviewStatus?: string; coverageReport?: string }) => {
@@ -530,6 +694,29 @@ export function ScriptReviewStudio({ projectId, title }: ScriptReviewStudioProps
           ) : null}
 
           <div className="creator-tool-studio-toolbar rounded-xl border border-slate-800 bg-slate-900/80 px-2 py-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-7 text-slate-300"
+              disabled={!canUndoMarkup || historyBusy}
+              title="Undo markup (Ctrl+Z)"
+              onClick={() => void undoMarkup()}
+            >
+              <Undo2 className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-7 text-slate-300"
+              disabled={!canRedoMarkup || historyBusy}
+              title="Redo markup (Ctrl+Y)"
+              onClick={() => void redoMarkup()}
+            >
+              <Redo2 className="h-3.5 w-3.5" />
+            </Button>
+            <span className="mx-1 h-4 w-px bg-slate-700" aria-hidden />
             {toolbarTools.map((t) => (
               <button
                 key={t.id}
@@ -660,15 +847,18 @@ export function ScriptReviewStudio({ projectId, title }: ScriptReviewStudioProps
                   layer={activeLayer}
                   canAnnotate={canAnnotate}
                   peers={reviewPeers}
-                  onCreateAnnotation={(p) => createAnnotation.mutate(p)}
-                  onAddComment={(lineIndex, text, data) =>
-                    createAnnotation.mutate({
+                  onCreateAnnotation={(p) => {
+                    void saveAnnotation(p);
+                  }}
+                  onAddComment={(lineIndex, text, data) => {
+                    void saveAnnotation({
                       type: "comment",
+                      pageIndex: Math.floor(lineIndex / 55),
                       lineIndex,
                       body: text,
                       data: data ?? {},
-                    })
-                  }
+                    });
+                  }}
                   onCursorMove={(pt, lineIndex) => postCollaboration({ x: pt[0], y: pt[1], lineIndex })}
                 />
               ))}
@@ -775,21 +965,17 @@ export function ScriptReviewStudio({ projectId, title }: ScriptReviewStudioProps
                   <ReviewThreadsPanel
                     threads={threadComments}
                     canReply={canReply}
-                    onResolve={(id) =>
-                      fetch(`/api/creator/projects/${workingProjectId}/script-review/annotations`, {
-                        method: "PATCH",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ id, resolved: true }),
-                      }).then(() => refetchSession())
-                    }
-                    onReply={(parentId, body) =>
-                      createAnnotation.mutate({
+                    onResolve={(id) => {
+                      void resolveAnnotation(id);
+                    }}
+                    onReply={(parentId, body) => {
+                      void saveAnnotation({
                         type: "comment",
                         parentId,
                         body,
                         data: {},
-                      })
-                    }
+                      });
+                    }}
                     onJumpToLine={(lineIndex) => setPage(Math.floor(lineIndex / 55))}
                   />
                 )}

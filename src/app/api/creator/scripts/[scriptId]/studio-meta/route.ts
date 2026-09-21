@@ -11,6 +11,8 @@ type StudioMeta = {
   lockedScenes?: string[];
   /** Title-page "Written by" credit for this script only (not account name). */
   writerCredit?: string;
+  /** TV/series episode title shown under the series name on the title page. */
+  episodeTitle?: string;
 };
 
 export async function GET(_req: NextRequest, { params }: RouteParams) {
@@ -25,6 +27,8 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
     lockedScenes: meta.lockedScenes ?? [],
     writerCredit:
       typeof meta.writerCredit === "string" ? meta.writerCredit : undefined,
+    episodeTitle:
+      typeof meta.episodeTitle === "string" ? meta.episodeTitle : undefined,
   });
 }
 
@@ -48,6 +52,11 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     const credit = typeof body.writerCredit === "string" ? body.writerCredit.trim() : "";
     if (credit) next.writerCredit = credit;
     else delete next.writerCredit;
+  }
+  if (body && "episodeTitle" in body) {
+    const ep = typeof body.episodeTitle === "string" ? body.episodeTitle.trim() : "";
+    if (ep) next.episodeTitle = ep;
+    else delete next.episodeTitle;
   }
 
   const script = await prisma.creatorScript.update({

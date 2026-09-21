@@ -8,6 +8,16 @@ import {
 import { isFundsCleared } from "@/lib/payments/funds-clearing-policy";
 import { getRevenueConnector } from "@/lib/finance/revenue-connector";
 import { isViewerPoolPaymentPurpose } from "@/lib/payments/viewer-pool-purposes";
+import {
+  CREATOR_REVENUE_GO_LIVE_AT,
+  resolveCreatorRevenueTrackingStart,
+} from "@/lib/finance/revenue-tracking-start";
+
+export {
+  CREATOR_REVENUE_GO_LIVE_AT,
+  resolveCreatorRevenueTrackingStart,
+  isPaidAtOnOrAfterTrackingStart,
+} from "@/lib/finance/revenue-tracking-start";
 
 export type RevenueEligibilityPayment = {
   amount?: number | null;
@@ -63,10 +73,7 @@ export async function isClearedCreatorPoolEligiblePayment(
     : await getRevenueConnector();
 
   if (!connector.creatorRevenueTrackingEnabled) return false;
-  const startedAt = connector.trackingStartedAt
-    ? new Date(connector.trackingStartedAt)
-    : null;
-  if (!startedAt) return false;
+  const startedAt = resolveCreatorRevenueTrackingStart(connector.trackingStartedAt);
 
   const paidAt = payment.paidAt ? new Date(payment.paidAt) : null;
   if (!paidAt || Number.isNaN(paidAt.getTime())) return false;
@@ -105,16 +112,19 @@ export async function sumClearedViewerPoolRevenue(
   periodEnd: Date,
 ): Promise<number> {
   const connector = await getRevenueConnector();
-  if (!connector.creatorRevenueTrackingEnabled || !connector.trackingStartedAt) {
+  if (!connector.creatorRevenueTrackingEnabled) {
     return 0;
   }
+  const trackingStart = resolveCreatorRevenueTrackingStart(connector.trackingStartedAt);
+  const effectivePeriodStart =
+    periodStart.getTime() < trackingStart.getTime() ? trackingStart : periodStart;
 
   const { VIEWER_POOL_PAYMENT_PURPOSES } = await import("@/lib/payments/viewer-pool-purposes");
   const payments = await prisma.paymentRecord.findMany({
     where: {
       status: "SUCCEEDED",
       purpose: { in: [...VIEWER_POOL_PAYMENT_PURPOSES] },
-      paidAt: { gte: periodStart, lte: periodEnd },
+      paidAt: { gte: effectivePeriodStart, lte: periodEnd },
       fundsClearedAt: { not: null },
       amount: { gt: 0 },
     },
@@ -139,7 +149,7 @@ export async function sumClearedViewerPoolRevenue(
     if (
       await isClearedCreatorPoolEligiblePayment(p, {
         trackingEnabled: true,
-        trackingStartedAt: new Date(connector.trackingStartedAt),
+        trackingStartedAt: trackingStart,
       })
     ) {
       sum += getCashSettlementAmount(p);

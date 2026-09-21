@@ -1,7 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
-import { startOfDayInJohannesburg } from "@/lib/finance/revenue-eligibility";
+import { CREATOR_REVENUE_GO_LIVE_AT } from "@/lib/finance/revenue-tracking-start";
 
 export type RevenueConnectorSnapshot = {
   id: string | null;
@@ -82,7 +82,7 @@ export async function upsertRevenueConnector(options: {
   creatorRevenueTrackingEnabled: boolean;
   note?: string | null;
   updatedByUserId?: string | null;
-  /** When enabling, defaults to start of today (Africa/Johannesburg) if not already set. */
+  /** When enabling, defaults to Sep 18 2026 go-live if not already set. */
   trackingStartedAt?: Date | null;
 }): Promise<RevenueConnectorSnapshot> {
   const existing = await prisma.platformRevenueConnector.findFirst({
@@ -94,7 +94,7 @@ export async function upsertRevenueConnector(options: {
     if (trackingStartedAt === undefined) {
       trackingStartedAt =
         (existing as { trackingStartedAt?: Date | null } | null)?.trackingStartedAt ??
-        startOfDayInJohannesburg();
+        CREATOR_REVENUE_GO_LIVE_AT;
     }
   } else if (trackingStartedAt === undefined) {
     trackingStartedAt = (existing as { trackingStartedAt?: Date | null } | null)?.trackingStartedAt ?? null;
@@ -133,25 +133,33 @@ export async function listRevenueConnectorHistory(limit = 25) {
 }
 
 /**
- * Ensure creator revenue tracking is ON from start of today (Johannesburg).
- * Idempotent — does not move trackingStartedAt if already set.
+ * Ensure creator revenue tracking is ON from the Sep 18 2026 go-live.
+ * Pins trackingStartedAt to CREATOR_REVENUE_GO_LIVE_AT when missing or drifted.
  */
 export async function ensureCreatorRevenueTrackingLive(options?: {
   note?: string;
   updatedByUserId?: string | null;
 }): Promise<RevenueConnectorSnapshot> {
   const current = await getRevenueConnector();
-  if (current.creatorRevenueTrackingEnabled && current.trackingStartedAt) {
+  const goLiveMs = CREATOR_REVENUE_GO_LIVE_AT.getTime();
+  const currentStartMs = current.trackingStartedAt
+    ? new Date(current.trackingStartedAt).getTime()
+    : null;
+
+  if (
+    current.creatorRevenueTrackingEnabled &&
+    currentStartMs != null &&
+    currentStartMs === goLiveMs
+  ) {
     return current;
   }
+
   return upsertRevenueConnector({
     creatorRevenueTrackingEnabled: true,
-    trackingStartedAt: current.trackingStartedAt
-      ? new Date(current.trackingStartedAt)
-      : startOfDayInJohannesburg(),
+    trackingStartedAt: CREATOR_REVENUE_GO_LIVE_AT,
     note:
       options?.note ??
-      "Creator revenue recording live — new subscribers count after PayFast/Apple clear; existing subs count on next renewal.",
+      "Creator revenue recording live from 18 Sep 2026 — PayFast 3d / Apple 45d clear clocks; existing subs count on next renewal.",
     updatedByUserId: options?.updatedByUserId ?? null,
   });
 }

@@ -66,10 +66,12 @@ type ScreenplayEditorProps = {
   scriptTitle?: string;
   scriptType?: string;
   authorName?: string;
+  episodeTitle?: string;
   onScriptTitleChange?: (title: string) => void;
   onScriptTypeChange?: (type: string) => void;
   /** Script-only writer credit — must not update the account profile. */
   onAuthorNameChange?: (authorName: string) => void;
+  onEpisodeTitleChange?: (episodeTitle: string) => void;
   /** Bridge for undo/redo to use global caret positions across page textareas. */
   caretBridgeRef?: React.MutableRefObject<ScreenplayCaretBridge | null>;
 };
@@ -215,12 +217,15 @@ export function ScreenplayEditor({
   scriptTitle = "Untitled Screenplay",
   scriptType = "FEATURE",
   authorName,
+  episodeTitle = "Pilot",
   onScriptTitleChange,
   onScriptTypeChange,
   onAuthorNameChange,
+  onEpisodeTitleChange,
   caretBridgeRef,
 }: ScreenplayEditorProps) {
-  const resolvedAuthor = authorName?.trim() || "Creator";
+  // Keep spaces while typing — do not trim the live credit string.
+  const resolvedAuthor = authorName ?? "Creator";
   const pageRefs = useRef<Array<HTMLTextAreaElement | null>>([]);
   const [editingElement, setEditingElement] = useState<ScreenplayElementType>(activeElementProp);
   const [activePageIdx, setActivePageIdx] = useState(0);
@@ -1117,6 +1122,7 @@ export function ScreenplayEditor({
             title={scriptTitle}
             authorName={resolvedAuthor}
             scriptType={scriptType}
+            episodeTitle={episodeTitle}
             fontCss={fontCss}
             pageWidth={PAGE_WIDTH}
             pageHeight={PAGE_HEIGHT}
@@ -1126,6 +1132,7 @@ export function ScreenplayEditor({
             onTitleChange={onScriptTitleChange}
             onAuthorNameChange={onAuthorNameChange}
             onScriptTypeChange={onScriptTypeChange}
+            onEpisodeTitleChange={onEpisodeTitleChange}
           />
 
           {pageTexts.map((pageText, pageIdx) => (

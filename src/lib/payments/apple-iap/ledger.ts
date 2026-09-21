@@ -37,24 +37,31 @@ export async function bookAppleIapLedgerIfCash(payment: {
 
   if (!cashRecognized || !(settlementAmount > 0)) return;
 
+  const { ensureCreatorRevenueTrackingLive, getRevenueConnector } = await import(
+    "@/lib/finance/revenue-connector"
+  );
+  await ensureCreatorRevenueTrackingLive().catch(() => {});
+  const connector = await getRevenueConnector();
+
   const row = await db.paymentRecord.findUnique({
     where: { id: payment.id },
     select: { paidAt: true, fundsClearDueAt: true, fundsClearedAt: true },
   });
   const paidAt = row?.paidAt ? new Date(row.paidAt) : new Date();
 
+  let dueAt = row?.fundsClearDueAt != null ? new Date(row.fundsClearDueAt) : null;
   if (!row?.fundsClearDueAt && !row?.fundsClearedAt) {
-    await scheduleFundsClearForPayment({
+    const scheduled = await scheduleFundsClearForPayment({
       paymentRecordId: payment.id,
       paidAt,
       provider: "APPLE",
+      trackingStartedAt: connector.trackingStartedAt,
     });
+    if (scheduled.skipped || !scheduled.fundsClearDueAt) return;
+    dueAt = scheduled.fundsClearDueAt;
   }
 
-  const due =
-    row?.fundsClearDueAt != null
-      ? new Date(row.fundsClearDueAt)
-      : computeFundsClearDueAt(paidAt, "APPLE");
+  const due = dueAt ?? computeFundsClearDueAt(paidAt, "APPLE");
   if (row?.fundsClearedAt || due.getTime() <= Date.now()) {
     await markPaymentFundsCleared({
       paymentRecordId: payment.id,

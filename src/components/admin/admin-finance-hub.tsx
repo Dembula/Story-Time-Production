@@ -458,8 +458,11 @@ export function AdminFinanceHub() {
               <div>
                 <h2 className="text-sm font-semibold text-white">Transaction dossier sheet</h2>
                 <p className="mt-1 text-xs text-slate-500">
-                  Click any row for detail. Clear status shows the PayFast 3-day / Apple 45-day clock.
+                  Click any row for detail. Clear status shows the PayFast 3-day / Apple 45-day clock
+                  for payments from 18 Sep 2026 onward. Earlier invoices show{" "}
+                  <span className="text-slate-300">Before tracking</span> and do not count.
                   Use <span className="text-amber-200">Cleared</span> to mark early settlement when
+                  gateway funds have landed.
                   funds arrive sooner — only cleared cash feeds the creator pool and revenue KPIs.
                 </p>
               </div>
@@ -552,11 +555,6 @@ export function AdminFinanceHub() {
                         ) : row.fundsClearStatus === "pending" ? (
                           <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-amber-200">
                             {row.fundsClearLabel}
-                            {row.provider === "APPLE"
-                              ? " · Apple 45d"
-                              : row.provider === "PAYFAST"
-                                ? " · PayFast 3d"
-                                : ""}
                           </span>
                         ) : (
                           <span className="text-slate-500">{row.fundsClearLabel}</span>

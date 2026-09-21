@@ -13,6 +13,7 @@ import {
 } from "@/lib/payments/funds-clearing-policy";
 import { ensureCreatorRevenueTrackingLive, getRevenueConnector } from "@/lib/finance/revenue-connector";
 import { isClearedCreatorPoolEligiblePayment } from "@/lib/finance/revenue-eligibility";
+import { resolveCreatorRevenueTrackingStart } from "@/lib/finance/revenue-tracking-start";
 import { getFinanceFeeSettings } from "@/lib/finance/fee-settings";
 import { splitViewerRevenueWithRates } from "@/lib/finance/fee-math";
 import { resolveFinancePeriodRange, type FinancePeriodKey } from "@/lib/finance/period-range";
@@ -147,10 +148,17 @@ export async function fetchFinanceOverviewBundle(options: {
   to?: string | null;
   sheetLimit?: number;
 }): Promise<FinanceOverviewBundle> {
-  // Go-live: record creator-pool revenue from start of today; existing subs count on renewal.
+  // Pin creator-revenue tracking to 18 Sep 2026 go-live (PayFast 3d / Apple 45d clear clocks).
   await ensureCreatorRevenueTrackingLive({
-    note: "Creator revenue recording live — cleared PayFast/Apple cash only; existing subs on next renewal.",
+    note: "Creator revenue recording live from 18 Sep 2026 — cleared PayFast/Apple cash only; existing subs on next renewal.",
   }).catch((err) => console.warn("[finance] ensure revenue tracking failed", err));
+
+  const connector = await getRevenueConnector();
+  await import("@/lib/payments/funds-clearing")
+    .then(({ stripPreTrackingFundsClearClocks }) =>
+      stripPreTrackingFundsClearClocks(connector.trackingStartedAt),
+    )
+    .catch((err) => console.warn("[finance] strip pre-tracking clear clocks failed", err));
 
   const range = resolveFinancePeriodRange({
     period: options.period,
@@ -158,7 +166,6 @@ export async function fetchFinanceOverviewBundle(options: {
     to: options.to,
   });
   const feeSettings = await getFinanceFeeSettings();
-  const connector = await getRevenueConnector();
   const sheetLimit = Math.min(500, Math.max(50, options.sheetLimit ?? 200));
 
   const [payments, marketplace, webhookEvents, pendingPayouts, paidPayouts, marketplaceTxs] =
@@ -265,25 +272,25 @@ export async function fetchFinanceOverviewBundle(options: {
         ? roundMoney(Number(p.providerFeeAmount))
         : roundMoney(Math.max(0, g - settlement));
 
+    const trackingStart = resolveCreatorRevenueTrackingStart(connector.trackingStartedAt);
     const clearInfo = describeFundsClearStatus({
       provider: p.provider,
       paidAt: p.paidAt,
       fundsClearDueAt: p.fundsClearDueAt,
       fundsClearedAt: p.fundsClearedAt,
       fundsClearedMode: p.fundsClearedMode,
+      trackingStartedAt: trackingStart,
     });
 
     const isViewerPool = isViewerPoolPaymentPurpose(p.purpose);
     const poolEligible = isViewerPool
       ? await isClearedCreatorPoolEligiblePayment(p, {
           trackingEnabled: connector.creatorRevenueTrackingEnabled,
-          trackingStartedAt: connector.trackingStartedAt
-            ? new Date(connector.trackingStartedAt)
-            : null,
+          trackingStartedAt: trackingStart,
         })
       : clearInfo.status === "cleared";
 
-    // KPI / pool math: cleared (+ pool-eligible for viewer share) only.
+    // KPI / pool math: only payments inside the tracking window that have cleared.
     if (clearInfo.status === "cleared") {
       clearedPaymentCount += 1;
       gross = roundMoney(gross + g);
@@ -350,7 +357,7 @@ export async function fetchFinanceOverviewBundle(options: {
       purposeRow.platformShare = roundMoney(purposeRow.platformShare + platformShare);
       purposeRow.creatorShare = roundMoney(purposeRow.creatorShare + creatorShare);
       byPurposeMap.set(purposeKey, purposeRow);
-    } else {
+    } else if (clearInfo.status === "pending") {
       pendingClearNet = roundMoney(pendingClearNet + settlement);
       pendingClearCount += 1;
     }
@@ -383,7 +390,8 @@ export async function fetchFinanceOverviewBundle(options: {
         fundsClearedAt: clearInfo.clearedAt,
         fundsClearDaysRemaining: clearInfo.daysRemaining,
         fundsClearDelayDays: clearInfo.clearDelayDays,
-        canClearEarly: clearInfo.status === "pending" && (provider === "PAYFAST" || provider === "APPLE"),
+        canClearEarly:
+          clearInfo.status === "pending" && (provider === "PAYFAST" || provider === "APPLE"),
         payer: {
           id: p.user?.id ?? p.userId ?? null,
           name: p.user?.name ?? null,
@@ -494,7 +502,7 @@ export async function fetchFinanceOverviewBundle(options: {
     },
     revenueTracking: {
       enabled: connector.creatorRevenueTrackingEnabled,
-      trackingStartedAt: connector.trackingStartedAt,
+      trackingStartedAt: resolveCreatorRevenueTrackingStart(connector.trackingStartedAt).toISOString(),
       note: connector.note,
       clearRules: { payfastDays: PAYFAST_FUNDS_CLEAR_DAYS, appleDays: APPLE_FUNDS_CLEAR_DAYS },
     },

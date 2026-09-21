@@ -1,6 +1,11 @@
 "use client";
 
-import { SCRIPT_TYPE_LABELS, scriptTypeLabel } from "@/lib/script-studio/title-page";
+import {
+  SCRIPT_TYPE_LABELS,
+  defaultEpisodeTitle,
+  scriptTitlePageKind,
+  scriptTypeLabel,
+} from "@/lib/script-studio/title-page";
 
 const SCRIPT_TYPES = ["FEATURE", "SHORT", "EPISODE", "OTHER"] as const;
 
@@ -8,6 +13,8 @@ type ScreenplayTitlePageProps = {
   title: string;
   authorName: string;
   scriptType: string;
+  /** TV/series only — episode name (e.g. Pilot). */
+  episodeTitle?: string;
   fontCss: string;
   pageWidth: string;
   pageHeight: string;
@@ -15,21 +22,23 @@ type ScreenplayTitlePageProps = {
   /** Margin below this sheet before the next page. */
   marginBottom?: number;
   readOnly?: boolean;
-  /** Draft title — also updates the script name in the toolbar. */
+  /** Draft title — feature title, or series title when type is Episode. */
   onTitleChange?: (title: string) => void;
   /** Script-only writer credit — does not change the account profile name. */
   onAuthorNameChange?: (authorName: string) => void;
   onScriptTypeChange?: (type: string) => void;
+  onEpisodeTitleChange?: (episodeTitle: string) => void;
 };
 
 /**
  * US Letter title page shown before screenplay body pages.
- * Not part of draft.content — driven by script metadata + optional writer credit.
+ * Feature/short: theatrical layout. Episode: series title + episode title (TV pilot style).
  */
 export function ScreenplayTitlePage({
   title,
   authorName,
   scriptType,
+  episodeTitle = "Pilot",
   fontCss,
   pageWidth,
   pageHeight,
@@ -39,13 +48,19 @@ export function ScreenplayTitlePage({
   onTitleChange,
   onAuthorNameChange,
   onScriptTypeChange,
+  onEpisodeTitleChange,
 }: ScreenplayTitlePageProps) {
   const typeKey = (scriptType || "FEATURE").toUpperCase();
+  const kind = scriptTitlePageKind(scriptType);
   const typeLabel = scriptTypeLabel(scriptType);
+  const isEpisode = kind === "episode";
   const fieldClass =
     "w-full max-w-[5.5in] border-0 bg-transparent p-0 text-center text-inherit outline-none " +
     "placeholder:opacity-35 focus:ring-0 " +
     (readOnly ? "" : "rounded-sm hover:bg-black/[0.03] focus:bg-black/[0.04]");
+
+  const titlePlaceholder = isEpisode ? "SERIES TITLE" : "Untitled Screenplay";
+  const episodeDisplay = defaultEpisodeTitle(episodeTitle);
 
   return (
     <div
@@ -64,26 +79,51 @@ export function ScreenplayTitlePage({
         className="flex h-full flex-col items-center px-[1.5in] py-[1in] text-center text-inherit"
         style={{ fontFamily: fontCss, fontSize: "12pt", lineHeight: 1.35, color: "inherit" }}
       >
-        <div className="flex flex-1 flex-col items-center justify-center gap-0 pt-[1.25in]">
+        <div className="flex flex-1 flex-col items-center justify-center gap-0 pt-[1.1in]">
+          {/* Primary title: feature name OR series name */}
           {readOnly ? (
             <h1 className="max-w-[5.5in] text-[14pt] font-normal uppercase tracking-[0.06em]">
-              {title.trim() || "Untitled Screenplay"}
+              {title.trim() || (isEpisode ? "UNTITLED SERIES" : "Untitled Screenplay")}
             </h1>
           ) : (
             <input
               type="text"
               value={title}
               onChange={(e) => onTitleChange?.(e.target.value)}
-              placeholder="Untitled Screenplay"
-              aria-label="Script title"
+              placeholder={titlePlaceholder}
+              aria-label={isEpisode ? "Series title" : "Script title"}
               className={`${fieldClass} text-[14pt] font-normal uppercase tracking-[0.06em]`}
+              autoComplete="off"
+              spellCheck={false}
             />
           )}
 
-          <div className="mt-[1.75in] w-full max-w-[5.5in] space-y-1">
+          {/* TV / series: episode title under the series name */}
+          {isEpisode ? (
+            <div className="mt-[0.55in] w-full max-w-[5.5in]">
+              {readOnly ? (
+                <p className="text-[12pt] italic opacity-90">
+                  &ldquo;{episodeDisplay}&rdquo;
+                </p>
+              ) : (
+                <input
+                  type="text"
+                  value={episodeTitle}
+                  onChange={(e) => onEpisodeTitleChange?.(e.target.value)}
+                  placeholder="Pilot"
+                  aria-label="Episode title"
+                  className={`${fieldClass} text-[12pt] italic`}
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+              )}
+            </div>
+          ) : null}
+
+          <div className={`w-full max-w-[5.5in] space-y-1 ${isEpisode ? "mt-[1.15in]" : "mt-[1.75in]"}`}>
             <p className="text-[12pt]">Written by</p>
             {readOnly ? (
-              <p className="text-[12pt]">{authorName}</p>
+              <p className="text-[12pt]">{authorName || "Writer"}</p>
             ) : (
               <input
                 type="text"
@@ -93,14 +133,17 @@ export function ScreenplayTitlePage({
                 aria-label="Written by (this script only — does not change your account name)"
                 title="Credit for this script only. Does not change your account name."
                 className={`${fieldClass} text-[12pt]`}
+                autoComplete="off"
+                spellCheck={false}
+                name="script-writer-credit"
               />
             )}
           </div>
 
           {readOnly ? (
-            <p className="mt-[1.5in] text-[12pt] opacity-80">{typeLabel}</p>
+            <p className="mt-[1.35in] text-[12pt] opacity-80">{typeLabel}</p>
           ) : (
-            <label className="mt-[1.5in] inline-flex flex-col items-center gap-1">
+            <label className="mt-[1.35in] inline-flex flex-col items-center gap-1">
               <span className="sr-only">Script type</span>
               <select
                 value={SCRIPT_TYPE_LABELS[typeKey] ? typeKey : "OTHER"}
@@ -111,7 +154,7 @@ export function ScreenplayTitlePage({
                   fontFamily: fontCss,
                   color: "#0f172a",
                   backgroundColor: "#ffffff",
-                  minWidth: "9rem",
+                  minWidth: "11rem",
                 }}
               >
                 {SCRIPT_TYPES.map((t) => (
@@ -120,6 +163,11 @@ export function ScreenplayTitlePage({
                   </option>
                 ))}
               </select>
+              <span className="text-[9px] opacity-50">
+                {isEpisode
+                  ? "Series title above · episode title in quotes"
+                  : "Feature / short theatrical layout"}
+              </span>
             </label>
           )}
         </div>

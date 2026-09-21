@@ -15,7 +15,9 @@ export function isEditableTarget(el: HTMLElement | null): boolean {
   if (!el) return false;
   const tag = el.tagName;
   if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
-  return el.isContentEditable;
+  if (el.isContentEditable) return true;
+  if (el.getAttribute("role") === "textbox") return true;
+  return Boolean(el.closest("[contenteditable='true'], [role='textbox']"));
 }
 
 export function getFocusableElements(root: ParentNode = document): HTMLElement[] {

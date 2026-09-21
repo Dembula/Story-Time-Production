@@ -360,8 +360,8 @@ function EditableText({
         e.stopPropagation();
       }}
       onPointerDown={(e) => {
-        // Allow parent move/resize when not actively editing the text.
-        if (!readOnly && focusedRef.current) e.stopPropagation();
+        // Always stop so the parent MovableField does not start a drag and steal focus.
+        if (!readOnly) e.stopPropagation();
       }}
       onClick={(e) => e.stopPropagation()}
     />
@@ -417,12 +417,30 @@ function MovableField({
       }}
       onPointerDown={(e) => {
         if (readOnly) return;
+        const target = e.target as HTMLElement | null;
+        // Clicking the text itself focuses/edits — don't start a move drag.
+        if (
+          target?.closest?.("[contenteditable='true'], [role='textbox']")
+        ) {
+          e.stopPropagation();
+          onSelect();
+          return;
+        }
         beginDrag(e, "move");
       }}
       onClick={(e) => {
         if (readOnly) return;
         e.stopPropagation();
         onSelect();
+      }}
+      onDoubleClick={(e) => {
+        if (readOnly) return;
+        e.stopPropagation();
+        onSelect();
+        const text = (e.currentTarget as HTMLElement).querySelector(
+          "[contenteditable='true']",
+        ) as HTMLElement | null;
+        text?.focus();
       }}
     >
       <div className="pointer-events-auto flex h-full w-full flex-col overflow-hidden">
@@ -610,8 +628,11 @@ function FreeformElement({
     if (readOnly || !selected) return;
     const onKey = (e: KeyboardEvent) => {
       if (editingText) return;
-      const tag = (e.target as HTMLElement | null)?.tagName;
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      const tag = target.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (target.isContentEditable || target.closest("[contenteditable='true']")) return;
       if (e.key === "Delete" || e.key === "Backspace") {
         e.preventDefault();
         onDelete();

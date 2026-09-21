@@ -67,6 +67,7 @@ import { ScreenplayReader } from "./screenplay-reader";
 import { ScreenplayEditor, type ScreenplayCaretBridge } from "./screenplay-editor";
 import {
   resolveScriptAuthorName,
+  resolveTitlePageWriterCredit,
   shouldReplaceDraftTitle,
   titleFromImportFilename,
 } from "@/lib/script-studio/title-page";
@@ -192,6 +193,8 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
   } | null>(null);
   /** Title-page writer credit for this script only — never writes to the account profile. */
   const [writerCredit, setWriterCredit] = useState<string | null>(null);
+  /** TV/series episode title on the cover (e.g. Pilot). */
+  const [episodeTitle, setEpisodeTitle] = useState("Pilot");
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
@@ -425,11 +428,12 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
     }
   }, [selected, selectedId, dirty, clearHistory]);
 
-  // Load per-script title-page writer credit (does not touch account profile).
+  // Load per-script title-page writer credit + episode title (does not touch account profile).
   useEffect(() => {
     const scriptId = draft?.id;
     if (!scriptId) {
       setWriterCredit(null);
+      setEpisodeTitle("Pilot");
       return;
     }
     let cancelled = false;
@@ -437,15 +441,19 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
       try {
         const res = await fetch(`/api/creator/scripts/${scriptId}/studio-meta`);
         if (!res.ok) return;
-        const json = (await res.json()) as { writerCredit?: string };
+        const json = (await res.json()) as { writerCredit?: string; episodeTitle?: string };
         if (cancelled) return;
-        setWriterCredit(
-          typeof json.writerCredit === "string" && json.writerCredit.trim()
-            ? json.writerCredit.trim()
-            : null,
+        setWriterCredit(typeof json.writerCredit === "string" ? json.writerCredit : null);
+        setEpisodeTitle(
+          typeof json.episodeTitle === "string" && json.episodeTitle.trim()
+            ? json.episodeTitle
+            : "Pilot",
         );
       } catch {
-        if (!cancelled) setWriterCredit(null);
+        if (!cancelled) {
+          setWriterCredit(null);
+          setEpisodeTitle("Pilot");
+        }
       }
     })();
     return () => {
@@ -453,7 +461,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
     };
   }, [draft?.id]);
 
-  const titlePageAuthorName = writerCredit?.trim() || scriptAuthorName;
+  const titlePageAuthorName = resolveTitlePageWriterCredit(writerCredit, scriptAuthorName);
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -724,12 +732,11 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
     async (credit: string) => {
       const scriptId = draft?.id;
       if (!scriptId || !effectiveCanWrite) return;
-      const trimmed = credit.trim();
       try {
         await fetch(`/api/creator/scripts/${scriptId}/studio-meta`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ writerCredit: trimmed }),
+          body: JSON.stringify({ writerCredit: credit }),
         });
       } catch {
         /* keep local credit; next open can reload */
@@ -738,9 +745,28 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
     [draft?.id, effectiveCanWrite],
   );
 
+  const persistEpisodeTitle = useCallback(
+    async (next: string) => {
+      const scriptId = draft?.id;
+      if (!scriptId || !effectiveCanWrite) return;
+      try {
+        await fetch(`/api/creator/scripts/${scriptId}/studio-meta`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ episodeTitle: next }),
+        });
+      } catch {
+        /* keep local */
+      }
+    },
+    [draft?.id, effectiveCanWrite],
+  );
+
   const writerCreditTimerRef = useRef<number | null>(null);
+  const episodeTitleTimerRef = useRef<number | null>(null);
   const schedulePersistWriterCredit = useCallback(
     (credit: string) => {
+      // Keep exact typed value (including spaces) while editing.
       setWriterCredit(credit);
       if (writerCreditTimerRef.current != null) {
         window.clearTimeout(writerCreditTimerRef.current);
@@ -753,10 +779,27 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
     [persistWriterCredit],
   );
 
+  const schedulePersistEpisodeTitle = useCallback(
+    (next: string) => {
+      setEpisodeTitle(next);
+      if (episodeTitleTimerRef.current != null) {
+        window.clearTimeout(episodeTitleTimerRef.current);
+      }
+      episodeTitleTimerRef.current = window.setTimeout(() => {
+        episodeTitleTimerRef.current = null;
+        void persistEpisodeTitle(next);
+      }, 500);
+    },
+    [persistEpisodeTitle],
+  );
+
   useEffect(
     () => () => {
       if (writerCreditTimerRef.current != null) {
         window.clearTimeout(writerCreditTimerRef.current);
+      }
+      if (episodeTitleTimerRef.current != null) {
+        window.clearTimeout(episodeTitleTimerRef.current);
       }
     },
     [],
@@ -791,6 +834,9 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
       if (!effectiveCanWrite) return;
       const mod = e.metaKey || e.ctrlKey;
       if (!mod) return;
+      const target = e.target as HTMLElement | null;
+      // Title-page fields keep their own editing; don't steal Ctrl+Z/Y for script body history.
+      if (target?.closest?.("[data-screenplay-title-page]")) return;
       const key = e.key.toLowerCase();
       if (key === "z" && !e.shiftKey) {
         e.preventDefault();
@@ -1272,7 +1318,9 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
               <section>
                 <h4 className="mb-1 font-semibold text-white">Title page</h4>
                 <p>
-                  The first sheet is the title page — edit title, writer credit, and script type
+                  The first sheet is the title page — format follows script type (feature vs TV
+                  episode). Edit title, writer credit, and type there. Writer credit is per script
+                  and does not change your account name.
                   there. Writer credit is saved with the script only (not your account name).
                 </p>
               </section>
@@ -1303,6 +1351,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
         title={draft?.title ?? "Screenplay"}
         scriptType={draft?.type ?? "FEATURE"}
         authorName={titlePageAuthorName}
+        episodeTitle={episodeTitle}
         content={readerContent}
         fontCss={fontCss}
       />
@@ -1819,6 +1868,7 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                   scriptTitle={draft.title}
                   scriptType={draft.type}
                   authorName={titlePageAuthorName}
+                  episodeTitle={episodeTitle}
                   activeElement={selectedElement}
                   zoomPercent={zoom}
                   theme={studioTheme}
@@ -1839,6 +1889,10 @@ export function ScriptWritingStudio({ projectId, title }: ScriptWritingStudioPro
                   onAuthorNameChange={(name) => {
                     if (!effectiveCanWrite) return;
                     schedulePersistWriterCredit(name);
+                  }}
+                  onEpisodeTitleChange={(next) => {
+                    if (!effectiveCanWrite) return;
+                    schedulePersistEpisodeTitle(next);
                   }}
                   onChange={(content) => {
                     if (!effectiveCanWrite) return;

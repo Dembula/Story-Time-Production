@@ -8,6 +8,7 @@ import {
   computeFundsClearDueAt,
   type FundsClearMode,
 } from "@/lib/payments/funds-clearing-policy";
+import { resolveCreatorRevenueTrackingStart } from "@/lib/finance/revenue-tracking-start";
 
 export {
   APPLE_FUNDS_CLEAR_DAYS,
@@ -26,7 +27,23 @@ export async function scheduleFundsClearForPayment(args: {
   paymentRecordId: string;
   paidAt: Date;
   provider: string;
-}): Promise<{ fundsClearDueAt: Date }> {
+  trackingStartedAt?: Date | string | null;
+}): Promise<{ fundsClearDueAt: Date | null; skipped?: boolean }> {
+  const trackingStart = resolveCreatorRevenueTrackingStart(args.trackingStartedAt);
+  if (args.paidAt.getTime() < trackingStart.getTime()) {
+    // Pre-tracking payments must never get a clear countdown.
+    await db.paymentRecord.updateMany({
+      where: {
+        id: args.paymentRecordId,
+        fundsClearedAt: null,
+      },
+      data: {
+        fundsClearDueAt: null,
+      },
+    });
+    return { fundsClearDueAt: null, skipped: true };
+  }
+
   const fundsClearDueAt = computeFundsClearDueAt(args.paidAt, args.provider);
   await db.paymentRecord.updateMany({
     where: {
@@ -83,6 +100,7 @@ async function allocateLedgerAfterClear(payment: {
 
 /**
  * Mark funds cleared (manual early clear or auto clock) and book treasury ledger once.
+ * Rejects payments before the creator-revenue tracking start.
  */
 export async function markPaymentFundsCleared(args: {
   paymentRecordId: string;
@@ -104,6 +122,18 @@ export async function markPaymentFundsCleared(args: {
     return { ok: false, error: "Payment is not cash-recognized (demo/promo excluded).", status: 400 };
   }
 
+  const { getRevenueConnector } = await import("@/lib/finance/revenue-connector");
+  const connector = await getRevenueConnector();
+  const trackingStart = resolveCreatorRevenueTrackingStart(connector.trackingStartedAt);
+  const paidAt = payment.paidAt ? new Date(payment.paidAt) : null;
+  if (!paidAt || paidAt.getTime() < trackingStart.getTime()) {
+    return {
+      ok: false,
+      error: "Payment is before creator-revenue tracking start and cannot be cleared into the pool.",
+      status: 400,
+    };
+  }
+
   const now = args.now ?? new Date();
 
   if (payment.fundsClearedAt) {
@@ -117,13 +147,29 @@ export async function markPaymentFundsCleared(args: {
       fundsClearedAt: now,
       fundsClearedMode: args.mode,
       fundsClearedByUserId: args.mode === "manual" ? args.clearedByUserId ?? null : null,
-      fundsClearDueAt: payment.fundsClearDueAt ?? computeFundsClearDueAt(payment.paidAt ?? now, payment.provider),
+      fundsClearDueAt: payment.fundsClearDueAt ?? computeFundsClearDueAt(paidAt, payment.provider),
     },
   });
 
   const refreshed = await db.paymentRecord.findUnique({ where: { id: payment.id } });
   const alloc = await allocateLedgerAfterClear(refreshed);
   return { ok: true, allocated: alloc.allocated };
+}
+
+/** Remove clear-due clocks that were incorrectly stamped on pre-tracking payments. */
+export async function stripPreTrackingFundsClearClocks(
+  trackingStartedAt?: Date | string | null,
+): Promise<number> {
+  const trackingStart = resolveCreatorRevenueTrackingStart(trackingStartedAt);
+  const stripResult = await db.paymentRecord.updateMany({
+    where: {
+      fundsClearedAt: null,
+      fundsClearDueAt: { not: null },
+      paidAt: { lt: trackingStart },
+    },
+    data: { fundsClearDueAt: null },
+  });
+  return Number(stripResult?.count ?? 0);
 }
 
 /** Auto-clear payments whose clear-due clock has elapsed. */
@@ -133,24 +179,25 @@ export async function processDueFundsClearing(now = new Date()): Promise<{
   allocated: number;
   errors: number;
   backfilledDue: number;
+  strippedPreTracking: number;
 }> {
   const { ensureCreatorRevenueTrackingLive, getRevenueConnector } = await import(
     "@/lib/finance/revenue-connector"
   );
   await ensureCreatorRevenueTrackingLive().catch(() => {});
   const connector = await getRevenueConnector();
-  const trackingStart = connector.trackingStartedAt
-    ? new Date(connector.trackingStartedAt)
-    : null;
+  const trackingStart = resolveCreatorRevenueTrackingStart(connector.trackingStartedAt);
 
-  // Backfill clear-due only for payments on/after tracking start (never pull pre-cutoff cash into the pool).
+  const strippedPreTracking = await stripPreTrackingFundsClearClocks(trackingStart);
+
+  // Backfill clear-due only for payments on/after tracking start.
   const missingDue = await db.paymentRecord.findMany({
     where: {
       status: "SUCCEEDED",
       fundsClearedAt: null,
       fundsClearDueAt: null,
       amount: { gt: 0 },
-      paidAt: trackingStart ? { gte: trackingStart } : { not: null },
+      paidAt: { gte: trackingStart },
     },
     select: { id: true, paidAt: true, provider: true, settlementSource: true, metadata: true },
     take: 300,
@@ -161,12 +208,13 @@ export async function processDueFundsClearing(now = new Date()): Promise<{
   for (const row of missingDue) {
     if (!isCashRecognizedPayment(row)) continue;
     if (!row.paidAt) continue;
-    await scheduleFundsClearForPayment({
+    const scheduled = await scheduleFundsClearForPayment({
       paymentRecordId: row.id,
       paidAt: new Date(row.paidAt),
       provider: row.provider || "PAYFAST",
+      trackingStartedAt: trackingStart,
     });
-    backfilledDue += 1;
+    if (scheduled.fundsClearDueAt) backfilledDue += 1;
   }
 
   const due = await db.paymentRecord.findMany({
@@ -175,7 +223,7 @@ export async function processDueFundsClearing(now = new Date()): Promise<{
       fundsClearedAt: null,
       fundsClearDueAt: { lte: now },
       amount: { gt: 0 },
-      ...(trackingStart ? { paidAt: { gte: trackingStart } } : {}),
+      paidAt: { gte: trackingStart },
     },
     select: { id: true },
     take: 200,
@@ -203,5 +251,12 @@ export async function processDueFundsClearing(now = new Date()): Promise<{
     }
   }
 
-  return { scanned: due.length, cleared, allocated, errors, backfilledDue };
+  return {
+    scanned: due.length,
+    cleared,
+    allocated,
+    errors,
+    backfilledDue,
+    strippedPreTracking,
+  };
 }

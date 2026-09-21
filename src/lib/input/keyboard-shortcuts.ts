@@ -16,6 +16,15 @@ export function getPlatformShortcutGroups(): ShortcutGroup[] {
 
 export const PLATFORM_SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
+    title: "Text editing",
+    items: [
+      { keys: "Ctrl + Z", description: "Undo in text fields" },
+      { keys: "Ctrl + Y / Ctrl + Shift + Z", description: "Redo in text fields" },
+      { keys: "Ctrl + C / X / V", description: "Copy / cut / paste" },
+      { keys: "Ctrl + A", description: "Select all in the focused field" },
+    ],
+  },
+  {
     title: "Browse & navigation",
     items: [
       { keys: "/", description: "Open search" },

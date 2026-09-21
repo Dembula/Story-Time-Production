@@ -20,7 +20,12 @@ import { Input } from "@/components/ui/input";
 import { downloadTextFile } from "@/lib/script-studio/import-export";
 import { escapeHtmlForDocument, printHtmlDocument } from "@/lib/pdf/print-html-document";
 import { ScreenplayTitlePage } from "@/components/script-studio/screenplay-title-page";
-import { resolveScriptAuthorName, scriptTypeLabel } from "@/lib/script-studio/title-page";
+import {
+  defaultEpisodeTitle,
+  resolveScriptAuthorName,
+  scriptTitlePageKind,
+  scriptTypeLabel,
+} from "@/lib/script-studio/title-page";
 import { LINES_PER_PAGE } from "@/lib/script-studio/screenplay-keyboard";
 
 const PAGE_WIDTH = "8.5in";
@@ -34,6 +39,7 @@ type ScreenplayReaderProps = {
   fontCss?: string;
   scriptType?: string;
   authorName?: string;
+  episodeTitle?: string;
 };
 
 function paginateScreenplay(content: string): string[][] {
@@ -54,6 +60,7 @@ export function ScreenplayReader({
   fontCss = "'Courier Prime', 'Courier New', monospace",
   scriptType = "FEATURE",
   authorName,
+  episodeTitle = "Pilot",
 }: ScreenplayReaderProps) {
   const [mounted, setMounted] = useState(false);
   const [page, setPage] = useState(0);
@@ -65,7 +72,10 @@ export function ScreenplayReader({
   const [searchHit, setSearchHit] = useState(0);
   const onCloseRef = useRef(onClose);
   const wasOpenRef = useRef(false);
-  const resolvedAuthor = resolveScriptAuthorName({ name: authorName });
+  const resolvedAuthor =
+    authorName?.trim() || resolveScriptAuthorName({ name: authorName });
+  const isEpisode = scriptTitlePageKind(scriptType) === "episode";
+  const episodeDisplay = defaultEpisodeTitle(episodeTitle);
 
   const bodyPages = useMemo(() => paginateScreenplay(content), [content]);
   // Index 0 = title page; 1..n = script body
@@ -73,9 +83,13 @@ export function ScreenplayReader({
 
   const printScreenplay = useCallback(() => {
     const typeLabel = scriptTypeLabel(scriptType);
+    const episodeBlock = isEpisode
+      ? `<p class="episode">&ldquo;${escapeHtmlForDocument(episodeDisplay)}&rdquo;</p>`
+      : "";
     const titleHtml = `<section class="page title-page">
       <div class="title-block">
-        <h1>${escapeHtmlForDocument(title || "Untitled Screenplay")}</h1>
+        <h1>${escapeHtmlForDocument(title || (isEpisode ? "UNTITLED SERIES" : "Untitled Screenplay"))}</h1>
+        ${episodeBlock}
         <p class="by">Written by</p>
         <p class="author">${escapeHtmlForDocument(resolvedAuthor)}</p>
         <p class="type">${escapeHtmlForDocument(typeLabel)}</p>
@@ -97,15 +111,16 @@ export function ScreenplayReader({
       extraCss: `
 .page { position: relative; min-height: 10in; padding: 1in 1.5in; page-break-after: always; box-sizing: border-box; font-family: ${fontCss}; font-size: 12pt; line-height: 1.2; }
 .title-page { display: flex; align-items: center; justify-content: center; text-align: center; }
-.title-block h1 { font-size: 14pt; font-weight: normal; text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 2in; }
-.title-block .by { margin: 0; }
-.title-block .author { margin: 0.25rem 0 1.5in; }
+.title-block h1 { font-size: 14pt; font-weight: normal; text-transform: uppercase; letter-spacing: 0.06em; margin: 0; }
+.title-block .episode { margin: 0.55in 0 0; font-style: italic; }
+.title-block .by { margin: ${isEpisode ? "1.15in" : "1.75in"} 0 0; }
+.title-block .author { margin: 0.25rem 0 1.35in; }
 .title-block .type { margin: 0; color: #334155; }
 .num { text-align: right; font-size: 10px; color: #888; margin-bottom: 1rem; }
 .line { min-height: 1.2em; white-space: pre-wrap; }
 `,
     });
-  }, [bodyPages, title, fontCss, scriptType, resolvedAuthor]);
+  }, [bodyPages, title, fontCss, scriptType, resolvedAuthor, isEpisode, episodeDisplay]);
 
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -198,6 +213,7 @@ export function ScreenplayReader({
         title={title}
         authorName={resolvedAuthor}
         scriptType={scriptType}
+        episodeTitle={episodeTitle}
         fontCss={fontCss}
         pageWidth={PAGE_WIDTH}
         pageHeight={PAGE_HEIGHT}
