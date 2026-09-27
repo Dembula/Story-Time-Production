@@ -188,6 +188,7 @@ export type StudioPipelineContext = {
     id: string;
     type: string;
     yearlyExpiresAt: Date | null;
+    trialEndsAt?: Date | null;
     status?: string | null;
     autoRenew?: boolean | null;
     cancelAtPeriodEnd?: boolean | null;
