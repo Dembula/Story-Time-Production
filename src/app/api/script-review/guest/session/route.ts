@@ -5,10 +5,11 @@ import {
   annotationInclude,
   resolveScriptReviewDraftContent,
 } from "@/lib/script-review/guest-draft";
+import type { ReviewAnnotationRecord } from "@/lib/script-review/types";
 
 export const dynamic = "force-dynamic";
 
-function serializeAnnotation(a: {
+type AnnotationSource = {
   id: string;
   type: string;
   layer: string;
@@ -30,30 +31,10 @@ function serializeAnnotation(a: {
     professionalName: string | null;
     image: string | null;
   } | null;
-  replies?: Array<{
-    id: string;
-    type: string;
-    layer: string;
-    pageIndex: number;
-    lineIndex: number | null;
-    anchorText: string | null;
-    body: string | null;
-    data: unknown;
-    priority: string | null;
-    status: string;
-    resolved: boolean;
-    parentId: string | null;
-    createdAt: Date;
-    guestName: string | null;
-    guestEmail: string | null;
-    author: {
-      id: string;
-      name: string | null;
-      professionalName: string | null;
-      image: string | null;
-    } | null;
-  }>;
-}) {
+  replies?: AnnotationSource[];
+};
+
+function serializeAnnotation(a: AnnotationSource): ReviewAnnotationRecord {
   return {
     id: a.id,
     type: a.type,
