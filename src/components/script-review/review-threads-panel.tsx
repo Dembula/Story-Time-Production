@@ -58,7 +58,11 @@ function ThreadCard({
 
   const [replyText, setReplyText] = useState("");
 
-  const author = thread.author.professionalName || thread.author.name || "Reviewer";
+  const author =
+    thread.author?.professionalName ||
+    thread.author?.name ||
+    thread.guestName?.trim() ||
+    "Guest";
 
 
 

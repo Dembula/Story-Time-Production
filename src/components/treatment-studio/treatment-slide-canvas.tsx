@@ -1,14 +1,34 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { GripVertical, ImagePlus, RotateCcw, Type, X } from "lucide-react";
+import {
+  BringToFront,
+  Copy,
+  GripVertical,
+  ImagePlus,
+  Lock,
+  RotateCcw,
+  SendToBack,
+  Trash2,
+  Type,
+  Unlock,
+  X,
+} from "lucide-react";
 import { SecureImage } from "@/components/files/secure-image";
 import { PEXELS_PHOTO_MIME } from "@/components/pexels/pexels-media-browser";
 import {
   resolveFieldFrame,
   visibleFieldsForSlide,
 } from "@/lib/treatment-studio/field-frames";
-import { hideSlideField, createTextElement, nextElementZIndex } from "@/lib/treatment-studio/document";
+import {
+  bringElementToFront,
+  createShapeElement,
+  createTextElement,
+  duplicateElementInList,
+  hideSlideField,
+  nextElementZIndex,
+  sendElementToBack,
+} from "@/lib/treatment-studio/document";
 import type {
   TreatmentAsset,
   TreatmentElement,
@@ -274,15 +294,15 @@ function SlideReferences({
       {refs.map((ref) => (
         <figure key={ref.id} className="overflow-hidden rounded-md bg-slate-100">
           {ref.type === "video" ? (
-            <TreatmentVideoStill
-              url={ref.url}
-              thumbnailUrl={ref.thumbnailUrl}
-              projectId={projectId}
-              alt={ref.title || "Clip"}
-              className="aspect-video w-full"
-              allowPlayback={Boolean(presentMode)}
-              playing={Boolean(presentMode && clipPlaying)}
-            />
+            <div className="pointer-events-auto">
+              <LayoutPlayableVideo
+                asset={ref}
+                projectId={projectId}
+                presentMode={presentMode}
+                clipPlaying={clipPlaying}
+                className="aspect-video w-full"
+              />
+            </div>
           ) : ref.type === "image" ? (
             <SecureImage
               fileRef={ref.thumbnailUrl || ref.url}
@@ -310,6 +330,7 @@ function EditableText({
   value,
   placeholder,
   className,
+  style,
   multiline,
   readOnly,
   onChange,
@@ -318,6 +339,7 @@ function EditableText({
   value: string;
   placeholder: string;
   className?: string;
+  style?: React.CSSProperties;
   multiline?: boolean;
   readOnly?: boolean;
   onChange?: (value: string) => void;
@@ -346,6 +368,7 @@ function EditableText({
       suppressContentEditableWarning
       data-placeholder={placeholder}
       aria-label={placeholder}
+      style={style}
       className={cn(
         "treatment-slide-text outline-none",
         multiline && "whitespace-pre-wrap",
@@ -377,7 +400,6 @@ function EditableText({
         e.stopPropagation();
       }}
       onPointerDown={(e) => {
-        // Always stop so the parent MovableField does not start a drag and steal focus.
         if (!readOnly) e.stopPropagation();
       }}
       onClick={(e) => e.stopPropagation()}
@@ -391,6 +413,7 @@ function MovableField({
   value,
   placeholder,
   className,
+  textStyle,
   multiline,
   selected,
   readOnly,
@@ -398,12 +421,14 @@ function MovableField({
   onTextChange,
   onFrameChange,
   onDelete,
+  onContextMenu,
 }: {
   fieldKey: TreatmentFieldKey;
   frame: TreatmentFieldFrame;
   value: string;
   placeholder: string;
   className?: string;
+  textStyle?: React.CSSProperties;
   multiline?: boolean;
   selected: boolean;
   readOnly: boolean;
@@ -411,6 +436,7 @@ function MovableField({
   onTextChange: (value: string) => void;
   onFrameChange: (frame: TreatmentFieldFrame) => void;
   onDelete?: () => void;
+  onContextMenu?: (e: React.MouseEvent) => void;
 }) {
   const { display, beginDrag } = useFrameDrag(
     readOnly,
@@ -453,11 +479,11 @@ function MovableField({
         width: `${display.width}%`,
         height: `${display.height}%`,
         zIndex: readOnly ? 2 : selected ? 1100 : 5,
+        opacity: textStyle?.opacity,
       }}
       onPointerDown={(e) => {
         if (readOnly) return;
         const target = e.target as HTMLElement | null;
-        // Clicking the text itself focuses/edits — don't start a move drag.
         if (
           target?.closest?.("[contenteditable='true'], [role='textbox']")
         ) {
@@ -472,6 +498,13 @@ function MovableField({
         if (readOnly) return;
         e.stopPropagation();
         onSelect();
+      }}
+      onContextMenu={(e) => {
+        if (readOnly) return;
+        e.preventDefault();
+        e.stopPropagation();
+        onSelect();
+        onContextMenu?.(e);
       }}
       onDoubleClick={(e) => {
         if (readOnly) return;
@@ -493,6 +526,7 @@ function MovableField({
           onChange={onTextChange}
           onFocusChange={setEditingText}
           className={cn(className, "h-full")}
+          style={textStyle}
         />
       </div>
       {selected && !readOnly ? (
@@ -503,6 +537,42 @@ function MovableField({
         />
       ) : null}
     </div>
+  );
+}
+
+function LayoutPlayableVideo({
+  asset,
+  projectId,
+  presentMode,
+  clipPlaying,
+  className,
+}: {
+  asset: TreatmentAsset;
+  projectId?: string;
+  presentMode?: boolean;
+  clipPlaying?: boolean;
+  className?: string;
+}) {
+  const [localPlaying, setLocalPlaying] = useState(false);
+  useEffect(() => {
+    setLocalPlaying(false);
+  }, [asset.id, asset.url]);
+  const playing = presentMode ? Boolean(clipPlaying) : localPlaying;
+  return (
+    <TreatmentVideoStill
+      url={asset.url}
+      thumbnailUrl={asset.thumbnailUrl}
+      projectId={projectId}
+      alt={asset.title || "Clip"}
+      className={className}
+      allowPlayback
+      playing={playing}
+      onPlayingChange={(next) => {
+        if (presentMode) return;
+        setLocalPlaying(next);
+      }}
+      showPlayHint={!playing}
+    />
   );
 }
 
@@ -530,16 +600,15 @@ function layoutMedia(
       return (
         <div className="pointer-events-none absolute inset-y-[5%] right-[5%] left-[52%]">
           {heroRef?.type === "video" ? (
-            <TreatmentVideoStill
-              url={heroRef.url}
-              thumbnailUrl={heroRef.thumbnailUrl}
-              projectId={projectId}
-              alt={heroRef.title || "Clip"}
-              className="h-full w-full rounded-lg shadow-md"
-              allowPlayback={Boolean(presentMode)}
-              playing={Boolean(presentMode && clipPlaying)}
-              showPlayHint={Boolean(presentMode && !clipPlaying)}
-            />
+            <div className="pointer-events-auto h-full w-full">
+              <LayoutPlayableVideo
+                asset={heroRef}
+                projectId={projectId}
+                presentMode={presentMode}
+                clipPlaying={clipPlaying}
+                className="h-full w-full rounded-lg shadow-md"
+              />
+            </div>
           ) : heroRef?.type === "image" ? (
             <SecureImage
               fileRef={heroRef.thumbnailUrl || heroRef.url}
@@ -574,16 +643,15 @@ function layoutMedia(
       return (
         <div className="pointer-events-none absolute inset-0">
           {heroRef?.type === "video" ? (
-            <TreatmentVideoStill
-              url={heroRef.url}
-              thumbnailUrl={heroRef.thumbnailUrl}
-              projectId={projectId}
-              alt={heroRef.title || "Clip"}
-              className="h-full w-full"
-              allowPlayback={Boolean(presentMode)}
-              playing={Boolean(presentMode && clipPlaying)}
-              showPlayHint={Boolean(presentMode && !clipPlaying)}
-            />
+            <div className="pointer-events-auto h-full w-full">
+              <LayoutPlayableVideo
+                asset={heroRef}
+                projectId={projectId}
+                presentMode={presentMode}
+                clipPlaying={clipPlaying}
+                className="h-full w-full"
+              />
+            </div>
           ) : heroRef?.type === "image" ? (
             <SecureImage
               fileRef={heroRef.thumbnailUrl || heroRef.url}
@@ -641,6 +709,7 @@ function FreeformElement({
   onSelect,
   onChange,
   onDelete,
+  onContextMenu,
 }: {
   element: TreatmentElement;
   asset?: TreatmentAsset;
@@ -652,8 +721,11 @@ function FreeformElement({
   onSelect: () => void;
   onChange: (patch: Partial<TreatmentElement>) => void;
   onDelete: () => void;
+  onContextMenu?: (e: React.MouseEvent, elementId: string) => void;
 }) {
   const [editingText, setEditingText] = useState(false);
+  const [localPlaying, setLocalPlaying] = useState(false);
+  const locked = Boolean(element.locked);
   const frame: TreatmentFieldFrame = {
     x: element.x,
     y: element.y,
@@ -661,14 +733,18 @@ function FreeformElement({
     height: element.height,
   };
   const { display, beginDrag } = useFrameDrag(
-    readOnly,
+    readOnly || locked,
     frame,
     (next) => onChange(next),
     onSelect,
   );
 
   useEffect(() => {
-    if (readOnly || !selected) return;
+    setLocalPlaying(false);
+  }, [element.referenceId, element.id]);
+
+  useEffect(() => {
+    if (readOnly || !selected || locked) return;
     const onKey = (e: KeyboardEvent) => {
       if (editingText) return;
       const target = e.target as HTMLElement | null;
@@ -683,16 +759,25 @@ function FreeformElement({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [readOnly, selected, editingText, onDelete]);
+  }, [readOnly, selected, editingText, locked, onDelete]);
 
   const interactivePresent = Boolean(presentMode);
+  const isVideo = element.type === "image" && asset?.type === "video";
+  const allowVideoPlay = Boolean(presentMode) || (!readOnly && isVideo);
+  const videoPlaying = presentMode ? Boolean(clipPlaying) : localPlaying;
+  const opacity = element.opacity ?? 1;
+  const shadowCss = element.shadow
+    ? "0 10px 28px rgba(0,0,0,0.35)"
+    : undefined;
+  const objectFit = element.objectFit ?? "cover";
 
   return (
     <div
       className={cn(
         "absolute touch-none",
-        readOnly && !interactivePresent ? "pointer-events-none" : null,
-        !readOnly && "cursor-move",
+        readOnly && !interactivePresent && !isVideo ? "pointer-events-none" : null,
+        !readOnly && !locked && "cursor-move",
+        locked && !readOnly && "cursor-default",
         selected && !readOnly && "z-[1200]",
       )}
       style={{
@@ -704,25 +789,39 @@ function FreeformElement({
           ? element.zIndex || 1
           : (element.zIndex || 1) + (selected ? 1000 : 0),
         transform: element.rotation ? `rotate(${element.rotation}deg)` : undefined,
+        opacity,
+        filter: shadowCss ? undefined : undefined,
+        boxShadow: shadowCss,
       }}
       onPointerDown={(e) => {
-        if (readOnly) return;
+        if (readOnly || locked) return;
+        const target = e.target as HTMLElement | null;
+        if (target?.closest?.("button, textarea, [contenteditable='true']")) {
+          return;
+        }
         beginDrag(e, "move");
       }}
       onClick={(e) => {
-        if (readOnly) return;
+        if (readOnly && !isVideo) return;
         e.stopPropagation();
         onSelect();
       }}
+      onContextMenu={(e) => {
+        if (readOnly) return;
+        e.preventDefault();
+        e.stopPropagation();
+        onSelect();
+        onContextMenu?.(e, element.id);
+      }}
       onDoubleClick={(e) => {
-        if (element.type === "text" && !readOnly) {
+        if (element.type === "text" && !readOnly && !locked) {
           e.stopPropagation();
           setEditingText(true);
         }
       }}
     >
       {element.type === "text" ? (
-        editingText && !readOnly ? (
+        editingText && !readOnly && !locked ? (
           <textarea
             autoFocus
             value={element.text ?? ""}
@@ -732,6 +831,7 @@ function FreeformElement({
             style={{
               fontSize: element.fontSize ?? 24,
               fontWeight: element.fontWeight ?? "600",
+              fontFamily: element.fontFamily,
               color: element.color ?? "#0f172a",
               textAlign: element.align ?? "left",
             }}
@@ -743,6 +843,7 @@ function FreeformElement({
             style={{
               fontSize: element.fontSize ?? 24,
               fontWeight: element.fontWeight ?? "600",
+              fontFamily: element.fontFamily,
               color: element.color ?? "#0f172a",
               textAlign: element.align ?? "left",
               lineHeight: 1.25,
@@ -761,9 +862,13 @@ function FreeformElement({
             projectId={projectId}
             alt={asset.title || "Clip"}
             className="h-full w-full rounded-sm"
-            allowPlayback={Boolean(presentMode)}
-            playing={Boolean(presentMode && clipPlaying)}
-            showPlayHint={Boolean(presentMode && !clipPlaying)}
+            allowPlayback={allowVideoPlay}
+            playing={videoPlaying}
+            onPlayingChange={(next) => {
+              if (presentMode) return;
+              setLocalPlaying(next);
+            }}
+            showPlayHint={!videoPlaying}
           />
         ) : asset?.type === "link" ? (
           <div className="flex h-full w-full flex-col items-center justify-center gap-1 rounded-sm bg-slate-100 p-2 text-center">
@@ -776,7 +881,10 @@ function FreeformElement({
           <SecureImage
             fileRef={asset.thumbnailUrl || asset.url}
             alt={asset.title || "Reference"}
-            className="pointer-events-none h-full w-full rounded-sm object-cover"
+            className={cn(
+              "pointer-events-none h-full w-full rounded-sm",
+              objectFit === "contain" ? "object-contain" : "object-cover",
+            )}
             projectId={projectId}
           />
         ) : (
@@ -800,7 +908,13 @@ function FreeformElement({
         />
       ) : null}
 
-      {selected && !readOnly ? (
+      {locked && !readOnly ? (
+        <span className="pointer-events-none absolute left-1 top-1 rounded bg-black/55 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-white">
+          Locked
+        </span>
+      ) : null}
+
+      {selected && !readOnly && !locked ? (
         <SelectionChrome
           onBeginResize={(e, h) => beginDrag(e, `resize-${h}`)}
           onDelete={onDelete}
@@ -817,12 +931,14 @@ function LayoutTextFields({
   selectedFieldKey,
   onFieldChange,
   onSelectField,
+  onFieldContextMenu,
 }: {
   slide: TreatmentSlide;
   readOnly: boolean;
   selectedFieldKey?: TreatmentFieldKey | null;
   onFieldChange?: (patch: Partial<TreatmentSlide>) => void;
   onSelectField?: (key: TreatmentFieldKey | null) => void;
+  onFieldContextMenu?: (e: React.MouseEvent, key: TreatmentFieldKey) => void;
 }) {
   const bg = (slide.backgroundColor || "#ffffff").replace("#", "");
   const r = parseInt(bg.slice(0, 2) || "ff", 16);
@@ -882,6 +998,17 @@ function LayoutTextFields({
               : "Write your treatment copy...";
         const className =
           key === "title" ? titleClass : key === "subtitle" ? subClass : bodyClass;
+        const fs = slide.fieldStyles?.[key];
+        const textStyle: React.CSSProperties | undefined = fs
+          ? {
+              ...(fs.color ? { color: fs.color } : {}),
+              ...(fs.fontSize ? { fontSize: fs.fontSize } : {}),
+              ...(fs.fontWeight ? { fontWeight: fs.fontWeight } : {}),
+              ...(fs.fontFamily ? { fontFamily: fs.fontFamily } : {}),
+              ...(fs.align ? { textAlign: fs.align } : {}),
+              ...(typeof fs.opacity === "number" ? { opacity: fs.opacity } : {}),
+            }
+          : undefined;
 
         return (
           <MovableField
@@ -892,6 +1019,7 @@ function LayoutTextFields({
             placeholder={placeholder}
             multiline={key === "body" || key === "subtitle"}
             className={className}
+            textStyle={textStyle}
             selected={selectedFieldKey === key}
             readOnly={readOnly}
             onSelect={() => {
@@ -907,6 +1035,7 @@ function LayoutTextFields({
               onFieldChange?.(hideSlideField(slide, key));
               onSelectField?.(null);
             }}
+            onContextMenu={(e) => onFieldContextMenu?.(e, key)}
           />
         );
       })}
@@ -945,6 +1074,9 @@ export function TreatmentSlideCanvas({
     y: number;
     slideX: number;
     slideY: number;
+    kind: "slide" | "element" | "field";
+    elementId?: string;
+    fieldKey?: TreatmentFieldKey;
   } | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const contextFileInputRef = useRef<HTMLInputElement>(null);
@@ -994,6 +1126,36 @@ export function TreatmentSlideCanvas({
     );
     return { xPercent, yPercent };
   };
+
+  const openMenuAt = (
+    e: React.MouseEvent,
+    extra: Partial<{
+      kind: "slide" | "element" | "field";
+      elementId: string;
+      fieldKey: TreatmentFieldKey;
+    }> = {},
+  ) => {
+    const target = canvasRef.current;
+    if (!target) return;
+    const { xPercent, yPercent } = dropPercents(e.clientX, e.clientY, target);
+    const menuW = 240;
+    const menuH = 280;
+    const x = Math.min(e.clientX, window.innerWidth - menuW - 8);
+    const y = Math.min(e.clientY, window.innerHeight - menuH - 8);
+    setContextMenu({
+      x: Math.max(8, x),
+      y: Math.max(8, y),
+      slideX: xPercent,
+      slideY: yPercent,
+      kind: extra.kind ?? "slide",
+      elementId: extra.elementId,
+      fieldKey: extra.fieldKey,
+    });
+  };
+
+  const contextElement = contextMenu?.elementId
+    ? slide.elements.find((el) => el.id === contextMenu.elementId)
+    : null;
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -1086,20 +1248,7 @@ export function TreatmentSlideCanvas({
         if (readOnly) return;
         e.preventDefault();
         e.stopPropagation();
-        const target = canvasRef.current;
-        if (!target) return;
-        const { xPercent, yPercent } = dropPercents(e.clientX, e.clientY, target);
-        // Keep menu inside the viewport on mobile / iPad.
-        const menuW = 220;
-        const menuH = 160;
-        const x = Math.min(e.clientX, window.innerWidth - menuW - 8);
-        const y = Math.min(e.clientY, window.innerHeight - menuH - 8);
-        setContextMenu({
-          x: Math.max(8, x),
-          y: Math.max(8, y),
-          slideX: xPercent,
-          slideY: yPercent,
-        });
+        openMenuAt(e, { kind: "slide" });
       }}
       onDragOver={(e) => {
         if (readOnly) return;
@@ -1155,6 +1304,7 @@ export function TreatmentSlideCanvas({
           onSelectElement?.(null);
           onSelectField?.(key);
         }}
+        onFieldContextMenu={(e, key) => openMenuAt(e, { kind: "field", fieldKey: key })}
       />
 
       {slide.elements.map((el) => (
@@ -1173,6 +1323,9 @@ export function TreatmentSlideCanvas({
           }}
           onChange={(patch) => updateElement(el.id, patch)}
           onDelete={() => deleteElement(el.id)}
+          onContextMenu={(e, elementId) =>
+            openMenuAt(e, { kind: "element", elementId })
+          }
         />
       ))}
 
@@ -1186,68 +1339,179 @@ export function TreatmentSlideCanvas({
 
       {contextMenu && !readOnly ? (
         <div
-          className="fixed z-[80] min-w-[220px] overflow-hidden rounded-lg border border-white/15 bg-[#1c1c1e]/95 py-1 text-sm text-white shadow-2xl backdrop-blur-md"
+          className="fixed z-[80] min-w-[230px] overflow-hidden rounded-lg border border-white/15 bg-[#1c1c1e]/95 py-1 text-sm text-white shadow-2xl backdrop-blur-md"
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onClick={(e) => e.stopPropagation()}
           onContextMenu={(e) => e.preventDefault()}
         >
-          <button
-            type="button"
-            className="flex w-full items-center gap-2 px-3 py-2.5 text-left hover:bg-white/10"
-            onClick={() => {
-              contextFileInputRef.current?.click();
-            }}
-          >
-            <ImagePlus className="h-3.5 w-3.5 text-orange-300" />
-            Choose Photo or Video…
-          </button>
-          {onElementsChange ? (
-            <button
-              type="button"
-              className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-white/10"
-              onClick={() => {
-                const el = createTextElement({
-                  x: Math.min(70, Math.max(2, contextMenu.slideX - 10)),
-                  y: Math.min(80, Math.max(2, contextMenu.slideY - 5)),
-                  zIndex: nextElementZIndex(slide.elements),
-                });
-                onElementsChange([...slide.elements, el]);
-                onSelectElement?.(el.id);
-                onSelectField?.(null);
-                setContextMenu(null);
-              }}
-            >
-              <Type className="h-3.5 w-3.5 text-sky-300" />
-              Insert Text Box
-            </button>
-          ) : null}
-          <p className="px-3 pb-2 text-[10px] leading-snug text-zinc-500">
-            Media saves to the library and places on this slide.
-          </p>
-          {hiddenFields.length > 0 && onRestoreField ? (
+          {contextMenu.kind === "element" && contextElement && onElementsChange ? (
             <>
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-white/10"
+                onClick={() => {
+                  onElementsChange(bringElementToFront(slide.elements, contextElement.id));
+                  setContextMenu(null);
+                }}
+              >
+                <BringToFront className="h-3.5 w-3.5 text-slate-300" />
+                Bring to Front
+              </button>
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-white/10"
+                onClick={() => {
+                  onElementsChange(sendElementToBack(slide.elements, contextElement.id));
+                  setContextMenu(null);
+                }}
+              >
+                <SendToBack className="h-3.5 w-3.5 text-slate-300" />
+                Send to Back
+              </button>
               <div className="my-1 border-t border-white/10" />
-              <div className="px-3 py-1 text-[10px] uppercase tracking-wide text-zinc-500">
-                Restore deleted field
-              </div>
-              {hiddenFields.map((key) => (
-                <button
-                  key={key}
-                  type="button"
-                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-white/10"
-                  onClick={() => {
-                    onRestoreField(key);
-                    setContextMenu(null);
-                  }}
-                >
-                  <RotateCcw className="h-3 w-3 text-zinc-400" />
-                  {key === "title"
-                    ? "Title"
-                    : key === "subtitle"
-                      ? "Made by / byline"
-                      : "Body text"}
-                </button>
-              ))}
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-white/10 disabled:opacity-40"
+                disabled={contextElement.locked}
+                onClick={() => {
+                  const result = duplicateElementInList(slide.elements, contextElement.id);
+                  onElementsChange(result.elements);
+                  if (result.newId) onSelectElement?.(result.newId);
+                  setContextMenu(null);
+                }}
+              >
+                <Copy className="h-3.5 w-3.5 text-sky-300" />
+                Duplicate
+              </button>
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-white/10"
+                onClick={() => {
+                  updateElement(contextElement.id, { locked: !contextElement.locked });
+                  setContextMenu(null);
+                }}
+              >
+                {contextElement.locked ? (
+                  <Unlock className="h-3.5 w-3.5 text-amber-300" />
+                ) : (
+                  <Lock className="h-3.5 w-3.5 text-amber-300" />
+                )}
+                {contextElement.locked ? "Unlock" : "Lock"}
+              </button>
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-red-300 hover:bg-red-500/15 disabled:opacity-40"
+                disabled={contextElement.locked}
+                onClick={() => {
+                  deleteElement(contextElement.id);
+                  setContextMenu(null);
+                }}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete
+              </button>
+            </>
+          ) : null}
+
+          {contextMenu.kind === "field" && contextMenu.fieldKey ? (
+            <>
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-red-300 hover:bg-red-500/15"
+                onClick={() => {
+                  onFieldChange?.(hideSlideField(slide, contextMenu.fieldKey!));
+                  onSelectField?.(null);
+                  setContextMenu(null);
+                }}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete Text Box
+              </button>
+              <p className="px-3 pb-2 text-[10px] leading-snug text-zinc-500">
+                Use the Format panel to change colour, font, and size.
+              </p>
+            </>
+          ) : null}
+
+          {contextMenu.kind === "slide" ? (
+            <>
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 px-3 py-2.5 text-left hover:bg-white/10"
+                onClick={() => {
+                  contextFileInputRef.current?.click();
+                }}
+              >
+                <ImagePlus className="h-3.5 w-3.5 text-orange-300" />
+                Choose Photo or Video…
+              </button>
+              {onElementsChange ? (
+                <>
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-white/10"
+                    onClick={() => {
+                      const el = createTextElement({
+                        x: Math.min(70, Math.max(2, contextMenu.slideX - 10)),
+                        y: Math.min(80, Math.max(2, contextMenu.slideY - 5)),
+                        zIndex: nextElementZIndex(slide.elements),
+                      });
+                      onElementsChange([...slide.elements, el]);
+                      onSelectElement?.(el.id);
+                      onSelectField?.(null);
+                      setContextMenu(null);
+                    }}
+                  >
+                    <Type className="h-3.5 w-3.5 text-sky-300" />
+                    Insert Text Box
+                  </button>
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-white/10"
+                    onClick={() => {
+                      const el = createShapeElement("rect", {
+                        x: Math.min(70, Math.max(2, contextMenu.slideX - 8)),
+                        y: Math.min(75, Math.max(2, contextMenu.slideY - 8)),
+                        zIndex: nextElementZIndex(slide.elements),
+                      });
+                      onElementsChange([...slide.elements, el]);
+                      onSelectElement?.(el.id);
+                      setContextMenu(null);
+                    }}
+                  >
+                    Insert Shape
+                  </button>
+                </>
+              ) : null}
+              <p className="px-3 pb-2 text-[10px] leading-snug text-zinc-500">
+                Media saves to the library and places on this slide. Videos show a play button.
+              </p>
+              {hiddenFields.length > 0 && onRestoreField ? (
+                <>
+                  <div className="my-1 border-t border-white/10" />
+                  <div className="px-3 py-1 text-[10px] uppercase tracking-wide text-zinc-500">
+                    Restore deleted field
+                  </div>
+                  {hiddenFields.map((key) => (
+                    <button
+                      key={key}
+                      type="button"
+                      className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-white/10"
+                      onClick={() => {
+                        onRestoreField(key);
+                        setContextMenu(null);
+                      }}
+                    >
+                      <RotateCcw className="h-3 w-3 text-zinc-400" />
+                      {key === "title"
+                        ? "Title"
+                        : key === "subtitle"
+                          ? "Made by / byline"
+                          : "Body text"}
+                    </button>
+                  ))}
+                </>
+              ) : null}
             </>
           ) : null}
         </div>

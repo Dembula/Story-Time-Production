@@ -43,7 +43,7 @@ export async function resolvePaymentRecordIdFromPayFastItn(
     if (byId) return byId.id;
 
     // Legacy card-consent / trial-consent used consent reference as m_payment_id.
-    if (mPaymentId.startsWith("card-consent-") || mPaymentId.startsWith("trial-consent-")) {
+    if (mPaymentId.startsWith("card-consent-") || mPaymentId.startsWith("trial-consent-") || mPaymentId.startsWith("creator-trial-consent-")) {
       const legacy = await findCardConsentByReference(mPaymentId);
       if (legacy) return legacy;
     }
@@ -58,7 +58,7 @@ export async function resolvePaymentRecordIdFromPayFastItn(
   }
 
   const consentRef = data.custom_str3?.trim();
-  if (consentRef && (consentRef.startsWith("card-consent-") || consentRef.startsWith("trial-consent-"))) {
+  if (consentRef && (consentRef.startsWith("card-consent-") || consentRef.startsWith("trial-consent-") || consentRef.startsWith("creator-trial-consent-"))) {
     const byConsent = await findCardConsentByReference(consentRef);
     if (byConsent) return byConsent;
   }

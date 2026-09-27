@@ -43,9 +43,12 @@ export function isDemoPaymentRecord(payment: PaymentLike): boolean {
 export function isPromoCoveredPaymentRecord(payment: PaymentLike): boolean {
   const amount = Number(payment.amount ?? 0);
   if (!(amount > 0)) return true;
+  const source = String(payment.settlementSource ?? "").toLowerCase();
+  if (source === "free_trial" || source === "apple_free_trial") return true;
   const meta = asRecord(payment.metadata);
   if (!meta) return false;
   if (meta.promoFreeGrant === true || meta.fundingSource === "promo") return true;
+  if (meta.fundingSource === "trial" || meta.isFreeTrial === true) return true;
   if (meta.promoKind === "FREE_YEAR_SUBSCRIPTION") return true;
   const discountedTo = meta.finalPriceAfterPromo;
   if (typeof discountedTo === "number" && discountedTo <= 0) return true;
@@ -93,8 +96,12 @@ export function getCashSettlementAmount(payment: PaymentLike): number {
   });
 }
 
-export function paymentFundingSource(payment: PaymentLike): "cash" | "promo" | "demo" | "other" {
+export function paymentFundingSource(payment: PaymentLike): "cash" | "promo" | "demo" | "other" | "trial" {
   if (isDemoPaymentRecord(payment)) return "demo";
+  const source = String(payment.settlementSource ?? "").toLowerCase();
+  if (source === "free_trial" || source === "apple_free_trial") return "trial";
+  const meta = asRecord(payment.metadata);
+  if (meta?.isFreeTrial === true || meta?.fundingSource === "trial") return "trial";
   if (isPromoCoveredPaymentRecord(payment)) return "promo";
   if (isCashRecognizedPayment(payment)) return "cash";
   return "other";

@@ -18,6 +18,13 @@ import {
 } from "@/lib/promo-codes";
 import { initializeCheckout } from "@/lib/payments/billing";
 import { buildPaymentReturnUrl } from "@/lib/payments/return-url";
+import { createPayFastCardConsentForUser } from "@/lib/payments/payfast-saved-card";
+import {
+  creatorHasUsedPipelineFreeTrial,
+  creatorTrialConsentReference,
+  isCreatorTrialActive,
+  isCreatorTrialCardPending,
+} from "@/lib/payments/creator-pipeline-trial";
 
 function promoFailureMessage(reason: string) {
   switch (reason) {
@@ -105,6 +112,9 @@ export async function GET() {
     packageGateReason: packageStatus.reason ?? null,
     onboardingPath: packageStatus.onboardingPath,
     requiresPayment: packageStatus.reason === "payment_required",
+    trialPendingCard: license?.status === "TRIAL_CARD_PENDING",
+    trialEndsAt: license?.trialEndsAt ?? null,
+    isTrialActive: license?.status === "TRIAL_ACTIVE",
   });
 }
 
@@ -130,28 +140,156 @@ export async function POST(req: Request) {
         promoCode?: string;
         /** Change / renew an existing package (same shape as onboarding). */
         action?: "change_plan" | "renew";
+        /** Pipeline monthly only — mirrors viewer free trial + card save. */
+        billingMode?: "trial";
       }
     | null;
 
+    const startTrial = body?.billingMode === "trial";
     const existing = await prisma.creatorDistributionLicense.findUnique({ where: { userId: user.id } });
     const isChangePlan = body?.action === "change_plan" || body?.action === "renew";
     const hasPlanSelection = Boolean(
       body?.package ||
         body?.type ||
-        (typeof body?.promoCode === "string" && body.promoCode.trim()),
+        (typeof body?.promoCode === "string" && body.promoCode.trim()) ||
+        startTrial,
     );
     let forceUpdateExisting = false;
+
+    if (startTrial) {
+      if (body?.package !== "PIPELINE" || body?.billing !== "MONTHLY") {
+        return NextResponse.json(
+          { error: "The free trial is only available on Full pipeline · Monthly." },
+          { status: 400 },
+        );
+      }
+      if (existing && !isCreatorTrialCardPending(existing) && (isCreatorTrialActive(existing) || existing.trialEndsAt)) {
+        return NextResponse.json(
+          { error: "This account has already used its free trial." },
+          { status: 400 },
+        );
+      }
+      if (!existing && (await creatorHasUsedPipelineFreeTrial(user.id))) {
+        return NextResponse.json(
+          { error: "This account has already used its free trial." },
+          { status: 400 },
+        );
+      }
+      // Paid / entitled pipeline (or other paid plans) — no second trial.
+      if (
+        existing &&
+        !isCreatorTrialCardPending(existing) &&
+        existing.status !== "PAST_DUE" &&
+        existing.status !== "CANCELLED"
+      ) {
+        const paid = await prisma.paymentRecord.findFirst({
+          where: {
+            relatedEntityType: "CreatorDistributionLicense",
+            relatedEntityId: existing.id,
+            status: "SUCCEEDED",
+            purpose: { not: "CARD_CONSENT" },
+          },
+          select: { id: true },
+        });
+        if (paid || (existing.status === "ACTIVE" && !isCreatorTrialCardPending(existing))) {
+          return NextResponse.json(
+            { error: "A free trial is only available when you first choose pipeline monthly." },
+            { status: 400 },
+          );
+        }
+      }
+
+      await ensureCreatorStudioProfilesForUser(user.id);
+      let profileId: string | null = null;
+      try {
+        const preCtx = await loadStudioPipelineContext(user.id);
+        profileId = preCtx?.activeProfile?.id ?? null;
+      } catch {
+        profileId = null;
+      }
+
+      const pendingData = {
+        creatorStudioProfileId: profileId,
+        type: CREATOR_LICENSE_TYPE.PIPELINE_MONTHLY,
+        yearlyExpiresAt: null as Date | null,
+        trialEndsAt: null as Date | null,
+        autoRenew: true,
+        cancelAtPeriodEnd: false,
+        status: "TRIAL_CARD_PENDING",
+        externalPaymentId: null as string | null,
+        lastPaymentStatus: "PENDING",
+        lastPaymentAt: null as Date | null,
+        lastPaymentError: null as string | null,
+        renewalAttemptCount: 0,
+        pastDueSince: null as Date | null,
+      };
+
+      const license = existing
+        ? await prisma.creatorDistributionLicense.update({
+            where: { id: existing.id },
+            data: pendingData,
+          })
+        : await prisma.creatorDistributionLicense.create({
+            data: { userId: user.id, ...pendingData },
+          });
+
+      const onboardingPath =
+        role === "MUSIC_CREATOR"
+          ? "/music-creator/onboarding/license?card=required"
+          : "/creator/onboarding/license?card=required";
+
+      try {
+        const consent = await createPayFastCardConsentForUser({
+          userId: user.id,
+          email: user.email,
+          name: user.name,
+          returnPath: onboardingPath,
+          returnUrl: buildPaymentReturnUrl(onboardingPath, "creator_trial_card_capture"),
+          reference: creatorTrialConsentReference(license.id),
+        });
+        return NextResponse.json({
+          license,
+          requiresPayment: true,
+          deferCheckout: true,
+          trialPendingCard: true,
+          checkoutUrl: consent.checkoutUrl,
+          redirectTo: onboardingPath,
+          message: "Save your card to start the 30-day free trial. You will not be charged today.",
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unable to start card capture.";
+        await prisma.creatorDistributionLicense.update({
+          where: { id: license.id },
+          data: {
+            status: "TRIAL_CARD_PENDING",
+            trialEndsAt: null,
+            lastPaymentStatus: "FAILED",
+            lastPaymentError: message,
+          },
+        });
+        return NextResponse.json(
+          {
+            error:
+              "Card saving is unavailable right now. The free trial starts only after PayFast confirms a saved card.",
+          },
+          { status: 502 },
+        );
+      }
+    }
 
     if (existing && !isChangePlan) {
       const needsPayment = creatorLicenseNeedsUpfrontPayment(existing.type);
       let entitled = !needsPayment;
-      if (needsPayment) {
+      if (isCreatorTrialActive(existing)) {
+        entitled = true;
+      } else if (needsPayment) {
         const paid = Boolean(
           await prisma.paymentRecord.findFirst({
             where: {
               relatedEntityType: "CreatorDistributionLicense",
               relatedEntityId: existing.id,
               status: "SUCCEEDED",
+              purpose: { not: "CARD_CONSENT" },
             },
             select: { id: true },
           }),
@@ -169,7 +307,7 @@ export async function POST(req: Request) {
         }
       }
 
-      if (entitled) {
+      if (entitled && !isCreatorTrialCardPending(existing)) {
         await ensureCreatorStudioProfilesForUser(user.id);
         const ctx = await loadStudioPipelineContext(user.id);
         return NextResponse.json({
@@ -186,6 +324,39 @@ export async function POST(req: Request) {
       // Unpaid / incomplete: if the client sent a plan or promo, fall through so promo + pay works.
       if (hasPlanSelection) {
         forceUpdateExisting = true;
+      } else if (isCreatorTrialCardPending(existing)) {
+        const onboardingPath =
+          role === "MUSIC_CREATOR"
+            ? "/music-creator/onboarding/license?card=required"
+            : "/creator/onboarding/license?card=required";
+        try {
+          const consent = await createPayFastCardConsentForUser({
+            userId: user.id,
+            email: user.email,
+            name: user.name,
+            returnPath: onboardingPath,
+            returnUrl: buildPaymentReturnUrl(onboardingPath, "creator_trial_card_capture"),
+            reference: creatorTrialConsentReference(existing.id),
+          });
+          return NextResponse.json({
+            license: existing,
+            requiresPayment: true,
+            deferCheckout: true,
+            trialPendingCard: true,
+            checkoutUrl: consent.checkoutUrl,
+            redirectTo: onboardingPath,
+            message: "Save your card to start the 30-day free trial. You will not be charged today.",
+          });
+        } catch (error) {
+          return NextResponse.json({
+            license: existing,
+            requiresPayment: true,
+            trialPendingCard: true,
+            checkoutUrl: null,
+            checkoutWarning: error instanceof Error ? error.message : "Unable to initialize card capture.",
+            redirectTo: onboardingPath,
+          });
+        }
       } else {
         let checkoutUrl: string | null = null;
         const amount = resolveCreatorLicensePrice(existing.type);
@@ -335,6 +506,7 @@ export async function POST(req: Request) {
     creatorStudioProfileId: profileId,
     type: storedType,
     yearlyExpiresAt: periodEnd,
+    trialEndsAt: null as Date | null,
     autoRenew,
     cancelAtPeriodEnd: false,
     status: finalPrice > 0 ? "PAST_DUE" : "ACTIVE",

@@ -1148,6 +1148,7 @@ exports.Prisma.CreatorDistributionLicenseScalarFieldEnum = {
   creatorStudioProfileId: 'creatorStudioProfileId',
   type: 'type',
   yearlyExpiresAt: 'yearlyExpiresAt',
+  trialEndsAt: 'trialEndsAt',
   autoRenew: 'autoRenew',
   cancelAtPeriodEnd: 'cancelAtPeriodEnd',
   status: 'status',
@@ -1637,6 +1638,8 @@ exports.Prisma.ScriptReviewAnnotationScalarFieldEnum = {
   id: 'id',
   sessionId: 'sessionId',
   authorId: 'authorId',
+  guestName: 'guestName',
+  guestEmail: 'guestEmail',
   type: 'type',
   layer: 'layer',
   pageIndex: 'pageIndex',
@@ -1650,6 +1653,31 @@ exports.Prisma.ScriptReviewAnnotationScalarFieldEnum = {
   parentId: 'parentId',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
+};
+
+exports.Prisma.ScriptReviewGuestInviteScalarFieldEnum = {
+  id: 'id',
+  sessionId: 'sessionId',
+  projectId: 'projectId',
+  createdById: 'createdById',
+  token: 'token',
+  email: 'email',
+  durationKey: 'durationKey',
+  expiresAt: 'expiresAt',
+  revokedAt: 'revokedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.ScriptReviewGuestSessionScalarFieldEnum = {
+  id: 'id',
+  inviteId: 'inviteId',
+  token: 'token',
+  guestName: 'guestName',
+  guestEmail: 'guestEmail',
+  expiresAt: 'expiresAt',
+  createdAt: 'createdAt',
+  lastSeenAt: 'lastSeenAt'
 };
 
 exports.Prisma.BreakdownCharacterScalarFieldEnum = {
@@ -2779,9 +2807,36 @@ exports.Prisma.ReviewNoteScalarFieldEnum = {
   id: 'id',
   reviewId: 'reviewId',
   userId: 'userId',
+  guestName: 'guestName',
+  guestEmail: 'guestEmail',
   body: 'body',
   timestampMs: 'timestampMs',
   createdAt: 'createdAt'
+};
+
+exports.Prisma.EditReviewGuestInviteScalarFieldEnum = {
+  id: 'id',
+  reviewId: 'reviewId',
+  projectId: 'projectId',
+  createdById: 'createdById',
+  token: 'token',
+  email: 'email',
+  durationKey: 'durationKey',
+  expiresAt: 'expiresAt',
+  revokedAt: 'revokedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.EditReviewGuestSessionScalarFieldEnum = {
+  id: 'id',
+  inviteId: 'inviteId',
+  token: 'token',
+  guestName: 'guestName',
+  guestEmail: 'guestEmail',
+  expiresAt: 'expiresAt',
+  createdAt: 'createdAt',
+  lastSeenAt: 'lastSeenAt'
 };
 
 exports.Prisma.FinalDeliveryScalarFieldEnum = {
@@ -3309,6 +3364,8 @@ exports.Prisma.ModelName = {
   ScriptReviewRequest: 'ScriptReviewRequest',
   ScriptReviewSession: 'ScriptReviewSession',
   ScriptReviewAnnotation: 'ScriptReviewAnnotation',
+  ScriptReviewGuestInvite: 'ScriptReviewGuestInvite',
+  ScriptReviewGuestSession: 'ScriptReviewGuestSession',
   BreakdownCharacter: 'BreakdownCharacter',
   BreakdownProp: 'BreakdownProp',
   BreakdownLocation: 'BreakdownLocation',
@@ -3392,6 +3449,8 @@ exports.Prisma.ModelName = {
   MusicSelection: 'MusicSelection',
   PostProductionReview: 'PostProductionReview',
   ReviewNote: 'ReviewNote',
+  EditReviewGuestInvite: 'EditReviewGuestInvite',
+  EditReviewGuestSession: 'EditReviewGuestSession',
   FinalDelivery: 'FinalDelivery',
   DistributionSubmission: 'DistributionSubmission',
   ProjectWorkspaceLink: 'ProjectWorkspaceLink',

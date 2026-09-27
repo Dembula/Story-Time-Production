@@ -12,6 +12,7 @@ import {
   Redo2,
   Sparkles,
   Undo2,
+  UserPlus,
   Users,
   ZoomIn,
   ZoomOut,
@@ -47,6 +48,7 @@ import type { ReviewPermissions } from "@/lib/script-review/permissions";
 import type { ReviewPeer } from "@/lib/script-review/collaboration-room";
 import { ReviewPageCanvas } from "./review-page-canvas";
 import { ReviewThreadsPanel } from "./review-threads-panel";
+import { ScriptReviewGuestInvitePanel } from "./script-review-guest-invite-panel";
 
 const REVIEW_HISTORY_MAX = 80;
 
@@ -107,6 +109,7 @@ export function ScriptReviewStudio({ projectId, title }: ScriptReviewStudioProps
   const [compareDraftId, setCompareDraftId] = useState<string | null>(null);
   const [reviewsViewOpen, setReviewsViewOpen] = useState(false);
   const [reviewsViewTab, setReviewsViewTab] = useState("executive");
+  const [guestInviteOpen, setGuestInviteOpen] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [processingPayment, setProcessingPayment] = useState(false);
   const [paymentEmail, setPaymentEmail] = useState("");
@@ -813,6 +816,18 @@ export function ScriptReviewStudio({ projectId, title }: ScriptReviewStudioProps
               <Download className="h-3.5 w-3.5 mr-1" />
               Export PDF
             </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-7 border-white/15 text-[10px] text-slate-200"
+              disabled={!session?.id}
+              onClick={() => setGuestInviteOpen(true)}
+              title={session?.id ? "Invite guests to this draft" : "Open a draft first"}
+            >
+              <UserPlus className="mr-1 h-3.5 w-3.5" />
+              Invite guests
+            </Button>
           </div>
 
           <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,260px)]">
@@ -1098,6 +1113,15 @@ export function ScriptReviewStudio({ projectId, title }: ScriptReviewStudioProps
           }))}
         />
       </ToolSavedViewSheet>
+
+      {session?.id && workingProjectId ? (
+        <ScriptReviewGuestInvitePanel
+          projectId={workingProjectId}
+          sessionId={session.id}
+          open={guestInviteOpen}
+          onClose={() => setGuestInviteOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

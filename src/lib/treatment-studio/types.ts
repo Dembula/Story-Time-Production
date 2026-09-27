@@ -13,6 +13,15 @@ export type TreatmentAsset = {
 
 export type TreatmentElementType = "text" | "image" | "shape" | "line";
 
+export type TreatmentFieldStyle = {
+  color?: string;
+  fontSize?: number;
+  fontWeight?: string;
+  fontFamily?: string;
+  align?: "left" | "center" | "right";
+  opacity?: number;
+};
+
 export type TreatmentElement = {
   id: string;
   type: TreatmentElementType;
@@ -25,8 +34,13 @@ export type TreatmentElement = {
   text?: string;
   fontSize?: number;
   fontWeight?: string;
+  fontFamily?: string;
   color?: string;
   align?: "left" | "center" | "right";
+  opacity?: number;
+  locked?: boolean;
+  shadow?: boolean;
+  objectFit?: "cover" | "contain";
   referenceId?: string;
   shape?: "rect" | "ellipse";
   fill?: string;
@@ -62,6 +76,8 @@ export type TreatmentSlide = {
   elements: TreatmentElement[];
   /** Absolute % frames for layout title/subtitle/body — enables move/resize. */
   fieldFrames?: Partial<Record<TreatmentFieldKey, TreatmentFieldFrame>>;
+  /** Per-field typography overrides (Keynote Format → Text). */
+  fieldStyles?: Partial<Record<TreatmentFieldKey, TreatmentFieldStyle>>;
   /** Layout text boxes the creator removed (Keynote-style optional placeholders). */
   hiddenFields?: TreatmentFieldKey[];
 };

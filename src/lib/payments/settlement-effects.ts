@@ -212,6 +212,7 @@ export async function applyPaymentRecordSettlementEffects(paymentRecord: {
         where: { id: paymentRecord.relatedEntityId },
         data: {
           status: "ACTIVE",
+          trialEndsAt: null,
           lastPaymentStatus: "SUCCEEDED",
           lastPaymentAt: new Date(),
           ...buildRecurringBillingSuccessReset(),

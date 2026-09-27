@@ -18,6 +18,13 @@ export type AppleTransactionPayload = {
   transactionReason?: string;
   storefront?: string;
   signedDate?: number;
+  /** 1 = introductory, 2 = promotional, 3 = offer code, 4 = win-back */
+  offerType?: number;
+  /** FREE_TRIAL | PAY_AS_YOU_GO | PAY_UP_FRONT */
+  offerDiscountType?: string;
+  /** Price in milliunits of currencyCode (0 during free trial). */
+  price?: number;
+  currency?: string;
   [key: string]: unknown;
 };
 

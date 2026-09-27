@@ -242,6 +242,8 @@ model User {
   calendarEventsAssigned     CreatorCalendarEvent[]            @relation("CalendarEventAssignee")
   dailiesNotes               DailiesNote[]
   reviewNotes                ReviewNote[]
+  editReviewGuestInvites     EditReviewGuestInvite[]
+  scriptReviewGuestInvites   ScriptReviewGuestInvite[]
 
   // Creator-owned script and notes
   creatorScripts          CreatorScript[]
@@ -1820,9 +1822,11 @@ model CreatorDistributionLicense {
   creatorStudioProfile   CreatorStudioProfile? @relation(fields: [creatorStudioProfileId], references: [id], onDelete: SetNull)
   type                   String // CREATOR_PIPELINE_*, CREATOR_UPLOAD_*, legacy YEARLY_R89, etc.
   yearlyExpiresAt        DateTime?
+  /// Set while a free trial is active (web PayFast 30-day pipeline monthly, or store intro).
+  trialEndsAt            DateTime?
   autoRenew              Boolean               @default(true)
   cancelAtPeriodEnd      Boolean               @default(false)
-  status                 String                @default("ACTIVE") // ACTIVE, PAST_DUE, CANCELLED
+  status                 String                @default("ACTIVE") // TRIAL_CARD_PENDING, TRIAL_ACTIVE, ACTIVE, PAST_DUE, CANCELLED
   renewalAttemptCount    Int                   @default(0)
   pastDueSince           DateTime?
   lastPaymentAt          DateTime?
@@ -1834,6 +1838,7 @@ model CreatorDistributionLicense {
 
   @@index([userId])
   @@index([creatorStudioProfileId])
+  @@index([trialEndsAt])
 }
 
 model UploadPayment {
@@ -2571,7 +2576,8 @@ model ScriptReviewSession {
   createdAt       DateTime             @default(now())
   updatedAt       DateTime             @updatedAt
 
-  annotations ScriptReviewAnnotation[]
+  annotations  ScriptReviewAnnotation[]
+  guestInvites ScriptReviewGuestInvite[]
 
   @@unique([projectId, draftKey])
   @@index([projectId])
@@ -2581,8 +2587,11 @@ model ScriptReviewAnnotation {
   id         String                   @id @default(cuid())
   sessionId  String
   session    ScriptReviewSession      @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  authorId   String
-  author     User                     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  authorId   String?
+  author     User?                    @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  /// Guest reviewer display name when commenting without a Story Time account.
+  guestName  String?
+  guestEmail String?
   type       String
   layer      String                   @default("producer")
   pageIndex  Int                      @default(0)
@@ -2603,6 +2612,45 @@ model ScriptReviewAnnotation {
   @@index([authorId])
   @@index([parentId])
   @@index([layer])
+}
+
+/// Shareable guest access to a single script-review session.
+model ScriptReviewGuestInvite {
+  id          String                     @id @default(cuid())
+  sessionId   String
+  session     ScriptReviewSession        @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  projectId   String
+  createdById String
+  createdBy   User                       @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  token       String                     @unique
+  email       String?
+  /// 1h | 12h | 1d | 7d | 30d | 90d | indefinite
+  durationKey String
+  expiresAt   DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime                   @default(now())
+  updatedAt   DateTime                   @updatedAt
+  sessions    ScriptReviewGuestSession[]
+
+  @@index([sessionId])
+  @@index([projectId])
+  @@index([token])
+  @@index([createdById])
+}
+
+model ScriptReviewGuestSession {
+  id         String                  @id @default(cuid())
+  inviteId   String
+  invite     ScriptReviewGuestInvite @relation(fields: [inviteId], references: [id], onDelete: Cascade)
+  token      String                  @unique
+  guestName  String
+  guestEmail String?
+  expiresAt  DateTime?
+  createdAt  DateTime                @default(now())
+  lastSeenAt DateTime                @default(now())
+
+  @@index([inviteId])
+  @@index([token])
 }
 
 // --- Script breakdown items ---
@@ -4339,7 +4387,8 @@ model PostProductionReview {
   createdAt  DateTime        @default(now())
   updatedAt  DateTime        @updatedAt
 
-  notes ReviewNote[]
+  notes        ReviewNote[]
+  guestInvites EditReviewGuestInvite[]
 
   @@index([projectId])
 }
@@ -4350,12 +4399,57 @@ model ReviewNote {
   review      PostProductionReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
   userId      String?
   user        User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
+  /// Guest reviewer display name when commenting without a Story Time account.
+  guestName   String?
+  guestEmail  String?
   body        String
   timestampMs Int?
   createdAt   DateTime             @default(now())
 
   @@index([reviewId])
   @@index([userId])
+}
+
+/// Shareable guest access to a single edit-review cut (Frame.io-style invite link).
+model EditReviewGuestInvite {
+  id          String                   @id @default(cuid())
+  reviewId    String
+  review      PostProductionReview     @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  projectId   String
+  createdById String
+  createdBy   User                     @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  /// Public invite token used in /edit-review/guest/[token]
+  token       String                   @unique
+  /// Optional email the invite was sent to
+  email       String?
+  /// 1h | 12h | 1d | 7d | 30d | 90d | indefinite
+  durationKey String
+  expiresAt   DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+  sessions    EditReviewGuestSession[]
+
+  @@index([reviewId])
+  @@index([projectId])
+  @@index([token])
+  @@index([createdById])
+}
+
+model EditReviewGuestSession {
+  id         String                @id @default(cuid())
+  inviteId   String
+  invite     EditReviewGuestInvite @relation(fields: [inviteId], references: [id], onDelete: Cascade)
+  /// Cookie session token for guest access
+  token      String                @unique
+  guestName  String
+  guestEmail String?
+  expiresAt  DateTime?
+  createdAt  DateTime              @default(now())
+  lastSeenAt DateTime              @default(now())
+
+  @@index([inviteId])
+  @@index([token])
 }
 
 model FinalDelivery {

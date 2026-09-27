@@ -46,11 +46,41 @@ export async function getCreatorPackageStatus(
 
   const license = await prisma.creatorDistributionLicense.findUnique({
     where: { userId },
-    select: { id: true, type: true, yearlyExpiresAt: true, status: true },
+    select: { id: true, type: true, yearlyExpiresAt: true, trialEndsAt: true, status: true },
   });
 
   if (!license) {
     return { complete: false, reason: "no_license", onboardingPath };
+  }
+
+  // Free trial: card must be saved before pipeline access unlocks.
+  if (license.status === "TRIAL_CARD_PENDING") {
+    return {
+      complete: false,
+      reason: "payment_required",
+      onboardingPath: `${onboardingPath}?card=required`,
+      licenseId: license.id,
+      licenseType: license.type,
+    };
+  }
+
+  if (license.status === "TRIAL_ACTIVE") {
+    const trialEnd = license.trialEndsAt ?? license.yearlyExpiresAt;
+    if (trialEnd && new Date(trialEnd).getTime() > Date.now()) {
+      return {
+        complete: true,
+        onboardingPath,
+        licenseId: license.id,
+        licenseType: license.type,
+      };
+    }
+    return {
+      complete: false,
+      reason: "expired",
+      onboardingPath,
+      licenseId: license.id,
+      licenseType: license.type,
+    };
   }
 
   if (!isCreatorLicensePeriodActive(license)) {
@@ -84,6 +114,7 @@ export async function getCreatorPackageStatus(
       relatedEntityType: "CreatorDistributionLicense",
       relatedEntityId: license.id,
       status: "SUCCEEDED",
+      purpose: { not: "CARD_CONSENT" },
     },
     select: { id: true },
   });

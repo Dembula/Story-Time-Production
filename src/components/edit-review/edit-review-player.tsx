@@ -81,6 +81,7 @@ export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewP
     const [hasFrame, setHasFrame] = useState(false);
     const [buffering, setBuffering] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [hoveredNoteId, setHoveredNoteId] = useState<string | null>(null);
 
     useEffect(() => {
       onTimeUpdateRef.current = onTimeUpdate;
@@ -436,8 +437,6 @@ export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewP
             }}
             onPause={() => {
               setPlaying(false);
-              // Don't clear userPlayingRef here — brief pauses during buffer are fine;
-              // only togglePlay/pause() should mark intentional pause.
             }}
             onEnded={() => {
               userPlayingRef.current = false;
@@ -485,7 +484,7 @@ export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewP
 
           <div className="absolute bottom-0 inset-x-0 z-10 bg-gradient-to-t from-black/95 via-black/55 to-transparent px-3 pb-3 pt-12">
             <div
-              className="relative mb-2 h-2 cursor-pointer rounded-full bg-white/20"
+              className="relative mb-2 h-2.5 cursor-pointer rounded-full bg-white/20"
               role="slider"
               aria-valuemin={0}
               aria-valuemax={durationMs}
@@ -501,19 +500,62 @@ export const EditReviewPlayer = forwardRef<EditReviewPlaybackHandle, EditReviewP
               {timedNotes.map((note) => {
                 if (note.timestampMs == null || !durationMs) return null;
                 const left = (note.timestampMs / durationMs) * 100;
+                const author =
+                  note.user?.name?.trim() ||
+                  note.guestName?.trim() ||
+                  "Guest";
+                const initial = (author[0] ?? "?").toUpperCase();
+                const isHovered = hoveredNoteId === note.id;
                 return (
-                  <button
+                  <div
                     key={note.id}
-                    type="button"
-                    title={note.body}
-                    className="absolute top-1/2 z-10 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-black/40 bg-orange-300 shadow hover:scale-125"
+                    className="absolute top-1/2 z-20 -translate-x-1/2 -translate-y-1/2"
                     style={{ left: `${left}%` }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      applySeek(note.timestampMs!);
-                      onNoteMarkerClick?.(note);
-                    }}
-                  />
+                    onMouseEnter={() => setHoveredNoteId(note.id)}
+                    onMouseLeave={() =>
+                      setHoveredNoteId((id) => (id === note.id ? null : id))
+                    }
+                  >
+                    {isHovered ? (
+                      <div
+                        className="pointer-events-none absolute bottom-[calc(100%+10px)] left-1/2 z-30 w-64 -translate-x-1/2 rounded-lg border border-white/15 bg-[#1c1c1e] p-2.5 text-left shadow-2xl"
+                        role="tooltip"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sky-500/30 text-[10px] font-semibold text-sky-100">
+                            {initial}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-[11px] font-medium text-white">
+                              {author}
+                            </p>
+                          </div>
+                          <span className="shrink-0 rounded bg-amber-400/90 px-1.5 py-0.5 font-mono text-[9px] font-semibold text-black">
+                            {formatReviewTimecode(note.timestampMs)}
+                          </span>
+                        </div>
+                        <p className="mt-1.5 line-clamp-3 text-[11px] leading-snug text-slate-300">
+                          {note.body}
+                        </p>
+                        <div className="absolute left-1/2 top-full h-0 w-0 -translate-x-1/2 border-x-[6px] border-t-[6px] border-x-transparent border-t-[#1c1c1e]" />
+                      </div>
+                    ) : null}
+                    <button
+                      type="button"
+                      aria-label={`Comment by ${author} at ${formatReviewTimecode(note.timestampMs)}`}
+                      className={cn(
+                        "flex h-4 w-4 items-center justify-center rounded-full border border-black/50 bg-amber-400 text-[8px] font-bold text-black shadow transition",
+                        isHovered && "scale-125 ring-2 ring-amber-200/80",
+                      )}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        applySeek(note.timestampMs!);
+                        onNoteMarkerClick?.(note);
+                      }}
+                    >
+                      {initial}
+                    </button>
+                  </div>
                 );
               })}
             </div>

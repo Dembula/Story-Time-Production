@@ -117,6 +117,7 @@ const distributionLicenseRecordSelect = {
   id: true,
   type: true,
   yearlyExpiresAt: true,
+  trialEndsAt: true,
   status: true,
   autoRenew: true,
   cancelAtPeriodEnd: true,
@@ -138,8 +139,23 @@ const activeStudioProfileSelect = {
   pipelineSectionMask: true,
 } as const;
 
-async function hasSettledLicenseEntitlement(license: { id: string; type: string; externalPaymentId: string | null }) {
+async function hasSettledLicenseEntitlement(license: {
+  id: string;
+  type: string;
+  status?: string | null;
+  trialEndsAt?: Date | string | null;
+  externalPaymentId: string | null;
+}) {
   if (isCreatorPerUploadLicense(license.type)) return true;
+
+  // Pipeline monthly free trial: entitled once card is saved and the trial clock is running.
+  if (
+    license.status === "TRIAL_ACTIVE" &&
+    license.trialEndsAt &&
+    new Date(license.trialEndsAt).getTime() > Date.now()
+  ) {
+    return true;
+  }
 
   if (license.externalPaymentId) return true;
 

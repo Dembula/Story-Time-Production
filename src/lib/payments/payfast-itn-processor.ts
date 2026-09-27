@@ -16,6 +16,11 @@ import {
   parsePayFastFormBody,
   verifyPayFastItnSignature,
 } from "@/lib/payments/providers/payfast-signature";
+import {
+  CREATOR_PIPELINE_TRIAL_MS,
+  parseCreatorTrialConsentLicenseId,
+} from "@/lib/payments/creator-pipeline-trial";
+import { CREATOR_LICENSE_TYPE } from "@/lib/pricing";
 
 const db = prisma as any;
 
@@ -372,6 +377,80 @@ async function handleCardConsentItn(
         }).catch((err: unknown) => console.error("payfast verification refund failed", err));
         return { ok: true, cardConsent: true, paymentRecordId: paymentRecordId ?? undefined };
       }
+    }
+  }
+
+  const creatorTrialLicenseId = parseCreatorTrialConsentLicenseId(consentReference);
+  if (creatorTrialLicenseId) {
+    const license = await db.creatorDistributionLicense.findUnique({
+      where: { id: creatorTrialLicenseId },
+      select: {
+        id: true,
+        userId: true,
+        status: true,
+        trialEndsAt: true,
+        externalPaymentId: true,
+        type: true,
+        user: { select: { email: true } },
+      },
+    });
+    if (license?.id) {
+      const alreadyStarted =
+        license.status === "TRIAL_ACTIVE" &&
+        !!license.trialEndsAt &&
+        isPayFastChargeToken(license.externalPaymentId);
+      if (license.status === "TRIAL_CARD_PENDING" || (license.status === "TRIAL_ACTIVE" && !alreadyStarted)) {
+        const trialEndsAt = new Date(Date.now() + CREATOR_PIPELINE_TRIAL_MS);
+        await db.creatorDistributionLicense.update({
+          where: { id: license.id },
+          data: {
+            type: CREATOR_LICENSE_TYPE.PIPELINE_MONTHLY,
+            status: "TRIAL_ACTIVE",
+            trialEndsAt,
+            yearlyExpiresAt: trialEndsAt,
+            autoRenew: true,
+            externalPaymentId: token,
+            lastPaymentStatus: "SUCCEEDED",
+            lastPaymentAt: new Date(),
+            lastPaymentError: null,
+          },
+        });
+      } else if (license.status === "TRIAL_ACTIVE" || license.status === "ACTIVE") {
+        await db.creatorDistributionLicense.update({
+          where: { id: license.id },
+          data: {
+            externalPaymentId: token,
+            lastPaymentStatus: "SUCCEEDED",
+            lastPaymentError: null,
+          },
+        });
+      }
+
+      const ownerId = license.userId ?? payerUserId;
+      if (ownerId) {
+        await upsertPayFastPaymentMethod({
+          userId: ownerId,
+          token,
+          email: license.user?.email ?? data.email_address ?? payment?.email,
+          label: data.payment_method ? String(data.payment_method) : undefined,
+          lastFour: data.cc_mask ? String(data.cc_mask).slice(-4) : undefined,
+          cardType: data.payment_method ? String(data.payment_method) : undefined,
+        }).catch((err: unknown) => console.error("payfast method upsert failed", err));
+      }
+      await markCardConsentPaymentSucceeded({
+        paymentRecordId,
+        consentReference,
+        payerUserId: ownerId,
+      });
+      await refundCardConsentVerificationCharge({
+        paymentRecordId,
+        pfPaymentId: data.pf_payment_id,
+        amountZar:
+          typeof meta.verificationAmountZar === "number"
+            ? meta.verificationAmountZar
+            : PAYFAST_CARD_CONSENT_AMOUNT_ZAR,
+      }).catch((err: unknown) => console.error("payfast verification refund failed", err));
+      return { ok: true, cardConsent: true, paymentRecordId: paymentRecordId ?? undefined };
     }
   }
 

@@ -5,7 +5,7 @@ import {
   sendPasswordResetEmail,
   sendWelcomeEmail,
 } from "@/lib/sendgrid";
-import { getAppBaseUrl } from "@/lib/app-url";
+import { getCanonicalPublicBaseUrl } from "@/lib/app-url";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "A valid to email is required." }, { status: 400 });
   }
 
-  const base = getAppBaseUrl() || "https://story-time.online";
+  const base = getCanonicalPublicBaseUrl();
   const results: { name: string; ok: boolean; detail?: string }[] = [];
 
   try {

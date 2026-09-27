@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Check,
@@ -17,7 +17,6 @@ import {
 import {
   CREATOR_ONBOARDING_PLANS,
   CREATOR_PER_FILM_UPLOAD_PRICE,
-  CREATOR_PIPELINE_MONTHLY_ANNUAL_TOTAL,
   CREATOR_PIPELINE_YEARLY_SAVINGS_VS_12_MONTHLY,
   CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY,
   CREATOR_STUDIO_PROFILES_QUERY_KEY,
@@ -47,6 +46,7 @@ function SelectionCheck({ active }: { active: boolean }) {
 
 export function LicenseClient() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const [pkg, setPkg] = useState<CreatorPackage>("PER_FILM");
   const [pipelineBilling, setPipelineBilling] = useState<PipelineBilling>("YEARLY");
@@ -57,7 +57,17 @@ export function LicenseClient() {
   const [error, setError] = useState("");
   const [checkoutUrl, setCheckoutUrl] = useState("");
   const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [redirectAfterCheckout, setRedirectAfterCheckout] = useState("/creator/dashboard");
+  const [checkoutKind, setCheckoutKind] = useState<"pay" | "trial">("pay");
+  const cardRequired = searchParams.get("card") === "required";
+  const cardSaved = searchParams.get("card_saved") === "1" || searchParams.get("cardSaved") === "1";
+  const paymentCancelled = searchParams.get("payment_status")?.toLowerCase() === "cancelled";
+
+  useEffect(() => {
+    if (!cardSaved) return;
+    void queryClient.invalidateQueries({ queryKey: [...CREATOR_DISTRIBUTION_LICENSE_QUERY_KEY] });
+    router.replace("/creator/command-center");
+    router.refresh();
+  }, [cardSaved, queryClient, router]);
 
   const selectedPrice = useMemo(() => {
     if (pkg === "PER_FILM") return 0;
@@ -70,10 +80,11 @@ export function LicenseClient() {
   const selectedInterval =
     pkg === "PER_FILM" ? "film" : pkg === "UPLOAD_YEARLY" ? "year" : pipelineBilling === "YEARLY" ? "year" : "month";
 
-  async function submit() {
+  async function submit(billingMode?: "trial") {
     setError("");
     setPromoMessage("");
     setLoading(true);
+    setCheckoutKind(billingMode === "trial" ? "trial" : "pay");
     try {
       const res = await fetch("/api/creator/distribution-license", {
         method: "POST",
@@ -83,7 +94,13 @@ export function LicenseClient() {
             ? { action: "change_plan", package: "PER_FILM", promoCode }
             : pkg === "UPLOAD_YEARLY"
               ? { action: "change_plan", package: "UPLOAD_YEARLY", promoCode }
-              : { action: "change_plan", package: "PIPELINE", billing: pipelineBilling, promoCode },
+              : {
+                  action: "change_plan",
+                  package: "PIPELINE",
+                  billing: pipelineBilling,
+                  promoCode: billingMode === "trial" ? undefined : promoCode,
+                  ...(billingMode === "trial" ? { billingMode: "trial" } : {}),
+                },
         ),
       });
       const data = await res.json().catch(() => ({}));
@@ -93,9 +110,6 @@ export function LicenseClient() {
       if (data?.requiresPayment) {
         if (typeof data?.checkoutUrl === "string" && data.checkoutUrl) {
           setCheckoutUrl(data.checkoutUrl);
-          setRedirectAfterCheckout(
-            typeof data?.redirectTo === "string" ? data.redirectTo : "/creator/dashboard",
-          );
           setCheckoutOpen(true);
           return;
         }
@@ -125,15 +139,49 @@ export function LicenseClient() {
     }
   }
 
+  const showPipelineTrial = pkg === "PIPELINE" && pipelineBilling === "MONTHLY";
+
   return (
     <div className="space-y-10">
       <CheckoutModal
         open={checkoutOpen}
         checkoutUrl={checkoutUrl}
-        title="Complete creator license payment"
-        subtitle="Finish payment to unlock the selected creator package."
+        title={
+          checkoutKind === "trial"
+            ? "Save your card to start the free trial"
+            : "Complete creator license payment"
+        }
+        subtitle={
+          checkoutKind === "trial"
+            ? "PayFast will save your card. You are not charged today. The 30-day trial starts when the card is confirmed."
+            : "Finish payment to unlock the selected creator package."
+        }
         onClose={() => setCheckoutOpen(false)}
       />
+
+      {(cardRequired || paymentCancelled) && (
+        <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-4 text-sm text-amber-100">
+          <p className="font-medium text-white">Save your card to start the free trial</p>
+          <p className="mt-1 text-amber-100/80">
+            {paymentCancelled
+              ? "Card setup was cancelled. Your trial has not started, and pipeline access stays locked until PayFast confirms a saved card."
+              : "You are not charged today. The 30-day trial starts only after PayFast confirms your card."}
+          </p>
+          <button
+            type="button"
+            disabled={loading}
+            onClick={() => {
+              setPkg("PIPELINE");
+              setPipelineBilling("MONTHLY");
+              void submit("trial");
+            }}
+            className="mt-3 rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-400 disabled:opacity-50"
+          >
+            {loading && checkoutKind === "trial" ? "Opening PayFast…" : "Save card"}
+          </button>
+        </div>
+      )}
+
       <div className="grid gap-4 md:grid-cols-3">
         <div className="storytime-kpi p-4">
           <p className="flex items-center gap-2 text-xs uppercase tracking-wide text-slate-500">
@@ -156,13 +204,12 @@ export function LicenseClient() {
             <ShieldCheck className="h-4 w-4" /> Billing
           </p>
           <p className="mt-1 text-sm text-slate-300">
-            Per-film billing happens at upload. Yearly and pipeline plans use secure checkout now.
+            Pipeline monthly includes a 30-day free trial after you save a card. Yearly plans use checkout now.
           </p>
         </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Pay per film */}
         <div
           data-selected={pkg === "PER_FILM"}
           className={`storytime-plan-card flex h-full flex-col p-6 transition duration-200 ${
@@ -180,25 +227,12 @@ export function LicenseClient() {
               <SelectionCheck active={pkg === "PER_FILM"} />
             </div>
             <p className="mt-2 text-sm text-slate-400">
-              Catalogue upload only. Pay {formatZar(CREATOR_PER_FILM_UPLOAD_PRICE)} each time you submit a new title for review. Resubmissions after rejection are free.
+              Catalogue upload only. Pay {formatZar(CREATOR_PER_FILM_UPLOAD_PRICE)} each time you submit a new title for review.
             </p>
             <p className="mt-6 text-4xl font-bold text-white">
               {formatZar(CREATOR_PER_FILM_UPLOAD_PRICE)}
               <span className="ml-1 text-sm font-normal text-slate-400">/film</span>
             </p>
-            <ul className="mt-5 space-y-2 text-sm text-slate-300">
-              {[
-                "Catalogue upload & distribution",
-                "Originals submissions",
-                "Analytics & audience insights",
-                "No production pipeline access",
-              ].map((b) => (
-                <li key={b} className="flex items-center gap-2">
-                  <Check className="h-4 w-4 shrink-0 text-emerald-400" />
-                  {b}
-                </li>
-              ))}
-            </ul>
           </button>
           <button
             type="button"
@@ -210,14 +244,11 @@ export function LicenseClient() {
           </button>
           {expanded === "PER_FILM" ? (
             <div className="mt-3 rounded-xl border border-white/8 bg-white/[0.03] p-4 text-sm text-slate-400">
-              <p>
-                Best for filmmakers releasing one or two titles a year. Payment is collected at submission — your film enters review only after successful payment.
-              </p>
+              <p>Best for filmmakers releasing one or two titles a year.</p>
             </div>
           ) : null}
         </div>
 
-        {/* Catalogue unlimited yearly */}
         <div
           data-selected={pkg === "UPLOAD_YEARLY"}
           className={`storytime-plan-card flex h-full flex-col p-6 transition duration-200 ${
@@ -235,25 +266,12 @@ export function LicenseClient() {
               <SelectionCheck active={pkg === "UPLOAD_YEARLY"} />
             </div>
             <p className="mt-2 text-sm text-slate-400">
-              Unlimited catalogue uploads for 12 months. Same distribution features as pay-per-film, without a fee on each submission.
+              Unlimited catalogue uploads for 12 months without a fee on each submission.
             </p>
             <p className="mt-6 text-4xl font-bold text-white">
               {formatZar(CREATOR_ONBOARDING_PLANS.UPLOAD_YEARLY.price)}
               <span className="ml-1 text-sm font-normal text-slate-400">/year</span>
             </p>
-            <ul className="mt-5 space-y-2 text-sm text-slate-300">
-              {[
-                "Unlimited catalogue submissions",
-                "Originals & analytics",
-                "No per-film upload fees",
-                "No production pipeline access",
-              ].map((b) => (
-                <li key={b} className="flex items-center gap-2">
-                  <Check className="h-4 w-4 shrink-0 text-emerald-400" />
-                  {b}
-                </li>
-              ))}
-            </ul>
           </button>
           <button
             type="button"
@@ -263,16 +281,8 @@ export function LicenseClient() {
             <span>More detail</span>
             {expanded === "UPLOAD_YEARLY" ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           </button>
-          {expanded === "UPLOAD_YEARLY" ? (
-            <div className="mt-3 rounded-xl border border-white/8 bg-white/[0.03] p-4 text-sm text-slate-400">
-              <p>
-                Ideal if you release multiple films or series in a year. One annual payment covers every catalogue submission during your license period.
-              </p>
-            </div>
-          ) : null}
         </div>
 
-        {/* Full pipeline */}
         <div
           data-selected={pkg === "PIPELINE"}
           className={`storytime-plan-card flex h-full flex-col p-6 transition duration-200 ${
@@ -290,7 +300,7 @@ export function LicenseClient() {
               <SelectionCheck active={pkg === "PIPELINE"} />
             </div>
             <p className="mt-2 text-sm text-slate-400">
-              Unlimited uploads plus Pre-production, Production, and Post-production tools and project workspaces.
+              Unlimited uploads plus Pre-production, Production, and Post-production tools.
             </p>
           </button>
 
@@ -343,99 +353,110 @@ export function LicenseClient() {
                   <span className="h-5 w-5 shrink-0 rounded-md border border-white/15" aria-hidden />
                 )}
               </div>
+              <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-sky-300/95">30-day free trial</p>
               <p className="mt-1 text-2xl font-bold text-white">
                 {formatZar(CREATOR_ONBOARDING_PLANS.PIPELINE_MONTHLY.price)}
                 <span className="text-xs font-normal text-slate-400">/month</span>
               </p>
             </button>
           </div>
-
-          <ul className="mt-5 space-y-2 text-sm text-slate-300">
-            {[
-              "Unlimited catalogue uploads",
-              "Pre-production, production & post sidebar",
-              "Per-project workspace tools",
-            ].map((b) => (
-              <li key={b} className="flex items-center gap-2">
-                <Check className="h-4 w-4 shrink-0 text-emerald-400" />
-                {b}
-              </li>
-            ))}
-          </ul>
         </div>
       </div>
 
       <div className="storytime-section p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <div className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-emerald-500/40 bg-emerald-500/15 text-emerald-300">
-              <Check className="h-5 w-5" strokeWidth={2.5} aria-hidden />
-            </div>
-            <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Your selection</p>
-              <h2 className="mt-2 text-xl font-semibold text-white">
-                {pkg === "PER_FILM"
-                  ? "Pay per film"
-                  : pkg === "UPLOAD_YEARLY"
-                    ? "Catalogue unlimited"
-                    : pipelineBilling === "YEARLY"
-                      ? "Full pipeline · Yearly"
-                      : "Full pipeline · Monthly"}
-              </h2>
-              <p className="mt-1 text-sm text-slate-400">
-                {pkg === "PER_FILM"
+          <div>
+            <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Your selection</p>
+            <h2 className="mt-2 text-xl font-semibold text-white">
+              {pkg === "PER_FILM"
+                ? "Pay per film"
+                : pkg === "UPLOAD_YEARLY"
+                  ? "Catalogue unlimited"
+                  : pipelineBilling === "YEARLY"
+                    ? "Full pipeline · Yearly"
+                    : "Full pipeline · Monthly"}
+            </h2>
+            <p className="mt-1 text-sm text-slate-400">
+              {showPipelineTrial
+                ? "Start with a 30-day free trial after saving your card, or pay for the first month now."
+                : pkg === "PER_FILM"
                   ? `You pay ${formatZar(CREATOR_PER_FILM_UPLOAD_PRICE)} at each new film submission.`
-                  : pkg === "UPLOAD_YEARLY"
-                    ? "Unlimited uploads for 12 months. Pipeline sections stay hidden."
-                    : "All pipeline menus and project tools are available after onboarding."}
-              </p>
-            </div>
+                  : "Unlock after payment."}
+            </p>
           </div>
           <div className="rounded-2xl border border-orange-400/20 bg-orange-500/10 px-4 py-3 text-right">
-            <p className="text-xs uppercase tracking-wide text-orange-200/80">Due now</p>
+            <p className="text-xs uppercase tracking-wide text-orange-200/80">
+              {showPipelineTrial ? "After trial" : "Due now"}
+            </p>
             <p className="mt-1 text-3xl font-bold text-white">
               {pkg === "PER_FILM" ? formatZar(0) : formatZar(selectedPrice)}
               {pkg !== "PER_FILM" ? (
                 <span className="text-sm font-normal text-slate-400">
                   {selectedInterval === "year" ? "/year" : "/month"}
                 </span>
-              ) : (
-                <span className="ml-2 text-sm font-normal text-slate-400">at upload</span>
-              )}
+              ) : null}
             </p>
           </div>
         </div>
       </div>
 
-      <div className="storytime-section p-6">
-        <p className="text-sm font-medium text-slate-300">Promo code</p>
-        <p className="mt-2 text-sm text-slate-400">
-          Add a creator promo code for discounted or sponsored onboarding access.
-        </p>
-        <div className="mt-4">
-          <input
-            value={promoCode}
-            onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-            placeholder="e.g. CREATOR100"
-            className="w-full rounded-lg border border-slate-600 bg-slate-900/50 px-3 py-2 text-sm text-white"
-          />
+      {!showPipelineTrial ? (
+        <div className="storytime-section p-6">
+          <p className="text-sm font-medium text-slate-300">Promo code</p>
+          <div className="mt-4">
+            <input
+              value={promoCode}
+              onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+              placeholder="e.g. CREATOR100"
+              className="w-full rounded-lg border border-slate-600 bg-slate-900/50 px-3 py-2 text-sm text-white"
+            />
+          </div>
+          {promoMessage ? <p className="mt-3 text-xs text-emerald-400">{promoMessage}</p> : null}
         </div>
-        {promoMessage ? <p className="mt-3 text-xs text-emerald-400">{promoMessage}</p> : null}
-      </div>
+      ) : null}
 
       {error ? (
         <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-400">{error}</div>
       ) : null}
 
-      <button
-        type="button"
-        onClick={submit}
-        disabled={loading}
-        className="flex w-full items-center justify-center gap-2 rounded-xl bg-orange-500 py-4 font-semibold text-white shadow-glow hover:-translate-y-0.5 hover:bg-orange-400 disabled:opacity-50"
-      >
-        {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : null}
-        Continue to dashboard
-      </button>
+      {showPipelineTrial ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => void submit("trial")}
+            disabled={loading}
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-orange-400/40 bg-orange-500/15 py-4 font-semibold text-orange-100 hover:bg-orange-500/25 disabled:opacity-50"
+          >
+            {loading && checkoutKind === "trial" ? <Loader2 className="h-5 w-5 animate-spin" /> : null}
+            Start 30-day free trial
+          </button>
+          <button
+            type="button"
+            onClick={() => void submit()}
+            disabled={loading}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-orange-500 py-4 font-semibold text-white shadow-glow hover:bg-orange-400 disabled:opacity-50"
+          >
+            {loading && checkoutKind === "pay" ? <Loader2 className="h-5 w-5 animate-spin" /> : null}
+            Pay {formatZar(CREATOR_ONBOARDING_PLANS.PIPELINE_MONTHLY.price)} now
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => void submit()}
+          disabled={loading}
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-orange-500 py-4 font-semibold text-white shadow-glow hover:bg-orange-400 disabled:opacity-50"
+        >
+          {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : null}
+          Continue to dashboard
+        </button>
+      )}
+
+      {showPipelineTrial ? (
+        <p className="text-center text-xs text-slate-500">
+          The free trial starts only after PayFast confirms a saved card. Nothing is charged today. The card is billed when the 30 days end.
+        </p>
+      ) : null}
     </div>
   );
 }

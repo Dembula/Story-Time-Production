@@ -6,6 +6,7 @@ import {
   resolveCreatorAppleProduct,
   resolveUniverseSubscriptionProduct,
 } from "@/lib/payments/apple-iap/products";
+import { detectAppleStoreFreeTrial } from "@/lib/payments/store-trial";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -108,16 +109,40 @@ export async function POST(req: NextRequest) {
             lastPaymentError: `Apple ${notificationType}`,
           },
         });
-      } else if (notificationType === "DID_RENEW" || notificationType === "SUBSCRIBED") {
+      } else if (notificationType === "DID_RENEW") {
+        // Paid renewal after intro trial (or subsequent periods).
         await prisma.viewerSubscription.update({
           where: { id: sub.id },
           data: {
             status: "ACTIVE",
+            trialEndsAt: null,
             currentPeriodEnd: expiresAt ?? sub.currentPeriodEnd,
             lastPaymentStatus: "SUCCEEDED",
             lastPaymentAt: new Date(),
             lastPaymentError: null,
           },
+        });
+      } else if (notificationType === "SUBSCRIBED" || notificationType === "OFFER_REDEEMED") {
+        const trial = detectAppleStoreFreeTrial(tx);
+        await prisma.viewerSubscription.update({
+          where: { id: sub.id },
+          data: trial.isFreeTrial
+            ? {
+                status: "TRIAL_ACTIVE",
+                trialEndsAt: trial.trialEndsAt,
+                currentPeriodEnd: trial.trialEndsAt ?? expiresAt ?? sub.currentPeriodEnd,
+                lastPaymentStatus: "TRIAL",
+                lastPaymentAt: new Date(),
+                lastPaymentError: null,
+              }
+            : {
+                status: "ACTIVE",
+                trialEndsAt: null,
+                currentPeriodEnd: expiresAt ?? sub.currentPeriodEnd,
+                lastPaymentStatus: "SUCCEEDED",
+                lastPaymentAt: new Date(),
+                lastPaymentError: null,
+              },
         });
       } else if (
         notificationType === "DID_CHANGE_RENEWAL_STATUS" &&
@@ -152,16 +177,39 @@ export async function POST(req: NextRequest) {
             lastPaymentError: `Apple ${notificationType}`,
           },
         });
-      } else if (notificationType === "DID_RENEW" || notificationType === "SUBSCRIBED") {
+      } else if (notificationType === "DID_RENEW") {
         await prisma.creatorDistributionLicense.update({
           where: { id: license.id },
           data: {
             status: "ACTIVE",
+            trialEndsAt: null,
             yearlyExpiresAt: expiresAt ?? license.yearlyExpiresAt,
             lastPaymentStatus: "SUCCEEDED",
             lastPaymentAt: new Date(),
             lastPaymentError: null,
           },
+        });
+      } else if (notificationType === "SUBSCRIBED" || notificationType === "OFFER_REDEEMED") {
+        const trial = detectAppleStoreFreeTrial(tx);
+        await prisma.creatorDistributionLicense.update({
+          where: { id: license.id },
+          data: trial.isFreeTrial
+            ? {
+                status: "TRIAL_ACTIVE",
+                trialEndsAt: trial.trialEndsAt,
+                yearlyExpiresAt: trial.trialEndsAt ?? expiresAt ?? license.yearlyExpiresAt,
+                lastPaymentStatus: "TRIAL",
+                lastPaymentAt: new Date(),
+                lastPaymentError: null,
+              }
+            : {
+                status: "ACTIVE",
+                trialEndsAt: null,
+                yearlyExpiresAt: expiresAt ?? license.yearlyExpiresAt,
+                lastPaymentStatus: "SUCCEEDED",
+                lastPaymentAt: new Date(),
+                lastPaymentError: null,
+              },
         });
       } else if (resolveCreatorAppleProduct(productId) && expiresAt) {
         await prisma.creatorDistributionLicense.update({

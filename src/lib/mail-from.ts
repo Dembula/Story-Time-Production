@@ -3,7 +3,7 @@
  * vs a full RFC string (some SDK paths accept "Name <email>").
  */
 export function parseAppMailFrom(raw?: string | null): { email: string; name?: string } {
-  const s = (raw ?? process.env.EMAIL_FROM ?? "noreply@storytime.com").trim();
+  const s = (raw ?? process.env.EMAIL_FROM ?? "noreply@story-time.online").trim();
   const angle = s.match(/^(.+?)\s*<([^>]+)>$/);
   if (angle) {
     const name = angle[1].replace(/^["']|["']$/g, "").trim();
@@ -15,7 +15,7 @@ export function parseAppMailFrom(raw?: string | null): { email: string; name?: s
   if (s.includes("@") && !s.includes("<")) {
     return { email: s };
   }
-  return { email: "noreply@storytime.com" };
+  return { email: "noreply@story-time.online" };
 }
 
 export function formatAppMailFromHeader(parsed: { email: string; name?: string }): string {

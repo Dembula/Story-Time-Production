@@ -10,11 +10,13 @@ import {
   MessageSquare,
   Trash2,
   Upload,
+  UserPlus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EditReviewPlayer, type EditReviewPlaybackHandle } from "./edit-review-player";
+import { EditReviewGuestInvitePanel } from "./edit-review-guest-invite-panel";
 import { projectToolQueryFn } from "@/lib/project-tool-fetch";
 import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
 import {
@@ -60,6 +62,7 @@ export function EditReviewStudio({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadLabel, setUploadLabel] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | EditReviewStatus>("all");
+  const [guestInviteOpen, setGuestInviteOpen] = useState(false);
 
   const { data: reviewsData, isLoading: reviewsLoading } = useQuery({
     queryKey: ["project-reviews", projectId],
@@ -455,6 +458,18 @@ export function EditReviewStudio({
                 : "Uploading…"
               : "Upload edit"}
           </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-8 border-white/15 text-slate-200"
+            disabled={!selectedReviewId}
+            onClick={() => setGuestInviteOpen(true)}
+            title={selectedReviewId ? "Invite guests to this cut" : "Select a version first"}
+          >
+            <UserPlus className="mr-1.5 h-4 w-4" />
+            Invite guests
+          </Button>
           {uploading ? (
             <Button
               type="button"
@@ -790,6 +805,15 @@ export function EditReviewStudio({
           ) : null}
         </aside>
       </div>
+
+      {selectedReviewId && projectId ? (
+        <EditReviewGuestInvitePanel
+          projectId={projectId}
+          reviewId={selectedReviewId}
+          open={guestInviteOpen}
+          onClose={() => setGuestInviteOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -805,25 +829,35 @@ function CommentCard({
   onDelete: () => void;
   deleting?: boolean;
 }) {
-  const initial = (note.user?.name?.[0] ?? "?").toUpperCase();
+  const author = note.user?.name?.trim() || note.guestName?.trim() || "Collaborator";
+  const initial = (author[0] ?? "?").toUpperCase();
+  const isGuest = !note.userId && Boolean(note.guestName);
   return (
     <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3 transition hover:border-white/20">
       <div className="flex items-start gap-2">
         <button
           type="button"
           onClick={onSeek}
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-orange-500/20 text-[10px] font-medium text-orange-200"
+          className={cn(
+            "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-medium",
+            isGuest
+              ? "bg-sky-500/25 text-sky-100"
+              : "bg-orange-500/20 text-orange-200",
+          )}
           title="Seek to comment"
         >
           {initial}
         </button>
         <button type="button" onClick={onSeek} className="min-w-0 flex-1 text-left">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-slate-200">
-              {note.user?.name || "Collaborator"}
-            </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-medium text-slate-200">{author}</span>
+            {isGuest ? (
+              <span className="rounded bg-white/5 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-slate-500">
+                Guest
+              </span>
+            ) : null}
             {note.timestampMs != null ? (
-              <span className="font-mono text-[10px] text-orange-300">
+              <span className="rounded bg-amber-400/90 px-1.5 py-0.5 font-mono text-[9px] font-semibold text-black">
                 {formatReviewTimecode(note.timestampMs)}
               </span>
             ) : null}

@@ -74,6 +74,8 @@ export async function POST(req: NextRequest) {
       status: result.status,
       alreadyApplied: result.alreadyApplied,
       currentPeriodEnd: result.currentPeriodEnd,
+      trialEndsAt: result.trialEndsAt ?? null,
+      isFreeTrial: result.isFreeTrial ?? false,
     });
   } catch (err) {
     const status = typeof (err as { status?: number })?.status === "number" ? (err as { status: number }).status : 500;

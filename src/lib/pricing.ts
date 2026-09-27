@@ -182,8 +182,16 @@ export function isCreatorLicensePeriodActive(license: {
   type: string;
   yearlyExpiresAt: Date | string | null;
   status?: string | null;
+  trialEndsAt?: Date | string | null;
 }): boolean {
   if (license.status === "CANCELLED") return false;
+  // Card not saved yet — no access (mirrors viewer TRIAL_CARD_PENDING).
+  if (license.status === "TRIAL_CARD_PENDING") return false;
+  if (license.status === "TRIAL_ACTIVE") {
+    const end = license.trialEndsAt ?? license.yearlyExpiresAt;
+    if (!end) return false;
+    return new Date(end).getTime() > Date.now();
+  }
   if (isCreatorPerFilmLicense(license.type)) return true;
   if (!license.yearlyExpiresAt) {
     // Open-ended / awaiting first payment — not cancelled means period still usable for entitlement checks.

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -30,7 +31,9 @@ export default async function CreatorLicenseOnboardingPage() {
         </div>
 
         <div className="mt-12">
-        <LicenseClient />
+          <Suspense fallback={<div className="py-12 text-center text-slate-400">Loading plans…</div>}>
+            <LicenseClient />
+          </Suspense>
         </div>
       </div>
     </div>

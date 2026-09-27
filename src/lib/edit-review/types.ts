@@ -16,6 +16,8 @@ export type EditReviewNote = {
   body: string;
   timestampMs: number | null;
   createdAt: string;
+  guestName?: string | null;
+  guestEmail?: string | null;
   user?: {
     id: string;
     name: string | null;

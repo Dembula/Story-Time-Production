@@ -1,9 +1,9 @@
 import sgMail from "@sendgrid/mail";
-import { sendTransactionalEmail } from "@/lib/email";
+import { sendTransactionalEmail, sendTransactionalEmailDetailed } from "@/lib/email";
 import { parseAppMailFrom } from "@/lib/mail-from";
 
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
-const EMAIL_FROM = process.env.EMAIL_FROM || "noreply@story-time.online";
+const EMAIL_FROM = process.env.EMAIL_FROM || "Story Time <noreply@story-time.online>";
 
 function sgMailFrom(): string | { email: string; name: string } {
   const { email, name } = parseAppMailFrom(EMAIL_FROM);
@@ -112,7 +112,7 @@ export async function sendPasswordResetEmail(
     }
   }
 
-  const sent = await sendTransactionalEmail({
+  const sent = await sendTransactionalEmailDetailed({
     to: email,
     subject: "Story Time password reset",
     text: [
@@ -121,19 +121,25 @@ export async function sendPasswordResetEmail(
       "Use this secure link to create a new password:",
       resetLink,
       "",
+      "This link expires in 1 hour and can only be used once.",
       "If you did not request this, you can ignore this email.",
     ].join("\n"),
     html: `
       <p>We received a request to reset your password.</p>
       <p>Account portal: <strong>${portalLabel}</strong></p>
       <p><a href="${resetLink}">Reset your password</a></p>
+      <p style="word-break:break-all;font-size:12px;color:#666;">Or paste this link into your browser:<br/>${resetLink}</p>
+      <p>This link expires in 1 hour and can only be used once.</p>
       <p>If you did not request this, you can ignore this email.</p>
     `,
   });
-  if (!sent) {
-    throw new Error("Password reset email could not be sent (no working email transport or SendGrid rejected the request).");
+  if (!sent.ok) {
+    throw new Error(
+      sent.error ||
+        "Password reset email could not be sent (no working email transport or provider rejected the request).",
+    );
   }
-  return {};
+  return { messageId: sent.messageId };
 }
 
 export async function sendMonthlyUpdateEmail(

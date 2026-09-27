@@ -47,7 +47,7 @@ export default function ForgotPasswordPage() {
         <div className="storytime-section p-8">
           <h1 className="mb-2 font-display text-2xl font-semibold text-white">Reset your password</h1>
           <p className="mb-6 text-sm leading-6 text-slate-300/78">
-            Enter your email address and we will send a secure reset link.
+            Enter the exact email you used when you signed up (including on the Apple app). We will send a secure reset link if that account exists.
           </p>
           <form onSubmit={onSubmit} className="space-y-4">
             <div>
@@ -58,6 +58,7 @@ export default function ForgotPasswordPage() {
                 id="email"
                 type="email"
                 required
+                autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
@@ -67,6 +68,9 @@ export default function ForgotPasswordPage() {
             {message && (
               <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3">
                 <p className="text-sm text-emerald-400">{message}</p>
+                <p className="mt-2 text-xs leading-5 text-emerald-300/80">
+                  Check spam/junk. If nothing arrives, try the email shown on your profile in the app — resets only go to the address on the account.
+                </p>
               </div>
             )}
             {error && (

@@ -329,11 +329,52 @@ function normalizeElement(raw: unknown, index: number): TreatmentElement | null 
     fontWeight: el.fontWeight,
     color: el.color,
     align: el.align,
+    fontFamily: typeof el.fontFamily === "string" ? el.fontFamily : undefined,
+    opacity:
+      typeof el.opacity === "number" && Number.isFinite(el.opacity)
+        ? Math.min(1, Math.max(0, el.opacity))
+        : undefined,
+    locked: el.locked === true,
+    shadow: el.shadow === true,
+    objectFit: el.objectFit === "contain" ? "contain" : el.objectFit === "cover" ? "cover" : undefined,
     referenceId: el.referenceId,
     shape: el.shape,
     fill: el.fill,
     stroke: el.stroke,
   };
+}
+
+export function bringElementToFront(
+  elements: TreatmentElement[],
+  id: string,
+): TreatmentElement[] {
+  const maxZ = elements.reduce((m, el) => Math.max(m, el.zIndex || 0), 0);
+  return elements.map((el) => (el.id === id ? { ...el, zIndex: maxZ + 1 } : el));
+}
+
+export function sendElementToBack(
+  elements: TreatmentElement[],
+  id: string,
+): TreatmentElement[] {
+  const minZ = elements.reduce((m, el) => Math.min(m, el.zIndex || 0), 0);
+  return elements.map((el) => (el.id === id ? { ...el, zIndex: minZ - 1 } : el));
+}
+
+export function duplicateElementInList(
+  elements: TreatmentElement[],
+  id: string,
+): { elements: TreatmentElement[]; newId: string | null } {
+  const source = elements.find((el) => el.id === id);
+  if (!source || source.locked) return { elements, newId: null };
+  const copy: TreatmentElement = {
+    ...source,
+    id: newId(),
+    x: Math.min(85, source.x + 3),
+    y: Math.min(85, source.y + 3),
+    zIndex: nextElementZIndex(elements),
+    locked: false,
+  };
+  return { elements: [...elements, copy], newId: copy.id };
 }
 
 function normalizeSlide(raw: unknown): TreatmentSlide {
@@ -364,6 +405,7 @@ function normalizeSlide(raw: unknown): TreatmentSlide {
       : [],
     elements,
     fieldFrames: normalizeFieldFrames(s.fieldFrames),
+    fieldStyles: normalizeFieldStyles(s.fieldStyles),
     hiddenFields: normalizeHiddenFields(s.hiddenFields),
   };
 }
@@ -375,6 +417,30 @@ function normalizeHiddenFields(raw: unknown): TreatmentFieldKey[] | undefined {
     (k): k is TreatmentFieldKey => typeof k === "string" && allowed.has(k),
   );
   return out.length ? Array.from(new Set(out)) : undefined;
+}
+
+function normalizeFieldStyles(
+  raw: unknown,
+): TreatmentSlide["fieldStyles"] | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const src = raw as Record<string, unknown>;
+  const out: NonNullable<TreatmentSlide["fieldStyles"]> = {};
+  for (const key of ["title", "subtitle", "body"] as const) {
+    const style = src[key];
+    if (!style || typeof style !== "object") continue;
+    const s = style as Record<string, unknown>;
+    const next: NonNullable<TreatmentSlide["fieldStyles"]>[typeof key] = {};
+    if (typeof s.color === "string") next.color = s.color;
+    if (typeof s.fontSize === "number" && Number.isFinite(s.fontSize)) next.fontSize = s.fontSize;
+    if (typeof s.fontWeight === "string") next.fontWeight = s.fontWeight;
+    if (typeof s.fontFamily === "string") next.fontFamily = s.fontFamily;
+    if (s.align === "left" || s.align === "center" || s.align === "right") next.align = s.align;
+    if (typeof s.opacity === "number" && Number.isFinite(s.opacity)) {
+      next.opacity = Math.min(1, Math.max(0, s.opacity));
+    }
+    if (Object.keys(next).length) out[key] = next;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 function normalizeFieldFrames(

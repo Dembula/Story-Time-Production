@@ -92,7 +92,14 @@ export type ReviewAnnotationRecord = {
   resolved: boolean;
   parentId: string | null;
   createdAt: string;
-  author: { id: string; name: string | null; professionalName: string | null; image: string | null };
+  guestName?: string | null;
+  guestEmail?: string | null;
+  author: {
+    id: string;
+    name: string | null;
+    professionalName: string | null;
+    image: string | null;
+  } | null;
   replies?: ReviewAnnotationRecord[];
 };
 

@@ -91,7 +91,7 @@ export async function processDueCreatorLicenseRenewals(now = new Date()) {
 
   const candidates = await db.creatorDistributionLicense.findMany({
     where: {
-      status: { in: ["ACTIVE", "PAST_DUE"] },
+      status: { in: ["ACTIVE", "PAST_DUE", "TRIAL_ACTIVE"] },
       autoRenew: true,
       cancelAtPeriodEnd: false,
     },
@@ -102,6 +102,7 @@ export async function processDueCreatorLicenseRenewals(now = new Date()) {
       autoRenew: true,
       cancelAtPeriodEnd: true,
       yearlyExpiresAt: true,
+      trialEndsAt: true,
       pastDueSince: true,
       renewalAttemptCount: true,
       lastPaymentAt: true,
@@ -169,6 +170,7 @@ export async function extendCreatorLicensePeriod(licenseId: string) {
     data: {
       yearlyExpiresAt: addBillingPeriod(base, interval),
       status: "ACTIVE",
+      trialEndsAt: null,
       lastPaymentStatus: "SUCCEEDED",
       lastPaymentAt: now,
       lastPaymentError: null,

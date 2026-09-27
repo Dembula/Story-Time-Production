@@ -85,6 +85,30 @@ export function resolveCreatorAppleProduct(productId: string) {
   return APPLE_CREATOR_PRODUCTS[productId.trim()] ?? null;
 }
 
+/** Google Play Universe subscription products (Android app). */
+export const GOOGLE_UNIVERSE_SUBSCRIPTION_PRODUCTS: Record<
+  string,
+  { planCode: keyof typeof VIEWER_PLAN_CONFIG; profileLimit: number; billingInterval: "month" | "year" }
+> = {
+  "stu.sub.base.monthly": { planCode: "BASE_1", profileLimit: 1, billingInterval: "month" },
+  "stu.sub.base.yearly": { planCode: "BASE_1", profileLimit: 1, billingInterval: "year" },
+  "stu.sub.standard.monthly": { planCode: "STANDARD_3", profileLimit: 3, billingInterval: "month" },
+  "stu.sub.standard.yearly": { planCode: "STANDARD_3", profileLimit: 3, billingInterval: "year" },
+  "stu.sub.premium.monthly": { planCode: "FAMILY_5", profileLimit: 5, billingInterval: "month" },
+  "stu.sub.premium.yearly": { planCode: "FAMILY_5", profileLimit: 5, billingInterval: "year" },
+};
+
+export const GOOGLE_UNIVERSE_PPV_PRODUCT_ID = "stu.ppv.unlock";
+
+export function resolveGoogleUniverseSubscriptionProduct(productId: string) {
+  return GOOGLE_UNIVERSE_SUBSCRIPTION_PRODUCTS[productId.trim()] ?? null;
+}
+
+/** Creator products share the same product IDs on Apple and Google Play. */
+export function resolveGoogleCreatorProduct(productId: string) {
+  return resolveCreatorAppleProduct(productId);
+}
+
 export function allowedAppleBundleIds(): string[] {
   const raw =
     process.env.APPLE_IAP_BUNDLE_IDS?.trim() ||

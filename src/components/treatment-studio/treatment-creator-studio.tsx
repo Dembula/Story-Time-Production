@@ -30,6 +30,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TreatmentAssetsPanel } from "./treatment-assets-panel";
 import { TreatmentPresenter } from "./treatment-presenter";
+import { TreatmentFormatInspector } from "./treatment-format-inspector";
 import {
   TreatmentSlideCanvas,
   TreatmentSlideThumbnail,
@@ -37,15 +38,18 @@ import {
 import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
 import {
   adaptSlideToLayout,
-  createImageElement,
+  bringElementToFront,
   createShapeElement,
   createSlideFromTemplate,
   createTextElement,
+  duplicateElementInList,
+  hideSlideField,
   newId,
   nextElementZIndex,
   parseTreatmentDocument,
   placeAssetOnSlideDocument,
   restoreSlideField,
+  sendElementToBack,
   TREATMENT_SLIDE_TEMPLATES,
   type TreatmentSlideTemplateId,
 } from "@/lib/treatment-studio/document";
@@ -59,6 +63,7 @@ import type {
   TreatmentDocument,
   TreatmentElement,
   TreatmentFieldKey,
+  TreatmentFieldStyle,
   TreatmentSlide,
   TreatmentSlideLayout,
 } from "@/lib/treatment-studio/types";
@@ -576,6 +581,22 @@ export function TreatmentCreatorStudio({
       });
     },
     [activeSlide, selectedElementId, updateSlide],
+  );
+
+  const updateSelectedFieldStyle = useCallback(
+    (key: TreatmentFieldKey, patch: TreatmentFieldStyle) => {
+      if (!activeSlide) return;
+      updateSlide(activeSlide.id, {
+        fieldStyles: {
+          ...(activeSlide.fieldStyles ?? {}),
+          [key]: {
+            ...(activeSlide.fieldStyles?.[key] ?? {}),
+            ...patch,
+          },
+        },
+      });
+    },
+    [activeSlide, updateSlide],
   );
 
   const runExport = useCallback(
@@ -1162,71 +1183,6 @@ export function TreatmentCreatorStudio({
           </div>
         </div>
 
-        {selectedElement?.type === "text" ? (
-          <div className="flex flex-wrap items-center gap-3 border-b border-white/10 bg-white/[0.02] px-4 py-2">
-            <span className="text-[10px] uppercase tracking-wide text-slate-500">Text</span>
-            <label className="flex items-center gap-1.5 text-xs text-slate-400">
-              Size
-              <input
-                type="number"
-                min={12}
-                max={96}
-                value={selectedElement.fontSize ?? 28}
-                onChange={(e) =>
-                  updateSelectedElement({ fontSize: Number(e.target.value) || 28 })
-                }
-                className="h-7 w-16 rounded border border-white/10 bg-black/40 px-2 text-white"
-              />
-            </label>
-            <label className="flex items-center gap-1.5 text-xs text-slate-400">
-              Color
-              <input
-                type="color"
-                value={selectedElement.color ?? "#0f172a"}
-                onChange={(e) => updateSelectedElement({ color: e.target.value })}
-                className="h-7 w-10 cursor-pointer rounded border-0 bg-transparent"
-              />
-            </label>
-            <select
-              value={selectedElement.align ?? "left"}
-              onChange={(e) =>
-                updateSelectedElement({
-                  align: e.target.value as "left" | "center" | "right",
-                })
-              }
-              className="h-7 rounded border border-white/10 bg-black/40 px-2 text-xs text-white"
-            >
-              <option value="left">Left</option>
-              <option value="center">Center</option>
-              <option value="right">Right</option>
-            </select>
-            <select
-              value={selectedElement.fontWeight ?? "600"}
-              onChange={(e) => updateSelectedElement({ fontWeight: e.target.value })}
-              className="h-7 rounded border border-white/10 bg-black/40 px-2 text-xs text-white"
-            >
-              <option value="400">Regular</option>
-              <option value="600">Semibold</option>
-              <option value="700">Bold</option>
-            </select>
-          </div>
-        ) : null}
-
-        {selectedElement?.type === "shape" ? (
-          <div className="flex flex-wrap items-center gap-3 border-b border-white/10 bg-white/[0.02] px-4 py-2">
-            <span className="text-[10px] uppercase tracking-wide text-slate-500">Shape</span>
-            <label className="flex items-center gap-1.5 text-xs text-slate-400">
-              Fill
-              <input
-                type="color"
-                value={selectedElement.fill ?? "#fb923c"}
-                onChange={(e) => updateSelectedElement({ fill: e.target.value })}
-                className="h-7 w-10 cursor-pointer rounded border-0 bg-transparent"
-              />
-            </label>
-          </div>
-        ) : null}
-
         <div className="flex min-h-0 flex-1">
           <aside className="flex w-36 shrink-0 flex-col border-r border-white/10 bg-black md:w-44">
             <div className="relative p-2">
@@ -1397,21 +1353,60 @@ export function TreatmentCreatorStudio({
               />
             </div>
             <p className="mt-4 max-w-xl text-center text-xs text-slate-500">
-              Drag text or media · resize from corners · right-click to insert photo/video · drop
-              files onto the slide · clips stay still until Present
+              Drag · resize · right-click objects or the slide · videos play with the on-slide
+              button · Format panel for colour, fonts, layers &amp; lock
               {" · "}
               Slide {activeIndex + 1} of {document.slides.length}
-              {activeSlide.layout !== "content" && activeSlide.layout !== "title"
-                ? ` · ${LAYOUT_OPTIONS.find((l) => l.id === activeSlide.layout)?.label}`
-                : ""}
               {" · "}↑↓ slides
-              {activeSlide.layout === "image" || activeSlide.layout === "split"
-                ? " · Click a library still for the hero"
-                : activeSlide.layout === "references"
-                  ? " · Click stills for the grid"
-                  : " · Delete title/byline boxes if unused · click text to edit"}
             </p>
           </main>
+
+          <TreatmentFormatInspector
+            slide={activeSlide}
+            selectedElement={selectedElement}
+            selectedFieldKey={selectedFieldKey}
+            onUpdateElement={updateSelectedElement}
+            onUpdateFieldStyle={updateSelectedFieldStyle}
+            onUpdateSlide={(patch) => updateSlide(activeSlide.id, patch)}
+            onBringFront={() => {
+              if (!selectedElementId) return;
+              updateSlide(activeSlide.id, {
+                elements: bringElementToFront(activeSlide.elements, selectedElementId),
+              });
+            }}
+            onSendBack={() => {
+              if (!selectedElementId) return;
+              updateSlide(activeSlide.id, {
+                elements: sendElementToBack(activeSlide.elements, selectedElementId),
+              });
+            }}
+            onDuplicate={() => {
+              if (!selectedElementId) return;
+              const result = duplicateElementInList(
+                activeSlide.elements,
+                selectedElementId,
+              );
+              updateSlide(activeSlide.id, { elements: result.elements });
+              if (result.newId) setSelectedElementId(result.newId);
+            }}
+            onDelete={() => {
+              if (selectedElementId) {
+                updateSlide(activeSlide.id, {
+                  elements: activeSlide.elements.filter((el) => el.id !== selectedElementId),
+                });
+                setSelectedElementId(null);
+                return;
+              }
+              if (selectedFieldKey) {
+                updateSlide(activeSlide.id, hideSlideField(activeSlide, selectedFieldKey));
+                setSelectedFieldKey(null);
+              }
+            }}
+            onToggleLock={() => {
+              if (!selectedElement) return;
+              updateSelectedElement({ locked: !selectedElement.locked });
+            }}
+          />
 
           {assetsOpen ? (
             <TreatmentAssetsPanel

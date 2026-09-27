@@ -56,7 +56,8 @@ function isCardSaveFlow(flow: string): boolean {
   return (
     flow === "payfast_card_consent" ||
     flow === "payfast_card_update" ||
-    flow === "viewer_trial_card_capture"
+    flow === "viewer_trial_card_capture" ||
+    flow === "creator_trial_card_capture"
   );
 }
 
@@ -70,8 +71,12 @@ function PaymentsReturnContent() {
   );
   const [timedOut, setTimedOut] = useState(false);
   const next = useMemo(() => {
-    if (flow === "viewer_trial_card_capture") {
-      const base = rawNext.startsWith("/") ? rawNext : "/profiles?card=required";
+    if (flow === "viewer_trial_card_capture" || flow === "creator_trial_card_capture") {
+      const fallback =
+        flow === "creator_trial_card_capture"
+          ? "/creator/onboarding/license?card=required"
+          : "/profiles?card=required";
+      const base = rawNext.startsWith("/") ? rawNext : fallback;
       if (resolvedStatus === "failed") {
         return base.includes("payment_status=")
           ? base

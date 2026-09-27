@@ -95,7 +95,7 @@ export function ResetPasswordForm({ token: initialToken, portal = "viewer" }: { 
           {done ? (
             <div className="space-y-4">
               <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3">
-                <p className="text-sm text-emerald-400">Password reset successful. You can now sign in.</p>
+                <p className="text-sm text-emerald-400">Password reset successful. You can now sign in with your new password.</p>
               </div>
               <div className="flex items-center justify-between text-sm">
                 <Link href="/auth/signin" className="text-orange-300 hover:text-orange-200">

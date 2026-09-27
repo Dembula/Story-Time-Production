@@ -20,6 +20,10 @@ import {
   CREATOR_APPLE_IAP_LICENSE_PURPOSE,
   CREATOR_APPLE_IAP_UPLOAD_PURPOSE,
 } from "@/lib/payments/apple-iap/purposes";
+import {
+  detectAppleStoreFreeTrial,
+  storeTrialPaymentMeta,
+} from "@/lib/payments/store-trial";
 
 const db = prisma as any;
 
@@ -86,13 +90,25 @@ async function writeAppleSucceededPayment(options: {
   if (existing?.status === "SUCCEEDED") {
     return { payment: existing, already: true as const };
   }
-  const settlement = await resolveAppleSettlement({
-    gross: options.amount,
-    proceedsAmount:
-      typeof options.metadata?.appleProceeds === "number"
-        ? options.metadata.appleProceeds
-        : null,
-  });
+  const settlementOverride =
+    options.metadata?.settlementSourceOverride === "free_trial" ||
+    options.metadata?.isFreeTrial === true ||
+    options.amount <= 0;
+
+  const settlement = settlementOverride
+    ? {
+        settlementSource: "free_trial" as const,
+        providerFeeAmount: 0,
+        settlementAmount: 0,
+        metadataExtras: { fundingSource: "trial", isFreeTrial: true },
+      }
+    : await resolveAppleSettlement({
+        gross: options.amount,
+        proceedsAmount:
+          typeof options.metadata?.appleProceeds === "number"
+            ? options.metadata.appleProceeds
+            : null,
+      });
   const now = new Date();
   const data = {
     status: "SUCCEEDED",
@@ -119,15 +135,17 @@ async function writeAppleSucceededPayment(options: {
   };
   if (existing) {
     const payment = await db.paymentRecord.update({ where: { id: existing.id }, data });
-    await bookAppleIapLedgerIfCash({
-      id: payment.id,
-      amount: options.amount,
-      settlementAmount: settlement.settlementAmount,
-      purpose: options.purpose,
-      relatedEntityType: options.relatedEntityType,
-      relatedEntityId: options.relatedEntityId,
-      environment: options.environment,
-    });
+    if (!settlementOverride) {
+      await bookAppleIapLedgerIfCash({
+        id: payment.id,
+        amount: options.amount,
+        settlementAmount: settlement.settlementAmount,
+        purpose: options.purpose,
+        relatedEntityType: options.relatedEntityType,
+        relatedEntityId: options.relatedEntityId,
+        environment: options.environment,
+      });
+    }
     return {
       payment,
       already: false as const,
@@ -142,15 +160,17 @@ async function writeAppleSucceededPayment(options: {
       ...data,
     },
   });
-  await bookAppleIapLedgerIfCash({
-    id: payment.id,
-    amount: options.amount,
-    settlementAmount: settlement.settlementAmount,
-    purpose: options.purpose,
-    relatedEntityType: options.relatedEntityType,
-    relatedEntityId: options.relatedEntityId,
-    environment: options.environment,
-  });
+  if (!settlementOverride) {
+    await bookAppleIapLedgerIfCash({
+      id: payment.id,
+      amount: options.amount,
+      settlementAmount: settlement.settlementAmount,
+      purpose: options.purpose,
+      relatedEntityType: options.relatedEntityType,
+      relatedEntityId: options.relatedEntityId,
+      environment: options.environment,
+    });
+  }
   return {
     payment,
     already: false as const,
@@ -272,6 +292,9 @@ export async function processCreatorApplePurchase(options: {
   const billingInterval = mapped.billing === "MONTHLY" ? "month" : "year";
   const now = new Date();
   const periodEnd = periodEndFromApplePayload(verified.payload, billingInterval, now);
+  const trial = detectAppleStoreFreeTrial(verified.payload, { now });
+  const isFreeTrial = trial.isFreeTrial;
+  const trialEndsAt = isFreeTrial ? trial.trialEndsAt : null;
 
   let amount: number = CREATOR_ONBOARDING_PLANS.UPLOAD_YEARLY.price;
   if (licenseType === CREATOR_LICENSE_TYPE.PIPELINE_MONTHLY) {
@@ -279,6 +302,7 @@ export async function processCreatorApplePurchase(options: {
   } else if (licenseType === CREATOR_LICENSE_TYPE.PIPELINE_YEARLY) {
     amount = CREATOR_ONBOARDING_PLANS.PIPELINE_YEARLY.price;
   }
+  if (isFreeTrial) amount = 0;
 
   await ensureCreatorStudioProfilesForUser(options.userId);
 
@@ -286,34 +310,30 @@ export async function processCreatorApplePurchase(options: {
     where: { userId: options.userId },
   });
 
+  const licenseData = {
+    type: licenseType,
+    status: isFreeTrial ? "TRIAL_ACTIVE" : "ACTIVE",
+    yearlyExpiresAt: isFreeTrial && trialEndsAt ? trialEndsAt : periodEnd,
+    trialEndsAt,
+    autoRenew: true,
+    cancelAtPeriodEnd: false,
+    lastPaymentStatus: isFreeTrial ? "TRIAL" : "SUCCEEDED",
+    lastPaymentAt: now,
+    lastPaymentError: null,
+    renewalAttemptCount: 0,
+    pastDueSince: null,
+    externalPaymentId: originalTransactionId,
+  };
+
   const license = existing
     ? await db.creatorDistributionLicense.update({
         where: { id: existing.id },
-        data: {
-          type: licenseType,
-          status: "ACTIVE",
-          yearlyExpiresAt: periodEnd,
-          autoRenew: true,
-          cancelAtPeriodEnd: false,
-          lastPaymentStatus: "SUCCEEDED",
-          lastPaymentAt: now,
-          lastPaymentError: null,
-          renewalAttemptCount: 0,
-          pastDueSince: null,
-          externalPaymentId: originalTransactionId,
-        },
+        data: licenseData,
       })
     : await db.creatorDistributionLicense.create({
         data: {
           userId: options.userId,
-          type: licenseType,
-          status: "ACTIVE",
-          yearlyExpiresAt: periodEnd,
-          autoRenew: true,
-          cancelAtPeriodEnd: false,
-          lastPaymentStatus: "SUCCEEDED",
-          lastPaymentAt: now,
-          externalPaymentId: originalTransactionId,
+          ...licenseData,
         },
       });
 
@@ -332,6 +352,16 @@ export async function processCreatorApplePurchase(options: {
       kind: "creator_license",
       package: mapped.package ?? null,
       licenseType,
+      listPriceZar:
+        licenseType === CREATOR_LICENSE_TYPE.PIPELINE_MONTHLY
+          ? CREATOR_ONBOARDING_PLANS.PIPELINE_MONTHLY.price
+          : licenseType === CREATOR_LICENSE_TYPE.PIPELINE_YEARLY
+            ? CREATOR_ONBOARDING_PLANS.PIPELINE_YEARLY.price
+            : CREATOR_ONBOARDING_PLANS.UPLOAD_YEARLY.price,
+      ...storeTrialPaymentMeta(trial),
+      ...(isFreeTrial
+        ? { settlementSourceOverride: "free_trial", fundingSource: "trial" }
+        : {}),
     },
   });
 
@@ -341,5 +371,8 @@ export async function processCreatorApplePurchase(options: {
     packageComplete: true as const,
     planSummary: formatCreatorLicenseSummary(license.type),
     license,
+    isFreeTrial,
+    trialEndsAt: trialEndsAt?.toISOString() ?? null,
+    status: isFreeTrial ? ("TRIAL_ACTIVE" as const) : ("ACTIVE" as const),
   };
 }

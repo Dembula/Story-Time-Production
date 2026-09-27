@@ -20,7 +20,8 @@ import { resolveFinancePeriodRange, type FinancePeriodKey } from "@/lib/finance/
 import { aggregateCompletedMarketplaceFees } from "@/lib/financial-ledger";
 import { isViewerPoolPaymentPurpose } from "@/lib/payments/viewer-pool-purposes";
 import { roundMoney } from "@/lib/payments/config";
-import { getViewerPlanConfigById } from "@/lib/pricing";
+import { CREATOR_ONBOARDING_PLANS, getViewerPlanConfigById } from "@/lib/pricing";
+import { CREATOR_PIPELINE_TRIAL_MS } from "@/lib/payments/creator-pipeline-trial";
 import {
   hasCreatorPoolDistribution,
   getPreviousCalendarMonthRange,
@@ -174,7 +175,16 @@ export async function fetchFinanceOverviewBundle(options: {
   const sheetLimit = Math.min(500, Math.max(50, options.sheetLimit ?? 200));
 
   const trialWindowEnd = new Date(range.periodEnd.getTime() + 30 * 24 * 60 * 60 * 1000);
-  const [payments, marketplace, webhookEvents, pendingPayouts, paidPayouts, marketplaceTxs, activeTrials] =
+  const [
+    payments,
+    marketplace,
+    webhookEvents,
+    pendingPayouts,
+    paidPayouts,
+    marketplaceTxs,
+    activeViewerTrials,
+    activeCreatorTrials,
+  ] =
     await Promise.all([
       prisma.paymentRecord.findMany({
         where: {
@@ -242,6 +252,21 @@ export async function fetchFinanceOverviewBundle(options: {
         select: {
           id: true,
           plan: true,
+          status: true,
+          trialEndsAt: true,
+          user: { select: { id: true, name: true, email: true } },
+        },
+        orderBy: { trialEndsAt: "desc" },
+        take: sheetLimit,
+      }),
+      prisma.creatorDistributionLicense.findMany({
+        where: {
+          OR: [{ status: "TRIAL_ACTIVE" }, { trialEndsAt: { not: null } }],
+          trialEndsAt: { gte: range.periodStart, lte: trialWindowEnd },
+        },
+        select: {
+          id: true,
+          type: true,
           status: true,
           trialEndsAt: true,
           user: { select: { id: true, name: true, email: true } },
@@ -470,7 +495,7 @@ export async function fetchFinanceOverviewBundle(options: {
   const TRIAL_MS = 30 * 24 * 60 * 60 * 1000;
   const trialSheets: FinanceSheetRow[] = [];
   let trialPotentialZar = 0;
-  for (const trial of activeTrials) {
+  for (const trial of activeViewerTrials) {
     if (!trial.trialEndsAt) continue;
     const endsAt = new Date(trial.trialEndsAt);
     const startedAt = new Date(endsAt.getTime() - TRIAL_MS);
@@ -485,7 +510,47 @@ export async function fetchFinanceOverviewBundle(options: {
       paidAt: startedAt.toISOString(),
       provider: "TRIAL",
       purpose: "viewer_free_trial",
-      purposeLabel: `Free trial · ${plan.label} · ends ${endsLabel}`,
+      purposeLabel: `Viewer free trial · ${plan.label} · ends ${endsLabel}`,
+      gross: potential,
+      gatewayFee: 0,
+      net: 0,
+      platformShare: 0,
+      creatorShare: 0,
+      settlementSource: "free_trial",
+      currency: "ZAR",
+      fundingSource: "trial",
+      status: trial.status,
+      fundsClearStatus: "not_applicable",
+      fundsClearLabel: "Potential · not revenue",
+      fundsClearDueAt: endsAt.toISOString(),
+      fundsClearedAt: null,
+      fundsClearDaysRemaining: null,
+      fundsClearDelayDays: null,
+      canClearEarly: false,
+      payer: {
+        id: trial.user?.id ?? null,
+        name: trial.user?.name ?? null,
+        email: trial.user?.email ?? null,
+      },
+      payee: null,
+    });
+  }
+
+  for (const trial of activeCreatorTrials) {
+    if (!trial.trialEndsAt) continue;
+    const endsAt = new Date(trial.trialEndsAt);
+    const startedAt = new Date(endsAt.getTime() - CREATOR_PIPELINE_TRIAL_MS);
+    if (startedAt > range.periodEnd || endsAt < range.periodStart) continue;
+    const potential = roundMoney(CREATOR_ONBOARDING_PLANS.PIPELINE_MONTHLY.price);
+    trialPotentialZar = roundMoney(trialPotentialZar + potential);
+    const endsLabel = endsAt.toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" });
+    trialSheets.push({
+      id: `creator-${trial.id}`,
+      kind: "trial",
+      paidAt: startedAt.toISOString(),
+      provider: "TRIAL",
+      purpose: "creator_pipeline_free_trial",
+      purposeLabel: `Creator pipeline free trial · ends ${endsLabel}`,
       gross: potential,
       gatewayFee: 0,
       net: 0,

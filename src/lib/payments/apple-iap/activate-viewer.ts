@@ -19,6 +19,10 @@ import {
   VIEWER_APPLE_IAP_PPV_PURPOSE,
   VIEWER_APPLE_IAP_SUBSCRIPTION_PURPOSE,
 } from "@/lib/payments/apple-iap/purposes";
+import {
+  detectAppleStoreFreeTrial,
+  storeTrialPaymentMeta,
+} from "@/lib/payments/store-trial";
 
 const db = prisma as any;
 
@@ -69,13 +73,25 @@ async function recordApplePayment(options: {
     return { payment: existing, already: true as const };
   }
 
-  const settlement = await resolveAppleSettlement({
-    gross: options.amount,
-    proceedsAmount:
-      typeof options.metadata?.appleProceeds === "number"
-        ? options.metadata.appleProceeds
-        : null,
-  });
+  const settlementOverride =
+    options.metadata?.settlementSourceOverride === "free_trial" ||
+    options.metadata?.isFreeTrial === true ||
+    options.amount <= 0;
+
+  const settlement = settlementOverride
+    ? {
+        settlementSource: "free_trial" as const,
+        providerFeeAmount: 0,
+        settlementAmount: 0,
+        metadataExtras: { fundingSource: "trial", isFreeTrial: true },
+      }
+    : await resolveAppleSettlement({
+        gross: options.amount,
+        proceedsAmount:
+          typeof options.metadata?.appleProceeds === "number"
+            ? options.metadata.appleProceeds
+            : null,
+      });
 
   const now = new Date();
   const payment = existing
@@ -133,15 +149,17 @@ async function recordApplePayment(options: {
         },
       });
 
-  await bookAppleIapLedgerIfCash({
-    id: payment.id,
-    amount: options.amount,
-    settlementAmount: settlement.settlementAmount,
-    purpose: options.purpose,
-    relatedEntityType: options.relatedEntityType,
-    relatedEntityId: options.relatedEntityId,
-    environment: options.environment,
-  });
+  if (!settlementOverride) {
+    await bookAppleIapLedgerIfCash({
+      id: payment.id,
+      amount: options.amount,
+      settlementAmount: settlement.settlementAmount,
+      purpose: options.purpose,
+      relatedEntityType: options.relatedEntityType,
+      relatedEntityId: options.relatedEntityId,
+      environment: options.environment,
+    });
+  }
 
   return { payment, already: false as const };
 }
@@ -202,6 +220,9 @@ export async function activateAppleViewerSubscription(options: {
 
   const now = new Date();
   const periodEnd = periodEndFromApplePayload(payload, mapped.billingInterval, now);
+  const trial = detectAppleStoreFreeTrial(payload, { now });
+  const isFreeTrial = trial.isFreeTrial;
+  const trialEndsAt = isFreeTrial ? trial.trialEndsAt : null;
 
   const existing = await db.viewerSubscription.findFirst({
     where: { userId: options.userId },
@@ -212,13 +233,13 @@ export async function activateAppleViewerSubscription(options: {
     viewerModel: VIEWER_MODELS.SUBSCRIPTION,
     plan: planCode,
     billingInterval: mapped.billingInterval,
-    status: "ACTIVE",
-    trialEndsAt: null,
-    currentPeriodEnd: periodEnd,
+    status: isFreeTrial ? "TRIAL_ACTIVE" : "ACTIVE",
+    trialEndsAt,
+    currentPeriodEnd: isFreeTrial && trialEndsAt ? trialEndsAt : periodEnd,
     deviceCount: planConfig.deviceCount,
     profileLimit: mapped.profileLimit,
     cancelAtPeriodEnd: false,
-    lastPaymentStatus: "SUCCEEDED",
+    lastPaymentStatus: isFreeTrial ? "TRIAL" : "SUCCEEDED",
     lastPaymentAt: now,
     lastPaymentError: null,
     renewalAttemptCount: 0,
@@ -238,8 +259,11 @@ export async function activateAppleViewerSubscription(options: {
         },
       });
 
-  const bookedAmount =
-    mapped.billingInterval === "year" ? planConfig.yearlyPrice : planConfig.price;
+  const bookedAmount = isFreeTrial
+    ? 0
+    : mapped.billingInterval === "year"
+      ? planConfig.yearlyPrice
+      : planConfig.price;
 
   const { already } = await recordApplePayment({
     userId: options.userId,
@@ -256,6 +280,12 @@ export async function activateAppleViewerSubscription(options: {
       plan: planCode,
       billingInterval: mapped.billingInterval,
       clientPlan: options.body.plan ?? options.body.planCode ?? null,
+      ...storeTrialPaymentMeta(trial),
+      listPriceZar:
+        mapped.billingInterval === "year" ? planConfig.yearlyPrice : planConfig.price,
+      ...(isFreeTrial
+        ? { settlementSourceOverride: "free_trial", fundingSource: "trial" }
+        : {}),
     },
   });
 
@@ -265,7 +295,7 @@ export async function activateAppleViewerSubscription(options: {
       amount: bookedAmount,
       currency: "ZAR",
       status: "COMPLETED",
-      purpose: VIEWER_APPLE_IAP_SUBSCRIPTION_PURPOSE,
+      purpose: isFreeTrial ? "viewer_free_trial_apple_iap" : VIEWER_APPLE_IAP_SUBSCRIPTION_PURPOSE,
       paidAt: now,
       externalPaymentId: transactionId,
       gatewayReference: `apple:${transactionId}`,
@@ -276,9 +306,11 @@ export async function activateAppleViewerSubscription(options: {
     ok: true as const,
     alreadyApplied: already,
     plan: planCode,
-    status: "ACTIVE" as const,
+    status: (isFreeTrial ? "TRIAL_ACTIVE" : "ACTIVE") as "TRIAL_ACTIVE" | "ACTIVE",
     subscriptionId: subscription.id,
-    currentPeriodEnd: periodEnd.toISOString(),
+    currentPeriodEnd: (isFreeTrial && trialEndsAt ? trialEndsAt : periodEnd).toISOString(),
+    trialEndsAt: trialEndsAt?.toISOString() ?? null,
+    isFreeTrial,
   };
 }
 
