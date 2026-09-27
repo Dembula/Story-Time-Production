@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { StoryTimeLoader } from "@/components/ui/storytime-loader";
 import Link from "next/link";
+
+const SESSION_UPDATE_TIMEOUT_MS = 2500;
 
 export function SwitchRoleClient({
   sessionPatch,
@@ -27,6 +29,7 @@ export function SwitchRoleClient({
 }) {
   const { update } = useSession();
   const didSwitchRef = useRef(false);
+  const [stuck, setStuck] = useState(false);
 
   useEffect(() => {
     if (error || !sessionPatch || !redirectUrl) return;
@@ -34,13 +37,22 @@ export function SwitchRoleClient({
     didSwitchRef.current = true;
 
     void (async () => {
+      const timeout = new Promise<void>((resolve) => {
+        window.setTimeout(resolve, SESSION_UPDATE_TIMEOUT_MS);
+      });
       try {
-        await update?.(sessionPatch);
+        // Never hang forever — session updates can stall; DB role is already switched.
+        await Promise.race([Promise.resolve(update?.(sessionPatch)), timeout]);
       } catch {
-        // Still navigate — cookie may already match server switch from the page render.
+        // Still navigate — cookie may already match, or hard load will refresh JWT.
       }
-      // Hard navigation so middleware sees the updated JWT cookie immediately.
-      window.location.assign(redirectUrl);
+      try {
+        window.location.assign(redirectUrl);
+      } catch {
+        setStuck(true);
+      }
+      // If navigation somehow doesn't unload the page, surface a continue link.
+      window.setTimeout(() => setStuck(true), 4000);
     })();
   }, [error, redirectUrl, sessionPatch, update]);
 
@@ -66,6 +78,14 @@ export function SwitchRoleClient({
     <div className="flex min-h-screen flex-col items-center justify-center bg-slate-950 px-4 text-slate-300">
       <StoryTimeLoader size="sm" hideTrack />
       <p className="mt-4 text-sm">Switching to {roleLabel?.toLowerCase()} profile…</p>
+      {stuck && redirectUrl ? (
+        <Link
+          href={redirectUrl}
+          className="mt-6 text-sm text-orange-300 underline hover:text-orange-200"
+        >
+          Continue to {roleLabel?.toLowerCase() ?? "your"} profile
+        </Link>
+      ) : null}
     </div>
   );
 }

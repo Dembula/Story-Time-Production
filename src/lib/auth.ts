@@ -195,6 +195,11 @@ export const authOptions: NextAuthOptions = {
         const roles = await getUserRoles(user.id, user.role);
         if (!roles.has("ADMIN")) return null;
         const role = "ADMIN";
+        // Persist active role so the JWT callback does not immediately revert ADMIN
+        // (it syncs token.role from User.role whenever token.role === "ADMIN").
+        if (user.role !== role) {
+          await prisma.user.update({ where: { id: user.id }, data: { role } });
+        }
         return {
           id: user.id,
           email: user.email!,
@@ -370,6 +375,19 @@ export const authOptions: NextAuthOptions = {
         } else {
           token.payoutKycVerificationStatus = undefined;
         }
+        if ((user as { role?: string }).role === "ADMIN") {
+          const adminUser = await prisma.user.findUnique({
+            where: { id: user.id },
+            select: { adminRights: true },
+          });
+          token.adminRights =
+            adminUser?.adminRights === null || adminUser?.adminRights === undefined
+              ? null
+              : parseAdminRights(adminUser.adminRights);
+          token.portalScope = "ADMIN";
+        } else {
+          token.adminRights = null;
+        }
       }
       if (trigger === "update" && session && typeof session === "object") {
         const s = session as Record<string, unknown>;
@@ -448,7 +466,9 @@ export const authOptions: NextAuthOptions = {
           (await getPayoutKycStatus(token.id as string)) ?? undefined;
       }
       // Only sync adminRights from DB while the active role is ADMIN (not on every viewer poll).
-      if (token.id && token.role === "ADMIN") {
+      // When authorize() just set ADMIN (user present), trust that claim for this tick —
+      // DB may still be catching up on the same request if persistence raced.
+      if (token.id && token.role === "ADMIN" && !user) {
         const dbUser = await prisma.user.findUnique({
           where: { id: token.id as string },
           select: { role: true, adminRights: true, email: true },
