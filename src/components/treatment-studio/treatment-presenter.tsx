@@ -106,16 +106,28 @@ export function TreatmentPresenter({
       </div>
 
       <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-black p-6 md:p-12">
-        <button
-          type="button"
-          className="treatment-presenter-stage cursor-pointer border-0 bg-transparent p-0 text-left"
+        <div
+          role="button"
+          tabIndex={0}
+          className="treatment-presenter-stage cursor-pointer"
           data-aspect={document.settings.aspectRatio === "4:3" ? "4:3" : "16:9"}
+          style={{ backgroundColor: slide.backgroundColor ?? "#ffffff" }}
           onClick={() => {
             if (!hasClip) {
               goNext();
               return;
             }
             // Tap anywhere: play from start (or replay if already playing)
+            setClipPlaying(false);
+            requestAnimationFrame(() => setClipPlaying(true));
+          }}
+          onKeyDown={(e) => {
+            if (e.key !== "Enter") return;
+            e.preventDefault();
+            if (!hasClip) {
+              goNext();
+              return;
+            }
             setClipPlaying(false);
             requestAnimationFrame(() => setClipPlaying(true));
           }}
@@ -139,7 +151,7 @@ export function TreatmentPresenter({
             projectId={projectId}
             className="pointer-events-none shadow-2xl"
           />
-        </button>
+        </div>
       </div>
 
       <div className="flex items-center justify-center gap-4 border-t border-white/10 px-4 py-4">

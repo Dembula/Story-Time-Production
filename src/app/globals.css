@@ -1002,6 +1002,13 @@ select optgroup {
   --treatment-stage-ratio: 16 / 9;
 }
 
+/* Presenter is a fixed overlay outside .treatment-studio — must define its own
+   stage max-height or width/max-height calc() becomes invalid and the slide collapses. */
+.treatment-presenter {
+  --treatment-stage-max-h: min(82dvh, calc(100svh - 9rem));
+  --treatment-stage-ratio: 16 / 9;
+}
+
 /* Invisible stage box: sizes itself to fit width AND height without black gaps
    (Chrome/WebKit often leave empty stage when aspect-ratio + max-height:100% fight). */
 .treatment-editor-stage,
@@ -1023,6 +1030,12 @@ select optgroup {
   box-sizing: border-box;
   /* Soft invisible clip edge so overflow never paints as black void */
   clip-path: inset(0);
+}
+
+.treatment-presenter-stage {
+  max-width: min(1280px, 100%);
+  /* Avoid black void if canvas paint is delayed — stage mirrors slide fill */
+  background-color: #ffffff;
 }
 
 .treatment-editor-stage[data-aspect="4:3"],

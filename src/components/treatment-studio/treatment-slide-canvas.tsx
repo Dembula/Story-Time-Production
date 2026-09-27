@@ -1,14 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   BringToFront,
+  Circle,
   Copy,
   GripVertical,
   ImagePlus,
   Lock,
   RotateCcw,
   SendToBack,
+  Square,
   Trash2,
   Type,
   Unlock,
@@ -39,6 +42,40 @@ import type {
 } from "@/lib/treatment-studio/types";
 import { cn } from "@/lib/utils";
 import { TreatmentVideoStill } from "./treatment-video-still";
+
+const CONTEXT_MENU_PAD = 8;
+
+function clampContextMenuPosition(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+): { left: number; top: number } {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  let left = x;
+  let top = y;
+
+  if (left + width > vw - CONTEXT_MENU_PAD) {
+    left = Math.max(CONTEXT_MENU_PAD, vw - width - CONTEXT_MENU_PAD);
+  }
+  if (top + height > vh - CONTEXT_MENU_PAD) {
+    const above = y - height;
+    top =
+      above >= CONTEXT_MENU_PAD
+        ? above
+        : Math.max(CONTEXT_MENU_PAD, vh - height - CONTEXT_MENU_PAD);
+  }
+  left = Math.min(
+    Math.max(CONTEXT_MENU_PAD, left),
+    Math.max(CONTEXT_MENU_PAD, vw - width - CONTEXT_MENU_PAD),
+  );
+  top = Math.min(
+    Math.max(CONTEXT_MENU_PAD, top),
+    Math.max(CONTEXT_MENU_PAD, vh - height - CONTEXT_MENU_PAD),
+  );
+  return { left, top };
+}
 
 export const TREATMENT_ASSET_MIME = "application/x-treatment-asset";
 export { PEXELS_PHOTO_MIME };
@@ -1079,6 +1116,7 @@ export function TreatmentSlideCanvas({
     fieldKey?: TreatmentFieldKey;
   } | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
   const contextFileInputRef = useRef<HTMLInputElement>(null);
   const map = assetMap(assets);
 
@@ -1088,12 +1126,40 @@ export function TreatmentSlideCanvas({
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") close();
     };
-    window.addEventListener("click", close);
+    const onPointer = (e: MouseEvent) => {
+      if (contextMenuRef.current?.contains(e.target as Node)) return;
+      close();
+    };
+    // Defer so the opening contextmenu/click does not immediately dismiss.
+    const timer = window.setTimeout(() => {
+      window.addEventListener("mousedown", onPointer, true);
+      window.addEventListener("scroll", close, true);
+      window.addEventListener("resize", close);
+    }, 0);
     window.addEventListener("keydown", onKey);
     return () => {
-      window.removeEventListener("click", close);
+      window.clearTimeout(timer);
+      window.removeEventListener("mousedown", onPointer, true);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
       window.removeEventListener("keydown", onKey);
     };
+  }, [contextMenu]);
+
+  // Portal menu uses viewport coords; measure after paint and flip/clamp so it
+  // stays on-screen (stage `contain: paint` would otherwise trap `position: fixed`).
+  useLayoutEffect(() => {
+    if (!contextMenu || !contextMenuRef.current) return;
+    const el = contextMenuRef.current;
+    const rect = el.getBoundingClientRect();
+    const { left, top } = clampContextMenuPosition(
+      contextMenu.x,
+      contextMenu.y,
+      rect.width,
+      rect.height,
+    );
+    el.style.left = `${left}px`;
+    el.style.top = `${top}px`;
   }, [contextMenu]);
 
   const updateElement = useCallback(
@@ -1138,13 +1204,9 @@ export function TreatmentSlideCanvas({
     const target = canvasRef.current;
     if (!target) return;
     const { xPercent, yPercent } = dropPercents(e.clientX, e.clientY, target);
-    const menuW = 240;
-    const menuH = 280;
-    const x = Math.min(e.clientX, window.innerWidth - menuW - 8);
-    const y = Math.min(e.clientY, window.innerHeight - menuH - 8);
     setContextMenu({
-      x: Math.max(8, x),
-      y: Math.max(8, y),
+      x: e.clientX,
+      y: e.clientY,
       slideX: xPercent,
       slideY: yPercent,
       kind: extra.kind ?? "slide",
@@ -1155,6 +1217,9 @@ export function TreatmentSlideCanvas({
 
   const contextElement = contextMenu?.elementId
     ? slide.elements.find((el) => el.id === contextMenu.elementId)
+    : null;
+  const selectedContextElement = selectedElementId
+    ? slide.elements.find((el) => el.id === selectedElementId) ?? null
     : null;
 
   const handleDrop = (e: React.DragEvent) => {
@@ -1337,185 +1402,330 @@ export function TreatmentSlideCanvas({
         </div>
       ) : null}
 
-      {contextMenu && !readOnly ? (
-        <div
-          className="fixed z-[80] min-w-[230px] overflow-hidden rounded-lg border border-white/15 bg-[#1c1c1e]/95 py-1 text-sm text-white shadow-2xl backdrop-blur-md"
-          style={{ left: contextMenu.x, top: contextMenu.y }}
-          onClick={(e) => e.stopPropagation()}
-          onContextMenu={(e) => e.preventDefault()}
-        >
-          {contextMenu.kind === "element" && contextElement && onElementsChange ? (
-            <>
-              <button
-                type="button"
-                className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-white/10"
-                onClick={() => {
-                  onElementsChange(bringElementToFront(slide.elements, contextElement.id));
-                  setContextMenu(null);
-                }}
-              >
-                <BringToFront className="h-3.5 w-3.5 text-slate-300" />
-                Bring to Front
-              </button>
-              <button
-                type="button"
-                className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-white/10"
-                onClick={() => {
-                  onElementsChange(sendElementToBack(slide.elements, contextElement.id));
-                  setContextMenu(null);
-                }}
-              >
-                <SendToBack className="h-3.5 w-3.5 text-slate-300" />
-                Send to Back
-              </button>
-              <div className="my-1 border-t border-white/10" />
-              <button
-                type="button"
-                className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-white/10 disabled:opacity-40"
-                disabled={contextElement.locked}
-                onClick={() => {
-                  const result = duplicateElementInList(slide.elements, contextElement.id);
-                  onElementsChange(result.elements);
-                  if (result.newId) onSelectElement?.(result.newId);
-                  setContextMenu(null);
-                }}
-              >
-                <Copy className="h-3.5 w-3.5 text-sky-300" />
-                Duplicate
-              </button>
-              <button
-                type="button"
-                className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-white/10"
-                onClick={() => {
-                  updateElement(contextElement.id, { locked: !contextElement.locked });
-                  setContextMenu(null);
-                }}
-              >
-                {contextElement.locked ? (
-                  <Unlock className="h-3.5 w-3.5 text-amber-300" />
-                ) : (
-                  <Lock className="h-3.5 w-3.5 text-amber-300" />
-                )}
-                {contextElement.locked ? "Unlock" : "Lock"}
-              </button>
-              <button
-                type="button"
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-red-300 hover:bg-red-500/15 disabled:opacity-40"
-                disabled={contextElement.locked}
-                onClick={() => {
-                  deleteElement(contextElement.id);
-                  setContextMenu(null);
-                }}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                Delete
-              </button>
-            </>
-          ) : null}
-
-          {contextMenu.kind === "field" && contextMenu.fieldKey ? (
-            <>
-              <button
-                type="button"
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-red-300 hover:bg-red-500/15"
-                onClick={() => {
-                  onFieldChange?.(hideSlideField(slide, contextMenu.fieldKey!));
-                  onSelectField?.(null);
-                  setContextMenu(null);
-                }}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                Delete Text Box
-              </button>
-              <p className="px-3 pb-2 text-[10px] leading-snug text-zinc-500">
-                Use the Format panel to change colour, font, and size.
-              </p>
-            </>
-          ) : null}
-
-          {contextMenu.kind === "slide" ? (
-            <>
-              <button
-                type="button"
-                className="flex w-full items-center gap-2 px-3 py-2.5 text-left hover:bg-white/10"
-                onClick={() => {
-                  contextFileInputRef.current?.click();
-                }}
-              >
-                <ImagePlus className="h-3.5 w-3.5 text-orange-300" />
-                Choose Photo or Video…
-              </button>
-              {onElementsChange ? (
+      {contextMenu && !readOnly && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              ref={contextMenuRef}
+              role="menu"
+              aria-label="Slide context menu"
+              className="fixed z-[300] min-w-[240px] overflow-hidden rounded-lg border border-white/15 bg-[#1c1c1e]/95 py-1 text-sm text-white shadow-2xl backdrop-blur-md"
+              style={{ left: contextMenu.x, top: contextMenu.y }}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+              onContextMenu={(e) => e.preventDefault()}
+            >
+              {contextMenu.kind === "element" && contextElement && onElementsChange ? (
                 <>
                   <button
                     type="button"
+                    role="menuitem"
                     className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-white/10"
                     onClick={() => {
-                      const el = createTextElement({
-                        x: Math.min(70, Math.max(2, contextMenu.slideX - 10)),
-                        y: Math.min(80, Math.max(2, contextMenu.slideY - 5)),
-                        zIndex: nextElementZIndex(slide.elements),
+                      onElementsChange(
+                        bringElementToFront(slide.elements, contextElement.id),
+                      );
+                      setContextMenu(null);
+                    }}
+                  >
+                    <BringToFront className="h-3.5 w-3.5 text-slate-300" />
+                    Bring to Front
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-white/10"
+                    onClick={() => {
+                      onElementsChange(
+                        sendElementToBack(slide.elements, contextElement.id),
+                      );
+                      setContextMenu(null);
+                    }}
+                  >
+                    <SendToBack className="h-3.5 w-3.5 text-slate-300" />
+                    Send to Back
+                  </button>
+                  <div className="my-1 border-t border-white/10" />
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-white/10 disabled:opacity-40"
+                    disabled={contextElement.locked}
+                    onClick={() => {
+                      const result = duplicateElementInList(
+                        slide.elements,
+                        contextElement.id,
+                      );
+                      onElementsChange(result.elements);
+                      if (result.newId) onSelectElement?.(result.newId);
+                      setContextMenu(null);
+                    }}
+                  >
+                    <Copy className="h-3.5 w-3.5 text-sky-300" />
+                    Duplicate
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-white/10"
+                    onClick={() => {
+                      updateElement(contextElement.id, {
+                        locked: !contextElement.locked,
                       });
-                      onElementsChange([...slide.elements, el]);
-                      onSelectElement?.(el.id);
+                      setContextMenu(null);
+                    }}
+                  >
+                    {contextElement.locked ? (
+                      <Unlock className="h-3.5 w-3.5 text-amber-300" />
+                    ) : (
+                      <Lock className="h-3.5 w-3.5 text-amber-300" />
+                    )}
+                    {contextElement.locked ? "Unlock" : "Lock"}
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-red-300 hover:bg-red-500/15 disabled:opacity-40"
+                    disabled={contextElement.locked}
+                    onClick={() => {
+                      deleteElement(contextElement.id);
+                      setContextMenu(null);
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete
+                  </button>
+                </>
+              ) : null}
+
+              {contextMenu.kind === "field" && contextMenu.fieldKey ? (
+                <>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-red-300 hover:bg-red-500/15"
+                    onClick={() => {
+                      onFieldChange?.(
+                        hideSlideField(slide, contextMenu.fieldKey!),
+                      );
                       onSelectField?.(null);
                       setContextMenu(null);
                     }}
                   >
-                    <Type className="h-3.5 w-3.5 text-sky-300" />
-                    Insert Text Box
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete Text Box
                   </button>
+                  <p className="px-3 pb-2 text-[10px] leading-snug text-zinc-500">
+                    Use the Format panel to change colour, font, and size.
+                  </p>
+                </>
+              ) : null}
+
+              {contextMenu.kind === "slide" ? (
+                <>
+                  <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
+                    Import
+                  </div>
                   <button
                     type="button"
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-white/10"
+                    role="menuitem"
+                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left hover:bg-white/10"
                     onClick={() => {
-                      const el = createShapeElement("rect", {
-                        x: Math.min(70, Math.max(2, contextMenu.slideX - 8)),
-                        y: Math.min(75, Math.max(2, contextMenu.slideY - 8)),
-                        zIndex: nextElementZIndex(slide.elements),
-                      });
-                      onElementsChange([...slide.elements, el]);
-                      onSelectElement?.(el.id);
-                      setContextMenu(null);
+                      contextFileInputRef.current?.click();
                     }}
                   >
-                    Insert Shape
+                    <ImagePlus className="h-3.5 w-3.5 shrink-0 text-orange-300" />
+                    Import from Device…
                   </button>
+                  <p className="px-3 pb-1.5 text-[10px] leading-snug text-zinc-500">
+                    Photos, video, or audio from this computer
+                  </p>
+                  {onElementsChange ? (
+                    <>
+                      <div className="my-1 border-t border-white/10" />
+                      <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
+                        Insert
+                      </div>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-white/10"
+                        onClick={() => {
+                          const el = createTextElement({
+                            x: Math.min(70, Math.max(2, contextMenu.slideX - 10)),
+                            y: Math.min(80, Math.max(2, contextMenu.slideY - 5)),
+                            zIndex: nextElementZIndex(slide.elements),
+                          });
+                          onElementsChange([...slide.elements, el]);
+                          onSelectElement?.(el.id);
+                          onSelectField?.(null);
+                          setContextMenu(null);
+                        }}
+                      >
+                        <Type className="h-3.5 w-3.5 shrink-0 text-sky-300" />
+                        Text Box
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-white/10"
+                        onClick={() => {
+                          const el = createShapeElement("rect", {
+                            x: Math.min(70, Math.max(2, contextMenu.slideX - 8)),
+                            y: Math.min(75, Math.max(2, contextMenu.slideY - 8)),
+                            zIndex: nextElementZIndex(slide.elements),
+                          });
+                          onElementsChange([...slide.elements, el]);
+                          onSelectElement?.(el.id);
+                          setContextMenu(null);
+                        }}
+                      >
+                        <Square className="h-3.5 w-3.5 shrink-0 text-orange-300" />
+                        Rectangle
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-white/10"
+                        onClick={() => {
+                          const el = createShapeElement("ellipse", {
+                            x: Math.min(70, Math.max(2, contextMenu.slideX - 8)),
+                            y: Math.min(75, Math.max(2, contextMenu.slideY - 8)),
+                            zIndex: nextElementZIndex(slide.elements),
+                          });
+                          onElementsChange([...slide.elements, el]);
+                          onSelectElement?.(el.id);
+                          setContextMenu(null);
+                        }}
+                      >
+                        <Circle className="h-3.5 w-3.5 shrink-0 text-orange-300" />
+                        Ellipse
+                      </button>
+                    </>
+                  ) : null}
+
+                  {onElementsChange && selectedContextElement ? (
+                    <>
+                      <div className="my-1 border-t border-white/10" />
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-white/10"
+                        onClick={() => {
+                          onElementsChange(
+                            bringElementToFront(
+                              slide.elements,
+                              selectedContextElement.id,
+                            ),
+                          );
+                          setContextMenu(null);
+                        }}
+                      >
+                        <BringToFront className="h-3.5 w-3.5 text-slate-300" />
+                        Bring Selection to Front
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-white/10"
+                        onClick={() => {
+                          onElementsChange(
+                            sendElementToBack(
+                              slide.elements,
+                              selectedContextElement.id,
+                            ),
+                          );
+                          setContextMenu(null);
+                        }}
+                      >
+                        <SendToBack className="h-3.5 w-3.5 text-slate-300" />
+                        Send Selection to Back
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-white/10 disabled:opacity-40"
+                        disabled={selectedContextElement.locked}
+                        onClick={() => {
+                          const result = duplicateElementInList(
+                            slide.elements,
+                            selectedContextElement.id,
+                          );
+                          onElementsChange(result.elements);
+                          if (result.newId) onSelectElement?.(result.newId);
+                          setContextMenu(null);
+                        }}
+                      >
+                        <Copy className="h-3.5 w-3.5 text-sky-300" />
+                        Duplicate Selection
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-red-300 hover:bg-red-500/15 disabled:opacity-40"
+                        disabled={selectedContextElement.locked}
+                        onClick={() => {
+                          deleteElement(selectedContextElement.id);
+                          setContextMenu(null);
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Delete Selection
+                      </button>
+                    </>
+                  ) : null}
+
+                  {selectedFieldKey && onFieldChange ? (
+                    <>
+                      <div className="my-1 border-t border-white/10" />
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-red-300 hover:bg-red-500/15"
+                        onClick={() => {
+                          onFieldChange(hideSlideField(slide, selectedFieldKey));
+                          onSelectField?.(null);
+                          setContextMenu(null);
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Delete Selected Text
+                      </button>
+                    </>
+                  ) : null}
+
+                  {hiddenFields.length > 0 && onRestoreField ? (
+                    <>
+                      <div className="my-1 border-t border-white/10" />
+                      <div className="px-3 py-1 text-[10px] uppercase tracking-wide text-zinc-500">
+                        Restore deleted field
+                      </div>
+                      {hiddenFields.map((key) => (
+                        <button
+                          key={key}
+                          type="button"
+                          role="menuitem"
+                          className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-white/10"
+                          onClick={() => {
+                            onRestoreField(key);
+                            setContextMenu(null);
+                          }}
+                        >
+                          <RotateCcw className="h-3 w-3 text-zinc-400" />
+                          {key === "title"
+                            ? "Title"
+                            : key === "subtitle"
+                              ? "Made by / byline"
+                              : "Body text"}
+                        </button>
+                      ))}
+                    </>
+                  ) : null}
                 </>
               ) : null}
-              <p className="px-3 pb-2 text-[10px] leading-snug text-zinc-500">
-                Media saves to the library and places on this slide. Videos show a play button.
-              </p>
-              {hiddenFields.length > 0 && onRestoreField ? (
-                <>
-                  <div className="my-1 border-t border-white/10" />
-                  <div className="px-3 py-1 text-[10px] uppercase tracking-wide text-zinc-500">
-                    Restore deleted field
-                  </div>
-                  {hiddenFields.map((key) => (
-                    <button
-                      key={key}
-                      type="button"
-                      className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-white/10"
-                      onClick={() => {
-                        onRestoreField(key);
-                        setContextMenu(null);
-                      }}
-                    >
-                      <RotateCcw className="h-3 w-3 text-zinc-400" />
-                      {key === "title"
-                        ? "Title"
-                        : key === "subtitle"
-                          ? "Made by / byline"
-                          : "Body text"}
-                    </button>
-                  ))}
-                </>
-              ) : null}
-            </>
-          ) : null}
-        </div>
-      ) : null}
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
