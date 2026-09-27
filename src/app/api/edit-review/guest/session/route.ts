@@ -78,7 +78,7 @@ export async function GET() {
       try {
         const ref = resolveStorageObjectRef(review.cutAsset.fileUrl);
         if (ref) {
-          const signed = await getStorageObjectSignedUrl(ref, { expiresIn: 60 * 60 });
+          const signed = await getStorageObjectSignedUrl(ref, 60 * 60);
           if (signed) src = signed;
         }
       } catch {
