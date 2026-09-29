@@ -597,6 +597,24 @@ exports.Prisma.PlatformRevenueConnectorHistoryScalarFieldEnum = {
   createdAt: 'createdAt'
 };
 
+exports.Prisma.PlatformFreeTrialSettingsScalarFieldEnum = {
+  id: 'id',
+  freeTrialsEnabled: 'freeTrialsEnabled',
+  note: 'note',
+  updatedByUserId: 'updatedByUserId',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.PlatformFreeTrialSettingsHistoryScalarFieldEnum = {
+  id: 'id',
+  settingsId: 'settingsId',
+  freeTrialsEnabled: 'freeTrialsEnabled',
+  note: 'note',
+  updatedByUserId: 'updatedByUserId',
+  createdAt: 'createdAt'
+};
+
 exports.Prisma.PendingCreatorSignupScalarFieldEnum = {
   id: 'id',
   email: 'email',
@@ -3289,6 +3307,8 @@ exports.Prisma.ModelName = {
   FinanceFeeSettingsHistory: 'FinanceFeeSettingsHistory',
   PlatformRevenueConnector: 'PlatformRevenueConnector',
   PlatformRevenueConnectorHistory: 'PlatformRevenueConnectorHistory',
+  PlatformFreeTrialSettings: 'PlatformFreeTrialSettings',
+  PlatformFreeTrialSettingsHistory: 'PlatformFreeTrialSettingsHistory',
   PendingCreatorSignup: 'PendingCreatorSignup',
   ActivityLog: 'ActivityLog',
   EquipmentListing: 'EquipmentListing',

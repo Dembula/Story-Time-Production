@@ -6,6 +6,7 @@ import {
   resolveCreatorAppleProduct,
   resolveUniverseSubscriptionProduct,
 } from "@/lib/payments/apple-iap/products";
+import { gateStoreFreeTrialForPlatform } from "@/lib/payments/free-trial-settings";
 import { detectAppleStoreFreeTrial } from "@/lib/payments/store-trial";
 
 export const runtime = "nodejs";
@@ -123,7 +124,9 @@ export async function POST(req: NextRequest) {
           },
         });
       } else if (notificationType === "SUBSCRIBED" || notificationType === "OFFER_REDEEMED") {
-        const trial = detectAppleStoreFreeTrial(tx);
+        const trial = await gateStoreFreeTrialForPlatform(detectAppleStoreFreeTrial(tx), {
+          continuingPending: sub.status === "TRIAL_CARD_PENDING",
+        });
         await prisma.viewerSubscription.update({
           where: { id: sub.id },
           data: trial.isFreeTrial
@@ -190,7 +193,9 @@ export async function POST(req: NextRequest) {
           },
         });
       } else if (notificationType === "SUBSCRIBED" || notificationType === "OFFER_REDEEMED") {
-        const trial = detectAppleStoreFreeTrial(tx);
+        const trial = await gateStoreFreeTrialForPlatform(detectAppleStoreFreeTrial(tx), {
+          continuingPending: license.status === "TRIAL_CARD_PENDING",
+        });
         await prisma.creatorDistributionLicense.update({
           where: { id: license.id },
           data: trial.isFreeTrial

@@ -19,6 +19,7 @@ import {
   VIEWER_APPLE_IAP_PPV_PURPOSE,
   VIEWER_APPLE_IAP_SUBSCRIPTION_PURPOSE,
 } from "@/lib/payments/apple-iap/purposes";
+import { gateStoreFreeTrialForPlatform } from "@/lib/payments/free-trial-settings";
 import {
   detectAppleStoreFreeTrial,
   storeTrialPaymentMeta,
@@ -220,14 +221,16 @@ export async function activateAppleViewerSubscription(options: {
 
   const now = new Date();
   const periodEnd = periodEndFromApplePayload(payload, mapped.billingInterval, now);
-  const trial = detectAppleStoreFreeTrial(payload, { now });
-  const isFreeTrial = trial.isFreeTrial;
-  const trialEndsAt = isFreeTrial ? trial.trialEndsAt : null;
-
   const existing = await db.viewerSubscription.findFirst({
     where: { userId: options.userId },
     orderBy: { createdAt: "desc" },
   });
+  const trialRaw = detectAppleStoreFreeTrial(payload, { now });
+  const trial = await gateStoreFreeTrialForPlatform(trialRaw, {
+    continuingPending: existing?.status === "TRIAL_CARD_PENDING",
+  });
+  const isFreeTrial = trial.isFreeTrial;
+  const trialEndsAt = isFreeTrial ? trial.trialEndsAt : null;
 
   const subData = {
     viewerModel: VIEWER_MODELS.SUBSCRIPTION,

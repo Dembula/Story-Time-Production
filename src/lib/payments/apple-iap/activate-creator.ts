@@ -20,6 +20,8 @@ import {
   CREATOR_APPLE_IAP_LICENSE_PURPOSE,
   CREATOR_APPLE_IAP_UPLOAD_PURPOSE,
 } from "@/lib/payments/apple-iap/purposes";
+import { gateStoreFreeTrialForPlatform } from "@/lib/payments/free-trial-settings";
+import { isCreatorTrialCardPending } from "@/lib/payments/creator-pipeline-trial";
 import {
   detectAppleStoreFreeTrial,
   storeTrialPaymentMeta,
@@ -292,7 +294,17 @@ export async function processCreatorApplePurchase(options: {
   const billingInterval = mapped.billing === "MONTHLY" ? "month" : "year";
   const now = new Date();
   const periodEnd = periodEndFromApplePayload(verified.payload, billingInterval, now);
-  const trial = detectAppleStoreFreeTrial(verified.payload, { now });
+
+  await ensureCreatorStudioProfilesForUser(options.userId);
+
+  const existing = await db.creatorDistributionLicense.findUnique({
+    where: { userId: options.userId },
+  });
+
+  const trialRaw = detectAppleStoreFreeTrial(verified.payload, { now });
+  const trial = await gateStoreFreeTrialForPlatform(trialRaw, {
+    continuingPending: isCreatorTrialCardPending(existing),
+  });
   const isFreeTrial = trial.isFreeTrial;
   const trialEndsAt = isFreeTrial ? trial.trialEndsAt : null;
 
@@ -303,12 +315,6 @@ export async function processCreatorApplePurchase(options: {
     amount = CREATOR_ONBOARDING_PLANS.PIPELINE_YEARLY.price;
   }
   if (isFreeTrial) amount = 0;
-
-  await ensureCreatorStudioProfilesForUser(options.userId);
-
-  const existing = await db.creatorDistributionLicense.findUnique({
-    where: { userId: options.userId },
-  });
 
   const licenseData = {
     type: licenseType,

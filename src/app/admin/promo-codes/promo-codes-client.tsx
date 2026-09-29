@@ -48,6 +48,10 @@ export function AdminPromoCodesClient() {
   const [exportCode, setExportCode] = useState("");
   const [exportStart, setExportStart] = useState("");
   const [exportEnd, setExportEnd] = useState("");
+  const [freeTrialsEnabled, setFreeTrialsEnabled] = useState(false);
+  const [freeTrialsSaving, setFreeTrialsSaving] = useState(false);
+  const [freeTrialsNote, setFreeTrialsNote] = useState<string | null>(null);
+  const [freeTrialsError, setFreeTrialsError] = useState<string | null>(null);
 
   function toLocalInputValue(date: Date) {
     const y = date.getFullYear();
@@ -87,7 +91,45 @@ export function AdminPromoCodesClient() {
       .then((r) => r.json())
       .then((data) => setItems(Array.isArray(data) ? data : []))
       .finally(() => setLoading(false));
+
+    fetch("/api/admin/free-trials")
+      .then((r) => r.json())
+      .then((data: { settings?: { freeTrialsEnabled?: boolean; note?: string | null } }) => {
+        setFreeTrialsEnabled(data?.settings?.freeTrialsEnabled === true);
+        setFreeTrialsNote(data?.settings?.note ?? null);
+      })
+      .catch(() => {
+        setFreeTrialsEnabled(false);
+      });
   }, []);
+
+  async function toggleFreeTrials(next: boolean) {
+    setFreeTrialsSaving(true);
+    setFreeTrialsError(null);
+    try {
+      const res = await fetch("/api/admin/free-trials", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          freeTrialsEnabled: next,
+          note: next
+            ? "Free trials enabled for viewer subscriptions and creator pipeline monthly."
+            : "Free trials paused — new trials hidden; in-progress trials keep working.",
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        settings?: { freeTrialsEnabled?: boolean; note?: string | null };
+      };
+      if (!res.ok) throw new Error(data.error || "Could not update free trial setting.");
+      setFreeTrialsEnabled(data.settings?.freeTrialsEnabled === true);
+      setFreeTrialsNote(data.settings?.note ?? null);
+    } catch (err) {
+      setFreeTrialsError(err instanceof Error ? err.message : "Could not update free trial setting.");
+    } finally {
+      setFreeTrialsSaving(false);
+    }
+  }
 
   async function createPromoCode() {
     setSaving(true);
@@ -156,6 +198,49 @@ export function AdminPromoCodesClient() {
       <div>
         <h1 className="text-3xl font-semibold text-white">Promo Codes</h1>
         <p className="text-slate-400 mt-1">Generate access and discount codes for viewer/creator package onboarding.</p>
+      </div>
+
+      <div className="storytime-section flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-white">Free trials</p>
+          <p className="mt-1 text-xs leading-relaxed text-slate-400">
+            Turns 30-day free trials on or off for viewer subscriptions and creator pipeline monthly.
+            When off, trial CTAs are hidden and new trial starts are rejected. Anyone already mid-trial
+            (card pending or active) keeps their access.
+          </p>
+          {freeTrialsNote ? (
+            <p className="mt-2 text-[11px] text-slate-500">{freeTrialsNote}</p>
+          ) : null}
+          {freeTrialsError ? (
+            <p className="mt-2 text-xs text-red-300">{freeTrialsError}</p>
+          ) : null}
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={freeTrialsEnabled}
+          disabled={freeTrialsSaving}
+          onClick={() => void toggleFreeTrials(!freeTrialsEnabled)}
+          className={[
+            "relative inline-flex h-9 w-[4.5rem] shrink-0 items-center rounded-full border transition",
+            freeTrialsEnabled
+              ? "border-emerald-400/40 bg-emerald-500/25"
+              : "border-white/15 bg-white/[0.06]",
+            freeTrialsSaving ? "opacity-60" : "",
+          ].join(" ")}
+        >
+          <span
+            className={[
+              "absolute left-1 top-1 flex h-7 w-7 items-center justify-center rounded-full bg-white text-[10px] font-bold text-slate-900 shadow transition",
+              freeTrialsEnabled ? "translate-x-8" : "translate-x-0",
+            ].join(" ")}
+          >
+            {freeTrialsEnabled ? "ON" : "OFF"}
+          </span>
+          <span className="sr-only">
+            {freeTrialsEnabled ? "Disable free trials" : "Enable free trials"}
+          </span>
+        </button>
       </div>
 
       <div className="storytime-section p-5 grid grid-cols-1 md:grid-cols-3 gap-3">

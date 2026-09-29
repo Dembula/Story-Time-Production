@@ -21,6 +21,7 @@ import { getPaymentGateway } from "@/lib/payments/gateway";
 import { buildPaymentReturnUrl } from "@/lib/payments/return-url";
 import { addViewerSubscriptionPeriod } from "@/lib/payments/billing-interval";
 import { createPayFastCardConsentForUser } from "@/lib/payments/payfast-saved-card";
+import { isFreeTrialsEnabled } from "@/lib/payments/free-trial-settings";
 
 function promoFailureMessage(reason: string) {
   switch (reason) {
@@ -163,6 +164,13 @@ export async function POST(req: Request) {
   );
 
   if (startTrial) {
+    const continuingPending = existing?.status === "TRIAL_CARD_PENDING";
+    if (!continuingPending && !(await isFreeTrialsEnabled())) {
+      return NextResponse.json(
+        { error: "Free trials are currently unavailable. Please choose a paid plan." },
+        { status: 400 },
+      );
+    }
     if (selectedViewerModel !== VIEWER_MODELS.SUBSCRIPTION) {
       return NextResponse.json(
         { error: "The free trial is only available on a subscription plan." },

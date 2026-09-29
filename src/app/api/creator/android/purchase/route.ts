@@ -13,6 +13,8 @@ import { defaultSuiteAccessOpen } from "@/lib/creator-suite-access";
 import { getCreatorPackageStatus } from "@/lib/creator-package-gate";
 import { CREATOR_FILM_UPLOAD_PURPOSE } from "@/lib/creator-film-upload-payment";
 import { isMissingCreatorStudioInfrastructure } from "@/lib/prisma-missing-table";
+import { gateStoreFreeTrialForPlatform } from "@/lib/payments/free-trial-settings";
+import { isCreatorTrialCardPending } from "@/lib/payments/creator-pipeline-trial";
 import {
   detectGoogleStoreFreeTrial,
   storeTrialPaymentMeta,
@@ -200,12 +202,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid license product." }, { status: 400 });
     }
 
-    const trial = detectGoogleStoreFreeTrial({
+    let license = await prisma.creatorDistributionLicense.findUnique({ where: { userId } });
+    const trialRaw = detectGoogleStoreFreeTrial({
       productId,
       isFreeTrial: body?.isFreeTrial,
       freeTrial: body?.freeTrial,
       offerId: body?.offerId,
       trialEndsAt: body?.trialEndsAt,
+    });
+    const trial = await gateStoreFreeTrialForPlatform(trialRaw, {
+      continuingPending: isCreatorTrialCardPending(license),
     });
     const isFreeTrial = trial.isFreeTrial;
     const trialEndsAt = isFreeTrial ? trial.trialEndsAt : null;
@@ -222,7 +228,6 @@ export async function POST(req: NextRequest) {
       profileId = null;
     }
 
-    let license = await prisma.creatorDistributionLicense.findUnique({ where: { userId } });
     const licenseData = {
       type: resolved.storedType,
       yearlyExpiresAt: periodEnd,

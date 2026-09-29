@@ -58,9 +58,25 @@ export function LicenseClient() {
   const [checkoutUrl, setCheckoutUrl] = useState("");
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [checkoutKind, setCheckoutKind] = useState<"pay" | "trial">("pay");
+  const [freeTrialsEnabled, setFreeTrialsEnabled] = useState(false);
   const cardRequired = searchParams.get("card") === "required";
   const cardSaved = searchParams.get("card_saved") === "1" || searchParams.get("cardSaved") === "1";
   const paymentCancelled = searchParams.get("payment_status")?.toLowerCase() === "cancelled";
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/platform/free-trials")
+      .then((r) => r.json())
+      .then((data: { freeTrialsEnabled?: boolean }) => {
+        if (!cancelled) setFreeTrialsEnabled(data?.freeTrialsEnabled === true);
+      })
+      .catch(() => {
+        if (!cancelled) setFreeTrialsEnabled(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!cardSaved) return;
@@ -139,7 +155,8 @@ export function LicenseClient() {
     }
   }
 
-  const showPipelineTrial = pkg === "PIPELINE" && pipelineBilling === "MONTHLY";
+  const showPipelineTrial =
+    freeTrialsEnabled && pkg === "PIPELINE" && pipelineBilling === "MONTHLY";
 
   return (
     <div className="space-y-10">
@@ -204,7 +221,7 @@ export function LicenseClient() {
             <ShieldCheck className="h-4 w-4" /> Billing
           </p>
           <p className="mt-1 text-sm text-slate-300">
-            Pipeline monthly includes a 30-day free trial after you save a card. Yearly plans use checkout now.
+            Pipeline monthly can include a free trial when enabled by Story Time. Yearly plans use checkout now.
           </p>
         </div>
       </div>
@@ -353,7 +370,9 @@ export function LicenseClient() {
                   <span className="h-5 w-5 shrink-0 rounded-md border border-white/15" aria-hidden />
                 )}
               </div>
-              <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-sky-300/95">30-day free trial</p>
+              <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-sky-300/95">
+                {freeTrialsEnabled ? "30-day free trial" : "Billed monthly"}
+              </p>
               <p className="mt-1 text-2xl font-bold text-white">
                 {formatZar(CREATOR_ONBOARDING_PLANS.PIPELINE_MONTHLY.price)}
                 <span className="text-xs font-normal text-slate-400">/month</span>

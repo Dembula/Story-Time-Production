@@ -7,6 +7,7 @@ import {
   GOOGLE_UNIVERSE_PPV_PRODUCT_ID,
   resolveGoogleUniverseSubscriptionProduct,
 } from "@/lib/payments/apple-iap/products";
+import { gateStoreFreeTrialForPlatform } from "@/lib/payments/free-trial-settings";
 import {
   detectGoogleStoreFreeTrial,
   storeTrialPaymentMeta,
@@ -92,13 +93,20 @@ export async function activateGoogleViewerSubscription(options: {
   }
 
   const now = new Date();
-  const trial = detectGoogleStoreFreeTrial({
+  const existing = await db.viewerSubscription.findFirst({
+    where: { userId: options.userId },
+    orderBy: { createdAt: "desc" },
+  });
+  const trialRaw = detectGoogleStoreFreeTrial({
     productId,
     isFreeTrial: options.body.isFreeTrial,
     freeTrial: options.body.freeTrial,
     offerId: options.body.offerId,
     trialEndsAt: options.body.trialEndsAt,
     now,
+  });
+  const trial = await gateStoreFreeTrialForPlatform(trialRaw, {
+    continuingPending: existing?.status === "TRIAL_CARD_PENDING",
   });
   const isFreeTrial = trial.isFreeTrial;
   const trialEndsAt = isFreeTrial ? trial.trialEndsAt : null;
@@ -107,11 +115,6 @@ export async function activateGoogleViewerSubscription(options: {
   const periodEnd =
     isFreeTrial && trialEndsAt ? trialEndsAt : addBillingPeriod(now, mapped.billingInterval);
   const orderId = String(options.body.orderId ?? purchaseToken).trim();
-
-  const existing = await db.viewerSubscription.findFirst({
-    where: { userId: options.userId },
-    orderBy: { createdAt: "desc" },
-  });
 
   const subData = {
     viewerModel: VIEWER_MODELS.SUBSCRIPTION,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Check,
@@ -117,6 +117,22 @@ export function PackageClient({
   const [checkoutUrl, setCheckoutUrl] = useState("");
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [checkoutKind, setCheckoutKind] = useState<"pay" | "trial">("pay");
+  const [freeTrialsEnabled, setFreeTrialsEnabled] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/platform/free-trials")
+      .then((r) => r.json())
+      .then((data: { freeTrialsEnabled?: boolean }) => {
+        if (!cancelled) setFreeTrialsEnabled(data?.freeTrialsEnabled === true);
+      })
+      .catch(() => {
+        if (!cancelled) setFreeTrialsEnabled(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const selectedPlan = PLANS.find((plan) => plan.id === selected) ?? PLANS[0];
   const changingExistingPlan = existingSubscription;
@@ -125,7 +141,10 @@ export function PackageClient({
   const checkoutMandatory =
     reactivationMode || changingExistingPlan || viewerModel === "SUBSCRIPTION";
   const offerFreeTrial =
-    !reactivationMode && !changingExistingPlan && viewerModel === "SUBSCRIPTION";
+    freeTrialsEnabled &&
+    !reactivationMode &&
+    !changingExistingPlan &&
+    viewerModel === "SUBSCRIPTION";
 
   async function submitPackage(billingMode?: "trial") {
     setError("");

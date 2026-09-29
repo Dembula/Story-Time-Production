@@ -903,6 +903,30 @@ model PlatformRevenueConnectorHistory {
   @@index([createdAt])
 }
 
+/// Global on/off for catalogue free trials (viewer subscription + creator pipeline monthly).
+model PlatformFreeTrialSettings {
+  id                String   @id @default(cuid())
+  /// When false, new free trials are hidden and rejected. In-progress trials keep working.
+  freeTrialsEnabled Boolean  @default(false)
+  note              String?
+  updatedByUserId   String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([updatedAt])
+}
+
+model PlatformFreeTrialSettingsHistory {
+  id                String   @id @default(cuid())
+  settingsId        String?
+  freeTrialsEnabled Boolean
+  note              String?
+  updatedByUserId   String?
+  createdAt         DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 model PendingCreatorSignup {
   id            String   @id @default(cuid())
   email         String   @unique

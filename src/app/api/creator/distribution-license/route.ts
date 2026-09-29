@@ -25,6 +25,7 @@ import {
   isCreatorTrialActive,
   isCreatorTrialCardPending,
 } from "@/lib/payments/creator-pipeline-trial";
+import { isFreeTrialsEnabled } from "@/lib/payments/free-trial-settings";
 
 function promoFailureMessage(reason: string) {
   switch (reason) {
@@ -101,6 +102,7 @@ export async function GET() {
   const ctx = await loadStudioPipelineContext(userId);
   const license = ctx?.license ?? null;
   const packageStatus = await getCreatorPackageStatus(userId, role);
+  const freeTrialsEnabled = await isFreeTrialsEnabled();
   return NextResponse.json({
     license,
     pipelineAccess: ctx?.pipelineAccess ?? false,
@@ -115,6 +117,7 @@ export async function GET() {
     trialPendingCard: license?.status === "TRIAL_CARD_PENDING",
     trialEndsAt: license?.trialEndsAt ?? null,
     isTrialActive: license?.status === "TRIAL_ACTIVE",
+    freeTrialsEnabled,
   });
 }
 
@@ -157,6 +160,13 @@ export async function POST(req: Request) {
     let forceUpdateExisting = false;
 
     if (startTrial) {
+      const continuingPending = isCreatorTrialCardPending(existing);
+      if (!continuingPending && !(await isFreeTrialsEnabled())) {
+        return NextResponse.json(
+          { error: "Free trials are currently unavailable. Please choose a paid plan." },
+          { status: 400 },
+        );
+      }
       if (body?.package !== "PIPELINE" || body?.billing !== "MONTHLY") {
         return NextResponse.json(
           { error: "The free trial is only available on Full pipeline · Monthly." },
