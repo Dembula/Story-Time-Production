@@ -78,6 +78,7 @@ export function AdminFinanceHub() {
   });
   const [settingsMsg, setSettingsMsg] = useState<string | null>(null);
   const [distributeMsg, setDistributeMsg] = useState<string | null>(null);
+  const [creatorLiabilityOpen, setCreatorLiabilityOpen] = useState(false);
 
   const queryPeriod = period === "custom" ? "custom" : period;
   const overviewQuery = useQuery({
@@ -350,124 +351,6 @@ export function AdminFinanceHub() {
             </div>
           ) : null}
 
-          <div className="rounded-xl border border-sky-400/30 bg-sky-500/10 p-4">
-            <p className="text-xs uppercase tracking-wide text-sky-200">Platform cash movement (display only)</p>
-            <p className="mt-1 text-2xl font-semibold text-white">
-              {money.format(bundle.totals.displayCashMovementZar ?? 0)}
-            </p>
-            <p className="mt-1 max-w-2xl text-xs text-sky-100/80">
-              Cleared net ({money.format(bundle.totals.net)}) + awaiting clear (
-              {money.format(bundle.totals.pendingClearNet)}). Visibility only — does not change creator
-              pool, ledger allocation, or Revenue Pool. Free trial potential stays separate (
-              {money.format(bundle.totals.trialPotentialZar)}).
-            </p>
-          </div>
-
-          <div className="rounded-xl border border-teal-400/30 bg-teal-500/10 p-4 space-y-3">
-            <div className="sm:flex sm:items-start sm:justify-between sm:gap-6">
-              <div>
-                <p className="text-xs uppercase tracking-wide text-teal-200">Creator unpaid liability</p>
-                <p className="mt-1 text-2xl font-semibold text-white">
-                  {money.format(bundle.creatorUnpaid?.owedTotal ?? 0)}
-                </p>
-                <p className="mt-1 max-w-2xl text-xs text-teal-100/80">
-                  Stock across month cycles — money already credited to creator wallets that has not been
-                  paid out to bank. Available{" "}
-                  {money.format(bundle.creatorUnpaid?.availableTotal ?? 0)} · holds{" "}
-                  {money.format(bundle.creatorUnpaid?.pendingTotal ?? 0)} · open payout queue{" "}
-                  {money.format(bundle.payouts.pendingAmount)} ·{" "}
-                  {bundle.creatorUnpaid?.creatorCount ?? 0} creators with balance. As of{" "}
-                  {bundle.creatorUnpaid?.asOf
-                    ? new Date(bundle.creatorUnpaid.asOf).toLocaleString()
-                    : "—"}
-                  .
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => selectTab("payouts")}
-                className="mt-3 shrink-0 rounded-lg bg-teal-500/20 px-3 py-2 text-xs font-semibold text-teal-100 hover:bg-teal-500/30 sm:mt-0"
-              >
-                Open payout queue
-              </button>
-            </div>
-            {(bundle.creatorUnpaid?.rows?.length ?? 0) > 0 ? (
-              <div className="overflow-x-auto rounded-lg border border-white/10">
-                <table className="w-full min-w-[640px] text-left text-sm">
-                  <thead className="text-xs uppercase text-slate-500">
-                    <tr>
-                      <th className="px-3 py-2">Creator</th>
-                      <th className="px-3 py-2">Available</th>
-                      <th className="px-3 py-2">Pending hold</th>
-                      <th className="px-3 py-2">Last earnings</th>
-                      <th className="px-3 py-2">Open request</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {bundle.creatorUnpaid.rows.map((row) => (
-                      <tr key={row.userId} className="border-t border-white/5">
-                        <td className="px-3 py-2">
-                          <p className="font-medium text-white">{row.name || "—"}</p>
-                          <p className="text-xs text-slate-500">{row.email}</p>
-                        </td>
-                        <td className="px-3 py-2">{money.format(row.availableBalance)}</td>
-                        <td className="px-3 py-2">{money.format(row.pendingBalance)}</td>
-                        <td className="px-3 py-2 text-xs text-slate-400">
-                          {row.lastEarningsAt
-                            ? new Date(row.lastEarningsAt).toLocaleString()
-                            : "—"}
-                        </td>
-                        <td className="px-3 py-2 text-xs">
-                          {row.openPayoutStatus
-                            ? `${row.openPayoutStatus.replace(/_/g, " ")} · ${money.format(row.openPayoutAmount ?? 0)}`
-                            : "—"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <p className="text-xs text-teal-100/70">No creator wallets currently holding unpaid balances.</p>
-            )}
-          </div>
-
-          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-100/90">
-            <p className="font-medium text-emerald-200">Cleared revenue only</p>
-            <p className="mt-1 text-xs text-emerald-100/70">
-              KPIs and creator pool use funds that have cleared — PayFast after{" "}
-              {bundle.revenueTracking.clearRules.payfastDays} days, Apple after{" "}
-              {bundle.revenueTracking.clearRules.appleDays} days (or earlier via Cleared). Recording
-              started{" "}
-              {bundle.revenueTracking.trackingStartedAt
-                ? new Date(bundle.revenueTracking.trackingStartedAt).toLocaleDateString()
-                : "—"}
-              . Existing subscribers count on their next renewal; new subscribers count after clear.
-            </p>
-          </div>
-          <div className="rounded-xl border border-violet-400/30 bg-violet-500/10 p-4 sm:flex sm:items-center sm:justify-between sm:gap-6">
-            <div>
-              <p className="text-xs uppercase tracking-wide text-violet-200">Free trial pipeline</p>
-              <p className="mt-1 text-2xl font-semibold text-white">
-                {money.format(bundle.totals.trialPotentialZar)}
-              </p>
-              <p className="mt-1 max-w-xl text-xs text-violet-100/80">
-                {bundle.totals.trialCount} active {bundle.totals.trialCount === 1 ? "trial" : "trials"} in
-                this period, priced at the monthly plan they would pay if they convert. This figure is
-                potential only and is not included in cleared revenue, gateway fees, or the creator pool.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                setSheetFilter("trial");
-                selectTab("sheets");
-              }}
-              className="mt-3 shrink-0 rounded-lg bg-violet-500/20 px-3 py-2 text-xs font-semibold text-violet-100 hover:bg-violet-500/30 sm:mt-0"
-            >
-              View trial transactions
-            </button>
-          </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Kpi
               label="Gross cleared inflow"
@@ -526,6 +409,16 @@ export function AdminFinanceHub() {
               value={money.format(bundle.payouts.pendingAmount)}
               hint={`${bundle.payouts.pendingCount} open · all-time queue`}
             />
+            <Kpi
+              label="Creator unpaid (wallets)"
+              value={money.format(bundle.creatorUnpaid?.owedTotal ?? 0)}
+              hint={`${bundle.creatorUnpaid?.creatorCount ?? 0} creators · see details below`}
+            />
+            <Kpi
+              label="Free trial pipeline"
+              value={money.format(bundle.totals.trialPotentialZar)}
+              hint={`${bundle.totals.trialCount} active · potential only`}
+            />
           </div>
 
           <div className="storytime-plan-card overflow-x-auto p-4">
@@ -573,6 +466,141 @@ export function AdminFinanceHub() {
               </div>
             </div>
           ) : null}
+
+          <div className="space-y-3 border-t border-white/10 pt-4">
+            <p className="text-xs uppercase tracking-wide text-slate-500">Notes &amp; detail</p>
+
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-100/90">
+              <p className="font-medium text-emerald-200">Cleared revenue only</p>
+              <p className="mt-1 text-xs text-emerald-100/70">
+                KPIs and creator pool use funds that have cleared — PayFast after{" "}
+                {bundle.revenueTracking.clearRules.payfastDays} days, Apple after{" "}
+                {bundle.revenueTracking.clearRules.appleDays} days (or earlier via Cleared). Recording
+                started{" "}
+                {bundle.revenueTracking.trackingStartedAt
+                  ? new Date(bundle.revenueTracking.trackingStartedAt).toLocaleDateString()
+                  : "—"}
+                . Existing subscribers count on their next renewal; new subscribers count after clear.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-violet-400/25 bg-violet-500/10 px-4 py-3 sm:flex sm:items-center sm:justify-between sm:gap-4">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-violet-200">Free trial pipeline</p>
+                <p className="mt-1 text-lg font-semibold text-white">
+                  {money.format(bundle.totals.trialPotentialZar)}
+                  <span className="ml-2 text-xs font-normal text-violet-100/70">
+                    {bundle.totals.trialCount} active · potential only, not in cleared revenue
+                  </span>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSheetFilter("trial");
+                  selectTab("sheets");
+                }}
+                className="mt-3 shrink-0 rounded-lg bg-violet-500/20 px-3 py-2 text-xs font-semibold text-violet-100 hover:bg-violet-500/30 sm:mt-0"
+              >
+                View trial transactions
+              </button>
+            </div>
+
+            <div className="rounded-xl border border-teal-400/25 bg-teal-500/10">
+              <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                <button
+                  type="button"
+                  onClick={() => setCreatorLiabilityOpen((open) => !open)}
+                  className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                  aria-expanded={creatorLiabilityOpen}
+                >
+                  <span
+                    className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-teal-400/30 text-teal-100 transition ${
+                      creatorLiabilityOpen ? "rotate-90" : ""
+                    }`}
+                    aria-hidden
+                  >
+                    ›
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-xs uppercase tracking-wide text-teal-200">
+                      Creator unpaid liability
+                    </span>
+                    <span className="mt-0.5 block text-sm text-white">
+                      {money.format(bundle.creatorUnpaid?.owedTotal ?? 0)}
+                      <span className="ml-2 text-xs font-normal text-teal-100/70">
+                        {bundle.creatorUnpaid?.creatorCount ?? 0} creators · available{" "}
+                        {money.format(bundle.creatorUnpaid?.availableTotal ?? 0)} · holds{" "}
+                        {money.format(bundle.creatorUnpaid?.pendingTotal ?? 0)}
+                      </span>
+                    </span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => selectTab("payouts")}
+                  className="shrink-0 rounded-lg bg-teal-500/20 px-3 py-2 text-xs font-semibold text-teal-100 hover:bg-teal-500/30"
+                >
+                  Open payout queue
+                </button>
+              </div>
+
+              {creatorLiabilityOpen ? (
+                <div className="space-y-3 border-t border-teal-400/20 px-4 py-3">
+                  <p className="text-xs text-teal-100/75">
+                    Money already credited to creator wallets that has not been paid out to bank. Survives
+                    month rollover. Open payout queue{" "}
+                    {money.format(bundle.payouts.pendingAmount)}. As of{" "}
+                    {bundle.creatorUnpaid?.asOf
+                      ? new Date(bundle.creatorUnpaid.asOf).toLocaleString()
+                      : "—"}
+                    .
+                  </p>
+                  {(bundle.creatorUnpaid?.rows?.length ?? 0) > 0 ? (
+                    <div className="overflow-x-auto rounded-lg border border-white/10">
+                      <table className="w-full min-w-[640px] text-left text-sm">
+                        <thead className="text-xs uppercase text-slate-500">
+                          <tr>
+                            <th className="px-3 py-2">Creator</th>
+                            <th className="px-3 py-2">Available</th>
+                            <th className="px-3 py-2">Pending hold</th>
+                            <th className="px-3 py-2">Last earnings</th>
+                            <th className="px-3 py-2">Open request</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {bundle.creatorUnpaid.rows.map((row) => (
+                            <tr key={row.userId} className="border-t border-white/5">
+                              <td className="px-3 py-2">
+                                <p className="font-medium text-white">{row.name || "—"}</p>
+                                <p className="text-xs text-slate-500">{row.email}</p>
+                              </td>
+                              <td className="px-3 py-2">{money.format(row.availableBalance)}</td>
+                              <td className="px-3 py-2">{money.format(row.pendingBalance)}</td>
+                              <td className="px-3 py-2 text-xs text-slate-400">
+                                {row.lastEarningsAt
+                                  ? new Date(row.lastEarningsAt).toLocaleString()
+                                  : "—"}
+                              </td>
+                              <td className="px-3 py-2 text-xs">
+                                {row.openPayoutStatus
+                                  ? `${row.openPayoutStatus.replace(/_/g, " ")} · ${money.format(row.openPayoutAmount ?? 0)}`
+                                  : "—"}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-teal-100/70">
+                      No creator wallets currently holding unpaid balances.
+                    </p>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          </div>
         </section>
       ) : null}
 
