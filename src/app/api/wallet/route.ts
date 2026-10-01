@@ -4,6 +4,9 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ensureWalletForUser, getWalletSnapshot } from "@/lib/payments/wallet";
 import { maskPayoutBanking, resolvePayoutBankingForUser } from "@/lib/payments/payout-banking";
+import { assertPayoutKycApproved, requiresPayoutKyc } from "@/lib/payout-kyc";
+import { assertFunderVerificationApproved } from "@/lib/funder-verification";
+
 const db = prisma as any;
 
 export async function GET() {
@@ -54,6 +57,7 @@ export async function GET() {
             lockedBalance: 0,
             totalEarnings: 0,
             totalWithdrawn: 0,
+            autoPayoutEnabled: false,
             accounts: (wallet.accounts ?? []).map((account: { accountType: string; balance: number }) => ({
               ...account,
               balance:
@@ -90,9 +94,83 @@ export async function PATCH(req: NextRequest) {
   const session = await getServerSession(authOptions);
   const user = session?.user as { id?: string; role?: string } | undefined;
   if (!user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (user.role === "SUBSCRIBER") {
+    return NextResponse.json({ error: "Wallet UI unavailable for viewers." }, { status: 403 });
+  }
+
   const body = (await req.json().catch(() => null)) as
-    | { filters?: { type?: string; status?: string; from?: string; to?: string } }
+    | {
+        filters?: { type?: string; status?: string; from?: string; to?: string };
+        autoPayoutEnabled?: boolean;
+      }
     | null;
+
+  if (typeof body?.autoPayoutEnabled === "boolean") {
+    const isCreator = user.role === "CONTENT_CREATOR" || user.role === "MUSIC_CREATOR";
+    if (!isCreator) {
+      return NextResponse.json(
+        { error: "Auto payout is only available for creator wallets." },
+        { status: 403 },
+      );
+    }
+
+    if (body.autoPayoutEnabled) {
+      const { isCreatorRevenueTrackingEnabled } = await import("@/lib/finance/revenue-connector");
+      if (!(await isCreatorRevenueTrackingEnabled())) {
+        return NextResponse.json(
+          {
+            error: "Auto payout is unavailable while platform revenue tracking is offline.",
+            code: "REVENUE_TRACKING_PAUSED",
+          },
+          { status: 403 },
+        );
+      }
+      if (requiresPayoutKyc(user.role)) {
+        const kycCheck = await assertPayoutKycApproved(user.id);
+        if (!kycCheck.ok) {
+          return NextResponse.json(
+            { error: kycCheck.error, code: "PAYOUT_KYC_REQUIRED" },
+            { status: 403 },
+          );
+        }
+      }
+      if (user.role === "FUNDER") {
+        const funderCheck = await assertFunderVerificationApproved(user.id);
+        if (!funderCheck.ok) {
+          return NextResponse.json({ error: funderCheck.error, code: funderCheck.code }, { status: 403 });
+        }
+      }
+      const banking = await resolvePayoutBankingForUser(user.id, user.role);
+      if (!banking) {
+        return NextResponse.json(
+          {
+            error: "Add verified bank details before enabling auto payout.",
+            code: "PAYOUT_BANKING_REQUIRED",
+          },
+          { status: 400 },
+        );
+      }
+    }
+
+    await ensureWalletForUser(user.id);
+    const wallet = await db.wallet.update({
+      where: { userId: user.id },
+      data: {
+        autoPayoutEnabled: body.autoPayoutEnabled,
+        autoPayoutUpdatedAt: new Date(),
+      },
+      include: {
+        accounts: true,
+        payoutRequests: { orderBy: { createdAt: "desc" }, take: 20 },
+      },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      wallet,
+      autoPayoutEnabled: wallet.autoPayoutEnabled,
+    });
+  }
 
   const where: Record<string, unknown> = { userId: user.id };
   if (body?.filters?.type) where.transactionType = body.filters.type;

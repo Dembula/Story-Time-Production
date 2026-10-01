@@ -50,6 +50,8 @@ type RevenueData = {
   perStreamRand: number;
   creatorPool: number;
   viewerSubRevenue: number;
+  walletAvailable?: number;
+  walletTotalEarnings?: number;
   banking: { bankName: string; accountNumberLast4: string; accountType: string; verified: boolean } | null;
   payouts: { id: string; amount: number; currency: string; status: string; period: string; paidAt: string | null }[];
 };
@@ -711,10 +713,18 @@ export function CommandCenterClient() {
           </p>
         ) : (
         <>
-        <div className="grid grid-cols-2 md:grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           <div className="storytime-kpi p-4">
             <p className="text-xs text-slate-400">Payout period earnings</p>
             <p className="text-2xl font-bold text-white">{formatZar(revenueData.revenue)}</p>
+            <p className="text-[11px] text-slate-500">Attributed this window (cleared cash)</p>
+          </div>
+          <div className="storytime-kpi p-4">
+            <p className="text-xs text-slate-400">Wallet available</p>
+            <p className="text-2xl font-bold text-white">
+              {formatZar(Number(revenueData.walletAvailable ?? 0))}
+            </p>
+            <p className="text-[11px] text-slate-500">All unpaid months credited — withdraw anytime</p>
           </div>
           <div className="storytime-kpi p-4">
             <p className="text-xs text-slate-400">RPU (rough)</p>
@@ -725,7 +735,12 @@ export function CommandCenterClient() {
           </div>
         </div>
         <p className="text-xs text-slate-500">
-          Revenue follows your live payout rules. Forecasting uses manual review for now; export CSV for investor packs.
+          Period earnings reset with the selected window; unpaid credits stay in your wallet until you withdraw.
+          Manage auto-request and payouts in{" "}
+          <Link href="/creator/wallet" className="text-orange-400 hover:underline">
+            Wallet &amp; payouts
+          </Link>
+          .
         </p>
         <p className="text-xs text-slate-500 mt-2">
           {revenueData.banking ? (

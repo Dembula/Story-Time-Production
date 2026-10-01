@@ -1279,6 +1279,8 @@ exports.Prisma.WalletScalarFieldEnum = {
   lockedBalance: 'lockedBalance',
   totalEarnings: 'totalEarnings',
   totalWithdrawn: 'totalWithdrawn',
+  autoPayoutEnabled: 'autoPayoutEnabled',
+  autoPayoutUpdatedAt: 'autoPayoutUpdatedAt',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 };
@@ -1372,6 +1374,7 @@ exports.Prisma.PayoutRequestScalarFieldEnum = {
   status: 'status',
   provider: 'provider',
   providerReference: 'providerReference',
+  requestSource: 'requestSource',
   failureReason: 'failureReason',
   declineReason: 'declineReason',
   adminNotes: 'adminNotes',

@@ -5,6 +5,7 @@ import {
   distributeCreatorPoolForPeriod,
   getCalendarMonthRange,
   getPreviousCalendarMonthRange,
+  runCreatorAutoPayoutRequests,
 } from "@/lib/payments/creator-pool-distribution";
 
 export async function POST(req: Request) {
@@ -35,5 +36,10 @@ export async function POST(req: Request) {
     return NextResponse.json(result, { status: 409 });
   }
 
-  return NextResponse.json(result);
+  const autoPayouts = await runCreatorAutoPayoutRequests().catch((err) => {
+    console.error("[admin/revenue/distribute] auto payout pass failed", err);
+    return null;
+  });
+
+  return NextResponse.json({ ...result, autoPayouts });
 }

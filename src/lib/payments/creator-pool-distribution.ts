@@ -5,6 +5,7 @@ import { postBalancedLedgerBatch } from "@/lib/payments/ledger";
 import { ensureWalletForUser } from "@/lib/payments/wallet";
 import { getCreatorRevenue, getViewerPoolRevenue } from "@/lib/revenue";
 import { getPlatformTreasuryUserId } from "@/lib/payments/treasury-inflow";
+import { requestPayoutHold } from "@/lib/payments/request-payout-hold";
 
 const db = prisma as any;
 
@@ -299,8 +300,67 @@ export async function distributeCreatorPoolForPeriod(
   };
 }
 
+/**
+ * For creators who opted into auto-payout: create PENDING_REVIEW holds for full available balance.
+ * Admin still approves / marks paid. Safe to run after distribution or on the monthly cron.
+ */
+export async function runCreatorAutoPayoutRequests(): Promise<{
+  attempted: number;
+  created: number;
+  skipped: number;
+  errors: number;
+}> {
+  const wallets = await db.wallet.findMany({
+    where: {
+      autoPayoutEnabled: true,
+      availableBalance: { gt: 0 },
+      user: { role: { in: ["CONTENT_CREATOR", "MUSIC_CREATOR"] } },
+    },
+    select: {
+      userId: true,
+      availableBalance: true,
+      user: { select: { role: true } },
+    },
+    take: 500,
+  });
+
+  let created = 0;
+  let skipped = 0;
+  let errors = 0;
+
+  for (const wallet of wallets) {
+    const result = await requestPayoutHold({
+      userId: wallet.userId,
+      role: wallet.user?.role,
+      requestSource: "auto_cycle",
+    });
+    if (result.ok) {
+      created += 1;
+    } else if (
+      result.code === "OPEN_REQUEST_EXISTS" ||
+      result.code === "INSUFFICIENT_BALANCE" ||
+      result.code === "INVALID_AMOUNT" ||
+      result.code === "PAYOUT_BANKING_REQUIRED" ||
+      result.code === "PAYOUT_KYC_REQUIRED" ||
+      result.code === "REVENUE_TRACKING_PAUSED"
+    ) {
+      skipped += 1;
+    } else {
+      errors += 1;
+      console.warn("[auto-payout] failed", wallet.userId, result.code, result.error);
+    }
+  }
+
+  return { attempted: wallets.length, created, skipped, errors };
+}
+
 export async function runDueCreatorPoolDistributions(now = new Date()): Promise<CreatorPoolDistributionResult[]> {
   const { periodStart, periodEnd } = getPreviousCalendarMonthRange(now);
   const result = await distributeCreatorPoolForPeriod(periodStart, periodEnd);
+  try {
+    await runCreatorAutoPayoutRequests();
+  } catch (err) {
+    console.error("[creator-pool] auto payout pass failed", err);
+  }
   return [result];
 }

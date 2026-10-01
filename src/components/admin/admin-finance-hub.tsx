@@ -331,6 +331,107 @@ export function AdminFinanceHub() {
 
       {tab === "overview" && bundle ? (
         <section className="space-y-4">
+          {bundle.periodHint?.showEmptyMtdTip ? (
+            <div className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+              <p className="font-medium text-amber-200">Month-to-date looks empty</p>
+              <p className="mt-1 text-xs text-amber-100/80">
+                No cash with paidAt in this calendar month yet, but the last 30 days have{" "}
+                {money.format(bundle.periodHint.last30dClearedNet)} cleared and{" "}
+                {money.format(bundle.periodHint.last30dPendingClearNet)} awaiting clear. Switch period to
+                Last 30 days to see that activity.
+              </p>
+              <button
+                type="button"
+                onClick={() => setPeriod("30d")}
+                className="mt-2 rounded-lg bg-amber-500/20 px-3 py-1.5 text-xs font-semibold text-amber-100 hover:bg-amber-500/30"
+              >
+                View last 30 days
+              </button>
+            </div>
+          ) : null}
+
+          <div className="rounded-xl border border-sky-400/30 bg-sky-500/10 p-4">
+            <p className="text-xs uppercase tracking-wide text-sky-200">Platform cash movement (display only)</p>
+            <p className="mt-1 text-2xl font-semibold text-white">
+              {money.format(bundle.totals.displayCashMovementZar ?? 0)}
+            </p>
+            <p className="mt-1 max-w-2xl text-xs text-sky-100/80">
+              Cleared net ({money.format(bundle.totals.net)}) + awaiting clear (
+              {money.format(bundle.totals.pendingClearNet)}). Visibility only — does not change creator
+              pool, ledger allocation, or Revenue Pool. Free trial potential stays separate (
+              {money.format(bundle.totals.trialPotentialZar)}).
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-teal-400/30 bg-teal-500/10 p-4 space-y-3">
+            <div className="sm:flex sm:items-start sm:justify-between sm:gap-6">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-teal-200">Creator unpaid liability</p>
+                <p className="mt-1 text-2xl font-semibold text-white">
+                  {money.format(bundle.creatorUnpaid?.owedTotal ?? 0)}
+                </p>
+                <p className="mt-1 max-w-2xl text-xs text-teal-100/80">
+                  Stock across month cycles — money already credited to creator wallets that has not been
+                  paid out to bank. Available{" "}
+                  {money.format(bundle.creatorUnpaid?.availableTotal ?? 0)} · holds{" "}
+                  {money.format(bundle.creatorUnpaid?.pendingTotal ?? 0)} · open payout queue{" "}
+                  {money.format(bundle.payouts.pendingAmount)} ·{" "}
+                  {bundle.creatorUnpaid?.creatorCount ?? 0} creators with balance. As of{" "}
+                  {bundle.creatorUnpaid?.asOf
+                    ? new Date(bundle.creatorUnpaid.asOf).toLocaleString()
+                    : "—"}
+                  .
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => selectTab("payouts")}
+                className="mt-3 shrink-0 rounded-lg bg-teal-500/20 px-3 py-2 text-xs font-semibold text-teal-100 hover:bg-teal-500/30 sm:mt-0"
+              >
+                Open payout queue
+              </button>
+            </div>
+            {(bundle.creatorUnpaid?.rows?.length ?? 0) > 0 ? (
+              <div className="overflow-x-auto rounded-lg border border-white/10">
+                <table className="w-full min-w-[640px] text-left text-sm">
+                  <thead className="text-xs uppercase text-slate-500">
+                    <tr>
+                      <th className="px-3 py-2">Creator</th>
+                      <th className="px-3 py-2">Available</th>
+                      <th className="px-3 py-2">Pending hold</th>
+                      <th className="px-3 py-2">Last earnings</th>
+                      <th className="px-3 py-2">Open request</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bundle.creatorUnpaid.rows.map((row) => (
+                      <tr key={row.userId} className="border-t border-white/5">
+                        <td className="px-3 py-2">
+                          <p className="font-medium text-white">{row.name || "—"}</p>
+                          <p className="text-xs text-slate-500">{row.email}</p>
+                        </td>
+                        <td className="px-3 py-2">{money.format(row.availableBalance)}</td>
+                        <td className="px-3 py-2">{money.format(row.pendingBalance)}</td>
+                        <td className="px-3 py-2 text-xs text-slate-400">
+                          {row.lastEarningsAt
+                            ? new Date(row.lastEarningsAt).toLocaleString()
+                            : "—"}
+                        </td>
+                        <td className="px-3 py-2 text-xs">
+                          {row.openPayoutStatus
+                            ? `${row.openPayoutStatus.replace(/_/g, " ")} · ${money.format(row.openPayoutAmount ?? 0)}`
+                            : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-xs text-teal-100/70">No creator wallets currently holding unpaid balances.</p>
+            )}
+          </div>
+
           <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-100/90">
             <p className="font-medium text-emerald-200">Cleared revenue only</p>
             <p className="mt-1 text-xs text-emerald-100/70">

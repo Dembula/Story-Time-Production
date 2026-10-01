@@ -121,23 +121,29 @@ export function AdminOverviewClient() {
       <Card className="storytime-section mb-8 border-orange-500/25">
         <CardHeader>
           <CardTitle className="text-white flex items-center gap-2">
-            <Megaphone className="w-5 h-5 text-orange-400" /> Monthly update email control
+            <Megaphone className="w-5 h-5 text-orange-400" /> Monthly update email
           </CardTitle>
           <p className="text-sm text-slate-400">
-            Trigger the current monthly update campaign from the admin dashboard.
+            Monthly updates are not sent automatically. Use this button when you are ready to email every
+            registered user about platform updates, new releases, and creator highlights.
           </p>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap items-center gap-3">
             <button
+              type="button"
               onClick={sendMonthlyUpdateNow}
               disabled={monthlySendState.loading}
               className="px-4 py-2 rounded-lg text-sm font-medium transition bg-orange-500/20 text-orange-300 border border-orange-500/40 hover:bg-orange-500/30 disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {monthlySendState.loading ? "Sending monthly update..." : "Send monthly update now"}
+              {monthlySendState.loading
+                ? "Sending update to all users…"
+                : "Send monthly update to all users"}
             </button>
             {typeof monthlySendState.sent === "number" && (
-              <span className="text-sm text-emerald-300">Monthly update sent to {monthlySendState.sent} recipients.</span>
+              <span className="text-sm text-emerald-300">
+                Monthly update sent to {monthlySendState.sent} recipients.
+              </span>
             )}
             {monthlySendState.error && <span className="text-sm text-red-300">{monthlySendState.error}</span>}
           </div>

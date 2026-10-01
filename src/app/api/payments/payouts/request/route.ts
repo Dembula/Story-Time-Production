@@ -1,140 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-import { ensureWalletForUser } from "@/lib/payments/wallet";
-import { postBalancedLedgerBatch } from "@/lib/payments/ledger";
-import { toGatewaySafeReference } from "@/lib/payments/reference";
-import { assertFunderVerificationApproved } from "@/lib/funder-verification";
-import { assertPayoutKycApproved, requiresPayoutKyc } from "@/lib/payout-kyc";
-import { resolvePayoutBankingForUser } from "@/lib/payments/payout-banking";
-import { notifyPayoutRequested } from "@/lib/payments/payout-notifications";
-const db = prisma as any;
+import { requestPayoutHold } from "@/lib/payments/request-payout-hold";
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   const user = session?.user as { id?: string; role?: string } | undefined;
   if (!user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (user.role === "SUBSCRIBER") return NextResponse.json({ error: "Viewers cannot request payouts." }, { status: 403 });
-
-  if (user.role === "CONTENT_CREATOR" || user.role === "MUSIC_CREATOR") {
-    const { isCreatorRevenueTrackingEnabled } = await import("@/lib/finance/revenue-connector");
-    if (!(await isCreatorRevenueTrackingEnabled())) {
-      return NextResponse.json(
-        {
-          error: "Creator payouts are paused while platform revenue tracking is offline.",
-          code: "REVENUE_TRACKING_PAUSED",
-        },
-        { status: 403 },
-      );
-    }
-  }
-
-  if (user.role === "FUNDER") {
-    const funderCheck = await assertFunderVerificationApproved(user.id);
-    if (!funderCheck.ok) {
-      return NextResponse.json({ error: funderCheck.error, code: funderCheck.code }, { status: 403 });
-    }
-  } else if (requiresPayoutKyc(user.role)) {
-    const kycCheck = await assertPayoutKycApproved(user.id);
-    if (!kycCheck.ok) {
-      return NextResponse.json({ error: kycCheck.error, code: "PAYOUT_KYC_REQUIRED" }, { status: 403 });
-    }
-  }
 
   const body = (await req.json().catch(() => null)) as { amount?: number } | null;
   const amount = Number(body?.amount ?? 0);
-  if (!Number.isFinite(amount) || amount <= 0) {
-    return NextResponse.json({ error: "Valid amount is required." }, { status: 400 });
-  }
 
-  const banking = await resolvePayoutBankingForUser(user.id, user.role);
-  if (!banking) {
-    return NextResponse.json(
-      {
-        error:
-          "Add your bank details before requesting a payout. Creators: Account → Banking. Marketplace vendors: complete payout verification with banking info.",
-        code: "PAYOUT_BANKING_REQUIRED",
-      },
-      { status: 400 },
-    );
-  }
-
-  const wallet = await ensureWalletForUser(user.id);
-
-  const payoutRequest = await prisma.$transaction(async (tx) => {
-    const locked = await (tx as any).wallet.findUnique({
-      where: { userId: user.id },
-      select: { id: true, availableBalance: true },
-    });
-    if (!locked || Number(locked.availableBalance) < amount) {
-      throw new Error("INSUFFICIENT_BALANCE");
-    }
-
-    return (tx as any).payoutRequest.create({
-      data: {
-        userId: user.id,
-        walletId: locked.id,
-        amount,
-        currency: "ZAR",
-        provider: "MANUAL",
-        providerReference: toGatewaySafeReference("payout", `${user.id}-${Date.now()}`),
-        status: "PENDING_REVIEW",
-      },
-    });
-  }).catch((err: unknown) => {
-    if (err instanceof Error && err.message === "INSUFFICIENT_BALANCE") return null;
-    throw err;
-  });
-
-  if (!payoutRequest) {
-    return NextResponse.json({ error: "Insufficient available balance." }, { status: 400 });
-  }
-
-  try {
-    await postBalancedLedgerBatch({
-      idempotencyKey: `payout_request_${payoutRequest.id}`,
-      referenceType: "PAYOUT_REQUEST",
-      referenceId: payoutRequest.id,
-      entries: [
-        {
-          userId: user.id,
-          direction: "DEBIT",
-          accountType: "AVAILABLE",
-          transactionType: "withdrawal_hold",
-          amount,
-          description: "Payout request — funds held pending admin review",
-        },
-        {
-          userId: user.id,
-          direction: "CREDIT",
-          accountType: "PENDING",
-          transactionType: "withdrawal_hold",
-          amount,
-          description: "Payout pending manual transfer",
-        },
-      ],
-    });
-  } catch (err) {
-    await db.payoutRequest.update({
-      where: { id: payoutRequest.id },
-      data: { status: "DECLINED", declineReason: "ledger_hold_failed" },
-    }).catch(() => {});
-    throw err;
-  }
-
-  const requester = await db.user.findUnique({
-    where: { id: user.id },
-    select: { name: true, email: true },
-  });
-
-  await notifyPayoutRequested({
-    payoutId: payoutRequest.id,
+  const result = await requestPayoutHold({
     userId: user.id,
-    userName: requester?.name ?? null,
-    userEmail: requester?.email ?? null,
+    role: user.role,
     amount,
-  }).catch(() => {});
+    requestSource: "manual",
+  });
 
-  return NextResponse.json({ ok: true, payoutRequest });
+  if (!result.ok) {
+    const status =
+      result.code === "VIEWER_FORBIDDEN" ||
+      result.code === "REVENUE_TRACKING_PAUSED" ||
+      result.code === "PAYOUT_KYC_REQUIRED" ||
+      result.code === "FUNDER_VERIFICATION_REQUIRED"
+        ? 403
+        : 400;
+    return NextResponse.json({ error: result.error, code: result.code }, { status });
+  }
+
+  return NextResponse.json({ ok: true, payoutRequest: result.payoutRequest });
 }

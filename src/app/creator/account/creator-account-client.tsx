@@ -38,6 +38,8 @@ type CreatorRevenuePayload = {
   watchTime: number;
   share: number;
   totalViews: number;
+  walletAvailable?: number;
+  walletTotalEarnings?: number;
   banking: {
     bankName: string;
     accountNumberLast4: string;
@@ -862,10 +864,18 @@ export function CreatorAccountClient({ backHref = "/creator/command-center" }: {
           </p>
         ) : (
           <>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-3">
               <div className="rounded-xl border border-white/8 bg-white/[0.03] p-4">
                 <p className="text-xs text-slate-500">Payout period earnings</p>
                 <p className="text-xl font-bold text-white">{formatZar(revenueData.revenue)}</p>
+                <p className="mt-1 text-[11px] text-slate-500">Attributed this window</p>
+              </div>
+              <div className="rounded-xl border border-white/8 bg-white/[0.03] p-4">
+                <p className="text-xs text-slate-500">Wallet available</p>
+                <p className="text-xl font-bold text-white">
+                  {formatZar(Number(revenueData.walletAvailable ?? 0))}
+                </p>
+                <p className="mt-1 text-[11px] text-slate-500">All unpaid months until withdraw</p>
               </div>
               <div className="rounded-xl border border-white/8 bg-white/[0.03] p-4">
                 <p className="text-xs text-slate-500">Period views</p>

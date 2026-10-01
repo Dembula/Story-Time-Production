@@ -68,7 +68,11 @@ export async function POST() {
       creatorHighlights,
     });
 
-    return NextResponse.json({ ok: true, sent: emails.length });
+    return NextResponse.json({
+      ok: true,
+      sent: emails.length,
+      message: "Monthly update emailed to all registered users.",
+    });
   } catch (error) {
     console.error("Admin monthly update send failed:", error);
     return NextResponse.json({ error: "Failed to send monthly update." }, { status: 500 });

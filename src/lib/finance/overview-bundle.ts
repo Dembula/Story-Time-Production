@@ -36,6 +36,10 @@ import {
   type PromoLiabilityBundle,
   type RetentionBreakdownBundle,
 } from "@/lib/finance/finance-insights";
+import {
+  fetchCreatorUnpaidLiability,
+  type CreatorUnpaidLiabilityBundle,
+} from "@/lib/finance/creator-unpaid-liability";
 
 const db = prisma as any;
 
@@ -100,6 +104,11 @@ export type FinanceOverviewBundle = {
     /** List price of active free trials in the period. Not included in gross, net, or pool. */
     trialPotentialZar: number;
     trialCount: number;
+    /**
+     * Display-only: cleared net + awaiting-clear net for the period.
+     * Does not feed creator pool, ledger, or Revenue Pool.
+     */
+    displayCashMovementZar: number;
   };
   revenueTracking: {
     enabled: boolean;
@@ -142,6 +151,14 @@ export type FinanceOverviewBundle = {
   promo: PromoLiabilityBundle;
   funding: FundingMoneyBundle;
   retention: RetentionBreakdownBundle;
+  /** Stock (not period-scoped): creator wallets still unpaid after distribution. */
+  creatorUnpaid: CreatorUnpaidLiabilityBundle;
+  /** Tip when MTD looks empty but last-30d has cash activity. */
+  periodHint: {
+    showEmptyMtdTip: boolean;
+    last30dClearedNet: number;
+    last30dPendingClearNet: number;
+  };
 };
 
 function dayKey(d: Date): string {
@@ -584,11 +601,58 @@ export async function fetchFinanceOverviewBundle(options: {
   const previousMonth = getPreviousCalendarMonthRange();
   const previousMonthPoolDistributed = await hasCreatorPoolDistribution(previousMonth.periodKey);
 
-  const [promo, funding, escrowTreasury] = await Promise.all([
+  const [promo, funding, escrowTreasury, creatorUnpaid] = await Promise.all([
     fetchPromoLiability(range.periodStart, range.periodEnd, gross),
     fetchFundingMoney(range.periodStart, range.periodEnd),
     fetchEscrowAndTreasury(range.periodStart, range.periodEnd),
+    fetchCreatorUnpaidLiability(25),
   ]);
+
+  const displayCashMovementZar = roundMoney(net + pendingClearNet);
+
+  let last30dClearedNet = 0;
+  let last30dPendingClearNet = 0;
+  let showEmptyMtdTip = false;
+  if (range.key === "mtd" && clearedPaymentCount === 0 && pendingClearCount === 0) {
+    const lookbackStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const lookbackPayments = await prisma.paymentRecord.findMany({
+      where: {
+        status: "SUCCEEDED",
+        paidAt: { gte: lookbackStart, lte: range.periodEnd },
+      },
+      select: {
+        amount: true,
+        providerFeeAmount: true,
+        settlementAmount: true,
+        status: true,
+        purpose: true,
+        provider: true,
+        settlementSource: true,
+        metadata: true,
+        paidAt: true,
+        fundsClearDueAt: true,
+        fundsClearedAt: true,
+        fundsClearedMode: true,
+      },
+    });
+    const trackingStart = resolveCreatorRevenueTrackingStart(connector.trackingStartedAt);
+    for (const p of lookbackPayments.filter((row) => isCashRecognizedPayment(row))) {
+      const settlement = getCashSettlementAmount(p);
+      const clearInfo = describeFundsClearStatus({
+        provider: p.provider,
+        paidAt: p.paidAt,
+        fundsClearDueAt: p.fundsClearDueAt,
+        fundsClearedAt: p.fundsClearedAt,
+        fundsClearedMode: p.fundsClearedMode,
+        trackingStartedAt: trackingStart,
+      });
+      if (clearInfo.status === "cleared") last30dClearedNet += settlement;
+      else if (clearInfo.status === "pending") last30dPendingClearNet += settlement;
+    }
+    last30dClearedNet = roundMoney(last30dClearedNet);
+    last30dPendingClearNet = roundMoney(last30dPendingClearNet);
+    showEmptyMtdTip = last30dClearedNet > 0 || last30dPendingClearNet > 0;
+  }
 
   const retention: RetentionBreakdownBundle = {
     viewerPlatformRetained: viewerSplit.platform,
@@ -632,6 +696,7 @@ export async function fetchFinanceOverviewBundle(options: {
       pendingClearCount,
       trialPotentialZar,
       trialCount: trialSheets.length,
+      displayCashMovementZar,
     },
     revenueTracking: {
       enabled: connector.creatorRevenueTrackingEnabled,
@@ -665,5 +730,11 @@ export async function fetchFinanceOverviewBundle(options: {
     promo,
     funding,
     retention,
+    creatorUnpaid,
+    periodHint: {
+      showEmptyMtdTip,
+      last30dClearedNet,
+      last30dPendingClearNet,
+    },
   };
 }

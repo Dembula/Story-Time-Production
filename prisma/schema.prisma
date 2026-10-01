@@ -2000,6 +2000,9 @@ model Wallet {
   lockedBalance     Float    @default(0)
   totalEarnings     Float    @default(0)
   totalWithdrawn    Float    @default(0)
+  /// When true, after monthly pool distribution create a full-balance PENDING_REVIEW payout request.
+  autoPayoutEnabled Boolean  @default(false)
+  autoPayoutUpdatedAt DateTime?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -2129,6 +2132,8 @@ model PayoutRequest {
   status            String   @default("PENDING_REVIEW") // PENDING_REVIEW | APPROVED | DECLINED | PAID | FAILED | PROCESSING
   provider          String   @default("PAYFAST")
   providerReference String?  @unique
+  /// manual | auto_cycle
+  requestSource     String   @default("manual")
   failureReason     String?
   declineReason     String?
   adminNotes        String?
