@@ -13,6 +13,10 @@ function sgMailFrom(): string | { email: string; name: string } {
 const WELCOME_TEMPLATE_ID = process.env.SENDGRID_TEMPLATE_WELCOME_ID || "";
 const PASSWORD_RESET_TEMPLATE_ID = process.env.SENDGRID_TEMPLATE_PASSWORD_RESET_ID || "";
 const MONTHLY_UPDATE_TEMPLATE_ID = process.env.SENDGRID_TEMPLATE_MONTHLY_UPDATE_ID || "";
+/** Viewer signup → no package/payment reminder (SendGrid dynamic template). */
+const REMINDER_TEMPLATE_ID = process.env.SENDGRID_TEMPLATE_REMINDER || "";
+/** Viewer/company renewal payment failed (SendGrid dynamic template). */
+const BILLING_TEMPLATE_ID = process.env.SENDGRID_TEMPLATE_BILLING || "";
 
 if (SENDGRID_API_KEY) {
   sgMail.setApiKey(SENDGRID_API_KEY);
@@ -231,5 +235,141 @@ export async function sendMonthlyUpdateEmail(
     if (!ok) {
       throw new Error(`Monthly update could not be sent to ${email} (no working email transport or SendGrid rejected the request).`);
     }
+  }
+}
+
+export type ViewerPackageReminderContent = {
+  name?: string | null;
+  packageUrl?: string;
+};
+
+/**
+ * Reminder for viewers who registered but have not chosen/paid for a package.
+ * Uses SENDGRID_TEMPLATE_REMINDER when configured.
+ */
+export async function sendViewerPackageReminderEmail(
+  email: string,
+  content?: ViewerPackageReminderContent,
+): Promise<void> {
+  const to = email.trim().toLowerCase();
+  if (!to) return;
+
+  const name = content?.name?.trim() || "";
+  const packageUrl =
+    content?.packageUrl?.trim() ||
+    "https://story-time.online/onboarding/package";
+
+  if (hasSendGridTemplateConfig(REMINDER_TEMPLATE_ID)) {
+    await sgMail.send({
+      to,
+      from: sgMailFrom(),
+      templateId: REMINDER_TEMPLATE_ID,
+      dynamicTemplateData: {
+        email: to,
+        name,
+        first_name: name.split(/\s+/)[0] || name,
+        package_url: packageUrl,
+        package_link: packageUrl,
+        cta_url: packageUrl,
+      },
+    });
+    return;
+  }
+
+  const sent = await sendTransactionalEmail({
+    to,
+    subject: "Finish setting up your Story Time subscription",
+    text: [
+      `Hi ${name || "there"},`,
+      "",
+      "You signed up for Story Time but have not chosen a viewing package yet.",
+      "Pick a plan to unlock the catalogue:",
+      packageUrl,
+      "",
+      "If you already subscribed, you can ignore this email.",
+    ].join("\n"),
+    html: `
+      <p>Hi ${name || "there"},</p>
+      <p>You signed up for Story Time but have not chosen a viewing package yet.</p>
+      <p><a href="${packageUrl}">Choose your package</a></p>
+      <p>If you already subscribed, you can ignore this email.</p>
+    `,
+  });
+  if (!sent) {
+    throw new Error(
+      "Viewer package reminder could not be sent (no working email transport or SendGrid rejected the request).",
+    );
+  }
+}
+
+export type BillingFailureEmailContent = {
+  name?: string | null;
+  billingUrl?: string;
+  errorMessage?: string | null;
+};
+
+/**
+ * Sent when an automatic renewal charge fails.
+ * Uses SENDGRID_TEMPLATE_BILLING when configured.
+ */
+export async function sendBillingFailureEmail(
+  email: string,
+  content?: BillingFailureEmailContent,
+): Promise<void> {
+  const to = email.trim().toLowerCase();
+  if (!to) return;
+
+  const name = content?.name?.trim() || "";
+  const billingUrl =
+    content?.billingUrl?.trim() || "https://story-time.online/browse/account";
+  const errorMessage = content?.errorMessage?.trim() || "";
+
+  if (hasSendGridTemplateConfig(BILLING_TEMPLATE_ID)) {
+    await sgMail.send({
+      to,
+      from: sgMailFrom(),
+      templateId: BILLING_TEMPLATE_ID,
+      dynamicTemplateData: {
+        email: to,
+        name,
+        first_name: name.split(/\s+/)[0] || name,
+        billing_url: billingUrl,
+        billing_link: billingUrl,
+        account_url: billingUrl,
+        cta_url: billingUrl,
+        error_message: errorMessage,
+        payment_error: errorMessage,
+      },
+    });
+    return;
+  }
+
+  const sent = await sendTransactionalEmail({
+    to,
+    subject: "Story Time — we could not renew your subscription",
+    text: [
+      `Hi ${name || "there"},`,
+      "",
+      "We tried to renew your Story Time subscription but the payment did not go through.",
+      errorMessage ? `Details: ${errorMessage}` : "",
+      "Update your card or pay from your account to keep access:",
+      billingUrl,
+      "",
+      "If you already paid, you can ignore this email.",
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    html: `
+      <p>Hi ${name || "there"},</p>
+      <p>We tried to renew your Story Time subscription but the payment did not go through.</p>
+      ${errorMessage ? `<p>${errorMessage}</p>` : ""}
+      <p><a href="${billingUrl}">Update billing</a></p>
+      <p>If you already paid, you can ignore this email.</p>
+    `,
+  });
+  if (!sent) {
+    throw new Error(
+      "Billing failure email could not be sent (no working email transport or SendGrid rejected the request).",
+    );
   }
 }

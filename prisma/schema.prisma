@@ -2240,6 +2240,20 @@ model Notification {
   @@index([createdAt])
 }
 
+/// One-shot outbound email campaigns (e.g. viewer package reminder).
+model EmailCampaignDelivery {
+  id          String   @id @default(cuid())
+  userId      String?
+  email       String
+  campaignKey String
+  sentAt      DateTime @default(now())
+  metadata    Json?
+
+  @@unique([email, campaignKey])
+  @@index([campaignKey, sentAt])
+  @@index([userId])
+}
+
 // --- Creator Network (social: follow, connect, posts, DMs) ---
 
 model CreatorFollow {

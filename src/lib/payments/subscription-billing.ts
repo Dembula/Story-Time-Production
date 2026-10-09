@@ -7,6 +7,7 @@ import {
   buildRecurringBillingFailureUpdate,
   buildRecurringBillingPendingUpdate,
 } from "@/lib/payments/recurring-billing-shared";
+import { sendBillingFailureOnce } from "@/lib/emails/billing-failure";
 
 const db = prisma as any;
 
@@ -83,6 +84,7 @@ export async function processViewerSubscriptionCharge(subscriptionId: string) {
   }
 
   if (charge.reason === "missing_card_consent") {
+    const errorMessage = "Add a PayFast card to continue your subscription.";
     await db.viewerSubscription.update({
       where: { id: subscription.id },
       data: buildRecurringBillingFailureUpdate({
@@ -90,8 +92,13 @@ export async function processViewerSubscriptionCharge(subscriptionId: string) {
         pastDueSince: subscription.pastDueSince,
         renewalAttemptCount: subscription.renewalAttemptCount,
         paymentStatus: "FAILED",
-        errorMessage: "Add a PayFast card to continue your subscription.",
+        errorMessage,
       }),
+    });
+    await notifyViewerBillingFailure({
+      subscription,
+      now,
+      errorMessage,
     });
     return { ok: false as const, reason: "missing_card_consent" };
   }
@@ -106,7 +113,39 @@ export async function processViewerSubscriptionCharge(subscriptionId: string) {
       errorMessage: charge.message,
     }),
   });
+  await notifyViewerBillingFailure({
+    subscription,
+    now,
+    errorMessage: charge.message ?? null,
+  });
   return { ok: false as const, reason: charge.reason, message: charge.message };
+}
+
+async function notifyViewerBillingFailure(args: {
+  subscription: {
+    id: string;
+    userId: string;
+    pastDueSince?: Date | null;
+    user?: { email?: string | null; name?: string | null } | null;
+  };
+  now: Date;
+  errorMessage?: string | null;
+}) {
+  const email = args.subscription.user?.email;
+  if (!email) return;
+  try {
+    await sendBillingFailureOnce({
+      userId: args.subscription.userId,
+      email,
+      name: args.subscription.user?.name,
+      subscriptionId: args.subscription.id,
+      pastDueSince: args.subscription.pastDueSince ?? null,
+      errorMessage: args.errorMessage,
+      now: args.now,
+    });
+  } catch (err) {
+    console.error("[subscription-billing] billing failure email failed", err);
+  }
 }
 
 export async function processDueViewerBilling(now = new Date()) {

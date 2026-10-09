@@ -479,6 +479,11 @@ export type ViewerPaymentMethod = $Result.DefaultSelection<Prisma.$ViewerPayment
  */
 export type Notification = $Result.DefaultSelection<Prisma.$NotificationPayload>
 /**
+ * Model EmailCampaignDelivery
+ * One-shot outbound email campaigns (e.g. viewer package reminder).
+ */
+export type EmailCampaignDelivery = $Result.DefaultSelection<Prisma.$EmailCampaignDeliveryPayload>
+/**
  * Model CreatorFollow
  * 
  */
@@ -2228,6 +2233,16 @@ export class PrismaClient<
     * ```
     */
   get notification(): Prisma.NotificationDelegate<ExtArgs>;
+
+  /**
+   * `prisma.emailCampaignDelivery`: Exposes CRUD operations for the **EmailCampaignDelivery** model.
+    * Example usage:
+    * ```ts
+    * // Fetch zero or more EmailCampaignDeliveries
+    * const emailCampaignDeliveries = await prisma.emailCampaignDelivery.findMany()
+    * ```
+    */
+  get emailCampaignDelivery(): Prisma.EmailCampaignDeliveryDelegate<ExtArgs>;
 
   /**
    * `prisma.creatorFollow`: Exposes CRUD operations for the **CreatorFollow** model.
@@ -4152,6 +4167,7 @@ export namespace Prisma {
     UserPreference: 'UserPreference',
     ViewerPaymentMethod: 'ViewerPaymentMethod',
     Notification: 'Notification',
+    EmailCampaignDelivery: 'EmailCampaignDelivery',
     CreatorFollow: 'CreatorFollow',
     ConnectionRequest: 'ConnectionRequest',
     NetworkPost: 'NetworkPost',
@@ -4306,7 +4322,7 @@ export namespace Prisma {
 
   export type TypeMap<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, ClientOptions = {}> = {
     meta: {
-      modelProps: "account" | "session" | "verificationToken" | "user" | "userRole" | "promoCode" | "promoCodeRedemption" | "studioCompany" | "creatorStudioProfile" | "creatorStudioTeamInvite" | "creatorAccountProfileVault" | "adminRequest" | "adminAccessApplication" | "content" | "contentSeason" | "contentEpisode" | "contentEnrichment" | "knowledgeChunk" | "knowledgeEdge" | "aiRequestLog" | "contentScene" | "contentSubtitle" | "btsVideo" | "watchSession" | "viewerProfile" | "watchProgress" | "comment" | "rating" | "watchlistItem" | "musicTrack" | "syncDeal" | "platformRevenue" | "financeFeeSettings" | "financeFeeSettingsHistory" | "platformRevenueConnector" | "platformRevenueConnectorHistory" | "platformFreeTrialSettings" | "platformFreeTrialSettingsHistory" | "pendingCreatorSignup" | "activityLog" | "equipmentListing" | "equipmentRequest" | "message" | "syncRequest" | "crewMember" | "creditPerson" | "auditionPost" | "originalProject" | "creatorCalendarEvent" | "originalPitch" | "originalMember" | "projectCollaboratorInvite" | "locationListing" | "locationBooking" | "crewTeam" | "crewTeamMember" | "creatorCrewRoster" | "creatorCastRoster" | "crewTeamRequest" | "castingAgency" | "castingTalent" | "castingAuditionSubmission" | "castingTalentAvailability" | "castingInquiry" | "viewerSubscription" | "viewerContentAccess" | "subscriptionPayment" | "creatorPayout" | "creatorBanking" | "transaction" | "cateringCompany" | "cateringBooking" | "companySubscription" | "creatorDistributionLicense" | "uploadPayment" | "competitionPeriod" | "creatorVote" | "testPayment" | "paymentRecord" | "paymentWebhookEvent" | "wallet" | "walletAccount" | "ledgerBatch" | "ledgerEntry" | "escrowAccount" | "invoice" | "invoiceLine" | "payoutRequest" | "gatewayEvent" | "gatewayReference" | "userPreference" | "viewerPaymentMethod" | "notification" | "creatorFollow" | "connectionRequest" | "networkPost" | "networkPortfolioItem" | "networkPostComment" | "networkPostLike" | "networkPostSave" | "networkCollaborationApplication" | "networkConversation" | "networkConversationParticipant" | "networkMessage" | "projectVisualAsset" | "projectIdea" | "projectScript" | "projectScriptVersion" | "projectScene" | "projectActivity" | "scriptReviewRequest" | "scriptReviewSession" | "scriptReviewAnnotation" | "scriptReviewGuestInvite" | "scriptReviewGuestSession" | "breakdownCharacter" | "breakdownProp" | "breakdownLocation" | "breakdownWardrobe" | "breakdownExtra" | "breakdownVehicle" | "breakdownStunt" | "breakdownSfx" | "breakdownMakeup" | "projectBudget" | "projectProductionContext" | "projectBudgetAssumption" | "projectBudgetLine" | "productionExpense" | "projectVendor" | "purchaseOrder" | "purchaseOrderLine" | "purchaseOrderEvent" | "payrollRun" | "payrollLineItem" | "projectBudgetVersion" | "projectBudgetVersionLine" | "pettyCashFund" | "financeApprovalStep" | "globalVendor" | "bankImportBatch" | "bankTransaction" | "shootDay" | "shootDayControlBoard" | "shootDayScene" | "callSheet" | "castingRole" | "castingInvitation" | "crewRoleNeed" | "crewInvitation" | "projectContract" | "projectContractEvent" | "projectContractVersion" | "projectSignature" | "contractClause" | "contractApprovalStep" | "contractSigner" | "contractGuestToken" | "contractEsignEnvelope" | "fundingRequest" | "fundingProgram" | "fundingProgramApplication" | "funderProfile" | "funderVerification" | "payoutKycProfile" | "payoutKycVerification" | "investmentOpportunity" | "companyFundingListing" | "investmentDeal" | "dealTermSheet" | "dealNegotiationMessage" | "dealContract" | "dealContractSignature" | "dealPayment" | "capTableEntry" | "projectRevenueEvent" | "stakeholderPayout" | "pitchDeck" | "pitchDeckSlide" | "projectChatThread" | "projectChatMessage" | "projectTask" | "tableReadSession" | "tableReadParticipant" | "tableReadNote" | "equipmentPlanItem" | "riskPlan" | "riskChecklistItem" | "continuityNote" | "dailiesBatch" | "dailiesClip" | "dailiesNote" | "incidentReport" | "footageAsset" | "streamAsset" | "musicSelection" | "postProductionReview" | "reviewNote" | "editReviewGuestInvite" | "editReviewGuestSession" | "finalDelivery" | "distributionSubmission" | "projectWorkspaceLink" | "projectToolProgress" | "vaSupportTicket" | "modocConversation" | "modocPlaybookRule" | "modocActionLog" | "modocTopicStat" | "modocSessionIntel" | "modocMessage" | "scriptReviewNote" | "creatorScript" | "creatorTreatment" | "creatorScriptVersion" | "creatorScriptComment" | "creatorScriptImport" | "iPAsset" | "iPVersion" | "iPOwnershipStructure" | "iPLicensingAgreement" | "iPTransaction" | "adminAuditLog" | "passwordResetToken" | "analyticsEvent" | "analyticsDailyRollup" | "opsIncident" | "castingTalentPortalToken" | "locationListingManager" | "equipmentInventoryTag" | "cateringMealForecast" | "stakeholderSyncEvent"
+      modelProps: "account" | "session" | "verificationToken" | "user" | "userRole" | "promoCode" | "promoCodeRedemption" | "studioCompany" | "creatorStudioProfile" | "creatorStudioTeamInvite" | "creatorAccountProfileVault" | "adminRequest" | "adminAccessApplication" | "content" | "contentSeason" | "contentEpisode" | "contentEnrichment" | "knowledgeChunk" | "knowledgeEdge" | "aiRequestLog" | "contentScene" | "contentSubtitle" | "btsVideo" | "watchSession" | "viewerProfile" | "watchProgress" | "comment" | "rating" | "watchlistItem" | "musicTrack" | "syncDeal" | "platformRevenue" | "financeFeeSettings" | "financeFeeSettingsHistory" | "platformRevenueConnector" | "platformRevenueConnectorHistory" | "platformFreeTrialSettings" | "platformFreeTrialSettingsHistory" | "pendingCreatorSignup" | "activityLog" | "equipmentListing" | "equipmentRequest" | "message" | "syncRequest" | "crewMember" | "creditPerson" | "auditionPost" | "originalProject" | "creatorCalendarEvent" | "originalPitch" | "originalMember" | "projectCollaboratorInvite" | "locationListing" | "locationBooking" | "crewTeam" | "crewTeamMember" | "creatorCrewRoster" | "creatorCastRoster" | "crewTeamRequest" | "castingAgency" | "castingTalent" | "castingAuditionSubmission" | "castingTalentAvailability" | "castingInquiry" | "viewerSubscription" | "viewerContentAccess" | "subscriptionPayment" | "creatorPayout" | "creatorBanking" | "transaction" | "cateringCompany" | "cateringBooking" | "companySubscription" | "creatorDistributionLicense" | "uploadPayment" | "competitionPeriod" | "creatorVote" | "testPayment" | "paymentRecord" | "paymentWebhookEvent" | "wallet" | "walletAccount" | "ledgerBatch" | "ledgerEntry" | "escrowAccount" | "invoice" | "invoiceLine" | "payoutRequest" | "gatewayEvent" | "gatewayReference" | "userPreference" | "viewerPaymentMethod" | "notification" | "emailCampaignDelivery" | "creatorFollow" | "connectionRequest" | "networkPost" | "networkPortfolioItem" | "networkPostComment" | "networkPostLike" | "networkPostSave" | "networkCollaborationApplication" | "networkConversation" | "networkConversationParticipant" | "networkMessage" | "projectVisualAsset" | "projectIdea" | "projectScript" | "projectScriptVersion" | "projectScene" | "projectActivity" | "scriptReviewRequest" | "scriptReviewSession" | "scriptReviewAnnotation" | "scriptReviewGuestInvite" | "scriptReviewGuestSession" | "breakdownCharacter" | "breakdownProp" | "breakdownLocation" | "breakdownWardrobe" | "breakdownExtra" | "breakdownVehicle" | "breakdownStunt" | "breakdownSfx" | "breakdownMakeup" | "projectBudget" | "projectProductionContext" | "projectBudgetAssumption" | "projectBudgetLine" | "productionExpense" | "projectVendor" | "purchaseOrder" | "purchaseOrderLine" | "purchaseOrderEvent" | "payrollRun" | "payrollLineItem" | "projectBudgetVersion" | "projectBudgetVersionLine" | "pettyCashFund" | "financeApprovalStep" | "globalVendor" | "bankImportBatch" | "bankTransaction" | "shootDay" | "shootDayControlBoard" | "shootDayScene" | "callSheet" | "castingRole" | "castingInvitation" | "crewRoleNeed" | "crewInvitation" | "projectContract" | "projectContractEvent" | "projectContractVersion" | "projectSignature" | "contractClause" | "contractApprovalStep" | "contractSigner" | "contractGuestToken" | "contractEsignEnvelope" | "fundingRequest" | "fundingProgram" | "fundingProgramApplication" | "funderProfile" | "funderVerification" | "payoutKycProfile" | "payoutKycVerification" | "investmentOpportunity" | "companyFundingListing" | "investmentDeal" | "dealTermSheet" | "dealNegotiationMessage" | "dealContract" | "dealContractSignature" | "dealPayment" | "capTableEntry" | "projectRevenueEvent" | "stakeholderPayout" | "pitchDeck" | "pitchDeckSlide" | "projectChatThread" | "projectChatMessage" | "projectTask" | "tableReadSession" | "tableReadParticipant" | "tableReadNote" | "equipmentPlanItem" | "riskPlan" | "riskChecklistItem" | "continuityNote" | "dailiesBatch" | "dailiesClip" | "dailiesNote" | "incidentReport" | "footageAsset" | "streamAsset" | "musicSelection" | "postProductionReview" | "reviewNote" | "editReviewGuestInvite" | "editReviewGuestSession" | "finalDelivery" | "distributionSubmission" | "projectWorkspaceLink" | "projectToolProgress" | "vaSupportTicket" | "modocConversation" | "modocPlaybookRule" | "modocActionLog" | "modocTopicStat" | "modocSessionIntel" | "modocMessage" | "scriptReviewNote" | "creatorScript" | "creatorTreatment" | "creatorScriptVersion" | "creatorScriptComment" | "creatorScriptImport" | "iPAsset" | "iPVersion" | "iPOwnershipStructure" | "iPLicensingAgreement" | "iPTransaction" | "adminAuditLog" | "passwordResetToken" | "analyticsEvent" | "analyticsDailyRollup" | "opsIncident" | "castingTalentPortalToken" | "locationListingManager" | "equipmentInventoryTag" | "cateringMealForecast" | "stakeholderSyncEvent"
       txIsolationLevel: Prisma.TransactionIsolationLevel
     }
     model: {
@@ -10817,6 +10833,76 @@ export namespace Prisma {
           count: {
             args: Prisma.NotificationCountArgs<ExtArgs>
             result: $Utils.Optional<NotificationCountAggregateOutputType> | number
+          }
+        }
+      }
+      EmailCampaignDelivery: {
+        payload: Prisma.$EmailCampaignDeliveryPayload<ExtArgs>
+        fields: Prisma.EmailCampaignDeliveryFieldRefs
+        operations: {
+          findUnique: {
+            args: Prisma.EmailCampaignDeliveryFindUniqueArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$EmailCampaignDeliveryPayload> | null
+          }
+          findUniqueOrThrow: {
+            args: Prisma.EmailCampaignDeliveryFindUniqueOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$EmailCampaignDeliveryPayload>
+          }
+          findFirst: {
+            args: Prisma.EmailCampaignDeliveryFindFirstArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$EmailCampaignDeliveryPayload> | null
+          }
+          findFirstOrThrow: {
+            args: Prisma.EmailCampaignDeliveryFindFirstOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$EmailCampaignDeliveryPayload>
+          }
+          findMany: {
+            args: Prisma.EmailCampaignDeliveryFindManyArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$EmailCampaignDeliveryPayload>[]
+          }
+          create: {
+            args: Prisma.EmailCampaignDeliveryCreateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$EmailCampaignDeliveryPayload>
+          }
+          createMany: {
+            args: Prisma.EmailCampaignDeliveryCreateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          createManyAndReturn: {
+            args: Prisma.EmailCampaignDeliveryCreateManyAndReturnArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$EmailCampaignDeliveryPayload>[]
+          }
+          delete: {
+            args: Prisma.EmailCampaignDeliveryDeleteArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$EmailCampaignDeliveryPayload>
+          }
+          update: {
+            args: Prisma.EmailCampaignDeliveryUpdateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$EmailCampaignDeliveryPayload>
+          }
+          deleteMany: {
+            args: Prisma.EmailCampaignDeliveryDeleteManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          updateMany: {
+            args: Prisma.EmailCampaignDeliveryUpdateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          upsert: {
+            args: Prisma.EmailCampaignDeliveryUpsertArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$EmailCampaignDeliveryPayload>
+          }
+          aggregate: {
+            args: Prisma.EmailCampaignDeliveryAggregateArgs<ExtArgs>
+            result: $Utils.Optional<AggregateEmailCampaignDelivery>
+          }
+          groupBy: {
+            args: Prisma.EmailCampaignDeliveryGroupByArgs<ExtArgs>
+            result: $Utils.Optional<EmailCampaignDeliveryGroupByOutputType>[]
+          }
+          count: {
+            args: Prisma.EmailCampaignDeliveryCountArgs<ExtArgs>
+            result: $Utils.Optional<EmailCampaignDeliveryCountAggregateOutputType> | number
           }
         }
       }
@@ -129339,6 +129425,892 @@ export namespace Prisma {
      * Choose, which related nodes to fetch as well
      */
     include?: NotificationInclude<ExtArgs> | null
+  }
+
+
+  /**
+   * Model EmailCampaignDelivery
+   */
+
+  export type AggregateEmailCampaignDelivery = {
+    _count: EmailCampaignDeliveryCountAggregateOutputType | null
+    _min: EmailCampaignDeliveryMinAggregateOutputType | null
+    _max: EmailCampaignDeliveryMaxAggregateOutputType | null
+  }
+
+  export type EmailCampaignDeliveryMinAggregateOutputType = {
+    id: string | null
+    userId: string | null
+    email: string | null
+    campaignKey: string | null
+    sentAt: Date | null
+  }
+
+  export type EmailCampaignDeliveryMaxAggregateOutputType = {
+    id: string | null
+    userId: string | null
+    email: string | null
+    campaignKey: string | null
+    sentAt: Date | null
+  }
+
+  export type EmailCampaignDeliveryCountAggregateOutputType = {
+    id: number
+    userId: number
+    email: number
+    campaignKey: number
+    sentAt: number
+    metadata: number
+    _all: number
+  }
+
+
+  export type EmailCampaignDeliveryMinAggregateInputType = {
+    id?: true
+    userId?: true
+    email?: true
+    campaignKey?: true
+    sentAt?: true
+  }
+
+  export type EmailCampaignDeliveryMaxAggregateInputType = {
+    id?: true
+    userId?: true
+    email?: true
+    campaignKey?: true
+    sentAt?: true
+  }
+
+  export type EmailCampaignDeliveryCountAggregateInputType = {
+    id?: true
+    userId?: true
+    email?: true
+    campaignKey?: true
+    sentAt?: true
+    metadata?: true
+    _all?: true
+  }
+
+  export type EmailCampaignDeliveryAggregateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which EmailCampaignDelivery to aggregate.
+     */
+    where?: EmailCampaignDeliveryWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of EmailCampaignDeliveries to fetch.
+     */
+    orderBy?: EmailCampaignDeliveryOrderByWithRelationInput | EmailCampaignDeliveryOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the start position
+     */
+    cursor?: EmailCampaignDeliveryWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` EmailCampaignDeliveries from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` EmailCampaignDeliveries.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Count returned EmailCampaignDeliveries
+    **/
+    _count?: true | EmailCampaignDeliveryCountAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the minimum value
+    **/
+    _min?: EmailCampaignDeliveryMinAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the maximum value
+    **/
+    _max?: EmailCampaignDeliveryMaxAggregateInputType
+  }
+
+  export type GetEmailCampaignDeliveryAggregateType<T extends EmailCampaignDeliveryAggregateArgs> = {
+        [P in keyof T & keyof AggregateEmailCampaignDelivery]: P extends '_count' | 'count'
+      ? T[P] extends true
+        ? number
+        : GetScalarType<T[P], AggregateEmailCampaignDelivery[P]>
+      : GetScalarType<T[P], AggregateEmailCampaignDelivery[P]>
+  }
+
+
+
+
+  export type EmailCampaignDeliveryGroupByArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: EmailCampaignDeliveryWhereInput
+    orderBy?: EmailCampaignDeliveryOrderByWithAggregationInput | EmailCampaignDeliveryOrderByWithAggregationInput[]
+    by: EmailCampaignDeliveryScalarFieldEnum[] | EmailCampaignDeliveryScalarFieldEnum
+    having?: EmailCampaignDeliveryScalarWhereWithAggregatesInput
+    take?: number
+    skip?: number
+    _count?: EmailCampaignDeliveryCountAggregateInputType | true
+    _min?: EmailCampaignDeliveryMinAggregateInputType
+    _max?: EmailCampaignDeliveryMaxAggregateInputType
+  }
+
+  export type EmailCampaignDeliveryGroupByOutputType = {
+    id: string
+    userId: string | null
+    email: string
+    campaignKey: string
+    sentAt: Date
+    metadata: JsonValue | null
+    _count: EmailCampaignDeliveryCountAggregateOutputType | null
+    _min: EmailCampaignDeliveryMinAggregateOutputType | null
+    _max: EmailCampaignDeliveryMaxAggregateOutputType | null
+  }
+
+  type GetEmailCampaignDeliveryGroupByPayload<T extends EmailCampaignDeliveryGroupByArgs> = Prisma.PrismaPromise<
+    Array<
+      PickEnumerable<EmailCampaignDeliveryGroupByOutputType, T['by']> &
+        {
+          [P in ((keyof T) & (keyof EmailCampaignDeliveryGroupByOutputType))]: P extends '_count'
+            ? T[P] extends boolean
+              ? number
+              : GetScalarType<T[P], EmailCampaignDeliveryGroupByOutputType[P]>
+            : GetScalarType<T[P], EmailCampaignDeliveryGroupByOutputType[P]>
+        }
+      >
+    >
+
+
+  export type EmailCampaignDeliverySelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    userId?: boolean
+    email?: boolean
+    campaignKey?: boolean
+    sentAt?: boolean
+    metadata?: boolean
+  }, ExtArgs["result"]["emailCampaignDelivery"]>
+
+  export type EmailCampaignDeliverySelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    userId?: boolean
+    email?: boolean
+    campaignKey?: boolean
+    sentAt?: boolean
+    metadata?: boolean
+  }, ExtArgs["result"]["emailCampaignDelivery"]>
+
+  export type EmailCampaignDeliverySelectScalar = {
+    id?: boolean
+    userId?: boolean
+    email?: boolean
+    campaignKey?: boolean
+    sentAt?: boolean
+    metadata?: boolean
+  }
+
+
+  export type $EmailCampaignDeliveryPayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    name: "EmailCampaignDelivery"
+    objects: {}
+    scalars: $Extensions.GetPayloadResult<{
+      id: string
+      userId: string | null
+      email: string
+      campaignKey: string
+      sentAt: Date
+      metadata: Prisma.JsonValue | null
+    }, ExtArgs["result"]["emailCampaignDelivery"]>
+    composites: {}
+  }
+
+  type EmailCampaignDeliveryGetPayload<S extends boolean | null | undefined | EmailCampaignDeliveryDefaultArgs> = $Result.GetResult<Prisma.$EmailCampaignDeliveryPayload, S>
+
+  type EmailCampaignDeliveryCountArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = 
+    Omit<EmailCampaignDeliveryFindManyArgs, 'select' | 'include' | 'distinct'> & {
+      select?: EmailCampaignDeliveryCountAggregateInputType | true
+    }
+
+  export interface EmailCampaignDeliveryDelegate<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> {
+    [K: symbol]: { types: Prisma.TypeMap<ExtArgs>['model']['EmailCampaignDelivery'], meta: { name: 'EmailCampaignDelivery' } }
+    /**
+     * Find zero or one EmailCampaignDelivery that matches the filter.
+     * @param {EmailCampaignDeliveryFindUniqueArgs} args - Arguments to find a EmailCampaignDelivery
+     * @example
+     * // Get one EmailCampaignDelivery
+     * const emailCampaignDelivery = await prisma.emailCampaignDelivery.findUnique({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUnique<T extends EmailCampaignDeliveryFindUniqueArgs>(args: SelectSubset<T, EmailCampaignDeliveryFindUniqueArgs<ExtArgs>>): Prisma__EmailCampaignDeliveryClient<$Result.GetResult<Prisma.$EmailCampaignDeliveryPayload<ExtArgs>, T, "findUnique"> | null, null, ExtArgs>
+
+    /**
+     * Find one EmailCampaignDelivery that matches the filter or throw an error with `error.code='P2025'` 
+     * if no matches were found.
+     * @param {EmailCampaignDeliveryFindUniqueOrThrowArgs} args - Arguments to find a EmailCampaignDelivery
+     * @example
+     * // Get one EmailCampaignDelivery
+     * const emailCampaignDelivery = await prisma.emailCampaignDelivery.findUniqueOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUniqueOrThrow<T extends EmailCampaignDeliveryFindUniqueOrThrowArgs>(args: SelectSubset<T, EmailCampaignDeliveryFindUniqueOrThrowArgs<ExtArgs>>): Prisma__EmailCampaignDeliveryClient<$Result.GetResult<Prisma.$EmailCampaignDeliveryPayload<ExtArgs>, T, "findUniqueOrThrow">, never, ExtArgs>
+
+    /**
+     * Find the first EmailCampaignDelivery that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {EmailCampaignDeliveryFindFirstArgs} args - Arguments to find a EmailCampaignDelivery
+     * @example
+     * // Get one EmailCampaignDelivery
+     * const emailCampaignDelivery = await prisma.emailCampaignDelivery.findFirst({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirst<T extends EmailCampaignDeliveryFindFirstArgs>(args?: SelectSubset<T, EmailCampaignDeliveryFindFirstArgs<ExtArgs>>): Prisma__EmailCampaignDeliveryClient<$Result.GetResult<Prisma.$EmailCampaignDeliveryPayload<ExtArgs>, T, "findFirst"> | null, null, ExtArgs>
+
+    /**
+     * Find the first EmailCampaignDelivery that matches the filter or
+     * throw `PrismaKnownClientError` with `P2025` code if no matches were found.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {EmailCampaignDeliveryFindFirstOrThrowArgs} args - Arguments to find a EmailCampaignDelivery
+     * @example
+     * // Get one EmailCampaignDelivery
+     * const emailCampaignDelivery = await prisma.emailCampaignDelivery.findFirstOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirstOrThrow<T extends EmailCampaignDeliveryFindFirstOrThrowArgs>(args?: SelectSubset<T, EmailCampaignDeliveryFindFirstOrThrowArgs<ExtArgs>>): Prisma__EmailCampaignDeliveryClient<$Result.GetResult<Prisma.$EmailCampaignDeliveryPayload<ExtArgs>, T, "findFirstOrThrow">, never, ExtArgs>
+
+    /**
+     * Find zero or more EmailCampaignDeliveries that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {EmailCampaignDeliveryFindManyArgs} args - Arguments to filter and select certain fields only.
+     * @example
+     * // Get all EmailCampaignDeliveries
+     * const emailCampaignDeliveries = await prisma.emailCampaignDelivery.findMany()
+     * 
+     * // Get first 10 EmailCampaignDeliveries
+     * const emailCampaignDeliveries = await prisma.emailCampaignDelivery.findMany({ take: 10 })
+     * 
+     * // Only select the `id`
+     * const emailCampaignDeliveryWithIdOnly = await prisma.emailCampaignDelivery.findMany({ select: { id: true } })
+     * 
+     */
+    findMany<T extends EmailCampaignDeliveryFindManyArgs>(args?: SelectSubset<T, EmailCampaignDeliveryFindManyArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$EmailCampaignDeliveryPayload<ExtArgs>, T, "findMany">>
+
+    /**
+     * Create a EmailCampaignDelivery.
+     * @param {EmailCampaignDeliveryCreateArgs} args - Arguments to create a EmailCampaignDelivery.
+     * @example
+     * // Create one EmailCampaignDelivery
+     * const EmailCampaignDelivery = await prisma.emailCampaignDelivery.create({
+     *   data: {
+     *     // ... data to create a EmailCampaignDelivery
+     *   }
+     * })
+     * 
+     */
+    create<T extends EmailCampaignDeliveryCreateArgs>(args: SelectSubset<T, EmailCampaignDeliveryCreateArgs<ExtArgs>>): Prisma__EmailCampaignDeliveryClient<$Result.GetResult<Prisma.$EmailCampaignDeliveryPayload<ExtArgs>, T, "create">, never, ExtArgs>
+
+    /**
+     * Create many EmailCampaignDeliveries.
+     * @param {EmailCampaignDeliveryCreateManyArgs} args - Arguments to create many EmailCampaignDeliveries.
+     * @example
+     * // Create many EmailCampaignDeliveries
+     * const emailCampaignDelivery = await prisma.emailCampaignDelivery.createMany({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     *     
+     */
+    createMany<T extends EmailCampaignDeliveryCreateManyArgs>(args?: SelectSubset<T, EmailCampaignDeliveryCreateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create many EmailCampaignDeliveries and returns the data saved in the database.
+     * @param {EmailCampaignDeliveryCreateManyAndReturnArgs} args - Arguments to create many EmailCampaignDeliveries.
+     * @example
+     * // Create many EmailCampaignDeliveries
+     * const emailCampaignDelivery = await prisma.emailCampaignDelivery.createManyAndReturn({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * 
+     * // Create many EmailCampaignDeliveries and only return the `id`
+     * const emailCampaignDeliveryWithIdOnly = await prisma.emailCampaignDelivery.createManyAndReturn({ 
+     *   select: { id: true },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * 
+     */
+    createManyAndReturn<T extends EmailCampaignDeliveryCreateManyAndReturnArgs>(args?: SelectSubset<T, EmailCampaignDeliveryCreateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$EmailCampaignDeliveryPayload<ExtArgs>, T, "createManyAndReturn">>
+
+    /**
+     * Delete a EmailCampaignDelivery.
+     * @param {EmailCampaignDeliveryDeleteArgs} args - Arguments to delete one EmailCampaignDelivery.
+     * @example
+     * // Delete one EmailCampaignDelivery
+     * const EmailCampaignDelivery = await prisma.emailCampaignDelivery.delete({
+     *   where: {
+     *     // ... filter to delete one EmailCampaignDelivery
+     *   }
+     * })
+     * 
+     */
+    delete<T extends EmailCampaignDeliveryDeleteArgs>(args: SelectSubset<T, EmailCampaignDeliveryDeleteArgs<ExtArgs>>): Prisma__EmailCampaignDeliveryClient<$Result.GetResult<Prisma.$EmailCampaignDeliveryPayload<ExtArgs>, T, "delete">, never, ExtArgs>
+
+    /**
+     * Update one EmailCampaignDelivery.
+     * @param {EmailCampaignDeliveryUpdateArgs} args - Arguments to update one EmailCampaignDelivery.
+     * @example
+     * // Update one EmailCampaignDelivery
+     * const emailCampaignDelivery = await prisma.emailCampaignDelivery.update({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    update<T extends EmailCampaignDeliveryUpdateArgs>(args: SelectSubset<T, EmailCampaignDeliveryUpdateArgs<ExtArgs>>): Prisma__EmailCampaignDeliveryClient<$Result.GetResult<Prisma.$EmailCampaignDeliveryPayload<ExtArgs>, T, "update">, never, ExtArgs>
+
+    /**
+     * Delete zero or more EmailCampaignDeliveries.
+     * @param {EmailCampaignDeliveryDeleteManyArgs} args - Arguments to filter EmailCampaignDeliveries to delete.
+     * @example
+     * // Delete a few EmailCampaignDeliveries
+     * const { count } = await prisma.emailCampaignDelivery.deleteMany({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     * 
+     */
+    deleteMany<T extends EmailCampaignDeliveryDeleteManyArgs>(args?: SelectSubset<T, EmailCampaignDeliveryDeleteManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Update zero or more EmailCampaignDeliveries.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {EmailCampaignDeliveryUpdateManyArgs} args - Arguments to update one or more rows.
+     * @example
+     * // Update many EmailCampaignDeliveries
+     * const emailCampaignDelivery = await prisma.emailCampaignDelivery.updateMany({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    updateMany<T extends EmailCampaignDeliveryUpdateManyArgs>(args: SelectSubset<T, EmailCampaignDeliveryUpdateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create or update one EmailCampaignDelivery.
+     * @param {EmailCampaignDeliveryUpsertArgs} args - Arguments to update or create a EmailCampaignDelivery.
+     * @example
+     * // Update or create a EmailCampaignDelivery
+     * const emailCampaignDelivery = await prisma.emailCampaignDelivery.upsert({
+     *   create: {
+     *     // ... data to create a EmailCampaignDelivery
+     *   },
+     *   update: {
+     *     // ... in case it already exists, update
+     *   },
+     *   where: {
+     *     // ... the filter for the EmailCampaignDelivery we want to update
+     *   }
+     * })
+     */
+    upsert<T extends EmailCampaignDeliveryUpsertArgs>(args: SelectSubset<T, EmailCampaignDeliveryUpsertArgs<ExtArgs>>): Prisma__EmailCampaignDeliveryClient<$Result.GetResult<Prisma.$EmailCampaignDeliveryPayload<ExtArgs>, T, "upsert">, never, ExtArgs>
+
+
+    /**
+     * Count the number of EmailCampaignDeliveries.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {EmailCampaignDeliveryCountArgs} args - Arguments to filter EmailCampaignDeliveries to count.
+     * @example
+     * // Count the number of EmailCampaignDeliveries
+     * const count = await prisma.emailCampaignDelivery.count({
+     *   where: {
+     *     // ... the filter for the EmailCampaignDeliveries we want to count
+     *   }
+     * })
+    **/
+    count<T extends EmailCampaignDeliveryCountArgs>(
+      args?: Subset<T, EmailCampaignDeliveryCountArgs>,
+    ): Prisma.PrismaPromise<
+      T extends $Utils.Record<'select', any>
+        ? T['select'] extends true
+          ? number
+          : GetScalarType<T['select'], EmailCampaignDeliveryCountAggregateOutputType>
+        : number
+    >
+
+    /**
+     * Allows you to perform aggregations operations on a EmailCampaignDelivery.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {EmailCampaignDeliveryAggregateArgs} args - Select which aggregations you would like to apply and on what fields.
+     * @example
+     * // Ordered by age ascending
+     * // Where email contains prisma.io
+     * // Limited to the 10 users
+     * const aggregations = await prisma.user.aggregate({
+     *   _avg: {
+     *     age: true,
+     *   },
+     *   where: {
+     *     email: {
+     *       contains: "prisma.io",
+     *     },
+     *   },
+     *   orderBy: {
+     *     age: "asc",
+     *   },
+     *   take: 10,
+     * })
+    **/
+    aggregate<T extends EmailCampaignDeliveryAggregateArgs>(args: Subset<T, EmailCampaignDeliveryAggregateArgs>): Prisma.PrismaPromise<GetEmailCampaignDeliveryAggregateType<T>>
+
+    /**
+     * Group by EmailCampaignDelivery.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {EmailCampaignDeliveryGroupByArgs} args - Group by arguments.
+     * @example
+     * // Group by city, order by createdAt, get count
+     * const result = await prisma.user.groupBy({
+     *   by: ['city', 'createdAt'],
+     *   orderBy: {
+     *     createdAt: true
+     *   },
+     *   _count: {
+     *     _all: true
+     *   },
+     * })
+     * 
+    **/
+    groupBy<
+      T extends EmailCampaignDeliveryGroupByArgs,
+      HasSelectOrTake extends Or<
+        Extends<'skip', Keys<T>>,
+        Extends<'take', Keys<T>>
+      >,
+      OrderByArg extends True extends HasSelectOrTake
+        ? { orderBy: EmailCampaignDeliveryGroupByArgs['orderBy'] }
+        : { orderBy?: EmailCampaignDeliveryGroupByArgs['orderBy'] },
+      OrderFields extends ExcludeUnderscoreKeys<Keys<MaybeTupleToUnion<T['orderBy']>>>,
+      ByFields extends MaybeTupleToUnion<T['by']>,
+      ByValid extends Has<ByFields, OrderFields>,
+      HavingFields extends GetHavingFields<T['having']>,
+      HavingValid extends Has<ByFields, HavingFields>,
+      ByEmpty extends T['by'] extends never[] ? True : False,
+      InputErrors extends ByEmpty extends True
+      ? `Error: "by" must not be empty.`
+      : HavingValid extends False
+      ? {
+          [P in HavingFields]: P extends ByFields
+            ? never
+            : P extends string
+            ? `Error: Field "${P}" used in "having" needs to be provided in "by".`
+            : [
+                Error,
+                'Field ',
+                P,
+                ` in "having" needs to be provided in "by"`,
+              ]
+        }[HavingFields]
+      : 'take' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "take", you also need to provide "orderBy"'
+      : 'skip' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "skip", you also need to provide "orderBy"'
+      : ByValid extends True
+      ? {}
+      : {
+          [P in OrderFields]: P extends ByFields
+            ? never
+            : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+        }[OrderFields]
+    >(args: SubsetIntersection<T, EmailCampaignDeliveryGroupByArgs, OrderByArg> & InputErrors): {} extends InputErrors ? GetEmailCampaignDeliveryGroupByPayload<T> : Prisma.PrismaPromise<InputErrors>
+  /**
+   * Fields of the EmailCampaignDelivery model
+   */
+  readonly fields: EmailCampaignDeliveryFieldRefs;
+  }
+
+  /**
+   * The delegate class that acts as a "Promise-like" for EmailCampaignDelivery.
+   * Why is this prefixed with `Prisma__`?
+   * Because we want to prevent naming conflicts as mentioned in
+   * https://github.com/prisma/prisma-client-js/issues/707
+   */
+  export interface Prisma__EmailCampaignDeliveryClient<T, Null = never, ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> extends Prisma.PrismaPromise<T> {
+    readonly [Symbol.toStringTag]: "PrismaPromise"
+    /**
+     * Attaches callbacks for the resolution and/or rejection of the Promise.
+     * @param onfulfilled The callback to execute when the Promise is resolved.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of which ever callback is executed.
+     */
+    then<TResult1 = T, TResult2 = never>(onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null): $Utils.JsPromise<TResult1 | TResult2>
+    /**
+     * Attaches a callback for only the rejection of the Promise.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of the callback.
+     */
+    catch<TResult = never>(onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | undefined | null): $Utils.JsPromise<T | TResult>
+    /**
+     * Attaches a callback that is invoked when the Promise is settled (fulfilled or rejected). The
+     * resolved value cannot be modified from the callback.
+     * @param onfinally The callback to execute when the Promise is settled (fulfilled or rejected).
+     * @returns A Promise for the completion of the callback.
+     */
+    finally(onfinally?: (() => void) | undefined | null): $Utils.JsPromise<T>
+  }
+
+
+
+
+  /**
+   * Fields of the EmailCampaignDelivery model
+   */ 
+  interface EmailCampaignDeliveryFieldRefs {
+    readonly id: FieldRef<"EmailCampaignDelivery", 'String'>
+    readonly userId: FieldRef<"EmailCampaignDelivery", 'String'>
+    readonly email: FieldRef<"EmailCampaignDelivery", 'String'>
+    readonly campaignKey: FieldRef<"EmailCampaignDelivery", 'String'>
+    readonly sentAt: FieldRef<"EmailCampaignDelivery", 'DateTime'>
+    readonly metadata: FieldRef<"EmailCampaignDelivery", 'Json'>
+  }
+    
+
+  // Custom InputTypes
+  /**
+   * EmailCampaignDelivery findUnique
+   */
+  export type EmailCampaignDeliveryFindUniqueArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the EmailCampaignDelivery
+     */
+    select?: EmailCampaignDeliverySelect<ExtArgs> | null
+    /**
+     * Filter, which EmailCampaignDelivery to fetch.
+     */
+    where: EmailCampaignDeliveryWhereUniqueInput
+  }
+
+  /**
+   * EmailCampaignDelivery findUniqueOrThrow
+   */
+  export type EmailCampaignDeliveryFindUniqueOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the EmailCampaignDelivery
+     */
+    select?: EmailCampaignDeliverySelect<ExtArgs> | null
+    /**
+     * Filter, which EmailCampaignDelivery to fetch.
+     */
+    where: EmailCampaignDeliveryWhereUniqueInput
+  }
+
+  /**
+   * EmailCampaignDelivery findFirst
+   */
+  export type EmailCampaignDeliveryFindFirstArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the EmailCampaignDelivery
+     */
+    select?: EmailCampaignDeliverySelect<ExtArgs> | null
+    /**
+     * Filter, which EmailCampaignDelivery to fetch.
+     */
+    where?: EmailCampaignDeliveryWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of EmailCampaignDeliveries to fetch.
+     */
+    orderBy?: EmailCampaignDeliveryOrderByWithRelationInput | EmailCampaignDeliveryOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for EmailCampaignDeliveries.
+     */
+    cursor?: EmailCampaignDeliveryWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` EmailCampaignDeliveries from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` EmailCampaignDeliveries.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of EmailCampaignDeliveries.
+     */
+    distinct?: EmailCampaignDeliveryScalarFieldEnum | EmailCampaignDeliveryScalarFieldEnum[]
+  }
+
+  /**
+   * EmailCampaignDelivery findFirstOrThrow
+   */
+  export type EmailCampaignDeliveryFindFirstOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the EmailCampaignDelivery
+     */
+    select?: EmailCampaignDeliverySelect<ExtArgs> | null
+    /**
+     * Filter, which EmailCampaignDelivery to fetch.
+     */
+    where?: EmailCampaignDeliveryWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of EmailCampaignDeliveries to fetch.
+     */
+    orderBy?: EmailCampaignDeliveryOrderByWithRelationInput | EmailCampaignDeliveryOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for EmailCampaignDeliveries.
+     */
+    cursor?: EmailCampaignDeliveryWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` EmailCampaignDeliveries from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` EmailCampaignDeliveries.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of EmailCampaignDeliveries.
+     */
+    distinct?: EmailCampaignDeliveryScalarFieldEnum | EmailCampaignDeliveryScalarFieldEnum[]
+  }
+
+  /**
+   * EmailCampaignDelivery findMany
+   */
+  export type EmailCampaignDeliveryFindManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the EmailCampaignDelivery
+     */
+    select?: EmailCampaignDeliverySelect<ExtArgs> | null
+    /**
+     * Filter, which EmailCampaignDeliveries to fetch.
+     */
+    where?: EmailCampaignDeliveryWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of EmailCampaignDeliveries to fetch.
+     */
+    orderBy?: EmailCampaignDeliveryOrderByWithRelationInput | EmailCampaignDeliveryOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for listing EmailCampaignDeliveries.
+     */
+    cursor?: EmailCampaignDeliveryWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` EmailCampaignDeliveries from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` EmailCampaignDeliveries.
+     */
+    skip?: number
+    distinct?: EmailCampaignDeliveryScalarFieldEnum | EmailCampaignDeliveryScalarFieldEnum[]
+  }
+
+  /**
+   * EmailCampaignDelivery create
+   */
+  export type EmailCampaignDeliveryCreateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the EmailCampaignDelivery
+     */
+    select?: EmailCampaignDeliverySelect<ExtArgs> | null
+    /**
+     * The data needed to create a EmailCampaignDelivery.
+     */
+    data: XOR<EmailCampaignDeliveryCreateInput, EmailCampaignDeliveryUncheckedCreateInput>
+  }
+
+  /**
+   * EmailCampaignDelivery createMany
+   */
+  export type EmailCampaignDeliveryCreateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to create many EmailCampaignDeliveries.
+     */
+    data: EmailCampaignDeliveryCreateManyInput | EmailCampaignDeliveryCreateManyInput[]
+    skipDuplicates?: boolean
+  }
+
+  /**
+   * EmailCampaignDelivery createManyAndReturn
+   */
+  export type EmailCampaignDeliveryCreateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the EmailCampaignDelivery
+     */
+    select?: EmailCampaignDeliverySelectCreateManyAndReturn<ExtArgs> | null
+    /**
+     * The data used to create many EmailCampaignDeliveries.
+     */
+    data: EmailCampaignDeliveryCreateManyInput | EmailCampaignDeliveryCreateManyInput[]
+    skipDuplicates?: boolean
+  }
+
+  /**
+   * EmailCampaignDelivery update
+   */
+  export type EmailCampaignDeliveryUpdateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the EmailCampaignDelivery
+     */
+    select?: EmailCampaignDeliverySelect<ExtArgs> | null
+    /**
+     * The data needed to update a EmailCampaignDelivery.
+     */
+    data: XOR<EmailCampaignDeliveryUpdateInput, EmailCampaignDeliveryUncheckedUpdateInput>
+    /**
+     * Choose, which EmailCampaignDelivery to update.
+     */
+    where: EmailCampaignDeliveryWhereUniqueInput
+  }
+
+  /**
+   * EmailCampaignDelivery updateMany
+   */
+  export type EmailCampaignDeliveryUpdateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to update EmailCampaignDeliveries.
+     */
+    data: XOR<EmailCampaignDeliveryUpdateManyMutationInput, EmailCampaignDeliveryUncheckedUpdateManyInput>
+    /**
+     * Filter which EmailCampaignDeliveries to update
+     */
+    where?: EmailCampaignDeliveryWhereInput
+  }
+
+  /**
+   * EmailCampaignDelivery upsert
+   */
+  export type EmailCampaignDeliveryUpsertArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the EmailCampaignDelivery
+     */
+    select?: EmailCampaignDeliverySelect<ExtArgs> | null
+    /**
+     * The filter to search for the EmailCampaignDelivery to update in case it exists.
+     */
+    where: EmailCampaignDeliveryWhereUniqueInput
+    /**
+     * In case the EmailCampaignDelivery found by the `where` argument doesn't exist, create a new EmailCampaignDelivery with this data.
+     */
+    create: XOR<EmailCampaignDeliveryCreateInput, EmailCampaignDeliveryUncheckedCreateInput>
+    /**
+     * In case the EmailCampaignDelivery was found with the provided `where` argument, update it with this data.
+     */
+    update: XOR<EmailCampaignDeliveryUpdateInput, EmailCampaignDeliveryUncheckedUpdateInput>
+  }
+
+  /**
+   * EmailCampaignDelivery delete
+   */
+  export type EmailCampaignDeliveryDeleteArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the EmailCampaignDelivery
+     */
+    select?: EmailCampaignDeliverySelect<ExtArgs> | null
+    /**
+     * Filter which EmailCampaignDelivery to delete.
+     */
+    where: EmailCampaignDeliveryWhereUniqueInput
+  }
+
+  /**
+   * EmailCampaignDelivery deleteMany
+   */
+  export type EmailCampaignDeliveryDeleteManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which EmailCampaignDeliveries to delete
+     */
+    where?: EmailCampaignDeliveryWhereInput
+  }
+
+  /**
+   * EmailCampaignDelivery without action
+   */
+  export type EmailCampaignDeliveryDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the EmailCampaignDelivery
+     */
+    select?: EmailCampaignDeliverySelect<ExtArgs> | null
   }
 
 
@@ -276512,6 +277484,18 @@ export namespace Prisma {
   export type NotificationScalarFieldEnum = (typeof NotificationScalarFieldEnum)[keyof typeof NotificationScalarFieldEnum]
 
 
+  export const EmailCampaignDeliveryScalarFieldEnum: {
+    id: 'id',
+    userId: 'userId',
+    email: 'email',
+    campaignKey: 'campaignKey',
+    sentAt: 'sentAt',
+    metadata: 'metadata'
+  };
+
+  export type EmailCampaignDeliveryScalarFieldEnum = (typeof EmailCampaignDeliveryScalarFieldEnum)[keyof typeof EmailCampaignDeliveryScalarFieldEnum]
+
+
   export const CreatorFollowScalarFieldEnum: {
     id: 'id',
     followerId: 'followerId',
@@ -288085,6 +289069,64 @@ export namespace Prisma {
     metadata?: StringNullableWithAggregatesFilter<"Notification"> | string | null
     read?: BoolWithAggregatesFilter<"Notification"> | boolean
     createdAt?: DateTimeWithAggregatesFilter<"Notification"> | Date | string
+  }
+
+  export type EmailCampaignDeliveryWhereInput = {
+    AND?: EmailCampaignDeliveryWhereInput | EmailCampaignDeliveryWhereInput[]
+    OR?: EmailCampaignDeliveryWhereInput[]
+    NOT?: EmailCampaignDeliveryWhereInput | EmailCampaignDeliveryWhereInput[]
+    id?: StringFilter<"EmailCampaignDelivery"> | string
+    userId?: StringNullableFilter<"EmailCampaignDelivery"> | string | null
+    email?: StringFilter<"EmailCampaignDelivery"> | string
+    campaignKey?: StringFilter<"EmailCampaignDelivery"> | string
+    sentAt?: DateTimeFilter<"EmailCampaignDelivery"> | Date | string
+    metadata?: JsonNullableFilter<"EmailCampaignDelivery">
+  }
+
+  export type EmailCampaignDeliveryOrderByWithRelationInput = {
+    id?: SortOrder
+    userId?: SortOrderInput | SortOrder
+    email?: SortOrder
+    campaignKey?: SortOrder
+    sentAt?: SortOrder
+    metadata?: SortOrderInput | SortOrder
+  }
+
+  export type EmailCampaignDeliveryWhereUniqueInput = Prisma.AtLeast<{
+    id?: string
+    email_campaignKey?: EmailCampaignDeliveryEmailCampaignKeyCompoundUniqueInput
+    AND?: EmailCampaignDeliveryWhereInput | EmailCampaignDeliveryWhereInput[]
+    OR?: EmailCampaignDeliveryWhereInput[]
+    NOT?: EmailCampaignDeliveryWhereInput | EmailCampaignDeliveryWhereInput[]
+    userId?: StringNullableFilter<"EmailCampaignDelivery"> | string | null
+    email?: StringFilter<"EmailCampaignDelivery"> | string
+    campaignKey?: StringFilter<"EmailCampaignDelivery"> | string
+    sentAt?: DateTimeFilter<"EmailCampaignDelivery"> | Date | string
+    metadata?: JsonNullableFilter<"EmailCampaignDelivery">
+  }, "id" | "email_campaignKey">
+
+  export type EmailCampaignDeliveryOrderByWithAggregationInput = {
+    id?: SortOrder
+    userId?: SortOrderInput | SortOrder
+    email?: SortOrder
+    campaignKey?: SortOrder
+    sentAt?: SortOrder
+    metadata?: SortOrderInput | SortOrder
+    _count?: EmailCampaignDeliveryCountOrderByAggregateInput
+    _max?: EmailCampaignDeliveryMaxOrderByAggregateInput
+    _min?: EmailCampaignDeliveryMinOrderByAggregateInput
+  }
+
+  export type EmailCampaignDeliveryScalarWhereWithAggregatesInput = {
+    AND?: EmailCampaignDeliveryScalarWhereWithAggregatesInput | EmailCampaignDeliveryScalarWhereWithAggregatesInput[]
+    OR?: EmailCampaignDeliveryScalarWhereWithAggregatesInput[]
+    NOT?: EmailCampaignDeliveryScalarWhereWithAggregatesInput | EmailCampaignDeliveryScalarWhereWithAggregatesInput[]
+    id?: StringWithAggregatesFilter<"EmailCampaignDelivery"> | string
+    userId?: StringNullableWithAggregatesFilter<"EmailCampaignDelivery"> | string | null
+    email?: StringWithAggregatesFilter<"EmailCampaignDelivery"> | string
+    campaignKey?: StringWithAggregatesFilter<"EmailCampaignDelivery"> | string
+    sentAt?: DateTimeWithAggregatesFilter<"EmailCampaignDelivery"> | Date | string
+    metadata?: JsonNullableWithAggregatesFilter<"EmailCampaignDelivery">
   }
 
   export type CreatorFollowWhereInput = {
@@ -310530,6 +311572,69 @@ export namespace Prisma {
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
+  export type EmailCampaignDeliveryCreateInput = {
+    id?: string
+    userId?: string | null
+    email: string
+    campaignKey: string
+    sentAt?: Date | string
+    metadata?: NullableJsonNullValueInput | InputJsonValue
+  }
+
+  export type EmailCampaignDeliveryUncheckedCreateInput = {
+    id?: string
+    userId?: string | null
+    email: string
+    campaignKey: string
+    sentAt?: Date | string
+    metadata?: NullableJsonNullValueInput | InputJsonValue
+  }
+
+  export type EmailCampaignDeliveryUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    userId?: NullableStringFieldUpdateOperationsInput | string | null
+    email?: StringFieldUpdateOperationsInput | string
+    campaignKey?: StringFieldUpdateOperationsInput | string
+    sentAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    metadata?: NullableJsonNullValueInput | InputJsonValue
+  }
+
+  export type EmailCampaignDeliveryUncheckedUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    userId?: NullableStringFieldUpdateOperationsInput | string | null
+    email?: StringFieldUpdateOperationsInput | string
+    campaignKey?: StringFieldUpdateOperationsInput | string
+    sentAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    metadata?: NullableJsonNullValueInput | InputJsonValue
+  }
+
+  export type EmailCampaignDeliveryCreateManyInput = {
+    id?: string
+    userId?: string | null
+    email: string
+    campaignKey: string
+    sentAt?: Date | string
+    metadata?: NullableJsonNullValueInput | InputJsonValue
+  }
+
+  export type EmailCampaignDeliveryUpdateManyMutationInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    userId?: NullableStringFieldUpdateOperationsInput | string | null
+    email?: StringFieldUpdateOperationsInput | string
+    campaignKey?: StringFieldUpdateOperationsInput | string
+    sentAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    metadata?: NullableJsonNullValueInput | InputJsonValue
+  }
+
+  export type EmailCampaignDeliveryUncheckedUpdateManyInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    userId?: NullableStringFieldUpdateOperationsInput | string | null
+    email?: StringFieldUpdateOperationsInput | string
+    campaignKey?: StringFieldUpdateOperationsInput | string
+    sentAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    metadata?: NullableJsonNullValueInput | InputJsonValue
+  }
+
   export type CreatorFollowCreateInput = {
     id?: string
     createdAt?: Date | string
@@ -330121,6 +331226,36 @@ export namespace Prisma {
     metadata?: SortOrder
     read?: SortOrder
     createdAt?: SortOrder
+  }
+
+  export type EmailCampaignDeliveryEmailCampaignKeyCompoundUniqueInput = {
+    email: string
+    campaignKey: string
+  }
+
+  export type EmailCampaignDeliveryCountOrderByAggregateInput = {
+    id?: SortOrder
+    userId?: SortOrder
+    email?: SortOrder
+    campaignKey?: SortOrder
+    sentAt?: SortOrder
+    metadata?: SortOrder
+  }
+
+  export type EmailCampaignDeliveryMaxOrderByAggregateInput = {
+    id?: SortOrder
+    userId?: SortOrder
+    email?: SortOrder
+    campaignKey?: SortOrder
+    sentAt?: SortOrder
+  }
+
+  export type EmailCampaignDeliveryMinOrderByAggregateInput = {
+    id?: SortOrder
+    userId?: SortOrder
+    email?: SortOrder
+    campaignKey?: SortOrder
+    sentAt?: SortOrder
   }
 
   export type CreatorFollowFollowerIdFollowingIdCompoundUniqueInput = {
@@ -599507,6 +600642,10 @@ export namespace Prisma {
      * @deprecated Use NotificationDefaultArgs instead
      */
     export type NotificationArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = NotificationDefaultArgs<ExtArgs>
+    /**
+     * @deprecated Use EmailCampaignDeliveryDefaultArgs instead
+     */
+    export type EmailCampaignDeliveryArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = EmailCampaignDeliveryDefaultArgs<ExtArgs>
     /**
      * @deprecated Use CreatorFollowDefaultArgs instead
      */

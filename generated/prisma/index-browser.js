@@ -1453,6 +1453,15 @@ exports.Prisma.NotificationScalarFieldEnum = {
   createdAt: 'createdAt'
 };
 
+exports.Prisma.EmailCampaignDeliveryScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  email: 'email',
+  campaignKey: 'campaignKey',
+  sentAt: 'sentAt',
+  metadata: 'metadata'
+};
+
 exports.Prisma.CreatorFollowScalarFieldEnum = {
   id: 'id',
   followerId: 'followerId',
@@ -3367,6 +3376,7 @@ exports.Prisma.ModelName = {
   UserPreference: 'UserPreference',
   ViewerPaymentMethod: 'ViewerPaymentMethod',
   Notification: 'Notification',
+  EmailCampaignDelivery: 'EmailCampaignDelivery',
   CreatorFollow: 'CreatorFollow',
   ConnectionRequest: 'ConnectionRequest',
   NetworkPost: 'NetworkPost',
