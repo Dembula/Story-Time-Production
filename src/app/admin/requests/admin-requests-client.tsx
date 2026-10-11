@@ -105,6 +105,10 @@ export function AdminRequestsClient() {
       });
   }, []);
 
+  const onSelfMfaChanged = useCallback(() => {
+    void loadActiveAdmins().catch(() => undefined);
+  }, [loadActiveAdmins]);
+
   useEffect(() => {
     setReqLoading(true);
     void loadRoleUpgrades()
@@ -381,12 +385,7 @@ export function AdminRequestsClient() {
                       Set up authenticator MFA for your account. It applies to admin, creator, and every other
                       portal that uses this email.
                     </p>
-                    <MfaSecurityPanel
-                      variant="admin"
-                      onChanged={() => {
-                        void loadActiveAdmins().catch(() => undefined);
-                      }}
-                    />
+                    <MfaSecurityPanel variant="admin" onChanged={onSelfMfaChanged} />
                   </div>
                 ) : null}
 

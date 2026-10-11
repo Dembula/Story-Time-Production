@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { KeyRound, Loader2, ShieldCheck, ShieldOff } from "lucide-react";
 
 type MfaStatus = {
@@ -53,21 +53,33 @@ export function MfaSecurityPanel({
   const [disableCode, setDisableCode] = useState("");
   const [showDisable, setShowDisable] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  // Keep callback out of load() deps — unstable inline onChanged caused infinite reload loops.
+  const onChangedRef = useRef(onChanged);
+  useEffect(() => {
+    onChangedRef.current = onChanged;
+  }, [onChanged]);
+  const lastEnabledRef = useRef<boolean | null>(null);
+
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     setError("");
     try {
       const res = await fetch("/api/auth/mfa/status", { cache: "no-store" });
       const data = (await res.json().catch(() => ({}))) as MfaStatus & { error?: string };
       if (!res.ok) throw new Error(data.error || "Could not load MFA status.");
       setStatus(data);
-      onChanged?.(Boolean(data.enabled));
+      const enabled = Boolean(data.enabled);
+      // Skip the first status snapshot — only notify parents on real enable/disable flips.
+      if (lastEnabledRef.current !== null && lastEnabledRef.current !== enabled) {
+        onChangedRef.current?.(enabled);
+      }
+      lastEnabledRef.current = enabled;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load MFA status.");
     } finally {
       setLoading(false);
     }
-  }, [onChanged]);
+  }, []);
 
   useEffect(() => {
     void load();
@@ -89,7 +101,7 @@ export function MfaSecurityPanel({
       setQrDataUrl(data.qrDataUrl ?? null);
       setManualSecret(data.secret ?? null);
       setConfirmCode("");
-      await load();
+      await load({ silent: true });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not start MFA setup.");
     } finally {
@@ -105,7 +117,7 @@ export function MfaSecurityPanel({
       setQrDataUrl(null);
       setManualSecret(null);
       setConfirmCode("");
-      await load();
+      await load({ silent: true });
     } catch {
       setError("Could not cancel setup.");
     } finally {
@@ -134,7 +146,7 @@ export function MfaSecurityPanel({
       setManualSecret(null);
       setConfirmCode("");
       setInfo("Authenticator MFA is now on for this account (every portal that uses this email).");
-      await load();
+      await load({ silent: true });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not confirm MFA.");
     } finally {
@@ -160,7 +172,7 @@ export function MfaSecurityPanel({
       setShowDisable(false);
       setRecoveryCodes(null);
       setInfo("Authenticator MFA has been turned off for this account.");
-      await load();
+      await load({ silent: true });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not disable MFA.");
     } finally {
@@ -170,7 +182,8 @@ export function MfaSecurityPanel({
 
   const titleCls = variant === "light" ? "text-slate-950" : "text-white";
 
-  if (loading) {
+  // Only block the panel on the first load — refreshes stay interactive.
+  if (loading && !status && !error) {
     return (
       <div className={`${shell[variant]} ${className}`}>
         <div className={`flex items-center gap-2 text-sm ${muted[variant]}`}>
@@ -197,8 +210,15 @@ export function MfaSecurityPanel({
       </div>
 
       {error ? (
-        <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
-          {error}
+        <div className="mb-3 space-y-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+          <p>{error}</p>
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="rounded-md border border-red-500/40 px-2 py-1 text-xs text-red-200 hover:bg-red-500/20"
+          >
+            Retry
+          </button>
         </div>
       ) : null}
       {info ? (
