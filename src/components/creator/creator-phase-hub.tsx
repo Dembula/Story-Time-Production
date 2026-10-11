@@ -87,13 +87,13 @@ export function CreatorPhaseHub({
 
   return (
     <div className="space-y-8">
-      <header className="storytime-plan-card p-5 md:p-6">
+      <header data-tour="phase-hub-header" className="storytime-plan-card p-5 md:p-6">
         <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.22em] text-orange-300/80">{eyebrow}</p>
         <h1 className="font-display text-2xl font-semibold tracking-tight text-white md:text-3xl">{title}</h1>
         <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-400 md:text-base">{description}</p>
       </header>
 
-      <section className="space-y-3">
+      <section data-tour="phase-hub-projects" className="space-y-3">
         <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-200">
           <PIcon className="h-4 w-4 text-orange-400" />
           {sectionProjectsTitle}
@@ -143,7 +143,7 @@ export function CreatorPhaseHub({
         )}
       </section>
 
-      <section className="space-y-3">
+      <section data-tour="phase-hub-tools" className="space-y-3">
         <h2 className="text-sm font-semibold text-slate-200">{sectionToolsTitle}</h2>
         {sectionToolsLead ? <p className="text-xs text-slate-500">{sectionToolsLead}</p> : null}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -159,7 +159,7 @@ export function CreatorPhaseHub({
         </div>
       </section>
 
-      {footerSection}
+      {footerSection ? <div data-tour="phase-hub-footer">{footerSection}</div> : null}
     </div>
   );
 }

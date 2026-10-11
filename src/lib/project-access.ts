@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isActiveProjectMemberStatus } from "@/lib/project-membership";
 
 const projectInclude = { members: true, pitches: true } as const;
 
@@ -31,8 +32,6 @@ export function projectAccessDenied(access: ProjectAccessResult): access is Proj
   return access.error !== null;
 }
 
-const ACTIVE_MEMBER_STATUSES = new Set(["ACTIVE", "ACCEPTED"]);
-
 export async function ensureProjectAccess(projectId: string): Promise<ProjectAccessResult> {
   const session = await getServerSession(authOptions);
   const role = (session?.user as { role?: string })?.role;
@@ -61,9 +60,7 @@ export async function ensureProjectAccess(projectId: string): Promise<ProjectAcc
 
   const isPitchOwner = project.pitches.some((p) => p.creatorId === userId);
   const myMembership = project.members.find((m) => m.userId === userId);
-  const isActiveMember = Boolean(
-    myMembership && ACTIVE_MEMBER_STATUSES.has(myMembership.status),
-  );
+  const isActiveMember = isActiveProjectMemberStatus(myMembership?.status);
   const isCreatorMember = role === "ADMIN" || isPitchOwner || isActiveMember;
 
   if (!isCreatorMember) {

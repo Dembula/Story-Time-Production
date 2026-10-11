@@ -16,6 +16,10 @@ import { getPayoutKycStatus, requiresPayoutKyc, type KycVerificationStatus } fro
 import type { FunderVerificationStatus } from "./funder-verification";
 import { getActivityMetaFromHeaders } from "./activity-request-meta";
 import { parseAdminRights } from "./admin-permissions";
+import {
+  assertMfaForCredentialsLogin,
+  readMfaCodeFromCredentials,
+} from "./mfa/login-gate";
 
 type PortalScope = "VIEWER" | "CREATOR" | "ADMIN";
 
@@ -90,6 +94,7 @@ export const authOptions: NextAuthOptions = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
         selectedRole: { label: "Account Type", type: "text" },
+        mfaCode: { label: "Authenticator code", type: "text" },
       },
       async authorize(credentials) {
         if (!credentials?.email || credentials.password == null) return null;
@@ -98,6 +103,12 @@ export const authOptions: NextAuthOptions = {
         if (!user.passwordHash) return null;
         const ok = await compare(credentials.password, user.passwordHash);
         if (!ok) return null;
+        const mfaOk = await assertMfaForCredentialsLogin({
+          userId: user.id,
+          mfa: user,
+          mfaCodeRaw: readMfaCodeFromCredentials(credentials as Record<string, unknown>),
+        });
+        if (!mfaOk) return null;
         const roles = await getUserRoles(user.id, user.role);
         if (![...roles].some((userRole) => VIEWER_ROLES.has(userRole))) return null;
         const role = "SUBSCRIBER";
@@ -129,6 +140,7 @@ export const authOptions: NextAuthOptions = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
         selectedRole: { label: "Account Type", type: "text" },
+        mfaCode: { label: "Authenticator code", type: "text" },
       },
       async authorize(credentials) {
         if (!credentials?.email || credentials.password == null) return null;
@@ -137,6 +149,12 @@ export const authOptions: NextAuthOptions = {
         if (!user.passwordHash) return null;
         const ok = await compare(credentials.password, user.passwordHash);
         if (!ok) return null;
+        const mfaOk = await assertMfaForCredentialsLogin({
+          userId: user.id,
+          mfa: user,
+          mfaCodeRaw: readMfaCodeFromCredentials(credentials as Record<string, unknown>),
+        });
+        if (!mfaOk) return null;
         const roles = await getUserRoles(user.id, user.role);
         const selectedRoleRaw = (credentials as Record<string, unknown> | undefined)?.selectedRole;
         const selectedRole =
@@ -184,6 +202,7 @@ export const authOptions: NextAuthOptions = {
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
+        mfaCode: { label: "Authenticator code", type: "text" },
       },
       async authorize(credentials) {
         if (!credentials?.email || credentials.password == null) return null;
@@ -192,6 +211,12 @@ export const authOptions: NextAuthOptions = {
         if (!user.passwordHash) return null;
         const ok = await compare(credentials.password, user.passwordHash);
         if (!ok) return null;
+        const mfaOk = await assertMfaForCredentialsLogin({
+          userId: user.id,
+          mfa: user,
+          mfaCodeRaw: readMfaCodeFromCredentials(credentials as Record<string, unknown>),
+        });
+        if (!mfaOk) return null;
         const roles = await getUserRoles(user.id, user.role);
         if (!roles.has("ADMIN")) return null;
         const role = "ADMIN";

@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
-import { Plus, Users, Clock, Film, ChevronDown, ChevronRight, CheckCircle, Circle, Trash2 } from "lucide-react";
+import { Plus, Users, Clock, Film, ChevronDown, ChevronRight, CheckCircle, Circle, Trash2, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -20,6 +20,7 @@ import { clearActiveProjectId, getActiveProjectId, setActiveProjectId, sortProje
 import { useActiveProjectId } from "@/hooks/use-active-project";
 import { toDisplayStatus } from "@/lib/project-tool-progress";
 import { resolveNetworkDisplayName, networkDisplayInitial } from "@/lib/network-display-name";
+import { isActiveProjectMemberStatus } from "@/lib/project-membership";
 
 const DELETE_PROJECT_CONFIRM_PHRASE = "delete project";
 
@@ -92,8 +93,6 @@ const TRACKED_TOOL_IDS = new Set<string>([
   ...POST_PRODUCTION_HUB_TOOLS.map((t) => t.id),
 ]);
 
-const ACTIVE_MEMBER_STATUSES = new Set(["ACTIVE", "ACCEPTED"]);
-
 function projectStatusToStep(status: string): 1 | 2 | 3 {
   const s = (status ?? "DEVELOPMENT").toUpperCase();
   if (s === "POST_PRODUCTION") return 3;
@@ -102,21 +101,21 @@ function projectStatusToStep(status: string): 1 | 2 | 3 {
 }
 
 function teamCounts(members: ProjectMember[]) {
-  const active = members.filter((m) => ACTIVE_MEMBER_STATUSES.has(m.status)).length;
+  const active = members.filter((m) => isActiveProjectMemberStatus(m.status)).length;
   const invited = members.filter((m) => m.status === "INVITED").length;
   return { active, invited };
 }
 
 function memberStatusLabel(status: string): string {
   if (status === "INVITED") return "Invited";
-  if (ACTIVE_MEMBER_STATUSES.has(status)) return "On team";
+  if (isActiveProjectMemberStatus(status)) return "On team";
   if (status === "DECLINED") return "Declined";
   return status;
 }
 
 function memberStatusStyle(status: string): string {
   if (status === "INVITED") return "border-violet-500/35 bg-violet-500/10 text-violet-200";
-  if (ACTIVE_MEMBER_STATUSES.has(status)) return "border-emerald-500/30 bg-emerald-500/10 text-emerald-200";
+  if (isActiveProjectMemberStatus(status)) return "border-emerald-500/30 bg-emerald-500/10 text-emerald-200";
   if (status === "DECLINED") return "border-slate-600/40 bg-slate-800/40 text-slate-500";
   return "border-white/10 bg-white/[0.04] text-slate-400";
 }
@@ -222,7 +221,7 @@ function ProjectRow({
   const post = rollup?.phaseSummaries.post ?? { done: 0, skipped: 0, inProgress: 0, total: POST_PRODUCTION_HUB_TOOLS.length };
 
   const activeMemberUserIds = new Set(
-    project.members.filter((m) => ACTIVE_MEMBER_STATUSES.has(m.status)).map((m) => m.userId),
+    project.members.filter((m) => isActiveProjectMemberStatus(m.status)).map((m) => m.userId),
   );
   const pendingInviteUserIds = new Set(
     project.members.filter((m) => m.status === "INVITED").map((m) => m.userId),
@@ -237,14 +236,14 @@ function ProjectRow({
     Boolean(
       meId &&
         (project.creatorId === meId ||
-          project.members.some((m) => m.userId === meId && ACTIVE_MEMBER_STATUSES.has(m.status))),
+          project.members.some((m) => m.userId === meId && isActiveProjectMemberStatus(m.status))),
     );
   const canUseTools =
     project.canUseTools ??
     Boolean(
       meId &&
         (project.creatorId === meId ||
-          project.members.some((m) => m.userId === meId && ACTIVE_MEMBER_STATUSES.has(m.status))),
+          project.members.some((m) => m.userId === meId && isActiveProjectMemberStatus(m.status))),
     );
   const isPendingInviteOnly = Boolean(
     meId && project.myMembershipStatus === "INVITED" && !canUseTools,
@@ -487,22 +486,36 @@ function ProjectRow({
       </button>
       {open && (
         <div className="border-t border-white/[0.08] bg-black/25 px-4 py-6 md:px-6 md:py-8 lg:px-10 lg:py-10">
-          <p className="mb-6 max-w-3xl text-sm leading-relaxed text-slate-400">
-            {pipelineAccess ? (
-              <>
-                Progress reflects tools you&apos;ve used in the workspace and marks earlier-phase tools as{" "}
-                <span className="text-slate-300">Skipped</span> when the project advances. Only{" "}
-                <span className="text-slate-300">Music &amp; scoring</span> and{" "}
-                <span className="text-slate-300">Distribution</span> count in post-production tracking.
-              </>
-            ) : (
-              <>
-                Your plan includes linked catalogue submission for this project. Open{" "}
-                <span className="text-slate-300">Distribution</span> below, or use{" "}
-                <span className="text-slate-300">Catalogue upload</span> in the sidebar.
-              </>
-            )}
-          </p>
+          <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+            <p className="max-w-3xl text-sm leading-relaxed text-slate-400">
+              {pipelineAccess ? (
+                <>
+                  Progress reflects tools you&apos;ve used in the workspace and marks earlier-phase tools as{" "}
+                  <span className="text-slate-300">Skipped</span> when the project advances. Post-production
+                  tracking covers{" "}
+                  <span className="text-slate-300">Footage ingestion</span>,{" "}
+                  <span className="text-slate-300">Editing studio</span>,{" "}
+                  <span className="text-slate-300">Music &amp; scoring</span>, and{" "}
+                  <span className="text-slate-300">Distribution</span>.
+                </>
+              ) : (
+                <>
+                  Your plan includes linked catalogue submission for this project. Open{" "}
+                  <span className="text-slate-300">Distribution</span> below, or use{" "}
+                  <span className="text-slate-300">Catalogue upload</span> in the sidebar.
+                </>
+              )}
+            </p>
+            {canUseTools ? (
+              <Link
+                href={`/creator/projects/${project.id}/overview`}
+                className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-orange-500/40 bg-orange-500/15 px-4 py-2.5 text-sm font-medium text-orange-100 transition hover:bg-orange-500/25"
+              >
+                <ExternalLink className="h-4 w-4" />
+                Open workspace
+              </Link>
+            ) : null}
+          </div>
 
           <div className="mb-8 rounded-2xl border border-white/10 bg-slate-900/40 p-5 md:p-6">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -834,7 +847,8 @@ export function CreatorProjectsDashboardClient() {
 
   const { data: collabInvitesRaw, refetch: refetchCollabInvites } = useQuery({
     queryKey: ["creator-collab-invites"],
-    queryFn: () => fetch("/api/originals?type=my-projects").then((r) => (r.ok ? r.json() : [])),
+    queryFn: () =>
+      fetch("/api/originals?type=my-project-invites").then((r) => (r.ok ? r.json() : [])),
   });
   const collabInvites: CollabInviteRow[] = Array.isArray(collabInvitesRaw)
     ? collabInvitesRaw.filter((m: CollabInviteRow) => m.status === "INVITED")
@@ -847,12 +861,28 @@ export function CreatorProjectsDashboardClient() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "RESPOND_INVITE", memberId, accept }),
       });
-      if (!res.ok) throw new Error("Failed");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(typeof data.error === "string" ? data.error : "Failed to respond to invite");
+      }
       return res.json();
     },
+    onMutate: async ({ memberId }) => {
+      await queryClient.cancelQueries({ queryKey: ["creator-collab-invites"] });
+      const previous = queryClient.getQueryData(["creator-collab-invites"]);
+      queryClient.setQueryData(["creator-collab-invites"], (old: CollabInviteRow[] | undefined) =>
+        Array.isArray(old) ? old.filter((inv) => inv.id !== memberId) : old,
+      );
+      return { previous };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.previous !== undefined) {
+        queryClient.setQueryData(["creator-collab-invites"], ctx.previous);
+      }
+    },
     onSuccess: () => {
-      refetchCollabInvites();
-      queryClient.invalidateQueries({ queryKey: ["creator-projects"] });
+      void refetchCollabInvites();
+      void queryClient.invalidateQueries({ queryKey: ["creator-projects"] });
     },
   });
 
@@ -1036,8 +1066,8 @@ export function CreatorProjectsDashboardClient() {
                 </span>
               ) : null}
             </div>
-            <h1 className="font-display text-2xl font-semibold tracking-tight text-white md:text-3xl">My Projects</h1>
-            <p className="max-w-2xl text-sm leading-relaxed text-slate-400 md:text-base">
+            <h1 data-tour="creator-dashboard-title" className="font-display text-2xl font-semibold tracking-tight text-white md:text-3xl">My Projects</h1>
+            <p data-tour="creator-dashboard-projects" className="max-w-2xl text-sm leading-relaxed text-slate-400 md:text-base">
               {pipelineAccess ? (
                 <>
                   Same rhythm as Distribution upload: one clear flow per project. Expand a film to see all three phases in

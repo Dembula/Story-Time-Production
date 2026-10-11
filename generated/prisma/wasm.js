@@ -168,6 +168,11 @@ exports.Prisma.UserScalarFieldEnum = {
   studentId: 'studentId',
   showCreatorAboutOnTitles: 'showCreatorAboutOnTitles',
   passwordHash: 'passwordHash',
+  mfaEnabled: 'mfaEnabled',
+  mfaSecretEnc: 'mfaSecretEnc',
+  mfaPendingSecretEnc: 'mfaPendingSecretEnc',
+  mfaRecoveryCodesHash: 'mfaRecoveryCodesHash',
+  mfaEnabledAt: 'mfaEnabledAt',
   headline: 'headline',
   location: 'location',
   website: 'website',
@@ -1450,6 +1455,16 @@ exports.Prisma.NotificationScalarFieldEnum = {
   body: 'body',
   metadata: 'metadata',
   read: 'read',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.UserTourProgressScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  tourId: 'tourId',
+  status: 'status',
+  tourVersion: 'tourVersion',
+  updatedAt: 'updatedAt',
   createdAt: 'createdAt'
 };
 
@@ -3376,6 +3391,7 @@ exports.Prisma.ModelName = {
   UserPreference: 'UserPreference',
   ViewerPaymentMethod: 'ViewerPaymentMethod',
   Notification: 'Notification',
+  UserTourProgress: 'UserTourProgress',
   EmailCampaignDelivery: 'EmailCampaignDelivery',
   CreatorFollow: 'CreatorFollow',
   ConnectionRequest: 'ConnectionRequest',

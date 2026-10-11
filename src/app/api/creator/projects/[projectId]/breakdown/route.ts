@@ -179,142 +179,233 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ proje
     }
 
     if (body.props) {
+      const keepIds: string[] = [];
       for (const p of body.props) {
+        const name = (p.name ?? "").replace(/\s+/g, " ").trim();
+        if (!name) continue;
         const data = {
           projectId,
-          name: p.name,
+          name,
           description: p.description ?? null,
           special: p.special ?? false,
           sceneId: p.sceneId ?? null,
         };
         if (p.id) {
-          await tx.breakdownProp.updateMany({
+          const updated = await tx.breakdownProp.updateMany({
             where: { id: p.id, projectId },
             data,
           });
-        } else {
-          await tx.breakdownProp.create({ data });
+          if (updated.count > 0) {
+            keepIds.push(p.id);
+            continue;
+          }
         }
+        const created = await tx.breakdownProp.create({ data });
+        keepIds.push(created.id);
       }
+      await tx.breakdownProp.deleteMany({
+        where: {
+          projectId,
+          ...(keepIds.length > 0 ? { id: { notIn: keepIds } } : {}),
+        },
+      });
     }
 
     if (body.locations) {
+      const keepIds: string[] = [];
       for (const l of body.locations) {
+        const name = (l.name ?? "").replace(/\s+/g, " ").trim();
+        if (!name) continue;
         const data = {
           projectId,
-          name: l.name,
+          name,
           description: l.description ?? null,
           sceneId: l.sceneId ?? null,
           locationListingId: l.locationListingId ?? null,
         };
         if (l.id) {
-          await tx.breakdownLocation.updateMany({
+          const updated = await tx.breakdownLocation.updateMany({
             where: { id: l.id, projectId },
             data,
           });
-        } else {
-          await tx.breakdownLocation.create({ data });
+          if (updated.count > 0) {
+            keepIds.push(l.id);
+            continue;
+          }
         }
+        const created = await tx.breakdownLocation.create({ data });
+        keepIds.push(created.id);
       }
+      await tx.breakdownLocation.deleteMany({
+        where: {
+          projectId,
+          ...(keepIds.length > 0 ? { id: { notIn: keepIds } } : {}),
+        },
+      });
     }
 
     if (body.wardrobe) {
+      const keepIds: string[] = [];
       for (const w of body.wardrobe) {
+        const description = (w.description ?? "").replace(/\s+/g, " ").trim();
+        if (!description) continue;
         const data = {
           projectId,
-          description: w.description,
+          description,
           character: w.character ?? null,
           sceneId: w.sceneId ?? null,
         };
         if (w.id) {
-          await tx.breakdownWardrobe.updateMany({
+          const updated = await tx.breakdownWardrobe.updateMany({
             where: { id: w.id, projectId },
             data,
           });
-        } else {
-          await tx.breakdownWardrobe.create({ data });
+          if (updated.count > 0) {
+            keepIds.push(w.id);
+            continue;
+          }
         }
+        const created = await tx.breakdownWardrobe.create({ data });
+        keepIds.push(created.id);
       }
+      await tx.breakdownWardrobe.deleteMany({
+        where: {
+          projectId,
+          ...(keepIds.length > 0 ? { id: { notIn: keepIds } } : {}),
+        },
+      });
     }
 
     if (body.extras) {
+      const keepIds: string[] = [];
       for (const e of body.extras) {
+        const description = (e.description ?? "").replace(/\s+/g, " ").trim();
+        if (!description) continue;
         const data = {
           projectId,
-          description: e.description,
+          description,
           quantity: e.quantity ?? 1,
           sceneId: e.sceneId ?? null,
         };
         if (e.id) {
-          await tx.breakdownExtra.updateMany({
+          const updated = await tx.breakdownExtra.updateMany({
             where: { id: e.id, projectId },
             data,
           });
-        } else {
-          await tx.breakdownExtra.create({ data });
+          if (updated.count > 0) {
+            keepIds.push(e.id);
+            continue;
+          }
         }
+        const created = await tx.breakdownExtra.create({ data });
+        keepIds.push(created.id);
       }
+      await tx.breakdownExtra.deleteMany({
+        where: {
+          projectId,
+          ...(keepIds.length > 0 ? { id: { notIn: keepIds } } : {}),
+        },
+      });
     }
 
     if (body.vehicles) {
+      const keepIds: string[] = [];
       for (const v of body.vehicles) {
+        const description = (v.description ?? "").replace(/\s+/g, " ").trim();
+        if (!description) continue;
         const data = {
           projectId,
-          description: v.description,
+          description,
           stuntRelated: v.stuntRelated ?? false,
           sceneId: v.sceneId ?? null,
         };
         if (v.id) {
-          await tx.breakdownVehicle.updateMany({
+          const updated = await tx.breakdownVehicle.updateMany({
             where: { id: v.id, projectId },
             data,
           });
-        } else {
-          await tx.breakdownVehicle.create({ data });
+          if (updated.count > 0) {
+            keepIds.push(v.id);
+            continue;
+          }
         }
+        const created = await tx.breakdownVehicle.create({ data });
+        keepIds.push(created.id);
       }
+      await tx.breakdownVehicle.deleteMany({
+        where: {
+          projectId,
+          ...(keepIds.length > 0 ? { id: { notIn: keepIds } } : {}),
+        },
+      });
     }
 
     if (body.stunts) {
+      const keepIds: string[] = [];
       for (const s of body.stunts) {
+        const description = (s.description ?? "").replace(/\s+/g, " ").trim();
+        if (!description) continue;
         const data = {
           projectId,
-          description: s.description,
+          description,
           safetyNotes: s.safetyNotes ?? null,
           sceneId: s.sceneId ?? null,
         };
         if (s.id) {
-          await tx.breakdownStunt.updateMany({
+          const updated = await tx.breakdownStunt.updateMany({
             where: { id: s.id, projectId },
             data,
           });
-        } else {
-          await tx.breakdownStunt.create({ data });
+          if (updated.count > 0) {
+            keepIds.push(s.id);
+            continue;
+          }
         }
+        const created = await tx.breakdownStunt.create({ data });
+        keepIds.push(created.id);
       }
+      await tx.breakdownStunt.deleteMany({
+        where: {
+          projectId,
+          ...(keepIds.length > 0 ? { id: { notIn: keepIds } } : {}),
+        },
+      });
     }
 
     if (body.sfx) {
+      const keepIds: string[] = [];
       for (const fx of body.sfx) {
+        const description = (fx.description ?? "").replace(/\s+/g, " ").trim();
+        if (!description) continue;
         const data = {
           projectId,
-          description: fx.description,
+          description,
           practical: fx.practical ?? false,
           sceneId: fx.sceneId ?? null,
         };
         if (fx.id) {
-          await tx.breakdownSfx.updateMany({
+          const updated = await tx.breakdownSfx.updateMany({
             where: { id: fx.id, projectId },
             data,
           });
-        } else {
-          await tx.breakdownSfx.create({ data });
+          if (updated.count > 0) {
+            keepIds.push(fx.id);
+            continue;
+          }
         }
+        const created = await tx.breakdownSfx.create({ data });
+        keepIds.push(created.id);
       }
+      await tx.breakdownSfx.deleteMany({
+        where: {
+          projectId,
+          ...(keepIds.length > 0 ? { id: { notIn: keepIds } } : {}),
+        },
+      });
     }
 
     if (body.makeups) {
-      await patchBreakdownMakeups(tx, projectId, body.makeups);
+      await patchBreakdownMakeups(tx, projectId, body.makeups, { replaceAll: true });
     }
   }, { timeout: 60000, maxWait: 10000 });
 

@@ -8,6 +8,11 @@ import { notifyUser } from "@/lib/notify-user";
 import { buildAppUrl } from "@/lib/app-url";
 import { validateStorageUrlField } from "@/lib/storage-origin";
 import { normalizeInviteEmail } from "@/lib/creator-team-invites";
+import {
+  activeProjectMemberStatusFilter,
+  isActiveProjectMemberStatus,
+  PENDING_PROJECT_INVITE_STATUS,
+} from "@/lib/project-membership";
 
 const REVIEW_REASON_CODES = [
   "STORY_CLARITY",
@@ -128,10 +133,29 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(memberships);
   }
 
+  // Pending collaboration invites for the My Projects inbox only.
+  if (type === "my-project-invites") {
+    const memberships = await prisma.originalMember.findMany({
+      where: { userId, status: PENDING_PROJECT_INVITE_STATUS },
+      include: {
+        project: { select: { id: true, title: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    return NextResponse.json(
+      memberships.map((m) => ({
+        id: m.id,
+        status: m.status,
+        role: m.role,
+        project: m.project,
+      })),
+    );
+  }
+
   // Projects the creator is a member of that have a script (legacy; prefer my-scripts)
   if (type === "projects-with-scripts") {
     const memberships = await prisma.originalMember.findMany({
-      where: { userId, status: "ACTIVE" },
+      where: { userId, status: activeProjectMemberStatusFilter() },
       include: { project: { include: { _count: { select: { pitches: true } } } } },
     });
     const projectIds = memberships.map((m) => m.project.id);
@@ -167,7 +191,7 @@ export async function GET(req: NextRequest) {
   // Pipeline projects the creator can optionally attach to an Originals pitch
   if (type === "platform-projects") {
     const memberships = await prisma.originalMember.findMany({
-      where: { userId, status: "ACTIVE" },
+      where: { userId, status: activeProjectMemberStatusFilter() },
       include: { project: { select: { id: true, title: true, type: true, logline: true } } },
     });
     return NextResponse.json(
@@ -251,7 +275,11 @@ export async function POST(req: NextRequest) {
     let resolvedScriptProjectId: string | null = null;
     if (linkPlatformProject && platformProjectId?.trim()) {
       const member = await prisma.originalMember.findFirst({
-        where: { userId: session.user.id, projectId: platformProjectId.trim(), status: "ACTIVE" },
+        where: {
+          userId: session.user.id,
+          projectId: platformProjectId.trim(),
+          status: activeProjectMemberStatusFilter(),
+        },
       });
       if (!member) {
         return NextResponse.json({ error: "Selected platform project not found or you are not a member." }, { status: 400 });
@@ -615,7 +643,7 @@ export async function POST(req: NextRequest) {
     }
     if (member.status !== "INVITED" && member.status !== "DECLINED") {
       // Already on the team — treat accept as idempotent.
-      if (accept && (member.status === "ACTIVE" || member.status === "ACCEPTED")) {
+      if (accept && isActiveProjectMemberStatus(member.status)) {
         return NextResponse.json(member);
       }
     }
@@ -663,7 +691,10 @@ export async function POST(req: NextRequest) {
       where: { id: projectId.trim() },
       include: {
         members: {
-          where: { status: "ACTIVE", role: { in: ["DIRECTOR", "PRODUCER", "CREATOR", "SHOWRUNNER"] } },
+          where: {
+            status: activeProjectMemberStatusFilter(),
+            role: { in: ["DIRECTOR", "PRODUCER", "CREATOR", "SHOWRUNNER", "Creator", "Lead Creator", "Collaborator"] },
+          },
           include: { user: { select: { id: true, name: true } } },
           take: 3,
         },

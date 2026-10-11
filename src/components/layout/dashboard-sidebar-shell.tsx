@@ -173,6 +173,7 @@ export function DashboardSidebarShell({
           <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
             <button
               type="button"
+              data-tour="dashboard-sidebar-toggle"
               onClick={() => setSidebarOpen((v) => !v)}
               className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
               aria-label={sidebarOpen ? "Close menu" : "Open menu"}
@@ -190,7 +191,9 @@ export function DashboardSidebarShell({
             </Link>
           </div>
           {headerEnd ? (
-            <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">{headerEnd}</div>
+            <div data-tour="header-end" className="flex shrink-0 items-center gap-1.5 sm:gap-3">
+              {headerEnd}
+            </div>
           ) : null}
         </div>
       </header>
@@ -214,7 +217,9 @@ export function DashboardSidebarShell({
             ].join(" ")}
             aria-hidden={!sidebarOpen}
           >
-            <div className="flex-1 overflow-y-auto px-3 py-4">{sidebarBody}</div>
+            <div data-tour="dashboard-sidebar" className="flex-1 overflow-y-auto px-3 py-4">
+              {sidebarBody}
+            </div>
             {sidebarFooter ? (
               <div className="shrink-0 border-t border-white/8 p-3">{sidebarFooter}</div>
             ) : null}
@@ -228,7 +233,9 @@ export function DashboardSidebarShell({
             <div
               className={`sticky ${stickySidebarTop} flex ${stickySidebarMaxH} flex-col`}
             >
-              <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">{sidebarBody}</div>
+              <div data-tour="dashboard-sidebar" className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+                {sidebarBody}
+              </div>
               {sidebarFooter ? (
                 <div className="shrink-0 border-t border-white/8 px-3 py-3">{sidebarFooter}</div>
               ) : null}

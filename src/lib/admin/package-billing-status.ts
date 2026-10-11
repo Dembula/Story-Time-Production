@@ -213,3 +213,85 @@ export function userHasCreatorRole(roles: string[]): boolean {
 export function userHasCompanyRole(roles: string[]): boolean {
   return roles.some((role) => (COMPANY_ROLE_TYPES as readonly string[]).includes(role));
 }
+
+export type AdminUserBillingBucket = "past_due" | "active" | "other";
+
+type BillingUserLike = {
+  role?: string;
+  userRoles?: { role: string }[];
+  viewerSubscription?: {
+    status: string;
+    viewerModel?: string | null;
+    trialEndsAt?: string | null;
+    currentPeriodEnd?: string | null;
+    pastDueSince?: string | null;
+  } | null;
+  creatorLicense?: {
+    status: string;
+    yearlyExpiresAt?: string | null;
+    pastDueSince?: string | null;
+  } | null;
+  companySubscriptions?: {
+    status: string;
+    currentPeriodEnd?: string | null;
+    pastDueSince?: string | null;
+  }[];
+};
+
+function rolesFromUser(user: BillingUserLike): string[] {
+  const roles = user.userRoles?.map((entry) => entry.role).filter(Boolean) ?? [];
+  if (roles.length > 0) return Array.from(new Set(roles));
+  return user.role ? [user.role] : [];
+}
+
+function productIsPastDue(status: string, pastDueSince?: string | null): boolean {
+  return status === "PAST_DUE" || Boolean(pastDueSince);
+}
+
+function productIsActive(status: string, periodEnd?: string | null): boolean {
+  if (status === "TRIAL_ACTIVE") {
+    if (!periodEnd) return true;
+    return new Date(periodEnd) > new Date();
+  }
+  if (status !== "ACTIVE") return false;
+  if (periodEnd && new Date(periodEnd) <= new Date()) return false;
+  return true;
+}
+
+/** Classify a user for admin directory filters (past due / active billing). */
+export function classifyAdminUserBilling(user: BillingUserLike): {
+  isPastDue: boolean;
+  isActive: boolean;
+  bucket: AdminUserBillingBucket;
+} {
+  const roles = rolesFromUser(user);
+  let isPastDue = false;
+  let isActive = false;
+
+  if (roles.includes("SUBSCRIBER") && user.viewerSubscription) {
+    const sub = user.viewerSubscription;
+    if (productIsPastDue(sub.status, sub.pastDueSince)) isPastDue = true;
+    if (sub.viewerModel === "PPV") {
+      if (sub.status !== "PAST_DUE" && sub.status !== "CANCELLED") isActive = true;
+    } else if (productIsActive(sub.status, sub.status === "TRIAL_ACTIVE" ? sub.trialEndsAt : sub.currentPeriodEnd)) {
+      isActive = true;
+    }
+  }
+
+  if (userHasCreatorRole(roles) && user.creatorLicense) {
+    const license = user.creatorLicense;
+    if (productIsPastDue(license.status, license.pastDueSince)) isPastDue = true;
+    if (productIsActive(license.status, license.yearlyExpiresAt)) isActive = true;
+  }
+
+  if (userHasCompanyRole(roles)) {
+    for (const sub of user.companySubscriptions ?? []) {
+      if (productIsPastDue(sub.status, sub.pastDueSince)) isPastDue = true;
+      if (productIsActive(sub.status, sub.currentPeriodEnd)) isActive = true;
+    }
+  }
+
+  // Past due wins the filter bucket so unpaid accounts are easy to find.
+  const bucket: AdminUserBillingBucket = isPastDue ? "past_due" : isActive ? "active" : "other";
+  return { isPastDue, isActive, bucket };
+}

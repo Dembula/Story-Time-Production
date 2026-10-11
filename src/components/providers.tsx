@@ -15,6 +15,7 @@ import { SessionTelemetry } from "@/components/session-telemetry";
 import { ProductAnalytics } from "@/components/product-analytics";
 import { ClientStabilityMonitor } from "@/components/client-stability-monitor";
 import { FunderVerificationBanner } from "@/components/funders/funder-verification-banner";
+import { TourProvider } from "@/components/tours/tour-provider";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
@@ -29,12 +30,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
           <PlatformInputProvider>
             <MotionProvider>
               <ModocProvider>
-                {children}
-                <ModocRouteSync />
-                <ModocVaShell />
-                <ModocViewerShell />
-                <FunderVerificationBanner />
-                <MiniPlayer />
+                <TourProvider>
+                  {children}
+                  <ModocRouteSync />
+                  <ModocVaShell />
+                  <ModocViewerShell />
+                  <FunderVerificationBanner />
+                  <MiniPlayer />
+                </TourProvider>
               </ModocProvider>
             </MotionProvider>
           </PlatformInputProvider>

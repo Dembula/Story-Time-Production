@@ -8,6 +8,7 @@ import {
   type ContractHireReceiptAudience,
 } from "@/lib/payments/contract-hire-receipt";
 import { estimatePayFastFee } from "@/lib/payments/payfast-settlement";
+import { isActiveProjectMemberStatus } from "@/lib/project-membership";
 
 interface Params {
   params: Promise<{ projectId: string; contractId: string }>;
@@ -41,7 +42,7 @@ async function canAccessReceipt(args: {
   if (args.audience === "creator") {
     const creatorId = contract.project.pitches[0]?.creatorId;
     const isMember = contract.project.members.some(
-      (m) => m.userId === args.userId && ["ACTIVE", "ACCEPTED"].includes(m.status),
+      (m) => m.userId === args.userId && isActiveProjectMemberStatus(m.status),
     );
     return tx.payerId === args.userId || creatorId === args.userId || isMember;
   }

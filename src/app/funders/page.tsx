@@ -18,7 +18,7 @@ export default function FundersHomePage() {
   const metrics = data?.metrics;
 
   return (
-    <main className="space-y-8 text-slate-100">
+    <main data-tour="stakeholder-home" className="space-y-8 text-slate-100">
       <OpsPageHeader
         title="Capital operations"
         subtitle="Discover opportunities, negotiate terms, execute deals, and monitor portfolio performance — verification unlocks full investing."

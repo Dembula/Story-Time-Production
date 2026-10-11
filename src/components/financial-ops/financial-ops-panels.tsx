@@ -563,6 +563,7 @@ export function BudgetVersionsPanel({ projectId }: Props) {
   const qc = useQueryClient();
   const [versionA, setVersionA] = useState("");
   const [versionB, setVersionB] = useState("");
+  const [restoreError, setRestoreError] = useState("");
 
   const { data, isLoading } = useQuery({
     queryKey: ["budget-versions", projectId],
@@ -585,8 +586,39 @@ export function BudgetVersionsPanel({ projectId }: Props) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ label: `Snapshot ${new Date().toLocaleDateString()}` }),
-      }).then((r) => r.json()),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["budget-versions", projectId] }),
+      }).then(async (r) => {
+        const json = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(json?.error || "Could not snapshot budget");
+        return json;
+      }),
+    onSuccess: () => {
+      setRestoreError("");
+      void qc.invalidateQueries({ queryKey: ["budget-versions", projectId] });
+    },
+    onError: (err) => {
+      setRestoreError(err instanceof Error ? err.message : "Could not snapshot budget");
+    },
+  });
+
+  const restoreMut = useMutation({
+    mutationFn: (versionId: string) =>
+      fetch(`/api/creator/projects/${projectId}/budget/versions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "set_active", versionId }),
+      }).then(async (r) => {
+        const json = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(json?.error || "Could not restore version");
+        return json;
+      }),
+    onSuccess: () => {
+      setRestoreError("");
+      void qc.invalidateQueries({ queryKey: ["budget-versions", projectId] });
+      void qc.invalidateQueries({ queryKey: ["project-budget", projectId] });
+    },
+    onError: (err) => {
+      setRestoreError(err instanceof Error ? err.message : "Could not restore version");
+    },
   });
 
   if (isLoading) return <Skeleton className="h-40 w-full" />;
@@ -598,11 +630,36 @@ export function BudgetVersionsPanel({ projectId }: Props) {
       <Button size="sm" onClick={() => snapshotMut.mutate()} disabled={snapshotMut.isPending}>
         Snapshot current budget
       </Button>
+      {restoreError ? <p className="text-xs text-red-300">{restoreError}</p> : null}
       <div className="space-y-1">
+        {versions.length === 0 ? (
+          <p className="text-xs text-slate-500">No snapshots yet. Capture one before making major edits.</p>
+        ) : null}
         {versions.map((v) => (
-          <div key={v.id} className="flex justify-between rounded border border-slate-800 px-3 py-2 text-xs">
+          <div key={v.id} className="flex flex-wrap items-center justify-between gap-2 rounded border border-slate-800 px-3 py-2 text-xs">
             <span className="text-slate-200">v{v.version} — {v.label ?? "Untitled"}</span>
-            <span className="text-slate-400">{formatZar(v.totalPlanned)} · {v.status}</span>
+            <div className="flex items-center gap-2">
+              <span className="text-slate-400">{formatZar(v.totalPlanned)} · {v.status}</span>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 border-slate-700 text-[10px]"
+                disabled={restoreMut.isPending}
+                onClick={() => {
+                  if (
+                    !window.confirm(
+                      `Restore v${v.version}? This replaces the current planned lines on the VA-default budget.`,
+                    )
+                  ) {
+                    return;
+                  }
+                  restoreMut.mutate(v.id);
+                }}
+              >
+                Restore
+              </Button>
+            </div>
           </div>
         ))}
       </div>

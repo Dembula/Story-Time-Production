@@ -22,6 +22,9 @@ export async function GET() {
       email: true,
       role: true,
       adminRights: true,
+      mfaEnabled: true,
+      mfaSecretEnc: true,
+      mfaEnabledAt: true,
       createdAt: true,
       updatedAt: true,
       userRoles: { select: { role: true } },
@@ -34,6 +37,7 @@ export async function GET() {
       user.adminRights === null || user.adminRights === undefined
         ? null
         : parseAdminRights(user.adminRights);
+    const mfaEnabled = Boolean(user.mfaEnabled && user.mfaSecretEnc);
     return {
       id: user.id,
       name: user.name,
@@ -43,6 +47,9 @@ export async function GET() {
       adminRights: rights,
       rightsSummary: adminRightsSummary(user.adminRights, user.email),
       isGod: isAdminGodAccount(user.email),
+      mfaEnabled,
+      mfaEnabledAt: user.mfaEnabledAt?.toISOString() ?? null,
+      isSelf: user.id === actor.id,
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString(),
     };
@@ -50,6 +57,7 @@ export async function GET() {
 
   return NextResponse.json({
     admins: payload,
+    actorUserId: actor.id,
     actorIsGod: actor.isGod,
     canManageTeam:
       actor.isGod ||

@@ -19,12 +19,14 @@ type MakeupDelegate = {
       character: string | null;
       sceneId: string | null;
     };
-  }) => Promise<unknown>;
+  }) => Promise<{ id: string }>;
   updateMany: (args: {
     where: { id: string; projectId: string };
     data: { notes: string; character: string | null; sceneId: string | null };
+  }) => Promise<{ count: number } | unknown>;
+  deleteMany?: (args: {
+    where: { projectId: string; id?: { notIn: string[] } };
   }) => Promise<unknown>;
-  deleteMany?: (args: { where: { projectId: string } }) => Promise<unknown>;
 };
 
 type DbLike = {
@@ -70,16 +72,26 @@ export async function deleteBreakdownMakeupsForProject(tx: DbLike, projectId: st
   `;
 }
 
+/**
+ * Upsert makeup rows. When `replaceAll` is true, any existing project rows not in the
+ * resulting keep-set are deleted (same semantics as other breakdown categories).
+ */
 export async function patchBreakdownMakeups(
   tx: DbLike,
   projectId: string,
   makeups: { id?: string; notes: string; character?: string | null; sceneId?: string | null }[],
+  options?: { replaceAll?: boolean },
 ) {
+  const replaceAll = Boolean(options?.replaceAll);
+  const keepIds: string[] = [];
   const delegate = getMakeupDelegate(tx);
+
   if (delegate) {
     for (const m of makeups) {
+      const notes = (m.notes ?? "").replace(/\s+/g, " ").trim();
+      if (!notes) continue;
       const data = {
-        notes: m.notes,
+        notes,
         character: m.character ?? null,
         sceneId: m.sceneId ?? null,
       };
@@ -88,36 +100,63 @@ export async function patchBreakdownMakeups(
           where: { id: m.id, projectId },
           data,
         });
+        keepIds.push(m.id);
       } else {
-        await delegate.create({
+        const created = await delegate.create({
           data: {
             projectId,
-            notes: m.notes,
+            notes,
             character: m.character ?? null,
             sceneId: m.sceneId ?? null,
           },
         });
+        keepIds.push(created.id);
       }
+    }
+
+    if (replaceAll && delegate.deleteMany) {
+      await delegate.deleteMany({
+        where: {
+          projectId,
+          ...(keepIds.length > 0 ? { id: { notIn: keepIds } } : {}),
+        },
+      });
     }
     return;
   }
 
   for (const m of makeups) {
+    const notes = (m.notes ?? "").replace(/\s+/g, " ").trim();
+    if (!notes) continue;
     if (m.id) {
       await tx.$executeRaw`
         UPDATE "BreakdownMakeup"
         SET
-          notes = ${m.notes},
+          notes = ${notes},
           "character" = ${m.character ?? null},
           "sceneId" = ${m.sceneId ?? null},
           "updatedAt" = NOW()
         WHERE id = ${m.id} AND "projectId" = ${projectId}
       `;
+      keepIds.push(m.id);
     } else {
       const id = newMakeupId();
       await tx.$executeRaw`
         INSERT INTO "BreakdownMakeup" (id, "projectId", "sceneId", notes, "character", "createdAt", "updatedAt")
-        VALUES (${id}, ${projectId}, ${m.sceneId ?? null}, ${m.notes}, ${m.character ?? null}, NOW(), NOW())
+        VALUES (${id}, ${projectId}, ${m.sceneId ?? null}, ${notes}, ${m.character ?? null}, NOW(), NOW())
+      `;
+      keepIds.push(id);
+    }
+  }
+
+  if (replaceAll) {
+    if (keepIds.length === 0) {
+      await tx.$executeRaw`DELETE FROM "BreakdownMakeup" WHERE "projectId" = ${projectId}`;
+    } else {
+      await tx.$executeRaw`
+        DELETE FROM "BreakdownMakeup"
+        WHERE "projectId" = ${projectId}
+          AND NOT (id = ANY(${keepIds}::text[]))
       `;
     }
   }

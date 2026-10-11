@@ -121,11 +121,34 @@ export async function setActiveBudgetVersion(projectId: string, versionId: strin
 
   const version = await prisma.projectBudgetVersion.findFirst({
     where: { id: versionId, budgetId: budget.id },
+    include: { lines: true },
   });
   if (!version) return null;
 
-  return prisma.projectBudget.update({
-    where: { id: budget.id },
-    data: { activeVersionId: versionId },
+  // Restore snapshot lines onto the live default budget, then mark this version active.
+  return prisma.$transaction(async (tx) => {
+    await tx.projectBudgetLine.deleteMany({ where: { budgetId: budget.id } });
+    if (version.lines.length > 0) {
+      await tx.projectBudgetLine.createMany({
+        data: version.lines.map((l) => ({
+          budgetId: budget.id,
+          department: l.department,
+          name: l.name,
+          quantity: l.quantity,
+          unitCost: l.unitCost,
+          total: l.total,
+          notes: l.notes,
+        })),
+      });
+    }
+    return tx.projectBudget.update({
+      where: { id: budget.id },
+      data: {
+        activeVersionId: versionId,
+        totalPlanned: version.totalPlanned,
+        generationSource: version.generationSource ?? budget.generationSource,
+      },
+      include: { lines: true },
+    });
   });
 }

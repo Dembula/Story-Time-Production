@@ -96,7 +96,11 @@ export async function issueTvAccessToken(user: {
 export async function authenticateViewerCredentials(
   emailRaw: string,
   password: string,
-): Promise<{ ok: true; session: TvSession; token: string } | { ok: false; error: string; status: number }> {
+  mfaCodeRaw?: string | null,
+): Promise<
+  | { ok: true; session: TvSession; token: string }
+  | { ok: false; error: string; status: number; mfaRequired?: boolean }
+> {
   const email = String(emailRaw || "").trim().toLowerCase();
   if (!email || password == null || password === "") {
     return { ok: false, error: "Email and password are required.", status: 400 };
@@ -109,6 +113,25 @@ export async function authenticateViewerCredentials(
   const passwordOk = await compare(password, user.passwordHash);
   if (!passwordOk) {
     return { ok: false, error: "Invalid email or password.", status: 401 };
+  }
+
+  const { assertMfaForCredentialsLogin, isMfaActive } = await import("@/lib/mfa/login-gate");
+  if (isMfaActive(user)) {
+    const mfaOk = await assertMfaForCredentialsLogin({
+      userId: user.id,
+      mfa: user,
+      mfaCodeRaw: mfaCodeRaw ?? "",
+    });
+    if (!mfaOk) {
+      return {
+        ok: false,
+        error: mfaCodeRaw?.trim()
+          ? "Invalid authenticator code."
+          : "Authenticator code required.",
+        status: 401,
+        mfaRequired: true,
+      };
+    }
   }
 
   const roles = await getUserRoles(user.id, user.role);

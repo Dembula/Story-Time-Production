@@ -1,3 +1,7 @@
+/**
+ * @deprecated Legacy JSON file store. Live Budget Builder uses Prisma (`ProjectBudget` /
+ * `ProjectBudgetLine`) via `/api/creator/projects/[projectId]/budget`. Do not wire new code here.
+ */
 import fs from "fs/promises";
 import path from "path";
 

@@ -208,7 +208,7 @@ export function BreakdownStudioShell({
 
     <div className="creator-tool-studio creator-tool-workspace space-y-0">
 
-      <div className="creator-tool-studio-tabs border-b border-slate-800 pb-3">
+      <div data-tour="breakdown-studio-tabs" className="creator-tool-studio-tabs border-b border-slate-800 pb-3">
 
         {TABS.map((t) => (
 

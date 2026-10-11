@@ -37,10 +37,16 @@ export async function DELETE() {
 export async function POST(request: NextRequest) {
   let email = "";
   let password = "";
+  let mfaCode = "";
   try {
-    const body = (await request.json()) as { email?: unknown; password?: unknown };
+    const body = (await request.json()) as {
+      email?: unknown;
+      password?: unknown;
+      mfaCode?: unknown;
+    };
     email = typeof body.email === "string" ? body.email : "";
     password = typeof body.password === "string" ? body.password : "";
+    mfaCode = typeof body.mfaCode === "string" ? body.mfaCode : "";
   } catch {
     return json({ error: "Invalid request body." }, 400);
   }
@@ -69,7 +75,7 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const result = await authenticateViewerCredentials(email, password);
+  const result = await authenticateViewerCredentials(email, password, mfaCode);
   if (!result.ok) {
     if (isSignInRateLimitEnabled() && result.status === 401) {
       const ip = getClientIpFromRequest(request);
@@ -82,7 +88,13 @@ export async function POST(request: NextRequest) {
         });
       }
     }
-    return json({ error: result.error }, result.status);
+    return json(
+      {
+        error: result.error,
+        ...(result.mfaRequired ? { mfaRequired: true } : {}),
+      },
+      result.status,
+    );
   }
 
   try {

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { validateIdOrPassportByCountry } from "@/lib/kyc-validation";
 import { applyKycDocumentToPayload } from "@/lib/kyc-form-documents";
 import { KycDocumentUploadField } from "@/components/kyc/kyc-document-upload-field";
+import { MfaSecurityPanel } from "@/components/auth/mfa-security-panel";
 import Link from "next/link";
 const STEPS = [
   "Basic Identity",
@@ -385,6 +386,11 @@ export default function FunderVerificationPage() {
             Platform access is not blocked. After you submit, investing and capital movements stay locked until compliance approves your application.
           </p>
         )}
+      </div>
+
+      <div>
+        <h2 className="mb-3 text-lg font-semibold text-white">Account security</h2>
+        <MfaSecurityPanel variant="dark" />
       </div>
     </main>
   );

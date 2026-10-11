@@ -20,6 +20,9 @@ const EMPTY_SIGNALS: ProjectUsageSignals = {
   callSheetCount: 0,
   incidentCount: 0,
   dailiesClipCount: 0,
+  footageAssetCount: 0,
+  editReviewCount: 0,
+  musicSelectionCount: 0,
   contentLinked: false,
 };
 
@@ -44,6 +47,9 @@ function bump(map: Map<string, ProjectUsageSignals>, projectId: string, patch: P
     callSheetCount: cur.callSheetCount + (patch.callSheetCount ?? 0),
     incidentCount: cur.incidentCount + (patch.incidentCount ?? 0),
     dailiesClipCount: cur.dailiesClipCount + (patch.dailiesClipCount ?? 0),
+    footageAssetCount: cur.footageAssetCount + (patch.footageAssetCount ?? 0),
+    editReviewCount: cur.editReviewCount + (patch.editReviewCount ?? 0),
+    musicSelectionCount: cur.musicSelectionCount + (patch.musicSelectionCount ?? 0),
     contentLinked: cur.contentLinked || Boolean(patch.contentLinked),
   });
 }
@@ -80,6 +86,9 @@ export async function loadProjectUsageSignals(
     callSheets,
     incidents,
     dailies,
+    footage,
+    editReviews,
+    musicSelections,
     linkedContent,
   ] = await Promise.all([
     prisma.creatorTreatment.groupBy({ by: ["projectId"], where: whereIn, _count: { _all: true } }),
@@ -102,6 +111,9 @@ export async function loadProjectUsageSignals(
     prisma.callSheet.groupBy({ by: ["projectId"], where: whereIn, _count: { _all: true } }),
     prisma.incidentReport.groupBy({ by: ["projectId"], where: whereIn, _count: { _all: true } }),
     prisma.dailiesClip.groupBy({ by: ["projectId"], where: whereIn, _count: { _all: true } }),
+    prisma.footageAsset.groupBy({ by: ["projectId"], where: whereIn, _count: { _all: true } }),
+    prisma.postProductionReview.groupBy({ by: ["projectId"], where: whereIn, _count: { _all: true } }),
+    prisma.musicSelection.groupBy({ by: ["projectId"], where: whereIn, _count: { _all: true } }),
     prisma.content.findMany({
       where: { linkedProjectId: { in: projectIds } },
       select: { linkedProjectId: true },
@@ -127,6 +139,9 @@ export async function loadProjectUsageSignals(
   for (const row of callSheets) bump(map, row.projectId, { callSheetCount: row._count._all });
   for (const row of incidents) bump(map, row.projectId, { incidentCount: row._count._all });
   for (const row of dailies) bump(map, row.projectId, { dailiesClipCount: row._count._all });
+  for (const row of footage) bump(map, row.projectId, { footageAssetCount: row._count._all });
+  for (const row of editReviews) bump(map, row.projectId, { editReviewCount: row._count._all });
+  for (const row of musicSelections) bump(map, row.projectId, { musicSelectionCount: row._count._all });
   for (const row of linkedContent) {
     if (row.linkedProjectId) bump(map, row.linkedProjectId, { contentLinked: true });
   }

@@ -38,6 +38,7 @@ import {
   budgetRowKey,
   embedBudgetLineKey,
   extractBudgetLineKey,
+  sceneIdFromBudgetLineKey,
   stripBudgetLineKey,
 } from "@/lib/budget-line-keys";
 import {
@@ -47,6 +48,7 @@ import {
 } from "@/components/budget/budget-studio-nav";
 import { BudgetActualsPanel } from "@/components/budget/budget-actuals-panel";
 import { BudgetLinesEditor } from "@/components/budget/budget-lines-editor";
+import { BudgetVersionsPanel } from "@/components/financial-ops/financial-ops-panels";
 import {
   buildEffectiveSceneLinksForPreview,
   buildShootDayPipelinePreview,
@@ -1120,10 +1122,20 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
     null) as DepartmentWorkspacePayload | null;
 
   useEffect(() => {
-    const tabParam = searchParams.get("tab");
-    if (tabParam === "revisions") setStudioTab("revisions");
-    else if (tabParam === "screenplay") setStudioTab("screenplay");
-    else if (tabParam === "departments") setStudioTab("departments");
+    const tabParam = searchParams.get("tab")?.trim().toLowerCase();
+    if (!tabParam) return;
+    const allowed: BreakdownStudioTab[] = [
+      "command",
+      "scenes",
+      "catalog",
+      "departments",
+      "screenplay",
+      "revisions",
+      "editor",
+    ];
+    if (allowed.includes(tabParam as BreakdownStudioTab)) {
+      setStudioTab(tabParam as BreakdownStudioTab);
+    }
   }, [searchParams]);
 
   useEffect(() => {
@@ -1425,7 +1437,7 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
 
   return (
     <div className="creator-tool-workspace">
-      <header className="creator-tool-workspace-header">
+      <header data-tour="tool-workspace-header" className="creator-tool-workspace-header">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div className="min-w-0 flex-1">
             <p className="creator-tool-workspace-eyebrow">
@@ -1441,6 +1453,34 @@ function ScriptBreakdownWorkspace({ projectId, title }: ScriptBreakdownWorkspace
                 </span>
               )}
             </p>
+            {hasProject && projectId ? (
+              <div data-tour="tool-related-links" className="mt-3 flex flex-wrap gap-4 text-xs">
+                <Link
+                  href={`/creator/projects/${projectId}/pre-production/script-writing`}
+                  className="text-orange-400 hover:text-orange-300"
+                >
+                  Script Writing →
+                </Link>
+                <Link
+                  href={`/creator/projects/${projectId}/pre-production/budget-builder`}
+                  className="text-orange-400 hover:text-orange-300"
+                >
+                  Budget Builder →
+                </Link>
+                <Link
+                  href={`/creator/projects/${projectId}/pre-production/casting-portal`}
+                  className="text-orange-400 hover:text-orange-300"
+                >
+                  Casting →
+                </Link>
+                <Link
+                  href={`/creator/projects/${projectId}/pre-production/production-scheduling`}
+                  className="text-orange-400 hover:text-orange-300"
+                >
+                  Production schedule →
+                </Link>
+              </div>
+            ) : null}
           </div>
         <div className="flex items-center gap-2">
           <ToolViewButton
@@ -2493,6 +2533,8 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
             department: line.department,
             name: line.name,
           });
+          const sceneId = sceneIdFromBudgetLineKey(key);
+          const scene = sceneId ? sceneById.get(sceneId) : null;
           return {
             id: line.id,
             key,
@@ -2502,15 +2544,15 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
             unitCost: unit,
             total: Number(line.total ?? calcTotal(qty, unit)),
             notes: stripBudgetLineKey(line.notes) || "",
-            sceneId: null,
-            sceneNumber: null,
-            sceneHeading: null,
+            sceneId,
+            sceneNumber: scene?.number ?? null,
+            sceneHeading: scene?.heading ?? null,
             category: "MANUAL",
           };
         }),
       );
     },
-    [normalizeRows],
+    [normalizeRows, sceneById],
   );
 
   const budgetDirty = useMemo(
@@ -2800,7 +2842,7 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
 
   return (
     <div className="creator-tool-workspace">
-      <header className="creator-tool-workspace-header space-y-5">
+      <header data-tour="tool-workspace-header" className="creator-tool-workspace-header space-y-5">
         <div className="min-w-0">
           <p className="creator-tool-workspace-eyebrow">
             Pre-production workspace
@@ -2810,7 +2852,13 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
             Build and edit production budgets for this project. Create multiple versions (e.g. lean vs full), add your own line items, and ask the Virtual Assistant to generate or optimise a budget from your script.
           </p>
           {hasProject && projectId && (
-            <div className="mt-3 flex flex-wrap gap-4 text-xs">
+            <div data-tour="tool-related-links" className="mt-3 flex flex-wrap gap-4 text-xs">
+              <Link
+                href={`/creator/projects/${projectId}/pre-production/script-breakdown`}
+                className="text-orange-400 hover:text-orange-300"
+              >
+                Script Breakdown →
+              </Link>
               <Link
                 href={`/creator/projects/${projectId}/production/expense-tracker`}
                 className="text-orange-400 hover:text-orange-300"
@@ -3050,7 +3098,7 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
         )}
       </header>
 
-      <div className="creator-tool-workspace-body space-y-4">
+      <div data-tour="tool-workspace-body" className="creator-tool-workspace-body space-y-4">
       <ToolSavedViewSheet
         open={budgetViewOpen}
         onClose={() => setBudgetViewOpen(false)}
@@ -3100,9 +3148,9 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
                 Let the Virtual Assistant build this budget?
               </p>
               <p id="va-budget-prompt-desc" className="text-xs leading-relaxed text-slate-300">
-                The VA can pre-fill line items from your script, scenes, and breakdown.
-                Choose <span className="text-white font-medium">No</span> to start from a blank
-                budget and enter everything yourself.
+                Prefill planned lines from your scenes and Script Breakdown (or live engine estimates when
+                available). For marketplace-rate smart budgets, ask Modoc to generate a smart budget.
+                Choose <span className="text-white font-medium">No</span> to start blank and enter lines yourself.
               </p>
             </div>
             <div className="flex shrink-0 flex-wrap gap-2">
@@ -3172,6 +3220,18 @@ function BudgetBuilderWorkspace({ projectId, title }: BudgetBuilderWorkspaceProp
           {budgetWorkspace === "actuals" && projectId && (
             <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
               <BudgetActualsPanel projectId={projectId} />
+            </div>
+          )}
+          {budgetWorkspace === "versions" && projectId && (
+            <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4 space-y-3">
+              <div>
+                <p className="text-sm font-medium text-slate-100">Budget versions</p>
+                <p className="mt-1 text-[11px] text-slate-400">
+                  Snapshot the VA-default budget, compare locked versions, or restore a snapshot to replace
+                  current planned lines.
+                </p>
+              </div>
+              <BudgetVersionsPanel projectId={projectId} />
             </div>
           )}
           {budgetWorkspace === "overview" && isBlankBudget && (

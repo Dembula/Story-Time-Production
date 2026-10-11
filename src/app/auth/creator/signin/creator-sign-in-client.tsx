@@ -7,6 +7,7 @@ import { ArrowLeft, Shield } from "lucide-react";
 import { StoryTimeMark } from "@/components/brand/story-time-mark";
 import { resolvePostSignInRedirect } from "@/lib/auth-sign-in-path";
 import { OAuthSignInButtons } from "@/components/auth/oauth-sign-in-buttons";
+import { precheckMfaRequirement } from "@/lib/mfa/client-precheck";
 
 export function CreatorSignInClient({
   callbackPath,
@@ -17,48 +18,82 @@ export function CreatorSignInClient({
 }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [mfaCode, setMfaCode] = useState("");
+  const [mfaRequired, setMfaRequired] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [selectedRole, setSelectedRole] = useState(defaultRole);
+
+  async function finishAfterOk() {
+    const destination = callbackPath
+      ? resolvePostSignInRedirect(selectedRole, callbackPath)
+      : null;
+    await getSession();
+    if (destination) {
+      window.location.replace(destination);
+      return;
+    }
+    const entryRes = await fetch("/api/auth/entry-redirect", { cache: "no-store" });
+    if (entryRes.ok) {
+      const entry = (await entryRes.json()) as { path?: string };
+      if (entry.path) {
+        window.location.replace(entry.path);
+        return;
+      }
+    }
+    window.location.replace(resolvePostSignInRedirect(selectedRole, null));
+  }
+
+  async function completeSignIn(code?: string) {
+    const normalizedEmail = email.trim().toLowerCase();
+    const res = await signIn("credentials-creator", {
+      email: normalizedEmail,
+      password,
+      selectedRole,
+      mfaCode: code ?? "",
+      redirect: false,
+    });
+    if (!res?.ok) {
+      setError(
+        res?.error === "CredentialsSignin"
+          ? mfaRequired
+            ? "Invalid authenticator code. Try again."
+            : "Invalid email or password, or you do not have an account for the selected type with this email."
+          : "Sign in failed. Please try again.",
+      );
+      return;
+    }
+    await finishAfterOk();
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     setLoading(true);
     try {
-      const normalizedEmail = email.trim().toLowerCase();
-      const res = await signIn("credentials-creator", {
-        email: normalizedEmail,
-        password,
-        selectedRole,
-        redirect: false,
-      });
-      if (!res?.ok) {
-        setError(
-          res?.error === "CredentialsSignin"
-            ? "Invalid email or password, or you do not have an account for the selected type with this email."
-            : "Sign in failed. Please try again.",
-        );
+      if (mfaRequired) {
+        await completeSignIn(mfaCode.trim());
         return;
       }
 
-      const destination = callbackPath
-        ? resolvePostSignInRedirect(selectedRole, callbackPath)
-        : null;
-      await getSession();
-      if (destination) {
-        window.location.replace(destination);
+      const pre = await precheckMfaRequirement({
+        email,
+        password,
+        portal: "creator",
+        selectedRole,
+      });
+      if (!pre.ok) {
+        setError(
+          "Invalid email or password, or you do not have an account for the selected type with this email.",
+        );
         return;
       }
-      const entryRes = await fetch("/api/auth/entry-redirect", { cache: "no-store" });
-      if (entryRes.ok) {
-        const entry = (await entryRes.json()) as { path?: string };
-        if (entry.path) {
-          window.location.replace(entry.path);
-          return;
-        }
+      if (pre.mfaRequired) {
+        setMfaRequired(true);
+        setMfaCode("");
+        return;
       }
-      window.location.replace(resolvePostSignInRedirect(selectedRole, null));
+      await completeSignIn("");
     } catch {
       setError("Sign in failed. If you have been trying repeatedly, wait a few minutes and try again.");
     } finally {
@@ -95,7 +130,11 @@ export function CreatorSignInClient({
               <select
                 id="accountType"
                 value={selectedRole}
-                onChange={(e) => setSelectedRole(e.target.value)}
+                onChange={(e) => {
+                  setSelectedRole(e.target.value);
+                  if (mfaRequired) setMfaRequired(false);
+                }}
+                disabled={mfaRequired}
                 className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-950 shadow-sm outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-200/80"
                 suppressHydrationWarning
               >
@@ -117,10 +156,14 @@ export function CreatorSignInClient({
                 id="email"
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (mfaRequired) setMfaRequired(false);
+                }}
                 placeholder="creator@example.com"
                 autoComplete="email"
                 required
+                disabled={mfaRequired}
                 className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-950 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-amber-400 focus:ring-2 focus:ring-amber-200/80"
                 suppressHydrationWarning
               />
@@ -133,10 +176,14 @@ export function CreatorSignInClient({
                 id="password"
                 type="password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (mfaRequired) setMfaRequired(false);
+                }}
                 placeholder="••••••••"
                 autoComplete="current-password"
                 required
+                disabled={mfaRequired}
                 className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-950 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-amber-400 focus:ring-2 focus:ring-amber-200/80"
                 suppressHydrationWarning
               />
@@ -146,6 +193,39 @@ export function CreatorSignInClient({
                 </Link>
               </div>
             </div>
+            {mfaRequired ? (
+              <div>
+                <label htmlFor="mfaCode" className="mb-2 block text-sm font-medium text-slate-700">
+                  Authenticator code
+                </label>
+                <input
+                  id="mfaCode"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  value={mfaCode}
+                  onChange={(e) => setMfaCode(e.target.value)}
+                  placeholder="6-digit code or recovery code"
+                  required
+                  autoFocus
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-950 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-amber-400 focus:ring-2 focus:ring-amber-200/80"
+                />
+                <p className="mt-2 text-xs text-slate-500">
+                  MFA is on for this account — enter your authenticator or recovery code.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMfaRequired(false);
+                    setMfaCode("");
+                    setError("");
+                  }}
+                  className="mt-2 text-xs text-slate-600 hover:text-slate-900"
+                >
+                  Back to email & password
+                </button>
+              </div>
+            ) : null}
             {error && (
               <div className="rounded-xl border border-red-200 bg-red-50 p-3">
                 <p className="text-sm text-red-600">{error}</p>
@@ -157,16 +237,18 @@ export function CreatorSignInClient({
               className="w-full rounded-xl bg-slate-950 py-3 font-semibold text-white shadow-[0_18px_40px_-22px_rgba(15,23,42,0.85)] transition hover:-translate-y-0.5 hover:bg-slate-900 disabled:opacity-50"
               suppressHydrationWarning
             >
-              {loading ? "Signing in..." : "Sign In"}
+              {loading ? "Signing in..." : mfaRequired ? "Verify & sign in" : "Sign In"}
             </button>
           </form>
 
-          <OAuthSignInButtons
-            callbackUrl={callbackPath ?? "/creator/command-center"}
-            dividerLabel="Or"
-            variant="light"
-            onError={setError}
-          />
+          {!mfaRequired ? (
+            <OAuthSignInButtons
+              callbackUrl={callbackPath ?? "/creator/command-center"}
+              dividerLabel="Or"
+              variant="light"
+              onError={setError}
+            />
+          ) : null}
 
           <div className="mt-4 flex items-center justify-center gap-2 text-xs text-slate-500">
             <Shield className="w-3.5 h-3.5" />

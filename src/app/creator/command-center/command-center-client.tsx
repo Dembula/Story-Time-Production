@@ -261,7 +261,7 @@ export function CommandCenterClient() {
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
+        <div data-tour="cc-title">
           <h1 className="mb-2 flex items-center gap-3 font-display text-2xl font-semibold text-white md:text-3xl">
             <Radio className="w-8 h-8 text-orange-500" />
             Command Center
@@ -273,9 +273,11 @@ export function CommandCenterClient() {
         </div>
       </div>
 
-      <CommandCenterCalendar />
+      <div data-tour="cc-calendar">
+        <CommandCenterCalendar />
+      </div>
 
-      <div className="cinematic-glass rounded-2xl border border-white/8 p-4 md:p-5">
+      <div data-tour="cc-snapshot" className="cinematic-glass rounded-2xl border border-white/8 p-4 md:p-5">
         <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Executive snapshot</p>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
           <OpsMetricCard
@@ -340,7 +342,7 @@ export function CommandCenterClient() {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 border-b border-white/10 pb-3">
+      <div data-tour="cc-nav" className="flex flex-wrap items-center gap-2 border-b border-white/10 pb-3">
         {nav.map((item) => (
           <button
             key={item.id}

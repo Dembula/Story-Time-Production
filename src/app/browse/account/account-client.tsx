@@ -6,6 +6,7 @@ import { CreditCard, Smartphone, Calendar, RefreshCw, Film, Loader2 } from "luci
 import { VIEWER_PLAN_CONFIG } from "@/lib/pricing";
 import { formatZar } from "@/lib/format-currency-zar";
 import { SubscriptionResumeButton } from "@/components/viewer/subscription-resume-checkout";
+import { MfaSecurityPanel } from "@/components/auth/mfa-security-panel";
 
 type Subscription = {
   id: string;
@@ -130,13 +131,19 @@ export function AccountClient({
 
   if (!subscription) {
     return (
-      <div className="storytime-section p-8 text-center">
-        <CreditCard className="w-12 h-12 text-slate-500 mx-auto mb-4" />
-        <h2 className="text-xl font-semibold text-white mb-2">No active subscription</h2>
-        <p className="text-slate-400 mb-6">Choose a plan to start watching.</p>
-        <Link href="/onboarding/package" className="inline-flex rounded-xl viewer-btn-primary px-6 py-3 font-semibold transition hover:-translate-y-0.5">
-          Choose a plan
-        </Link>
+      <div className="space-y-6">
+        <div className="storytime-section p-8 text-center">
+          <CreditCard className="w-12 h-12 text-slate-500 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-white mb-2">No active subscription</h2>
+          <p className="text-slate-400 mb-6">Choose a plan to start watching.</p>
+          <Link href="/onboarding/package" className="inline-flex rounded-xl viewer-btn-primary px-6 py-3 font-semibold transition hover:-translate-y-0.5">
+            Choose a plan
+          </Link>
+        </div>
+        <div>
+          <h2 className="mb-3 text-lg font-semibold text-white">Security</h2>
+          <MfaSecurityPanel variant="dark" />
+        </div>
       </div>
     );
   }
@@ -318,6 +325,11 @@ export function AccountClient({
           </ul>
         </div>
       )}
+
+      <div>
+        <h2 className="mb-3 text-lg font-semibold text-white">Security</h2>
+        <MfaSecurityPanel variant="dark" />
+      </div>
     </div>
   );
 }

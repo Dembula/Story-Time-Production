@@ -68,6 +68,15 @@ model User {
   /// When true, the About the Creator card may appear on published title pages (requires profile content).
   showCreatorAboutOnTitles Boolean @default(false)
   passwordHash String?
+  /// TOTP MFA (authenticator app). Account-level — applies to every portal for this user/email.
+  mfaEnabled              Boolean   @default(false)
+  /// AES-encrypted TOTP secret (only when enabled or pending confirm).
+  mfaSecretEnc            String?
+  /// Temporary secret while user is confirming setup (cleared after enable/cancel).
+  mfaPendingSecretEnc     String?
+  /// JSON array of SHA-256-hashed one-time recovery codes.
+  mfaRecoveryCodesHash    String?
+  mfaEnabledAt            DateTime?
   headline      String?   // network profile tagline
   location      String?   // city/region for network
   website       String?   // personal or studio site
@@ -160,6 +169,7 @@ model User {
   competitionWins       CompetitionPeriod[] @relation("CompetitionWinner")
   companySubscriptions   CompanySubscription[]
   userPreference        UserPreference?
+  tourProgress          UserTourProgress[]
   viewerPaymentMethods  ViewerPaymentMethod[]
   viewerContentAccesses ViewerContentAccess[]
   paymentRecords        PaymentRecord[]
@@ -2238,6 +2248,23 @@ model Notification {
 
   @@index([userId])
   @@index([createdAt])
+}
+
+/// Interactive product-tour completion / dismissal (per authenticated user).
+model UserTourProgress {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tourId      String
+  /// COMPLETED | DISMISSED
+  status      String
+  tourVersion Int      @default(1)
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, tourId])
+  @@index([userId, status])
+  @@index([tourId])
 }
 
 /// One-shot outbound email campaigns (e.g. viewer package reminder).

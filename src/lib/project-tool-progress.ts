@@ -33,6 +33,9 @@ export type ProjectUsageSignals = {
   callSheetCount: number;
   incidentCount: number;
   dailiesClipCount: number;
+  footageAssetCount: number;
+  editReviewCount: number;
+  musicSelectionCount: number;
   contentLinked: boolean;
 };
 
@@ -115,10 +118,22 @@ function inferFromSignals(toolId: string, signals: ProjectUsageSignals): Resolve
       return signals.incidentCount > 0 ? "COMPLETE" : "NOT_STARTED";
     case "dailies-review":
       return signals.dailiesClipCount > 0 ? "COMPLETE" : "NOT_STARTED";
+    case "footage-ingestion":
+      return signals.footageAssetCount > 0
+        ? "COMPLETE"
+        : signals.dailiesClipCount > 0
+          ? "IN_PROGRESS"
+          : "NOT_STARTED";
+    case "editing-studio":
+      return signals.editReviewCount > 0
+        ? "COMPLETE"
+        : signals.footageAssetCount > 0
+          ? "IN_PROGRESS"
+          : "NOT_STARTED";
     case "distribution":
       return signals.contentLinked ? "COMPLETE" : "NOT_STARTED";
     case "music-scoring":
-      return "NOT_STARTED";
+      return signals.musicSelectionCount > 0 ? "COMPLETE" : "NOT_STARTED";
     default:
       return "NOT_STARTED";
   }

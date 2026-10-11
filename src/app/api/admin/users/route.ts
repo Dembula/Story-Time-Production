@@ -22,6 +22,9 @@ export async function GET() {
       creatorAccountStructure: true,
       creatorTeamSeatCap: true,
       isAfdaStudent: true, createdAt: true, updatedAt: true,
+      mfaEnabled: true,
+      mfaSecretEnc: true,
+      mfaEnabledAt: true,
       userRoles: { select: { role: true } },
       viewerSubscriptions: {
         orderBy: { createdAt: "desc" },
@@ -83,11 +86,16 @@ export async function GET() {
       creatorDistributionLicense: license,
       companySubscriptions,
       funderProfile,
+      mfaEnabled,
+      mfaSecretEnc,
+      mfaEnabledAt,
       ...rest
     } = user;
     const sub = viewerSubscriptions[0];
     return {
       ...rest,
+      mfaEnabled: Boolean(mfaEnabled && mfaSecretEnc),
+      mfaEnabledAt: mfaEnabledAt?.toISOString() ?? null,
       viewerSubscription: sub
         ? {
             plan: sub.plan,

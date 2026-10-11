@@ -1,3 +1,7 @@
+/**
+ * @deprecated Legacy JSON file store. Live Script Breakdown uses Prisma breakdown tables via
+ * `/api/creator/projects/[projectId]/breakdown`. Do not wire new code here.
+ */
 import fs from "fs/promises";
 import path from "path";
 

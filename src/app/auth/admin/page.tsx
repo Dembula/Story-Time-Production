@@ -6,11 +6,14 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { StoryTimeMark } from "@/components/brand/story-time-mark";
 import { ArrowLeft, Shield, Lock, UserPlus, ChevronDown, ChevronUp } from "lucide-react";
+import { precheckMfaRequirement } from "@/lib/mfa/client-precheck";
 
 export default function AdminLoginPage() {
   const { data: session, status, update: updateSession } = useSession();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [mfaCode, setMfaCode] = useState("");
+  const [mfaRequired, setMfaRequired] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -64,16 +67,43 @@ export default function AdminLoginPage() {
     e.preventDefault();
     setError("");
     setLoading(true);
-    const res = await signIn("credentials-admin", {
-      email,
-      password,
-      redirect: false,
-    });
-    setLoading(false);
-    if (res?.ok) {
-      window.location.href = "/admin";
-    } else {
-      setError("Invalid credentials. Only approved administrator accounts can sign in here.");
+    try {
+      if (!mfaRequired) {
+        const pre = await precheckMfaRequirement({
+          email,
+          password,
+          portal: "admin",
+        });
+        if (!pre.ok) {
+          setError("Invalid credentials. Only approved administrator accounts can sign in here.");
+          return;
+        }
+        if (pre.mfaRequired) {
+          setMfaRequired(true);
+          setMfaCode("");
+          return;
+        }
+      }
+
+      const res = await signIn("credentials-admin", {
+        email,
+        password,
+        mfaCode: mfaRequired ? mfaCode.trim() : "",
+        redirect: false,
+      });
+      if (res?.ok) {
+        window.location.href = "/admin";
+      } else {
+        setError(
+          mfaRequired
+            ? "Invalid authenticator code. Try again."
+            : "Invalid credentials. Only approved administrator accounts can sign in here.",
+        );
+      }
+    } catch {
+      setError("Sign in failed. Please try again.");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -182,10 +212,14 @@ export default function AdminLoginPage() {
                   id="admin-email"
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (mfaRequired) setMfaRequired(false);
+                  }}
                   placeholder="you@example.com"
                   required
                   autoComplete="email"
+                  disabled={mfaRequired}
                   className="storytime-input w-full py-3 pl-10 pr-4"
                 />
               </div>
@@ -206,13 +240,47 @@ export default function AdminLoginPage() {
                 id="admin-password"
                 type="password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (mfaRequired) setMfaRequired(false);
+                }}
                 placeholder="••••••••"
                 required
                 autoComplete="current-password"
+                disabled={mfaRequired}
                 className="storytime-input w-full px-4 py-3"
               />
             </div>
+            {mfaRequired ? (
+              <div>
+                <label htmlFor="admin-mfa" className="mb-2 block text-sm font-medium text-slate-300">
+                  Authenticator code
+                </label>
+                <input
+                  id="admin-mfa"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  value={mfaCode}
+                  onChange={(e) => setMfaCode(e.target.value)}
+                  placeholder="6-digit code or recovery code"
+                  required
+                  autoFocus
+                  className="storytime-input w-full px-4 py-3"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMfaRequired(false);
+                    setMfaCode("");
+                    setError("");
+                  }}
+                  className="mt-2 text-xs text-slate-400 hover:text-slate-200"
+                >
+                  Back to email & password
+                </button>
+              </div>
+            ) : null}
             {error && (
               <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3">
                 <p className="text-sm text-red-400">{error}</p>
@@ -223,7 +291,7 @@ export default function AdminLoginPage() {
               disabled={loading}
               className="w-full rounded-xl bg-orange-500 py-3 font-semibold text-white shadow-glow hover:-translate-y-0.5 hover:bg-orange-400 disabled:opacity-50"
             >
-              {loading ? "Signing in…" : "Sign in as admin"}
+              {loading ? "Signing in…" : mfaRequired ? "Verify & sign in" : "Sign in as admin"}
             </button>
           </form>
 

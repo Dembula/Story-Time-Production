@@ -8,10 +8,13 @@ import { AuthButton, AuthForm, AuthInput } from "@/components/auth/auth-form-con
 import { OAuthSignInButtons } from "@/components/auth/oauth-sign-in-buttons";
 import { defaultHomeForRole } from "@/lib/auth-sign-in-path";
 import { StoryTimeMark } from "@/components/brand/story-time-mark";
+import { precheckMfaRequirement } from "@/lib/mfa/client-precheck";
 
 export function SignInClient({ callbackUrl }: { callbackUrl: string | null }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [mfaCode, setMfaCode] = useState("");
+  const [mfaRequired, setMfaRequired] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -37,25 +40,51 @@ export function SignInClient({ callbackUrl }: { callbackUrl: string | null }) {
     }
   }
 
+  async function completeSignIn(code?: string) {
+    const res = await signIn("credentials-viewer", {
+      email,
+      password,
+      mfaCode: code ?? "",
+      redirect: false,
+    });
+    if (res?.ok) {
+      await redirectAfterSignIn();
+      return;
+    }
+    setError(
+      res?.error === "CredentialsSignin"
+        ? mfaRequired
+          ? "Invalid authenticator code. Try again."
+          : "Invalid email or password. For creator dashboards, use Creator sign in below."
+        : "Sign in failed. Please try again.",
+    );
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     setLoading(true);
     try {
-      const res = await signIn("credentials-viewer", {
-        email,
-        password,
-        redirect: false,
-      });
-      if (res?.ok) {
-        await redirectAfterSignIn();
+      if (mfaRequired) {
+        await completeSignIn(mfaCode.trim());
         return;
       }
-      setError(
-        res?.error === "CredentialsSignin"
-          ? "Invalid email or password. For creator dashboards, use Creator sign in below."
-          : "Sign in failed. Please try again.",
-      );
+
+      const pre = await precheckMfaRequirement({
+        email,
+        password,
+        portal: "viewer",
+      });
+      if (!pre.ok) {
+        setError("Invalid email or password. For creator dashboards, use Creator sign in below.");
+        return;
+      }
+      if (pre.mfaRequired) {
+        setMfaRequired(true);
+        setMfaCode("");
+        return;
+      }
+      await completeSignIn("");
     } catch {
       setError("Sign in failed. If you have been trying repeatedly, wait a few minutes and try again.");
     } finally {
@@ -90,10 +119,14 @@ export function SignInClient({ callbackUrl }: { callbackUrl: string | null }) {
                 id="email"
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (mfaRequired) setMfaRequired(false);
+                }}
                 placeholder="you@example.com"
                 autoComplete="email"
                 required
+                disabled={mfaRequired}
                 className="storytime-input px-4 py-3"
               />
             </div>
@@ -105,10 +138,14 @@ export function SignInClient({ callbackUrl }: { callbackUrl: string | null }) {
                 id="password"
                 type="password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (mfaRequired) setMfaRequired(false);
+                }}
                 placeholder="••••••••"
                 autoComplete="current-password"
                 required
+                disabled={mfaRequired}
                 className="storytime-input px-4 py-3"
               />
               <div className="mt-2 text-right">
@@ -117,6 +154,39 @@ export function SignInClient({ callbackUrl }: { callbackUrl: string | null }) {
                 </Link>
               </div>
             </div>
+            {mfaRequired ? (
+              <div>
+                <label htmlFor="mfaCode" className="mb-2 block text-sm font-medium text-slate-300">
+                  Authenticator code
+                </label>
+                <AuthInput
+                  id="mfaCode"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  value={mfaCode}
+                  onChange={(e) => setMfaCode(e.target.value)}
+                  placeholder="6-digit code or recovery code"
+                  required
+                  autoFocus
+                  className="storytime-input px-4 py-3"
+                />
+                <p className="mt-2 text-xs text-slate-500">
+                  Enter the code from your authenticator app for this account.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMfaRequired(false);
+                    setMfaCode("");
+                    setError("");
+                  }}
+                  className="mt-2 text-xs text-slate-400 hover:text-slate-200"
+                >
+                  Back to email & password
+                </button>
+              </div>
+            ) : null}
             {error && (
               <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3">
                 <p className="text-sm text-red-400">{error}</p>
@@ -127,11 +197,11 @@ export function SignInClient({ callbackUrl }: { callbackUrl: string | null }) {
               disabled={loading}
               className="w-full rounded-xl bg-orange-500 py-3 font-semibold text-white shadow-glow hover:-translate-y-0.5 hover:bg-orange-400 disabled:opacity-50"
             >
-              {loading ? "Signing in..." : "Sign In"}
+              {loading ? "Signing in..." : mfaRequired ? "Verify & sign in" : "Sign In"}
             </AuthButton>
           </AuthForm>
 
-          <OAuthSignInButtons callbackUrl={oauthCallback} onError={setError} />
+          {!mfaRequired ? <OAuthSignInButtons callbackUrl={oauthCallback} onError={setError} /> : null}
 
           <div className="mt-4 flex items-center gap-2 justify-center text-xs text-slate-500">
             <Shield className="w-3.5 h-3.5" />

@@ -1,11 +1,12 @@
 "use client";
 
-export type BudgetWorkspaceId = "overview" | "line-items" | "actuals";
+export type BudgetWorkspaceId = "overview" | "line-items" | "actuals" | "versions";
 
 const WORKSPACES: { id: BudgetWorkspaceId; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "line-items", label: "Budget lines" },
   { id: "actuals", label: "Spending" },
+  { id: "versions", label: "Versions" },
 ];
 
 type BudgetStudioNavProps = {
@@ -16,6 +17,7 @@ type BudgetStudioNavProps = {
 export function BudgetStudioNav({ active, onChange }: BudgetStudioNavProps) {
   return (
     <nav
+      data-tour="budget-studio-nav"
       className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide"
       aria-label="Budget sections"
     >

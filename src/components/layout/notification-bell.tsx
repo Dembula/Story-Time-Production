@@ -152,6 +152,7 @@ export function NotificationBell() {
       <button
         ref={setButtonEl}
         type="button"
+        data-tour="header-notifications"
         onClick={() => setOpen((v) => !v)}
         className="relative rounded-xl border border-white/8 bg-white/[0.03] p-2.5 text-slate-400 shadow-panel hover:-translate-y-0.5 hover:bg-white/[0.06] hover:text-white"
       >

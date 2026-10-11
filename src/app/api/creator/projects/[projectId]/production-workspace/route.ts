@@ -516,7 +516,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       const recipients = new Set<string>();
       if (updated.assigneeId) recipients.add(updated.assigneeId);
       const projectTeam = await prisma.originalMember.findMany({
-        where: { projectId, status: "ACTIVE" },
+        where: { projectId, status: { in: ["ACTIVE", "ACCEPTED"] } },
         select: { userId: true },
         take: 40,
       });

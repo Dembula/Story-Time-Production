@@ -105,7 +105,11 @@ export function BreakdownDepartmentWorkspacePanel({
           </div>
         </div>
       ) : (
-        <p className="text-xs text-slate-500">No breakdown assets tagged for this department yet.</p>
+        <p className="text-xs text-slate-500">
+          No script-breakdown assets map to this department yet. Cast, props, locations, wardrobe, makeup,
+          vehicles, stunts, and SFX come from Script Breakdown; Camera, Sound, Logistics, Legal, and Post
+          primarily surface purchase orders and equipment-plan lines below.
+        </p>
       )}
 
       {workspace.purchaseOrders.length > 0 ? (

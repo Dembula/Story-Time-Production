@@ -7,6 +7,7 @@ import {
   Users, Shield, Trash2, Edit3, ChevronDown, ChevronUp, Search,
   Film, Music, Eye, MessageSquare, Star, Activity, Package,
   UserCheck, UserX, GraduationCap, AlertTriangle, CreditCard, ExternalLink,
+  KeyRound, CircleDollarSign,
 } from "lucide-react";
 import {
   describeAdminViewerSubscription,
@@ -15,6 +16,7 @@ import {
 } from "@/lib/admin/viewer-subscription-status";
 import {
   COMPANY_TYPE_LABELS,
+  classifyAdminUserBilling,
   describeAdminCompanySubscription,
   describeAdminCreatorLicense,
   describeAdminFunderVerification,
@@ -23,6 +25,7 @@ import {
   type AdminCompanySubscriptionSnapshot,
   type AdminCreatorLicenseSnapshot,
   type AdminFunderProfileSnapshot,
+  type AdminUserBillingBucket,
 } from "@/lib/admin/package-billing-status";
 import { formatCreatorLicenseSummary, getCompanyPlanConfig } from "@/lib/pricing";
 import {
@@ -45,6 +48,8 @@ interface User {
   bio: string | null;
   adminRights?: AdminRightsMap | null;
   isAfdaStudent: boolean;
+  mfaEnabled?: boolean;
+  mfaEnabledAt?: string | null;
   createdAt: string;
   updatedAt: string;
   _count: { contents: number; musicTracks: number; watchSessions: number; comments: number; ratings: number; activityLogs: number; equipmentListings: number; locationListings: number };
@@ -53,6 +58,9 @@ interface User {
   companySubscriptions?: AdminCompanySubscriptionSnapshot[];
   funderProfile?: AdminFunderProfileSnapshot | null;
 }
+
+type BillingFilter = "ALL" | AdminUserBillingBucket;
+type MfaFilter = "ALL" | "ENABLED" | "DISABLED";
 
 const ROLES = [
   "SUBSCRIBER",
@@ -110,6 +118,8 @@ export function AdminUsersClient() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("ALL");
+  const [billingFilter, setBillingFilter] = useState<BillingFilter>("ALL");
+  const [mfaFilter, setMfaFilter] = useState<MfaFilter>("ALL");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editRole, setEditRole] = useState("");
@@ -201,13 +211,30 @@ export function AdminUsersClient() {
     const matchesSearch = !search || (u.name?.toLowerCase().includes(search.toLowerCase()) || u.email?.toLowerCase().includes(search.toLowerCase()));
     const userRoles = getRoleList(u);
     const matchesRole = roleFilter === "ALL" || userRoles.includes(roleFilter);
-    return matchesSearch && matchesRole;
+    const billing = classifyAdminUserBilling(u);
+    const matchesBilling =
+      billingFilter === "ALL" ||
+      (billingFilter === "past_due" && billing.isPastDue) ||
+      (billingFilter === "active" && billing.isActive && !billing.isPastDue) ||
+      (billingFilter === "other" && billing.bucket === "other");
+    const matchesMfa =
+      mfaFilter === "ALL" ||
+      (mfaFilter === "ENABLED" && Boolean(u.mfaEnabled)) ||
+      (mfaFilter === "DISABLED" && !u.mfaEnabled);
+    return matchesSearch && matchesRole && matchesBilling && matchesMfa;
   });
 
   const roleCounts = ROLES.reduce<Record<string, number>>((acc, r) => {
     acc[r] = users.filter((u) => getRoleList(u).includes(r)).length;
     return acc;
   }, {});
+
+  const pastDueCount = users.filter((u) => classifyAdminUserBilling(u).isPastDue).length;
+  const activeBillingCount = users.filter((u) => {
+    const billing = classifyAdminUserBilling(u);
+    return billing.isActive && !billing.isPastDue;
+  }).length;
+  const mfaOnCount = users.filter((u) => Boolean(u.mfaEnabled)).length;
 
   if (loading) return <StoryTimeLoadingCenter />;
 
@@ -220,6 +247,72 @@ export function AdminUsersClient() {
         <p className="text-slate-400">Manage accounts, roles, and permissions for all platform users.</p>
       </div>
 
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <button
+          type="button"
+          onClick={() => {
+            setBillingFilter("ALL");
+            setMfaFilter("ALL");
+          }}
+          className={`p-4 rounded-xl border text-left transition ${
+            billingFilter === "ALL" && mfaFilter === "ALL"
+              ? "border-orange-500 bg-orange-500/10"
+              : "border-slate-700/50 bg-slate-800/30 hover:bg-slate-800/50"
+          }`}
+        >
+          <div className="mb-1 flex items-center gap-1.5 text-slate-400">
+            <Users className="h-3.5 w-3.5" />
+            <span className="text-[10px] uppercase tracking-wide">All billing</span>
+          </div>
+          <p className="text-2xl font-bold text-white">{users.length}</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => setBillingFilter(billingFilter === "past_due" ? "ALL" : "past_due")}
+          className={`p-4 rounded-xl border text-left transition ${
+            billingFilter === "past_due"
+              ? "border-red-500 bg-red-500/10"
+              : "border-slate-700/50 bg-slate-800/30 hover:bg-slate-800/50"
+          }`}
+        >
+          <div className="mb-1 flex items-center gap-1.5 text-slate-400">
+            <AlertTriangle className="h-3.5 w-3.5" />
+            <span className="text-[10px] uppercase tracking-wide">Past due</span>
+          </div>
+          <p className="text-2xl font-bold text-white">{pastDueCount}</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => setBillingFilter(billingFilter === "active" ? "ALL" : "active")}
+          className={`p-4 rounded-xl border text-left transition ${
+            billingFilter === "active"
+              ? "border-emerald-500 bg-emerald-500/10"
+              : "border-slate-700/50 bg-slate-800/30 hover:bg-slate-800/50"
+          }`}
+        >
+          <div className="mb-1 flex items-center gap-1.5 text-slate-400">
+            <CircleDollarSign className="h-3.5 w-3.5" />
+            <span className="text-[10px] uppercase tracking-wide">Active accounts</span>
+          </div>
+          <p className="text-2xl font-bold text-white">{activeBillingCount}</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => setMfaFilter(mfaFilter === "ENABLED" ? "ALL" : "ENABLED")}
+          className={`p-4 rounded-xl border text-left transition ${
+            mfaFilter === "ENABLED"
+              ? "border-cyan-500 bg-cyan-500/10"
+              : "border-slate-700/50 bg-slate-800/30 hover:bg-slate-800/50"
+          }`}
+        >
+          <div className="mb-1 flex items-center gap-1.5 text-slate-400">
+            <KeyRound className="h-3.5 w-3.5" />
+            <span className="text-[10px] uppercase tracking-wide">MFA enabled</span>
+          </div>
+          <p className="text-2xl font-bold text-white">{mfaOnCount}</p>
+        </button>
+      </div>
+
       <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
         {[{ label: "All Users", value: users.length, filter: "ALL" }, ...ROLES.map((r) => ({ label: r.replace(/_/g, " "), value: roleCounts[r] || 0, filter: r }))].map((s) => (
           <button key={s.filter} onClick={() => setRoleFilter(s.filter)} className={`p-4 rounded-xl border text-left transition ${roleFilter === s.filter ? "border-orange-500 bg-orange-500/10" : "border-slate-700/50 bg-slate-800/30 hover:bg-slate-800/50"}`}>
@@ -229,8 +322,8 @@ export function AdminUsersClient() {
         ))}
       </div>
 
-      <div className="flex items-center gap-3">
-        <div className="flex-1 relative">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex-1 relative min-w-[220px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
           <input
             value={search}
@@ -244,6 +337,31 @@ export function AdminUsersClient() {
             className="w-full pl-10 pr-4 py-2.5 bg-slate-900/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 text-sm"
           />
         </div>
+        <label className="flex items-center gap-2 text-sm text-slate-400">
+          <span className="whitespace-nowrap">Billing</span>
+          <select
+            value={billingFilter}
+            onChange={(e) => setBillingFilter(e.target.value as BillingFilter)}
+            className="rounded-lg border border-slate-600 bg-slate-900/50 px-3 py-2.5 text-sm text-white"
+          >
+            <option value="ALL">All accounts</option>
+            <option value="past_due">Past due</option>
+            <option value="active">Active</option>
+            <option value="other">No active / past-due billing</option>
+          </select>
+        </label>
+        <label className="flex items-center gap-2 text-sm text-slate-400">
+          <span className="whitespace-nowrap">MFA</span>
+          <select
+            value={mfaFilter}
+            onChange={(e) => setMfaFilter(e.target.value as MfaFilter)}
+            className="rounded-lg border border-slate-600 bg-slate-900/50 px-3 py-2.5 text-sm text-white"
+          >
+            <option value="ALL">All</option>
+            <option value="ENABLED">MFA on</option>
+            <option value="DISABLED">MFA off</option>
+          </select>
+        </label>
         <p className="text-sm text-slate-400">{filtered.length} of {users.length} users</p>
       </div>
 
@@ -260,6 +378,15 @@ export function AdminUsersClient() {
                   {getRoleList(u).map((roleName) => (
                     <span key={roleName}>{roleBadge(roleName)}</span>
                   ))}
+                  {u.mfaEnabled ? (
+                    <span className="inline-flex items-center gap-1 rounded border border-cyan-500/30 bg-cyan-500/15 px-2 py-0.5 text-[10px] font-medium text-cyan-200">
+                      <KeyRound className="h-3 w-3" /> MFA on
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded border border-slate-600/40 bg-slate-700/40 px-2 py-0.5 text-[10px] font-medium text-slate-400">
+                      <KeyRound className="h-3 w-3" /> MFA off
+                    </span>
+                  )}
                   {(() => {
                     const roles = getRoleList(u);
                     const badges: ReactNode[] = [];
@@ -346,6 +473,26 @@ export function AdminUsersClient() {
                 </div>
 
                 {u.bio && <div className="p-3 rounded-lg bg-slate-800/30 border border-slate-700/30"><p className="text-xs text-slate-500 mb-1">Bio</p><p className="text-sm text-slate-300">{u.bio}</p></div>}
+
+                <div className="p-4 rounded-lg bg-slate-800/40 border border-slate-700/40">
+                  <p className="mb-2 flex items-center gap-1.5 text-xs uppercase tracking-wide text-slate-500">
+                    <KeyRound className="h-3.5 w-3.5 text-cyan-400" /> Authenticator MFA
+                  </p>
+                  {u.mfaEnabled ? (
+                    <div className="space-y-1 text-sm">
+                      <p className="inline-flex items-center gap-1.5 font-medium text-cyan-200">
+                        <KeyRound className="h-3.5 w-3.5" /> Enabled on this account
+                      </p>
+                      <p className="text-xs text-slate-400">
+                        {u.mfaEnabledAt
+                          ? `Activated ${new Date(u.mfaEnabledAt).toLocaleString()}`
+                          : "Active — applies to every portal for this email."}
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-500">Not enabled. User can set this up in their Security section or (for admins) under Active administrators.</p>
+                  )}
+                </div>
 
                 {getRoleList(u).includes("SUBSCRIBER") ? (
                   <div className="p-4 rounded-lg bg-slate-800/40 border border-slate-700/40">

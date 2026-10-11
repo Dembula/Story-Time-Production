@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Shield, CheckCircle, XCircle, Loader2, UserPlus, Mail, Users, Crown, Save } from "lucide-react";
+import { Shield, CheckCircle, XCircle, Loader2, UserPlus, Mail, Users, Crown, Save, KeyRound } from "lucide-react";
 import {
   ADMIN_RIGHT_SUITES,
   adminRightsSummary,
   allAdminRights,
   type AdminRightsMap,
 } from "@/lib/admin-permissions";
+import { MfaSecurityPanel } from "@/components/auth/mfa-security-panel";
 
 type AdminRequestRow = {
   id: string;
@@ -38,6 +39,9 @@ type ActiveAdminRow = {
   adminRights: AdminRightsMap | null;
   rightsSummary: string;
   isGod: boolean;
+  mfaEnabled?: boolean;
+  mfaEnabledAt?: string | null;
+  isSelf?: boolean;
   createdAt: string;
 };
 
@@ -346,18 +350,45 @@ export function AdminRequestsClient() {
               <div key={admin.id} className="rounded-xl border border-slate-700/50 bg-slate-800/30 p-5">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
-                    <p className="flex items-center gap-2 font-medium text-white">
+                    <p className="flex flex-wrap items-center gap-2 font-medium text-white">
                       {admin.name?.trim() || admin.email}
                       {admin.isGod ? (
                         <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-xs text-amber-300">
                           <Crown className="h-3 w-3" /> Platform owner
                         </span>
                       ) : null}
+                      {admin.isSelf ? (
+                        <span className="rounded-full bg-slate-600/40 px-2 py-0.5 text-xs text-slate-300">You</span>
+                      ) : null}
+                      {admin.mfaEnabled ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs text-emerald-300">
+                          <KeyRound className="h-3 w-3" /> MFA on
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-slate-600/30 px-2 py-0.5 text-xs text-slate-400">
+                          <KeyRound className="h-3 w-3" /> MFA off
+                        </span>
+                      )}
                     </p>
                     <p className="text-sm text-slate-400">{admin.email}</p>
                     <p className="mt-1 text-xs text-slate-500">{admin.rightsSummary}</p>
                   </div>
                 </div>
+
+                {admin.isSelf ? (
+                  <div className="mt-4 border-t border-slate-700/50 pt-4">
+                    <p className="mb-3 text-xs text-slate-400">
+                      Set up authenticator MFA for your account. It applies to admin, creator, and every other
+                      portal that uses this email.
+                    </p>
+                    <MfaSecurityPanel
+                      variant="admin"
+                      onChanged={() => {
+                        void loadActiveAdmins().catch(() => undefined);
+                      }}
+                    />
+                  </div>
+                ) : null}
 
                 {!admin.isGod && canManageTeam ? (
                   <div className="mt-4 space-y-4 border-t border-slate-700/50 pt-4">
@@ -389,9 +420,13 @@ export function AdminRequestsClient() {
                       </button>
                     </div>
                   </div>
-                ) : admin.isGod ? (
+                ) : admin.isGod && !admin.isSelf ? (
                   <p className="mt-3 text-xs text-amber-400/80">
                     Permanent platform owner — cannot be modified or revoked.
+                  </p>
+                ) : admin.isGod && admin.isSelf ? (
+                  <p className="mt-3 text-xs text-amber-400/80">
+                    Permanent platform owner — sections cannot be revoked; MFA above still applies to your sign-in.
                   </p>
                 ) : null}
               </div>

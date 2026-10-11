@@ -8,6 +8,8 @@ import {
   buildPipelineRollup,
   resolveToolProgressForProject,
 } from "@/lib/project-tool-progress";
+import { isActiveProjectMemberStatus } from "@/lib/project-membership";
+import { inviteRegisteredUserToProject } from "@/lib/project-collaborator-invites";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -58,8 +60,6 @@ export async function GET() {
 
   const signalsByProject = await loadProjectUsageSignals(projectIds, ideaCountByProject);
 
-  const TOOL_MEMBER_STATUSES = new Set(["ACTIVE", "ACCEPTED"]);
-
   const withActivity = projects.map((p) => {
     const latestPitch = p.pitches[0];
     const isOriginal = isStoryTimeOriginalGreenlit(latestPitch);
@@ -83,6 +83,9 @@ export async function GET() {
       callSheetCount: 0,
       incidentCount: 0,
       dailiesClipCount: 0,
+      footageAssetCount: 0,
+      editReviewCount: 0,
+      musicSelectionCount: 0,
       contentLinked: false,
     };
 
@@ -108,9 +111,7 @@ export async function GET() {
     const isPitchOwner = p.pitches.some((pitch) => pitch.creatorId === userId);
     const myMembershipStatus = myMembership?.status ?? null;
     const canUseTools =
-      role === "ADMIN" ||
-      isPitchOwner ||
-      Boolean(myMembershipStatus && TOOL_MEMBER_STATUSES.has(myMembershipStatus));
+      role === "ADMIN" || isPitchOwner || isActiveProjectMemberStatus(myMembershipStatus);
     const canInviteCollaborators = canUseTools;
 
     return {
@@ -152,6 +153,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Missing title or type" }, { status: 400 });
   }
 
+  const collaboratorIds = Array.isArray(body.collaboratorIds)
+    ? [...new Set(body.collaboratorIds.map((id) => String(id).trim()).filter(Boolean))]
+        .filter((id) => id !== userId)
+    : [];
+
   const project = await prisma.originalProject.create({
     data: {
       title: body.title,
@@ -176,20 +182,30 @@ export async function POST(request: NextRequest) {
             userId,
             role: body.isCollaboration ? "Lead Creator" : "Creator",
             department: "Producing",
-            status: "ACCEPTED",
+            // Canonical owner status — both ACTIVE and ACCEPTED grant tool access.
+            status: "ACTIVE",
           },
-          ...(Array.isArray(body.collaboratorIds)
-            ? body.collaboratorIds.map((cid) => ({
-                userId: cid,
-                role: "Collaborator",
-                department: "Producing",
-                status: "INVITED",
-              }))
-            : []),
         ],
       },
     },
   });
+
+  // Notify collaborators via the same path as Network invites (inbox + in-app).
+  if (body.isCollaboration && collaboratorIds.length > 0) {
+    await Promise.all(
+      collaboratorIds.map((inviteeUserId) =>
+        inviteRegisteredUserToProject({
+          projectId: project.id,
+          projectTitle: project.title,
+          inviteeUserId,
+          invitedByUserId: userId,
+          inviterName: session.user?.name ?? null,
+          role: "Collaborator",
+          department: "Producing",
+        }),
+      ),
+    );
+  }
 
   return NextResponse.json({ project }, { status: 201 });
 }

@@ -31,6 +31,9 @@ const EMPTY_SIGNALS: ProjectUsageSignals = {
   callSheetCount: 0,
   incidentCount: 0,
   dailiesClipCount: 0,
+  footageAssetCount: 0,
+  editReviewCount: 0,
+  musicSelectionCount: 0,
   contentLinked: false,
 };
 

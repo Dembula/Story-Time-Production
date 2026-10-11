@@ -5,9 +5,11 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isStoryTimeOriginalGreenlit } from "@/lib/storytime-original";
+import {
+  activeProjectMemberStatusFilter,
+  isActiveProjectMemberStatus,
+} from "@/lib/project-membership";
 import { ProjectWorkspaceShellSuspense } from "./project-workspace-shell-suspense";
-
-const TOOL_MEMBER_STATUSES = new Set(["ACTIVE", "ACCEPTED"]);
 
 interface ProjectLayoutProps {
   children: ReactNode;
@@ -55,9 +57,7 @@ export default async function ProjectLayout({ children, params }: ProjectLayoutP
   const isPitchOwner = project.pitches.some((p) => p.creatorId === userId);
   const myStatus = project.members[0]?.status ?? null;
   const canUseTools =
-    role === "ADMIN" ||
-    isPitchOwner ||
-    Boolean(myStatus && TOOL_MEMBER_STATUSES.has(myStatus));
+    role === "ADMIN" || isPitchOwner || isActiveProjectMemberStatus(myStatus);
 
   if (!canUseTools) {
     return (
@@ -88,7 +88,7 @@ export default async function ProjectLayout({ children, params }: ProjectLayoutP
         : {
             OR: [
               { pitches: { some: { creatorId: userId } } },
-              { members: { some: { userId, status: { in: ["ACTIVE", "ACCEPTED"] } } } },
+              { members: { some: { userId, status: activeProjectMemberStatusFilter() } } },
             ],
           },
     select: {

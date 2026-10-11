@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { UtensilsCrossed, Upload } from "lucide-react";
 import { AccountPrivacyControls } from "@/components/account/account-privacy-controls";
+import { MfaSecurityPanel } from "@/components/auth/mfa-security-panel";
 import { PayFastSavedCardSection } from "@/components/payments/payfast-saved-card-section";
 import { uploadContentMediaViaApi } from "@/lib/upload-content-media-client";
 
@@ -345,8 +346,12 @@ export function CateringProfileClient() {
         description="PayFast card for listing renewals and booking charges only — not KYC/KYB payout banking. A R5 verification charge is refunded after the card is saved."
       />
 
-      <div id="account">
-        <AccountPrivacyControls variant="marketplace" className="mt-8" />
+      <div id="account" className="mt-8 space-y-8">
+        <div>
+          <h2 className="mb-3 text-lg font-semibold text-white">Security</h2>
+          <MfaSecurityPanel variant="dark" />
+        </div>
+        <AccountPrivacyControls variant="marketplace" />
       </div>
     </div>
   );

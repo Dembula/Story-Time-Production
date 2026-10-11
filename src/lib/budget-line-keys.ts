@@ -59,6 +59,19 @@ export function extractBudgetLineKey(
   return budgetRowKey(fallback);
 }
 
+/**
+ * Recover scene linkage from a stable budget row key.
+ * Scene-linked keys are encoded as `${sceneId}:${department}:${name}`.
+ */
+export function sceneIdFromBudgetLineKey(key: string | null | undefined): string | null {
+  if (!key) return null;
+  const k = key.trim().toLowerCase();
+  if (!k || k.startsWith("manual|") || k.startsWith("global|")) return null;
+  const first = k.split(":")[0]?.trim();
+  if (!first || first.length < 8) return null;
+  return first;
+}
+
 export function isEngineSceneAllocationLine(name: string): boolean {
   return ENGINE_ALLOCATION_NAMES.has(name.trim().toLowerCase());
 }

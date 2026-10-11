@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Briefcase, Save, ArrowLeft } from "lucide-react";
 import { AccountPrivacyControls } from "@/components/account/account-privacy-controls";
+import { MfaSecurityPanel } from "@/components/auth/mfa-security-panel";
 import { PayFastSavedCardSection } from "@/components/payments/payfast-saved-card-section";
 
 export default function CastingAgencyProfilePage() {
@@ -56,6 +57,11 @@ export default function CastingAgencyProfilePage() {
         title="Billing card"
         description="PayFast card for listing renewals and inquiry payments only — not KYC/KYB payout banking. A R5 verification charge is refunded after the card is saved."
       />
+
+      <div className="mt-8">
+        <h2 className="mb-3 text-lg font-semibold text-white">Security</h2>
+        <MfaSecurityPanel variant="dark" />
+      </div>
 
       <AccountPrivacyControls variant="marketplace" className="mt-8" />
     </div>

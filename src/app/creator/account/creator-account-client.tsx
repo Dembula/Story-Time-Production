@@ -26,6 +26,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { AccountPrivacyControls } from "@/components/account/account-privacy-controls";
+import { MfaSecurityPanel } from "@/components/auth/mfa-security-panel";
 import { CreatorAccountVaultHub } from "@/components/creator/creator-account-vault-hub";
 import { CreatorBillingPanel } from "@/components/creator/creator-billing-panel";
 import { requiresPayoutKyc } from "@/lib/payout-kyc-shared";
@@ -819,6 +820,7 @@ export function CreatorAccountClient({ backHref = "/creator/command-center" }: {
         >
           <Save className="w-4 h-4" /> {savingSecurity ? "Saving…" : "Save security & contact"}
         </button>
+        <MfaSecurityPanel variant="dark" className="mt-6" />
         <AccountPrivacyControls
           variant="creator"
           className="mt-6"

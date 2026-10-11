@@ -11,6 +11,11 @@ import { sendTransactionalEmail } from "@/lib/email";
 import { notifyUser } from "@/lib/notify-user";
 import { buildAppUrl } from "@/lib/app-url";
 import { isPrismaMissingTable } from "@/lib/prisma-missing-table";
+import {
+  ACTIVE_PROJECT_MEMBER_STATUSES,
+  activeProjectMemberStatusFilter,
+  isActiveProjectMemberStatus,
+} from "@/lib/project-membership";
 
 export type CreateProjectEmailInviteInput = {
   projectId: string;
@@ -34,7 +39,7 @@ export async function assertCanInviteToProject(projectId: string, userId: string
   if (!project) return { ok: false, status: 404, error: "Project not found" };
 
   const activeMember = await prisma.originalMember.findFirst({
-    where: { projectId, userId, status: { in: ["ACTIVE", "ACCEPTED"] } },
+    where: { projectId, userId, status: activeProjectMemberStatusFilter() },
   });
   const pitchOwner = await prisma.originalPitch.findFirst({
     where: { projectId, creatorId: userId },
@@ -74,7 +79,7 @@ export async function createProjectCollaboratorEmailInvite(input: CreateProjectE
       where: {
         projectId: input.projectId,
         userId: existingUser.id,
-        status: { in: ["ACTIVE", "ACCEPTED", "INVITED"] },
+        status: { in: [...ACTIVE_PROJECT_MEMBER_STATUSES, "INVITED"] },
       },
     });
     if (alreadyMember) {
@@ -192,7 +197,7 @@ export async function createProjectCollaboratorEmailInvite(input: CreateProjectE
           status: "INVITED",
         },
       });
-    } else if (existingMember.status !== "ACTIVE" && existingMember.status !== "ACCEPTED") {
+    } else if (!isActiveProjectMemberStatus(existingMember.status)) {
       await prisma.originalMember.update({
         where: { id: existingMember.id },
         data: {
@@ -437,6 +442,96 @@ export async function acceptProjectCollaboratorInvite(options: {
     projectId: invite.projectId,
     projectTitle: invite.project.title,
   };
+}
+
+/**
+ * Invite an existing platform user onto a project (My Projects / Network).
+ * Creates or re-opens an INVITED membership and sends an in-app notification.
+ * Does not demote ACTIVE/ACCEPTED members.
+ */
+export async function inviteRegisteredUserToProject(input: {
+  projectId: string;
+  projectTitle: string;
+  inviteeUserId: string;
+  invitedByUserId: string;
+  inviterName?: string | null;
+  role?: string;
+  department?: string | null;
+}): Promise<
+  | { ok: true; memberId: string; alreadyPending: boolean; alreadyActive: boolean }
+  | { ok: false; status: number; error: string }
+> {
+  if (input.inviteeUserId === input.invitedByUserId) {
+    return { ok: false, status: 400, error: "Cannot invite yourself" };
+  }
+
+  const invitee = await prisma.user.findUnique({
+    where: { id: input.inviteeUserId },
+    select: { id: true },
+  });
+  if (!invitee) {
+    return { ok: false, status: 404, error: "User not found" };
+  }
+
+  const memberRole = (input.role ?? "Collaborator").trim() || "Collaborator";
+  const department = input.department?.trim() || null;
+
+  const existing = await prisma.originalMember.findUnique({
+    where: {
+      userId_projectId: { userId: input.inviteeUserId, projectId: input.projectId },
+    },
+  });
+
+  if (existing && isActiveProjectMemberStatus(existing.status)) {
+    return { ok: true, memberId: existing.id, alreadyPending: false, alreadyActive: true };
+  }
+
+  if (existing?.status === "INVITED") {
+    await notifyUser({
+      userId: input.inviteeUserId,
+      type: "PROJECT_COLLAB_INVITE",
+      title: "Project collaboration invite",
+      body: `${input.inviterName ?? "A creator"} invited you to join "${input.projectTitle}" as ${memberRole}. Open My Projects to accept or decline.`,
+      metadata: {
+        projectId: input.projectId,
+        memberId: existing.id,
+        url: "/creator/dashboard",
+      },
+    });
+    return { ok: true, memberId: existing.id, alreadyPending: true, alreadyActive: false };
+  }
+
+  const member = await prisma.originalMember.upsert({
+    where: {
+      userId_projectId: { userId: input.inviteeUserId, projectId: input.projectId },
+    },
+    create: {
+      userId: input.inviteeUserId,
+      projectId: input.projectId,
+      role: memberRole,
+      department,
+      status: "INVITED",
+    },
+    update: {
+      role: memberRole,
+      department,
+      status: "INVITED",
+    },
+  });
+
+  await notifyUser({
+    userId: input.inviteeUserId,
+    type: "PROJECT_COLLAB_INVITE",
+    title: "Project collaboration invite",
+    body: `${input.inviterName ?? "A creator"} invited you to join "${input.projectTitle}" as ${memberRole}. Open My Projects to accept or decline.`,
+    metadata: {
+      projectId: input.projectId,
+      memberId: member.id,
+      url: "/creator/dashboard",
+    },
+  });
+
+  return { ok: true, memberId: member.id, alreadyPending: false, alreadyActive: false };
 }
 
 function escapeHtml(value: string): string {
