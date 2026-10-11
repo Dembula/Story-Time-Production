@@ -64,7 +64,7 @@ export async function PATCH(req: NextRequest) {
 
   const payout = await db.payoutRequest.findUnique({
     where: { id: body.id },
-    include: { user: { select: { id: true } } },
+    include: { user: { select: { id: true, role: true } } },
   });
   if (!payout) return NextResponse.json({ error: "Payout not found." }, { status: 404 });
 
@@ -150,7 +150,12 @@ export async function PATCH(req: NextRequest) {
     }
 
     const treasuryUserId = await getPlatformTreasuryUserId();
+    const isCreatorPayout =
+      payout.user?.role === "CONTENT_CREATOR" || payout.user?.role === "MUSIC_CREATOR";
 
+    // Creator-pool cash already left treasury AVAILABLE at distribution time.
+    // Marking paid only clears the creator PENDING hold — do not debit treasury again.
+    // Marketplace / other roles still settle treasury cash on mark_paid.
     await postBalancedLedgerBatch({
       idempotencyKey: `payout_paid_${payout.id}`,
       referenceType: "PAYOUT_REQUEST",
@@ -158,33 +163,53 @@ export async function PATCH(req: NextRequest) {
       metadata: {
         proofReference: body.proofReference?.trim() ?? null,
         proofUrl: body.proofUrl?.trim() ?? null,
+        settlement: isCreatorPayout ? "creator_pool_already_reserved" : "treasury_cash_out",
       },
-      entries: [
-        {
-          userId: payout.userId,
-          direction: "DEBIT",
-          accountType: "PENDING",
-          transactionType: "withdrawal_completed",
-          amount: payout.amount,
-          description: "Manual payout completed",
-        },
-        {
-          userId: treasuryUserId,
-          direction: "DEBIT",
-          accountType: "AVAILABLE",
-          transactionType: "manual_payout",
-          amount: payout.amount,
-          description: "Manual EFT payout to user bank account",
-        },
-        {
-          userId: treasuryUserId,
-          direction: "CREDIT",
-          accountType: "LOCKED",
-          transactionType: "manual_payout_balance",
-          amount: payout.amount * 2,
-          description: "Payout ledger balance",
-        },
-      ],
+      entries: isCreatorPayout
+        ? [
+            {
+              userId: payout.userId,
+              direction: "DEBIT",
+              accountType: "PENDING",
+              transactionType: "withdrawal_completed",
+              amount: payout.amount,
+              description: "Creator payout completed",
+            },
+            {
+              userId: treasuryUserId,
+              direction: "CREDIT",
+              accountType: "LOCKED",
+              transactionType: "manual_payout_balance",
+              amount: payout.amount,
+              description: "Creator payout bank settlement (pool already reserved)",
+            },
+          ]
+        : [
+            {
+              userId: payout.userId,
+              direction: "DEBIT",
+              accountType: "PENDING",
+              transactionType: "withdrawal_completed",
+              amount: payout.amount,
+              description: "Manual payout completed",
+            },
+            {
+              userId: treasuryUserId,
+              direction: "DEBIT",
+              accountType: "AVAILABLE",
+              transactionType: "manual_payout",
+              amount: payout.amount,
+              description: "Manual EFT payout to user bank account",
+            },
+            {
+              userId: treasuryUserId,
+              direction: "CREDIT",
+              accountType: "LOCKED",
+              transactionType: "manual_payout_balance",
+              amount: payout.amount * 2,
+              description: "Payout ledger balance",
+            },
+          ],
     });
 
     await db.wallet.update({

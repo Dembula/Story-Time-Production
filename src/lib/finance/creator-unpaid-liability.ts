@@ -3,6 +3,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { roundMoney } from "@/lib/payments/config";
 import { getPlatformTreasuryUserId } from "@/lib/payments/treasury-inflow";
+import { computeCreatorFacingBalances } from "@/lib/payments/creator-wallet-view";
 
 const db = prisma as any;
 
@@ -29,7 +30,8 @@ export type CreatorUnpaidLiabilityBundle = {
 
 /**
  * Stock (not period-scoped): creator wallets still sitting unpaid after pool distribution.
- * Excludes the platform treasury wallet.
+ * Uses creator-facing earnings only — excludes platform treasury balances that were
+ * historically mis-posted onto creator userIds.
  */
 export async function fetchCreatorUnpaidLiability(limit = 25): Promise<CreatorUnpaidLiabilityBundle> {
   const asOf = new Date().toISOString();
@@ -40,35 +42,34 @@ export async function fetchCreatorUnpaidLiability(limit = 25): Promise<CreatorUn
     treasuryUserId = null;
   }
 
-  const wallets = await db.wallet.findMany({
+  const creators = await db.user.findMany({
     where: {
-      user: { role: { in: ["CONTENT_CREATOR", "MUSIC_CREATOR"] } },
-      ...(treasuryUserId ? { userId: { not: treasuryUserId } } : {}),
-      OR: [{ availableBalance: { gt: 0 } }, { pendingBalance: { gt: 0 } }],
+      role: { in: ["CONTENT_CREATOR", "MUSIC_CREATOR"] },
+      ...(treasuryUserId ? { id: { not: treasuryUserId } } : {}),
     },
     select: {
-      userId: true,
-      availableBalance: true,
-      pendingBalance: true,
-      user: { select: { id: true, name: true, email: true } },
-      payoutRequests: {
-        where: { status: { in: ["PENDING_REVIEW", "APPROVED", "PROCESSING"] } },
-        orderBy: { createdAt: "desc" },
-        take: 1,
-        select: { status: true, amount: true },
+      id: true,
+      name: true,
+      email: true,
+      wallet: {
+        select: {
+          payoutRequests: {
+            where: { status: { in: ["PENDING_REVIEW", "APPROVED", "PROCESSING"] } },
+            orderBy: { createdAt: "desc" },
+            take: 1,
+            select: { status: true, amount: true },
+          },
+        },
       },
     },
-    orderBy: [{ availableBalance: "desc" }, { pendingBalance: "desc" }],
-    take: Math.min(100, Math.max(5, limit)),
   });
 
-  const userIds = wallets.map((w: { userId: string }) => w.userId);
   const lastCredits =
-    userIds.length === 0
+    creators.length === 0
       ? []
       : await db.ledgerEntry.findMany({
           where: {
-            userId: { in: userIds },
+            userId: { in: creators.map((c: { id: string }) => c.id) },
             transactionType: "creator_earnings",
             direction: "CREDIT",
             accountType: "AVAILABLE",
@@ -82,63 +83,54 @@ export async function fetchCreatorUnpaidLiability(limit = 25): Promise<CreatorUn
     lastCredits.map((row: { userId: string; createdAt: Date }) => [row.userId, row.createdAt]),
   );
 
-  let availableTotal = 0;
-  let pendingTotal = 0;
-  const rows: CreatorUnpaidRow[] = wallets.map(
-    (w: {
-      userId: string;
-      availableBalance: number;
-      pendingBalance: number;
-      user: { name: string | null; email: string | null } | null;
-      payoutRequests: Array<{ status: string; amount: number }>;
-    }) => {
-      const available = roundMoney(Number(w.availableBalance) || 0);
-      const pending = roundMoney(Number(w.pendingBalance) || 0);
-      availableTotal += available;
-      pendingTotal += pending;
-      const open = w.payoutRequests[0] ?? null;
-      const last = lastByUser.get(w.userId) ?? null;
-      return {
-        userId: w.userId,
-        name: w.user?.name ?? null,
-        email: w.user?.email ?? null,
-        availableBalance: available,
-        pendingBalance: pending,
-        totalOwed: roundMoney(available + pending),
-        lastEarningsAt: last ? last.toISOString() : null,
-        openPayoutStatus: open?.status ?? null,
-        openPayoutAmount: open ? roundMoney(Number(open.amount) || 0) : null,
-      };
-    },
+  const facingByUser = new Map<string, Awaited<ReturnType<typeof computeCreatorFacingBalances>>>();
+  await Promise.all(
+    creators.map(async (creator: { id: string }) => {
+      facingByUser.set(creator.id, await computeCreatorFacingBalances(creator.id));
+    }),
   );
 
-  // Full totals across all matching creators (not just the table page).
-  const agg = await db.wallet.aggregate({
-    where: {
-      user: { role: { in: ["CONTENT_CREATOR", "MUSIC_CREATOR"] } },
-      ...(treasuryUserId ? { userId: { not: treasuryUserId } } : {}),
-    },
-    _sum: { availableBalance: true, pendingBalance: true },
-    _count: { _all: true },
-  });
+  let availableAll = 0;
+  let pendingAll = 0;
+  const owedRows: CreatorUnpaidRow[] = [];
 
-  const availableAll = roundMoney(Number(agg._sum?.availableBalance ?? 0));
-  const pendingAll = roundMoney(Number(agg._sum?.pendingBalance ?? 0));
+  for (const creator of creators as Array<{
+    id: string;
+    name: string | null;
+    email: string | null;
+    wallet: { payoutRequests: Array<{ status: string; amount: number }> } | null;
+  }>) {
+    const facing = facingByUser.get(creator.id);
+    if (!facing) continue;
+    const available = facing.availableBalance;
+    const pending = facing.pendingBalance;
+    if (available <= 0.001 && pending <= 0.001) continue;
 
-  const owedCreators = await db.wallet.count({
-    where: {
-      user: { role: { in: ["CONTENT_CREATOR", "MUSIC_CREATOR"] } },
-      ...(treasuryUserId ? { userId: { not: treasuryUserId } } : {}),
-      OR: [{ availableBalance: { gt: 0 } }, { pendingBalance: { gt: 0 } }],
-    },
-  });
+    availableAll = roundMoney(availableAll + available);
+    pendingAll = roundMoney(pendingAll + pending);
+    const open = creator.wallet?.payoutRequests?.[0] ?? null;
+    const last = lastByUser.get(creator.id) ?? null;
+    owedRows.push({
+      userId: creator.id,
+      name: creator.name,
+      email: creator.email,
+      availableBalance: available,
+      pendingBalance: pending,
+      totalOwed: roundMoney(available + pending),
+      lastEarningsAt: last ? last.toISOString() : null,
+      openPayoutStatus: open?.status ?? null,
+      openPayoutAmount: open ? roundMoney(Number(open.amount) || 0) : null,
+    });
+  }
+
+  owedRows.sort((a, b) => b.totalOwed - a.totalOwed);
 
   return {
     asOf,
     availableTotal: availableAll,
     pendingTotal: pendingAll,
     owedTotal: roundMoney(availableAll + pendingAll),
-    creatorCount: owedCreators,
-    rows,
+    creatorCount: owedRows.length,
+    rows: owedRows.slice(0, Math.min(100, Math.max(5, limit))),
   };
 }

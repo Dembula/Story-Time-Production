@@ -120,24 +120,36 @@ export function WalletDashboard({
         </div>
       ) : null}
 
-      <section className="grid gap-4 md:grid-cols-4">
+      <section className={`grid gap-4 ${isCreatorRole ? "md:grid-cols-3" : "md:grid-cols-4"}`}>
         <Card
           label="Available"
           value={`R${money.format(Number(wallet?.availableBalance ?? 0))}`}
-          hint="Withdrawable now — all unpaid months credited so far"
+          hint={
+            isCreatorRole
+              ? "Your unpaid creator earnings — ready to withdraw"
+              : "Withdrawable now — all unpaid months credited so far"
+          }
         />
         <Card
           label="Pending"
           value={`R${money.format(Number(wallet?.pendingBalance ?? 0))}`}
           hint="Held while a payout request is in review"
         />
-        <Card label="Locked" value={`R${money.format(Number(wallet?.lockedBalance ?? 0))}`} />
+        {!isCreatorRole ? (
+          <Card label="Locked" value={`R${money.format(Number(wallet?.lockedBalance ?? 0))}`} />
+        ) : null}
         <Card
           label="Total earnings"
           value={`R${money.format(Number(wallet?.totalEarnings ?? 0))}`}
           hint="Lifetime credited (does not decrease when you withdraw)"
         />
       </section>
+      {(data as { treasuryContaminationHidden?: boolean } | undefined)?.treasuryContaminationHidden ? (
+        <p className="text-xs text-slate-500">
+          Showing your personal creator earnings only. Platform treasury activity is kept on the finance ledger,
+          not this wallet.
+        </p>
+      ) : null}
 
       <section className="storytime-section p-6">
         <h2 className="text-lg font-semibold">Transaction history</h2>
@@ -150,9 +162,14 @@ export function WalletDashboard({
           {isLoading ? <p className="text-sm text-slate-400">Loading...</p> : null}
           {filterMutation.error ? <p className="text-sm text-red-400">{(filterMutation.error as Error).message}</p> : null}
           {data?.message ? <p className="text-xs text-amber-300">{data.message as string}</p> : null}
+          {transactions.length === 0 && !isLoading ? (
+            <p className="text-sm text-slate-400">
+              {isCreatorRole ? "No creator earnings yet." : "No transactions yet."}
+            </p>
+          ) : null}
           {transactions.map((tx) => (
             <div key={tx.id} className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-sm">
-              <span>{tx.transactionType}</span>
+              <span className="capitalize">{String(tx.transactionType ?? "").replace(/_/g, " ")}</span>
               <span>{tx.direction}</span>
               <span>{tx.status}</span>
               <span>R{money.format(Number(tx.amount ?? 0))}</span>

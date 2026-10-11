@@ -6,6 +6,11 @@ import { ensureWalletForUser, getWalletSnapshot } from "@/lib/payments/wallet";
 import { maskPayoutBanking, resolvePayoutBankingForUser } from "@/lib/payments/payout-banking";
 import { assertPayoutKycApproved, requiresPayoutKyc } from "@/lib/payout-kyc";
 import { assertFunderVerificationApproved } from "@/lib/funder-verification";
+import {
+  computeCreatorFacingBalances,
+  isCreatorFacingLedgerType,
+  isCreatorWalletRole,
+} from "@/lib/payments/creator-wallet-view";
 
 const db = prisma as any;
 
@@ -18,15 +23,37 @@ export async function GET() {
   try {
     await ensureWalletForUser(user.id);
     const trackingEnabled = await (async () => {
-      if (user.role !== "CONTENT_CREATOR" && user.role !== "MUSIC_CREATOR") return true;
+      if (!isCreatorWalletRole(user.role)) return true;
       const { isCreatorRevenueTrackingEnabled } = await import("@/lib/finance/revenue-connector");
       return isCreatorRevenueTrackingEnabled();
     })();
 
     const wallet = await getWalletSnapshot(user.id);
+    const creatorFacing = isCreatorWalletRole(user.role)
+      ? await computeCreatorFacingBalances(user.id)
+      : null;
+
     const transactions = trackingEnabled
       ? await db.ledgerEntry.findMany({
-          where: { userId: user.id },
+          where: {
+            userId: user.id,
+            ...(creatorFacing
+              ? {
+                  transactionType: {
+                    in: [
+                      "creator_earnings",
+                      "withdrawal_hold",
+                      "withdrawal_completed",
+                      "withdrawal_declined",
+                      "withdrawal_released",
+                      "marketplace_vendor_release",
+                      "funding_deal_release",
+                      "sync_licensing_release",
+                    ],
+                  },
+                }
+              : {}),
+          },
           orderBy: { createdAt: "desc" },
           take: 100,
         })
@@ -47,7 +74,7 @@ export async function GET() {
 
     const payoutBanking = await resolvePayoutBankingForUser(user.id, user.role);
 
-    const maskedWallet =
+    let maskedWallet =
       trackingEnabled || !wallet
         ? wallet
         : {
@@ -69,12 +96,42 @@ export async function GET() {
             })),
           };
 
+    // Creators only see personal earnings — never platform treasury noise on the same userId.
+    if (maskedWallet && creatorFacing && trackingEnabled) {
+      maskedWallet = {
+        ...maskedWallet,
+        availableBalance: creatorFacing.availableBalance,
+        pendingBalance: creatorFacing.pendingBalance,
+        lockedBalance: creatorFacing.lockedBalance,
+        totalEarnings: creatorFacing.totalEarnings,
+        totalWithdrawn: creatorFacing.totalWithdrawn,
+        accounts: (maskedWallet.accounts ?? []).map((account: { accountType: string; balance: number }) => {
+          if (account.accountType === "AVAILABLE") {
+            return { ...account, balance: creatorFacing.availableBalance };
+          }
+          if (account.accountType === "PENDING") {
+            return { ...account, balance: creatorFacing.pendingBalance };
+          }
+          if (account.accountType === "LOCKED") {
+            return { ...account, balance: creatorFacing.lockedBalance };
+          }
+          // Hide treasury classification accounts from creator UI.
+          if (account.accountType === "PLATFORM_REVENUE" || account.accountType === "CREATOR_REVENUE") {
+            return { ...account, balance: 0 };
+          }
+          return account;
+        }),
+      };
+    }
+
     return NextResponse.json({
       wallet: maskedWallet,
       transactions,
       escrows,
       payoutBanking: payoutBanking ? maskPayoutBanking(payoutBanking) : null,
       revenueTrackingPaused: !trackingEnabled,
+      creatorFacingOnly: Boolean(creatorFacing),
+      treasuryContaminationHidden: Boolean(creatorFacing?.hasTreasuryContamination),
     });
   } catch (error: any) {
     if (error?.code === "P2021") {
@@ -173,7 +230,26 @@ export async function PATCH(req: NextRequest) {
   }
 
   const where: Record<string, unknown> = { userId: user.id };
-  if (body?.filters?.type) where.transactionType = body.filters.type;
+  if (isCreatorWalletRole(user.role)) {
+    if (body?.filters?.type && isCreatorFacingLedgerType(body.filters.type)) {
+      where.transactionType = body.filters.type;
+    } else {
+      where.transactionType = {
+        in: [
+          "creator_earnings",
+          "withdrawal_hold",
+          "withdrawal_completed",
+          "withdrawal_declined",
+          "withdrawal_released",
+          "marketplace_vendor_release",
+          "funding_deal_release",
+          "sync_licensing_release",
+        ],
+      };
+    }
+  } else if (body?.filters?.type) {
+    where.transactionType = body.filters.type;
+  }
   if (body?.filters?.status) where.status = body.filters.status;
   if (body?.filters?.from || body?.filters?.to) {
     where.createdAt = {

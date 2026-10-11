@@ -121,7 +121,15 @@ export async function requestPayoutHold(input: RequestPayoutHoldInput): Promise<
     where: { userId: input.userId },
     select: { id: true, availableBalance: true },
   });
-  const available = Number(locked?.availableBalance ?? 0);
+
+  // Creators may only withdraw personal earnings — never residual platform treasury postings.
+  let available = Number(locked?.availableBalance ?? 0);
+  if (role === "CONTENT_CREATOR" || role === "MUSIC_CREATOR") {
+    const { computeCreatorFacingBalances } = await import("@/lib/payments/creator-wallet-view");
+    const facing = await computeCreatorFacingBalances(input.userId);
+    available = facing.availableBalance;
+  }
+
   const amount =
     input.amount != null && Number.isFinite(Number(input.amount))
       ? Number(input.amount)
