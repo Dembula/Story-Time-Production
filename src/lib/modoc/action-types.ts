@@ -92,7 +92,8 @@ export type ModocActionType =
   | "delete_post_review"
   | "submit_support_ticket"
   | "lookup_support_ticket"
-  | "list_my_support_tickets";
+  | "list_my_support_tickets"
+  | "open_project_tool";
 
 export type ModocActionPayload = {
   projectId?: string;
@@ -165,6 +166,8 @@ export type ModocActionPayload = {
   sourceSurface?: string;
   sourcePath?: string;
   toolSlug?: string;
+  /** Optional deep link for open_project_tool (must start with /creator/). */
+  href?: string;
 };
 
 /** All actions the VA can execute — used for validation and prompts. */
@@ -263,6 +266,7 @@ export const MODOC_ACTION_TYPES: ModocActionType[] = [
   "submit_support_ticket",
   "lookup_support_ticket",
   "list_my_support_tickets",
+  "open_project_tool",
 ];
 
 const ACTION_ALIASES: Record<string, ModocActionType> = {
@@ -396,6 +400,13 @@ const ACTION_ALIASES: Record<string, ModocActionType> = {
   save_script: "update_script_content",
   append_script: "append_script_content",
   write_script: "update_script_content",
+
+  // Navigation (client opens the tool — assists, does not replace the creator)
+  navigate_to_tool: "open_project_tool",
+  open_tool: "open_project_tool",
+  go_to_tool: "open_project_tool",
+  take_me_to: "open_project_tool",
+  open_studio: "open_project_tool",
 
   // Budget CRUD
   edit_budget_line: "update_budget_line",

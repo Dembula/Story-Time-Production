@@ -468,6 +468,27 @@ export async function executeModocAction(
       return { ok: false, error: "Support ticket action failed", status: 500 };
     }
 
+    case "open_project_tool": {
+      const { resolveOpenProjectToolPath } = await import("./tool-workflow");
+      const resolved = resolveOpenProjectToolPath({
+        projectId: payload.projectId,
+        toolSlug: payload.toolSlug,
+        href: typeof payload.href === "string" ? payload.href : undefined,
+      });
+      if (!resolved) {
+        return {
+          ok: false,
+          error: "Need a project and tool (e.g. script-writing, storyboard, budget-builder).",
+          status: 400,
+        };
+      }
+      return {
+        ok: true,
+        message: `Opening ${resolved.label}…`,
+        data: { href: resolved.href, label: resolved.label, navigate: true },
+      };
+    }
+
     default: {
       const legalPost = await executeVaLegalPostAction(userId, action, payload);
       if (legalPost) return legalPost;

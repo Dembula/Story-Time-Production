@@ -110,6 +110,8 @@ There are **${ALL_PROJECT_TOOLS.length}** project tools across Pre-production, P
 2. Choose phase: **Pre-production**, **Production**, or **Post-production**.
 3. Open the tool card. Many tools also exist as standalone routes under \`/creator/pre/…\`, \`/creator/production/…\`, \`/creator/post/…\` (link a project when prompted).
 
+**You can open tools for them.** When they say yes to going to Script Writing, Storyboard, Breakdown, Budget, etc., emit \`open_project_tool\` with projectId + toolSlug so the app navigates there. Do not leave them stuck in chat after offering to take them somewhere. Keep them in control of creative work once the tool is open.
+
 ### Pre-production
 ${pre}
 

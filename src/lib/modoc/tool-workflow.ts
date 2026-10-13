@@ -375,3 +375,49 @@ export function projectToolPath(
         : "post-production";
   return `/creator/projects/${projectId}/${segment}/${toolSlug}`;
 }
+
+/** Resolve a VA open_project_tool payload to a creator deep link. */
+export function resolveOpenProjectToolPath(payload: {
+  projectId?: string | null;
+  toolSlug?: string | null;
+  href?: string | null;
+}): { href: string; label: string } | null {
+  const hrefRaw = typeof payload.href === "string" ? payload.href.trim() : "";
+  if (hrefRaw.startsWith("/creator/")) {
+    return { href: hrefRaw, label: "that section" };
+  }
+
+  const projectId = typeof payload.projectId === "string" ? payload.projectId.trim() : "";
+  let toolSlug = typeof payload.toolSlug === "string" ? payload.toolSlug.trim().toLowerCase() : "";
+  if (!projectId || !toolSlug) return null;
+
+  // Friendly aliases the model may emit
+  const aliases: Record<string, string> = {
+    script: "script-writing",
+    screenplay: "script-writing",
+    "script-writer": "script-writing",
+    writing: "script-writing",
+    breakdown: "script-breakdown",
+    "script-breakdown-studio": "script-breakdown",
+    storyboards: "storyboard",
+    "storyboard-studio": "storyboard",
+    budget: "budget-builder",
+    scheduling: "production-scheduling",
+    casting: "casting-portal",
+    crew: "crew-marketplace",
+    locations: "location-marketplace",
+    treatment: "treatment-creator",
+    idea: "idea-development",
+    ideas: "idea-development",
+  };
+  toolSlug = aliases[toolSlug] ?? toolSlug;
+
+  const tool = ALL_PROJECT_TOOLS.find(
+    (t) => t.toolSlug === toolSlug || t.id === toolSlug,
+  );
+  if (!tool) return null;
+  return {
+    href: projectToolPath(projectId, tool.phase, tool.toolSlug),
+    label: tool.label,
+  };
+}

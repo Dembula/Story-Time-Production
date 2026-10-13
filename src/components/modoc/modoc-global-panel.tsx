@@ -5,7 +5,8 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import Image from "next/image";
 import { useSession } from "next-auth/react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { resolveOpenProjectToolPath } from "@/lib/modoc/tool-workflow";
 import { AnimatePresence, motion } from "framer-motion";
 import { Send, X, Loader2, Sparkles, History, MessageSquarePlus, ChevronLeft, Trash2, ImagePlus } from "lucide-react";
 import { useModoc } from "./use-modoc";
@@ -83,9 +84,13 @@ function getMessageText(message: Parameters<typeof getModocMessageText>[0]): str
   return getModocMessageText(message);
 }
 
+const CREATOR_DEEP_LINK_RE =
+  /(\/browse\/content\/[a-z0-9_-]+|\/creator\/projects\/[a-zA-Z0-9_-]+\/(?:pre-production|production|post-production)\/[a-z0-9-]+|\/creator\/[a-z0-9/_-]+)/gi;
+
 export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { data: session } = useSession();
   const pathname = usePathname();
+  const router = useRouter();
   const role = (session?.user as { role?: string } | undefined)?.role;
   const profile = getModocRoleProfile(role);
   const {
@@ -409,6 +414,38 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
       setSafetySuggest(null);
       stickToBottomRef.current = true;
 
+      // Client-side navigation: open the studio/menu the creator asked for.
+      if (action === "open_project_tool") {
+        try {
+          const resolved = resolveOpenProjectToolPath({
+            projectId:
+              typeof resolvedPayload.projectId === "string" ? resolvedPayload.projectId : undefined,
+            toolSlug:
+              typeof resolvedPayload.toolSlug === "string" ? resolvedPayload.toolSlug : undefined,
+            href: typeof resolvedPayload.href === "string" ? resolvedPayload.href : undefined,
+          });
+          if (!resolved) {
+            const errorText =
+              "I need which project and tool to open (e.g. Script Writing or Storyboard).";
+            if (options?.viaChat) appendAssistantMessage(errorText);
+            else setActionMessage(errorText);
+            return;
+          }
+          setCompletedActionKeys((prev) => new Set(prev).add(key));
+          const successText = `Opening ${resolved.label} for you — you're in control once it's open.`;
+          if (options?.viaChat) appendAssistantMessage(`✓ ${successText}`);
+          else {
+            setActionMessage(`✓ ${successText}`);
+            window.setTimeout(() => setActionMessage(null), 8000);
+          }
+          handleClose();
+          router.push(resolved.href);
+        } finally {
+          setActionRunning(false);
+        }
+        return;
+      }
+
       try {
         const res = await fetch("/api/modoc/actions", {
           method: "POST",
@@ -449,7 +486,13 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
         } else {
           setCompletedActionKeys((prev) => new Set(prev).add(key));
           const successText = data.message ?? "Done.";
-          if (options?.viaChat) {
+          const navHref =
+            typeof data.data?.href === "string" && data.data.navigate ? data.data.href : null;
+          if (navHref) {
+            if (options?.viaChat) appendAssistantMessage(`✓ ${successText}`);
+            handleClose();
+            router.push(navHref);
+          } else if (options?.viaChat) {
             appendAssistantMessage(`✓ ${successText}`);
           } else {
             setActionMessage(`✓ ${successText}`);
@@ -481,7 +524,15 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
         setActionRunning(false);
       }
     },
-    [actionKey, appendAssistantMessage, completedActionKeys, conversationId, pathname],
+    [
+      actionKey,
+      appendAssistantMessage,
+      completedActionKeys,
+      conversationId,
+      pathname,
+      router,
+      handleClose,
+    ],
   );
 
   const sendChatAction = useCallback(
@@ -854,7 +905,7 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
                       }`}
                     >
                       <div className="whitespace-pre-wrap break-words">
-                        {displayText.split(/(\/browse\/content\/[a-z0-9]+)/gi).map((part, i) => {
+                        {displayText.split(CREATOR_DEEP_LINK_RE).map((part, i) => {
                           if (part.match(/^\/browse\/content\//i)) {
                             return (
                               <Link
@@ -864,6 +915,19 @@ export function ModocGlobalPanel({ open, onClose }: { open: boolean; onClose: ()
                                 onClick={handleClose}
                               >
                                 View title →
+                              </Link>
+                            );
+                          }
+                          if (part.match(/^\/creator\//i)) {
+                            const toolLabel = part.split("/").pop()?.replace(/-/g, " ") ?? "tool";
+                            return (
+                              <Link
+                                key={i}
+                                href={part}
+                                className="mt-1 inline-flex rounded-lg border border-orange-400/30 bg-orange-500/12 px-2 py-0.5 text-xs capitalize text-orange-200 hover:bg-orange-500/20"
+                                onClick={handleClose}
+                              >
+                                Open {toolLabel} →
                               </Link>
                             );
                           }
