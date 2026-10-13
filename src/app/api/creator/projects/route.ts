@@ -86,6 +86,7 @@ export async function GET() {
       footageAssetCount: 0,
       editReviewCount: 0,
       musicSelectionCount: 0,
+      storyboardFrameCount: 0,
       contentLinked: false,
     };
 

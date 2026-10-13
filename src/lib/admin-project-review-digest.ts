@@ -181,6 +181,7 @@ export async function buildAdminProjectReviewDigest(projectId: string) {
       footageAssetCount: 0,
       editReviewCount: 0,
       musicSelectionCount: 0,
+      storyboardFrameCount: 0,
       contentLinked: project.linkedCatalogueContent.length > 0,
     },
     hubToolsOnly: true,
