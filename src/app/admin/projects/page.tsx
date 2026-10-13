@@ -34,6 +34,7 @@ const EMPTY_SIGNALS: ProjectUsageSignals = {
   footageAssetCount: 0,
   editReviewCount: 0,
   musicSelectionCount: 0,
+  storyboardFrameCount: 0,
   contentLinked: false,
 };
 
