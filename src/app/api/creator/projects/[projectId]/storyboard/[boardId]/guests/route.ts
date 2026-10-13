@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { ensureProjectAccess } from "@/lib/project-access";
+import { ensureProjectAccess, projectAccessDenied } from "@/lib/project-access";
 import {
   durationLabel,
   expiresAtForDuration,
@@ -26,9 +26,7 @@ function absoluteInviteUrl(token: string, req: NextRequest): string {
 export async function GET(req: NextRequest, ctx: RouteCtx) {
   const { projectId, boardId } = await ctx.params;
   const access = await ensureProjectAccess(projectId);
-  if ("error" in access) {
-    return NextResponse.json({ error: access.error }, { status: access.status });
-  }
+  if (projectAccessDenied(access)) return access.error;
 
   const board = await db.storyboardBoard.findFirst({
     where: { id: boardId, projectId },
@@ -69,9 +67,7 @@ export async function GET(req: NextRequest, ctx: RouteCtx) {
 export async function POST(req: NextRequest, ctx: RouteCtx) {
   const { projectId, boardId } = await ctx.params;
   const access = await ensureProjectAccess(projectId);
-  if ("error" in access) {
-    return NextResponse.json({ error: access.error }, { status: access.status });
-  }
+  if (projectAccessDenied(access)) return access.error;
 
   const board = await db.storyboardBoard.findFirst({
     where: { id: boardId, projectId },
@@ -137,9 +133,7 @@ export async function POST(req: NextRequest, ctx: RouteCtx) {
 export async function DELETE(req: NextRequest, ctx: RouteCtx) {
   const { projectId, boardId } = await ctx.params;
   const access = await ensureProjectAccess(projectId);
-  if ("error" in access) {
-    return NextResponse.json({ error: access.error }, { status: access.status });
-  }
+  if (projectAccessDenied(access)) return access.error;
 
   const inviteId = req.nextUrl.searchParams.get("inviteId");
   if (!inviteId) {

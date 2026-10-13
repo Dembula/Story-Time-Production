@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { ensureProjectAccess } from "@/lib/project-access";
+import { ensureProjectAccess, projectAccessDenied } from "@/lib/project-access";
 import { reviseStoryboardPrompt } from "@/lib/storyboard/plan-shots";
 import {
   generateStoryboardImageWithFallback,
@@ -16,9 +16,7 @@ type RouteCtx = {
 export async function PATCH(req: NextRequest, ctx: RouteCtx) {
   const { projectId, boardId, frameId } = await ctx.params;
   const access = await ensureProjectAccess(projectId);
-  if ("error" in access) {
-    return NextResponse.json({ error: access.error }, { status: access.status });
-  }
+  if (projectAccessDenied(access)) return access.error;
 
   const frame = await db.storyboardFrame.findFirst({
     where: { id: frameId, boardId, projectId },
@@ -125,9 +123,7 @@ export async function PATCH(req: NextRequest, ctx: RouteCtx) {
 export async function DELETE(_req: NextRequest, ctx: RouteCtx) {
   const { projectId, boardId, frameId } = await ctx.params;
   const access = await ensureProjectAccess(projectId);
-  if ("error" in access) {
-    return NextResponse.json({ error: access.error }, { status: access.status });
-  }
+  if (projectAccessDenied(access)) return access.error;
 
   const existing = await db.storyboardFrame.findFirst({
     where: { id: frameId, boardId, projectId },

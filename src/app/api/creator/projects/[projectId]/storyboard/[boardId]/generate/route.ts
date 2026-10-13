@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { ensureProjectAccess } from "@/lib/project-access";
+import { ensureProjectAccess, projectAccessDenied } from "@/lib/project-access";
 import { planStoryboardShots } from "@/lib/storyboard/plan-shots";
 import {
   generateStoryboardImageWithFallback,
@@ -35,9 +35,7 @@ async function loadScriptExcerpt(scriptKey: string | null | undefined): Promise<
 export async function POST(req: NextRequest, ctx: RouteCtx) {
   const { projectId, boardId } = await ctx.params;
   const access = await ensureProjectAccess(projectId);
-  if ("error" in access) {
-    return NextResponse.json({ error: access.error }, { status: access.status });
-  }
+  if (projectAccessDenied(access)) return access.error;
 
   const board = await db.storyboardBoard.findFirst({
     where: { id: boardId, projectId },

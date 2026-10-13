@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { ensureProjectAccess } from "@/lib/project-access";
+import { ensureProjectAccess, projectAccessDenied } from "@/lib/project-access";
 
 const db = prisma as any;
 
@@ -19,9 +19,7 @@ async function loadBoard(projectId: string, boardId: string) {
 export async function GET(_req: NextRequest, ctx: RouteCtx) {
   const { projectId, boardId } = await ctx.params;
   const access = await ensureProjectAccess(projectId);
-  if ("error" in access) {
-    return NextResponse.json({ error: access.error }, { status: access.status });
-  }
+  if (projectAccessDenied(access)) return access.error;
 
   const board = await loadBoard(projectId, boardId);
   if (!board) return NextResponse.json({ error: "Board not found." }, { status: 404 });
@@ -31,9 +29,7 @@ export async function GET(_req: NextRequest, ctx: RouteCtx) {
 export async function PATCH(req: NextRequest, ctx: RouteCtx) {
   const { projectId, boardId } = await ctx.params;
   const access = await ensureProjectAccess(projectId);
-  if ("error" in access) {
-    return NextResponse.json({ error: access.error }, { status: access.status });
-  }
+  if (projectAccessDenied(access)) return access.error;
 
   const existing = await db.storyboardBoard.findFirst({
     where: { id: boardId, projectId },
@@ -94,9 +90,7 @@ export async function PATCH(req: NextRequest, ctx: RouteCtx) {
 export async function DELETE(_req: NextRequest, ctx: RouteCtx) {
   const { projectId, boardId } = await ctx.params;
   const access = await ensureProjectAccess(projectId);
-  if ("error" in access) {
-    return NextResponse.json({ error: access.error }, { status: access.status });
-  }
+  if (projectAccessDenied(access)) return access.error;
 
   const existing = await db.storyboardBoard.findFirst({
     where: { id: boardId, projectId },

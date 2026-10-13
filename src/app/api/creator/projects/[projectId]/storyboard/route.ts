@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { ensureProjectAccess } from "@/lib/project-access";
+import { ensureProjectAccess, projectAccessDenied } from "@/lib/project-access";
 
 const db = prisma as any;
 
@@ -9,9 +9,7 @@ type RouteCtx = { params: Promise<{ projectId: string }> };
 export async function GET(_req: NextRequest, ctx: RouteCtx) {
   const { projectId } = await ctx.params;
   const access = await ensureProjectAccess(projectId);
-  if ("error" in access) {
-    return NextResponse.json({ error: access.error }, { status: access.status });
-  }
+  if (projectAccessDenied(access)) return access.error;
 
   const boards = await db.storyboardBoard.findMany({
     where: { projectId },
@@ -46,9 +44,7 @@ export async function GET(_req: NextRequest, ctx: RouteCtx) {
 export async function POST(req: NextRequest, ctx: RouteCtx) {
   const { projectId } = await ctx.params;
   const access = await ensureProjectAccess(projectId);
-  if ("error" in access) {
-    return NextResponse.json({ error: access.error }, { status: access.status });
-  }
+  if (projectAccessDenied(access)) return access.error;
 
   const body = (await req.json().catch(() => null)) as
     | {
