@@ -164,22 +164,22 @@ Rules:
     try {
       const text = await chatComplete(model, system, user);
       const rows = extractJsonArray(text);
-      const shots: PlannedShot[] = rows
-        .map((row) => {
-          const r = row as Record<string, unknown>;
-          const sceneNumber = String(r.sceneNumber ?? "").trim();
-          const prompt = String(r.prompt ?? "").trim();
-          if (!sceneNumber || !prompt) return null;
-          return {
+      const shots: PlannedShot[] = rows.flatMap((row) => {
+        const r = row as Record<string, unknown>;
+        const sceneNumber = String(r.sceneNumber ?? "").trim();
+        const prompt = String(r.prompt ?? "").trim();
+        if (!sceneNumber || !prompt) return [];
+        return [
+          {
             sceneId: (r.sceneId as string | null | undefined) ?? null,
             sceneNumber,
             sceneHeading: String(r.sceneHeading ?? `Scene ${sceneNumber}`).trim(),
             shotLabel: String(r.shotLabel ?? `Scene ${sceneNumber}`).trim(),
             prompt,
             directorNotes: r.directorNotes ? String(r.directorNotes) : undefined,
-          } satisfies PlannedShot;
-        })
-        .filter((s): s is PlannedShot => Boolean(s));
+          } satisfies PlannedShot,
+        ];
+      });
 
       if (shots.length === 0) throw new Error("Planner returned zero valid shots.");
       return { shots, modelUsed: normalizeOpenRouterModelId(model) };
