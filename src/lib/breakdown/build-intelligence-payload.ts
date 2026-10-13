@@ -195,7 +195,7 @@ export async function buildBreakdownIntelligence(projectId: string): Promise<Bre
       {
         label: "Storyboard Studio",
         href: `${basePath}/storyboard`,
-        description: "AI shot frames from script scenes (Astra + image models)",
+        description: "AI shot frames from script scenes, with per-panel edits",
         status: hasStoryboards ? "ready" : breakdownStatus,
       },
       {

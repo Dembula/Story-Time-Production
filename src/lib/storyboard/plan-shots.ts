@@ -101,7 +101,7 @@ async function chatComplete(model: string, system: string, user: string): Promis
 }
 
 /**
- * Astra-first shot planner: reads scenes (+ optional script excerpt) and returns
+ * Shot planner: reads scenes (+ optional script excerpt) and returns
  * drawable storyboard prompts. Falls through the power model chain on failure.
  */
 export async function planStoryboardShots(args: {

@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Clapperboard,
   Loader2,
+  Maximize2,
   Plus,
   RefreshCw,
   Share2,
@@ -22,6 +23,7 @@ import {
   STORYBOARD_STYLE_PRESETS,
 } from "@/lib/storyboard/style-presets";
 import { StoryboardGuestInvitePanel } from "@/components/storyboard/storyboard-guest-invite-panel";
+import { StoryboardPresenter } from "@/components/storyboard/storyboard-presenter";
 import { cn } from "@/lib/utils";
 
 type Frame = {
@@ -80,6 +82,7 @@ export function StoryboardStudio({
   const [newScriptKey, setNewScriptKey] = useState("");
   const [shotsPerScene, setShotsPerScene] = useState(1);
   const [error, setError] = useState<string | null>(null);
+  const [presenting, setPresenting] = useState(false);
 
   const hasProject = Boolean(projectId);
 
@@ -270,8 +273,8 @@ export function StoryboardStudio({
           <p className="text-xs uppercase tracking-[0.2em] text-orange-400/80">Pre-production</p>
           <h1 className="mt-1 text-2xl font-semibold text-white">{title}</h1>
           <p className="mt-1 max-w-2xl text-sm text-slate-400">
-            Astra plans each shot from your script; strong image models draw the frames. Edit any
-            panel with AI, reorder boards, and share timed view-only guest links.
+            Generate shot-by-shot frames from your script, ask VA to refine any panel, present in
+            fullscreen, and share timed view-only guest links.
           </p>
           <div className="mt-3 flex flex-wrap gap-2 text-xs">
             <Link
@@ -398,8 +401,17 @@ export function StoryboardStudio({
                     ) : (
                       <Sparkles className="h-4 w-4" />
                     )}
-                    {frames.length > 0 ? "Regenerate board" : "Generate with Astra"}
+                    {frames.length > 0 ? "Regenerate" : "Generate"}
                   </button>
+                  {frames.length > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => setPresenting(true)}
+                      className="inline-flex items-center gap-2 rounded-xl border border-slate-600 px-3 py-2 text-sm text-slate-200 hover:border-orange-500/40"
+                    >
+                      <Maximize2 className="h-4 w-4" /> Present
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     disabled={busy}
@@ -420,8 +432,8 @@ export function StoryboardStudio({
                   <Wand2 className="mb-3 h-8 w-8 text-orange-400/70" />
                   <p className="text-sm text-slate-300">Ready to draw your film.</p>
                   <p className="mt-1 max-w-md text-xs text-slate-500">
-                    Astra reads project scenes from Breakdown, plans shots, and image models render
-                    each panel. Sync scenes first if this project has none.
+                    Generate pulls scenes from Breakdown, plans shots, and renders each panel. Sync
+                    scenes first if this project has none.
                   </p>
                 </div>
               ) : (
@@ -531,7 +543,7 @@ export function StoryboardStudio({
                 </p>
               </div>
               <label className="block space-y-1.5">
-                <span className="text-xs font-medium text-slate-300">Ask Astra to edit this shot</span>
+                <span className="text-xs font-medium text-slate-300">Ask VA to edit this shot</span>
                 <textarea
                   value={editInstruction}
                   onChange={(e) => setEditInstruction(e.target.value)}
@@ -557,7 +569,7 @@ export function StoryboardStudio({
                   ) : (
                     <Wand2 className="h-4 w-4" />
                   )}
-                  Apply AI edit
+                  Apply edit
                 </button>
                 <button
                   type="button"
@@ -678,6 +690,19 @@ export function StoryboardStudio({
           boardId={selectedBoard.id}
           open={inviteOpen}
           onClose={() => setInviteOpen(false)}
+        />
+      ) : null}
+
+      {presenting && selectedBoard && frames.length > 0 ? (
+        <StoryboardPresenter
+          title={selectedBoard.title}
+          subtitle={selectedBoard.scriptLabel || selectedBoard.stylePreset}
+          frames={frames}
+          initialIndex={Math.max(
+            0,
+            frames.findIndex((f) => f.id === selectedFrame?.id),
+          )}
+          onClose={() => setPresenting(false)}
         />
       ) : null}
     </div>

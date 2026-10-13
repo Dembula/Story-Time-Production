@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Clapperboard, Loader2 } from "lucide-react";
+import { Clapperboard, Loader2, Maximize2 } from "lucide-react";
+import { StoryboardPresenter } from "@/components/storyboard/storyboard-presenter";
 
 type Preview = {
   boardTitle: string;
@@ -17,6 +18,7 @@ export function StoryboardGuestStudio({ token }: { token: string }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [joined, setJoined] = useState(false);
+  const [presenting, setPresenting] = useState(false);
 
   const previewQuery = useQuery({
     queryKey: ["storyboard-guest-preview", token],
@@ -76,12 +78,23 @@ export function StoryboardGuestStudio({ token }: { token: string }) {
   if (session?.board) {
     return (
       <main className="mx-auto min-h-screen max-w-6xl space-y-6 bg-[#0b0b0c] px-4 py-8 text-slate-100">
-        <header className="space-y-1">
-          <p className="text-xs uppercase tracking-[0.2em] text-orange-400/80">Guest storyboard</p>
-          <h1 className="text-2xl font-semibold text-white">{session.board.title}</h1>
-          <p className="text-sm text-slate-400">
-            {session.board.projectTitle} · viewing as {session.guestName} · view only
-          </p>
+        <header className="flex flex-wrap items-start justify-between gap-4">
+          <div className="space-y-1">
+            <p className="text-xs uppercase tracking-[0.2em] text-orange-400/80">Guest storyboard</p>
+            <h1 className="text-2xl font-semibold text-white">{session.board.title}</h1>
+            <p className="text-sm text-slate-400">
+              {session.board.projectTitle} · viewing as {session.guestName} · view only
+            </p>
+          </div>
+          {session.board.frames.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => setPresenting(true)}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-600 px-4 py-2 text-sm text-slate-200 hover:border-orange-500/40"
+            >
+              <Maximize2 className="h-4 w-4" /> Present
+            </button>
+          ) : null}
         </header>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {session.board.frames.map((frame) => (
@@ -109,6 +122,15 @@ export function StoryboardGuestStudio({ token }: { token: string }) {
             </article>
           ))}
         </div>
+
+        {presenting ? (
+          <StoryboardPresenter
+            title={session.board.title}
+            subtitle={session.board.projectTitle}
+            frames={session.board.frames}
+            onClose={() => setPresenting(false)}
+          />
+        ) : null}
       </main>
     );
   }

@@ -6,7 +6,7 @@ import { createContentMediaS3Client } from "@/lib/content-media-s3";
 import { buildUserScopedUploadKey } from "@/lib/content-media-shared";
 import { normalizeOpenRouterModelId, resolveModelChain } from "@/lib/modoc/openrouter-models";
 
-/** Strong OpenRouter image models — Astra plans prompts; these draw the frames. */
+/** Strong OpenRouter image models used to draw storyboard frames. */
 export const STORYBOARD_IMAGE_DEFAULT_MODELS = [
   "openai/gpt-image-2.5-sunburst",
   "openai/gpt-image-2",
